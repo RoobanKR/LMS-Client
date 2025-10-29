@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import {
   X,
   Play,
@@ -10,7 +10,6 @@ import {
   Maximize,
   Minimize,
   Settings,
-  Clock,
   ListVideo,
   FileText,
   Sparkles,
@@ -105,7 +104,7 @@ export default function VideoPlayer({
   const videoRef = useRef<HTMLVideoElement>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const playerRef = useRef<HTMLDivElement>(null)
-const controlsTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  const controlsTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
   // Check if URL is streaming and set up embed URL
   useEffect(() => {
@@ -136,7 +135,7 @@ const controlsTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   }
 
   // Video event handlers - only for direct video files
-  const handlePlayPause = () => {
+  const handlePlayPause = useCallback(() => {
     if (isStreaming) return; // Cannot control streaming videos
     
     if (videoRef.current) {
@@ -147,18 +146,18 @@ const controlsTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
       }
       setIsPlaying(!isPlaying)
     }
-  }
+  }, [isStreaming, isPlaying])
 
-  const handleSeek = (time: number) => {
+  const handleSeek = useCallback((time: number) => {
     if (isStreaming) return; // Cannot control streaming videos
     
     if (videoRef.current) {
       videoRef.current.currentTime = time
       setCurrentTime(time)
     }
-  }
+  }, [isStreaming])
 
-  const handleVolumeChange = (value: number) => {
+  const handleVolumeChange = useCallback((value: number) => {
     if (isStreaming) return; // Cannot control streaming videos
     
     if (videoRef.current) {
@@ -166,27 +165,27 @@ const controlsTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
       setVolume(value)
       setIsMuted(value === 0)
     }
-  }
+  }, [isStreaming])
 
-  const handleToggleMute = () => {
+  const handleToggleMute = useCallback(() => {
     if (isStreaming) return; // Cannot control streaming videos
     
     if (videoRef.current) {
       videoRef.current.muted = !isMuted
       setIsMuted(!isMuted)
     }
-  }
+  }, [isStreaming, isMuted])
 
-  const handlePlaybackRateChange = (rate: number) => {
+  const handlePlaybackRateChange = useCallback((rate: number) => {
     if (isStreaming) return; // Cannot control streaming videos
     
     if (videoRef.current) {
       videoRef.current.playbackRate = rate
       setPlaybackRate(rate)
     }
-  }
+  }, [isStreaming])
 
-  const handleFullscreen = async () => {
+  const handleFullscreen = useCallback(async () => {
     if (!playerRef.current) return
 
     try {
@@ -199,56 +198,56 @@ const controlsTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
     } catch (error) {
       console.error('Fullscreen error:', error)
     }
-  }
+  }, [isFullscreen])
 
-  const handleTimeUpdate = () => {
+  const handleTimeUpdate = useCallback(() => {
     if (isStreaming) return; // Cannot get time updates from streaming
     
     if (videoRef.current) {
       setCurrentTime(videoRef.current.currentTime)
     }
-  }
+  }, [isStreaming])
 
-  const handleLoadedMetadata = () => {
+  const handleLoadedMetadata = useCallback(() => {
     if (isStreaming) return; // Cannot get metadata from streaming
     
     if (videoRef.current) {
       setDuration(videoRef.current.duration)
     }
-  }
+  }, [isStreaming])
 
-  const handleEnded = () => {
+  const handleEnded = useCallback(() => {
     if (isStreaming) return; // Cannot detect end from streaming
     
     setIsPlaying(false)
     if (hasNext) {
       onNext()
     }
-  }
+  }, [isStreaming, hasNext, onNext])
 
   // Simple panel handlers
-  const handleVideoListClick = () => {
+  const handleVideoListClick = useCallback(() => {
     setVideoListOpen(!videoListOpen)
-  }
+  }, [videoListOpen])
 
-  const handleNotesClick = () => {
+  const handleNotesClick = useCallback(() => {
     setNotesOpen(!notesOpen)
-  }
+  }, [notesOpen])
 
-  const handleAIClick = () => {
+  const handleAIClick = useCallback(() => {
     setAiOpen(!aiOpen)
-  }
+  }, [])
 
-  const handleCloseVideoList = () => {
+  const handleCloseVideoList = useCallback(() => {
     setVideoListOpen(false)
-  }
+  }, [])
 
-  const handleClosePlayer = () => {
+  const handleClosePlayer = useCallback(() => {
     onClose()
-  }
+  }, [onClose])
 
   // Controls visibility
-  const showControlsTemporarily = () => {
+  const showControlsTemporarily = useCallback(() => {
     setShowControls(true)
     if (controlsTimeoutRef.current) {
       clearTimeout(controlsTimeoutRef.current)
@@ -256,7 +255,7 @@ const controlsTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
     controlsTimeoutRef.current = setTimeout(() => {
       if (isPlaying && !isStreaming) setShowControls(false)
     }, 3000)
-  }
+  }, [isPlaying, isStreaming])
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -310,7 +309,22 @@ const controlsTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
     document.addEventListener('keydown', handleKeyPress)
     return () => document.removeEventListener('keydown', handleKeyPress)
-  }, [isOpen, isPlaying, currentTime, duration, videoListOpen, notesOpen, aiOpen, isFullscreen, isStreaming])
+  }, [
+    isOpen, 
+    isPlaying, 
+    currentTime, 
+    duration, 
+    videoListOpen, 
+    notesOpen, 
+    aiOpen, 
+    isFullscreen, 
+    isStreaming,
+    handlePlayPause,
+    handleFullscreen,
+    handleToggleMute,
+    handleSeek,
+    onClose
+  ])
 
   // Fullscreen change listener
   useEffect(() => {

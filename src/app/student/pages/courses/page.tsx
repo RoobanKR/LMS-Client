@@ -4,18 +4,18 @@ import { BookOpen, Clock, Users, Play, ChevronRight, Search, Loader2 } from 'luc
 import { StudentLayout } from '../../component/student-layout'
 import { useRouter } from "next/navigation";
 import Breadcrumbs from '../../component/brudcrums';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, type Variants } from 'framer-motion';
 import { 
   useCoursesInfiniteQuery, 
   useFilteredCourses, 
   getAuthToken,
   Course 
 } from '../.../../../../../apiServices/studentcoursepage';
+import Image from 'next/image';
 
 // Get categories from service types dynamically or use a fixed list
 const defaultCategories = ["All", "Web Development", "Data Science", "Mobile Development", "Design", "Cloud Computing", "Marketing", "Security"];
 
-const levels = ["All", "Beginner", "Intermediate", "Advanced"];
 
 // Animation variants
 const containerVariants = {
@@ -29,7 +29,7 @@ const containerVariants = {
   }
 };
 
-const cardVariants = {
+const cardVariants: Variants = {
   hidden: { 
     opacity: 0, 
     y: 20,
@@ -40,7 +40,7 @@ const cardVariants = {
     y: 0,
     scale: 1,
     transition: {
-      type: "spring",
+      type: "spring" as const,
       stiffness: 100,
       damping: 15,
       duration: 0.6
@@ -54,7 +54,7 @@ const headerVariants = {
     opacity: 1, 
     y: 0,
     transition: { 
-      type: "spring",
+      type: "spring" as const,
       stiffness: 120,
       damping: 20
     }
@@ -67,7 +67,7 @@ const filterVariants = {
     opacity: 1, 
     x: 0,
     transition: { 
-      type: "spring",
+      type: "spring" as const,
       stiffness: 100,
       damping: 20
     }
@@ -77,7 +77,6 @@ const filterVariants = {
 export default function CoursesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
-  const [selectedLevel, setSelectedLevel] = useState("All");
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [categories, setCategories] = useState<string[]>(defaultCategories);
   const [currentTheme, setCurrentTheme] = useState<'light' | 'dark'>('light');
@@ -417,7 +416,7 @@ export default function CoursesPage() {
                       animate="visible"
                       key="courses"
                     >
-                      {filteredCourses.map((course: Course, index: number) => (
+                      {filteredCourses.map((course: Course) => (
                         <motion.div 
                           key={course._id} 
                           className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-lg dark:hover:shadow-xl transition-all duration-300 overflow-hidden group cursor-pointer course-card"
@@ -433,14 +432,16 @@ export default function CoursesPage() {
                         >
                           {/* Course Image */}
                           <div className="relative h-28 overflow-hidden">
-                            <img
-                              src={course.courseImage || "https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=300&h=150&fit=crop&auto=format"}
-                              alt={course.courseName}
-                              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                              onError={(e) => {
-                                e.currentTarget.src = "https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=300&h=150&fit=crop&auto=format";
-                              }}
-                            />
+                          <Image
+  src={course.courseImage || "https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=300&h=150&fit=crop&auto=format"}
+  alt={course.courseName}
+  width={300}
+  height={150}
+  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+  onError={(e) => {
+    e.currentTarget.src = "https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=300&h=150&fit=crop&auto=format";
+  }}
+/>
                             <div className="absolute top-1.5 left-1.5">
                               <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded-full ${
                                 course.courseLevel === 'Beginner' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' :
@@ -533,10 +534,9 @@ export default function CoursesPage() {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                       >
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          You've reached the end of the course list
-                        </p>
-                      </motion.div>
+<p className="text-xs text-gray-500 dark:text-gray-400">
+  You&apos;ve reached the end of the course list
+</p>                      </motion.div>
                     )}
                   </>
                 )}

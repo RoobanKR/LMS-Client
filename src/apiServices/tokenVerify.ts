@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'https://lms-server-ym1q.onrender.com';
+const API_BASE_URL = 'http://localhost:5533';
 
 export const verifyToken = async (token: string) => {
   const response = await axios.post(`${API_BASE_URL}/user/verify-token`, {}, {

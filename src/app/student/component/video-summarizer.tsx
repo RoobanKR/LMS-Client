@@ -16,11 +16,13 @@ interface SummarySection {
   timestamp?: string
 }
 
+type SummaryType = "brief" | "detailed" | "keypoints"
+
 export function VideoSummarizer({ isOpen, onClose, videoTitle, videoUrl, videoDuration }: VideoSummarizerProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [summary, setSummary] = useState<SummarySection[]>([])
   const [error, setError] = useState<string | null>(null)
-  const [summaryType, setSummaryType] = useState<"brief" | "detailed" | "keypoints">("brief")
+  const [summaryType, setSummaryType] = useState<SummaryType>("brief")
 
   const generateSummary = async () => {
     setIsLoading(true)
@@ -47,7 +49,7 @@ export function VideoSummarizer({ isOpen, onClose, videoTitle, videoUrl, videoDu
 
       const data = await response.json()
       setSummary(data.summary)
-    } catch (err) {
+    } catch {
       // For demo purposes, generate a mock summary
       console.log("Using mock summary for demo")
       const mockSummary = generateMockSummary(summaryType)
@@ -57,7 +59,7 @@ export function VideoSummarizer({ isOpen, onClose, videoTitle, videoUrl, videoDu
     }
   }
 
-  const generateMockSummary = (type: string): SummarySection[] => {
+  const generateMockSummary = (type: SummaryType): SummarySection[] => {
     const baseSummary = [
       {
         title: "Overview",
@@ -162,7 +164,7 @@ export function VideoSummarizer({ isOpen, onClose, videoTitle, videoUrl, videoDu
               ].map((option) => (
                 <button
                   key={option.value}
-                  onClick={() => setSummaryType(option.value as any)}
+                  onClick={() => setSummaryType(option.value as SummaryType)}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                     summaryType === option.value
                       ? "bg-blue-100 text-blue-700 border border-blue-200"

@@ -7,7 +7,7 @@ const modelMap = {
   subtopic: { path: "subtopics" },
 };
  
-const BASE_URL = "https://lms-server-ym1q.onrender.com";
+const BASE_URL = "http://localhost:5533";
  
 export const entityApi = {
   updateEntity: async (

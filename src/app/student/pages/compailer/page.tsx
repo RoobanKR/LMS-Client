@@ -43,6 +43,11 @@ import { defaultKeymap, history, historyKeymap } from "@codemirror/commands"
 // Animation imports
 import { motion, AnimatePresence } from "framer-motion"
 
+interface Submission {
+  language: string;
+  [key: string]: unknown; // for other dynamic properties
+}
+
 // Piston API Language mapping
 const LANGUAGES = {
   javascript: {
@@ -484,15 +489,7 @@ const slideIn = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.3 } }
 }
 
-const slideUp = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.4 } }
-}
 
-const scaleIn = {
-  hidden: { opacity: 0, scale: 0.9 },
-  visible: { opacity: 1, scale: 1, transition: { duration: 0.3 } }
-}
 
 const pulse = {
   pulse: { scale: [1, 1.02, 1], transition: { duration: 1, repeat: Infinity } }
@@ -521,7 +518,7 @@ export default function CodeCompiler() {
   const [activeTab, setActiveTab] = useState<"output" | "problems">("output")
   const [problems, setProblems] = useState<string[]>([])
   const [currentInput, setCurrentInput] = useState("")
-  const [showInlineInput, setShowInlineInput] = useState(false)
+  const [, setShowInlineInput] = useState(false)
   const [interactiveExecution, setInteractiveExecution] = useState<InteractiveExecution>({
     isWaitingForInput: false,
     currentPrompt: "",
@@ -541,7 +538,6 @@ export default function CodeCompiler() {
 
   const editorRef = useRef<HTMLDivElement>(null)
   const editorViewRef = useRef<EditorView | null>(null)
-  const outputEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const outputContainerRef = useRef<HTMLDivElement>(null)
 
@@ -1046,7 +1042,7 @@ export default function CodeCompiler() {
     setSaveStatus({ type: null, message: "" })
 
     try {
-      const response = await fetch("https://lms-server-ym1q.onrender.com/save/compiler", {
+      const response = await fetch("http://localhost:5533/save/compiler", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${localStorage.getItem("smartcliff_token") || ""}`,
@@ -1067,12 +1063,12 @@ export default function CodeCompiler() {
       } else {
         setSaveStatus({ type: "error", message: data.message?.[0]?.value || "Failed to save code" })
       }
-    } catch (error) {
-      setSaveStatus({ type: "error", message: "Network error. Please try again." })
-    } finally {
-      setIsSaving(false)
-    }
-  }
+} catch (error) {
+  const errorMessage = error instanceof Error ? error.message : "Network error. Please try again."
+  setSaveStatus({ type: "error", message: errorMessage })
+} finally {
+  setIsSaving(false)
+}  }
 
   const loadUserCode = async () => {
     if (!userId) {
@@ -1086,7 +1082,7 @@ export default function CodeCompiler() {
     }
 
     try {
-      const response = await fetch(`https://lms-server-ym1q.onrender.com/get/compiler/${userId}/${courseId}`, {
+      const response = await fetch(`http://localhost:5533/get/compiler/${userId}/${courseId}`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("smartcliff_token") || ""}`,
           "Content-Type": "application/json",
@@ -1102,17 +1098,14 @@ export default function CodeCompiler() {
           return
         }
 
-        console.log("[v0] Selected language:", selectedLanguage)
-        console.log(
-          "[v0] Available submissions:",
-          submissions.map((s: any) => ({ language: s.language, hasCode: !!s.code })),
-        )
 
-        const submission = submissions.find((s: any) => s.language.toLowerCase() === selectedLanguage.toLowerCase())
+const submission = submissions.find((s: Submission) => 
+  s.language.toLowerCase() === selectedLanguage.toLowerCase()
+)
 
         if (!submission) {
           const languageName = LANGUAGES[selectedLanguage]?.name || selectedLanguage
-          const availableLanguages = submissions.map((s: any) => s.language).join(", ")
+          const availableLanguages = submissions.map((s: Submission) => s.language).join(", ")
           setSaveStatus({
             type: "error",
             message: `No ${languageName} code found for this course. Available languages: ${availableLanguages}`,
@@ -1140,10 +1133,10 @@ export default function CodeCompiler() {
       } else {
         setSaveStatus({ type: "error", message: data.message?.[0]?.value || "No saved code found" })
       }
-    } catch (error) {
-      setSaveStatus({ type: "error", message: "Failed to load code" })
-    }
-  }
+} catch (error) {
+  const errorMessage = error instanceof Error ? error.message : "Failed to load code"
+  setSaveStatus({ type: "error", message: errorMessage })
+}  }
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-background dark:bg-gray-900">
@@ -1446,7 +1439,7 @@ export default function CodeCompiler() {
                           variants={fadeIn}
                           className="text-muted-foreground italic space-y-2"
                         >
-                          <div>Click 'Run Code' to execute your program...</div>
+                          <div>Click Run Code to execute your program...</div>
                           <div className="text-xs space-y-1">
                             <div>💡 Interactive programs support all languages</div>
                             <div>🔄 Each input call will wait for your input</div>

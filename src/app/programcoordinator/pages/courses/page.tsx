@@ -763,17 +763,17 @@ export default function CourseStructurePage() {
                             {/* Table Section */}
                             <div className="bg-white  overflow-hidden w-full ">
                                 <UserTable
-                                    users={paginatedData}
-                                    isLoading={isLoading}
-                                    columns={columns}
-                                    pagination={{
-                                        currentPage: currentPage,
-                                        totalPages: Math.ceil(filteredStructures.length / itemsPerPage),
-                                        totalItems: filteredStructures.length,
-                                        itemsPerPage: itemsPerPage,
-                                        onPageChange: (page) => setCurrentPage(page),
-                                    }}
-                                />
+                                        users={paginatedData}
+                                        isLoading={isLoading}
+                                        columns={columns as any}
+                                        pagination={{
+                                            currentPage: currentPage,
+                                            totalPages: Math.ceil(filteredStructures.length / itemsPerPage),
+                                            totalItems: filteredStructures.length,
+                                            itemsPerPage: itemsPerPage,
+                                            onPageChange: (page) => setCurrentPage(page),
+                                        }}
+                                    />
                             </div>
                         </div>
                     </div>
