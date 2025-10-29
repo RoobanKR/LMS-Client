@@ -38,7 +38,7 @@ const fetchCourses = async (token: string, page: number = 1, limit: number = 8):
     throw new Error("Authentication token not found");
   }
 
-  const response = await fetch(`http://localhost:5533/courses-structure/getAll?page=${page}&limit=${limit}`, {
+  const response = await fetch(`https://lms-server-ym1q.onrender.com/courses-structure/getAll?page=${page}&limit=${limit}`, {
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json'
