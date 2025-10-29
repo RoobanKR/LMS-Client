@@ -64,7 +64,7 @@ const SmartCliffLogin = () => {
 
   const loginMutation = useMutation({
     mutationFn: async (credentials: { email: string; password: string }) => {
-      const response = await fetch("http://localhost:5533/user/login", {
+      const response = await fetch("https://lms-server-ym1q.onrender.com/user/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -93,7 +93,7 @@ const SmartCliffLogin = () => {
         localStorage.setItem("smartcliff_userId", userId);
 
         const verifyResponse = await fetch(
-          "http://localhost:5533/user/verify-token",
+          "https://lms-server-ym1q.onrender.com/user/verify-token",
           {
             method: "POST",
             headers: {

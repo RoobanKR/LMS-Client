@@ -1178,7 +1178,7 @@ export default function LMSPage() {
         setLoading(true);
         setError(null);
 
-        const url = `http://localhost:5533/getAll/courses-data/${courseId}`;
+        const url = `https://lms-server-ym1q.onrender.com/getAll/courses-data/${courseId}`;
         console.log("Fetching from URL:", url);
 
         const response = await fetch(url);
