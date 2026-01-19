@@ -2,7 +2,7 @@
 import axios from 'axios';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
-const API_BASE_URL = 'http://localhost:5533';
+const API_BASE_URL = 'https://lms-client-jade-three.vercel.app';
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,

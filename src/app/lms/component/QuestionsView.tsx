@@ -78,7 +78,7 @@ interface Question {
   attempts?: number;
 }
 
-const API_BASE_URL = 'http://localhost:5533';
+const API_BASE_URL = 'https://lms-client-jade-three.vercel.app';
 
 const Questions: React.FC<QuestionsProps> = ({ exercise, nodeId, nodeName, subcategory, nodeType, tabType, onBack }) => {
   // --- State ---

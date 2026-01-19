@@ -48,7 +48,7 @@ interface NavigationStep {
     label: string;
 }
 
-const BACKEND_API_URL = "http://localhost:5533";
+const BACKEND_API_URL = "https://lms-client-jade-three.vercel.app";
 
 export default function SummaryChat({ isOpen, onClose, context }: SummaryChatProps) {
     const [messages, setMessages] = useState<Message[]>([])

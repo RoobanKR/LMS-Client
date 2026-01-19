@@ -186,7 +186,7 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
 
       try {
         const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
-        const response = await axios.get('http://localhost:5533/exercise/status', {
+        const response = await axios.get('https://lms-client-jade-three.vercel.app/exercise/status', {
           params: { courseId, exerciseId, category, subcategory },
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -332,7 +332,7 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
 
     try {
       const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
-      const response = await axios.get('http://localhost:5533/courses/answers/single', {
+      const response = await axios.get('https://lms-client-jade-three.vercel.app/courses/answers/single', {
         params: { courseId, exerciseId, questionId: qId, category, subcategory },
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -395,7 +395,7 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
       };
 
       const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
-      await axios.post('http://localhost:5533/courses/answers/submit', payload, {
+      await axios.post('https://lms-client-jade-three.vercel.app/courses/answers/submit', payload, {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
       });
 
@@ -438,7 +438,7 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
     // 3. Call Backend to Lock Exercise (Persist Status)
     try {
        const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
-       await axios.post('http://localhost:5533/exercise/lock', {
+       await axios.post('https://lms-client-jade-three.vercel.app/exercise/lock', {
          courseId, 
          exerciseId,
          category, 

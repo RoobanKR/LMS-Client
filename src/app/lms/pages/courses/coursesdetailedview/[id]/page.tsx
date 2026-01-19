@@ -874,7 +874,7 @@ export default function LMSPage() {
       }
 
       try {
-        const url = `http://localhost:5533/getAll/courses-data/${courseId}`;
+        const url = `https://lms-client-jade-three.vercel.app/getAll/courses-data/${courseId}`;
         const response = await fetch(url);
 
         if (!response.ok) {
@@ -1620,7 +1620,7 @@ export default function LMSPage() {
       // Call the status endpoint we just created
      // CORRECT
 const response = await fetch(
-  `http://localhost:5533/exercise/status?courseId=${mainCourseId}&exerciseId=${currentExerciseId}&category=${categoryParam}&subcategory=${currentSubcategory}`, 
+  `https://lms-client-jade-three.vercel.app/exercise/status?courseId=${mainCourseId}&exerciseId=${currentExerciseId}&category=${categoryParam}&subcategory=${currentSubcategory}`, 
   {
     headers: { 
       'Authorization': `Bearer ${token}`,

@@ -301,7 +301,7 @@ export default function ExerciseAnalytics() {
   const fetchCourseData = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`http://localhost:5533/getAll/courses-data/${courseId}`);
+      const response = await fetch(`https://lms-client-jade-three.vercel.app/getAll/courses-data/${courseId}`);
       const result = await response.json();
 
       if (result.success && result.data) {

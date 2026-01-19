@@ -246,7 +246,7 @@ export default function CodeEditor({
             if (!isAssessmentMode || !courseId || !exercise?._id) return;
             try {
                 const token = localStorage.getItem('smartcliff_token') || '';
-                const response = await axios.get('http://localhost:5533/exercise/status', {
+                const response = await axios.get('https://lms-client-jade-three.vercel.app/exercise/status', {
                     params: { courseId, exerciseId: exercise._id, category, subcategory },
                     headers: { Authorization: `Bearer ${token}` }
                 });
@@ -271,7 +271,7 @@ export default function CodeEditor({
             if(!currentQuestion || !courseId) return;
             try {
                 const token = localStorage.getItem('smartcliff_token') || '';
-                const res = await axios.get(`http://localhost:5533/courses/answers/single`, {
+                const res = await axios.get(`https://lms-client-jade-three.vercel.app/courses/answers/single`, {
                     params: { courseId, exerciseId: exercise?._id, questionId: currentQuestion._id, category, subcategory },
                     headers: { Authorization: `Bearer ${token}` }
                 });
@@ -324,7 +324,7 @@ export default function CodeEditor({
 
         try {
             const token = localStorage.getItem('smartcliff_token') || '';
-            await axios.post('http://localhost:5533/exercise/lock', {
+            await axios.post('https://lms-client-jade-three.vercel.app/exercise/lock', {
                 courseId, exerciseId: exercise?._id, category, subcategory,
                 status: 'terminated', reason
             }, { headers: { Authorization: `Bearer ${token}` } });
@@ -539,7 +539,7 @@ export default function CodeEditor({
 
             // C. BACKEND SUBMISSION
             const token = localStorage.getItem('smartcliff_token') || '';
-            await axios.post('http://localhost:5533/courses/answers/submit', {
+            await axios.post('https://lms-client-jade-three.vercel.app/courses/answers/submit', {
                 courseId, exerciseId: exercise?._id, questionId: currentQuestion._id,
                 code, language: selectedLanguage,
                 status: isSuccess ? 'solved' : 'attempted',

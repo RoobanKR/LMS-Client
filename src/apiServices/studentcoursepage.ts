@@ -90,7 +90,7 @@ const fetchCourses = async (
   }
 
   const response = await fetch(
-    `http://localhost:5533/courses-structure/getAll`,
+    `https://lms-client-jade-three.vercel.app/courses-structure/getAll`,
     {
       headers: {
         Authorization: `Bearer ${token}`,

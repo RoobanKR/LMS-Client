@@ -1,7 +1,7 @@
 // clientService.ts - Enhanced with caching and real-time updates
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:5533';
+const API_BASE_URL = 'https://lms-client-jade-three.vercel.app';
 
 // Configure axios instance with auth token
 const apiClient = axios.create({

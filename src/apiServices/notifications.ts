@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
 
-const API_BASE_URL = 'http://localhost:5533';
+const API_BASE_URL = 'https://lms-client-jade-three.vercel.app';
 
 interface EnrolledByInfo {
   id: string;

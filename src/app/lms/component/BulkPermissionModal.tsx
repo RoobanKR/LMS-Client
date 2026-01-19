@@ -782,7 +782,7 @@ export function BulkPermissionModal({ isOpen, onClose, availableUsers, roles, ba
   // Bulk update mutation
   const bulkUpdateMutation = useMutation({
     mutationFn: async (userPermissions: { userId: string, permissions: any[] }[]) => {
-      const response = await fetch('http://localhost:5533/user-permission/bulk-update', {
+      const response = await fetch('https://lms-client-jade-three.vercel.app/user-permission/bulk-update', {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,

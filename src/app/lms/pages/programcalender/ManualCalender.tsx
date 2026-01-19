@@ -147,7 +147,7 @@ const ManualCalendarSetup: React.FC<ManualCalendarSetupProps> = ({ course, onBac
     const fetchDetailedCourse = async () => {
       try {
         setLoading(true)
-        const response = await fetch(`http://localhost:5533/getAll/courses-data/${course._id}`)
+        const response = await fetch(`https://lms-client-jade-three.vercel.app/getAll/courses-data/${course._id}`)
         const data = await response.json()
         if (data.success) {
           setDetailedCourse(data.data)

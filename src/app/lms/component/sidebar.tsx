@@ -288,7 +288,7 @@ export function Sidebar({ className }: SidebarProps) {
                     return;
                 }
 
-                const response = await fetch(`http://localhost:5533/user/get-permission/${userId}`, {
+                const response = await fetch(`https://lms-client-jade-three.vercel.app/user/get-permission/${userId}`, {
                     headers: {
                         'Authorization': `Bearer ${token}`,
                     }
