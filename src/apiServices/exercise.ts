@@ -134,7 +134,7 @@ export interface ExerciseResponse {
   };
 }
 
-const BASE_URL = 'https://lms-client-jade-three.vercel.app';
+const BASE_URL = 'https://lms-server-ym1q.onrender.com';
 
 export const modelMap: Record<EntityType, { path: string }> = {
   modules: { path: 'modules' },

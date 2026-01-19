@@ -1,7 +1,7 @@
 // subTopicService.ts - React Query version
 import axios from 'axios';
 
-const API_BASE_URL = 'https://lms-client-jade-three.vercel.app';
+const API_BASE_URL = 'https://lms-server-ym1q.onrender.com';
 
 // Type definitions
 interface SubTopic {

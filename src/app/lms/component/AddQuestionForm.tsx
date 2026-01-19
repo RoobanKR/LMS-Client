@@ -336,7 +336,7 @@ func main() {
 main()`
 };
 
-const API_BASE_URL = 'https://lms-client-jade-three.vercel.app';
+const API_BASE_URL = 'https://lms-server-ym1q.onrender.com';
 
 const AddQuestionForm: React.FC<AddQuestionFormProps> = ({ exerciseData, tabType, onClose, onSave }) => {
   // Debug: Log the exercise data

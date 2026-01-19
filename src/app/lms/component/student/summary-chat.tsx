@@ -1267,7 +1267,7 @@ Format with clear headings and bullet points.`;
             const fetchCourseData = async () => {
                 try {
                     const courseId = window.location.pathname.split('/').pop(); // Get course ID from URL
-                    const response = await fetch(`https://lms-client-jade-three.vercel.app/getAll/courses-data/${courseId}`);
+                    const response = await fetch(`https://lms-server-ym1q.onrender.com/getAll/courses-data/${courseId}`);
                     const data = await response.json();
                     setCourseData(data.data || data);
 
@@ -1596,7 +1596,7 @@ Format with clear headings and bullet points.`;
     // Enhanced function to extract content from PDF, PPT, and Video files
   const extractFileContent = async (fileUrl: string, fileType: string, title: string): Promise<string> => {
     try {
-        const BACKEND_API_URL = "https://lms-client-jade-three.vercel.app";
+        const BACKEND_API_URL = "https://lms-server-ym1q.onrender.com";
 
         console.log(`Extracting ${fileType} content from: ${fileUrl}`);
 
@@ -2318,7 +2318,7 @@ Provide helpful educational guidance with:
         const formData = new FormData();
         formData.append('file', file);
 
-        const BACKEND_API_URL = "https://lms-client-jade-three.vercel.app";
+        const BACKEND_API_URL = "https://lms-server-ym1q.onrender.com";
 
         const uploadResponse = await fetch(`${BACKEND_API_URL}/api/extract-doc/upload-file`, {
             method: 'POST',

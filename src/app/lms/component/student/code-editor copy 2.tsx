@@ -403,7 +403,7 @@ export default function CodeEditor({
                 subcategory: subcategory || ""
             });
 
-            const response = await fetch(`https://lms-client-jade-three.vercel.app/courses/answers/single?${params.toString()}`, {
+            const response = await fetch(`https://lms-server-ym1q.onrender.com/courses/answers/single?${params.toString()}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
 
@@ -1190,7 +1190,7 @@ Return JSON only:
             };
 
             const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
-            const response = await fetch('https://lms-client-jade-three.vercel.app/courses/answers/submit', {
+            const response = await fetch('https://lms-server-ym1q.onrender.com/courses/answers/submit', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

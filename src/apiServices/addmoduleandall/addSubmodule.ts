@@ -1,7 +1,7 @@
 // src/apiServices/addmoduleandall/addSubmodule.ts
 import axios from 'axios';
 
-const API_BASE_URL = 'https://lms-client-jade-three.vercel.app';
+const API_BASE_URL = 'https://lms-server-ym1q.onrender.com';
 
 interface CreateSubModuleData {
   name: string;

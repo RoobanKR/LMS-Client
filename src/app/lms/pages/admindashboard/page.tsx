@@ -19,7 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import DashboardLayout from '../../component/layout';
 
 // --- API CONFIGURATION ---
-const API_BASE_URL = 'https://lms-client-jade-three.vercel.app'; // Adjust port if needed
+const API_BASE_URL = 'https://lms-server-ym1q.onrender.com'; // Adjust port if needed
 const ENDPOINT = '/student-Dashboard/courses-data/analytics'; // Matches your router
 
 // --- FETCH FUNCTION WITH TOKEN ---

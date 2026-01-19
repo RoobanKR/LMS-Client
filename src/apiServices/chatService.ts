@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://lms-client-jade-three.vercel.app";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://lms-server-ym1q.onrender.com";
 
 // Get all chat sessions for the authenticated user
 export const getChatSessions = async (token: string) => {

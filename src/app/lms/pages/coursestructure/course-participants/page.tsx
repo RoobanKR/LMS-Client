@@ -74,7 +74,7 @@ export default function CourseParticipantsPage() {
         setLoading(true)
         setError(null)
 
-        const url = `https://lms-client-jade-three.vercel.app/getAll/courses-data/${courseId}`
+        const url = `https://lms-server-ym1q.onrender.com/getAll/courses-data/${courseId}`
         const response = await fetch(url)
 
         if (!response.ok) {

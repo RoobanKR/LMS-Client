@@ -230,7 +230,7 @@ export function StudentSidebar({ isOpen = true, onClose, activeRoute }: StudentS
     try {
       const token = localStorage.getItem("smartcliff_token")
       if (!token) return getDefaultSidebarItems(userAnalytics)
-      const permissionsResponse = await fetch(`https://lms-client-jade-three.vercel.app/user/get-permission/${userId}`, {
+      const permissionsResponse = await fetch(`https://lms-server-ym1q.onrender.com/user/get-permission/${userId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       if (!permissionsResponse.ok) return getDefaultSidebarItems(userAnalytics)

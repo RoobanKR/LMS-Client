@@ -7,7 +7,7 @@ const modelMap = {
   subtopic: { path: "subtopics" },
 };
 
-const BASE_URL = "https://lms-client-jade-three.vercel.app";
+const BASE_URL = "https://lms-server-ym1q.onrender.com";
 
 export const entityApi = {
   updateEntity: async (

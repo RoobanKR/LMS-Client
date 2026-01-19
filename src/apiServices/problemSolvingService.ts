@@ -63,7 +63,7 @@ export interface SingleQuestionResponse {
 }
 
 // API service functions
-const API_BASE_URL = 'https://lms-client-jade-three.vercel.app';
+const API_BASE_URL = 'https://lms-server-ym1q.onrender.com';
 
 const handleResponse = async (response: Response) => {
   if (!response.ok) {

@@ -78,7 +78,7 @@ interface Question {
   attempts?: number;
 }
 
-const API_BASE_URL = 'https://lms-client-jade-three.vercel.app';
+const API_BASE_URL = 'https://lms-server-ym1q.onrender.com';
 
 const Questions: React.FC<QuestionsProps> = ({ exercise, nodeId, nodeName, subcategory, nodeType, tabType, onBack }) => {
   // --- State ---
