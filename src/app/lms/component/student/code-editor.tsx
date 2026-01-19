@@ -320,7 +320,7 @@ export default function CodeEditor({
             if (!isAssessmentMode || !courseId || !exercise?._id) return;
             try {
                 const token = localStorage.getItem('smartcliff_token') || '';
-                const response = await axios.get('http://localhost:5533/exercise/status', {
+                const response = await axios.get('https://lms-server-ym1q.onrender.com/exercise/status', {
                     params: { courseId, exerciseId: exercise._id, category, subcategory },
                     headers: { Authorization: `Bearer ${token}` }
                 });
@@ -544,7 +544,7 @@ builtins.input = _async_input
         try {
             const currentCode = editorInstanceRef.current ? editorInstanceRef.current.getValue() : "";
             const token = localStorage.getItem('smartcliff_token') || '';
-            await axios.post('http://localhost:5533/courses/answers/submit', {
+            await axios.post('https://lms-server-ym1q.onrender.com/courses/answers/submit', {
                 courseId, exerciseId: exercise?._id, questionId: currentQuestion._id,
                 code: currentCode, language: selectedLanguage, status, score, category, subcategory,
                 attemptLimitEnabled: behavior.attemptLimitEnabled, maxAttempts: behavior.maxAttempts, ...details
@@ -634,7 +634,7 @@ builtins.input = _async_input
         
         try {
             const token = localStorage.getItem('smartcliff_token') || '';
-            await axios.post('http://localhost:5533/exercise/lock', {
+            await axios.post('https://lms-server-ym1q.onrender.com/exercise/lock', {
                 courseId, 
                 exerciseId: exercise?._id, 
                 category, 
