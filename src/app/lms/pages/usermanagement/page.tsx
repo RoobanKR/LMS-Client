@@ -88,7 +88,7 @@ interface UserData {
   email: string;
   firstName: string;
   lastName: string;
-  role: {
+  role?: {
     _id: string;
     originalRole: string;
     renameRole: string;
