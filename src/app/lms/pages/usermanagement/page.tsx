@@ -66,7 +66,7 @@ import { fetchRoles } from "@/apiServices/rolesApi"
 import BulkUploadModal from "../../component/BulkUploadModal"
 import { PermissionModal } from "../../component/PermissionModal"
 import { BulkPermissionModal } from "../../component/BulkPermissionModal"
-import { getCurrentUser } from "@/apiServices/tokenVerify"
+import { getCurrentUser, userPermission } from "@/apiServices/tokenVerify"
 
 // Permission Types - Renamed to avoid conflict
 interface ApiPermission {
@@ -568,7 +568,7 @@ const [selectedUserForBulkPermissions, setSelectedUserForBulkPermissions] = useS
     const fetchUserPermissions = async () => {
       try {
         setIsLoadingPermissions(true);
-        const response = await getCurrentUser();
+        const response = await userPermission();
         
         if (response.valid && response.user) {
           setUserData(response.user);
