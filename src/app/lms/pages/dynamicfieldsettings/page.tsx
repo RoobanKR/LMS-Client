@@ -138,59 +138,9 @@ export default function Page() {
     // Get the active tab component
     const ActiveTabComponent = availableTabs.find(tab => tab.key === activeTab)?.component
 
-    if (isLoading) {
-        return (
-            <DashboardLayout>
-                <div className="flex items-center justify-center min-h-screen">
-                    <div className="text-center">
-                        <Loader2 className="h-8 w-8 animate-spin text-indigo-600 mx-auto mb-4" />
-                        <p className="text-sm text-gray-600">Loading permissions...</p>
-                    </div>
-                </div>
-            </DashboardLayout>
-        )
-    }
+  
 
-    // Check if user has any access to dynamic field settings
-    const hasAnyAccess = availableTabs.length > 0
 
-    if (!hasAnyAccess) {
-        return (
-            <DashboardLayout>
-                <div className="bg-gray-50">
-                    <div className="space-y-4 p-3 md:p-4">
-                        <div className="mx-auto">
-                            {/* Header Section */}
-                            <div className="mb-3">
-                                <Breadcrumb>
-                                    <BreadcrumbList>
-                                        <BreadcrumbItem>
-                                            <BreadcrumbLink href="/lms/pages/admindashboard" className="text-xs text-gray-600 hover:text-indigo-600">
-                                                Dashboard
-                                            </BreadcrumbLink>
-                                        </BreadcrumbItem>
-                                        <BreadcrumbSeparator className="text-gray-400" />
-                                        <BreadcrumbItem>
-                                            <BreadcrumbPage className="text-xs font-medium text-indigo-600">Dynamic Field Management</BreadcrumbPage>
-                                        </BreadcrumbItem>
-                                    </BreadcrumbList>
-                                </Breadcrumb>
-                            </div>
-                        </div>
-
-                        <div className="bg-white rounded-lg shadow-sm p-6 text-center">
-                            <Settings2 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                            <h3 className="text-lg font-medium text-gray-900 mb-2">Access Restricted</h3>
-                            <p className="text-sm text-gray-600">
-                                You don't have permission to access Dynamic Field Settings. 
-                                Please contact your administrator for access.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </DashboardLayout>
-        )
-    }
 
     return (
         <DashboardLayout>

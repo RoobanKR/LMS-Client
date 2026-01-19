@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 import { useSidebar } from "./layout";
+import axios from "axios";
 
 // Define types for permissions
 interface UserPermission {
@@ -253,6 +254,9 @@ interface SidebarProps {
 const RECENT_ITEMS_KEY = "smartcliff_recent_sidebar_items";
 const MAX_RECENT_ITEMS = 5;
 
+// API configuration
+const API_BASE_URL = 'https://lms-server-ym1q.onrender.com';
+
 export function Sidebar({ className }: SidebarProps) {
     const pathname = usePathname();
     const router = useRouter();
@@ -280,28 +284,22 @@ export function Sidebar({ className }: SidebarProps) {
         const fetchUserPermissions = async () => {
             try {
                 const token = localStorage.getItem("smartcliff_token");
-                const userId = localStorage.getItem("smartcliff_userId");
 
-                if (!token || !userId) {
-                    console.error("No token or user ID found");
+                if (!token) {
+                    console.error("No token found");
                     setLoading(false);
                     return;
                 }
 
-                const response = await fetch(`https://lms-server-ym1q.onrender.com/user/get-permission/${userId}`, {
+                // Use verify-token endpoint to get user data with permissions
+                const response = await axios.post(`${API_BASE_URL}/user/verify-token`, {}, {
                     headers: {
-                        'Authorization': `Bearer ${token}`,
+                        'Authorization': `Bearer ${token}`
                     }
                 });
 
-                if (!response.ok) {
-                    throw new Error("Failed to fetch user permissions");
-                }
-
-                const data = await response.json();
-                
-                if (data.data?.permissions) {
-                    const permissions: UserPermission[] = data.data.permissions;
+                if (response.data.valid && response.data.user?.permissions) {
+                    const permissions: UserPermission[] = response.data.user.permissions;
                     setUserPermissions(permissions);
                     
                     // Build sidebar items from permissions
@@ -311,10 +309,11 @@ export function Sidebar({ className }: SidebarProps) {
                     // Load recent items from localStorage
                     loadRecentItems(sidebarItemsFromPermissions);
                 } else {
+                    console.error("Invalid token or no permissions found");
                     setSidebarItems([]);
                 }
             } catch (error) {
-                console.error("Error fetching permissions:", error);
+                console.error("Error fetching user permissions:", error);
                 setSidebarItems([]);
             } finally {
                 setLoading(false);
@@ -465,7 +464,7 @@ export function Sidebar({ className }: SidebarProps) {
         localStorage.removeItem(RECENT_ITEMS_KEY);
     };
 
-
+ 
 
     return (
         <>
@@ -657,3 +656,5 @@ export function Sidebar({ className }: SidebarProps) {
         </>
     );
 }
+
+// Export API functions for use in other components
