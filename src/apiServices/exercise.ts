@@ -134,7 +134,7 @@ export interface ExerciseResponse {
   };
 }
 
-const BASE_URL = 'https://lms-server-ym1q.onrender.com';
+const BASE_URL = 'http://localhost:5533';
 
 export const modelMap: Record<EntityType, { path: string }> = {
   modules: { path: 'modules' },

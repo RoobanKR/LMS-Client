@@ -5,7 +5,7 @@ import axios from 'axios';
 import dynamic from 'next/dynamic';
 import { 
   Maximize2, Clock, Camera, ChevronLeft, XCircle, Play, Layout as LayoutIcon, 
-  FileCode, FileJson, BookOpen, ArrowLeft, ArrowRight, Save, 
+  BookOpen, ArrowLeft, ArrowRight, Save, 
   CheckCircle, LogOut, AlertTriangle, Loader2, Settings, X, 
   GripVertical, Code2, Palette, Terminal, Moon, Sun, Sidebar, Columns, MonitorPlay, 
   PanelLeftClose, PanelLeftOpen, Zap, ShieldAlert, Eye, MousePointerClick
@@ -147,7 +147,6 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
   const [tabSwitchCount, setTabSwitchCount] = useState(0);
   const [isTerminated, setIsTerminated] = useState(false);
   const [terminationReason, setTerminationReason] = useState("");
-  // NEW: State to track if exercise is locked
   const [isLocked, setIsLocked] = useState(false); 
   
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
@@ -178,7 +177,7 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
   const colors = { border: theme === 'light' ? "border-slate-200" : "border-zinc-700", panel: theme === 'light' ? "bg-white" : "bg-zinc-800" };
 
   // ---------------------------------------------------------------------------
-  // 4. CHECK INITIAL STATUS (The Gatekeeper)
+  // 4. CHECK INITIAL STATUS
   // ---------------------------------------------------------------------------
   useEffect(() => {
     const checkExerciseStatus = async () => {
@@ -186,7 +185,7 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
 
       try {
         const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
-        const response = await axios.get('https://lms-server-ym1q.onrender.com/exercise/status', {
+        const response = await axios.get('http://localhost:5533/exercise/status', {
           params: { courseId, exerciseId, category, subcategory },
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -210,17 +209,21 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
   }, [courseId, exerciseId, category, subcategory, isAssessmentMode]);
 
   // ---------------------------------------------------------------------------
-  // 5. CLEANUP & EXIT LOGIC
+  // 5. CLEANUP & EXIT LOGIC (FIXED)
   // ---------------------------------------------------------------------------
   
   const handleSafeExit = useCallback((skipConfirm = false) => {
+    // FIX: Ensure confirmation is shown unless explicitly skipped
     if (!skipConfirm) {
       const msg = isAssessmentMode 
-        ? "Finish Assessment? You will be returned to the course page." 
+        ? "Are you sure you want to exit? Your progress on this question will be saved." 
         : "Exit Exercise?";
+      
+      // If user clicks "Cancel", do nothing
       if (!window.confirm(msg)) return;
     }
 
+    // Cleanup Media
     if (cameraStream) {
       cameraStream.getTracks().forEach(track => track.stop());
       setCameraStream(null);
@@ -230,10 +233,12 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
       tracks.forEach(t => t.stop());
     }
 
+    // Cleanup Fullscreen
     if (document.fullscreenElement) {
       document.exitFullscreen().catch(() => {});
     }
 
+    // Trigger Parent Navigation
     onBack();
   }, [isAssessmentMode, cameraStream, onBack]);
 
@@ -321,7 +326,7 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
   }, []);
 
   // ---------------------------------------------------------------------------
-  // 8. FETCHING & SUBMISSION
+  // 8. FETCHING & SUBMISSION (FIXED FOR LAST QUESTION)
   // ---------------------------------------------------------------------------
   const fetchUserAnswer = async () => {
     if (!courseId || !exerciseId) return;
@@ -332,7 +337,7 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
 
     try {
       const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
-      const response = await axios.get('https://lms-server-ym1q.onrender.com/courses/answers/single', {
+      const response = await axios.get('http://localhost:5533/courses/answers/single', {
         params: { courseId, exerciseId, questionId: qId, category, subcategory },
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -395,18 +400,35 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
       };
 
       const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
-      await axios.post('https://lms-server-ym1q.onrender.com/courses/answers/submit', payload, {
+      await axios.post('http://localhost:5533/courses/answers/submit', payload, {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
       });
 
-      toast.success("Submitted Successfully!", { id: toastId });
+      // --- LOGIC CHANGE START ---
       setUserAttempts(prev => prev + 1);
       if (!completedQuestions.includes(currentQuestionIndex)) {
         setCompletedQuestions(prev => [...prev, currentQuestionIndex]);
       }
+
+      // Check if this is the last question
+      if (currentQuestionIndex === questions.length - 1) {
+        toast.update(toastId, { render: "All Questions Completed! Exiting...", type: "success", isLoading: false, autoClose: 2000 });
+        
+        // Wait 1.5s for user to read message, then auto-exit
+        setTimeout(() => {
+           handleSafeExit(true); // true = skip confirmation logic
+        }, 1500);
+
+      } else {
+        toast.update(toastId, { render: "Submitted Successfully!", type: "success", isLoading: false, autoClose: 3000 });
+        // Optional: Uncomment next line to auto-move to next question
+        // setCurrentQuestionIndex(prev => prev + 1);
+      }
+      // --- LOGIC CHANGE END ---
+
     } catch (error: any) {
-      if (error.response?.status === 403) toast.error(`Max attempts reached!`, { id: toastId });
-      else toast.error("Submission failed.", { id: toastId });
+      if (error.response?.status === 403) toast.update(toastId, { render: "Max attempts reached!", type: "error", isLoading: false });
+      else toast.update(toastId, { render: "Submission failed.", type: "error", isLoading: false });
     } finally {
       setIsSubmitting(false);
     }
@@ -416,17 +438,14 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
   // 9. SECURITY EFFECTS (TERMINATION & LOCKING)
   // ---------------------------------------------------------------------------
   
-  // Updated Termination Handler that LOCKS on the backend
   const handleTermination = useCallback(async (reason: string) => {
     if (!isAssessmentMode) return;
     
-    // 1. Immediately block UI state locally
     setIsTerminated(true);
     setIsLocked(true);
     setHasStarted(false);
     setTerminationReason(reason);
     
-    // 2. Stop Media
     if (cameraStream) {
         cameraStream.getTracks().forEach(t => t.stop());
         setCameraStream(null);
@@ -435,10 +454,9 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
         document.exitFullscreen().catch(() => {});
     }
 
-    // 3. Call Backend to Lock Exercise (Persist Status)
     try {
        const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
-       await axios.post('https://lms-server-ym1q.onrender.com/exercise/lock', {
+       await axios.post('http://localhost:5533/exercise/lock', {
          courseId, 
          exerciseId,
          category, 
@@ -448,10 +466,8 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
        }, {
          headers: { Authorization: `Bearer ${token}` }
        });
-       console.log("Exercise locked successfully on server.");
     } catch (err) {
        console.error("Failed to lock exercise in backend:", err);
-       // Even if backend fails, UI is locally blocked.
     }
 
   }, [isAssessmentMode, cameraStream, courseId, exerciseId, category, subcategory]);
@@ -473,11 +489,8 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
     return () => clearInterval(timer);
   }, [activeSecurity.timerEnabled, hasStarted, handleTermination]);
 
-  // ---------------------------------------------------------------------------
-  // UPDATED TAB SWITCH LOGIC
-  // ---------------------------------------------------------------------------
+  // Tab Switch
   useEffect(() => {
-    // Only run if active, not locked, not terminated, and is assessment
     if (!hasStarted || isTerminated || isLocked || !isAssessmentMode) return;
     
     const handleVisibility = () => {
@@ -485,19 +498,16 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
         setTabSwitchCount(c => {
           const newCount = c + 1;
           
-          // CASE 1: Tab switching is NOT Allowed (Strict Mode)
           if (!activeSecurity.tabSwitchAllowed) {
             handleTermination("Tab switching is strictly prohibited.");
             return newCount;
           }
 
-          // CASE 2: Tab switching IS Allowed, but Limited
           if (activeSecurity.tabSwitchAllowed && activeSecurity.maxTabSwitches && newCount > activeSecurity.maxTabSwitches) {
             handleTermination(`Tab switch limit (${activeSecurity.maxTabSwitches}) exceeded.`);
             return newCount;
           }
 
-          // Warning Toast for Allowed Switching
           const limitText = activeSecurity.maxTabSwitches ? `/${activeSecurity.maxTabSwitches}` : '';
           toast.warn(`Warning: Tab switch detected! (${newCount}${limitText})`);
           
@@ -568,7 +578,7 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
 
   const isLimitReached = activeAttemptLimit && userAttempts >= maxAttempts;
 
-  // Question Panel Component - DEFINED HERE
+  // Question Panel
   const QuestionPanel = () => (
     <div className={`flex flex-col h-full border-r relative ${theme === 'light' ? 'bg-white border-slate-200' : 'bg-zinc-900 border-zinc-700'}`}>
       <div className={`p-4 border-b flex justify-between items-center ${theme === 'light' ? 'border-slate-200' : 'border-zinc-800'}`}>
@@ -597,7 +607,7 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
       <div className={`p-3 border-t flex gap-2 ${theme === 'light' ? 'border-slate-200 bg-slate-50' : 'border-zinc-800 bg-zinc-900'}`}>
           <button onClick={() => setCurrentQuestionIndex(prev => Math.max(0, prev - 1))} disabled={currentQuestionIndex === 0} className="w-10 flex items-center justify-center rounded text-sm font-medium bg-zinc-700 hover:bg-zinc-600 disabled:opacity-50 text-white"><ArrowLeft size={16} /></button>
           <button onClick={handleSubmitQuestion} disabled={isSubmitting || (isAssessmentMode && activeAttemptLimit && userAttempts >= maxAttempts)} className="flex-1 flex items-center justify-center gap-2 py-2 rounded text-sm font-medium bg-green-600 hover:bg-green-700 text-white disabled:bg-zinc-700 disabled:cursor-not-allowed">
-            {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : (isAssessmentMode && activeAttemptLimit && userAttempts >= maxAttempts) ? <span>Limit Reached</span> : <><Save size={16}/> Submit Question</>}
+            {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : (isAssessmentMode && activeAttemptLimit && userAttempts >= maxAttempts) ? <span>Limit Reached</span> : <><Save size={16}/> {currentQuestionIndex === questions.length - 1 ? "Submit & Finish" : "Submit Question"}</>}
           </button>
           <button onClick={() => setCurrentQuestionIndex(prev => Math.min(questions.length - 1, prev + 1))} disabled={currentQuestionIndex === questions.length - 1} className="w-10 flex items-center justify-center rounded text-sm font-medium bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:bg-zinc-800 text-white"><ArrowRight size={16} /></button>
       </div>
@@ -606,7 +616,6 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
 
   // --- MAIN RENDER ---
   
-  // 1. LOCKED / TERMINATED STATE
   if (isTerminated || isLocked) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-zinc-900 text-white p-4">
@@ -622,7 +631,7 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
     );
   }
 
-  // --- START SCREEN: LISTS ALL SECURITY SETTINGS ---
+  // --- START SCREEN ---
   if (!hasStarted && isAssessmentMode) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-zinc-900 text-white relative">
@@ -640,8 +649,6 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
           </div>
 
           <div className="space-y-3 mb-8 text-sm flex-1 overflow-y-auto pr-2 custom-scrollbar">
-            
-            {/* Timer */}
             {activeSecurity.timerEnabled && (
                 <div className="flex items-center gap-3 bg-zinc-900/50 p-3 rounded border border-zinc-700/50">
                     <Clock className="text-amber-500 shrink-0" size={20}/>
@@ -651,8 +658,6 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
                     </div>
                 </div>
             )}
-            
-            {/* Full Screen */}
             {activeSecurity.fullScreenMode && (
                 <div className="flex items-center gap-3 bg-zinc-900/50 p-3 rounded border border-zinc-700/50">
                     <Maximize2 className="text-blue-500 shrink-0" size={20}/>
@@ -662,8 +667,6 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
                     </div>
                 </div>
             )}
-
-            {/* Camera */}
             {activeSecurity.cameraMicEnabled && (
                 <div className="flex items-center gap-3 bg-zinc-900/50 p-3 rounded border border-zinc-700/50">
                     <Camera className="text-purple-500 shrink-0" size={20}/>
@@ -673,14 +676,11 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
                     </div>
                 </div>
             )}
-
-            {/* Tab Switching Display Logic */}
             <div className="flex items-center gap-3 bg-zinc-900/50 p-3 rounded border border-zinc-700/50">
                 <Eye className="text-orange-500 shrink-0" size={20}/>
                 <div className="flex flex-col">
                     <span className="font-bold text-zinc-200">Tab Focus Monitoring</span>
                     <span className="text-xs text-zinc-400">
-                        {/* Dynamic Message based on strictness */}
                         {!activeSecurity.tabSwitchAllowed 
                             ? "Strict Mode: Tab switching is strictly prohibited." 
                             : `Allowed with limit: Max ${activeSecurity.maxTabSwitches || 'unlimited'} switches.`
@@ -688,8 +688,6 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
                     </span>
                 </div>
             </div>
-
-            {/* Clipboard */}
             {activeSecurity.disableClipboard && (
                 <div className="flex items-center gap-3 bg-zinc-900/50 p-3 rounded border border-zinc-700/50">
                     <MousePointerClick className="text-pink-500 shrink-0" size={20}/>
@@ -699,8 +697,6 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
                     </div>
                 </div>
             )}
-            
-            {/* Attempts */}
             {activeAttemptLimit && (
                 <div className="flex items-center gap-3 bg-zinc-900/50 p-3 rounded border border-zinc-700/50">
                     <AlertTriangle className="text-red-500 shrink-0" size={20}/>
@@ -763,12 +759,11 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
 
               <button onClick={compileCode} className="px-3 py-1.5 bg-zinc-700 hover:bg-zinc-600 rounded text-xs font-bold flex items-center gap-2 text-white"><Play className="w-3 h-3"/> Run</button>
               
-              {/* SETTINGS BUTTON */}
+              {/* SETTINGS */}
               <button onClick={() => setShowSettings(!showSettings)} className={`p-2 rounded-lg transition-colors ${showSettings ? 'bg-blue-500/20 text-blue-400' : 'text-zinc-400 hover:bg-zinc-700'}`}>
                 <Settings className="w-5 h-5" />
               </button>
 
-              {/* SETTINGS MENU */}
               {showSettings && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setShowSettings(false)} />
@@ -779,7 +774,6 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
                     </div>
 
                     <div className="space-y-6">
-                      {/* 1. Interface Layout */}
                       <div>
                         <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-3 block">Interface Layout</label>
                         <div className="grid grid-cols-2 gap-3">
@@ -794,7 +788,6 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
                         </div>
                       </div>
 
-                      {/* 2. Editor Style */}
                       <div>
                          <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-3 block">Editor Style</label>
                          <div className={`flex p-1 rounded-lg ${theme === 'light' ? 'bg-slate-100' : 'bg-zinc-900'}`}>
@@ -809,7 +802,6 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
 
                       <div className="h-px bg-zinc-700" />
 
-                      {/* 3. Active Languages (Visual Only) */}
                       <div>
                         <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 block">Active Languages</label>
                         <div className="flex flex-wrap gap-2">
@@ -822,7 +814,6 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
 
                       <div className="h-px bg-zinc-700" />
 
-                      {/* 4. Font Size & Fullscreen */}
                       <div>
                         <div className="flex justify-between text-xs mb-2 font-medium">
                           <span className="text-zinc-400">Font Size</span>
@@ -856,7 +847,7 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
       {/* --- RESIZABLE CONTAINER --- */}
       <div className="flex-1 flex overflow-hidden relative" ref={containerRef}>
         
-        {/* PANEL 1: QUESTIONS (STANDARD MODE) */}
+        {/* PANEL 1: QUESTIONS */}
         {layoutMode === 'standard' && isSidebarVisible && showQuestions && (
           <div style={{ width: leftPanelWidth }} className="flex flex-col shrink-0 relative">
               <QuestionPanel />
@@ -869,7 +860,6 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
         {/* PANEL 2: EDITOR */}
         <div className="flex-1 flex flex-col min-w-0 relative">
           
-          {/* Editor Header (Tabs) - Only show if in Tabbed Mode */}
           {editorViewMode === 'tabbed' && (
             <div className={`h-10 border-b flex items-center px-2 gap-1 ${theme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-[#1e1e1e] border-zinc-700'}`}>
               {showHtml && <button onClick={() => setActiveTab('html')} className={`flex items-center gap-2 px-4 h-full text-xs border-t-2 ${activeTab === 'html' ? 'border-orange-500 bg-zinc-800 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}><Code2 size={14} className="text-orange-500"/> HTML</button>}
@@ -881,7 +871,6 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
           <div className="flex-1 relative bg-[#1e1e1e] flex">
             {isFetching && <div className="absolute inset-0 flex items-center justify-center z-20 bg-[#1e1e1e]/80"><Loader2 className="w-8 h-8 text-blue-500 animate-spin"/></div>}
             
-            {/* EDITOR VIEW LOGIC */}
             {editorViewMode === 'tabbed' ? (
                 <div className="w-full h-full">
                    {activeTab === 'html' && showHtml && <MonacoEditor height="100%" language="html" theme={theme} value={htmlCode} onChange={(v) => setHtmlCode(v || "")} options={{ fontSize, minimap: { enabled: false } }} />}
@@ -889,7 +878,6 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
                    {activeTab === 'js' && showJs && <MonacoEditor height="100%" language="javascript" theme={theme} value={jsCode} onChange={(v) => setJsCode(v || "")} options={{ fontSize, minimap: { enabled: false } }} />}
                 </div>
             ) : (
-               /* SPLIT VIEW */
                <div className="flex w-full h-full">
                   {showHtml && <div className="flex-1 border-r border-zinc-700 flex flex-col"><div className="bg-zinc-800 px-2 py-1 text-xs text-orange-500">HTML</div><div className="flex-1"><MonacoEditor height="100%" language="html" theme={theme} value={htmlCode} onChange={(v) => setHtmlCode(v || "")} options={{ fontSize, minimap: { enabled: false } }} /></div></div>}
                   {showCss && <div className="flex-1 border-r border-zinc-700 flex flex-col"><div className="bg-zinc-800 px-2 py-1 text-xs text-blue-500">CSS</div><div className="flex-1"><MonacoEditor height="100%" language="css" theme={theme} value={cssCode} onChange={(v) => setCssCode(v || "")} options={{ fontSize, minimap: { enabled: false } }} /></div></div>}
@@ -898,7 +886,6 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
             )}
           </div>
           
-          {/* BOTTOM DOCK MODE for Questions */}
           {layoutMode === 'bottom-question' && isSidebarVisible && showQuestions && (
               <div style={{ height: `${bottomPanelHeight}%` }} className="border-t border-zinc-700 overflow-hidden relative shrink-0">
                  <div className="absolute top-0 left-0 right-0 h-1 hover:bg-blue-500 cursor-row-resize z-10 flex items-center justify-center transition-colors" onMouseDown={() => { isResizingBottom.current = true; document.body.style.cursor = 'row-resize'; document.body.style.userSelect = 'none'; }}>

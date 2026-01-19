@@ -66,7 +66,7 @@ import { fetchRoles } from "@/apiServices/rolesApi"
 import BulkUploadModal from "../../component/BulkUploadModal"
 import { PermissionModal } from "../../component/PermissionModal"
 import { BulkPermissionModal } from "../../component/BulkPermissionModal"
-import { getCurrentUser, userPermission } from "@/apiServices/tokenVerify"
+import {  userPermission } from "@/apiServices/tokenVerify"
 
 // Permission Types - Renamed to avoid conflict
 interface ApiPermission {

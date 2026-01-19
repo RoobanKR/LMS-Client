@@ -251,7 +251,7 @@ export function PermissionModal({ isOpen, onClose, userId, userName, userEmail }
 
   const updateMutation = useMutation({
     mutationFn: async (permissions: any[]) => {
-      const response = await fetch(`https://lms-server-ym1q.onrender.com/user-permission/update/${userId}`, {
+      const response = await fetch(`http://localhost:5533/user-permission/update/${userId}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -290,7 +290,7 @@ export function PermissionModal({ isOpen, onClose, userId, userName, userEmail }
         setExpandedCategories([permissionCategories[0].key])
       }
 
-      fetch(`https://lms-server-ym1q.onrender.com/user/get-permission/${userId}`, {
+      fetch(`http://localhost:5533/user/get-permission/${userId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
         .then(res => res.ok ? res.json() : Promise.reject())

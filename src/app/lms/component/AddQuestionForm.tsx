@@ -336,7 +336,7 @@ func main() {
 main()`
 };
 
-const API_BASE_URL = 'https://lms-server-ym1q.onrender.com';
+const API_BASE_URL = 'http://localhost:5533';
 
 const AddQuestionForm: React.FC<AddQuestionFormProps> = ({ exerciseData, tabType, onClose, onSave }) => {
   // Debug: Log the exercise data

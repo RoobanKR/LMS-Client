@@ -46,16 +46,16 @@ import {
   Maximize2,
   Minimize2,
   AlertCircle,
-  MoreVertical, // <--- Add this
-  Lock, // <--- Add this (optional, for icon)
-  Unlock // <--- Add this (optional, for icon)
+  MoreVertical,
+  Lock,
+  Unlock
 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"; // <--- Add this
+} from "@/components/ui/dropdown-menu";
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
   Select,
@@ -90,7 +90,7 @@ const inter = Inter({ subsets: ['latin'] });
 const montserrat = Montserrat({ subsets: ['latin'] });
 
 // API CONFIG
-const BACKEND_API_URL = "https://lms-server-ym1q.onrender.com";
+const BACKEND_API_URL = "http://localhost:5533";
 const PISTON_API_URL = "https://emkc.org/api/v2/piston/execute";
 
 // --- INTERFACES ---
@@ -164,6 +164,10 @@ interface Exercise {
   questions: ExerciseQuestion[];
   nodeType?: string;
   createdAt: string;
+  
+  // Dynamic fields
+  _category?: string; 
+  _subcategory?: string;
 }
 
 interface SubmissionQuestion {
@@ -196,14 +200,8 @@ interface ExerciseAnswer {
 interface UserCourse {
   courseId: string;
   answers?: {
-    We_Do?: {
-      practical?: ExerciseAnswer[];
-      project_development?: any[];
-    };
-    You_Do?: {
-      practical?: ExerciseAnswer[];
-      project_development?: any[];
-    };
+    We_Do?: any;
+    You_Do?: any;
   };
   lastAccessed: string;
   _id: string;
@@ -245,10 +243,14 @@ interface CourseModule {
         We_Do?: {
           practical?: Exercise[];
           project_development?: Exercise[];
+          assessments?: Exercise[];
+          assesments?: Exercise[]; 
         };
         You_Do?: {
           practical?: Exercise[];
           project_development?: Exercise[];
+          assessments?: Exercise[];
+          assesments?: Exercise[]; 
         }
       };
     }>;
@@ -511,18 +513,41 @@ export default function EnhancedSubmissionReview() {
         });
         setParticipants(sortedParticipants);
         const allExercises: Exercise[] = [];
+
+        // --- NEW HELPER: Tag exercises with EXACT Category/Subcategory found ---
+        const collect = (list: Exercise[] | undefined, cat: string, sub: string) => {
+          if (!list) return;
+          list.forEach(ex => {
+            // Attach metadata to the exercise object dynamically
+            (ex as any)._category = cat;
+            (ex as any)._subcategory = sub; // <--- This will now hold the exact spelling found
+            allExercises.push(ex);
+          });
+        };
+
         if (result.data.modules) {
           result.data.modules.forEach((module: any) => module.subModules?.forEach((subModule: any) => subModule.topics?.forEach((topic: any) => {
-            // EXTRACT FROM ALL POSSIBLE PEDAGOGY LOCATIONS
-            if (topic.pedagogy?.We_Do?.practical) allExercises.push(...topic.pedagogy.We_Do.practical);
-            if (topic.pedagogy?.We_Do?.project_development) allExercises.push(...topic.pedagogy.We_Do.project_development);
-            if (topic.pedagogy?.You_Do?.practical) allExercises.push(...topic.pedagogy.You_Do.practical);
-            if (topic.pedagogy?.You_Do?.project_development) allExercises.push(...topic.pedagogy.You_Do.project_development);
+            const p = topic.pedagogy;
+            if(!p) return;
+
+            // --- WE DO ---
+            collect(p.We_Do?.practical, 'We_Do', 'practical');
+            collect(p.We_Do?.project_development, 'We_Do', 'project_development');
+            // Check EXACT spelling. If 'assesments' (typo) exists, tag it as 'assesments'.
+            if (p.We_Do?.assessments) collect(p.We_Do.assessments, 'We_Do', 'assessments');
+            if (p.We_Do?.assesments) collect(p.We_Do.assesments, 'We_Do', 'assesments'); 
+
+            // --- YOU DO ---
+            collect(p.You_Do?.practical, 'You_Do', 'practical');
+            collect(p.You_Do?.project_development, 'You_Do', 'project_development');
+            // Check EXACT spelling.
+            if (p.You_Do?.assessments) collect(p.You_Do.assessments, 'You_Do', 'assessments');
+            if (p.You_Do?.assesments) collect(p.You_Do.assesments, 'You_Do', 'assesments'); 
           })));
         }
         setExercises(allExercises);
 
-        // Immediate check logic inside fetch in case useEffect is too slow
+        // Immediate check logic inside fetch
         if (exerciseId && allExercises.length > 0) {
           const exercise = allExercises.find(ex => ex._id === exerciseId || ex.exerciseInformation.exerciseId === exerciseId);
           if (exercise) {
@@ -534,38 +559,36 @@ export default function EnhancedSubmissionReview() {
       }
     } catch (err) { toast.error('Failed to load course data'); } finally { setLoading(false); }
   };
-  // --- UNLOCK FUNCTIONALITY ---
+
   // --- UNLOCK EXERCISE API HANDLER ---
-  // --- UNLOCK EXERCISE API HANDLER ---
-  const handleUnlockExercise = async (participantId: string) => {
+  const handleUnlockExercise = async (participantId: string, targetExerciseId: string) => {
     if (!selectedExercise || !courseId) {
       toast.error("Missing course or exercise data");
       return;
     }
 
+    // Default to We_Do/practical if tags are missing, but rely on the tags we set in fetch
+    const targetCategory = selectedExercise._category || 'We_Do';
+    const targetSubcategory = selectedExercise._subcategory || 'practical';
 
-    console.log(selectedExercise)
+    console.log(`Attempting unlock for: ${targetCategory} / ${targetSubcategory}`); 
+
     const token = localStorage.getItem('smartcliff_token') || '';
-    const loadingToast = toast.loading("Unlocking exercise for student...");
+    const loadingToast = toast.loading("Unlocking exercise...");
 
     try {
-      // 1. MATCH THE LOG EXACTLY
-      // Your log showed: {"category":"You_Do","subcategory":"assesments"}
-      const targetCategory = 'You_Do';
-      const targetSubcategory = 'assesments'; // <--- MATCHING YOUR SPELLING FROM LOG
-
       const payload = {
         targetUserId: participantId,
         courseId: courseId,
-        exerciseId: exerciseId,
+        exerciseId: targetExerciseId,
         category: targetCategory,
-        subcategory: targetSubcategory,
+        subcategory: targetSubcategory, // This will now match the exact spelling from DB
         status: 'in-progress',
         isLocked: false,
         reason: "Unlocked by Instructor via Grading Console"
       };
 
-      console.log("🔓 Unlocking with payload:", payload);
+      console.log("Unlock Payload:", payload); 
 
       const response = await fetch(`${BACKEND_API_URL}/exercise/lock`, {
         method: 'POST',
@@ -581,8 +604,9 @@ export default function EnhancedSubmissionReview() {
       if (response.ok) {
         toast.dismiss(loadingToast);
         toast.success("Exercise unlocked successfully");
-        fetchCourseData(); // Refresh data
+        fetchCourseData(); // Refresh data to update the UI
       } else {
+        console.error("Unlock failed response:", result);
         throw new Error(result.message || "Failed to unlock");
       }
     } catch (error: any) {
@@ -591,6 +615,7 @@ export default function EnhancedSubmissionReview() {
       toast.error(error.message || "Error unlocking exercise");
     }
   };
+
   const calculateGradingStats = () => {
     if (!selectedExercise) return;
     let studentsWithSubmissions = 0, studentsGraded = 0, totalScoreSum = 0, totalMaxPointsSum = 0;
@@ -622,7 +647,10 @@ export default function EnhancedSubmissionReview() {
         for (const topic of subModule.topics || []) {
           const weDoPract = topic.pedagogy?.We_Do?.practical || [];
           const youDoPract = topic.pedagogy?.You_Do?.practical || [];
-          const allEx = [...weDoPract, ...youDoPract];
+          const weDoAssess = topic.pedagogy?.We_Do?.assessments || topic.pedagogy?.We_Do?.assesments || [];
+          const youDoAssess = topic.pedagogy?.You_Do?.assessments || topic.pedagogy?.You_Do?.assesments || [];
+
+          const allEx = [...weDoPract, ...youDoPract, ...weDoAssess, ...youDoAssess];
 
           if (allEx.some(ex => ex._id === exercise._id)) {
             breadcrumbItems.push({ title: module.title, icon: <Layers className="h-3.5 w-3.5" />, type: 'module' }, { title: subModule.title, icon: <Folder className="h-3.5 w-3.5" />, type: 'submodule' });
@@ -654,15 +682,20 @@ export default function EnhancedSubmissionReview() {
     </nav>
   );
 
+  // --- UPDATED: Fetch answers from ALL keys (including IDs and Typos) ---
   const getExerciseAnswers = (participant: Participant) => {
     if (!participant.user.courses) return [];
     const course = participant.user.courses.find(c => c.courseId === courseId);
     if (!course || !course.answers) return [];
 
-    // Aggregate answers from all possible locations
-    const weDoAnswers = course.answers.We_Do?.practical || [];
-    const youDoAnswers = course.answers.You_Do?.practical || [];
-    // Add other categories if needed
+    const extractAll = (catObj: any) => {
+      if (!catObj) return [];
+      // This retrieves answers stored under "practical", "assessments", "assesments", OR "696a0..."
+      return Object.values(catObj).flat() as ExerciseAnswer[];
+    };
+
+    const weDoAnswers = extractAll(course.answers.We_Do);
+    const youDoAnswers = extractAll(course.answers.You_Do);
 
     return [...weDoAnswers, ...youDoAnswers];
   };
@@ -678,26 +711,63 @@ export default function EnhancedSubmissionReview() {
     return null;
   };
 
+  // --- UPDATED: handleStartGrading (Fix for "No Code Found" default) ---
   const handleStartGrading = (participant: Participant) => {
-    setSaveSuccess(false); setSelectedParticipant(participant);
+    setSaveSuccess(false); 
+    setSelectedParticipant(participant);
+
+    // 1. Get all answer records for this exercise (could be multiple: terminated, in-progress, etc.)
     const answers = getExerciseAnswersForSelectedExercise(participant);
-    const firstAnswer = answers[0];
+
+    // Default setup
     let targetQuestion = selectedExercise?.questions[0];
-    let initialScore = 0, initialFeedback = '', submissionFound = null;
-    if (firstAnswer && firstAnswer.questions.length > 0) {
-      const firstSubmission = firstAnswer.questions.find(q => q.codeAnswer && q.status !== 'evaluated') || firstAnswer.questions[0];
-      if (firstSubmission) {
-        submissionFound = firstSubmission;
-        const question = selectedExercise?.questions.find(q => q._id === firstSubmission.questionId);
-        if (question) { targetQuestion = question; initialScore = firstSubmission.score || 0; initialFeedback = firstSubmission.feedback || ''; }
+    let submissionFound: SubmissionQuestion | null = null;
+    let activeAnswerGroup: ExerciseAnswer | null = null;
+
+    if (answers.length > 0 && selectedExercise) {
+      // STRATEGY: Find the *first* question in the exercise that actually has a code answer.
+      // We iterate through the exercise questions order (1, 2, 3...)
+      for (const question of selectedExercise.questions) {
+        
+        // Search across ALL answer groups (because the good data might be in answers[1] not answers[0])
+        for (const ans of answers) {
+          const sub = ans.questions?.find(q => q.questionId === question._id && q.codeAnswer);
+          if (sub) {
+            targetQuestion = question;
+            submissionFound = sub;
+            activeAnswerGroup = ans;
+            break; // Found code for this question! Stop looking in other answers.
+          }
+        }
+        
+        if (submissionFound) break; // We found the first question with data. Stop searching.
+      }
+
+      // FALLBACK: If absolutely NO code is found for any question, just grab Q1 state
+      if (!submissionFound && targetQuestion) {
+        for (const ans of answers) {
+           const sub = ans.questions?.find(q => q.questionId === targetQuestion._id);
+           if (sub) {
+             submissionFound = sub;
+             activeAnswerGroup = ans;
+             break;
+           }
+        }
       }
     }
+
+    // 2. Update UI State
     if (targetQuestion && selectedExercise) {
-      setSelectedAnswer(firstAnswer); setSubmissionQuestion(submissionFound); setSelectedQuestion(targetQuestion); setScore(initialScore);
+      // Use the group where we found the answer, or default to the first one available
+      setSelectedAnswer(activeAnswerGroup || answers[0] || null); 
+      setSubmissionQuestion(submissionFound);
+      setSelectedQuestion(targetQuestion);
+      setScore(submissionFound?.score || 0);
       setMaxScore(getQuestionMaxScore(selectedExercise, targetQuestion));
-      setFeedbackText(initialFeedback);
-      setCurrentQuestionIndex(selectedExercise?.questions.findIndex(q => q._id === targetQuestion?._id) || 0);
+      setFeedbackText(submissionFound?.feedback || '');
+      setCurrentQuestionIndex(selectedExercise.questions.findIndex(q => q._id === targetQuestion?._id));
     }
+
     setViewMode('grading');
   };
 
@@ -733,10 +803,24 @@ export default function EnhancedSubmissionReview() {
         const qSub = targetAnswerGroup.questions.find((q: any) => q.questionId === selectedQuestion._id);
         if (qSub && qSub.language) submissionLanguage = qSub.language;
       }
+
+      // --- DYNAMIC CATEGORY & SUBCATEGORY ---
+      const categoryToSend = selectedExercise._category || 'We_Do';
+      
+      // Use existing answer subcategory if available (preserves data integrity), otherwise use the tag
+      let subcategoryToSend = selectedExercise._subcategory || 'practical';
+      if(selectedAnswer && selectedAnswer.subcategory) {
+         subcategoryToSend = selectedAnswer.subcategory;
+      }
+
       const payload = {
         courseId, exerciseId: selectedExercise._id, exerciseName: selectedExercise.exerciseInformation.exerciseName, participantId: selectedParticipant.user._id, questionId: selectedQuestion._id, questionTitle: selectedQuestion.title,
-        score, totalScore: selectedQuestion.score, feedback: feedbackText, status: 'evaluated', language: submissionLanguage, category: 'We_Do', subcategory: 'practical'
+        score, totalScore: selectedQuestion.score, feedback: feedbackText, status: 'evaluated', language: submissionLanguage, 
+        // USE DYNAMIC VALUES HERE
+        category: categoryToSend, 
+        subcategory: subcategoryToSend
       };
+
       const response = await fetch(`${BACKEND_API_URL}/users/update/submission-score`, { method: 'POST', headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify(payload) });
       const result = await response.json();
       if (!response.ok && !result.success) throw new Error(result.message || 'Failed to save');
@@ -978,16 +1062,6 @@ export default function EnhancedSubmissionReview() {
                                   <Unlock className="mr-2 h-3.5 w-3.5" />
                                   <span>Unlock Exercise</span>
                                 </DropdownMenuItem>
-
-                                {/* You can add Lock here too if needed */}
-                                {/* <DropdownMenuItem 
-           onClick={() => handleLockExercise(participant.user._id)} // You would need a handleLock function similar to handleUnlock
-           className="text-xs font-medium cursor-pointer text-rose-600 focus:text-rose-700 focus:bg-rose-50"
-         >
-           <Lock className="mr-2 h-3.5 w-3.5" />
-           <span>Lock Access</span>
-         </DropdownMenuItem> 
-         */}
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </div>
