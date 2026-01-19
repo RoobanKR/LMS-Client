@@ -19,7 +19,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 import { useSidebar } from "./layout";
-import axios from "axios";
 
 // Define types for permissions
 interface UserPermission {
@@ -34,6 +33,15 @@ interface UserPermission {
     order: number;
     createdAt: string;
     updatedAt: string;
+}
+
+interface UserData {
+    _id: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    permissions: UserPermission[];
+    // Other user fields...
 }
 
 interface SidebarItem {
@@ -254,8 +262,8 @@ interface SidebarProps {
 const RECENT_ITEMS_KEY = "smartcliff_recent_sidebar_items";
 const MAX_RECENT_ITEMS = 5;
 
-// API configuration
-const API_BASE_URL = 'https://lms-server-ym1q.onrender.com';
+// Local storage key for user data
+const USER_DATA_KEY = "smartcliff_userData";
 
 export function Sidebar({ className }: SidebarProps) {
     const pathname = usePathname();
@@ -279,27 +287,22 @@ export function Sidebar({ className }: SidebarProps) {
         return () => window.removeEventListener('resize', checkMobile);
     }, []);
 
-    // Fetch user permissions and build sidebar
+    // Load user permissions from localStorage
     useEffect(() => {
-        const fetchUserPermissions = async () => {
+        const loadUserPermissions = () => {
             try {
-                const token = localStorage.getItem("smartcliff_token");
-
-                if (!token) {
-                    console.error("No token found");
+                const userDataString = localStorage.getItem(USER_DATA_KEY);
+                
+                if (!userDataString) {
+                    console.error("No user data found in localStorage");
                     setLoading(false);
                     return;
                 }
 
-                // Use verify-token endpoint to get user data with permissions
-                const response = await axios.post(`${API_BASE_URL}/user/verify-token`, {}, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-
-                if (response.data.valid && response.data.user?.permissions) {
-                    const permissions: UserPermission[] = response.data.user.permissions;
+                const userData: UserData = JSON.parse(userDataString);
+                
+                if (userData?.permissions) {
+                    const permissions: UserPermission[] = userData.permissions;
                     setUserPermissions(permissions);
                     
                     // Build sidebar items from permissions
@@ -309,18 +312,18 @@ export function Sidebar({ className }: SidebarProps) {
                     // Load recent items from localStorage
                     loadRecentItems(sidebarItemsFromPermissions);
                 } else {
-                    console.error("Invalid token or no permissions found");
+                    console.error("No permissions found in user data");
                     setSidebarItems([]);
                 }
             } catch (error) {
-                console.error("Error fetching user permissions:", error);
+                console.error("Error loading user data from localStorage:", error);
                 setSidebarItems([]);
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchUserPermissions();
+        loadUserPermissions();
     }, []);
 
     // Update recent items when pathname changes
@@ -464,7 +467,43 @@ export function Sidebar({ className }: SidebarProps) {
         localStorage.removeItem(RECENT_ITEMS_KEY);
     };
 
- 
+    // Function to get user data from localStorage (export if needed elsewhere)
+    const getCurrentUser = (): UserData | null => {
+        try {
+            const userDataString = localStorage.getItem(USER_DATA_KEY);
+            return userDataString ? JSON.parse(userDataString) : null;
+        } catch (error) {
+            console.error("Error getting user data:", error);
+            return null;
+        }
+    };
+
+    // Function to update user data in localStorage (if needed)
+    const updateUserData = (updatedData: Partial<UserData>) => {
+        try {
+            const currentUserData = getCurrentUser();
+            if (currentUserData) {
+                const newUserData = { ...currentUserData, ...updatedData };
+                localStorage.setItem(USER_DATA_KEY, JSON.stringify(newUserData));
+                
+                // If permissions were updated, rebuild sidebar
+                if (updatedData.permissions) {
+                    setUserPermissions(updatedData.permissions);
+                    const sidebarItemsFromPermissions = buildSidebarItems(updatedData.permissions);
+                    setSidebarItems(sidebarItemsFromPermissions);
+                }
+            }
+        } catch (error) {
+            console.error("Error updating user data:", error);
+        }
+    };
+
+    // Function to clear user data (for logout)
+    const clearUserData = () => {
+        localStorage.removeItem(USER_DATA_KEY);
+        localStorage.removeItem("smartcliff_token");
+        localStorage.removeItem(RECENT_ITEMS_KEY);
+    };
 
     return (
         <>
@@ -492,146 +531,158 @@ export function Sidebar({ className }: SidebarProps) {
                 )}
 
                 <div className="pt-6">
-                    {/* Main Navigation - FIRST */}
-                    <div>
-                        {sidebarItems.map((item) => {
-                            const Icon = item.icon;
-                            const isActive = pathname === item.href || 
-                                           pathname?.startsWith(item.href + '/');
-                            const colorClass = getColorClass(item.color);
-
-                            return (
-                                <div
-                                    key={item.permissionKey || item.href}
-                                    onClick={() => handleItemClick(item)}
-                                    className={cn(
-                                        "flex items-center justify-between px-4 py-0.5 hover:bg-gray-100 cursor-pointer group transition-colors",
-                                        isActive && `${colorClass.bg} border-r-2 ${colorClass.border}`,
-                                        isCollapsed ? "justify-center" : "",
-                                    )}
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className={cn(
-                                            "p-1.5",
-                                            isActive ? colorClass.bgLight : ""
-                                        )}>
-                                            <Icon className={cn(
-                                                "w-3.5 h-3.5",
-                                                isActive ? colorClass.iconText : "text-gray-600 group-hover:text-gray-700"
-                                            )} />
-                                        </div>
-                                        {!isCollapsed && (
-                                            <span style={{
-                                                ...sidebarTextStyle,
-                                                color: isActive ? colorClass.textLight : 'rgb(80, 82, 88)',
-                                                fontWeight: isActive ? 600 : 500
-                                            }}>
-                                                {item.title}
-                                            </span>
-                                        )}
-                                    </div>
-                                    {!isCollapsed && item.hasChevron && (
-                                        <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
-
-                    {/* Separator between Main Navigation and Quick Actions */}
-                    {!isCollapsed && recentItems.length > 0 && (
-                        <div className="border-t border-gray-200 mx-4 my-4"></div>
-                    )}
-
-                    {/* Quick Actions Section - SECOND (below Main Navigation) */}
-                    {!isCollapsed && recentItems.length > 0 && (
-                        <div className="mb-4">
-                            <div className="flex items-center justify-between px-4 py-2">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-4 h-4 flex items-center justify-center">
-                                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                                    </div>
-                                    <span style={{...sidebarTextStyle, fontWeight: 600}}>
-                                        Recents
-                                    </span>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                    <Trash2 
-                                        className="w-3.5 h-3.5 text-gray-400 hover:text-gray-600 cursor-pointer"
-                                        onClick={clearRecentItems}
-                                    />
-                                </div>
+                    {/* Loading state */}
+                    {loading ? (
+                        <div className="px-4 py-0.5">
+                            <div className="animate-pulse flex items-center gap-3">
+                                <div className="p-1.5 bg-gray-200 rounded"></div>
+                                {!isCollapsed && <div className="h-4 bg-gray-200 rounded w-24"></div>}
                             </div>
-
-                            {/* Recent Items */}
-                            <div className="mt-2">
-                                {recentItems.map((item) => {
+                        </div>
+                    ) : (
+                        <>
+                            {/* Main Navigation - FIRST */}
+                            <div>
+                                {sidebarItems.map((item) => {
                                     const Icon = item.icon;
                                     const isActive = pathname === item.href || 
                                                    pathname?.startsWith(item.href + '/');
                                     const colorClass = getColorClass(item.color);
-                                    const isHovered = hoveredItem === item.permissionKey;
-                                    
+
                                     return (
                                         <div
-                                            key={`recent-${item.permissionKey}`}
+                                            key={item.permissionKey || item.href}
                                             onClick={() => handleItemClick(item)}
-                                            onMouseEnter={() => setHoveredItem(item.permissionKey || null)}
-                                            onMouseLeave={() => setHoveredItem(null)}
                                             className={cn(
-                                                "flex items-center justify-between px-8 py-2 hover:bg-gray-100 cursor-pointer transition-colors group relative",
-                                                isActive && colorClass.bg
+                                                "flex items-center justify-between px-4 py-0.5 hover:bg-gray-100 cursor-pointer group transition-colors",
+                                                isActive && `${colorClass.bg} border-r-2 ${colorClass.border}`,
+                                                isCollapsed ? "justify-center" : "",
                                             )}
                                         >
-                                            <div className="flex items-center gap-3 flex-1">
+                                            <div className="flex items-center gap-3">
                                                 <div className={cn(
-                                                    "w-5 h-5 rounded flex items-center justify-center",
-                                                    colorClass.bgLight
+                                                    "p-1.5",
+                                                    isActive ? colorClass.bgLight : ""
                                                 )}>
                                                     <Icon className={cn(
-                                                        "w-3 h-3",
-                                                        colorClass.text
+                                                        "w-3.5 h-3.5",
+                                                        isActive ? colorClass.iconText : "text-gray-600 group-hover:text-gray-700"
                                                     )} />
                                                 </div>
-                                                <span style={{
-                                                    ...sidebarTextStyle,
-                                                    color: isActive ? colorClass.textLight : 'rgb(80, 82, 88)',
-                                                    fontWeight: isActive ? 600 : 500
-                                                }}>
-                                                    {item.title}
-                                                </span>
-                                            </div>
-                                            
-                                            {/* Remove button - shows on hover */}
-                                            <button
-                                                onClick={(e) => removeRecentItem(item.permissionKey || '', e)}
-                                                className={cn(
-                                                    "opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-gray-200 rounded",
-                                                    isHovered && "opacity-100"
+                                                {!isCollapsed && (
+                                                    <span style={{
+                                                        ...sidebarTextStyle,
+                                                        color: isActive ? colorClass.textLight : 'rgb(80, 82, 88)',
+                                                        fontWeight: isActive ? 600 : 500
+                                                    }}>
+                                                        {item.title}
+                                                    </span>
                                                 )}
-                                                title="Remove from Quick Actions"
-                                            >
-                                                <Trash2 className="w-3 h-3 text-gray-500 hover:text-red-500" />
-                                            </button>
+                                            </div>
+                                            {!isCollapsed && item.hasChevron && (
+                                                <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
+                                            )}
                                         </div>
                                     );
                                 })}
                             </div>
-                        </div>
-                    )}
 
-                    {/* Bottom Navigation - Settings */}
-                    {!isCollapsed && (
-                        <div className="mt-8 relative">
-                            <div className="flex items-center justify-between px-4 py-2 hover:bg-gray-100 cursor-pointer group">
-                                <div className="flex items-center gap-3">
-                                    <MoreVertical className="w-4 h-4 text-gray-600" />
-                                    <span style={sidebarTextStyle}>
-                                        Settings
-                                    </span>
+                            {/* Separator between Main Navigation and Quick Actions */}
+                            {!isCollapsed && recentItems.length > 0 && (
+                                <div className="border-t border-gray-200 mx-4 my-4"></div>
+                            )}
+
+                            {/* Quick Actions Section - SECOND (below Main Navigation) */}
+                            {!isCollapsed && recentItems.length > 0 && (
+                                <div className="mb-4">
+                                    <div className="flex items-center justify-between px-4 py-2">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-4 h-4 flex items-center justify-center">
+                                                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                            </div>
+                                            <span style={{...sidebarTextStyle, fontWeight: 600}}>
+                                                Recents
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <Trash2 
+                                                className="w-3.5 h-3.5 text-gray-400 hover:text-gray-600 cursor-pointer"
+                                                onClick={clearRecentItems}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Recent Items */}
+                                    <div className="mt-2">
+                                        {recentItems.map((item) => {
+                                            const Icon = item.icon;
+                                            const isActive = pathname === item.href || 
+                                                           pathname?.startsWith(item.href + '/');
+                                            const colorClass = getColorClass(item.color);
+                                            const isHovered = hoveredItem === item.permissionKey;
+                                            
+                                            return (
+                                                <div
+                                                    key={`recent-${item.permissionKey}`}
+                                                    onClick={() => handleItemClick(item)}
+                                                    onMouseEnter={() => setHoveredItem(item.permissionKey || null)}
+                                                    onMouseLeave={() => setHoveredItem(null)}
+                                                    className={cn(
+                                                        "flex items-center justify-between px-8 py-2 hover:bg-gray-100 cursor-pointer transition-colors group relative",
+                                                        isActive && colorClass.bg
+                                                    )}
+                                                >
+                                                    <div className="flex items-center gap-3 flex-1">
+                                                        <div className={cn(
+                                                            "w-5 h-5 rounded flex items-center justify-center",
+                                                            colorClass.bgLight
+                                                        )}>
+                                                            <Icon className={cn(
+                                                                "w-3 h-3",
+                                                                colorClass.text
+                                                            )} />
+                                                        </div>
+                                                        <span style={{
+                                                            ...sidebarTextStyle,
+                                                            color: isActive ? colorClass.textLight : 'rgb(80, 82, 88)',
+                                                            fontWeight: isActive ? 600 : 500
+                                                        }}>
+                                                            {item.title}
+                                                        </span>
+                                                    </div>
+                                                    
+                                                    {/* Remove button - shows on hover */}
+                                                    <button
+                                                        onClick={(e) => removeRecentItem(item.permissionKey || '', e)}
+                                                        className={cn(
+                                                            "opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-gray-200 rounded",
+                                                            isHovered && "opacity-100"
+                                                        )}
+                                                        title="Remove from Quick Actions"
+                                                    >
+                                                        <Trash2 className="w-3 h-3 text-gray-500 hover:text-red-500" />
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
-                            </div>
-                        </div>
+                            )}
+
+                            {/* Bottom Navigation - Settings */}
+                            {!isCollapsed && (
+                                <div className="mt-8 relative">
+                                    <div className="flex items-center justify-between px-4 py-2 hover:bg-gray-100 cursor-pointer group">
+                                        <div className="flex items-center gap-3">
+                                            <MoreVertical className="w-4 h-4 text-gray-600" />
+                                            <span style={sidebarTextStyle}>
+                                                Settings
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>
             </div>
@@ -657,4 +708,31 @@ export function Sidebar({ className }: SidebarProps) {
     );
 }
 
-// Export API functions for use in other components
+// Export utility functions if needed elsewhere
+export const getCurrentUser = (): UserData | null => {
+    try {
+        const userDataString = localStorage.getItem(USER_DATA_KEY);
+        return userDataString ? JSON.parse(userDataString) : null;
+    } catch (error) {
+        console.error("Error getting user data:", error);
+        return null;
+    }
+};
+
+export const updateUserData = (updatedData: Partial<UserData>) => {
+    try {
+        const currentUserData = getCurrentUser();
+        if (currentUserData) {
+            const newUserData = { ...currentUserData, ...updatedData };
+            localStorage.setItem(USER_DATA_KEY, JSON.stringify(newUserData));
+        }
+    } catch (error) {
+        console.error("Error updating user data:", error);
+    }
+};
+
+export const clearUserData = () => {
+    localStorage.removeItem(USER_DATA_KEY);
+    localStorage.removeItem("smartcliff_token");
+    localStorage.removeItem("smartcliff_recent_sidebar_items");
+};
