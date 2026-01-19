@@ -137,19 +137,13 @@
     border-radius: 2.5px;
   }
 
-  ::-webkit-scrollbar-thumb {
-    background: linear-gradient(to bottom, #f97316, #fdba74);
-    border-radius: 2.5px;
-    transition: all 0.3s ease;
-  }
+
 
   .dark ::-webkit-scrollbar-track {
     background: #1e293b;
   }
 
-  .dark ::-webkit-scrollbar-thumb {
-    background: linear-gradient(to bottom, #fdba74, #f97316);
-  }
+ 
 }
 @keyframes fade-in {
   from {
@@ -262,3 +256,174 @@
   animation: circulatingBorder 1.5s infinite linear;
   border-width: 1px 2px !important;
 }
+
+
+
+/* Add this to your existing style block */
+.dropdown-container {
+  position: relative;
+  overflow: visible !important;
+}
+
+.overflow-visible {
+  overflow: visible !important;
+}
+
+/* Add to your existing styles */
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes scaleIn {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes float {
+    0%, 100% {
+        transform: translateY(0px);
+    }
+    50% {
+        transform: translateY(-5px);
+    }
+}
+
+/* Smooth transitions for all interactive elements */
+.file-grid-item {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.file-grid-item:hover {
+    transform: translateY(-4px) scale(1.02);
+    box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.15);
+}
+
+/* Glass morphism effect */
+.glass-effect {
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Gradient text */
+.gradient-text {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* Shimmer loading effect */
+.shimmer {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+    0% {
+        background-position: -200% 0;
+    }
+    100% {
+        background-position: 200% 0;
+    }
+}
+
+
+/* Add this to your global CSS or in a style tag */
+.tiptap ul {
+  list-style-type: disc;
+  padding-left: 1.5rem;
+  margin: 0.5rem 0;
+}
+
+.tiptap ol {
+  list-style-type: decimal;
+  padding-left: 1.5rem;
+  margin: 0.5rem 0;
+}
+
+.tiptap li {
+  display: list-item;
+  margin: 0.25rem 0;
+}
+
+.tiptap ul li::marker {
+  color: #4b5563;
+}
+
+.tiptap ol li::marker {
+  color: #4b5563;
+}
+
+/* Ensure proper list rendering in the editor */
+.ProseMirror ul, 
+.ProseMirror ol {
+  padding-left: 1.5rem;
+}
+
+.ProseMirror ul {
+  list-style-type: disc;
+}
+
+.ProseMirror ol {
+  list-style-type: decimal;
+}
+
+.ProseMirror li {
+  display: list-item;
+}
+
+
+
+.dropdown-container[data-position="up"] .dropdown-menu {
+    bottom: 100%;
+    top: auto;
+}
+
+.dropdown-container[data-position="down"] .dropdown-menu {
+    top: 100%;
+    bottom: auto;
+}
+
+.relative {
+  position: relative;
+}
+
+.absolute {
+  position: absolute;
+}
+
+.z-20 {
+  z-index: 20;
+}
+
+.z-50 {
+  z-index: 50;
+}
+
+

@@ -61,9 +61,7 @@ const SplitText: React.FC<SplitTextProps> = ({
       if (el._rbsplitInstance) {
         try {
           el._rbsplitInstance.revert();
-        } catch {
-          // Ignore errors during revert
-        }
+        } catch (_) {}
         el._rbsplitInstance = undefined;
       }
 
@@ -128,9 +126,7 @@ const SplitText: React.FC<SplitTextProps> = ({
         });
         try {
           splitInstance.revert();
-        } catch {
-          // Ignore errors during cleanup
-        }
+        } catch (_) {}
         el._rbsplitInstance = undefined;
       };
     },

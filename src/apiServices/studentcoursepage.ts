@@ -1,5 +1,20 @@
-import React from 'react'
-import { useQuery, UseQueryResult, useInfiniteQuery } from '@tanstack/react-query'
+import React from "react";
+import {
+  useQuery,
+  UseQueryResult,
+  useInfiniteQuery,
+} from "@tanstack/react-query";
+
+export interface SingleParticipant {
+  user: string | { $oid: string };
+  status: string;
+  enableEnrolmentDates: boolean;
+  enrolmentStartsDate: string | null;
+  enrolmentEndsDate: string | null;
+  createdAt: string;
+  updatedAt: string;
+  _id: string;
+}
 
 export interface Course {
   _id: string;
@@ -12,6 +27,8 @@ export interface Course {
   clientName: string;
   createdAt: string;
   updatedAt: string;
+  singleParticipants?: SingleParticipant[];
+  groups?: string[];
 }
 
 interface CoursesApiResponse {
@@ -32,60 +49,138 @@ interface CoursesQueryError {
   status?: number;
 }
 
-// API service function with pagination
-const fetchCourses = async (token: string, page: number = 1, limit: number = 8): Promise<CoursesApiResponse> => {
+const normalizeMongoId = (id: string | { $oid: string }): string => {
+  if (typeof id === "string") return id;
+  if (id && typeof id === "object" && id.$oid) return id.$oid;
+  return String(id);
+};
+
+export const getCurrentUserIdFromAuth = (): string | null => {
+  if (typeof window === "undefined") return null;
+
+  const userId =
+    localStorage.getItem("smartcliff_userId") ||
+    localStorage.getItem("user_id") ||
+    sessionStorage.getItem("smartcliff_userId") ||
+    sessionStorage.getItem("user_id");
+
+  if (userId) return userId;
+
+  try {
+    const userDataStr =
+      localStorage.getItem("user_data") || sessionStorage.getItem("user_data");
+
+    if (userDataStr) {
+      const userData = JSON.parse(userDataStr);
+      return normalizeMongoId(userData._id || userData.id || "");
+    }
+  } catch (error) {
+    console.error("Error parsing user data:", error);
+  }
+
+  return null;
+};
+
+const fetchCourses = async (
+  token: string,
+  userId: string | null,
+): Promise<CoursesApiResponse> => {
   if (!token) {
     throw new Error("Authentication token not found");
   }
 
-  const response = await fetch(`https://lms-server-ym1q.onrender.com/courses-structure/getAll?page=${page}&limit=${limit}`, {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
+  const response = await fetch(
+    `http://localhost:5533/courses-structure/getAll`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
     }
-  });
+  );
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
     throw new Error(
-      errorData.message || 
-      `HTTP error! status: ${response.status}` ||
-      'Failed to fetch courses'
+      errorData.message ||
+        `HTTP error! status: ${response.status}` ||
+        "Failed to fetch courses"
     );
   }
 
   const data: CoursesApiResponse = await response.json();
-  
+
   if (!data.data || !Array.isArray(data.data)) {
-    throw new Error('Invalid data format received from API');
+    throw new Error("Invalid data format received from API");
   }
 
-  return data;
+  let filteredCourses = data.data;
+
+  if (userId) {
+    const normalizedUserId = normalizeMongoId(userId);
+
+    filteredCourses = data.data.filter((course) => {
+      if (
+        !course.singleParticipants ||
+        !Array.isArray(course.singleParticipants)
+      ) {
+        return false;
+      }
+
+      const userParticipant = course.singleParticipants.find(
+        (participant: SingleParticipant) => {
+          // Handle both string user ID and populated user object
+          const participantUserId = normalizeMongoId(participant.user);
+          
+          const matches = participantUserId === normalizedUserId;
+
+          if (matches) {
+            console.log('User found in course:', course.courseName);
+          }
+
+          return matches;
+        }
+      );
+
+      const isEnrolled = userParticipant && userParticipant.status === "active";
+
+      return isEnrolled;
+    });
+  }
+
+  console.log('Filtered courses count:', filteredCourses.length);
+  console.log('All courses count:', data.data.length);
+
+  return {
+    ...data,
+    data: filteredCourses,
+  };
 };
 
-// Query key factory for better cache management
 export const coursesQueryKeys = {
-  all: ['courses'] as const,
-  lists: () => [...coursesQueryKeys.all, 'list'] as const,
-  list: (filters: Record<string, any>) => [...coursesQueryKeys.lists(), { filters }] as const,
-  infinite: () => [...coursesQueryKeys.all, 'infinite'] as const,
-  infiniteList: (filters: Record<string, any>) => [...coursesQueryKeys.infinite(), { filters }] as const,
-  details: () => [...coursesQueryKeys.all, 'detail'] as const,
+  all: ["courses"] as const,
+  lists: () => [...coursesQueryKeys.all, "list"] as const,
+  list: (filters: Record<string, any>) =>
+    [...coursesQueryKeys.lists(), { filters }] as const,
+  infinite: () => [...coursesQueryKeys.all, "infinite"] as const,
+  infiniteList: (filters: Record<string, any>) =>
+    [...coursesQueryKeys.infinite(), { filters }] as const,
+  details: () => [...coursesQueryKeys.all, "detail"] as const,
   detail: (id: string) => [...coursesQueryKeys.details(), id] as const,
 };
 
-// Custom hook for fetching courses with pagination
 export const useCoursesInfiniteQuery = (
-  token: string | null, 
+  token: string | null,
+  userId: string | null,
   filters: {
     searchTerm: string;
     selectedCategory: string;
   }
 ) => {
   return useInfiniteQuery({
-    queryKey: [...coursesQueryKeys.infiniteList(filters), filters],
-    queryFn: ({ pageParam = 1 }) => fetchCourses(token!, pageParam, 8), // 8 items per page
-    enabled: !!token,
+    queryKey: [...coursesQueryKeys.infiniteList(filters), userId, filters],
+    queryFn: ({ pageParam = 1 }) => fetchCourses(token!, userId,),
+    enabled: !!token && !!userId,
     getNextPageParam: (lastPage) => {
       if (lastPage.pagination?.hasNext) {
         return lastPage.pagination.page + 1;
@@ -104,12 +199,14 @@ export const useCoursesInfiniteQuery = (
   });
 };
 
-// Keep the original hook for backward compatibility
-export const useCoursesQuery = (token: string | null): UseQueryResult<Course[], CoursesQueryError> => {
+export const useCoursesQuery = (
+  token: string | null,
+  userId: string | null
+): UseQueryResult<Course[], CoursesQueryError> => {
   return useQuery({
-    queryKey: coursesQueryKeys.lists(),
-    queryFn: () => fetchCourses(token!).then(res => res.data),
-    enabled: !!token,
+    queryKey: [...coursesQueryKeys.lists(), userId],
+    queryFn: () => fetchCourses(token!, userId).then((res) => res.data),
+    enabled: !!token && !!userId,
     staleTime: 10 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
     retry: (failureCount, error: any) => {
@@ -121,7 +218,6 @@ export const useCoursesQuery = (token: string | null): UseQueryResult<Course[], 
   });
 };
 
-// Simplified filtering - only by service type and search by name
 export const useFilteredCourses = (
   courses: Course[] | undefined,
   filters: {
@@ -132,45 +228,55 @@ export const useFilteredCourses = (
   return React.useMemo(() => {
     if (!courses) return [];
 
-    return courses.filter(course => {
-      // Search by course name only
-      const matchesSearch = filters.searchTerm === "" || 
-                           course.courseName.toLowerCase().includes(filters.searchTerm.toLowerCase());
-      
-      // Filter by service type (category)
-      const matchesCategory = filters.selectedCategory === "All" || 
-                             course.serviceType === filters.selectedCategory;
-      
+    return courses.filter((course) => {
+      const matchesSearch =
+        filters.searchTerm === "" ||
+        course.courseName
+          .toLowerCase()
+          .includes(filters.searchTerm.toLowerCase());
+
+      const matchesCategory =
+        filters.selectedCategory === "All" ||
+        course.serviceType === filters.selectedCategory;
+
       return matchesSearch && matchesCategory;
     });
   }, [courses, filters.searchTerm, filters.selectedCategory]);
 };
 
-// Utility function to get token from localStorage
 export const getAuthToken = (): string | null => {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem('smartcliff_token');
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("smartcliff_token");
 };
 
-// Prefetch courses function for better UX
-export const prefetchCourses = (queryClient: any, token: string) => {
+export const getCurrentUserId = (): string | null => {
+  return getCurrentUserIdFromAuth();
+};
+
+export const prefetchCourses = (
+  queryClient: any,
+  token: string,
+  userId: string
+) => {
   queryClient.prefetchQuery({
-    queryKey: coursesQueryKeys.lists(),
-    queryFn: () => fetchCourses(token).then(res => res.data),
+    queryKey: [...coursesQueryKeys.lists(), userId],
+    queryFn: () => fetchCourses(token, userId).then((res) => res.data),
     staleTime: 10 * 60 * 1000,
   });
 };
 
-// Invalidate courses cache function
 export const invalidateCoursesCache = (queryClient: any) => {
   queryClient.invalidateQueries({
     queryKey: coursesQueryKeys.all,
   });
 };
 
-// Background refresh function
-export const backgroundRefreshCourses = (queryClient: any, token: string) => {
+export const backgroundRefreshCourses = (
+  queryClient: any,
+  token: string,
+  userId: string
+) => {
   queryClient.refetchQueries({
-    queryKey: coursesQueryKeys.lists(),
+    queryKey: [...coursesQueryKeys.lists(), userId],
   });
 };

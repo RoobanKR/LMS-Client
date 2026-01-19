@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'https://lms-server-ym1q.onrender.com';
+const API_BASE_URL = 'http://localhost:5533';
 
 export const verifyToken = async (token: string) => {
   const response = await axios.post(`${API_BASE_URL}/user/verify-token`, {}, {
@@ -10,6 +10,22 @@ export const verifyToken = async (token: string) => {
   });
   return response.data;
 };
+
+
+export const getCurrentUser = async () => {
+  const token = localStorage.getItem("smartcliff_token");
+  if (!token) {
+    throw new Error('No token found');
+  }
+  
+  const response = await axios.post(`${API_BASE_URL}/user/verify-token`, {}, {
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  });
+  return response.data;
+};
+
 
 export const fetchDashboardData = async (token: string) => {
   const response = await axios.get(`${API_BASE_URL}/dashboard`, {

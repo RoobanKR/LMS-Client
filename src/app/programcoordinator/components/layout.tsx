@@ -16,7 +16,7 @@ const SidebarContext = createContext<{
 
 export const useSidebarpro = () => useContext(SidebarContext);
 
-export default function DashboardLayoutProgramcoordinator({
+export default function DashboardLayoutlms({
     children,
 }: {
     children: React.ReactNode;

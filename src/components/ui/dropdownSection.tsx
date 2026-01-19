@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown } from 'lucide-react';
-
+ 
 type DropdownSectionProps = {
     type: string;
     icon: React.ElementType;
@@ -10,7 +10,7 @@ type DropdownSectionProps = {
     onSelectionChange: (selected: string[]) => void;
     onSelectAll: (checked: boolean) => void;
 };
-
+ 
 const DropdownSection: React.FC<DropdownSectionProps> = ({
     type,
     icon: Icon,
@@ -22,21 +22,21 @@ const DropdownSection: React.FC<DropdownSectionProps> = ({
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
-
+ 
     // Close dropdown when clicking outside
     useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        const handleClickOutside = (event: { target: any; }) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
                 setIsOpen(false);
             }
         };
-
+ 
         document.addEventListener('mousedown', handleClickOutside);
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
         };
     }, []);
-
+ 
     const handleActivityToggle = (activity: string, checked: boolean) => {
         const current = Array.isArray(selectedActivities) ? selectedActivities : [];
         const updated = checked
@@ -44,14 +44,14 @@ const DropdownSection: React.FC<DropdownSectionProps> = ({
             : current.filter(a => a !== activity);
         onSelectionChange(updated);
     };
-
-    const handleSelectAll = (checked: boolean) => {
-        onSelectAll(checked);
+ 
+    const handleSelectAll = (checked: any) => {
+        onSelectAll(!!checked);
     };
-
+ 
     const allSelected = Array.isArray(selectedActivities) &&
         selectedActivities.length === activityTypes.length;
-
+ 
     return (
         <div className="flex-1 " ref={dropdownRef}>
             <div className="group backdrop-blur-none">
@@ -73,7 +73,7 @@ const DropdownSection: React.FC<DropdownSectionProps> = ({
                         className={`h-3 w-3 text-purple-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
                     />
                 </button>
-
+ 
                 {isOpen && (
                     <div className="absolute  mt-1 w-full p-2 bg-white border border-purple-100 rounded-md shadow-lg max-h-60 overflow-y-auto">
                         <div className="flex items-center gap-2 px-2 py-1 mb-1 border-b border-purple-50 bg-white">
@@ -95,7 +95,7 @@ const DropdownSection: React.FC<DropdownSectionProps> = ({
                                 <Checkbox
                                     id={`${type}-${activity}`}
                                     checked={Array.isArray(selectedActivities) && selectedActivities.includes(activity)}
-                                    onCheckedChange={(checked: boolean) => handleActivityToggle(activity, checked)}
+                                    onCheckedChange={(checked: any) => handleActivityToggle(activity, !!checked)}
                                     className="h-3 w-3"
                                 />
                                 <span className="text-slate-600 bg-white">{activity}</span>
@@ -107,7 +107,7 @@ const DropdownSection: React.FC<DropdownSectionProps> = ({
         </div>
     );
 };
-
+ 
 // Checkbox component (make sure this is the same one you're using)
 type CheckboxProps = {
     id: string;
@@ -115,7 +115,7 @@ type CheckboxProps = {
     onCheckedChange: (checked: boolean) => void;
     className?: string;
 };
-
+ 
 const Checkbox: React.FC<CheckboxProps> = ({ id, checked, onCheckedChange, className = "" }) => {
     return (
         <input
@@ -127,5 +127,7 @@ const Checkbox: React.FC<CheckboxProps> = ({ id, checked, onCheckedChange, class
         />
     );
 };
-
+ 
 export default DropdownSection;
+ 
+ 

@@ -20,20 +20,28 @@ interface LoginResponse {
     email: string;
     firstName: string;
     lastName: string;
-    role: string;
+    role: {
+      $oid?: string;
+      _id?: string;
+      originalRole?: string;
+      renameRole?: string;
+      roleValue?: string;
+      [key: string]: any;
+    } | string;
     firstTimeLoginDone: boolean;
+    [key: string]: any;
   };
   token: string;
   institution: string;
   institutionName: string;
   userId: string;
+  basedOn: string;
 }
 
 interface FormErrors {
   email: string;
   password: string;
 }
-
 
 const SmartCliffLogin = () => {
   const router = useRouter();
@@ -48,23 +56,50 @@ const SmartCliffLogin = () => {
     password: "",
   });
 
+  // Helper function to clear all auth data
+  const clearAuthData = () => {
+    localStorage.removeItem("smartcliff_token");
+    localStorage.removeItem("smartcliff_institution");
+    localStorage.removeItem("smartcliff_institutionname");
+    localStorage.removeItem("smartcliff_basedOn");
+    localStorage.removeItem("smartcliff_userId");
+    localStorage.removeItem("smartcliff_userData");
+    localStorage.removeItem("smartcliff_role");
+    localStorage.removeItem("smartcliff_roleId");
+    localStorage.removeItem("smartcliff_roleValue");
+    localStorage.removeItem("smartcliff_originalRole");
+    localStorage.removeItem("smartcliff_renameRole");
+  };
+
   useEffect(() => {
     setMounted(true);
+    
+    // Check for all required authentication data
     const existingToken = localStorage.getItem("smartcliff_token");
     const existingInstitution = localStorage.getItem("smartcliff_institution");
-    if (existingToken && existingInstitution) {
+    const existingBasedOn = localStorage.getItem("smartcliff_basedOn");
+    const existingRole = localStorage.getItem("smartcliff_role");
+    const existingRoleValue = localStorage.getItem("smartcliff_roleValue");
+    const originalRole = localStorage.getItem("smartcliff_originalRole");
+
+    if (existingToken && existingInstitution && existingBasedOn && existingRole && existingRoleValue) {
+      // Determine redirect based on role
+      let userRole = originalRole?.toLowerCase() || existingRoleValue?.toLowerCase() || existingRole?.toLowerCase() || '';
+      let redirectPath = "/lms/pages/admindashboard";
+      
+      if (userRole === 'student' || userRole.includes('student')) {
+        redirectPath = "/lms/pages/studentdashboard";
+      }
+      
+      console.log(`Auto-redirecting ${userRole} to: ${redirectPath}`);
       toast.info("Welcome back!");
-      router.push("/admin/pages/admindashboard");
+      router.push(redirectPath);
     }
-
-
-
   }, [router]);
-
 
   const loginMutation = useMutation({
     mutationFn: async (credentials: { email: string; password: string }) => {
-      const response = await fetch("https://lms-server-ym1q.onrender.com/user/login", {
+      const response = await fetch("http://localhost:5533/user/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -79,59 +114,131 @@ const SmartCliffLogin = () => {
 
       return response.json();
     },
-    onSuccess: async (data: LoginResponse) => {
-      try {
-        const { user, token, institution, institutionName, userId } = data;
+   onSuccess: async (data: LoginResponse) => {
+  try {
+    const { user, token, institution, institutionName, userId, basedOn } = data;
 
-        if (!token && !institution && !institutionName && !userId) {
-          throw new Error("No token received");
-        }
+    if (!token || !institution || !institutionName || !userId || !basedOn) {
+      throw new Error("No token received");
+    }
 
-        localStorage.setItem("smartcliff_token", token);
-        localStorage.setItem("smartcliff_institution", institution);
-        localStorage.setItem("smartcliff_institutionname", institutionName);
-        localStorage.setItem("smartcliff_userId", userId);
-
-        const verifyResponse = await fetch(
-          "https://lms-server-ym1q.onrender.com/user/verify-token",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-
-        if (!verifyResponse.ok) {
-          localStorage.removeItem("smartcliff_token");
-          localStorage.removeItem("smartcliff_institution");
-          throw new Error("Token verification failed");
-        }
-
-        if (!user.firstTimeLoginDone) {
-          localStorage.setItem("showWelcomeToast", "true");
-          router.push("/admin/pages/admindashboard");
-        } else {
-          router.push("/admin/pages/admindashboard");
-        }
-      } catch (error) {
-        localStorage.removeItem("smartcliff_token");
-        localStorage.removeItem("smartcliff_institution");
-        if (error instanceof Error) {
-          toast.error(error.message);
-        } else {
-          toast.error("An unexpected error occurred");
-        }
+    // Store all authentication data
+    localStorage.setItem("smartcliff_token", token);
+    localStorage.setItem("smartcliff_institution", institution);
+    localStorage.setItem("smartcliff_institutionname", institutionName);
+    localStorage.setItem("smartcliff_basedOn", basedOn);
+    localStorage.setItem("smartcliff_userId", userId);
+    
+    // Store user data
+    localStorage.setItem("smartcliff_userData", JSON.stringify(user));
+    
+    // Store role information and determine user role
+    let userRoleValue = 'User'; // Default role
+    let originalRoleValue = ''; // Store original role separately
+    
+    if (user.role) {
+      if (typeof user.role === 'object' && user.role !== null) {
+        // Handle role as object (with _id, roleValue, etc.)
+        const roleId = user.role._id || user.role.$oid || '';
+        const originalRole = user.role.originalRole || '';
+        const renameRole = user.role.renameRole || '';
+        const roleValue = user.role.roleValue || renameRole || originalRole || 'User';
+        
+        userRoleValue = roleValue.toLowerCase();
+        originalRoleValue = originalRole.toLowerCase();
+        
+        console.log("User role details:", { 
+          originalRole, 
+          renameRole, 
+          roleValue, 
+          userRoleValue,
+          originalRoleValue 
+        });
+        
+        localStorage.setItem("smartcliff_roleId", roleId);
+        localStorage.setItem("smartcliff_roleValue", roleValue);
+        localStorage.setItem("smartcliff_originalRole", originalRole);
+        localStorage.setItem("smartcliff_renameRole", renameRole);
+        
+        // Store the entire role object if needed
+        localStorage.setItem("smartcliff_role", JSON.stringify(user.role));
+      } else {
+        // If role is just a string or ID
+        const roleString = String(user.role);
+        userRoleValue = roleString.toLowerCase();
+        originalRoleValue = roleString.toLowerCase();
+        localStorage.setItem("smartcliff_role", roleString);
+        localStorage.setItem("smartcliff_roleValue", roleString);
+        localStorage.setItem("smartcliff_roleId", roleString);
+        localStorage.setItem("smartcliff_originalRole", roleString);
       }
-    },
+    } else {
+      // Default role if none provided
+      userRoleValue = 'user';
+      originalRoleValue = 'user';
+      localStorage.setItem("smartcliff_role", "User");
+      localStorage.setItem("smartcliff_roleValue", "User");
+      localStorage.setItem("smartcliff_roleId", "");
+      localStorage.setItem("smartcliff_originalRole", "User");
+    }
+
+    // Verify token
+    const verifyResponse = await fetch(
+      "http://localhost:5533/user/verify-token",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (!verifyResponse.ok) {
+      clearAuthData();
+      throw new Error("Token verification failed");
+    }
+
+    // Determine redirect path based on user role
+    let redirectPath = "";
+    const roleForRedirect = originalRoleValue || userRoleValue;
+    
+    // Check for student role (case-insensitive and partial match)
+    const isStudent = roleForRedirect.includes('student');
+    
+    console.log(`Role check - originalRoleValue: ${originalRoleValue}, userRoleValue: ${userRoleValue}, isStudent: ${isStudent}`);
+
+    // Always redirect based on role, regardless of firstTimeLoginDone
+    if (isStudent) {
+      redirectPath = "/lms/pages/studentdashboard";
+    } else {
+      redirectPath = "/lms/pages/admindashboard";
+    }
+
+    // Store showWelcomeToast flag if first time login
+    if (!user.firstTimeLoginDone) {
+      localStorage.setItem("showWelcomeToast", "true");
+    }
+
+    console.log(`Redirecting ${roleForRedirect} to: ${redirectPath}`);
+    
+    // Force a hard redirect to prevent any caching issues
+    window.location.href = redirectPath;
+    
+  } catch (error) {
+    clearAuthData();
+    if (error instanceof Error) {
+      toast.error(error.message);
+    } else {
+      toast.error("An unexpected error occurred");
+    }
+  }
+},
     onError: (error: Error) => {
-      // toast.error(error.message);
       showErrorToast(error.message);
-
-
     },
   });
+
   const validateForm = (): boolean => {
     let valid = true;
     const newErrors: FormErrors = { email: "", password: "" };
@@ -172,6 +279,7 @@ const SmartCliffLogin = () => {
       }));
     }
   };
+
   const floatingElements = Array.from({ length: 6 }, (_, i) => (
     <div
       key={i}
@@ -219,40 +327,6 @@ const SmartCliffLogin = () => {
             className={`w-full max-w-lg mx-auto space-y-6 order-1 lg:order-1 ${mounted ? "animate-slide-in-left" : "opacity-0"}`}
           >
             <div className="space-y-6">
-              {/* Compact Logo and Brand */}
-              {/* <div className="space-y-4">
-              <div className="flex items-center space-x-3 group">
-                <div className="relative">
-                  <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center transform group-hover:rotate-12 transition-all duration-500 shadow-xl">
-                    <Brain className="w-6 h-6 text-white animate-pulse" />
-                    <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-purple-500 rounded-xl blur-lg opacity-50 group-hover:opacity-75 transition-opacity duration-500"></div>
-                  </div>
-                  <Sparkles className="absolute -top-1 -right-1 w-4 h-4 text-yellow-400 animate-sparkle" />
-                </div>
-                <div>
-                  <h1 className="text-3xl font-bold bg-gradient-to-r from-white via-blue-100 to-purple-100 bg-clip-text text-transparent animate-gradient">
-                    SmartCliff
-                  </h1>
-                  <p className="text-blue-200 font-medium text-sm">
-                    Enterprise Learning Excellence
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <h2 className="text-xl font-semibold text-white leading-relaxed">
-                  Elevate Your Team's Potential with
-                  <span className="text-transparent bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text">
-                    {" "}AI-Powered Learning
-                  </span>
-                </h2>
-                <p className="text-blue-100 text-base leading-relaxed">
-                  Transform your organization with our comprehensive B2B learning platform.
-                </p>
-              </div>
-            </div> */}
-
-
               <div className="space-y-4">
                 <div className="flex items-center space-x-3 group">
                   <div className="relative">
@@ -272,13 +346,12 @@ const SmartCliffLogin = () => {
 
                     {/* 🌐 External Link */}
                     <a
-                      href="https://smartcliff.in/" // Replace with actual link
+                      href="https://smartcliff.in/"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center text-sm text-blue-300 hover:text-white font-medium mt-1 transition-all"
                     >
                       Go to SmartCliff main site
-
                       <ExternalLink className="w-4 h-4 ml-2" />
                     </a>
                   </div>
@@ -296,7 +369,6 @@ const SmartCliffLogin = () => {
                   </p>
                 </div>
               </div>
-
 
               {/* Compact Stats */}
               <div className="grid grid-cols-3 gap-3 py-4">
@@ -558,9 +630,7 @@ const SmartCliffLogin = () => {
         `}</style>
       </div>
     </>
-
   );
 };
 
 export default SmartCliffLogin;
-

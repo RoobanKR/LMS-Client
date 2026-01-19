@@ -1,5 +1,4 @@
 import React, { useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
-
 interface PrintComponentProps {
     logo?: string;
     logoPosition?: 'left' | 'right' | 'both';
@@ -68,6 +67,7 @@ const PrintComponent = forwardRef<PrintComponentRef, PrintComponentProps>(({
     courseDetails,
 }, ref) => {
     const printRef = useRef<HTMLDivElement>(null);
+
 
     const processTableForPrint = () => {
         if (!printRef.current) return;
@@ -160,8 +160,7 @@ const PrintComponent = forwardRef<PrintComponentRef, PrintComponentProps>(({
     const generateSummaryHTML = () => {
         if (!showSummary || !summaryData) return '';
 
-        // Destructure only the needed properties
-        const { exportSelections, calculateTotalHours } = summaryData;
+        const { selectedPedagogyTypes, activityTypes, exportSelections, calculateTotalHours } = summaryData;
 
         // Filter activities based on selections
         const filteredActivities = {
@@ -253,6 +252,7 @@ const PrintComponent = forwardRef<PrintComponentRef, PrintComponentProps>(({
 
         return summaryHTML;
     };
+
 
     const handlePrint = () => {
         if (!printRef.current) return;
@@ -831,8 +831,5 @@ const PrintComponent = forwardRef<PrintComponentRef, PrintComponentProps>(({
         </div>
     );
 });
-
-// Add display name
-PrintComponent.displayName = 'PrintComponent';
 
 export default PrintComponent;

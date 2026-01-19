@@ -1,7 +1,8 @@
-import { Edit, Key, Trash2, ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react";
+// components/UserTable.tsx
+import { Edit, Key, Loader2, Trash2, ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,33 +11,22 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useState } from "react";
 
-// Define User interface based on your data structure
-interface User {
-  id: string;
-  name?: string;
-  email?: string;
-  status?: "active" | "inactive";
-  role?: string;
-  // Add other user properties as needed
-  [key: string]: string | undefined; // For dynamic properties
-}
-
 interface ColumnConfig {
   key: string;
   label: string | React.ReactNode;
   width?: string;
   align?: 'left' | 'center' | 'right';
-  renderCell?: (user: User) => React.ReactNode;
+  renderCell?: (user: any) => React.ReactNode;
 }
 
 interface UserTableProps {
-  users: User[];
+  users: any[];
   isLoading: boolean;
   columns: ColumnConfig[];
   actionButtons?: {
-    edit?: (user: User) => void;
-    permissions?: (user: User) => void;
-    delete?: (user: User) => void;
+    edit?: (user: any) => void;
+    permissions?: (user: any) => void;
+    delete?: (user: any) => void;
   };
   pagination?: {
     currentPage: number;
@@ -45,6 +35,7 @@ interface UserTableProps {
     itemsPerPage: number;
     onPageChange: (page: number) => void;
   };
+  onToggleStatus?: (userId: string, status: "active" | "inactive") => void;
 }
 
 export const UserTable = ({
@@ -53,6 +44,7 @@ export const UserTable = ({
   columns,
   actionButtons,
   pagination,
+  onToggleStatus,
 }: UserTableProps) => {
   const [dropdownOpen, setDropdownOpen] = useState<string | null>(null);
 
@@ -62,7 +54,7 @@ export const UserTable = ({
     }
   };
 
-  const handleActionClick = (action: (user: User) => void, user: User) => {
+  const handleActionClick = (action: (user: any) => void, user: any) => {
     setDropdownOpen(null); // Close dropdown when action is clicked
     action(user);
   };

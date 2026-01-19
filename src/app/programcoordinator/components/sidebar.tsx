@@ -31,20 +31,20 @@ import { useSidebarpro } from "./layout";
 const sidebarItems = [
     {
         title: "Dashboard",
-        href: "/programcoordinator/pages/dashboardprogramcoordinator",
+        href: "/lms/pages/dashboardlms",
         icon: Home,
         hasChevron: false,
     },
     {
       
         title: "Courses Structure",
-        href: "/programcoordinator/pages/courses",
+        href: "/lms/pages/coursestructure",
         icon: BookOpen,
         hasChevron: false,
     },
      {
         title: "Pedagogy",
-        href: "/programcoordinator/pages/pedagogy",
+        href: "/lms/pages/pedagogy",
         icon: ListChecks,
         hasChevron: false,
     },
@@ -89,7 +89,7 @@ const sidebarItems = [
 const bottomItems = [
     {
         title: "Settings",
-        href: "/admin/pages/dynamicfields",
+        href: "/lms/pages/dynamicfields",
         icon: Settings,
         hasChevron: false,
     },

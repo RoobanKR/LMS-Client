@@ -1,28 +1,10 @@
 import { create } from 'zustand';
 import { jwtDecode } from 'jwt-decode';
 
-interface User {
-  id: string;
-  email: string;
-  name: string;
-  role: string;
-  // Add other user properties as needed based on your JWT payload
-}
-
-interface JwtPayload {
-  id: string;
-  email: string;
-  name: string;
-  role: string;
-  exp: number;
-  iat: number;
-  // Add other JWT payload properties as needed
-}
-
 interface AuthState {
   token: string | null;
   isAuthenticated: boolean;
-  user: User | null;
+  user: any;
   setToken: (token: string) => void;
   clearToken: () => void;
   verifyToken: () => Promise<boolean>;
@@ -35,17 +17,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   setToken: (token) => {
     localStorage.setItem('smartcliff_token', token);
-    const decoded = jwtDecode<JwtPayload>(token);
-    set({ 
-      token, 
-      isAuthenticated: true, 
-      user: {
-        id: decoded.id,
-        email: decoded.email,
-        name: decoded.name,
-        role: decoded.role
-      }
-    });
+    const decoded = jwtDecode(token);
+    set({ token, isAuthenticated: true, user: decoded });
   },
 
   clearToken: () => {
@@ -63,19 +36,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const { verifyToken } = await import('../apiServices/tokenVerify');
       await verifyToken(token);
-      const decoded = jwtDecode<JwtPayload>(token);
-      set({ 
-        token, 
-        isAuthenticated: true, 
-        user: {
-          id: decoded.id,
-          email: decoded.email,
-          name: decoded.name,
-          role: decoded.role
-        }
-      });
+      const decoded = jwtDecode(token);
+      set({ token, isAuthenticated: true, user: decoded });
       return true;
-    } catch {
+    } catch (error) {
       get().clearToken();
       return false;
     }

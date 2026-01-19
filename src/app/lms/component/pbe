@@ -1,0 +1,1877 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  Plus, 
+  FileCode, 
+  RefreshCw, 
+  Loader2,
+  Edit,
+  Trash2,
+  ChevronLeft,
+  ChevronRight,
+  MoreHorizontal,
+  PlayCircle,
+  Eye,
+  Calendar,
+  Code,
+  AlertTriangle,
+  X,
+  Clock,
+  Users,
+  Settings,
+  Brain,
+  Zap,
+  Cpu,
+  Terminal,
+  Globe,
+  TestTube,
+  BarChart3,
+  Copy,
+  Download,
+  Share2,
+  Star,
+  Hash,
+  Key,
+  Shuffle,
+  SkipForward,
+  MessageCircle,
+  CheckCircle,
+  XCircle,
+  Info,
+  FolderOpen,
+  Layers,
+  Link,
+  Lock,
+  Unlock,
+  Filter,
+  Grid,
+  List,
+  Search,
+  ExternalLink,
+  Upload,
+  FileText,
+  Clipboard,
+  BookOpen,
+  Users as UsersIcon,
+  Download as DownloadIcon,
+  Edit3,
+  EyeOff,
+  Maximize2,
+  Minimize2,
+  MoreVertical,
+  FolderPlus,
+  FolderTree,
+  Mail,
+  Printer,
+  Tag,
+  Pin,
+  Archive,
+  Copy as CopyIcon,
+  Scissors,
+  FilePlus,
+  FolderPlus as FolderPlusIcon,
+  Settings2,
+  Globe as GlobeIcon,
+  Shield,
+  HelpCircle,
+  RotateCcw,
+  PinOff,
+  History,
+  Bell,
+  CheckSquare,
+  Square
+} from 'lucide-react';
+import ExerciseSettings from './ExerciseSettings';
+import { exerciseApi } from '@/apiServices/exercise';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  DropdownMenuGroup,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuPortal,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuCheckboxItem,
+} from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
+import Questions from './QuestionsView';
+
+interface HierarchyData {
+  courseName: string;
+  moduleName: string;
+  submoduleName: string;
+  topicName: string;
+  subtopicName: string;
+  nodeType: string;
+  level: number;
+}
+
+interface ExerciseSettingsData {
+  exerciseInformation: {
+    exerciseId: string;
+    exerciseName: string;
+    description: string;
+    exerciseLevel: 'beginner' | 'intermediate' | 'advanced';
+  };
+  programmingSettings: {
+    selectedModule: string;
+    selectedLanguages: string[];
+    levelConfiguration: {
+      levelType: 'levelBased' | 'general';
+      levelBased: {
+        easy: number;
+        medium: number;
+        hard: number;
+      };
+      general: number;
+    };
+  };
+  compilerSettings: {
+    allowCopyPaste: boolean;
+    autoSuggestion: boolean;
+    autoCloseBrackets: boolean;
+  };
+  availabilityPeriod: {
+    startDate: string;
+    endDate: string;
+    gracePeriodAllowed: boolean;
+    gracePeriodDate: string;
+  };
+  questionBehavior: {
+    shuffleQuestions: boolean;
+    allowNext: boolean;
+    allowSkip: boolean;
+    attemptLimitEnabled: boolean;
+    maxAttempts: number;
+  };
+  evaluationSettings: {
+    practiceMode: boolean;
+    manualEvaluation: {
+      enabled: boolean;
+      submissionNeeded: boolean;
+    };
+    aiEvaluation: boolean;
+    automationEvaluation: boolean;
+  };
+  groupSettings: {
+    groupSettingsEnabled: boolean;
+    showExistingUsers: boolean;
+    selectedGroups: string[];
+    chatEnabled: boolean;
+  };
+}
+
+interface ProblemSolvingProps {
+  nodeId: string;
+  nodeName: string;
+  subcategory: string;
+  subcategoryLabel: string;
+  contentData: any[];
+  folderNavigationState: any;
+  hierarchyData: HierarchyData;
+  onRefresh?: () => Promise<void>;
+  activeTab: string;
+  nodeType: string;
+}
+
+interface Exercise {
+  _id: string;
+  exerciseInformation: {
+    exerciseName: string;
+    exerciseId?: string;
+    description?: string;
+    exerciseLevel?: 'beginner' | 'intermediate' | 'advanced';
+  };
+  programmingSettings?: {
+    selectedLanguages?: string[];
+    selectedModule?: string;
+    levelConfiguration?: any;
+  };
+  evaluationSettings?: {
+    practiceMode?: boolean;
+    manualEvaluation?: {
+      enabled: boolean;
+      submissionNeeded: boolean;
+    };
+    aiEvaluation?: boolean;
+    automationEvaluation?: boolean;
+  };
+  availabilityPeriod?: {
+    startDate?: string;
+    endDate?: string;
+    gracePeriodAllowed?: boolean;
+    gracePeriodDate?: string;
+    status?: string;
+  };
+  compilerSettings?: any;
+  questionBehavior?: any;
+  groupSettings?: any;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+const truncateText = (text: string, maxLength: number = 30): string => {
+  if (!text) return 'No description';
+  if (text.length <= maxLength) return text;
+  return text.substring(0, maxLength) + '...';
+};
+
+const parseMongoDate = (dateValue: any): string => {
+  if (!dateValue) return '';
+  
+  try {
+    if (typeof dateValue === 'object' && dateValue.$date) {
+      return new Date(dateValue.$date).toISOString().split('T')[0];
+    } else if (typeof dateValue === 'string') {
+      return dateValue.split('T')[0];
+    } else if (dateValue instanceof Date) {
+      return dateValue.toISOString().split('T')[0];
+    }
+  } catch (error) {
+    console.error('Error parsing date:', error);
+  }
+  
+  return '';
+};
+
+const formatDate = (dateString: string): string => {
+  if (!dateString) return 'Not set';
+  try {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  } catch (error) {
+    return dateString;
+  }
+};
+
+const moduleIcons: Record<string, any> = {
+  'Core Programming': <Cpu size={16} className="text-blue-500" />,
+  'Database': <Terminal size={16} className="text-green-500" />,
+  'Frontend': <Globe size={16} className="text-purple-500" />,
+  'Backend': <Settings size={16} className="text-orange-500" />,
+  'Mobile': <TestTube size={16} className="text-pink-500" />,
+  'default': <Code size={16} className="text-gray-500" />
+};
+
+const exerciseColumns = [
+  {
+    key: 'exerciseName',
+    label: 'Exercise Name',
+    width: '25%',
+    renderCell: (exercise: Exercise) => (
+      <div className="flex items-start gap-3">
+        <div className="p-1.5 bg-gradient-to-br from-blue-50 to-blue-100 rounded border border-blue-200 shadow-sm">
+          <Code size={14} className="text-blue-600" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <h4 className="font-semibold text-gray-900 text-sm">
+              {exercise.exerciseInformation?.exerciseName || 'Unnamed Exercise'}
+            </h4>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="cursor-help">
+                    <Info size={12} className="text-gray-400" />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  <p className="text-sm">{exercise.exerciseInformation?.description || 'No description available'}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+          <p className="text-xs text-gray-500 mt-0.5 truncate">
+            {truncateText(exercise.exerciseInformation?.description || 'No description')}
+          </p>
+        </div>
+      </div>
+    ),
+  },
+  {
+    key: 'id',
+    label: 'Exercise ID',
+    width: '15%',
+    renderCell: (exercise: Exercise) => (
+      <div className="flex items-center gap-1.5">
+        <Badge variant="outline" className="font-mono text-xs px-2 py-0.5 bg-gray-50 hover:bg-gray-100 cursor-pointer">
+          {exercise.exerciseInformation?.exerciseId || exercise._id.slice(-8)}
+        </Badge>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-5 w-5 p-0 hover:bg-gray-100"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigator.clipboard.writeText(exercise._id);
+                }}
+              >
+                <Copy size={10} className="text-gray-400" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Copy ID</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
+    ),
+  },
+  {
+    key: 'level',
+    label: 'Level',
+    width: '10%',
+    renderCell: (exercise: Exercise) => {
+      const level = exercise.exerciseInformation?.exerciseLevel || 'medium';
+      const levelConfig = {
+        beginner: { 
+          color: 'bg-gradient-to-r from-green-50 to-emerald-50', 
+          border: 'border-green-200',
+          text: 'text-green-700',
+          icon: '🟢'
+        },
+        intermediate: { 
+          color: 'bg-gradient-to-r from-yellow-50 to-amber-50', 
+          border: 'border-yellow-200',
+          text: 'text-yellow-700',
+          icon: '🟡'
+        },
+        advanced: { 
+          color: 'bg-gradient-to-r from-red-50 to-rose-50', 
+          border: 'border-red-200',
+          text: 'text-red-700',
+          icon: '🔴'
+        },
+      }[level] || { 
+        color: 'bg-gray-50', 
+        border: 'border-gray-200',
+        text: 'text-gray-700',
+        icon: '⚪'
+      };
+
+      return (
+        <Badge variant="outline" className={`${levelConfig.color} ${levelConfig.border} ${levelConfig.text} text-xs font-medium px-2 py-0.5`}>
+          {levelConfig.icon} {level.charAt(0).toUpperCase() + level.slice(1)}
+        </Badge>
+      );
+    },
+  },
+  {
+    key: 'languages',
+    label: 'Languages',
+    width: '15%',
+    renderCell: (exercise: Exercise) => (
+      <div className="flex flex-wrap gap-1">
+        {exercise.programmingSettings?.selectedLanguages?.map((lang: string, index: number) => (
+          <Badge key={index} variant="secondary" className="text-xs px-1.5 py-0.5 bg-blue-50 text-blue-700 hover:bg-blue-100">
+            {lang}
+          </Badge>
+        )) || <span className="text-xs text-gray-400">None</span>}
+      </div>
+    ),
+  },
+  {
+    key: 'mode',
+    label: 'Mode',
+    width: '12%',
+    renderCell: (exercise: Exercise) => {
+      const mode = exercise.evaluationSettings?.practiceMode ? 'Practice' :
+        exercise.evaluationSettings?.manualEvaluation?.enabled ? 'Manual' :
+        exercise.evaluationSettings?.aiEvaluation ? 'AI' :
+        exercise.evaluationSettings?.automationEvaluation ? 'Automated' : 'Practice';
+      
+      const modeColors = {
+        Practice: 'bg-gradient-to-r from-purple-50 to-violet-50 border-purple-200 text-purple-700',
+        Manual: 'bg-gradient-to-r from-orange-50 to-amber-50 border-orange-200 text-orange-700',
+        AI: 'bg-gradient-to-r from-indigo-50 to-blue-50 border-indigo-200 text-indigo-700',
+        Automated: 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200 text-green-700',
+      };
+      
+      return (
+        <Badge variant="outline" className={`${modeColors[mode as keyof typeof modeColors] || 'bg-gray-50 border-gray-200 text-gray-700'} text-xs font-medium px-2 py-0.5`}>
+          {mode}
+        </Badge>
+      );
+    },
+  },
+  {
+    key: 'status',
+    label: 'Status',
+    width: '10%',
+    renderCell: (exercise: Exercise) => {
+      const now = new Date();
+      const startDate = exercise.availabilityPeriod?.startDate 
+        ? new Date(exercise.availabilityPeriod.startDate) 
+        : null;
+      const endDate = exercise.availabilityPeriod?.endDate 
+        ? new Date(exercise.availabilityPeriod.endDate) 
+        : null;
+      
+      let isActive = false;
+      if (startDate && endDate) {
+        isActive = now >= startDate && now <= endDate;
+      }
+      
+      return (
+        <div className="flex items-center gap-1.5">
+          <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+          <span className={`text-xs font-medium ${isActive ? 'text-green-700' : 'text-gray-600'}`}>
+            {isActive ? 'Active' : 'Draft'}
+          </span>
+        </div>
+      );
+    },
+  },
+  {
+    key: 'createdAt',
+    label: 'Created',
+    width: '13%',
+    renderCell: (exercise: Exercise) => (
+      <div className="flex items-center gap-1.5">
+        <Calendar size={12} className="text-gray-400" />
+        <span className="text-xs text-gray-600">
+          {new Date(exercise.createdAt).toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
+          })}
+        </span>
+      </div>
+    ),
+  },
+];
+
+const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
+  const {
+    nodeId,
+    nodeName,
+    subcategory,
+    subcategoryLabel,
+    hierarchyData,
+    onRefresh,
+    nodeType
+  } = props;
+
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [exerciseToDelete, setExerciseToDelete] = useState<Exercise | null>(null);
+  const [exerciseToView, setExerciseToView] = useState<Exercise | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [loadingExercises, setLoadingExercises] = useState(true);
+  const [editingExercise, setEditingExercise] = useState<Exercise | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
+  const [showQuestions, setShowQuestions] = useState(false);
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedFilter, setSelectedFilter] = useState('all');
+  
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    totalItems: 0,
+    itemsPerPage: 10,
+  });
+
+  useEffect(() => {
+    if (!showQuestions) {
+      fetchExercises();
+    }
+  }, [nodeId, subcategory, nodeType, showQuestions]);
+
+  const fetchExercises = async () => {
+    setLoadingExercises(true);
+    try {
+      const entityType = getEntityType(nodeType);
+      
+      const response = await exerciseApi.getExercises(
+        entityType as any,
+        nodeId,
+        "We_Do",
+        subcategory
+      );
+      
+      if (response.data?.exercises) {
+        setExercises(response.data.exercises);
+        setPagination(prev => ({
+          ...prev,
+          totalItems: response.data.exercises.length,
+          totalPages: Math.ceil(response.data.exercises.length / prev.itemsPerPage)
+        }));
+      } else {
+        setExercises([]);
+        setPagination(prev => ({ ...prev, totalItems: 0, totalPages: 1 }));
+      }
+    } catch (error) {
+      console.error('Error fetching exercises:', error);
+      setExercises([]);
+      setPagination(prev => ({ ...prev, totalItems: 0, totalPages: 1 }));
+    } finally {
+      setLoadingExercises(false);
+    }
+  };
+
+  const getEntityType = (nodeType: string): string => {
+    const normalized = nodeType.toLowerCase();
+    const mapping: Record<string, string> = {
+      'module': 'modules',
+      'submodule': 'submodules',
+      'topic': 'topics',
+      'subtopic': 'subtopics'
+    };
+    
+    return mapping[normalized] || 'topics';
+  };
+
+  const handleSaveSettings = async (settingsData: ExerciseSettingsData) => {
+    setIsLoading(true);
+    
+    try {
+      const entityType = getEntityType(nodeType);
+      
+      if (isEditing && editingExercise) {
+        // Update existing exercise
+        const exercisePayload = {
+          tabType: "We_Do",
+          subcategory: subcategory,
+          exerciseInformation: {
+            exerciseId: settingsData.exerciseInformation.exerciseId,
+            exerciseName: settingsData.exerciseInformation.exerciseName,
+            description: settingsData.exerciseInformation.description,
+            exerciseLevel: settingsData.exerciseInformation.exerciseLevel
+          },
+          programmingSettings: {
+            selectedModule: settingsData.programmingSettings.selectedModule,
+            selectedLanguages: settingsData.programmingSettings.selectedLanguages,
+            levelConfiguration: {
+              levelType: settingsData.programmingSettings.levelConfiguration.levelType,
+              levelBased: {
+                easy: settingsData.programmingSettings.levelConfiguration.levelBased?.easy || 0,
+                medium: settingsData.programmingSettings.levelConfiguration.levelBased?.medium || 0,
+                hard: settingsData.programmingSettings.levelConfiguration.levelBased?.hard || 0
+              },
+              general: settingsData.programmingSettings.levelConfiguration.general || 0
+            }
+          },
+          compilerSettings: settingsData.compilerSettings,
+          availabilityPeriod: settingsData.availabilityPeriod,
+          questionBehavior: settingsData.questionBehavior,
+          evaluationSettings: settingsData.evaluationSettings,
+          groupSettings: settingsData.groupSettings
+        };
+        
+        await exerciseApi.updateExercise(
+          entityType as "modules" | "submodules" | "topics" | "subtopics",
+          nodeId,
+          editingExercise._id,
+          exercisePayload as any
+        );
+        
+        alert(`✅ Exercise "${settingsData.exerciseInformation.exerciseName}" updated successfully!`);
+      } else {
+        // Create new exercise
+        const exercisePayload = {
+          tabType: "We_Do",
+          subcategory: subcategory,
+          exerciseInformation: settingsData.exerciseInformation,
+          programmingSettings: settingsData.programmingSettings,
+          compilerSettings: settingsData.compilerSettings,
+          availabilityPeriod: settingsData.availabilityPeriod,
+          questionBehavior: settingsData.questionBehavior,
+          evaluationSettings: settingsData.evaluationSettings,
+          groupSettings: settingsData.groupSettings
+        };
+        
+        await exerciseApi.addExercise(
+          entityType as "modules" | "submodules" | "topics" | "subtopics",
+          nodeId,
+          exercisePayload as any
+        );
+        
+        alert(`✅ Exercise "${settingsData.exerciseInformation.exerciseName}" created successfully!`);
+      }
+      
+      setShowSettingsModal(false);
+      setEditingExercise(null);
+      setIsEditing(false);
+      setIsLoading(false);
+      
+      await fetchExercises();
+      
+      if (onRefresh && typeof onRefresh === 'function') {
+        try {
+          await onRefresh();
+        } catch (refreshError) {
+          console.warn('Could not refresh parent component:', refreshError);
+        }
+      }
+
+    } catch (error: any) {
+      console.error('Error saving exercise settings:', error);
+      setIsLoading(false);
+      alert(error.message || 'Failed to save exercise settings. Please try again.');
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!exerciseToDelete) return;
+    
+    setDeleting(true);
+    try {
+      const entityType = getEntityType(nodeType);
+      const exerciseId = exerciseToDelete._id;
+      
+      await exerciseApi.deleteExercise(
+        entityType as "modules" | "submodules" | "topics" | "subtopics",
+        nodeId,
+        exerciseId,
+        "We_Do",
+        subcategory
+      );
+      
+      setExercises(prev => prev.filter(ex => ex._id !== exerciseId));
+      setPagination(prev => ({
+        ...prev,
+        totalItems: prev.totalItems - 1,
+        totalPages: Math.ceil((prev.totalItems - 1) / prev.itemsPerPage)
+      }));
+      
+      setShowDeleteModal(false);
+      setExerciseToDelete(null);
+      
+      await fetchExercises();
+      
+      if (onRefresh && typeof onRefresh === 'function') {
+        try {
+          await onRefresh();
+        } catch (refreshError) {
+          console.warn('Could not refresh parent component:', refreshError);
+        }
+      }
+      
+    } catch (error: any) {
+      console.error('Error deleting exercise:', error);
+      alert(error.message || 'Failed to delete exercise. Please try again.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleManageQuestions = (exercise: Exercise) => {
+    console.log('Passing exercise to Questions component:', exercise);
+    setSelectedExercise(exercise);
+    setShowQuestions(true);
+  };
+
+  const handleBackToExercises = () => {
+    setShowQuestions(false);
+    setSelectedExercise(null);
+  };
+
+  const handleAction = (actionType: string, exercise: Exercise) => {
+    console.log(`${actionType} exercise:`, exercise._id);
+    
+    switch (actionType) {
+      case 'edit':
+        setEditingExercise(exercise);
+        setIsEditing(true);
+        setShowSettingsModal(true);
+        break;
+      case 'view':
+        setExerciseToView(exercise);
+        setShowViewModal(true);
+        break;
+      case 'run':
+        alert(`Running exercise: ${exercise.exerciseInformation.exerciseName}`);
+        break;
+      case 'duplicate':
+        alert(`Duplicate exercise: ${exercise.exerciseInformation.exerciseName}`);
+        break;
+      case 'export':
+        alert(`Export exercise: ${exercise.exerciseInformation.exerciseName}`);
+        break;
+      case 'share':
+        alert(`Share exercise: ${exercise.exerciseInformation.exerciseName}`);
+        break;
+      case 'settings':
+        alert(`Settings for: ${exercise.exerciseInformation.exerciseName}`);
+        break;
+      case 'favorite':
+        alert(`Added to favorites: ${exercise.exerciseInformation.exerciseName}`);
+        break;
+      case 'manageQuestions':
+        handleManageQuestions(exercise);
+        break;
+      case 'delete':
+        setExerciseToDelete(exercise);
+        setShowDeleteModal(true);
+        break;
+      case 'pin':
+        alert(`Pinned exercise: ${exercise.exerciseInformation.exerciseName}`);
+        break;
+      case 'print':
+        alert(`Printing exercise: ${exercise.exerciseInformation.exerciseName}`);
+        break;
+    }
+  };
+
+  const calculateTotalQuestions = (exercise: Exercise) => {
+    const config = exercise.programmingSettings?.levelConfiguration;
+    if (!config) return 0;
+    
+    if (config.levelType === 'levelBased') {
+      return (config.levelBased?.easy || 0) + 
+             (config.levelBased?.medium || 0) + 
+             (config.levelBased?.hard || 0);
+    } else {
+      return config.general || 0;
+    }
+  };
+
+  const getExerciseStatus = (exercise: Exercise) => {
+    const now = new Date();
+    const startDate = exercise.availabilityPeriod?.startDate 
+      ? new Date(exercise.availabilityPeriod.startDate) 
+      : null;
+    const endDate = exercise.availabilityPeriod?.endDate 
+      ? new Date(exercise.availabilityPeriod.endDate) 
+      : null;
+    
+    if (startDate && endDate) {
+      if (now < startDate) return 'Scheduled';
+      if (now > endDate) return 'Expired';
+      return 'Active';
+    }
+    return 'Draft';
+  };
+
+  const getFilteredExercises = () => {
+    let filtered = exercises;
+    
+    if (searchQuery) {
+      filtered = filtered.filter(exercise => 
+        exercise.exerciseInformation?.exerciseName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        exercise.exerciseInformation?.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        exercise.exerciseInformation?.exerciseId?.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+    
+    if (selectedFilter !== 'all') {
+      filtered = filtered.filter(exercise => 
+        exercise.exerciseInformation?.exerciseLevel === selectedFilter
+      );
+    }
+    
+    return filtered;
+  };
+
+  const getPaginatedExercises = () => {
+    const filtered = getFilteredExercises();
+    const startIndex = (pagination.currentPage - 1) * pagination.itemsPerPage;
+    const endIndex = startIndex + pagination.itemsPerPage;
+    return filtered.slice(startIndex, endIndex);
+  };
+
+  // Windows 10 Style Action Menu
+  const Windows10ActionMenu = ({ exercise }: { exercise: Exercise }) => {
+    const [isPinned, setIsPinned] = useState(false);
+    const [isFavorite, setIsFavorite] = useState(false);
+
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 p-0 hover:bg-gray-100 rounded transition-all duration-150"
+          >
+            <MoreVertical className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent 
+          align="end" 
+          className="w-72 bg-white border border-gray-300 shadow-lg rounded-sm"
+          sideOffset={5}
+        >
+          {/* Windows 10 Style Menu Items */}
+          <div className="py-1">
+            {/* Open Section */}
+            <DropdownMenuItem 
+              onClick={() => handleAction('run', exercise)}
+              className="px-4 py-2.5 cursor-pointer hover:bg-blue-50 text-sm flex items-center gap-3"
+            >
+              <PlayCircle className="h-4 w-4 text-blue-600" />
+              <div>
+                <div className="font-medium text-gray-900">Open / Run</div>
+                <div className="text-xs text-gray-500 mt-0.5">Execute this exercise</div>
+              </div>
+            </DropdownMenuItem>
+
+            <DropdownMenuItem 
+              onClick={() => handleAction('view', exercise)}
+              className="px-4 py-2.5 cursor-pointer hover:bg-purple-50 text-sm flex items-center gap-3"
+            >
+              <Eye className="h-4 w-4 text-purple-600" />
+              <div>
+                <div className="font-medium text-gray-900">View Details</div>
+                <div className="text-xs text-gray-500 mt-0.5">See full information</div>
+              </div>
+            </DropdownMenuItem>
+
+            <DropdownMenuItem 
+              onClick={() => handleAction('manageQuestions', exercise)}
+              className="px-4 py-2.5 cursor-pointer hover:bg-orange-50 text-sm flex items-center gap-3"
+            >
+              <FileCode className="h-4 w-4 text-orange-600" />
+              <div>
+                <div className="font-medium text-gray-900">Manage Questions</div>
+                <div className="text-xs text-gray-500 mt-0.5">Add/edit questions</div>
+              </div>
+            </DropdownMenuItem>
+
+            <Separator className="my-1" />
+
+            {/* Edit Section */}
+            <DropdownMenuItem 
+              onClick={() => handleAction('edit', exercise)}
+              className="px-4 py-2.5 cursor-pointer hover:bg-green-50 text-sm flex items-center gap-3"
+            >
+              <Edit3 className="h-4 w-4 text-green-600" />
+              <div>
+                <div className="font-medium text-gray-900">Edit Exercise</div>
+                <div className="text-xs text-gray-500 mt-0.5">Modify settings</div>
+              </div>
+            </DropdownMenuItem>
+
+            <DropdownMenuItem 
+              onClick={() => {
+                handleAction('duplicate', exercise);
+              }}
+              className="px-4 py-2.5 cursor-pointer hover:bg-blue-50 text-sm flex items-center gap-3"
+            >
+              <CopyIcon className="h-4 w-4 text-blue-600" />
+              <div>
+                <div className="font-medium text-gray-900">Duplicate</div>
+                <div className="text-xs text-gray-500 mt-0.5">Create a copy</div>
+              </div>
+            </DropdownMenuItem>
+
+            <Separator className="my-1" />
+
+            {/* Share Section */}
+            <DropdownMenuItem 
+              onClick={() => handleAction('share', exercise)}
+              className="px-4 py-2.5 cursor-pointer hover:bg-blue-50 text-sm flex items-center gap-3"
+            >
+              <Share2 className="h-4 w-4 text-blue-600" />
+              <div>
+                <div className="font-medium text-gray-900">Share</div>
+                <div className="text-xs text-gray-500 mt-0.5">Share with others</div>
+              </div>
+            </DropdownMenuItem>
+
+            <DropdownMenuItem 
+              onClick={() => handleAction('export', exercise)}
+              className="px-4 py-2.5 cursor-pointer hover:bg-green-50 text-sm flex items-center gap-3"
+            >
+              <DownloadIcon className="h-4 w-4 text-green-600" />
+              <div>
+                <div className="font-medium text-gray-900">Export</div>
+                <div className="text-xs text-gray-500 mt-0.5">Export as JSON</div>
+              </div>
+            </DropdownMenuItem>
+
+            <Separator className="my-1" />
+
+            {/* Pin & Favorite */}
+            <DropdownMenuItem 
+              onClick={() => {
+                setIsPinned(!isPinned);
+                handleAction('pin', exercise);
+              }}
+              className="px-4 py-2.5 cursor-pointer hover:bg-yellow-50 text-sm flex items-center gap-3"
+            >
+              {isPinned ? (
+                <PinOff className="h-4 w-4 text-yellow-600" />
+              ) : (
+                <Pin className="h-4 w-4 text-yellow-600" />
+              )}
+              <div>
+                <div className="font-medium text-gray-900">
+                  {isPinned ? 'Unpin' : 'Pin to Start'}
+                </div>
+                <div className="text-xs text-gray-500 mt-0.5">Quick access</div>
+              </div>
+            </DropdownMenuItem>
+
+            <DropdownMenuItem 
+              onClick={() => {
+                setIsFavorite(!isFavorite);
+                handleAction('favorite', exercise);
+              }}
+              className="px-4 py-2.5 cursor-pointer hover:bg-yellow-50 text-sm flex items-center gap-3"
+            >
+              <Star className={`h-4 w-4 ${isFavorite ? 'text-yellow-500 fill-yellow-500' : 'text-gray-400'}`} />
+              <div>
+                <div className="font-medium text-gray-900">
+                  {isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
+                </div>
+                <div className="text-xs text-gray-500 mt-0.5">Favorite this exercise</div>
+              </div>
+            </DropdownMenuItem>
+
+            <Separator className="my-1" />
+
+            {/* Properties & Settings */}
+            <DropdownMenuItem 
+              onClick={() => handleAction('settings', exercise)}
+              className="px-4 py-2.5 cursor-pointer hover:bg-gray-50 text-sm flex items-center gap-3"
+            >
+              <Settings2 className="h-4 w-4 text-gray-600" />
+              <div>
+                <div className="font-medium text-gray-900">Properties</div>
+                <div className="text-xs text-gray-500 mt-0.5">Advanced settings</div>
+              </div>
+            </DropdownMenuItem>
+
+            <DropdownMenuItem 
+              onClick={() => handleAction('print', exercise)}
+              className="px-4 py-2.5 cursor-pointer hover:bg-gray-50 text-sm flex items-center gap-3"
+            >
+              <Printer className="h-4 w-4 text-gray-600" />
+              <div>
+                <div className="font-medium text-gray-900">Print</div>
+                <div className="text-xs text-gray-500 mt-0.5">Print exercise details</div>
+              </div>
+            </DropdownMenuItem>
+
+            <Separator className="my-1 bg-red-200" />
+
+            {/* Delete Section */}
+            <DropdownMenuItem 
+              onClick={() => handleAction('delete', exercise)}
+              className="px-4 py-2.5 cursor-pointer hover:bg-red-50 text-red-600 text-sm flex items-center gap-3"
+            >
+              <Trash2 className="h-4 w-4" />
+              <div>
+                <div className="font-medium">Delete</div>
+                <div className="text-xs mt-0.5">Permanently remove</div>
+              </div>
+            </DropdownMenuItem>
+          </div>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  };
+
+  // Detailed View Modal Component
+  const ExerciseDetailsModal = ({ exercise, onClose }: { exercise: Exercise, onClose: () => void }) => {
+    const status = getExerciseStatus(exercise);
+    const totalQuestions = calculateTotalQuestions(exercise);
+    const now = new Date();
+    const startDate = exercise.availabilityPeriod?.startDate ? new Date(exercise.availabilityPeriod.startDate) : null;
+    const endDate = exercise.availabilityPeriod?.endDate ? new Date(exercise.availabilityPeriod.endDate) : null;
+    const isActive = startDate && endDate && now >= startDate && now <= endDate;
+
+    return (
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+        <div className="bg-white rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
+          {/* Modal Header */}
+          <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-6 text-white">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+                  <Code size={28} />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold">{exercise.exerciseInformation?.exerciseName}</h2>
+                  <div className="flex items-center gap-3 mt-2">
+                    <Badge variant="secondary" className="bg-white/20 hover:bg-white/30">
+                      ID: {exercise.exerciseInformation?.exerciseId || exercise._id.slice(-8)}
+                    </Badge>
+                    <Badge variant="secondary" className={
+                      exercise.exerciseInformation?.exerciseLevel === 'beginner' ? 'bg-green-500' :
+                      exercise.exerciseInformation?.exerciseLevel === 'intermediate' ? 'bg-yellow-500' :
+                      'bg-red-500'
+                    }>
+                      {exercise.exerciseInformation?.exerciseLevel?.toUpperCase()}
+                    </Badge>
+                    <Badge variant="secondary" className={isActive ? 'bg-green-500' : 'bg-gray-500'}>
+                      {status}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onClose}
+                className="text-white hover:bg-white/20 h-10 w-10 rounded-full"
+              >
+                <X size={20} />
+              </Button>
+            </div>
+          </div>
+
+          {/* Modal Content */}
+          <div className="p-6 overflow-y-auto max-h-[70vh]">
+            <Tabs defaultValue="overview" className="w-full">
+              <TabsList className="grid w-full grid-cols-5">
+                <TabsTrigger value="overview">Overview</TabsTrigger>
+                <TabsTrigger value="settings">Settings</TabsTrigger>
+                <TabsTrigger value="questions">Questions</TabsTrigger>
+                <TabsTrigger value="schedule">Schedule</TabsTrigger>
+                <TabsTrigger value="advanced">Advanced</TabsTrigger>
+              </TabsList>
+              
+              {/* Overview Tab */}
+              <TabsContent value="overview" className="space-y-6 pt-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Description</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-gray-600">
+                      {exercise.exerciseInformation?.description || 'No description provided.'}
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <Card>
+                    <CardContent className="pt-6">
+                      <div className="text-center">
+                        <div className="text-3xl font-bold text-blue-600">{totalQuestions}</div>
+                        <p className="text-sm text-gray-500 mt-2">Total Questions</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardContent className="pt-6">
+                      <div className="text-center">
+                        <div className="text-3xl font-bold text-green-600">
+                          {exercise.programmingSettings?.selectedLanguages?.length || 0}
+                        </div>
+                        <p className="text-sm text-gray-500 mt-2">Languages</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardContent className="pt-6">
+                      <div className="text-center">
+                        <div className="text-3xl font-bold text-purple-600">
+                          {exercise.questionBehavior?.maxAttempts || '∞'}
+                        </div>
+                        <p className="text-sm text-gray-500 mt-2">Max Attempts</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Quick Stats</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span>Difficulty Distribution</span>
+                          <span>{totalQuestions} questions</span>
+                        </div>
+                        <div className="flex h-2 rounded-full overflow-hidden">
+                          <div 
+                            className="bg-green-500" 
+                            style={{ 
+                              width: `${((exercise.programmingSettings?.levelConfiguration?.levelBased?.easy || 0) / totalQuestions * 100)}%` 
+                            }}
+                          />
+                          <div 
+                            className="bg-yellow-500" 
+                            style={{ 
+                              width: `${((exercise.programmingSettings?.levelConfiguration?.levelBased?.medium || 0) / totalQuestions * 100)}%` 
+                            }}
+                          />
+                          <div 
+                            className="bg-red-500" 
+                            style={{ 
+                              width: `${((exercise.programmingSettings?.levelConfiguration?.levelBased?.hard || 0) / totalQuestions * 100)}%` 
+                            }}
+                          />
+                        </div>
+                        <div className="flex justify-between text-xs text-gray-500 mt-2">
+                          <span>Easy: {exercise.programmingSettings?.levelConfiguration?.levelBased?.easy || 0}</span>
+                          <span>Medium: {exercise.programmingSettings?.levelConfiguration?.levelBased?.medium || 0}</span>
+                          <span>Hard: {exercise.programmingSettings?.levelConfiguration?.levelBased?.hard || 0}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* Settings Tab */}
+              <TabsContent value="settings" className="space-y-6 pt-4">
+                <div className="grid grid-cols-2 gap-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Cpu size={18} className="text-blue-500" />
+                        Programming Settings
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div>
+                        <Label className="text-sm text-gray-500">Module</Label>
+                        <div className="flex items-center gap-2 mt-1">
+                          {moduleIcons[exercise.programmingSettings?.selectedModule || 'default']}
+                          <span className="font-medium">
+                            {exercise.programmingSettings?.selectedModule || 'Not set'}
+                          </span>
+                        </div>
+                      </div>
+                      <div>
+                        <Label className="text-sm text-gray-500">Languages</Label>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {exercise.programmingSettings?.selectedLanguages?.map((lang, i) => (
+                            <Badge key={i} variant="secondary">{lang}</Badge>
+                          )) || <span className="text-gray-400">No languages selected</span>}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Terminal size={18} className="text-green-500" />
+                        Compiler Settings
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span>Allow Copy-Paste</span>
+                        {exercise.compilerSettings?.allowCopyPaste ? (
+                          <CheckCircle className="text-green-500" size={18} />
+                        ) : (
+                          <XCircle className="text-gray-400" size={18} />
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Auto Suggestion</span>
+                        {exercise.compilerSettings?.autoSuggestion ? (
+                          <CheckCircle className="text-green-500" size={18} />
+                        ) : (
+                          <XCircle className="text-gray-400" size={18} />
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Auto Close Brackets</span>
+                        {exercise.compilerSettings?.autoCloseBrackets ? (
+                          <CheckCircle className="text-green-500" size={18} />
+                        ) : (
+                          <XCircle className="text-gray-400" size={18} />
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <BarChart3 size={18} className="text-orange-500" />
+                        Evaluation Settings
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span>Mode</span>
+                          <Badge variant="secondary">
+                            {exercise.evaluationSettings?.practiceMode ? 'Practice' :
+                             exercise.evaluationSettings?.manualEvaluation?.enabled ? 'Manual' :
+                             exercise.evaluationSettings?.aiEvaluation ? 'AI' : 'Automated'}
+                          </Badge>
+                        </div>
+                        {exercise.evaluationSettings?.manualEvaluation?.enabled && (
+                          <div className="text-sm text-orange-600 bg-orange-50 p-2 rounded">
+                            Manual evaluation enabled
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Shuffle size={18} className="text-purple-500" />
+                        Question Behavior
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span>Shuffle Questions</span>
+                        {exercise.questionBehavior?.shuffleQuestions ? (
+                          <CheckCircle className="text-green-500" size={18} />
+                        ) : (
+                          <XCircle className="text-gray-400" size={18} />
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Allow Skip</span>
+                        {exercise.questionBehavior?.allowSkip ? (
+                          <CheckCircle className="text-green-500" size={18} />
+                        ) : (
+                          <XCircle className="text-gray-400" size={18} />
+                        )}
+                      </div>
+                      {exercise.questionBehavior?.attemptLimitEnabled && (
+                        <div className="flex items-center justify-between">
+                          <span>Max Attempts</span>
+                          <span className="font-bold">{exercise.questionBehavior.maxAttempts}</span>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              </TabsContent>
+
+              {/* Questions Tab */}
+              <TabsContent value="questions" className="pt-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Question Configuration</CardTitle>
+                    <CardDescription>
+                      Total questions: {totalQuestions}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className="text-center p-4 bg-green-50 rounded-lg">
+                          <div className="text-2xl font-bold text-green-700">
+                            {exercise.programmingSettings?.levelConfiguration?.levelBased?.easy || 0}
+                          </div>
+                          <div className="text-sm font-medium text-green-600 mt-1">Easy</div>
+                        </div>
+                        <div className="text-center p-4 bg-yellow-50 rounded-lg">
+                          <div className="text-2xl font-bold text-yellow-700">
+                            {exercise.programmingSettings?.levelConfiguration?.levelBased?.medium || 0}
+                          </div>
+                          <div className="text-sm font-medium text-yellow-600 mt-1">Medium</div>
+                        </div>
+                        <div className="text-center p-4 bg-red-50 rounded-lg">
+                          <div className="text-2xl font-bold text-red-700">
+                            {exercise.programmingSettings?.levelConfiguration?.levelBased?.hard || 0}
+                          </div>
+                          <div className="text-sm font-medium text-red-600 mt-1">Hard</div>
+                        </div>
+                      </div>
+                      <Button 
+                        onClick={() => {
+                          onClose();
+                          handleManageQuestions(exercise);
+                        }}
+                        className="w-full"
+                      >
+                        <FileCode className="mr-2 h-4 w-4" />
+                        Manage Questions
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* Schedule Tab */}
+              <TabsContent value="schedule" className="pt-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Availability Period</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="grid grid-cols-2 gap-6">
+                      <div>
+                        <Label className="text-sm font-medium">Start Date</Label>
+                        <div className="mt-2 p-3 bg-gray-50 rounded-lg border">
+                          <div className="flex items-center gap-2">
+                            <Calendar size={16} className="text-gray-400" />
+                            <span className="font-medium">
+                              {formatDate(exercise.availabilityPeriod?.startDate || '')}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <div>
+                        <Label className="text-sm font-medium">End Date</Label>
+                        <div className="mt-2 p-3 bg-gray-50 rounded-lg border">
+                          <div className="flex items-center gap-2">
+                            <Calendar size={16} className="text-gray-400" />
+                            <span className="font-medium">
+                              {formatDate(exercise.availabilityPeriod?.endDate || '')}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {exercise.availabilityPeriod?.gracePeriodAllowed && (
+                      <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Clock size={16} className="text-blue-600" />
+                          <Label className="text-sm font-medium text-blue-700">Grace Period</Label>
+                        </div>
+                        <div className="text-sm text-blue-600">
+                          Allowed until: {formatDate(exercise.availabilityPeriod?.gracePeriodDate || '')}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
+                      <div>
+                        <div className="font-medium">Current Status</div>
+                        <div className="text-sm text-gray-500">Based on availability dates</div>
+                      </div>
+                      <Badge variant="secondary" className={
+                        status === 'Active' ? 'bg-green-100 text-green-800' :
+                        status === 'Scheduled' ? 'bg-blue-100 text-blue-800' :
+                        status === 'Expired' ? 'bg-red-100 text-red-800' :
+                        'bg-gray-100 text-gray-800'
+                      }>
+                        {status}
+                      </Badge>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* Advanced Tab */}
+              <TabsContent value="advanced" className="pt-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Advanced Settings</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {exercise.groupSettings?.groupSettingsEnabled && (
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                          <Users size={18} className="text-blue-500" />
+                          <Label className="text-lg font-medium">Group Settings</Label>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label className="text-sm text-gray-500">Show Existing Users</Label>
+                            <div className="mt-1">
+                              {exercise.groupSettings?.showExistingUsers ? 'Yes' : 'No'}
+                            </div>
+                          </div>
+                          <div>
+                            <Label className="text-sm text-gray-500">Chat Enabled</Label>
+                            <div className="mt-1">
+                              {exercise.groupSettings?.chatEnabled ? 'Yes' : 'No'}
+                            </div>
+                          </div>
+                        </div>
+                        {exercise.groupSettings?.selectedGroups && exercise.groupSettings.selectedGroups.length > 0 && (
+                          <div>
+                            <Label className="text-sm text-gray-500">Selected Groups</Label>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {exercise.groupSettings.selectedGroups.map((group, i) => (
+                                <Badge key={i} variant="outline">{group}</Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="pt-4 border-t">
+                      <div className="grid grid-cols-2 gap-6">
+                        <div>
+                          <Label className="text-sm text-gray-500">Created</Label>
+                          <div className="mt-1 font-medium">
+                            {new Date(exercise.createdAt).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </div>
+                        </div>
+                        <div>
+                          <Label className="text-sm text-gray-500">Last Updated</Label>
+                          <div className="mt-1 font-medium">
+                            {exercise.updatedAt 
+                              ? new Date(exercise.updatedAt).toLocaleDateString('en-US', {
+                                  year: 'numeric',
+                                  month: 'long',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })
+                              : 'Never'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
+          </div>
+
+          {/* Modal Footer */}
+          <div className="border-t bg-gray-50 px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-gray-500">
+                Exercise ID: {exercise.exerciseInformation?.exerciseId || exercise._id}
+              </div>
+              <div className="flex items-center gap-3">
+                <Button variant="outline" onClick={onClose}>
+                  Close
+                </Button>
+                <Button 
+                  onClick={() => {
+                    onClose();
+                    handleAction('edit', exercise);
+                  }}
+                  className="gap-2"
+                >
+                  <Edit3 size={16} />
+                  Edit Exercise
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  if (showQuestions && selectedExercise) {
+    return (
+      <Questions
+        exercise={selectedExercise}
+        nodeId={nodeId}
+        nodeName={nodeName}
+        subcategory={subcategory}
+        nodeType={nodeType}
+        onBack={handleBackToExercises}
+      />
+    );
+  }
+
+  return (
+    <div className="h-full flex flex-col bg-gradient-to-b from-gray-50 to-white">
+      {/* Enhanced Header */}
+      <div className="flex items-center justify-between p-4 bg-white border-b border-gray-200 shadow-sm">
+        <div className="flex items-center gap-4">
+          <div className="p-2 bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg">
+            <FileCode size={24} className="text-white" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">Problem Solving Exercises</h1>
+            <p className="text-sm text-gray-500">Manage and organize programming exercises</p>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setViewMode(viewMode === 'list' ? 'grid' : 'list')}
+            className="h-9 px-3 gap-2 border-gray-300 hover:bg-gray-50"
+          >
+            {viewMode === 'list' ? <Grid size={16} /> : <List size={16} />}
+            {viewMode === 'list' ? 'Grid View' : 'List View'}
+          </Button>
+          
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchExercises}
+            disabled={loadingExercises}
+            className="h-9 w-9 p-0 border-gray-300 hover:bg-gray-50"
+            title="Refresh"
+          >
+            <RefreshCw size={18} className={loadingExercises ? 'animate-spin' : ''} />
+          </Button>
+          
+          <Button
+            onClick={() => {
+              setEditingExercise(null);
+              setIsEditing(false);
+              setShowSettingsModal(true);
+            }}
+            disabled={isLoading}
+            className="h-9 px-4 gap-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-sm"
+          >
+            {isLoading ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                Creating...
+              </>
+            ) : (
+              <>
+                <Plus size={16} />
+                New Exercise
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+
+      {/* Search Bar */}
+      <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+          <Input
+            type="text"
+            placeholder="Search exercises by name, ID, or description..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10 pr-4 h-9 border-gray-300 focus-visible:ring-blue-500"
+          />
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 p-4">
+        {/* Table */}
+        <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-gradient-to-r from-gray-50 to-gray-100 hover:bg-gray-100">
+                {exerciseColumns.map((column) => (
+                  <TableHead
+                    key={column.key}
+                    className="px-4 py-3 text-xs font-semibold text-gray-700 border-b border-gray-200"
+                  >
+                    {column.label}
+                  </TableHead>
+                ))}
+                <TableHead className="px-4 py-3 text-xs font-semibold text-gray-700 text-center border-b border-gray-200">
+                  Actions
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loadingExercises ? (
+                Array.from({ length: 5 }).map((_, index) => (
+                  <TableRow key={`skeleton-${index}`} className="border-b border-gray-100">
+                    {exerciseColumns.map((column) => (
+                      <TableCell key={`skeleton-${column.key}-${index}`} className="px-4 py-3">
+                        <div className="h-4 bg-gradient-to-r from-gray-100 to-gray-200 rounded animate-pulse"></div>
+                      </TableCell>
+                    ))}
+                    <TableCell className="px-4 py-3">
+                      <div className="flex justify-center">
+                        <div className="h-6 w-6 bg-gray-100 rounded animate-pulse"></div>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : getPaginatedExercises().length > 0 ? (
+                getPaginatedExercises().map((exercise, index) => (
+                  <TableRow 
+                    key={exercise._id || `exercise-${index}`} 
+                    className="border-b border-gray-100 hover:bg-gradient-to-r hover:from-blue-50/50 hover:to-gray-50 transition-all duration-200"
+                  >
+                    {exerciseColumns.map((column) => (
+                      <TableCell
+                        key={`${exercise._id || index}-${column.key}`}
+                        className="px-4 py-3"
+                      >
+                        {column.renderCell ? column.renderCell(exercise) : (exercise as any)[column.key]}
+                      </TableCell>
+                    ))}
+                    <TableCell className="px-4 py-3">
+                      <div className="flex justify-center">
+                        <Windows10ActionMenu exercise={exercise} />
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell 
+                    colSpan={exerciseColumns.length + 1} 
+                    className="px-4 py-12 text-center"
+                  >
+                    <div className="flex flex-col items-center justify-center">
+                      <div className="mb-4 p-4 bg-gradient-to-br from-gray-50 to-gray-100 rounded-full">
+                        <FileCode size={48} className="text-gray-300" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">No exercises found</h3>
+                      <p className="text-sm text-gray-500 mb-6 max-w-md">
+                        {searchQuery || selectedFilter !== 'all' 
+                          ? 'Try adjusting your search or filter to find what you\'re looking for.'
+                          : 'Create your first exercise to get started with problem-solving challenges.'}
+                      </p>
+                      <Button
+                        onClick={() => {
+                          setSearchQuery('');
+                          setSelectedFilter('all');
+                          setEditingExercise(null);
+                          setIsEditing(false);
+                          setShowSettingsModal(true);
+                        }}
+                        size="lg"
+                        className="h-10 px-6 gap-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white"
+                      >
+                        <Plus size={16} />
+                        Create Your First Exercise
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+
+        {/* Pagination */}
+        {getFilteredExercises().length > 0 && (
+          <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200">
+            <div className="text-sm text-gray-600">
+              Showing {((pagination.currentPage - 1) * pagination.itemsPerPage) + 1} -{' '}
+              {Math.min(pagination.currentPage * pagination.itemsPerPage, getFilteredExercises().length)} of{' '}
+              {getFilteredExercises().length} exercises
+            </div>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPagination(prev => ({ ...prev, currentPage: prev.currentPage - 1 }))}
+                disabled={pagination.currentPage === 1 || loadingExercises}
+                className="h-8 w-8 p-0 border-gray-300 hover:bg-gray-50"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+
+              {Array.from({ length: Math.min(5, Math.ceil(getFilteredExercises().length / pagination.itemsPerPage)) }).map((_, i) => {
+                const pageNum = i + 1;
+                return (
+                  <Button
+                    key={pageNum}
+                    variant={pagination.currentPage === pageNum ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setPagination(prev => ({ ...prev, currentPage: pageNum }))}
+                    className={`h-8 w-8 p-0 ${pagination.currentPage === pageNum 
+                      ? 'bg-blue-600 text-white border-blue-600' 
+                      : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
+                  >
+                    {pageNum}
+                  </Button>
+                );
+              })}
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPagination(prev => ({ ...prev, currentPage: prev.currentPage + 1 }))}
+                disabled={pagination.currentPage >= Math.ceil(getFilteredExercises().length / pagination.itemsPerPage) || loadingExercises}
+                className="h-8 w-8 p-0 border-gray-300 hover:bg-gray-50"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* View Details Modal */}
+      {showViewModal && exerciseToView && (
+        <ExerciseDetailsModal 
+          exercise={exerciseToView} 
+          onClose={() => setShowViewModal(false)} 
+        />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && exerciseToDelete && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-lg shadow-2xl w-full max-w-md border border-gray-300">
+            <div className="p-6">
+              <div className="flex items-start gap-4 mb-6">
+                <div className="p-3 bg-red-50 rounded-full">
+                  <AlertTriangle size={24} className="text-red-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900 mb-2">
+                    Delete Exercise
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    Are you sure you want to delete "
+                    <span className="font-medium text-gray-900">
+                      {exerciseToDelete.exerciseInformation?.exerciseName}
+                    </span>
+                    "? This action cannot be undone.
+                  </p>
+                </div>
+              </div>
+              
+              <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-500">Exercise ID:</span>
+                    <span className="text-sm font-mono font-medium">
+                      {exerciseToDelete.exerciseInformation?.exerciseId || exerciseToDelete._id.slice(-8)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-500">Difficulty:</span>
+                    <Badge variant="secondary">
+                      {exerciseToDelete.exerciseInformation?.exerciseLevel?.toUpperCase()}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-500">Created:</span>
+                    <span className="text-sm font-medium">
+                      {new Date(exerciseToDelete.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex items-center justify-end gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowDeleteModal(false)}
+                  disabled={deleting}
+                  className="px-4"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={handleDeleteConfirm}
+                  disabled={deleting}
+                  className="px-4 gap-2"
+                >
+                  {deleting ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 size={16} />
+                      Delete Exercise
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Settings Modal */}
+      {showSettingsModal && (
+        <ExerciseSettings
+          hierarchyData={hierarchyData}
+          nodeId={nodeId}
+          nodeName={nodeName}
+          subcategory={subcategory}
+          nodeType={nodeType}
+          level={hierarchyData.level}
+          onSave={handleSaveSettings}
+          onClose={() => {
+            setShowSettingsModal(false);
+            setEditingExercise(null);
+            setIsEditing(false);
+          }}
+          initialData={editingExercise ? {
+            exerciseInformation: {
+              exerciseId: editingExercise.exerciseInformation?.exerciseId || '',
+              exerciseName: editingExercise.exerciseInformation?.exerciseName || '',
+              description: editingExercise.exerciseInformation?.description || '',
+              exerciseLevel: editingExercise.exerciseInformation?.exerciseLevel || 'medium'
+            },
+            programmingSettings: {
+              selectedModule: editingExercise.programmingSettings?.selectedModule || 'Core Programming',
+              selectedLanguages: editingExercise.programmingSettings?.selectedLanguages || [],
+              levelConfiguration: editingExercise.programmingSettings?.levelConfiguration || {
+                levelType: 'levelBased',
+                levelBased: { easy: 0, medium: 0, hard: 0 },
+                general: 0
+              }
+            },
+            compilerSettings: {
+              allowCopyPaste: editingExercise.compilerSettings?.allowCopyPaste ?? true,
+              autoSuggestion: editingExercise.compilerSettings?.autoSuggestion ?? true,
+              autoCloseBrackets: editingExercise.compilerSettings?.autoCloseBrackets ?? true
+            },
+            availabilityPeriod: {
+              startDate: parseMongoDate(editingExercise.availabilityPeriod?.startDate) 
+                || new Date().toISOString().split('T')[0],
+              endDate: parseMongoDate(editingExercise.availabilityPeriod?.endDate) 
+                || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+              gracePeriodAllowed: editingExercise.availabilityPeriod?.gracePeriodAllowed ?? false,
+              gracePeriodDate: editingExercise.availabilityPeriod?.gracePeriodAllowed 
+                ? parseMongoDate(editingExercise.availabilityPeriod?.gracePeriodDate)
+                  || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+                : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+            },
+            questionBehavior: {
+              shuffleQuestions: editingExercise.questionBehavior?.shuffleQuestions ?? false,
+              allowNext: editingExercise.questionBehavior?.allowNext ?? true,
+              allowSkip: editingExercise.questionBehavior?.allowSkip ?? false,
+              attemptLimitEnabled: editingExercise.questionBehavior?.attemptLimitEnabled ?? false,
+              maxAttempts: editingExercise.questionBehavior?.maxAttempts || 3
+            },
+            evaluationSettings: {
+              practiceMode: editingExercise.evaluationSettings?.practiceMode ?? true,
+              manualEvaluation: editingExercise.evaluationSettings?.manualEvaluation || { enabled: false, submissionNeeded: false },
+              aiEvaluation: editingExercise.evaluationSettings?.aiEvaluation ?? false,
+              automationEvaluation: editingExercise.evaluationSettings?.automationEvaluation ?? false
+            },
+            groupSettings: {
+              groupSettingsEnabled: editingExercise.groupSettings?.groupSettingsEnabled ?? false,
+              showExistingUsers: editingExercise.groupSettings?.showExistingUsers ?? true,
+              selectedGroups: editingExercise.groupSettings?.selectedGroups || [],
+              chatEnabled: editingExercise.groupSettings?.chatEnabled ?? false
+            }
+          } : undefined}
+          isEditing={isEditing}
+          exerciseId={editingExercise?._id}
+        />
+      )}
+    </div>
+  );
+};
+
+export default ProblemSolving;
