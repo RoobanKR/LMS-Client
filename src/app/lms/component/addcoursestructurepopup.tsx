@@ -2400,7 +2400,7 @@ const AddCourseSettingsPopup: React.FC<AddCourseSettingsPopupProps> = ({
                         const query = new URLSearchParams({
                             courseId: courseIdToPass ?? '',
                         }).toString();
-                        router.push(`/lms/pages/pedagogy2?${query}`);
+                        router.push(`/lms/pages/coursestructure/pedagogy2?${query}`);
                     }}
                     onLater={() => {
                         setIsConfirmationOpen(false);
