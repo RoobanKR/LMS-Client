@@ -465,41 +465,7 @@ export function Sidebar({ className }: SidebarProps) {
         localStorage.removeItem(RECENT_ITEMS_KEY);
     };
 
-    if (loading) {
-        return (
-            <div className={cn(
-                "border-r border-gray-200 w-60 relative z-40 h-full flex items-center justify-center",
-                className
-            )}>
-                <div className="text-sm text-gray-500">Loading sidebar...</div>
-            </div>
-        );
-    }
 
-    if (sidebarItems.length === 0) {
-        return (
-            <div className={cn(
-                "border-r border-gray-200 w-60 relative z-40 h-full flex flex-col items-center justify-center p-4",
-                className
-            )}>
-                <ShieldCheck className="h-8 w-8 text-gray-400 mb-2" />
-                <p className="text-sm text-gray-500 text-center mb-2">
-                    No permissions assigned
-                </p>
-                <p className="text-xs text-gray-400 text-center mb-3">
-                    Contact administrator for access
-                </p>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => window.location.reload()}
-                    className="text-xs"
-                >
-                    Refresh
-                </Button>
-            </div>
-        );
-    }
 
     return (
         <>
