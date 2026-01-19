@@ -79,7 +79,7 @@ export function StudentLayout({ children }: StudentLayoutProps) {
         className={cn(
           "min-h-screen transition-all duration-300 ease-out",
           // Top padding matches Navbar height (72px)
-          "pt-[72px]", 
+          "mt-[72px]", 
           // Left margin matches Sidebar width (280px) only when open on desktop
           sidebarOpen ? "md:ml-[280px]" : "md:ml-0"
         )}
