@@ -29,7 +29,6 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { getCurrentUser } from "@/apiServices/tokenVerify";
 
 // Permission Types
 interface Permission {
@@ -60,10 +59,24 @@ interface UserData {
     permissions: Permission[];
 }
 
-interface VerifyTokenResponse {
-    valid: boolean;
-    user: UserData;
-}
+// Local storage key for user data
+const USER_DATA_KEY = "smartcliff_userData";
+
+// Helper function to get user data from localStorage
+const getCurrentUser = (): { valid: boolean; user: UserData | null } => {
+    try {
+        const userDataString = localStorage.getItem(USER_DATA_KEY);
+        if (!userDataString) {
+            return { valid: false, user: null };
+        }
+        
+        const userData: UserData = JSON.parse(userDataString);
+        return { valid: true, user: userData };
+    } catch (error) {
+        console.error("Error getting user data from localStorage:", error);
+        return { valid: false, user: null };
+    }
+};
 
 // Permission utility functions
 const hasPermission = (
@@ -377,12 +390,12 @@ export default function CourseStructurePage() {
     const [userData, setUserData] = useState<UserData | null>(null);
     const [canAddCourseStructure, setCanAddCourseStructure] = useState(false);
 
-    // Fetch user permissions on component mount
+    // Fetch user permissions from localStorage on component mount
     useEffect(() => {
-        const fetchUserPermissions = async () => {
+        const loadUserPermissions = () => {
             try {
                 setIsLoadingPermissions(true);
-                const response = await getCurrentUser();
+                const response = getCurrentUser();
                 
                 if (response.valid && response.user) {
                     setUserData(response.user);
@@ -402,15 +415,16 @@ export default function CourseStructurePage() {
                         setUserPermissions([]);
                     }
                 } else {
+                    console.error("Invalid user data or no permissions found in localStorage");
                 }
             } catch (error) {
-                console.error('Failed to fetch user permissions:', error);
+                console.error('Failed to load user permissions from localStorage:', error);
             } finally {
                 setIsLoadingPermissions(false);
             }
         };
 
-        fetchUserPermissions();
+        loadUserPermissions();
     }, []);
 
     const formatDate = (d: string): string => new Date(d).toLocaleDateString('en-IN', {
@@ -752,7 +766,6 @@ export default function CourseStructurePage() {
         );
     };
 
- 
     const hasAnyCoursePermission = userPermissions.some(p => p.permissionKey === 'coursestructure' && p.isActive);
 
     return (
