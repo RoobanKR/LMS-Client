@@ -752,20 +752,7 @@ export default function CourseStructurePage() {
         );
     };
 
-   
-    if (isLoadingPermissions) {
-        return (
-            <DashboardLayout>
-                <div className="flex items-center justify-center min-h-screen">
-                    <div className="text-center">
-                        <Loader2 className="h-8 w-8 animate-spin text-indigo-600 mx-auto mb-4" />
-                        <p className="text-sm text-gray-600">Loading permissions...</p>
-                    </div>
-                </div>
-            </DashboardLayout>
-        );
-    }
-
+ 
     const hasAnyCoursePermission = userPermissions.some(p => p.permissionKey === 'coursestructure' && p.isActive);
 
     return (
