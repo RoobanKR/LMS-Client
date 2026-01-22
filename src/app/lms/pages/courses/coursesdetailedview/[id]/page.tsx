@@ -62,6 +62,7 @@ import { useTheme } from "next-themes"
 import { StudentNavbar } from "@/app/lms/component/student/student-navbar"
 import AIChat from "@/app/lms/component/student/ai-chat"
 import SummaryChat from "@/app/lms/component/student/summary-chat"
+import DBQueryEditor from "@/app/lms/component/student/db-queryEditor"
 
 // ==============================
 // Type Definitions
@@ -874,7 +875,7 @@ export default function LMSPage() {
       }
 
       try {
-        const url = `https://lms-server-ym1q.onrender.com/getAll/courses-data/${courseId}`;
+        const url = `http://localhost:5533/getAll/courses-data/${courseId}`;
         const response = await fetch(url);
 
         if (!response.ok) {
@@ -1620,7 +1621,7 @@ export default function LMSPage() {
       // Call the status endpoint we just created
       // CORRECT
       const response = await fetch(
-        `https://lms-server-ym1q.onrender.com/exercise/status?courseId=${mainCourseId}&exerciseId=${currentExerciseId}&category=${categoryParam}&subcategory=${currentSubcategory}`,
+        `http://localhost:5533/exercise/status?courseId=${mainCourseId}&exerciseId=${currentExerciseId}&category=${categoryParam}&subcategory=${currentSubcategory}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -3557,30 +3558,65 @@ export default function LMSPage() {
 
                               {/* --- EDITOR CONTENT --- */}
                               <div className="flex-1 overflow-hidden">
-                                <CodeEditor
-                                  exercise={selectedExercise}
-                                  theme={resolvedTheme as "light" | "dark"}
-                                  breadcrumbCollapsed={breadcrumbCollapsed}
-                                  onBreadcrumbCollapseToggle={() => setBreadcrumbCollapsed(!breadcrumbCollapsed)}
-                                  courseId={courseId}
-                                  nodeId={selectedItem?.id || ""}
-                                  nodeName={selectedItem?.title || ""}
-                                  nodeType={selectedItem?.type || ""}
-                                  subcategory={selectedActivity}
-                                  category={selectedMethod === 'i-do' ? "I_Do" : selectedMethod === 'we-do' ? "We_Do" : "You_Do"}
-                                  onBack={() => {
-                                    // This is for the back button in header
-                                    setSelectedExercise(null);
-                                    setShowExercisesList(true);
-                                  }}
-                                  // Add the new prop
-                                  onCloseExercise={() => {
-                                    // This is specifically for when security agreement is cancelled
-                                    setSelectedExercise(null);
-                                    setShowExercisesList(true);
-                                  }}
-                                />
+                                {selectedExercise?.programmingSettings?.selectedModule === 'Core Programming' && (
+                                  <CodeEditor
+                                    exercise={selectedExercise}
+                                    theme={resolvedTheme as "light" | "dark"}
+                                    breadcrumbCollapsed={breadcrumbCollapsed}
+                                    onBreadcrumbCollapseToggle={() =>
+                                      setBreadcrumbCollapsed(!breadcrumbCollapsed)
+                                    }
+                                    courseId={courseId}
+                                    nodeId={selectedItem?.id || ""}
+                                    nodeName={selectedItem?.title || ""}
+                                    nodeType={selectedItem?.type || ""}
+                                    subcategory={selectedActivity}
+                                    category={
+                                      selectedMethod === 'i-do'
+                                        ? "I_Do"
+                                        : selectedMethod === 'we-do'
+                                          ? "We_Do"
+                                          : "You_Do"
+                                    }
+                                    onBack={() => {
+                                      setSelectedExercise(null);
+                                      setShowExercisesList(true);
+                                    }}
+                                    onCloseExercise={() => {
+                                      setSelectedExercise(null);
+                                      setShowExercisesList(true);
+                                    }}
+                                  />
+                                )}
+
+                                {selectedExercise?.programmingSettings?.selectedModule === 'Database' && (
+                                  <DBQueryEditor
+                                    exercise={selectedExercise}
+                                    theme={resolvedTheme as "light" | "dark"}
+                                    courseId={courseId}
+                                    nodeId={selectedItem?.id || ""}
+                                    nodeName={selectedItem?.title || ""}
+                                    nodeType={selectedItem?.type || ""}
+                                    subcategory={selectedActivity}
+                                    category={
+                                      selectedMethod === 'i-do'
+                                        ? "I_Do"
+                                        : selectedMethod === 'we-do'
+                                          ? "We_Do"
+                                          : "You_Do"
+                                    }
+                                    onBack={() => {
+                                      setSelectedExercise(null);
+                                      setShowExercisesList(true);
+                                    }}
+                                    onCloseExercise={() => {
+                                      setSelectedExercise(null);
+                                      setShowExercisesList(true);
+                                    }}
+                                  />
+                                )}
                               </div>
+
                             </div>
                           );
                         }

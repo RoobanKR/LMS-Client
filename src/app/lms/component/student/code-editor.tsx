@@ -908,7 +908,7 @@ function solve() {
                 subcategory: subcategory || ""
             });
 
-            const response = await fetch(`https://lms-server-ym1q.onrender.com/courses/answers/single?${params.toString()}`, {
+            const response = await fetch(`http://localhost:5533/courses/answers/single?${params.toString()}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
 
@@ -1495,28 +1495,63 @@ function solve() {
             });
         }
     };
-    const stopScreenRecording = () => {
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-            mediaRecorderRef.current.stop();
-            setIsRecording(false);
+   const stopScreenRecording = async () => {
+  if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+    console.log('🎥 Stopping screen recording...');
+    
+    // Stop the recorder
+    mediaRecorderRef.current.stop();
+    setIsRecording(false);
+    
+    // Wait for recording to fully stop
+    return new Promise<void>((resolve) => {
+      if (mediaRecorderRef.current) {
+        mediaRecorderRef.current.onstop = async () => {
+          console.log('🎥 MediaRecorder stopped event fired');
+          await cleanupMediaStreams();
+          resolve();
+        };
+      } else {
+        resolve();
+      }
+      
+      // Timeout fallback
+      setTimeout(() => {
+        console.log('🎥 Fallback cleanup after timeout');
+        cleanupMediaStreams();
+        resolve();
+      }, 1000);
+    });
+  }
+};
 
-            if (cameraStream) {
-                cameraStream.getTracks().forEach(track => track.stop());
-                setCameraStream(null);
-            }
-
-            if (screenStream) {
-                screenStream.getTracks().forEach(track => track.stop());
-                setScreenStream(null);
-            }
-
-            if (animationFrameRef.current) {
-                cancelAnimationFrame(animationFrameRef.current);
-            }
-
-            addTerminalLog('system', '⏹️ Stopping recording...');
-        }
-    };
+const cleanupMediaStreams = () => {
+  // Stop all tracks
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(track => track.stop());
+    setCameraStream(null);
+  }
+  
+  if (screenStream) {
+    screenStream.getTracks().forEach(track => track.stop());
+    setScreenStream(null);
+  }
+  
+  // Cancel animation frame
+  if (animationFrameRef.current) {
+    cancelAnimationFrame(animationFrameRef.current);
+    animationFrameRef.current = null;
+  }
+  
+  // Clean up video elements
+  if (videoRef.current) {
+    videoRef.current.srcObject = null;
+  }
+  
+  if (screenVideoRef.current) {
+    screenVideoRef.current.srcObject = null;
+  }
+};
 
     const saveRecording = async () => {
         try {
@@ -1573,7 +1608,7 @@ function solve() {
             // Save recording URL to backend
             try {
                 const token = localStorage.getItem('smartcliff_token') || '';
-                const saveResponse = await fetch('https://lms-server-ym1q.onrender.com/assessment/recording', {
+                const saveResponse = await fetch('http://localhost:5533/assessment/recording', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -1707,40 +1742,40 @@ function solve() {
     };
 
 const handleTermination = useCallback(async (reason: string, status: 'completed' | 'terminated' = 'terminated') => {
+  // Set terminated state first
   setIsLocked(true);
   setIsTerminated(true);
   setTerminationReason(reason);
-
+  
+  // 1. STOP ALL RECORDINGS AND STREAMS FIRST
+  await stopAllRecordingsAndStreams();
+  
   let screenRecordingBlob: Blob | null = null;
   
-  // Create blob from recorded chunks if available
+  // 2. Create blob after stopping
   if (securitySettings.screenRecordingEnabled && recordedChunksRef.current.length > 0) {
     screenRecordingBlob = new Blob(recordedChunksRef.current, {
       type: mediaRecorderRef.current?.mimeType || 'video/webm'
     });
-    console.log('📹 Screen recording blob created:', {
-      size: screenRecordingBlob.size,
-      type: screenRecordingBlob.type
-    });
   }
-
+  
+  // 3. Exit fullscreen
   if (document.fullscreenElement) {
-    document.exitFullscreen().catch(() => { });
+    await document.exitFullscreen().catch(() => {});
   }
-
+  
   showToast({
     type: 'error',
     title: 'Assessment Terminated',
     message: reason,
     duration: 10000
   });
-
-  // Lock exercise on backend with screen recording
+  
+  // 4. Send data to backend
   try {
     const token = localStorage.getItem('smartcliff_token') || '';
     const formData = new FormData();
     
-    // Add all data as separate form fields
     formData.append('courseId', courseId || '');
     formData.append('exerciseId', exercise?._id || '');
     formData.append('category', 'You_Do');
@@ -1749,53 +1784,102 @@ const handleTermination = useCallback(async (reason: string, status: 'completed'
     formData.append('isLocked', 'true');
     formData.append('reason', reason || '');
     
-    // Get user ID from token or localStorage
     const userData = localStorage.getItem('userData');
     const targetUserId = userData ? JSON.parse(userData)._id : '';
     if (targetUserId) {
       formData.append('targetUserId', targetUserId);
     }
-
-    console.log('📤 Sending lock request with form data fields:');
-    formData.forEach((value, key) => {
-      if (typeof value === 'string') {
-        console.log(`${key}: ${value}`);
-      } else {
-        console.log(`${key}: [File] - ${value.name} (${value.size} bytes)`);
-      }
-    });
-
-    // Add screen recording if available
+    
+    // Add screen recording
     if (screenRecordingBlob) {
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const filename = `terminated_${courseId}_${studentId}_${exercise?._id}_${timestamp}.webm`;
       formData.append('screenRecording', screenRecordingBlob, filename);
-      console.log('🎥 Added screen recording to form data:', filename, screenRecordingBlob.size);
     }
-
-    const response = await fetch('https://lms-server-ym1q.onrender.com/exercise/lock', {
+    
+    await fetch('http://localhost:5533/exercise/lock', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`
-        // Don't set Content-Type header - let browser set it with boundary
       },
       body: formData
     });
-
-    const responseData = await response.json();
     
-    if (response.ok) {
-      addTerminalLog('success', '✅ Exercise locked with recording successfully');
-      console.log('✅ Server response:', responseData);
-    } else {
-      console.error('❌ Server error response:', responseData);
-      throw new Error(`Server responded with ${response.status}: ${JSON.stringify(responseData)}`);
-    }
+    addTerminalLog('success', '✅ Exercise locked with recording successfully');
+    
   } catch (error) {
     console.error('Failed to lock exercise:', error);
-    addTerminalLog('error', `❌ Failed to lock exercise: ${error.message}`);
   }
 }, [courseId, exercise, subcategory, securitySettings.screenRecordingEnabled, studentId]);
+
+// Add this helper function to properly stop all recordings
+const stopAllRecordingsAndStreams = async () => {
+  console.log('🛑 Stopping all recordings and streams...');
+  
+  // 1. Stop MediaRecorder if active
+  if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+    console.log('🛑 Stopping media recorder...');
+    mediaRecorderRef.current.stop();
+    setIsRecording(false);
+  }
+  
+  // 2. Cancel animation frame
+  if (animationFrameRef.current) {
+    console.log('🛑 Cancelling animation frame...');
+    cancelAnimationFrame(animationFrameRef.current);
+    animationFrameRef.current = null;
+  }
+  
+  // 3. Stop camera stream
+  if (cameraStream) {
+    console.log('🛑 Stopping camera stream...');
+    cameraStream.getTracks().forEach(track => {
+      track.stop();
+      console.log(`🛑 Stopped camera track: ${track.kind}`);
+    });
+    setCameraStream(null);
+    
+    // Clear video element
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  }
+  
+  // 4. Stop screen stream
+  if (screenStream) {
+    console.log('🛑 Stopping screen stream...');
+    screenStream.getTracks().forEach(track => {
+      track.stop();
+      console.log(`🛑 Stopped screen track: ${track.kind}`);
+    });
+    setScreenStream(null);
+  }
+  
+  // 5. Clear screenVideoRef
+  if (screenVideoRef.current) {
+    screenVideoRef.current.srcObject = null;
+  }
+  
+  // 6. Clear canvas
+  if (canvasRef.current) {
+    const ctx = canvasRef.current.getContext('2d');
+    if (ctx) {
+      ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+    }
+  }
+  
+  // 7. Reset input resolver
+  if (inputResolverRef.current) {
+    inputResolverRef.current('');
+    inputResolverRef.current = null;
+  }
+  
+  // 8. Wait a bit for cleanup
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  console.log('✅ All recordings and streams stopped');
+};
+    // --- Code Execution ---
     // Update the executeCode function around line ~730
     const executeCode = async (input: string = ""): Promise<{ output: string; error?: string; runtime?: number }> => {
         try {
@@ -1961,7 +2045,7 @@ const handleTermination = useCallback(async (reason: string, status: 'completed'
         }
     }, [cameraStream]);
     // --- Submission ---
-  const submitProgressToBackend = async (
+    const submitProgressToBackend = async (
   questionId: string,
   status = 'attempted',
   score = 0,
@@ -2000,7 +2084,7 @@ const handleTermination = useCallback(async (reason: string, status: 'completed'
     addTerminalLog('system', '📤 Submitting to server...');
 
     const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
-    const response = await fetch('https://lms-server-ym1q.onrender.com/courses/answers/submit', {
+    const response = await fetch('http://localhost:5533/courses/answers/submit', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`
@@ -2028,8 +2112,7 @@ const handleTermination = useCallback(async (reason: string, status: 'completed'
     throw error;
   }
 };
-
-const submitCode = async () => {
+  const submitCode = async () => {
   if (isAssessmentMode && !hasStarted) {
     showToast({
       type: 'warning',
@@ -2349,7 +2432,7 @@ let screenRecordingBlob: Blob | undefined;
 
             try {
                 const token = localStorage.getItem('smartcliff_token') || '';
-                const response = await fetch(`https://lms-server-ym1q.onrender.com/exercise/status?courseId=${courseId}&exerciseId=${exercise._id}&category=You_Do&subcategory=${subcategory}`, {
+                const response = await fetch(`http://localhost:5533/exercise/status?courseId=${courseId}&exerciseId=${exercise._id}&category=You_Do&subcategory=${subcategory}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
 
