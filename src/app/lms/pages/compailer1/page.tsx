@@ -1046,7 +1046,7 @@ export default function CodeCompiler() {
     setSaveStatus({ type: null, message: "" })
 
     try {
-      const response = await fetch("https://lms-server-ym1q.onrender.com/save/compiler", {
+      const response = await fetch("http://localhost:5533/save/compiler", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${localStorage.getItem("smartcliff_token") || ""}`,
@@ -1086,7 +1086,7 @@ export default function CodeCompiler() {
     }
 
     try {
-      const response = await fetch(`https://lms-server-ym1q.onrender.com/get/compiler/${userId}/${courseId}`, {
+      const response = await fetch(`http://localhost:5533/get/compiler/${userId}/${courseId}`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("smartcliff_token") || ""}`,
           "Content-Type": "application/json",

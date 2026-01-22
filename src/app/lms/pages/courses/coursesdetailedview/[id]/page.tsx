@@ -874,7 +874,7 @@ export default function LMSPage() {
       }
 
       try {
-        const url = `https://lms-server-ym1q.onrender.com/getAll/courses-data/${courseId}`;
+        const url = `http://localhost:5533/getAll/courses-data/${courseId}`;
         const response = await fetch(url);
 
         if (!response.ok) {
@@ -1288,7 +1288,7 @@ export default function LMSPage() {
     return allResources;
   };
 
-  
+
   const categorizeFolderContents = (folders: PedagogyFolder[]): {
     similarType: ResourceType | null;
     resources: Resource[];
@@ -1590,7 +1590,7 @@ export default function LMSPage() {
   // Find your handleExerciseSelect function and update it:
   // Find the handleExerciseSelect function
   // NEW: Function to handle exercise selection
-// NEW: Function to handle exercise selection with Lock Verification
+  // NEW: Function to handle exercise selection with Lock Verification
   const handleExerciseSelect = async (exercise: any) => {
     console.log("🎯 SELECTED EXERCISE:", {
       exercise,
@@ -1614,21 +1614,21 @@ export default function LMSPage() {
       // You might need to import axios if not already imported, or use fetch
       // Assuming axios is imported as 'axios'
       // If using fetch: const response = await fetch(...)
-      
+
       const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
-      
+
       // Call the status endpoint we just created
-     // CORRECT
-const response = await fetch(
-  `https://lms-server-ym1q.onrender.com/exercise/status?courseId=${mainCourseId}&exerciseId=${currentExerciseId}&category=${categoryParam}&subcategory=${currentSubcategory}`, 
-  {
-    headers: { 
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    }
-  }
-);
-      
+      // CORRECT
+      const response = await fetch(
+        `http://localhost:5533/exercise/status?courseId=${mainCourseId}&exerciseId=${currentExerciseId}&category=${categoryParam}&subcategory=${currentSubcategory}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
       const result = await response.json();
 
       if (result.success && result.data.isLocked) {
@@ -1672,7 +1672,7 @@ const response = await fetch(
         exerciseId: currentExerciseId || '',
         exerciseName: exercise.exerciseInformation?.exerciseName || exercise.title || 'Frontend Exercise',
         subcategory: currentSubcategory,
-        category: categoryParam, 
+        category: categoryParam,
         hasQuestions: (exercise.questions && exercise.questions.length > 0) ? 'true' : 'false',
         questionCount: (exercise.questions?.length || 0).toString()
       }).toString();
@@ -1758,7 +1758,7 @@ const response = await fetch(
 
       // 3. Get the specific data bucket (e.g., pedagogy.You_Do)
       const categoryData = selectedItem.pedagogy[targetDataKey];
-      
+
       // If the category is empty or undefined, return empty
       if (!categoryData || typeof categoryData !== 'object') return [];
 
@@ -1774,7 +1774,7 @@ const response = await fetch(
 
       // B. Fuzzy check (iterate keys to find a match)
       const foundKey = Object.keys(categoryData).find(k => normalize(k) === targetActivityKey);
-      
+
       if (foundKey) {
         const data = (categoryData as any)[foundKey];
         // Ensure it's an array (exercises list) and not a single object
@@ -2544,6 +2544,7 @@ const response = await fetch(
       onClick: (() => void) | null;
     }> = [];
 
+
     // 1. All Courses link
     breadcrumbItems.push({
       title: "All Courses",
@@ -2722,26 +2723,30 @@ const response = await fetch(
         <div className="flex items-center justify-between gap-2 mb-2">
           <nav className="flex-1 flex items-center gap-1 text-xs px-1 overflow-x-auto" aria-label="Breadcrumb">
             {/* Home Link - Always the starting point */}
+            {/* Home Link - Always the starting point */}
             <div
               className="flex items-center gap-1 px-3 py-1 text-gray-700 hover:text-black cursor-pointer rounded-full transition-all duration-200 bg-white hover:bg-gray-100 shadow-sm flex-shrink-0 hover:scale-105 active:scale-95"
               onClick={() => {
-                // Clear persistence
+                // 1. Clear persistence
                 localStorage.removeItem('lms_student_selected_node_id');
                 localStorage.removeItem('lms_student_selected_method');
                 localStorage.removeItem('lms_student_selected_activity');
 
+                // 2. Reset local state
                 setSelectedItem(null);
                 setSelectedMethod("");
                 setSelectedActivity("");
                 setCurrentFolder(null);
                 setFolderPath([]);
                 closeAllViewers();
+
+                // 3. Navigate to Student Dashboard
+                router.push('/lms/pages/studentdashboard');
               }}
             >
               <Home className="w-3 h-3 text-blue-500 transition-transform duration-200 group-hover:rotate-12" />
-              <span className="text-xs font-medium">Home</span>
+              <span className="text-xs font-medium">Dashboard</span>
             </div>
-
             {/* Dynamic Breadcrumb Items */}
             {breadcrumbItems.map((item, index) => (
               <React.Fragment key={index}>
@@ -3054,8 +3059,8 @@ const response = await fetch(
     );
   }
   return (
-<div className=" bg-white text-black overflow-hidden mt-[72px]">
-        <style jsx global>{`
+    <div className=" bg-white text-black overflow-hidden mt-[72px]">
+      <style jsx global>{`
     @import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
      
     body, #__next, .lms-page-wrapper,
@@ -3258,7 +3263,7 @@ const response = await fetch(
         )}
 
         {/* Main Content Area Container */}
-        <div className="flex-1 flex min-h-0 overflow-hidden">
+        <div className="flex-1 flex min-h-0 overflow-hidden ">
           {/* Left Panel: The main course/topic content view */}
           <div className="flex-1 p-4 flex flex-col overflow-hidden min-h-0">
             {!selectedItem ? (
@@ -3562,8 +3567,18 @@ const response = await fetch(
                                   nodeName={selectedItem?.title || ""}
                                   nodeType={selectedItem?.type || ""}
                                   subcategory={selectedActivity}
-                                  // Update category label dynamically
                                   category={selectedMethod === 'i-do' ? "I_Do" : selectedMethod === 'we-do' ? "We_Do" : "You_Do"}
+                                  onBack={() => {
+                                    // This is for the back button in header
+                                    setSelectedExercise(null);
+                                    setShowExercisesList(true);
+                                  }}
+                                  // Add the new prop
+                                  onCloseExercise={() => {
+                                    // This is specifically for when security agreement is cancelled
+                                    setSelectedExercise(null);
+                                    setShowExercisesList(true);
+                                  }}
                                 />
                               </div>
                             </div>

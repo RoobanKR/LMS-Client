@@ -64,6 +64,8 @@ interface SecuritySettings {
   disableClipboard: boolean;
   fullScreenMode: boolean;
   restrictMinimize: boolean; // <--- 2. Added new interface property
+  screenRecordingEnabled: boolean; // <--- ADD THIS
+
 }
 
 interface ExerciseSettingsData {
@@ -160,7 +162,7 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
     {
       id: 'frontend',
       name: 'Frontend',
-      languages: ['HTML', 'CSS', 'JS','BOOTSTRAP', 'React', 'Vue']
+      languages: ['HTML', 'CSS', 'JS', 'BOOTSTRAP', 'React', 'Vue']
     },
     {
       id: 'backend',
@@ -258,7 +260,9 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
       maxTabSwitches: 3,
       disableClipboard: false,
       fullScreenMode: false,
-      restrictMinimize: false // <--- 3. Initialized new state
+      restrictMinimize: false,
+      screenRecordingEnabled: false // <--- ADD THIS
+
     }
   });
 
@@ -471,9 +475,9 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
     }));
   };
 
-  useEffect(()=>{
-    console.log(formData.tabType );
-  },[formData.tabType ])
+  useEffect(() => {
+    console.log(formData.tabType);
+  }, [formData.tabType])
 
   const regenerateExerciseId = () => {
     if (isEditing || existingExercisesCount === null) return;
@@ -829,7 +833,7 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
   const renderBasicInfo = () => (
     <div className="space-y-3">
       {/* Method type is now passed from parent and not selectable here */}
-       
+
       {/* Exercise ID and Name - compact row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         <div>
@@ -979,14 +983,14 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
         {/* Conditional Timer Options */}
         {formData.securitySettings.timerEnabled && (
           <div className="pl-6 pt-3 border-t border-gray-100 mt-2 space-y-4">
-             
+
             {/* Timer Type Selection */}
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-2">Timer Based On</label>
               <div className="flex gap-4">
                 <label className="flex items-center gap-2 cursor-pointer">
-                  <input 
-                    type="radio" 
+                  <input
+                    type="radio"
                     name="timerType"
                     value="exercise"
                     checked={formData.securitySettings.timerType === 'exercise'}
@@ -994,13 +998,13 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
                       ...prev,
                       securitySettings: { ...prev.securitySettings, timerType: 'exercise' }
                     }))}
-                    className="text-blue-600 focus:ring-blue-500" 
+                    className="text-blue-600 focus:ring-blue-500"
                   />
                   <span className="text-sm text-gray-700">Total Exercise Time</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
-                  <input 
-                    type="radio" 
+                  <input
+                    type="radio"
                     name="timerType"
                     value="question"
                     checked={formData.securitySettings.timerType === 'question'}
@@ -1008,7 +1012,7 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
                       ...prev,
                       securitySettings: { ...prev.securitySettings, timerType: 'question' }
                     }))}
-                    className="text-blue-600 focus:ring-blue-500" 
+                    className="text-blue-600 focus:ring-blue-500"
                   />
                   <span className="text-sm text-gray-700">Per Question Time</span>
                 </label>
@@ -1049,7 +1053,7 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
 
       {/* --- COMMON ASSESSMENT SECURITY --- */}
       <h5 className="text-xs font-bold text-gray-500 uppercase tracking-wider mt-6 mb-2">Environment Controls</h5>
-       
+
       {/* 1. Camera and Mic */}
       <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg bg-white">
         <div className="flex items-center gap-2">
@@ -1118,7 +1122,31 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
           <div className="w-10 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[1px] after:left-[1px] after:bg-white after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
         </label>
       </div>
-
+      {/* 4. Screen Recording (Code Editor Only) */}
+      <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg bg-white mt-3">
+        <div className="flex items-center gap-2">
+          <Camera size={18} className="text-gray-600" />
+          <div>
+            <div className="text-sm font-medium text-gray-900">Enable Screen Recording</div>
+            <div className="text-xs text-gray-500">Record screen only when in code editor</div>
+          </div>
+        </div>
+        <label className="relative inline-flex items-center cursor-pointer">
+          <input
+            type="checkbox"
+            checked={formData.securitySettings.screenRecordingEnabled}
+            onChange={(e) => setFormData(prev => ({
+              ...prev,
+              securitySettings: {
+                ...prev.securitySettings,
+                screenRecordingEnabled: e.target.checked
+              }
+            }))}
+            className="sr-only peer"
+          />
+          <div className="w-10 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[1px] after:left-[1px] after:bg-white after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+        </label>
+      </div>
       {/* 4. Disable Clipboard (Copy/Paste) */}
       <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg bg-white mt-3">
         <div className="flex items-center gap-2">
@@ -1170,27 +1198,27 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
         </div>
 
         {formData.securitySettings.tabSwitchAllowed && (
-            <div className="pl-6 pt-2 border-t border-gray-100 mt-2">
-              <div className="text-xs text-gray-500 mb-2">
-                Note: If enabled, users can switch tabs freely. If disabled, the test may auto-submit or warn on switch.
-              </div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Max Warnings before auto-submit
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={formData.securitySettings.maxTabSwitches}
-                onChange={(e) => setFormData(prev => ({
-                  ...prev,
-                  securitySettings: {
-                    ...prev.securitySettings,
-                    maxTabSwitches: Math.max(0, parseInt(e.target.value) || 0)
-                  }
-                }))}
-                className="w-32 px-3 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
+          <div className="pl-6 pt-2 border-t border-gray-100 mt-2">
+            <div className="text-xs text-gray-500 mb-2">
+              Note: If enabled, users can switch tabs freely. If disabled, the test may auto-submit or warn on switch.
             </div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              Max Warnings before auto-submit
+            </label>
+            <input
+              type="number"
+              min="0"
+              value={formData.securitySettings.maxTabSwitches}
+              onChange={(e) => setFormData(prev => ({
+                ...prev,
+                securitySettings: {
+                  ...prev.securitySettings,
+                  maxTabSwitches: Math.max(0, parseInt(e.target.value) || 0)
+                }
+              }))}
+              className="w-32 px-3 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
         )}
       </div>
     </div>

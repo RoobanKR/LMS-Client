@@ -172,6 +172,7 @@ interface Exercise {
     tabSwitchAllowed?: boolean;
     maxTabSwitches?: number;
     disableClipboard?: boolean;
+    screenRecordingEnabled?: Boolean;
   };
   // 👆 END NEW PART 👆
   questions?: any[];
@@ -897,7 +898,7 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
         </div>
       )}
 
-   {showSettingsModal && (
+      {showSettingsModal && (
         <ExerciseSettings
           hierarchyData={hierarchyData}
           nodeId={nodeId}
@@ -905,7 +906,7 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
           subcategory={subcategory}
           nodeType={nodeType}
           level={hierarchyData.level}
-          
+
           // Pass the dynamic tab active state so the modal knows which pedagogy context to use
           tabType={activeTab as 'I_Do' | 'We_Do' | 'You_Do'}
 
@@ -920,8 +921,8 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
               exerciseId: editingExercise.exerciseInformation?.exerciseId || '',
               exerciseName: editingExercise.exerciseInformation?.exerciseName || '',
               description: editingExercise.exerciseInformation?.description || '',
-              exerciseLevel: (editingExercise.exerciseInformation?.exerciseLevel === 'medium' 
-                ? 'intermediate' 
+              exerciseLevel: (editingExercise.exerciseInformation?.exerciseLevel === 'medium'
+                ? 'intermediate'
                 : editingExercise.exerciseInformation?.exerciseLevel) || 'intermediate'
             },
             programmingSettings: {
@@ -974,7 +975,9 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
               fullScreenMode: editingExercise.securitySettings?.fullScreenMode ?? false,
               tabSwitchAllowed: editingExercise.securitySettings?.tabSwitchAllowed ?? true,
               maxTabSwitches: editingExercise.securitySettings?.maxTabSwitches || 3,
-              disableClipboard: editingExercise.securitySettings?.disableClipboard ?? false
+              disableClipboard: editingExercise.securitySettings?.disableClipboard ?? false,
+              screenRecordingEnabled: editingExercise.securitySettings?.screenRecordingEnabled ?? false,
+
             }
             // 👆 END NEW PART 👆
           } : undefined}

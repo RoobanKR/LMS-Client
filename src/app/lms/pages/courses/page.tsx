@@ -76,16 +76,16 @@ const Breadcrumbs = () => {
   const router = useRouter();
   
   return (
-    <div className="flex items-center gap-1 text-xs mb-3 px-1 text-black">
+    <div className="flex items-center gap-1 text-xs mb-3 px-1 text-gray-800 dark:text-gray-200">
       <div
-        className="flex items-center gap-1 px-2 py-1 text-black hover:text-gray-700 cursor-pointer rounded hover:bg-gray-100 transition-colors"
-        onClick={() => router.push('/lms/pages/admindashboard')}
+        className="flex items-center gap-1 px-2 py-1 text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+        onClick={() => router.push('/lms/pages/studentdashboard')}
       >
         <BookOpen className="w-3 h-3" />
-        <span className="text-xs">Home</span>
+        <span className="text-xs">Dashboard</span>
       </div>
-      <ChevronRight className="w-3 h-3 text-gray-400 mx-1" />
-      <div className="flex items-center gap-1 px-2 py-1 text-black font-medium bg-gray-100 rounded transition-colors">
+      <ChevronRight className="w-3 h-3 text-gray-400 dark:text-gray-600 mx-1" />
+      <div className="flex items-center gap-1 px-2 py-1 text-blue-600 dark:text-blue-400 font-medium bg-blue-50 dark:bg-blue-900/30 rounded transition-colors">
         <BookOpen className="w-3 h-3" />
         <span className="text-xs">Courses</span>
       </div>
@@ -112,6 +112,19 @@ export default function CoursesPage() {
         const isDark = document.documentElement.classList.contains('dark');
         setCurrentTheme(isDark ? 'dark' : 'light');
 
+        // Listen for theme changes
+        const observer = new MutationObserver((mutations) => {
+          mutations.forEach((mutation) => {
+            if (mutation.attributeName === 'class') {
+              const isDark = document.documentElement.classList.contains('dark');
+              setCurrentTheme(isDark ? 'dark' : 'light');
+            }
+          });
+        });
+
+        observer.observe(document.documentElement, { attributes: true });
+
+        return () => observer.disconnect();
       } catch (error) {
         console.error('Error in fetchUserData:', error);
       }
@@ -185,21 +198,20 @@ export default function CoursesPage() {
     refetch();
   };
 
- 
   const showCourseLoading = isLoading && !data;
 
   return (
     <>
       <style jsx global>{`
-        /* Ultra-thin animated scrollbar with blue theme */
+        /* Ultra-thin animated scrollbar with theme-based colors */
         .custom-scrollbar {
           scrollbar-width: thin;
-          scrollbar-color: rgba(100, 181, 246, 0.6) transparent;
+          scrollbar-color: rgba(59, 130, 246, 0.6) transparent;
         }
         
         .custom-scrollbar::-webkit-scrollbar {
-          width: 2px;
-          height: 2px;
+          width: 3px;
+          height: 3px;
         }
         
         .custom-scrollbar::-webkit-scrollbar-track {
@@ -208,16 +220,27 @@ export default function CoursesPage() {
         }
         
         .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: linear-gradient(45deg, #64B5F6, #1976D2);
+          background: linear-gradient(45deg, #3b82f6, #2563eb);
           border-radius: 1px;
-          box-shadow: 0 0 4px rgba(100, 181, 246, 0.3);
+          box-shadow: 0 0 4px rgba(59, 130, 246, 0.3);
           transition: all 0.3s ease;
         }
         
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: linear-gradient(45deg, #42A5F5, #1565C0);
-          box-shadow: 0 0 8px rgba(100, 181, 246, 0.6);
-          width: 3px;
+          background: linear-gradient(45deg, #2563eb, #1d4ed8);
+          box-shadow: 0 0 8px rgba(59, 130, 246, 0.6);
+          width: 4px;
+        }
+
+        /* Dark mode scrollbar */
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: linear-gradient(45deg, #60a5fa, #3b82f6);
+          box-shadow: 0 0 4px rgba(96, 165, 250, 0.4);
+        }
+        
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: linear-gradient(45deg, #3b82f6, #2563eb);
+          box-shadow: 0 0 8px rgba(96, 165, 250, 0.6);
         }
 
         /* Smooth scroll behavior */
@@ -257,6 +280,17 @@ export default function CoursesPage() {
           animation: shimmer 1.5s infinite;
         }
 
+        .dark .animate-shimmer {
+          background: linear-gradient(
+            90deg,
+            transparent 25%,
+            rgba(255, 255, 255, 0.1) 50%,
+            transparent 75%
+          );
+          background-size: 200px 100%;
+          animation: shimmer 1.5s infinite;
+        }
+
         /* Fix for animation performance */
         .course-card {
           transform: translateZ(0);
@@ -276,13 +310,19 @@ export default function CoursesPage() {
           -webkit-box-orient: vertical;
           -webkit-line-clamp: 2;
         }
+
+        /* Glass effect for header */
+        .glass-header {
+          backdrop-filter: blur(8px);
+          -webkit-backdrop-filter: blur(8px);
+        }
       `}</style>
 
       <StudentLayout>
-        <div className="min-h-screen bg-gray-50/30 dark:bg-gray-900/30 flex flex-col">
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
           {/* Fixed Header with Breadcrumbs and Filters - Always visible */}
           <motion.div 
-            className="flex-shrink-0 border-b bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm sticky top-0 z-10 border-gray-200 dark:border-gray-700"
+            className="flex-shrink-0 border-b bg-white/80 dark:bg-gray-900/80 glass-header sticky top-0 z-10 border-gray-200 dark:border-gray-800"
             initial="hidden"
             animate="visible"
             variants={headerVariants}
@@ -308,11 +348,11 @@ export default function CoursesPage() {
                 </div>
                 
                 <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-300 bg-blue-50 dark:bg-blue-900/20 px-3 py-1.5 rounded-lg border border-blue-100 dark:border-blue-800">
+                  <div className="flex items-center gap-1 text-xs text-gray-700 dark:text-gray-300 bg-blue-50 dark:bg-blue-900/30 px-3 py-1.5 rounded-lg border border-blue-100 dark:border-blue-800/50">
                     <BookOpen className="w-3 h-3" />
                     <span>{allCourses.length} enrolled courses</span>
                   </div>
-                  <div className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-300 bg-blue-50 dark:bg-blue-900/20 px-3 py-1.5 rounded-lg border border-blue-100 dark:border-blue-800">
+                  <div className="flex items-center gap-1 text-xs text-gray-700 dark:text-gray-300 bg-blue-50 dark:bg-blue-900/30 px-3 py-1.5 rounded-lg border border-blue-100 dark:border-blue-800/50">
                     <Clock className="w-3 h-3" />
                     <span>Self-paced</span>
                   </div>
@@ -335,7 +375,7 @@ export default function CoursesPage() {
                   <input
                     type="text"
                     placeholder="Search courses by name..."
-                    className="w-full text-xs pl-9 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+                    className="w-full text-xs pl-9 pr-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 focus:border-blue-500 dark:focus:border-blue-600 transition-all bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
@@ -349,7 +389,7 @@ export default function CoursesPage() {
                   transition={{ delay: 0.3 }}
                 >
                   <select 
-                    className="text-xs px-2.5 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white min-w-[130px]"
+                    className="text-xs px-2.5 py-1.5 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 focus:border-blue-500 dark:focus:border-blue-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white min-w-[130px]"
                     value={selectedCategory}
                     onChange={(e) => setSelectedCategory(e.target.value)}
                   >
@@ -359,7 +399,7 @@ export default function CoursesPage() {
                   </select>
                   
                   <motion.div 
-                    className="text-xs text-gray-600 dark:text-gray-300 bg-blue-50 dark:bg-blue-900/30 px-2.5 py-1.5 rounded-lg border border-blue-100 dark:border-blue-800"
+                    className="text-xs text-gray-700 dark:text-gray-300 bg-blue-50 dark:bg-blue-900/30 px-2.5 py-1.5 rounded-lg border border-blue-100 dark:border-blue-800/50"
                     key={filteredCourses.length}
                     initial={{ scale: 0.8, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
@@ -368,12 +408,8 @@ export default function CoursesPage() {
                     {showCourseLoading ? 'Loading...' : `${filteredCourses.length} ${filteredCourses.length === 1 ? 'course' : 'courses'}`}
                     {hasNextPage && !showCourseLoading && ' + more'}
                   </motion.div>
-
-               
                 </motion.div>
               </motion.div>
-
-            
             </div>
           </motion.div>
 
@@ -400,7 +436,7 @@ export default function CoursesPage() {
                       >
                         {/* Skeleton Image */}
                         <div className="relative h-28 overflow-hidden bg-gray-200 dark:bg-gray-700">
-                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent animate-shimmer" />
+                          <div className="absolute inset-0 animate-shimmer" />
                         </div>
 
                         {/* Skeleton Content */}
@@ -455,13 +491,12 @@ export default function CoursesPage() {
                     <div className="flex gap-2 justify-center mt-3">
                       <motion.button 
                         onClick={handleRetry}
-                        className="text-xs bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-3 py-1.5 rounded-lg transition-all duration-200"
+                        className="text-xs bg-gradient-to-r from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 hover:from-blue-600 hover:to-blue-700 dark:hover:from-blue-700 dark:hover:to-blue-800 text-white px-3 py-1.5 rounded-lg transition-all duration-200 shadow-sm"
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                       >
                         Try Again
                       </motion.button>
-                  
                     </div>
                   </motion.div>
                 ) : filteredCourses.length === 0 && !userId ? (
@@ -482,7 +517,7 @@ export default function CoursesPage() {
                     </p>
                     <motion.button 
                       onClick={() => router.push('/login')}
-                      className="mt-3 text-xs bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-3 py-1.5 rounded-lg transition-all duration-200"
+                      className="mt-3 text-xs bg-gradient-to-r from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 hover:from-blue-600 hover:to-blue-700 dark:hover:from-blue-700 dark:hover:to-blue-800 text-white px-3 py-1.5 rounded-lg transition-all duration-200 shadow-sm"
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                     >
@@ -511,13 +546,12 @@ export default function CoursesPage() {
                     <div className="flex gap-2 justify-center mt-3">
                       <motion.button 
                         onClick={() => router.push('/lms')}
-                        className="text-xs bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-3 py-1.5 rounded-lg transition-all duration-200"
+                        className="text-xs bg-gradient-to-r from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 hover:from-blue-600 hover:to-blue-700 dark:hover:from-blue-700 dark:hover:to-blue-800 text-white px-3 py-1.5 rounded-lg transition-all duration-200 shadow-sm"
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                       >
                         Go to Dashboard
                       </motion.button>
-                     
                     </div>
                   </motion.div>
                 ) : (
@@ -533,12 +567,12 @@ export default function CoursesPage() {
                       {filteredCourses.map((course: Course, index: number) => (
                         <motion.div 
                           key={course._id} 
-                          className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-lg dark:hover:shadow-xl transition-all duration-300 overflow-hidden group cursor-pointer course-card"
+                          className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-600 hover:shadow-lg dark:hover:shadow-xl/30 transition-all duration-300 overflow-hidden group cursor-pointer course-card"
                           variants={cardVariants}
                           whileHover={{ 
                             y: -4, 
                             scale: 1.02,
-                            boxShadow: "0 8px 25px rgba(100, 181, 246, 0.15)",
+                            boxShadow: "0 8px 25px rgba(59, 130, 246, 0.15)",
                             transition: { type: "spring", stiffness: 300, damping: 20 }
                           }}
                           whileTap={{ scale: 0.98 }}
@@ -558,26 +592,26 @@ export default function CoursesPage() {
                             <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                             <div className="absolute top-1.5 left-1.5">
                               <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded-full ${
-                                course.courseLevel === 'Beginner' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' :
-                                course.courseLevel === 'Intermediate' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300' :
-                                'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
+                                course.courseLevel === 'Beginner' ? 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300 border border-green-200 dark:border-green-800' :
+                                course.courseLevel === 'Intermediate' ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-800' :
+                                'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-800'
                               }`}>
                                 {course.courseLevel}
                               </span>
                             </div>
                             <div className="absolute top-1.5 right-1.5">
-                              <span className="text-[10px] font-medium text-gray-700 dark:text-gray-300 bg-white/95 dark:bg-gray-900/95 px-1.5 py-0.5 rounded-full shadow-sm">
+                              <span className="text-[10px] font-medium text-gray-700 dark:text-gray-300 bg-white/95 dark:bg-gray-900/95 px-1.5 py-0.5 rounded-full shadow-sm border border-gray-200 dark:border-gray-700">
                                 {course.courseDuration} {parseInt(course.courseDuration) === 1 ? 'week' : 'weeks'}
                               </span>
                             </div>
                             {/* Blue gradient overlay on hover */}
-                            <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-blue-600/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                            <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-blue-600/10 dark:from-blue-500/20 dark:to-blue-600/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                           </div>
 
                           {/* Course Content */}
                           <div className="p-3">
                             <div className="flex justify-between items-start mb-2">
-                              <span className="text-[10px] font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-1.5 py-0.5 rounded-full">
+                              <span className="text-[10px] font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/40 px-1.5 py-0.5 rounded-full border border-blue-100 dark:border-blue-800">
                                 {course.serviceType}
                               </span>
                               <span className="text-[10px] text-gray-500 dark:text-gray-400">
@@ -617,10 +651,10 @@ export default function CoursesPage() {
                                 e.stopPropagation(); // Prevent card click event
                                 handleStartCourse(course._id);
                               }}
-                              className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 dark:from-blue-600 dark:to-blue-700 dark:hover:from-blue-700 dark:hover:to-blue-800 text-white text-xs font-medium py-2 px-3 rounded-lg transition-all duration-200 flex items-center justify-center gap-1.5 group/btn shadow-sm hover:shadow-md"
+                              className="w-full bg-gradient-to-r from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 hover:from-blue-600 hover:to-blue-700 dark:hover:from-blue-700 dark:hover:to-blue-800 text-white text-xs font-medium py-2 px-3 rounded-lg transition-all duration-200 flex items-center justify-center gap-1.5 group/btn shadow-sm hover:shadow-md"
                               whileHover={{ 
                                 scale: 1.02,
-                                boxShadow: "0 4px 12px rgba(100, 181, 246, 0.4)"
+                                boxShadow: "0 4px 12px rgba(59, 130, 246, 0.4)"
                               }}
                               whileTap={{ scale: 0.98 }}
                             >
@@ -654,8 +688,8 @@ export default function CoursesPage() {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                       >
-                        <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-800">
-                          <BookOpen className="w-4 h-4 text-blue-500" />
+                        <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-900/40 rounded-lg border border-blue-100 dark:border-blue-800">
+                          <BookOpen className="w-4 h-4 text-blue-500 dark:text-blue-400" />
                           <p className="text-xs text-blue-600 dark:text-blue-400">
                             You've viewed all your enrolled courses ({filteredCourses.length})
                           </p>

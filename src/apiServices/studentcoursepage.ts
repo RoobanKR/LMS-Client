@@ -90,7 +90,7 @@ const fetchCourses = async (
   }
 
   const response = await fetch(
-    `https://lms-server-ym1q.onrender.com/courses-structure/getAll`,
+    `http://localhost:5533/courses-structure/getAll`,
     {
       headers: {
         Authorization: `Bearer ${token}`,

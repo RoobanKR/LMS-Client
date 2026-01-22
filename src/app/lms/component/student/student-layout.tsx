@@ -85,7 +85,7 @@ export function StudentLayout({ children }: StudentLayoutProps) {
         )}
       >
         {/* Container with padding for content breathing room */}
-        <div className="container mx-auto p-4 md:p-6 lg:p-8 max-w-[1600px] animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="container mx-auto p-4 md:p-6 lg:p-8 dark:bg-gray-800 max-w-[1600px] animate-in fade-in slide-in-from-bottom-4 duration-500">
           {children}
         </div>
       </main>

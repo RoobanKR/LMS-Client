@@ -81,6 +81,7 @@ interface UserData {
 
 // Local storage key for user data
 const USER_DATA_KEY = "smartcliff_userData";
+const THEME_KEY = "theme"; // Key for storing theme preference
 
 // Helper function to get user data from localStorage
 const getCurrentUser = (): { valid: boolean; user: UserData | null } => {
@@ -117,6 +118,29 @@ const clearUserData = () => {
   localStorage.removeItem(USER_DATA_KEY);
   localStorage.removeItem("smartcliff_token");
   localStorage.removeItem("smartcliff_userId");
+};
+
+// --- Theme Management ---
+const getStoredTheme = (): 'light' | 'dark' => {
+  if (typeof window === 'undefined') return 'light';
+  
+  const storedTheme = localStorage.getItem(THEME_KEY) as 'light' | 'dark';
+  if (storedTheme) return storedTheme;
+  
+  const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  return systemPrefersDark ? 'dark' : 'light';
+};
+
+const setStoredTheme = (theme: 'light' | 'dark') => {
+  localStorage.setItem(THEME_KEY, theme);
+};
+
+const applyThemeToDocument = (theme: 'light' | 'dark') => {
+  if (theme === 'dark') {
+    document.documentElement.classList.add('dark');
+  } else {
+    document.documentElement.classList.remove('dark');
+  }
 };
 
 // --- Icon Helper ---
@@ -194,7 +218,7 @@ export function StudentSidebar({ isOpen = true, onClose, activeRoute }: StudentS
   const pathname = usePathname()
   const [sidebarItems, setSidebarItems] = useState<SidebarItem[]>([])
   const [loading, setLoading] = useState(true)
-  const [isDarkMode, setIsDarkMode] = useState(false)
+  const [theme, setTheme] = useState<'light' | 'dark'>('light') // Use string literal type
   const [studentInfo, setStudentInfo] = useState({
     name: "Loading...",
     course: "Loading...",
@@ -209,6 +233,13 @@ export function StudentSidebar({ isOpen = true, onClose, activeRoute }: StudentS
     attemptedExercises: 0,
     attemptedQuestions: 0
   })
+
+  // Initialize theme from localStorage on component mount
+  useEffect(() => {
+    const storedTheme = getStoredTheme();
+    setTheme(storedTheme);
+    applyThemeToDocument(storedTheme);
+  }, []);
 
   // --- Data Fetching ---
   useEffect(() => {
@@ -435,7 +466,7 @@ export function StudentSidebar({ isOpen = true, onClose, activeRoute }: StudentS
     } else if (key.includes('message') || key.includes('chat')) {
       return { count: 3, progress: 0 };
     } else if (key.includes('notification') || key.includes('alert')) {
-      return { count: 4, progress: 0 };
+      return { count: 0, progress: 0 };
     } else if (key.includes('resource') || key.includes('material')) {
       return { count: userAnalytics.totalModules + userAnalytics.totalTopics, progress: 0 };
     } else if (key.includes('profile') || key.includes('account')) {
@@ -480,7 +511,7 @@ export function StudentSidebar({ isOpen = true, onClose, activeRoute }: StudentS
       icon: Bell, 
       label: "Notifications", 
       href: `${BASE_PATH}notifications`, 
-      count: 4, 
+      count: userAnalytics.notificationsData.unreadCount || 0, 
       progress: 0 
     },
     { 
@@ -612,14 +643,18 @@ export function StudentSidebar({ isOpen = true, onClose, activeRoute }: StudentS
     }
   };
 
-  // Handle theme toggle
+  // Handle theme toggle - GLOBAL THEME MANAGEMENT
   const handleThemeToggle = () => {
-    setIsDarkMode(!isDarkMode);
-    if (!isDarkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
+    const newTheme = theme === 'light' ? 'dark' : 'light';
+    
+    // Update local state
+    setTheme(newTheme);
+    
+    // Save to localStorage
+    setStoredTheme(newTheme);
+    
+    // Apply to document
+    applyThemeToDocument(newTheme);
   };
 
   if (loading) {
@@ -682,25 +717,7 @@ export function StudentSidebar({ isOpen = true, onClose, activeRoute }: StudentS
             </div>
           </div>
           
-          {/* Quick Stats Row */}
-          <div className="flex gap-2 mb-2">
-            <div className="flex-1 bg-indigo-50/50 dark:bg-indigo-900/20 rounded-xl p-2.5 text-center border border-indigo-100/50 dark:border-indigo-800/30">
-              <p className="text-indigo-600 dark:text-indigo-400 font-bold text-sm">
-                {studentInfo.completedCourses}
-              </p>
-              <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase">
-                Done
-              </p>
-            </div>
-            <div className="flex-1 bg-purple-50/50 dark:bg-purple-900/20 rounded-xl p-2.5 text-center border border-purple-100/50 dark:border-purple-800/30">
-              <p className="text-purple-600 dark:text-purple-400 font-bold text-sm">
-                {studentInfo.activeCourses}
-              </p>
-              <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase">
-                Active
-              </p>
-            </div>
-          </div>
+          
         </div>
 
         {/* --- 2. Navigation Links --- */}
@@ -759,40 +776,6 @@ export function StudentSidebar({ isOpen = true, onClose, activeRoute }: StudentS
               );
             })}
           </ul>
-
-          {/* Teams / Mentors Section */}
-          <div className="px-2">
-            <div className="flex items-center justify-between mb-3 px-2">
-              <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                Mentors
-              </h3>
-              <MoreHorizontal className="w-4 h-4 text-slate-300 dark:text-slate-600 cursor-pointer hover:text-slate-500 dark:hover:text-slate-400" />
-            </div>
-            <div className="space-y-3">
-              {/* Placeholder Mentor Data */}
-              <div className="flex items-center gap-3 p-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group">
-                <div className="relative">
-                  <div className="h-8 w-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-700 dark:text-emerald-400 font-bold text-xs">
-                    PT
-                  </div>
-                  <span className="absolute -bottom-1 -right-1 h-2.5 w-2.5 rounded-full bg-white dark:bg-slate-800 flex items-center justify-center">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-                  </span>
-                </div>
-                <div className="flex-1">
-                  <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Peter Taylor
-                  </p>
-                  <p className="text-[10px] text-slate-400 dark:text-slate-500">
-                    Physics Lead
-                  </p>
-                </div>
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 text-slate-400 dark:text-slate-500 hover:text-indigo-500 dark:hover:text-indigo-400 shadow-sm">
-                  <Video className="h-3 w-3" />
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* --- 4. Footer (Streak & Theme) --- */}
@@ -825,7 +808,7 @@ export function StudentSidebar({ isOpen = true, onClose, activeRoute }: StudentS
                 onClick={handleThemeToggle}
                 className={cn(
                   "flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition-colors",
-                  !isDarkMode
+                  theme === 'light'
                     ? "bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 shadow-sm"
                     : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
                 )}
@@ -837,7 +820,7 @@ export function StudentSidebar({ isOpen = true, onClose, activeRoute }: StudentS
                 onClick={handleThemeToggle}
                 className={cn(
                   "flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition-colors",
-                  isDarkMode
+                  theme === 'dark'
                     ? "bg-slate-800 dark:bg-slate-700 text-slate-200 dark:text-slate-200 shadow-sm"
                     : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
                 )}
@@ -854,4 +837,11 @@ export function StudentSidebar({ isOpen = true, onClose, activeRoute }: StudentS
 }
 
 // Export helper functions if needed elsewhere
-export { getCurrentUser, updateUserData, clearUserData };
+export { 
+  getCurrentUser, 
+  updateUserData, 
+  clearUserData,
+  getStoredTheme,
+  setStoredTheme,
+  applyThemeToDocument 
+};
