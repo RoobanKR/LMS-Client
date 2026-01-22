@@ -3302,7 +3302,7 @@ const handleTermination = useCallback(async (reason: string, status: 'completed'
       console.log('🎥 Added screen recording to form data:', filename, screenRecordingBlob.size);
     }
  
-    const response = await fetch('http://localhost:5533/exercise/lock', {
+    const response = await fetch('https://lms-server-ym1q.onrender.com/exercise/lock', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`
@@ -3386,7 +3386,7 @@ const handleTermination = useCallback(async (reason: string, status: 'completed'
         try {
             // For You Do assessments, just submit for manual evaluation
             const token = localStorage.getItem('smartcliff_token') || ''
-            const response = await fetch('http://localhost:5533/courses/answers/submit', {
+            const response = await fetch('https://lms-server-ym1q.onrender.com/courses/answers/submit', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
