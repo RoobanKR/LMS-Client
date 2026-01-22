@@ -3121,7 +3121,7 @@ const AddQuestionForm: React.FC<AddQuestionFormProps> = ({ exerciseData, tabType
   };
   const availableTabs = getAvailableTabs();
 
-  const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5533';
+  const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://lms-server-ym1q.onrender.com';
 
   // Enhanced Database Management Component
   const renderDatabaseManagement = () => {

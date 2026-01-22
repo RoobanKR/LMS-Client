@@ -445,7 +445,7 @@ useEffect(() => {
 
     try {
       const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
-      const response = await axios.get('http://localhost:5533/exercise/status', {
+      const response = await axios.get('https://lms-server-ym1q.onrender.com/exercise/status', {
         params: { courseId, exerciseId, category, subcategory },
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -673,7 +673,7 @@ const performExit = useCallback(async () => {
       const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
       
       // Final check: ensure exercise is marked as completed using lock endpoint
-      await axios.post('http://localhost:5533/exercise/lock', {
+      await axios.post('https://lms-server-ym1q.onrender.com/exercise/lock', {
         courseId,
         exerciseId,
         category,
@@ -829,7 +829,7 @@ const handleTermination = useCallback(async (reason: string) => {
   // Call Backend to Lock Exercise with 'completed' status
   try {
     const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
-    await axios.post('http://localhost:5533/exercise/lock', {
+    await axios.post('https://lms-server-ym1q.onrender.com/exercise/lock', {
       courseId,
       exerciseId,
       category,
@@ -1340,7 +1340,7 @@ const handleTermination = useCallback(async (reason: string) => {
 
     try {
       const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
-      const response = await axios.get('http://localhost:5533/courses/answers/single', {
+      const response = await axios.get('https://lms-server-ym1q.onrender.com/courses/answers/single', {
         params: { courseId, exerciseId, questionId: qId, category, subcategory },
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -1413,7 +1413,7 @@ const handleSubmitQuestion = async () => {
     const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
     
     // Submit the answer
-    await axios.post('http://localhost:5533/courses/answers/submit', payload, {
+    await axios.post('https://lms-server-ym1q.onrender.com/courses/answers/submit', payload, {
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
     });
 
@@ -1440,7 +1440,7 @@ const handleSubmitQuestion = async () => {
 
       // IMPORTANT: Update exercise status to COMPLETED in backend using lock endpoint
       try {
-        await axios.post('http://localhost:5533/exercise/lock', {
+        await axios.post('https://lms-server-ym1q.onrender.com/exercise/lock', {
           courseId,
           exerciseId,
           category,
