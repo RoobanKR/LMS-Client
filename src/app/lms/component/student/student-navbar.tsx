@@ -15,6 +15,9 @@ import {
   Zap,
   Sun,
   Moon,
+  BookOpen,
+  ChevronRight,
+  UserCheck2,
 } from "lucide-react"
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
@@ -43,6 +46,13 @@ interface CurrentUser {
   role: { roleName: string; renameRole: string }
   institution: { institutionName: string }
   isActive: boolean
+}
+
+interface RoleSwitchState {
+  isDummyStudent: boolean
+  originalRole?: string
+  originalRenameRole?: string
+  switchTimestamp?: number
 }
 
 // --- Components ---
@@ -91,13 +101,18 @@ export function StudentNavbar({
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [theme, setTheme] = useState<'light' | 'dark'>('light')
+  const [isDummyStudent, setIsDummyStudent] = useState(false)
+  const [originalRoleInfo, setOriginalRoleInfo] = useState<{
+    roleName: string
+    renameRole: string
+  } | null>(null)
 
   // Refs
   const notificationRef = useRef<HTMLDivElement>(null)
   const aiRef = useRef<HTMLDivElement>(null)
   const userRef = useRef<HTMLDivElement>(null)
 
-  // Initialize theme
+  // Initialize theme and check dummy student status
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme') as 'light' | 'dark'
     const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -109,6 +124,38 @@ export function StudentNavbar({
     } else {
       document.documentElement.classList.remove('dark')
     }
+
+    // Check dummy student status
+    checkDummyStudentStatus()
+  }, [])
+
+  // Check dummy student status
+  const checkDummyStudentStatus = () => {
+    try {
+      const storedRoleSwitch = localStorage.getItem('smartcliff_roleSwitch')
+      if (storedRoleSwitch) {
+        const roleSwitchData: RoleSwitchState = JSON.parse(storedRoleSwitch)
+        setIsDummyStudent(roleSwitchData.isDummyStudent || false)
+        if (roleSwitchData.originalRole || roleSwitchData.originalRenameRole) {
+          setOriginalRoleInfo({
+            roleName: roleSwitchData.originalRole || '',
+            renameRole: roleSwitchData.originalRenameRole || ''
+          })
+        }
+      }
+    } catch (error) {
+      console.error("Error checking dummy student status:", error)
+    }
+  }
+
+  // Listen for storage changes (role switch from other tabs/components)
+  useEffect(() => {
+    const handleStorageChange = () => {
+      checkDummyStudentStatus()
+    }
+    
+    window.addEventListener('storage', handleStorageChange)
+    return () => window.removeEventListener('storage', handleStorageChange)
   }, [])
 
   const toggleTheme = () => {
@@ -167,6 +214,10 @@ export function StudentNavbar({
   const handleLogout = async () => {
     setIsLoggingOut(true)
     try {
+      // Clear role switch data on logout
+      localStorage.removeItem('smartcliff_roleSwitch')
+      localStorage.removeItem('smartcliff_isDummyStudent')
+      
       localStorage.clear()
       toast.success("Logged out successfully")
       router.push("/login")
@@ -182,13 +233,132 @@ export function StudentNavbar({
     router.push("/lms/pages/studentdashboard/student/profile") // Navigate to profile page
   }
 
+  const handleSwitchToStudent = () => {
+    try {
+      // Store original role info
+      const roleSwitchData: RoleSwitchState = {
+        isDummyStudent: true,
+        originalRole: user?.role?.roleName || '',
+        originalRenameRole: user?.role?.renameRole || '',
+        switchTimestamp: Date.now()
+      }
+      
+      // Save to localStorage
+      localStorage.setItem('smartcliff_roleSwitch', JSON.stringify(roleSwitchData))
+      
+      // Also update a flag for easy checking
+      localStorage.setItem('smartcliff_isDummyStudent', 'true')
+      
+      // Update state
+      setIsDummyStudent(true)
+      setOriginalRoleInfo({
+        roleName: user?.role?.roleName || '',
+        renameRole: user?.role?.renameRole || ''
+      })
+      
+      // Close the dropdown
+      setShowUserMenu(false)
+      
+      // Show success message
+      toast.success("Switched to Student View", {
+        description: "You can now access student features. Switch back anytime from your profile.",
+        duration: 4000,
+      })
+      
+      // Navigate to courses page (student view will be active)
+      router.push("/lms/pages/courses")
+      
+      // Force a refresh to update the role-based UI
+      setTimeout(() => {
+        window.dispatchEvent(new Event('storage'))
+      }, 100)
+      
+    } catch (error) {
+      console.error("Error switching to student role:", error)
+      toast.error("Failed to switch role")
+    }
+  }
+
+  const handleSwitchBackToOriginal = () => {
+    try {
+      // Clear dummy student flags
+      localStorage.removeItem('smartcliff_roleSwitch')
+      localStorage.removeItem('smartcliff_isDummyStudent')
+      
+      // Update state
+      setIsDummyStudent(false)
+      setOriginalRoleInfo(null)
+      
+      // Close the dropdown
+      setShowUserMenu(false)
+      
+      // Show success message
+      toast.success("Switched Back to Original Role", {
+        description: `You are now back to ${originalRoleInfo?.renameRole || 'your original role'}.`,
+        duration: 4000,
+      })
+      
+      // Navigate to appropriate page based on original role
+      const originalRole = originalRoleInfo?.renameRole?.toLowerCase() || ''
+      
+      if (originalRole.includes('poc')) {
+        router.push("/lms/pages/poc/dashboard")
+      } else if (originalRole.includes('admin')) {
+        router.push("/lms/pages/admin/dashboard")
+      } else {
+        router.push("/lms/pages/dashboard")
+      }
+      
+      // Force a refresh to update the role-based UI
+      setTimeout(() => {
+        window.dispatchEvent(new Event('storage'))
+      }, 100)
+      
+    } catch (error) {
+      console.error("Error switching back to original role:", error)
+      toast.error("Failed to switch role")
+    }
+  }
+
   const getUserInitials = () => {
     if (!user) return "SC"
     return `${user.firstName?.charAt(0) || ''}${user.lastName?.charAt(0) || ''}`.toUpperCase()
   }
 
+  // Check if user is actually a student (not dummy) - More robust check
+  const isActualStudent = () => {
+    if (!user) return false;
+    
+    // Check roleName
+    if (user.role?.roleName?.toLowerCase().includes('student')) return true;
+    
+    // Check renameRole
+    if (user.role?.renameRole?.toLowerCase().includes('student')) return true;
+    
+    // Also check localStorage for role value
+    try {
+      const storedRoleValue = localStorage.getItem("smartcliff_roleValue") || 
+                             localStorage.getItem("smartcliff_originalRole") || 
+                             localStorage.getItem("smartcliff_role") || '';
+      if (storedRoleValue.toLowerCase().includes('student')) return true;
+    } catch (error) {
+      console.error("Error checking stored role:", error);
+    }
+    
+    return false;
+  }
+
+  const actualStudent = isActualStudent();
   const notifications = notificationsData?.notifications || []
   const unreadCount = notificationsData?.unreadCount || 0
+  
+  // Debug log
+  console.log("Role check:", {
+    userRole: user?.role,
+    actualStudent: actualStudent,
+    isDummyStudent: isDummyStudent,
+    showSwitchButton: !actualStudent && !isDummyStudent
+  });
   
   return (
     <header 
@@ -354,6 +524,14 @@ export function StudentNavbar({
                 )}
             </div>
 
+            {/* Theme Toggle */}
+            <NavIconButton
+              Icon={theme === 'light' ? Moon : Sun}
+              onClick={toggleTheme}
+              className="hidden sm:flex"
+              isActive={false}
+            />
+
             {/* Vertical Divider */}
             <div className="w-px h-8 bg-slate-200 dark:bg-gray-700 mx-1 hidden sm:block"></div>
 
@@ -379,8 +557,12 @@ export function StudentNavbar({
                     )}
                     
                     <div className="hidden lg:flex flex-col items-start mr-1">
-                        <span className="text-xs font-bold text-slate-800 dark:text-white leading-none">{user?.firstName || 'Student'}</span>
-                        <span className="text-[10px] font-medium text-slate-400 dark:text-gray-400 mt-0.5">{user?.role?.renameRole || 'Account'}</span>
+                        <span className="text-xs font-bold text-slate-800 dark:text-white leading-none">
+                            {user?.firstName || 'Student'}
+                        </span>
+                        <span className="text-[10px] font-medium text-slate-400 dark:text-gray-400 mt-0.5">
+                            {isDummyStudent ? 'Student (View Mode)' : user?.role?.renameRole || 'Account'}
+                        </span>
                     </div>
                     
                     <ChevronDown className={cn("w-3.5 h-3.5 transition-transform text-slate-400 dark:text-gray-400", showUserMenu ? "rotate-180 text-slate-600 dark:text-gray-300" : "")} />
@@ -388,30 +570,86 @@ export function StudentNavbar({
 
                 {/* User Dropdown */}
                 {showUserMenu && (
-                    <div className="absolute top-full right-0 mt-3 w-64 bg-white dark:bg-gray-800 rounded-2xl shadow-xl shadow-slate-200 dark:shadow-gray-900 ring-1 ring-black/5 dark:ring-white/10 z-50 animate-in fade-in zoom-in-95 origin-top-right overflow-hidden border border-slate-100 dark:border-gray-700">
+                    <div className="absolute top-full right-0 mt-3 w-72 bg-white dark:bg-gray-800 rounded-2xl shadow-xl shadow-slate-200 dark:shadow-gray-900 ring-1 ring-black/5 dark:ring-white/10 z-50 animate-in fade-in zoom-in-95 origin-top-right overflow-hidden border border-slate-100 dark:border-gray-700">
                         {/* Header Gradient */}
                         <div className="h-20 bg-gradient-to-br from-indigo-600 to-purple-700 relative">
-                             <div className="absolute -bottom-5 left-5">
-                                 <div className="h-14 w-14 rounded-xl bg-white dark:bg-gray-800 p-1 shadow-md">
-                                     <div className="h-full w-full bg-slate-100 dark:bg-gray-700 rounded-lg flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-bold text-lg">
-                                         {getUserInitials()}
-                                     </div>
-                                 </div>
-                             </div>
+                            {/* Role Indicator Badge */}
+                            {isDummyStudent && (
+                                <div className="absolute top-2 right-2 bg-yellow-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse">
+                                    STUDENT VIEW
+                                </div>
+                            )}
+                            <div className="absolute -bottom-5 left-5">
+                                <div className="h-14 w-14 rounded-xl bg-white dark:bg-gray-800 p-1 shadow-md">
+                                    <div className="h-full w-full bg-slate-100 dark:bg-gray-700 rounded-lg flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-bold text-lg">
+                                        {getUserInitials()}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         
                         <div className="pt-7 px-5 pb-3 border-b border-slate-100 dark:border-gray-700">
                             <h3 className="font-bold text-slate-900 dark:text-white">{user?.firstName} {user?.lastName}</h3>
-                            <p className="text-xs text-slate-500 dark:text-gray-400 font-medium truncate">{user?.email}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                                <span className="text-xs font-medium text-slate-500 dark:text-gray-400 truncate">
+                                    {isDummyStudent ? 'Student (Temporary View)' : user?.role?.renameRole || 'Account'}
+                                </span>
+                                {isDummyStudent && originalRoleInfo && (
+                                    <span className="text-[10px] text-yellow-600 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/30 px-1.5 py-0.5 rounded">
+                                        Originally: {originalRoleInfo.renameRole}
+                                    </span>
+                                )}
+                            </div>
                         </div>
 
                         <div className="p-2 space-y-0.5">
+                            {/* SWITCH TO STUDENT BUTTON - Only show if user is NOT a student and NOT in dummy student mode */}
+                            {!actualStudent && !isDummyStudent && (
+                                <button 
+                                    onClick={handleSwitchToStudent}
+                                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-900/20 text-xs font-semibold text-blue-600 dark:text-blue-400 transition-colors text-left group border border-blue-100 dark:border-blue-800 mb-1"
+                                >
+                                    <div className="h-8 w-8 rounded-lg bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center text-blue-600 dark:text-blue-400 group-hover:bg-blue-600 dark:group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                                        <UserCheck2 className="w-4 h-4" />
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="font-bold">Switch to Student</p>
+                                        <p className="text-[10px] text-blue-500 dark:text-blue-400 mt-0.5">
+                                            Experience student features
+                                        </p>
+                                    </div>
+                                    <Sparkles className="w-3.5 h-3.5 text-blue-400 dark:text-blue-500" />
+                                </button>
+                            )}
+
+                            {/* SWITCH BACK TO ORIGINAL ROLE BUTTON - Only show in dummy student mode */}
+                            {isDummyStudent && originalRoleInfo && (
+                                <button 
+                                    onClick={handleSwitchBackToOriginal}
+                                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-yellow-50 dark:hover:bg-yellow-900/20 text-xs font-semibold text-yellow-600 dark:text-yellow-400 transition-colors text-left group border border-yellow-100 dark:border-yellow-800 mb-1"
+                                >
+                                    <div className="h-8 w-8 rounded-lg bg-yellow-100 dark:bg-yellow-900/40 flex items-center justify-center text-yellow-600 dark:text-yellow-400 group-hover:bg-yellow-600 dark:group-hover:bg-yellow-600 group-hover:text-white transition-colors">
+                                        <Zap className="w-4 h-4" />
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="font-bold">Switch to {originalRoleInfo.renameRole}</p>
+                                        <p className="text-[10px] text-yellow-500 dark:text-yellow-400 mt-0.5">
+                                            Return to your original role
+                                        </p>
+                                    </div>
+                                    <ChevronRight className="w-3.5 h-3.5 text-yellow-400 dark:text-yellow-500" />
+                                </button>
+                            )}
+
+                            {/* Profile button */}
                             <button 
-                              onClick={handleProfileClick}
-                              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-gray-700 text-xs font-semibold text-slate-600 dark:text-gray-300 transition-colors text-left"
+                                onClick={handleProfileClick}
+                                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-gray-700 text-xs font-semibold text-slate-600 dark:text-gray-300 transition-colors text-left"
                             >
                                 <User className="w-4 h-4 text-slate-400 dark:text-gray-500" /> My Profile
                             </button>
+                            
+                            {/* Other buttons */}
                             <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-gray-700 text-xs font-semibold text-slate-600 dark:text-gray-300 transition-colors text-left">
                                 <Settings className="w-4 h-4 text-slate-400 dark:text-gray-500" /> Settings
                             </button>

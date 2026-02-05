@@ -12,6 +12,9 @@ import {
   Presentation,
   Folder,
   Clock,
+
+  Layers, 
+  Hash,
   Eye,
   Sun,
   Moon,
@@ -46,6 +49,7 @@ import {
   ChevronUp,
   Download,
   ExternalLink,
+  FolderOpen,
 } from "lucide-react"
 import VideoPlayer from "../../../../component/student/video-player"
 import PDFViewer from "../../../../component/student/pdf-viewer"
@@ -54,19 +58,23 @@ import { useParams, useRouter, useSearchParams } from "next/navigation"
 import React from "react"
 import NotesPanel from "../../../../component/student/notes-panel"
 import AIPanel from "../../../../component/student/ai-panel"
+import CodeEditor from "../../../../component/student/code-editor"
+
 import JSZip from 'jszip'
 import ZipViewer from "../../../../component/student/zipViewer"
-import CodeEditor from "../../../../component/student/code-editor"
 import Exercises from "../../../../component/student/exercises"
 import { useTheme } from "next-themes"
 import { StudentNavbar } from "@/app/lms/component/student/student-navbar"
 import AIChat from "@/app/lms/component/student/ai-chat"
 import SummaryChat from "@/app/lms/component/student/summary-chat"
 import DBQueryEditor from "@/app/lms/component/student/db-queryEditor"
-
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 // ==============================
 // Type Definitions
 // ==============================
+
+
 
 interface PedagogyLink {
   _id?: string;
@@ -749,6 +757,7 @@ export default function LMSPage() {
 
   const { resolvedTheme } = useTheme()
   const courseId = params?.id as string;
+  console.log("courseId", courseId);
   const theme = searchParams.get("theme") as "light" | "dark" | null;
 
   // --- PERSISTENCE HELPERS START ---
@@ -767,10 +776,16 @@ export default function LMSPage() {
 
   const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null);
 
-  // --- INITIALIZE METHOD/ACTIVITY FROM STORAGE ---
-  const [selectedMethod, setSelectedMethod] = useState<string>(() => getFromStorage('lms_student_selected_method') || "");
-  const [selectedActivity, setSelectedActivity] = useState<string>(() => getFromStorage('lms_student_selected_activity') || "");
-  // ---------------------------------------------
+  const [selectedMethod, setSelectedMethod] = useState<string>(() => {
+    const stored = getFromStorage('lms_student_selected_method');
+    // Don't restore if the stored selection is from a different module
+    return stored || "";
+  });
+
+  const [selectedActivity, setSelectedActivity] = useState<string>(() => {
+    const stored = getFromStorage('lms_student_selected_activity');
+    return stored || "";
+  });
 
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
   const [expandedSubModules, setExpandedSubModules] = useState<Set<string>>(new Set());
@@ -875,7 +890,7 @@ export default function LMSPage() {
       }
 
       try {
-        const url = `https://lms-server-ym1q.onrender.com/getAll/courses-data/${courseId}`;
+        const url = `http://localhost:5533/getAll/courses-data/${courseId}`;
         const response = await fetch(url);
 
         if (!response.ok) {
@@ -926,23 +941,41 @@ export default function LMSPage() {
       fetchCourseData();
     }
   }, [courseId]);
+
+
+  // Add this useEffect to prevent auto-reset on mount
+  useEffect(() => {
+    // Check if we have stored selections and we're not in the middle of a navigation
+    const storedMethod = getFromStorage('lms_student_selected_method');
+    const storedActivity = getFromStorage('lms_student_selected_activity');
+    const storedNodeId = getFromStorage('lms_student_selected_node_id');
+
+    // If we have stored selections but no selectedItem yet, wait for restore
+    if (storedNodeId && storedMethod && storedActivity && !selectedItem) {
+      // Don't auto-reset - let the restore useEffect handle it
+      return;
+    }
+  }, [selectedItem]);
   // --- HANDLE ITEM SELECT (MODIFIED FOR PERSISTENCE) ---
+  // Update the handleItemSelect to check if we're already on the same item
   const handleItemSelect = useCallback((
     itemId: string,
     itemTitle: string,
     itemType: SelectedItemType,
-    hierarchyIds: string[], // This contains IDs
+    hierarchyIds: string[],
     pedagogy?: Pedagogy,
   ) => {
-    // SAVE TO STORAGE
+    // If clicking the same item that's already selected, do nothing
+    if (selectedItem?.id === itemId) {
+      return;
+    }
+
+    // Save to storage
     saveToStorage('lms_student_selected_node_id', itemId);
 
     const hierarchyTitles: string[] = [];
 
     const findTitleById = (id: string): string => {
-      // Need access to current courseData here. 
-      // If courseData is stale in closure, consider refactoring or using refs. 
-      // Assuming courseData is available in scope.
       if (!courseData?.modules) return "Unknown";
 
       for (const module of courseData.modules) {
@@ -990,28 +1023,45 @@ export default function LMSPage() {
 
     setCurrentHierarchy(hierarchyTitles);
 
+    // Get current module ID before state changes
+    const currentModuleId = selectedItem?.hierarchy[0];
+    const newModuleId = hierarchyIds[0];
+
+    // Only reset category/activity if changing modules
+    if (currentModuleId !== newModuleId) {
+      // Module changed - reset to I Do and first activity
+      setSelectedMethod("");
+      setSelectedActivity("");
+
+      const elements = learningElements();
+      if (elements.length > 0) {
+        const iDoElement = elements.find(el => el.id === "i-do");
+        if (iDoElement && iDoElement.subItems.length > 0) {
+          setSelectedMethod("i-do");
+          setSelectedActivity(iDoElement.subItems[0].key);
+        }
+      }
+    }
+    // If same module, keep existing selections (don't reset them)
+
     setCurrentFolder(null);
     setFolderPath([]);
     closeAllViewers();
     setSelectedDocTypes(new Set());
     setSelectedFolderDocTypes(new Set());
     setUserSelectedResourceType(false);
-    setSelectedDocTypes(new Set());
-    setSelectedFolderDocTypes(new Set());
-    // Reset sort config when selecting new item
     setSortConfig({
       field: "name",
       direction: "asc"
     });
-  }, [courseData]);
+  }, [courseData, selectedItem]);
   // ----------------------------------------------------
 
   // --- AUTO RESTORE SELECTION ---
-  // --- AUTO RESTORE SELECTION ---
+  // Find this useEffect (around line 1120-1250) and update it:
   useEffect(() => {
     // Only run this if we have course data
     if (courseData?.modules) {
-
       // If we already have a selected item, we don't need to restore (and we aren't loading)
       if (selectedItem) {
         setIsLoading(false);
@@ -1019,17 +1069,27 @@ export default function LMSPage() {
       }
 
       const storedNodeId = getFromStorage('lms_student_selected_node_id');
+      const storedMethod = getFromStorage('lms_student_selected_method');
+      const storedActivity = getFromStorage('lms_student_selected_activity');
 
       if (storedNodeId) {
-        console.log("Restoring selection for node:", storedNodeId);
+        console.log("Restoring selection for node:", storedNodeId, "method:", storedMethod, "activity:", storedActivity);
 
         // Define the recursive finder
-        const findAndRestore = (modules: Module[]) => {
+        const findAndRestore = (modules: Module[]): boolean => {
           for (const module of modules) {
             // Module
             if (module._id === storedNodeId) {
               handleItemSelect(module._id, module.title, "module", [module._id], module.pedagogy);
               setExpandedModules(prev => new Set(prev).add(module._id));
+
+              // Restore method and activity if they exist
+              if (storedMethod && storedActivity) {
+                setTimeout(() => {
+                  setSelectedMethod(storedMethod);
+                  setSelectedActivity(storedActivity);
+                }, 100);
+              }
               return true;
             }
             // SubModules
@@ -1039,6 +1099,14 @@ export default function LMSPage() {
                   handleItemSelect(sm._id, sm.title, "submodule", [module._id, sm._id], sm.pedagogy);
                   setExpandedModules(prev => new Set(prev).add(module._id));
                   setExpandedSubModules(prev => new Set(prev).add(sm._id));
+
+                  // Restore method and activity if they exist
+                  if (storedMethod && storedActivity) {
+                    setTimeout(() => {
+                      setSelectedMethod(storedMethod);
+                      setSelectedActivity(storedActivity);
+                    }, 100);
+                  }
                   return true;
                 }
                 if (sm.topics) {
@@ -1048,6 +1116,14 @@ export default function LMSPage() {
                       setExpandedModules(prev => new Set(prev).add(module._id));
                       setExpandedSubModules(prev => new Set(prev).add(sm._id));
                       setExpandedTopics(prev => new Set(prev).add(t._id));
+
+                      // Restore method and activity if they exist
+                      if (storedMethod && storedActivity) {
+                        setTimeout(() => {
+                          setSelectedMethod(storedMethod);
+                          setSelectedActivity(storedActivity);
+                        }, 100);
+                      }
                       return true;
                     }
                     if (t.subTopics) {
@@ -1057,6 +1133,14 @@ export default function LMSPage() {
                           setExpandedModules(prev => new Set(prev).add(module._id));
                           setExpandedSubModules(prev => new Set(prev).add(sm._id));
                           setExpandedTopics(prev => new Set(prev).add(t._id));
+
+                          // Restore method and activity if they exist
+                          if (storedMethod && storedActivity) {
+                            setTimeout(() => {
+                              setSelectedMethod(storedMethod);
+                              setSelectedActivity(storedActivity);
+                            }, 100);
+                          }
                           return true;
                         }
                       }
@@ -1072,6 +1156,14 @@ export default function LMSPage() {
                   handleItemSelect(t._id, t.title, "topic", [module._id, t._id], t.pedagogy);
                   setExpandedModules(prev => new Set(prev).add(module._id));
                   setExpandedTopics(prev => new Set(prev).add(t._id));
+
+                  // Restore method and activity if they exist
+                  if (storedMethod && storedActivity) {
+                    setTimeout(() => {
+                      setSelectedMethod(storedMethod);
+                      setSelectedActivity(storedActivity);
+                    }, 100);
+                  }
                   return true;
                 }
                 if (t.subTopics) {
@@ -1080,6 +1172,14 @@ export default function LMSPage() {
                       handleItemSelect(st._id, st.title, "subtopic", [module._id, t._id, st._id], st.pedagogy);
                       setExpandedModules(prev => new Set(prev).add(module._id));
                       setExpandedTopics(prev => new Set(prev).add(t._id));
+
+                      // Restore method and activity if they exist
+                      if (storedMethod && storedActivity) {
+                        setTimeout(() => {
+                          setSelectedMethod(storedMethod);
+                          setSelectedActivity(storedActivity);
+                        }, 100);
+                      }
                       return true;
                     }
                   }
@@ -1586,20 +1686,38 @@ export default function LMSPage() {
     ];
   };
   // NEW: Function to handle exercise selection
-  // Find this function in your LMSPage component
-  // Find your handleExerciseSelect function and update it:
-  // Find your handleExerciseSelect function and update it:
-  // Find the handleExerciseSelect function
-  // NEW: Function to handle exercise selection
-  // NEW: Function to handle exercise selection with Lock Verification
+
+  // In the LMS page, update the handleExerciseSelect function
   const handleExerciseSelect = async (exercise: any) => {
     console.log("🎯 SELECTED EXERCISE:", {
       exercise,
-      selectedItem: selectedItem?.id,
-      courseId: courseId
+      hasQuestionsDirect: exercise.questions?.length,
+      hasQuestionsInExerciseInfo: exercise.exerciseInformation?.questions?.length,
+      programmingModule: exercise.programmingSettings?.selectedModule
     });
 
-    // 1. Map the selectedMethod to DB format
+    // 1. Extract questions from multiple possible locations
+    let extractedQuestions = [];
+    let questionCount = 0;
+
+    if (exercise.questions && Array.isArray(exercise.questions)) {
+      extractedQuestions = exercise.questions;
+    } else if (exercise.exerciseInformation?.questions && Array.isArray(exercise.exerciseInformation.questions)) {
+      extractedQuestions = exercise.exerciseInformation.questions;
+    } else if (exercise.data?.questions && Array.isArray(exercise.data.questions)) {
+      extractedQuestions = exercise.data.questions;
+    }
+
+    questionCount = extractedQuestions.length;
+    const hasQuestions = questionCount > 0;
+
+    if (!hasQuestions) {
+      console.warn("❌ Exercise has no questions");
+      toast.warning("This exercise is not yet configured. Please contact your instructor.");
+      return;
+    }
+
+    // 2. Map the selectedMethod to DB format
     const methodMap: Record<string, string> = {
       'i-do': 'I_Do',
       'we-do': 'We_Do',
@@ -1608,64 +1726,26 @@ export default function LMSPage() {
     const categoryParam = methodMap[selectedMethod] || 'We_Do';
     const currentSubcategory = selectedActivity || "practical";
     const mainCourseId = params?.id as string || courseId;
-    const currentExerciseId = exercise.exerciseInformation?.exerciseId || exercise._id;
+    const currentExerciseId = exercise?._id;
 
-    // --- VERIFY LOCK STATUS BEFORE PROCEEDING ---
-    try {
-      // You might need to import axios if not already imported, or use fetch
-      // Assuming axios is imported as 'axios'
-      // If using fetch: const response = await fetch(...)
-
-      const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
-
-      // Call the status endpoint we just created
-      // CORRECT
-      const response = await fetch(
-        `https://lms-server-ym1q.onrender.com/exercise/status?courseId=${mainCourseId}&exerciseId=${currentExerciseId}&category=${categoryParam}&subcategory=${currentSubcategory}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-
-      const result = await response.json();
-
-      if (result.success && result.data.isLocked) {
-        // BLOCKED: Show error and stop
-        // You'll need to import toast from 'react-toastify' or your notification system
-        // alert("This exercise is locked.") or toast.error(...)
-        alert("⛔ Access Denied: You have already completed or been terminated from this exercise.");
-        return; // <--- STOP HERE
-      }
-
-    } catch (error) {
-      console.error("Failed to verify exercise status:", error);
-      // Optional: decide if you want to block on network error or allow
-      // return; 
-    }
-    // -------------------------------------------
-
-    // Check if it is a Frontend module
-    if (exercise.programmingSettings?.selectedModule === 'Frontend') {
-
-      const exerciseToStore = {
-        ...exercise,
-        questions: exercise.questions || [],
+    // 3. Prepare exercise data for storage
+    const exerciseToStore = {
+      ...exercise,
+      questions: extractedQuestions, // Use extracted questions
+      courseId: mainCourseId,
+      context: {
         courseId: mainCourseId,
-        context: {
-          courseId: mainCourseId,
-          nodeId: selectedItem?.id,
-          nodeTitle: selectedItem?.title,
-          method: selectedMethod,
-          activity: selectedActivity
-        },
-        storedAt: new Date().toISOString()
-      };
+        nodeId: selectedItem?.id,
+        nodeTitle: selectedItem?.title,
+        method: selectedMethod,
+        activity: selectedActivity
+      },
+      storedAt: new Date().toISOString()
+    };
 
-      console.log("💾 Storing exercise with courseId:", exerciseToStore.courseId);
-
+    // 4. Store based on module type
+    if (exercise.programmingSettings?.selectedModule === 'Frontend') {
+      console.log("💾 Storing frontend exercise");
       localStorage.setItem('currentFrontendExercise', JSON.stringify(exerciseToStore));
 
       const query = new URLSearchParams({
@@ -1674,13 +1754,50 @@ export default function LMSPage() {
         exerciseName: exercise.exerciseInformation?.exerciseName || exercise.title || 'Frontend Exercise',
         subcategory: currentSubcategory,
         category: categoryParam,
-        hasQuestions: (exercise.questions && exercise.questions.length > 0) ? 'true' : 'false',
-        questionCount: (exercise.questions?.length || 0).toString()
+        questionCount: questionCount.toString(),
+                 hierarchy:currentHierarchy,
+
       }).toString();
 
       router.push(`/lms/pages/courses/coursesdetailedview/frontend?${query}`);
 
-    } else {
+    } else if (exercise.programmingSettings?.selectedModule === 'Database') {
+      console.log("💾 Storing SQL exercise");
+      localStorage.setItem('currentSQLExercise', JSON.stringify(exerciseToStore));
+
+      toast.info("Opening SQL Exercise interface...", {
+        position: "top-right",
+        autoClose: 2000,
+      });
+
+      const query = new URLSearchParams({
+        courseId: exerciseToStore.courseId,
+        exerciseId: currentExerciseId || '',
+        exerciseName: exercise.exerciseInformation?.exerciseName || exercise.title || 'SQL Exercise',
+        subcategory: currentSubcategory,
+        category: categoryParam,
+        questionCount: questionCount.toString()
+      }).toString();
+
+      router.push(`/lms/pages/courses/coursesdetailedview/sql?${query}`);
+
+    } else if(exercise.exerciseType == "MCQ")
+      {
+            console.log("💾 Storing frontend exercise");
+      localStorage.setItem('currentMCQExercise', JSON.stringify(exerciseToStore));
+
+      const query = new URLSearchParams({
+        courseId: exerciseToStore.courseId,
+        exerciseId: currentExerciseId || '',
+        exerciseName: exercise.exerciseInformation?.exerciseName || exercise.title || 'mcq Exercise',
+        subcategory: currentSubcategory,
+        category: categoryParam,
+        questionCount: questionCount.toString()
+      }).toString();
+
+      router.push(`/lms/pages/courses/coursesdetailedview/mcq?${query}`);
+      } else {
+      // Handle other module types
       setSelectedExercise(exercise);
       setShowExercisesList(false);
     }
@@ -2126,416 +2243,688 @@ export default function LMSPage() {
   // ==============================
   // renderHierarchy Function - MOVED INSIDE COMPONENT
   // ==============================
+  // const renderHierarchy = () => {
+  //   if (!courseData?.modules) return null;
 
-  const renderHierarchy = () => {
-    if (!courseData?.modules) return null;
+  //   return (
+  //     <div className="space-y-1">
+  //       {courseData.modules.map((module) => {
+  //         const moduleHasChildren = shouldShowArrow(module);
+  //         const moduleHasPedagogy = hasPedagogyData(module);
+  //         const isModuleSelected = selectedItem?.id === module._id;
+  //         const isModuleExpanded = expandedModules.has(module._id);
+
+  //         return (
+  //           <div key={module._id} className="group">
+  //             {/* Module header */}
+  //             <div
+  //               onClick={() => {
+  //                 // RULE 1: Module click - only select module, don't auto-select category/activity
+  //                 handleItemSelect(
+  //                   module._id,
+  //                   module.title,
+  //                   "module",
+  //                   [module._id],
+  //                   module.pedagogy
+  //                 );
+  //                 // Expand/collapse if has children
+  //                 if (moduleHasChildren) {
+  //                   toggleModule(module._id);
+  //                 }
+  //               }}
+  //               className={`flex items-center p-2 rounded-lg cursor-pointer transition-all duration-200 ${isModuleSelected
+  //                 ? "bg-[#0000FF] text-white border-l-2 border-[#0000FF]"
+  //                 : "hover:bg-gray-50 border-l-2 border-transparent"
+  //                 }`}
+  //             >
+  //               <div className="w-4 h-4 flex items-center justify-center mr-2">
+  //                 {moduleHasChildren ? (
+  //                   isModuleExpanded ? (
+  //                     <ChevronDown className="w-3 h-3 text-gray-500 group-hover:text-gray-700 transition-transform duration-200" />
+  //                   ) : (
+  //                     <ChevronRight className="w-3 h-3 text-gray-500 group-hover:text-gray-700 transition-transform duration-200" />
+  //                   )
+  //                 ) : (
+  //                   <div className="w-3 h-3" />
+  //                 )}
+  //               </div>
+
+  //               <BookOpen
+  //                 className={`w-3 h-3 mr-2 flex-shrink-0 ${isModuleSelected
+  //                   ? "text-white"
+  //                   : "text-gray-500 group-hover:text-gray-700"
+  //                   }`}
+  //               />
+
+  //               <span
+  //                 className={`text-xs font-medium flex-1 truncate ${isModuleSelected ? "text-white" : "text-gray-900"
+  //                   }`}
+  //               >
+  //                 {module.title}
+  //               </span>
+
+  //               {moduleHasPedagogy && (
+  //                 <div
+  //                   className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isModuleSelected ? "bg-white" : "bg-gray-400"
+  //                     }`}
+  //                 />
+  //               )}
+  //             </div>
+
+  //             {/* Smooth expand/collapse for module children */}
+  //             {moduleHasChildren && (
+  //               <div
+  //                 className={`
+  //               overflow-hidden
+  //               transition-all duration-300 ease-in-out
+  //               ${isModuleExpanded
+  //                     ? "max-h-[5000px] opacity-100 translate-y-0"
+  //                     : "max-h-0 opacity-0 -translate-y-2"
+  //                   }
+  //             `}
+  //               >
+  //                 <div className="ml-6 mt-1 space-y-1 border-l border-gray-200 pl-2">
+  //                   {module.subModules?.map((subModule) => {
+  //                     const subModuleHasChildren = shouldShowArrow(subModule);
+  //                     const subModuleHasPedagogy = hasPedagogyData(subModule);
+  //                     const isSubModuleSelected = selectedItem?.id === subModule._id;
+  //                     const isSubModuleExpanded = expandedSubModules.has(subModule._id);
+
+  //                     return (
+  //                       <div key={subModule._id} className="group/sub">
+  //                         {/* Submodule header */}
+  //                         <div
+  //                           onClick={() => {
+  //                             // FIXED: Always select submodule when clicked
+  //                             handleItemSelect(
+  //                               subModule._id,
+  //                               subModule.title,
+  //                               "submodule",
+  //                               [module._id, subModule._id],
+  //                               subModule.pedagogy
+  //                             );
+  //                             // Expand/collapse if has children
+  //                             if (subModuleHasChildren) {
+  //                               toggleSubModule(subModule._id);
+  //                             }
+  //                           }}
+  //                           className={`flex items-center p-2 rounded-lg cursor-pointer transition-all duration-200 ${isSubModuleSelected
+  //                             ? "bg-[#0000FF] text-white border-l-2 border-[#0000FF]"
+  //                             : "hover:bg-gray-50 border-l-2 border-transparent"
+  //                             }`}
+  //                         >
+  //                           <div className="w-4 h-4 flex items-center justify-center mr-2">
+  //                             {subModuleHasChildren ? (
+  //                               isSubModuleExpanded ? (
+  //                                 <ChevronDown className="w-3 h-3 text-gray-500 group-hover/sub:text-gray-700 transition-transform duration-200" />
+  //                               ) : (
+  //                                 <ChevronRight className="w-3 h-3 text-gray-500 group-hover/sub:text-gray-700 transition-transform duration-200" />
+  //                               )
+  //                             ) : (
+  //                               <div className="w-3 h-3" />
+  //                             )}
+  //                           </div>
+
+  //                           <FileText
+  //                             className={`w-3 h-3 mr-2 flex-shrink-0 ${isSubModuleSelected
+  //                               ? "text-white"
+  //                               : "text-gray-500 group-hover/sub:text-gray-700"
+  //                               }`}
+  //                           />
+
+  //                           <span
+  //                             className={`text-xs flex-1 truncate ${isSubModuleSelected ? "text-white" : "text-gray-800"
+  //                               }`}
+  //                           >
+  //                             {subModule.title}
+  //                           </span>
+
+  //                           {subModuleHasPedagogy && (
+  //                             <div
+  //                               className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isSubModuleSelected ? "bg-white" : "bg-gray-400"
+  //                                 }`}
+  //                             />
+  //                           )}
+  //                         </div>
+
+  //                         {/* Smooth expand/collapse for submodule topics */}
+  //                         {subModuleHasChildren && (
+  //                           <div
+  //                             className={`
+  //                           overflow-hidden
+  //                           transition-all duration-250 ease-in-out
+  //                           ${isSubModuleExpanded
+  //                                 ? "max-h-[4000px] opacity-100 translate-y-0"
+  //                                 : "max-h-0 opacity-0 -translate-y-1"
+  //                               }
+  //                         `}
+  //                           >
+  //                             {isSubModuleExpanded && subModule.topics && (
+  //                               <div className="ml-4 mt-1 space-y-0.5 border-l border-gray-200 pl-2">
+  //                                 {subModule.topics.map((topic) => {
+  //                                   const topicHasChildren = shouldShowArrow(topic);
+  //                                   const isTopicSelected = selectedItem?.id === topic._id;
+  //                                   const isTopicExpanded = expandedTopics.has(topic._id);
+
+  //                                   return (
+  //                                     <div key={topic._id} className="group/topic">
+  //                                       {/* Topic header */}
+  //                                       <div className="flex items-center">
+  //                                         <div
+  //                                           onClick={() => {
+  //                                             // FIXED: Always select topic when clicked
+  //                                             handleItemSelect(
+  //                                               topic._id,
+  //                                               topic.title,
+  //                                               "topic",
+  //                                               [
+  //                                                 module._id,
+  //                                                 subModule._id,
+  //                                                 topic._id,
+  //                                               ],
+  //                                               topic.pedagogy
+  //                                             );
+  //                                             // Expand/collapse if has children
+  //                                             if (topicHasChildren) {
+  //                                               toggleTopic(topic._id);
+  //                                             }
+  //                                           }}
+  //                                           className={`flex items-center flex-1 p-1.5 rounded-lg cursor-pointer transition-all duration-200 ${isTopicSelected
+  //                                             ? "bg-[#0000FF] text-white border-l-2 border-[#0000FF]"
+  //                                             : "hover:bg-gray-50 border-l-2 border-transparent"
+  //                                             }`}
+  //                                         >
+  //                                           {topicHasChildren && (
+  //                                             <div className="w-4 h-4 flex items-center justify-center mr-1">
+  //                                               {isTopicExpanded ? (
+  //                                                 <ChevronDown className="w-2.5 h-2.5 text-gray-500 transition-transform duration-200" />
+  //                                               ) : (
+  //                                                 <ChevronRight className="w-2.5 h-2.5 text-gray-500 transition-transform duration-200" />
+  //                                               )}
+  //                                             </div>
+  //                                           )}
+  //                                           {!topicHasChildren && (
+  //                                             <div className="w-4 h-4 mr-1" />
+  //                                           )}
+
+  //                                           <File
+  //                                             className={`w-2.5 h-2.5 mr-2 flex-shrink-0 ${isTopicSelected
+  //                                               ? "text-white"
+  //                                               : "text-gray-500 group-hover/topic:text-gray-700"
+  //                                               }`}
+  //                                           />
+
+  //                                           <span
+  //                                             className={`text-xs flex-1 truncate ${isTopicSelected
+  //                                               ? "text-white"
+  //                                               : "text-gray-700"
+  //                                               }`}
+  //                                           >
+  //                                             {topic.title}
+  //                                           </span>
+  //                                         </div>
+  //                                       </div>
+
+  //                                       {/* Smooth expand/collapse for subtopics */}
+  //                                       {topicHasChildren && (
+  //                                         <div
+  //                                           className={`
+  //                                         overflow-hidden
+  //                                         transition-all duration-200 ease-in-out
+  //                                         ${isTopicExpanded
+  //                                               ? "max-h-[2000px] opacity-100 translate-y-0"
+  //                                               : "max-h-0 opacity-0 -translate-y-1"
+  //                                             }
+  //                                       `}
+  //                                         >
+  //                                           {isTopicExpanded && topic.subTopics && (
+  //                                             <div className="ml-4 mt-0.5 space-y-0.5 border-l border-gray-200 pl-2">
+  //                                               {topic.subTopics.map((subtopic) => {
+  //                                                 const isSubTopicSelected =
+  //                                                   selectedItem?.id === subtopic._id;
+
+  //                                                 return (
+  //                                                   <div
+  //                                                     key={subtopic._id}
+  //                                                     onClick={() =>
+  //                                                       handleItemSelect(
+  //                                                         subtopic._id,
+  //                                                         subtopic.title,
+  //                                                         "subtopic",
+  //                                                         [
+  //                                                           module._id,
+  //                                                           subModule._id,
+  //                                                           topic._id,
+  //                                                           subtopic._id,
+  //                                                         ],
+  //                                                         subtopic.pedagogy
+  //                                                       )
+  //                                                     }
+  //                                                     className={`flex items-center p-1.5 rounded-lg cursor-pointer transition-all duration-200 ${isSubTopicSelected
+  //                                                       ? "bg-[#0000FF] text-white border-l-2 border-[#0000FF]"
+  //                                                       : "hover:bg-gray-50 border-l-2 border-transparent"
+  //                                                       }`}
+  //                                                   >
+  //                                                     <File
+  //                                                       className={`w-2 h-2 mr-2 flex-shrink-0 ${isSubTopicSelected
+  //                                                         ? "text-white"
+  //                                                         : "text-gray-500 hover:text-gray-700"
+  //                                                         }`}
+  //                                                     />
+
+  //                                                     <span
+  //                                                       className={`text-xs flex-1 truncate ${isSubTopicSelected
+  //                                                         ? "text-white"
+  //                                                         : "text-gray-600"
+  //                                                         }`}
+  //                                                     >
+  //                                                       {subtopic.title}
+  //                                                     </span>
+  //                                                   </div>
+  //                                                 );
+  //                                               })}
+  //                                             </div>
+  //                                           )}
+  //                                         </div>
+  //                                       )}
+  //                                     </div>
+  //                                   );
+  //                                 })}
+  //                               </div>
+  //                             )}
+  //                           </div>
+  //                         )}
+  //                       </div>
+  //                     );
+  //                   })}
+
+  //                   {/* For modules without subModules but with topics */}
+  //                   {(!module.subModules || module.subModules.length === 0) &&
+  //                     module.topics && (
+  //                       <div className="space-y-1">
+  //                         {module.topics.map((topic) => {
+  //                           const topicHasChildren = shouldShowArrow(topic);
+  //                           const isTopicSelected = selectedItem?.id === topic._id;
+  //                           const isTopicExpanded = expandedTopics.has(topic._id);
+
+  //                           return (
+  //                             <div key={topic._id} className="group/topic">
+  //                               <div className="flex items-center">
+  //                                 {/* Topic row - make entire row clickable for expansion */}
+  //                                 <div
+  //                                   onClick={() => {
+  //                                     // FIXED: Always select topic when clicked
+  //                                     handleItemSelect(
+  //                                       topic._id,
+  //                                       topic.title,
+  //                                       "topic",
+  //                                       [module._id, topic._id],
+  //                                       topic.pedagogy
+  //                                     );
+  //                                     // Expand/collapse if has children
+  //                                     if (topicHasChildren) {
+  //                                       toggleTopic(topic._id);
+  //                                     }
+  //                                   }}
+  //                                   className={`flex items-center flex-1 p-1.5 rounded-lg cursor-pointer transition-all duration-200 ${isTopicSelected
+  //                                     ? "bg-[#0000FF] text-white border-l-2 border-[#0000FF]"
+  //                                     : "hover:bg-gray-50 border-l-2 border-transparent"
+  //                                     }`}
+  //                                 >
+  //                                   {/* Arrow indicator for topics with children */}
+  //                                   {topicHasChildren && (
+  //                                     <div className="w-4 h-4 flex items-center justify-center mr-1">
+  //                                       {isTopicExpanded ? (
+  //                                         <ChevronDown className="w-2.5 h-2.5 text-gray-500 transition-transform duration-200" />
+  //                                       ) : (
+  //                                         <ChevronRight className="w-2.5 h-2.5 text-gray-500 transition-transform duration-200" />
+  //                                       )}
+  //                                     </div>
+  //                                   )}
+  //                                   {!topicHasChildren && (
+  //                                     <div className="w-4 h-4 mr-1" />
+  //                                   )}
+
+  //                                   <File
+  //                                     className={`w-2.5 h-2.5 mr-2 flex-shrink-0 ${isTopicSelected
+  //                                       ? "text-white"
+  //                                       : "text-gray-500 group-hover/topic:text-gray-700"
+  //                                       }`}
+  //                                   />
+
+  //                                   <span
+  //                                     className={`text-xs flex-1 truncate ${isTopicSelected
+  //                                       ? "text-white"
+  //                                       : "text-gray-700"
+  //                                       }`}
+  //                                   >
+  //                                     {topic.title}
+  //                                   </span>
+  //                                 </div>
+  //                               </div>
+
+  //                               {/* Smooth expand/collapse for subtopics (module-level topics) */}
+  //                               {topicHasChildren && (
+  //                                 <div
+  //                                   className={`
+  //                                 overflow-hidden
+  //                                 transition-all duration-200 ease-in-out
+  //                                 ${isTopicExpanded
+  //                                       ? "max-h-[2000px] opacity-100 translate-y-0"
+  //                                       : "max-h-0 opacity-0 -translate-y-1"
+  //                                     }
+  //                               `}
+  //                                 >
+  //                                   {isTopicExpanded && topic.subTopics && (
+  //                                     <div className="ml-4 mt-0.5 space-y-0.5 border-l border-gray-200 pl-2">
+  //                                       {topic.subTopics.map((subtopic) => {
+  //                                         const isSubTopicSelected =
+  //                                           selectedItem?.id === subtopic._id;
+
+  //                                         return (
+  //                                           <div
+  //                                             key={subtopic._id}
+  //                                             onClick={() =>
+  //                                               handleItemSelect(
+  //                                                 subtopic._id,
+  //                                                 subtopic.title,
+  //                                                 "subtopic",
+  //                                                 [
+  //                                                   module._id,
+  //                                                   topic._id,
+  //                                                   subtopic._id,
+  //                                                 ],
+  //                                                 subtopic.pedagogy
+  //                                               )
+  //                                             }
+  //                                             className={`flex items-center p-1.5 rounded-lg cursor-pointer transition-all duration-200 ${isSubTopicSelected
+  //                                               ? "bg-[#0000FF] text-white border-l-2 border-[#0000FF]"
+  //                                               : "hover:bg-gray-50 border-l-2 border-transparent"
+  //                                               }`}
+  //                                           >
+  //                                             <File
+  //                                               className={`w-2 h-2 mr-2 flex-shrink-0 ${isSubTopicSelected
+  //                                                 ? "text-white"
+  //                                                 : "text-gray-500 hover:text-gray-700"
+  //                                                 }`}
+  //                                             />
+
+  //                                             <span
+  //                                               className={`text-xs flex-1 truncate ${isSubTopicSelected
+  //                                                 ? "text-white"
+  //                                                 : "text-gray-600"
+  //                                                 }`}
+  //                                             >
+  //                                               {subtopic.title}
+  //                                             </span>
+  //                                           </div>
+  //                                         );
+  //                                       })}
+  //                                     </div>
+  //                                   )}
+  //                                 </div>
+  //                               )}
+  //                             </div>
+  //                           );
+  //                         })}
+  //                       </div>
+  //                     )}
+  //                 </div>
+  //               </div>
+  //             )}
+  //           </div>
+  //         );
+  //       })}
+  //     </div>
+  //   );
+  // };
+
+const renderHierarchy = () => {
+  if (!courseData?.modules) return null;
+
+  // --- 🛠️ Helper: Hierarchy Row Component ---
+  const HierarchyRow = ({ 
+    title, 
+    level = 0, 
+    isSelected, 
+    isExpanded, 
+    hasChildren, 
+    hasPedagogy, 
+    onClick, 
+    type 
+  }) => {
+    
+    // 1. Dynamic Styling
+    // We use Margin Left (ml) instead of Padding so the background box 
+    // actually starts to the right, leaving space for the tree line on the left.
+    const indentSize = level * 24; 
+    
+    const activeClasses = isSelected
+      ? "bg-blue-50 text-blue-700 border-blue-200 shadow-sm z-10" // z-10 ensures it floats above lines if needed
+      : "bg-transparent text-gray-600 hover:bg-gray-50 border-transparent hover:border-gray-200";
+
+    const textStyle = level === 0 ? "font-bold text-[15px]" : "font-medium text-[14px]";
+
+    // 2. Icon Logic
+    const getIcon = () => {
+      if (type === 'module') return <Layers size={18} className={isSelected ? "text-blue-600" : "text-gray-400"} />;
+      if (type === 'submodule') return <FolderOpen size={18} className={isSelected ? "text-blue-500" : "text-amber-500"} />;
+      if (type === 'topic') return <FileText size={16} className={isSelected ? "text-blue-500" : "text-gray-400"} />;
+      return <Hash size={14} className="text-gray-300" />;
+    };
 
     return (
-      <div className="space-y-1">
-        {courseData.modules.map((module) => {
-          const moduleHasChildren = shouldShowArrow(module);
-          const moduleHasPedagogy = hasPedagogyData(module);
-          const isModuleSelected = selectedItem?.id === module._id;
-          const isModuleExpanded = expandedModules.has(module._id);
+      <div className="relative py-0.5">
+        <div 
+          onClick={(e) => {
+            e.stopPropagation();
+            onClick();
+          }}
+          className={`
+            relative flex items-center p-2 rounded-lg cursor-pointer 
+            border transition-all duration-200 ease-out select-none
+            ${activeClasses}
+          `}
+          // ✨ FIX: Use marginLeft to shift the whole box right
+          // This prevents the shadow/background from covering the parent's line
+          style={{ marginLeft: `${indentSize}px` }} 
+        >
+          {/* Arrow */}
+          <div className="w-5 h-5 flex items-center justify-center mr-2 shrink-0">
+            {hasChildren ? (
+              <ChevronRight 
+                size={14} 
+                className={`text-gray-400 transition-transform duration-200 ${isExpanded ? "rotate-90" : "rotate-0"}`} 
+              />
+            ) : <div className="w-5" />} 
+          </div>
 
-          return (
-            <div key={module._id} className="group">
-              {/* Module header */}
-              <div
-                onClick={() => toggleModule(module._id)}
-                className={`flex items-center p-2 rounded-lg cursor-pointer transition-all duration-200 ${isModuleSelected
-                  ? "bg-[#0000FF] text-white border-l-2 border-[#0000FF]"
-                  : "hover:bg-gray-50 border-l-2 border-transparent"
-                  }`}
-              >
-                <div className="w-4 h-4 flex items-center justify-center mr-2">
-                  {moduleHasChildren ? (
-                    isModuleExpanded ? (
-                      <ChevronDown className="w-3 h-3 text-gray-500 group-hover:text-gray-700 transition-transform duration-200" />
-                    ) : (
-                      <ChevronRight className="w-3 h-3 text-gray-500 group-hover:text-gray-700 transition-transform duration-200" />
-                    )
-                  ) : (
-                    <div className="w-3 h-3" />
-                  )}
-                </div>
+          {/* Icon */}
+          <div className="mr-3 shrink-0">
+            {getIcon()}
+          </div>
 
-                <BookOpen
-                  className={`w-3 h-3 mr-2 flex-shrink-0 ${isModuleSelected
-                    ? "text-white"
-                    : "text-gray-500 group-hover:text-gray-700"
-                    }`}
-                />
+          {/* Title */}
+          <span className={`truncate flex-1 leading-snug ${isSelected ? "text-blue-900" : textStyle}`}>
+            {title}
+          </span>
 
-                <span
-                  className={`text-xs font-medium flex-1 truncate ${isModuleSelected ? "text-white" : "text-gray-900"
-                    }`}
-                >
-                  {module.title}
-                </span>
-
-                {moduleHasPedagogy && (
-                  <div
-                    className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isModuleSelected ? "bg-white" : "bg-gray-400"
-                      }`}
-                  />
-                )}
-              </div>
-
-              {/* Smooth expand/collapse for module children */}
-              {moduleHasChildren && (
-                <div
-                  className={`
-                  overflow-hidden
-                  transition-all duration-300 ease-in-out
-                  ${isModuleExpanded
-                      ? "max-h-[5000px] opacity-100 translate-y-0"
-                      : "max-h-0 opacity-0 -translate-y-2"
-                    }
-                `}
-                >
-                  <div className="ml-6 mt-1 space-y-1 border-l border-gray-200 pl-2">
-                    {module.subModules?.map((subModule) => {
-                      const subModuleHasChildren = shouldShowArrow(subModule);
-                      const subModuleHasPedagogy = hasPedagogyData(subModule);
-                      const isSubModuleSelected = selectedItem?.id === subModule._id;
-                      const isSubModuleExpanded = expandedSubModules.has(subModule._id);
-
-                      return (
-                        <div key={subModule._id} className="group/sub">
-                          {/* Submodule header */}
-                          <div
-                            onClick={() => toggleSubModule(subModule._id)}
-                            className={`flex items-center p-2 rounded-lg cursor-pointer transition-all duration-200 ${isSubModuleSelected
-                              ? "bg-[#0000FF] text-white border-l-2 border-[#0000FF]"
-                              : "hover:bg-gray-50 border-l-2 border-transparent"
-                              }`}
-                          >
-                            <div className="w-4 h-4 flex items-center justify-center mr-2">
-                              {subModuleHasChildren ? (
-                                isSubModuleExpanded ? (
-                                  <ChevronDown className="w-3 h-3 text-gray-500 group-hover/sub:text-gray-700 transition-transform duration-200" />
-                                ) : (
-                                  <ChevronRight className="w-3 h-3 text-gray-500 group-hover/sub:text-gray-700 transition-transform duration-200" />
-                                )
-                              ) : (
-                                <div className="w-3 h-3" />
-                              )}
-                            </div>
-
-                            <FileText
-                              className={`w-3 h-3 mr-2 flex-shrink-0 ${isSubModuleSelected
-                                ? "text-white"
-                                : "text-gray-500 group-hover/sub:text-gray-700"
-                                }`}
-                            />
-
-                            <span
-                              className={`text-xs flex-1 truncate ${isSubModuleSelected ? "text-white" : "text-gray-800"
-                                }`}
-                            >
-                              {subModule.title}
-                            </span>
-
-                            {subModuleHasPedagogy && (
-                              <div
-                                className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isSubModuleSelected ? "bg-white" : "bg-gray-400"
-                                  }`}
-                              />
-                            )}
-                          </div>
-
-                          {/* Smooth expand/collapse for submodule topics */}
-                          {subModuleHasChildren && (
-                            <div
-                              className={`
-                              overflow-hidden
-                              transition-all duration-250 ease-in-out
-                              ${isSubModuleExpanded
-                                  ? "max-h-[4000px] opacity-100 translate-y-0"
-                                  : "max-h-0 opacity-0 -translate-y-1"
-                                }
-                            `}
-                            >
-                              {isSubModuleExpanded && subModule.topics && (
-                                <div className="ml-4 mt-1 space-y-0.5 border-l border-gray-200 pl-2">
-                                  {subModule.topics.map((topic) => {
-                                    const topicHasChildren = shouldShowArrow(topic);
-                                    const isTopicSelected = selectedItem?.id === topic._id;
-                                    const isTopicExpanded = expandedTopics.has(topic._id);
-
-                                    return (
-                                      <div key={topic._id} className="group/topic">
-                                        {/* Topic header */}
-                                        <div className="flex items-center">
-                                          <div
-                                            onClick={() => {
-                                              if (topicHasChildren) {
-                                                toggleTopic(topic._id);
-                                              } else {
-                                                handleItemSelect(
-                                                  topic._id,
-                                                  topic.title,
-                                                  "topic",
-                                                  [
-                                                    module._id,
-                                                    subModule._id,
-                                                    topic._id,
-                                                  ],
-                                                  topic.pedagogy
-                                                );
-                                              }
-                                            }}
-                                            className={`flex items-center flex-1 p-1.5 rounded-lg cursor-pointer transition-all duration-200 ${isTopicSelected
-                                              ? "bg-[#0000FF] text-white border-l-2 border-[#0000FF]"
-                                              : "hover:bg-gray-50 border-l-2 border-transparent"
-                                              }`}
-                                          >
-                                            {topicHasChildren && (
-                                              <div className="w-4 h-4 flex items-center justify-center mr-1">
-                                                {isTopicExpanded ? (
-                                                  <ChevronDown className="w-2.5 h-2.5 text-gray-500 transition-transform duration-200" />
-                                                ) : (
-                                                  <ChevronRight className="w-2.5 h-2.5 text-gray-500 transition-transform duration-200" />
-                                                )}
-                                              </div>
-                                            )}
-                                            {!topicHasChildren && (
-                                              <div className="w-4 h-4 mr-1" />
-                                            )}
-
-                                            <File
-                                              className={`w-2.5 h-2.5 mr-2 flex-shrink-0 ${isTopicSelected
-                                                ? "text-white"
-                                                : "text-gray-500 group-hover/topic:text-gray-700"
-                                                }`}
-                                            />
-
-                                            <span
-                                              className={`text-xs flex-1 truncate ${isTopicSelected
-                                                ? "text-white"
-                                                : "text-gray-700"
-                                                }`}
-                                            >
-                                              {topic.title}
-                                            </span>
-                                          </div>
-                                        </div>
-
-                                        {/* Smooth expand/collapse for subtopics */}
-                                        {topicHasChildren && (
-                                          <div
-                                            className={`
-                                            overflow-hidden
-                                            transition-all duration-200 ease-in-out
-                                            ${isTopicExpanded
-                                                ? "max-h-[2000px] opacity-100 translate-y-0"
-                                                : "max-h-0 opacity-0 -translate-y-1"
-                                              }
-                                          `}
-                                          >
-                                            {isTopicExpanded && topic.subTopics && (
-                                              <div className="ml-4 mt-0.5 space-y-0.5 border-l border-gray-200 pl-2">
-                                                {topic.subTopics.map((subtopic) => {
-                                                  const isSubTopicSelected =
-                                                    selectedItem?.id === subtopic._id;
-
-                                                  return (
-                                                    <div
-                                                      key={subtopic._id}
-                                                      onClick={() =>
-                                                        handleItemSelect(
-                                                          subtopic._id,
-                                                          subtopic.title,
-                                                          "subtopic",
-                                                          [
-                                                            module._id,
-                                                            subModule._id,
-                                                            topic._id,
-                                                            subtopic._id,
-                                                          ],
-                                                          subtopic.pedagogy
-                                                        )
-                                                      }
-                                                      className={`flex items-center p-1.5 rounded-lg cursor-pointer transition-all duration-200 ${isSubTopicSelected
-                                                        ? "bg-[#0000FF] text-white border-l-2 border-[#0000FF]"
-                                                        : "hover:bg-gray-50 border-l-2 border-transparent"
-                                                        }`}
-                                                    >
-                                                      <File
-                                                        className={`w-2 h-2 mr-2 flex-shrink-0 ${isSubTopicSelected
-                                                          ? "text-white"
-                                                          : "text-gray-500 hover:text-gray-700"
-                                                          }`}
-                                                      />
-
-                                                      <span
-                                                        className={`text-xs flex-1 truncate ${isSubTopicSelected
-                                                          ? "text-white"
-                                                          : "text-gray-600"
-                                                          }`}
-                                                      >
-                                                        {subtopic.title}
-                                                      </span>
-                                                    </div>
-                                                  );
-                                                })}
-                                              </div>
-                                            )}
-                                          </div>
-                                        )}
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-
-                    {/* For modules without subModules but with topics */}
-                    {(!module.subModules || module.subModules.length === 0) &&
-                      module.topics && (
-                        <div className="space-y-1">
-                          {module.topics.map((topic) => {
-                            const topicHasChildren = shouldShowArrow(topic);
-                            const isTopicSelected = selectedItem?.id === topic._id;
-                            const isTopicExpanded = expandedTopics.has(topic._id);
-
-                            return (
-                              <div key={topic._id} className="group/topic">
-                                <div className="flex items-center">
-                                  {/* Topic row - make entire row clickable for expansion */}
-                                  <div
-                                    onClick={() => {
-                                      if (topicHasChildren) {
-                                        toggleTopic(topic._id);
-                                      } else {
-                                        // Only select if there are no children
-                                        handleItemSelect(
-                                          topic._id,
-                                          topic.title,
-                                          "topic",
-                                          [module._id, topic._id],
-                                          topic.pedagogy
-                                        );
-                                      }
-                                    }}
-                                    className={`flex items-center flex-1 p-1.5 rounded-lg cursor-pointer transition-all duration-200 ${isTopicSelected
-                                      ? "bg-[#0000FF] text-white border-l-2 border-[#0000FF]"
-                                      : "hover:bg-gray-50 border-l-2 border-transparent"
-                                      }`}
-                                  >
-                                    {/* Arrow indicator for topics with children */}
-                                    {topicHasChildren && (
-                                      <div className="w-4 h-4 flex items-center justify-center mr-1">
-                                        {isTopicExpanded ? (
-                                          <ChevronDown className="w-2.5 h-2.5 text-gray-500 transition-transform duration-200" />
-                                        ) : (
-                                          <ChevronRight className="w-2.5 h-2.5 text-gray-500 transition-transform duration-200" />
-                                        )}
-                                      </div>
-                                    )}
-                                    {!topicHasChildren && (
-                                      <div className="w-4 h-4 mr-1" />
-                                    )}
-
-                                    <File
-                                      className={`w-2.5 h-2.5 mr-2 flex-shrink-0 ${isTopicSelected
-                                        ? "text-white"
-                                        : "text-gray-500 group-hover/topic:text-gray-700"
-                                        }`}
-                                    />
-
-                                    <span
-                                      className={`text-xs flex-1 truncate ${isTopicSelected
-                                        ? "text-white"
-                                        : "text-gray-700"
-                                        }`}
-                                    >
-                                      {topic.title}
-                                    </span>
-                                  </div>
-                                </div>
-
-                                {/* Smooth expand/collapse for subtopics (module-level topics) */}
-                                {topicHasChildren && (
-                                  <div
-                                    className={`
-                                    overflow-hidden
-                                    transition-all duration-200 ease-in-out
-                                    ${isTopicExpanded
-                                        ? "max-h-[2000px] opacity-100 translate-y-0"
-                                        : "max-h-0 opacity-0 -translate-y-1"
-                                      }
-                                  `}
-                                  >
-                                    {isTopicExpanded && topic.subTopics && (
-                                      <div className="ml-4 mt-0.5 space-y-0.5 border-l border-gray-200 pl-2">
-                                        {topic.subTopics.map((subtopic) => {
-                                          const isSubTopicSelected =
-                                            selectedItem?.id === subtopic._id;
-
-                                          return (
-                                            <div
-                                              key={subtopic._id}
-                                              onClick={() =>
-                                                handleItemSelect(
-                                                  subtopic._id,
-                                                  subtopic.title,
-                                                  "subtopic",
-                                                  [
-                                                    module._id,
-                                                    topic._id,
-                                                    subtopic._id,
-                                                  ],
-                                                  subtopic.pedagogy
-                                                )
-                                              }
-                                              className={`flex items-center p-1.5 rounded-lg cursor-pointer transition-all duration-200 ${isSubTopicSelected
-                                                ? "bg-[#0000FF] text-white border-l-2 border-[#0000FF]"
-                                                : "hover:bg-gray-50 border-l-2 border-transparent"
-                                                }`}
-                                            >
-                                              <File
-                                                className={`w-2 h-2 mr-2 flex-shrink-0 ${isSubTopicSelected
-                                                  ? "text-white"
-                                                  : "text-gray-500 hover:text-gray-700"
-                                                  }`}
-                                              />
-
-                                              <span
-                                                className={`text-xs flex-1 truncate ${isSubTopicSelected
-                                                  ? "text-white"
-                                                  : "text-gray-600"
-                                                  }`}
-                                              >
-                                                {subtopic.title}
-                                              </span>
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
+          {/* Pedagogy Status Dot */}
+          {hasPedagogy && (
+            <div className={`w-2 h-2 rounded-full ml-2 ${isSelected ? "bg-blue-500" : "bg-emerald-400"}`} />
+          )}
+        </div>
       </div>
     );
   };
 
+  // --- Main Render ---
+  return (
+    <div className="bg-white min-h-screen py-4 px-4 border-r border-gray-100 font-sans">
+      
+      {courseData.modules.map((module) => {
+        const moduleHasChildren = shouldShowArrow(module);
+        const moduleHasPedagogy = hasPedagogyData(module);
+        const isModuleSelected = selectedItem?.id === module._id;
+        const isModuleExpanded = expandedModules.has(module._id);
+
+        return (
+          <div key={module._id} className="relative mb-1">
+            {/* LEVEL 0: MODULE */}
+            <HierarchyRow 
+              title={module.title}
+              type="module"
+              level={0}
+              isSelected={isModuleSelected}
+              isExpanded={isModuleExpanded}
+              hasChildren={moduleHasChildren}
+              hasPedagogy={moduleHasPedagogy}
+              onClick={() => {
+                handleItemSelect(module._id, module.title, "module", [module._id], module.pedagogy);
+                if (moduleHasChildren) toggleModule(module._id);
+              }}
+            />
+
+            {/* EXPANDED CONTENT */}
+            <div className={`
+              overflow-hidden transition-all duration-500 ease-in-out relative
+              ${isModuleExpanded ? "max-h-[5000px] opacity-100" : "max-h-0 opacity-0"}
+            `}>
+              
+              {/* 📏 Vertical Tree Line (Module -> Submodule) */}
+              {/* Positioned absolute to the left of the children */}
+              {isModuleExpanded && (
+                <div className="absolute left-[11px] top-0 bottom-4 w-px bg-gray-200 z-0"></div>
+              )}
+
+              {/* LEVEL 1: SUBMODULES */}
+              {module.subModules?.map((subModule) => {
+                const subModuleHasChildren = shouldShowArrow(subModule);
+                const isSubModuleSelected = selectedItem?.id === subModule._id;
+                const isSubModuleExpanded = expandedSubModules.has(subModule._id);
+
+                return (
+                  <div key={subModule._id} className="relative">
+                    <HierarchyRow 
+                      title={subModule.title}
+                      type="submodule"
+                      level={1}
+                      isSelected={isSubModuleSelected}
+                      isExpanded={isSubModuleExpanded}
+                      hasChildren={subModuleHasChildren}
+                      hasPedagogy={hasPedagogyData(subModule)}
+                      onClick={() => {
+                        handleItemSelect(subModule._id, subModule.title, "submodule", [module._id, subModule._id], subModule.pedagogy);
+                        if (subModuleHasChildren) toggleSubModule(subModule._id);
+                      }}
+                    />
+
+                    {/* LEVEL 2: TOPICS */}
+                    <div className={`overflow-hidden transition-all duration-300 relative ${isSubModuleExpanded ? "max-h-[3000px]" : "max-h-0"}`}>
+                       
+                       {/* 📏 Inner Tree Line (Submodule -> Topic) */}
+                       {/* Shifted right by 24px (level 1 indent) + 11px (center of arrow) */}
+                       {isSubModuleExpanded && (
+                          <div className="absolute left-[35px] top-0 bottom-4 w-px bg-gray-200 z-0"></div>
+                       )}
+
+                      {subModule.topics?.map((topic) => {
+                        const topicHasChildren = shouldShowArrow(topic);
+                        const isTopicSelected = selectedItem?.id === topic._id;
+                        const isTopicExpanded = expandedTopics.has(topic._id);
+
+                        return (
+                          <div key={topic._id} className="relative">
+                            <HierarchyRow 
+                              title={topic.title}
+                              type="topic"
+                              level={2}
+                              isSelected={isTopicSelected}
+                              isExpanded={isTopicExpanded}
+                              hasChildren={topicHasChildren}
+                              hasPedagogy={topic.pedagogy}
+                              onClick={() => {
+                                handleItemSelect(topic._id, topic.title, "topic", [module._id, subModule._id, topic._id], topic.pedagogy);
+                                if (topicHasChildren) toggleTopic(topic._id);
+                              }}
+                            />
+                             
+                             {/* LEVEL 3: SUBTOPICS */}
+                             <div className={`overflow-hidden transition-all duration-300 ${isTopicExpanded ? "max-h-[1000px]" : "max-h-0"}`}>
+                                {/* 📏 Deep Tree Line */}
+                                {isTopicExpanded && (
+                                  <div className="absolute left-[59px] top-0 bottom-4 w-px bg-gray-200 z-0"></div>
+                                )}
+                                
+                                {topic.subTopics?.map((subtopic) => (
+                                  <HierarchyRow 
+                                    key={subtopic._id}
+                                    title={subtopic.title}
+                                    type="subtopic"
+                                    level={3}
+                                    isSelected={selectedItem?.id === subtopic._id}
+                                    hasChildren={false}
+                                    hasPedagogy={subtopic.pedagogy}
+                                    onClick={() => handleItemSelect(subtopic._id, subtopic.title, "subtopic", [module._id, subModule._id, topic._id, subtopic._id], subtopic.pedagogy)}
+                                  />
+                                ))}
+                             </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* FALLBACK: TOPICS DIRECTLY UNDER MODULE */}
+              {(!module.subModules || module.subModules.length === 0) && module.topics?.map((topic) => {
+                 const topicHasChildren = shouldShowArrow(topic);
+                 const isTopicSelected = selectedItem?.id === topic._id;
+                 const isTopicExpanded = expandedTopics.has(topic._id);
+
+                 return (
+                   <div key={topic._id} className="relative">
+                     <HierarchyRow 
+                       title={topic.title}
+                       type="topic"
+                       level={1} 
+                       isSelected={isTopicSelected}
+                       isExpanded={isTopicExpanded}
+                       hasChildren={topicHasChildren}
+                       hasPedagogy={topic.pedagogy}
+                       onClick={() => {
+                         handleItemSelect(topic._id, topic.title, "topic", [module._id, topic._id], topic.pedagogy);
+                         if (topicHasChildren) toggleTopic(topic._id);
+                       }}
+                     />
+                     <div className={`overflow-hidden transition-all duration-300 relative ${isTopicExpanded ? "max-h-[1000px]" : "max-h-0"}`}>
+                        {isTopicExpanded && (
+                          <div className="absolute left-[35px] top-0 bottom-4 w-px bg-gray-200 z-0"></div>
+                        )}
+                        {topic.subTopics?.map((subtopic) => (
+                          <HierarchyRow 
+                            key={subtopic._id}
+                            title={subtopic.title}
+                            type="subtopic"
+                            level={2}
+                            isSelected={selectedItem?.id === subtopic._id}
+                            hasChildren={false}
+                            hasPedagogy={subtopic.pedagogy}
+                            onClick={() => handleItemSelect(subtopic._id, subtopic.title, "subtopic", [module._id, topic._id, subtopic._id], subtopic.pedagogy)}
+                          />
+                        ))}
+                      </div>
+                   </div>
+                 );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
   const renderBreadcrumb = () => {
     if (!courseData) return null;
 
@@ -3361,6 +3750,7 @@ export default function LMSPage() {
                             >
                               <button
                                 onClick={() => {
+                                  // Only toggle the category selection, don't auto-select activity
                                   if (selectedMethod === element.id) {
                                     // If clicking the same category, toggle activity visibility
                                     if (selectedActivity) {
@@ -3369,17 +3759,17 @@ export default function LMSPage() {
                                     return;
                                   }
                                   setSelectedMethod(element.id);
-                                  setSelectedActivity("");
+                                  setSelectedActivity(""); // Don't auto-select activity
                                   setUserSelectedResourceType(false);
-                                  setHoveredCategory(""); // Clear hover state when selecting
+                                  setHoveredCategory("");
                                 }}
                                 className={`
-                  flex items-center justify-center py-2 px-3 w-full rounded-lg text-xs font-semibold transition-all duration-200 cursor-pointer active:scale-95
-                  ${isSelected
+    flex items-center justify-center py-2 px-3 w-full rounded-lg text-xs font-semibold transition-all duration-200 cursor-pointer active:scale-95
+    ${isSelected
                                     ? 'bg-[#0000FF] text-white shadow-sm'
                                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900'
                                   }
-                `}
+  `}
                                 aria-pressed={isSelected}
                               >
                                 <element.icon className="w-3.5 h-3.5 mr-1.5 transition-transform duration-200 group-hover:rotate-3" />
@@ -3403,31 +3793,31 @@ export default function LMSPage() {
                                           onClick={() => {
                                             setSelectedActivity(activity.key);
                                             setUserSelectedResourceType(false);
-                                            setHoveredCategory(""); // Clear hover state after selecting activity
+                                            setHoveredCategory("");
 
-                                            // If clicking on a hovered category (not selected), also select the category
+                                            // Only select the category if it's not already selected
                                             if (!isSelected) {
                                               setSelectedMethod(element.id);
                                             }
                                           }}
                                           onMouseEnter={() => {
-                                            // Keep the hover state when mouse enters activity buttons
                                             setHoveredCategory(element.id);
                                           }}
                                           className={`
-                            ${subItemsCount === 1 ? 'w-full' : ''}
-                            ${subItemsCount === 2 ? 'w-[calc(50%-0.125rem)]' : ''}
-                            ${subItemsCount >= 3 ? 'w-[calc(33.33%-0.2rem)]' : ''}
-                            
-                            text-center px-1.5 py-1 text-xs font-medium rounded transition-all duration-150 cursor-pointer whitespace-nowrap 
-                            hover:scale-[1.03] active:scale-95 transform transition-transform
-                            ${selectedActivity === activity.key
+    ${subItemsCount === 1 ? 'w-full' : ''}
+    ${subItemsCount === 2 ? 'w-[calc(50%-0.125rem)]' : ''}
+    ${subItemsCount >= 3 ? 'w-[calc(33.33%-0.2rem)]' : ''}
+    
+    text-center px-1.5 py-1 text-xs font-medium rounded transition-all duration-150 cursor-pointer whitespace-nowrap 
+    hover:scale-[1.03] active:scale-95 transform transition-transform
+    ${selectedActivity === activity.key
                                               ? 'bg-[#0000FF] text-white shadow-xs'
                                               : 'bg-gray-200 text-gray-800 hover:bg-gray-300 hover:text-gray-900'
                                             }
-                          `}
+  `}
                                           aria-pressed={selectedActivity === activity.key}
                                         >
+
                                           <span className="truncate block">{activity.name}</span>
                                         </button>
                                       ))}
@@ -3586,6 +3976,7 @@ export default function LMSPage() {
                                       setSelectedExercise(null);
                                       setShowExercisesList(true);
                                     }}
+                                    
                                   />
                                 )}
 
@@ -3627,11 +4018,32 @@ export default function LMSPage() {
                           <div className="bg-white rounded-lg shadow-sm h-full flex flex-col">
                             <div className="flex-1 overflow-y-auto">
                               <div className="">
-                                <Exercises
+                                {/* <Exercises
+                                  courseId={courseId}
                                   exercises={exercises}
                                   onExerciseSelect={handleExerciseSelect}
-                                  // Pass the formatted method to control Security Settings visibility
                                   method={selectedMethod === 'i-do' ? 'I_Do' : selectedMethod === 'you-do' ? 'You_Do' : 'We_Do'}
+                                  category={selectedMethod === 'i-do' ? 'I_Do' : selectedMethod === 'you-do' ? 'You_Do' : 'We_Do'}  // Add fallback empty string
+                                  subcategory={selectedActivity || ''}  // Add fallback empty string
+                                  
+                                
+                                /> */}
+
+                                <Exercises
+                                  courseId={courseId}
+                                  exercises={exercises}
+                                  onExerciseSelect={handleExerciseSelect}
+                                  method={selectedMethod === 'i-do' ? 'I_Do' : selectedMethod === 'you-do' ? 'You_Do' : 'We_Do'}
+                                  category={selectedMethod === 'i-do' ? 'I_Do' : selectedMethod === 'you-do' ? 'You_Do' : 'We_Do'}
+                                  subcategory={selectedActivity || ''}
+
+                                  // NEW: Pass hierarchy and topic context
+                                  topic={selectedItem?.title || ''}
+                                  module={currentHierarchy.length > 0 ? currentHierarchy[0] : selectedItem?.title || ''}
+                                  nodeType={selectedItem?.type || ''}
+                                  hierarchy={currentHierarchy}
+                                  selectedItem={selectedItem}
+                                  currentHierarchy={currentHierarchy}
                                 />
                               </div>
                             </div>
@@ -3913,13 +4325,13 @@ export default function LMSPage() {
                   <div className="mb-4 flex-1 flex items-center justify-center">
                     <div className="text-center bg-white p-6 rounded-lg border border-gray-200 shadow-sm max-w-md">
                       <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                        <File className="w-6 h-6 text-gray-600" />
+                        <Target className="w-6 h-6 text-gray-600" />
                       </div>
                       <h3 className="text-sm font-medium text-gray-700 mb-1">
-                        Select an Activity
+                        Select Topic
                       </h3>
                       <p className="text-xs text-gray-600">
-                        {`Choose an activity in the ${selectedMethod === 'i-do' ? 'I Do' : selectedMethod === 'we-do' ? 'We Do' : 'You Do'} category to view resources`}
+                        {`Choose a topic in the left sidebar to view ${selectedMethod === 'i-do' ? 'I Do' : selectedMethod === 'we-do' ? 'We Do' : 'You Do'} activities`}
                       </p>
                     </div>
                   </div>
@@ -4064,6 +4476,18 @@ export default function LMSPage() {
           isDocumentView: !!activeViewer.resource,
           hierarchy: currentHierarchy
         }}
+      />
+      <ToastContainer
+        position="top-right"
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop={false}
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="light"
       />
     </div>
   );

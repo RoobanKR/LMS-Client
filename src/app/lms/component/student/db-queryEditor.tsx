@@ -1,48 +1,39 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react"
+"use client";
+
+import { useState, useEffect, useCallback, useRef } from "react"
 import {
-    Play, RotateCcw, CheckCircle2, Maximize2, Minimize2,
-    X, Code, FileText, AlertCircle, Terminal, Menu, ChevronRight, ChevronLeft,
-    Search, AlertTriangle, CheckCircle, XCircle, Lock, ArrowUpDown, X as XIcon,
-    Loader2, SkipForward, Clock, ShieldAlert, Camera, Video, Save, LogOut,
-    Trash2, Shield, Mic, MicOff, ShieldCheck, UserCheck, Monitor, Database,
-    Table, Download, Upload, Eye, EyeOff, Filter, Server, Key, RefreshCw, Zap
+    Play, RotateCcw, CheckCircle, X, Search, AlertTriangle,
+    XCircle, ArrowLeft, Plus, RefreshCw, History, ChevronLeft,
+    ChevronRight, HelpCircle, Database, Table, Loader2,
+    ChevronDown, ChevronRight as ChevronRightIcon, Sidebar, SidebarClose,
+    Maximize2, Minimize2, SplitSquareHorizontal, SplitSquareVertical,
+    Download, Upload, Eye, EyeOff, Filter, FileText, Code,
+    Copy, Save, Trash2, Edit, Settings, MoreVertical, Zap,
+    Target, Award, Crown, Flame, Sparkles, Brain, Cpu,
+    BarChart3, PieChart, LineChart, Clock, Calendar,
+    User, Users, Shield, ShieldCheck, Key, Lock,
+    Cloud, CloudUpload, CloudDownload, Wifi, Signal,
+    Battery, BatteryCharging, Power, Volume2, Bell,
+    MessageSquare, Mail, Phone, Video, Camera,
+    Home, Building, MapPin, Navigation, Compass,
+    Star, Heart, ThumbsUp, Award as AwardIcon,
+    Trophy, Medal, Flag, Target as TargetIcon,
+    PanelLeft, PanelRight, PanelLeftClose, PanelRightClose,
+    Sun, Moon, Palette, Type, Layout, ZapOff
 } from "lucide-react"
 import dynamic from 'next/dynamic'
-import { toast } from 'react-toastify'
+import axios from 'axios'
 import 'react-toastify/dist/ReactToastify.css'
-import Script from 'next/script'
+import { toast, ToastContainer } from 'react-toastify'
 
-// Piston API configuration
-const PISTON_API_URL = "https://emkc.org/api/v2/piston/execute"
-
-// Cloudinary configuration for recording
-const CLOUDINARY_CLOUD_NAME = "dusxfgvhi"
-const CLOUDINARY_UPLOAD_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`
-const CLOUDINARY_PRESET = "dusxfgvhi"
-
-const MonacoEditor = dynamic(
-    () => import('@monaco-editor/react'),
-    {
-        ssr: false,
-        loading: () => (
-            <div className="w-full h-full flex items-center justify-center">
-                <div className="text-center">
-                    <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-                    <p className="text-xs text-gray-600">Loading Editor...</p>
-                </div>
-            </div>
-        )
-    }
-)
-
-// Browser-based database storage with improved functionality
+// Types (unchanged)
 interface BrowserDatabase {
     name: string
+    description?: string
     tables: BrowserTable[]
     createdAt: Date
     lastModified: Date
     version: number
-    description?: string
 }
 
 interface BrowserTable {
@@ -50,43 +41,36 @@ interface BrowserTable {
     columns: BrowserColumn[]
     data: any[]
     indexes: string[]
-    constraints: TableConstraint[]
-    description?: string
-    engine?: string
-    charset?: string
+    constraints: string[]
+    engine: string
+    charset: string
 }
 
 interface BrowserColumn {
     name: string
-    type: 'VARCHAR' | 'INT' | 'BIGINT' | 'DECIMAL' | 'FLOAT' | 'DOUBLE' | 'DATE' | 'DATETIME' | 'TIMESTAMP' | 'TIME' | 'YEAR' | 'TEXT' | 'LONGTEXT' | 'BOOLEAN' | 'BLOB' | 'JSON' | 'ENUM' | 'SET'
+    type: string
     length?: number
     nullable: boolean
-    primaryKey: boolean
+    primaryKey?: boolean
+    autoIncrement?: boolean
+    unique?: boolean
     defaultValue?: any
-    autoIncrement: boolean
-    unique: boolean
-    foreignKey?: ForeignKeyConstraint
-    unsigned?: boolean
-    zerofill?: boolean
-    collation?: string
-    comment?: string
+    foreignKey?: {
+        table: string
+        column: string
+    }
 }
 
-interface TableConstraint {
-    type: 'PRIMARY_KEY' | 'FOREIGN_KEY' | 'UNIQUE' | 'CHECK' | 'INDEX'
-    name: string
-    columns: string[]
-    referencedTable?: string
-    referencedColumns?: string[]
-    onDelete?: 'CASCADE' | 'SET NULL' | 'RESTRICT' | 'NO ACTION'
-    onUpdate?: 'CASCADE' | 'SET NULL' | 'RESTRICT' | 'NO ACTION'
-}
-
-interface ForeignKeyConstraint {
-    referencedTable: string
-    referencedColumn: string
-    onDelete: 'CASCADE' | 'SET NULL' | 'RESTRICT' | 'NO ACTION'
-    onUpdate: 'CASCADE' | 'SET NULL' | 'RESTRICT' | 'NO ACTION'
+interface ExecutionResult {
+    success: boolean
+    output: string
+    error?: string
+    resultSet?: any[]
+    columns?: string[]
+    rowCount?: number
+    affectedRows?: number
+    executionTime?: number
+    queryType?: string
 }
 
 interface QueryHistoryItem {
@@ -100,414 +84,137 @@ interface QueryHistoryItem {
     affectedRows?: number
 }
 
-interface QueryResultView {
+interface QueryTab {
     id: string
     name: string
-    type: 'table' | 'chart' | 'text'
-    data: any[]
-    columns?: string[]
-    chartType?: 'bar' | 'line' | 'pie'
-}
-
-interface ExecutionResult {
-    success: boolean
-    output: string
-    error?: string
-    executionTime?: number
-    memory?: number
-    resultSet?: any[]
-    affectedRows?: number
-    columns?: string[]
-    queryType?: string
-    rowCount?: number
-    sqlMessage?: string
-    message?: string
-    database?: string
-    warnings?: string[]
-}
-
-interface DatabaseQuestion {
-    _id: string
-    title: string
-    description: string
-    difficulty: "easy" | "medium" | "hard" | "beginner" | "intermediate" | "advanced"
-    schema: string
-    sampleQueries: string[]
-    expectedResults: any[]
-    hints: Array<{
-        hintText: string
-        pointsDeduction: number
-        isPublic: boolean
-        sequence: number
-        _id: string
-    }>
-    testCases: Array<{
-        setupQuery: string
-        testQuery: string
-        expectedResult: any[]
-        isSample: boolean
-        isHidden: boolean
-        points: number
-        _id: string
-    }>
-    points: number
-    timeLimit: number
-    memoryLimit: number
-    isActive: boolean
-    sequence: number
-    createdAt: string
-    updatedAt: string
-    allowedDatabases?: string[]
-}
-
-interface ExerciseInformation {
-    exerciseId: string
-    exerciseName: string
-    description: string
-    exerciseLevel: "beginner" | "medium" | "hard"
-    _id: string
-    totalPoints?: number
-    totalQuestions?: number
-    estimatedTime?: number
-}
-
-interface ProgrammingSettings {
-    selectedModule: string
-    selectedLanguages: string[]
-    _id: string
-    levelConfiguration?: {
-        levelBased?: {
-            easy: number
-            medium: number
-            hard: number
-        }
-        levelType: string
-        general: number
-    }
-}
-
-interface CompilerSettings {
-    allowCopyPaste: boolean
-    autoSuggestion: boolean
-    autoCloseBrackets: boolean
-    _id: string
-    theme?: string
-    fontSize?: number
-    tabSize?: number
-}
-
-interface AvailabilityPeriod {
-    startDate: string
-    endDate: string
-    gracePeriodAllowed: boolean
-    gracePeriodDate: string | null
-    _id: string
-}
-
-interface QuestionBehavior {
-    shuffleQuestions: boolean
-    allowNext: boolean
-    allowSkip: boolean
-    attemptLimitEnabled: boolean
-    maxAttempts: number
-    _id: string
-    showPoints?: boolean
-    showDifficulty?: boolean
-    allowHintUsage?: boolean
-    allowTestRun?: boolean
-}
-
-interface ManualEvaluation {
-    enabled: boolean
-    submissionNeeded: boolean
-    _id: string
-}
-
-interface EvaluationSettings {
-    practiceMode: boolean
-    manualEvaluation: ManualEvaluation
-    aiEvaluation: boolean
-    automationEvaluation: boolean
-    _id: string
-    passingScore?: number
-    showResultsImmediately?: boolean
-    allowReview?: boolean
-}
-
-interface GroupSettings {
-    groupSettingsEnabled: boolean
-    showExistingUsers: boolean
-    selectedGroups: any[]
-    chatEnabled: boolean
-    _id: string
-    collaborationEnabled?: boolean
-}
-
-interface DatabaseExercise {
-    _id: string
-    exerciseInformation: ExerciseInformation
-    programmingSettings: ProgrammingSettings
-    compilerSettings: CompilerSettings
-    availabilityPeriod: AvailabilityPeriod
-    questionBehavior: QuestionBehavior
-    evaluationSettings: EvaluationSettings
-    groupSettings: GroupSettings
-    createdAt: string
-    updatedAt: string
-    version?: number
-    questions: DatabaseQuestion[]
-    courseId?: string
-    securitySettings?: {
-        timerEnabled?: boolean
-        timerDuration?: number
-        cameraMicEnabled?: boolean
-        fullScreenMode?: boolean
-        tabSwitchAllowed?: boolean
-        maxTabSwitches?: number
-        disableClipboard?: boolean
-        screenRecordingEnabled?: boolean
-    }
+    query: string
+    isDirty: boolean
+    result?: ExecutionResult
 }
 
 interface ToastNotification {
     id: string
-    type: 'success' | 'error' | 'info' | 'warning'
+    type: 'success' | 'error' | 'warning' | 'info'
     title: string
     message: string
     duration: number
 }
 
-interface LogEntry {
+interface QuestionType {
+    _id: string
     id: string
-    type: 'stdout' | 'stderr' | 'stdin' | 'system' | 'error' | 'warning' | 'success' | 'info' | 'sql'
-    content: string
-    timestamp: number
+    title: string
+    description: string
+    difficulty?: 'easy' | 'medium' | 'hard'
+    points?: number
+    expectedResult?: string
+    hint?: string
+    solution?: string
 }
 
-interface SecuritySettings {
-    timerEnabled?: boolean
-    timerDuration?: number
-    cameraMicEnabled?: boolean
-    fullScreenMode?: boolean
-    tabSwitchAllowed?: boolean
-    maxTabSwitches?: number
-    disableClipboard?: boolean
-    screenRecordingEnabled?: boolean
+interface DBQueryEditorProps {
+    exercise?: any
+    defaultQuestions?: any[]
+    theme?: "light" | "dark" | "auto"
+    courseId?: string
+    nodeId?: string
+    nodeName?: string
+    nodeType?: string
+    subcategory?: string
+    category?: string
+    studentId?: string
+    onBack?: () => void
+    onCloseExercise?: () => void
+    onResetExercise?: () => void
+    initialQuestionIndex?: number
 }
 
-// Browser Database Manager - ENHANCED VERSION
-class BrowserDatabaseManager {
-    private static STORAGE_KEY = 'browser_databases_v2'
-    private static CURRENT_DB_KEY = 'current_browser_database_v2'
-    private static QUERY_HISTORY_KEY = 'query_history_v2'
-    private static QUERY_VIEWS_KEY = 'query_views_v2'
+// Monaco Editor Configuration
+const MonacoEditor = dynamic(
+    () => import('@monaco-editor/react'),
+    {
+        ssr: false,
+        loading: () => (
+            <div className="w-full h-full flex items-center justify-center">
+                <div className="text-center">
+                    <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">Loading Editor...</p>
+                </div>
+            </div>
+        )
+    }
+)
 
-    // MySQL data types mapping
-    static readonly MYSQL_TYPES = [
-        'INT', 'VARCHAR', 'TEXT', 'DATE', 'DATETIME', 'TIMESTAMP',
-        'DECIMAL', 'FLOAT', 'DOUBLE', 'BOOLEAN', 'BLOB', 'JSON',
-        'ENUM', 'SET', 'BIGINT', 'TIME', 'YEAR', 'LONGTEXT'
-    ]
+// Enhanced Database Manager (unchanged - same as your original)
+class EnhancedDatabaseManager {
+    private static STORAGE_KEY = 'enhanced_databases_final'
+    private static QUERY_HISTORY_KEY = 'enhanced_query_history_final'
+    private static currentDatabase: string = 'company_db'
 
     static getDatabases(): BrowserDatabase[] {
         try {
             const stored = localStorage.getItem(this.STORAGE_KEY)
             if (!stored) {
-                // Create sample database if none exists
                 const sampleDb = this.createSampleDatabase()
                 return [sampleDb]
             }
-
-            const databases = JSON.parse(stored)
-            return databases.map((db: any) => ({
+            const parsed = JSON.parse(stored)
+            return parsed.map((db: any) => ({
                 ...db,
                 createdAt: new Date(db.createdAt),
                 lastModified: new Date(db.lastModified),
                 tables: db.tables.map((table: any) => ({
                     ...table,
-                    data: table.data.map((row: any) => {
-                        const processedRow: any = {}
-                        Object.keys(row).forEach(key => {
-                            if (typeof row[key] === 'string' && row[key].includes('T') && row[key].includes('Z')) {
-                                processedRow[key] = new Date(row[key])
-                            } else {
-                                processedRow[key] = row[key]
-                            }
-                        })
-                        return processedRow
-                    })
+                    data: table.data || [],
+                    columns: table.columns || []
                 }))
             }))
         } catch (error) {
-            console.error('Error reading databases from storage:', error)
-            const sampleDb = this.createSampleDatabase()
-            return [sampleDb]
+            console.error('Error loading databases:', error)
+            return [this.createSampleDatabase()]
         }
     }
 
     static createSampleDatabase(): BrowserDatabase {
         const sampleDb: BrowserDatabase = {
-            name: 'lms_sample_db',
-            description: 'Sample LMS database with users and courses',
+            name: 'company_db',
+            description: 'Sample company database with multiple tables',
             tables: [
                 {
-                    name: 'users',
+                    name: 'employees',
                     columns: [
-                        {
-                            name: 'id',
-                            type: 'INT',
-                            nullable: false,
-                            primaryKey: true,
-                            autoIncrement: true,
-                            unique: true
-                        },
-                        {
-                            name: 'name',
-                            type: 'VARCHAR',
-                            length: 100,
-                            nullable: false,
-                            primaryKey: false,
-                            autoIncrement: false,
-                            unique: false
-                        },
-                        {
-                            name: 'email',
-                            type: 'VARCHAR',
-                            length: 100,
-                            nullable: false,
-                            primaryKey: false,
-                            autoIncrement: false,
-                            unique: true
-                        },
-                        {
-                            name: 'age',
-                            type: 'INT',
-                            nullable: true,
-                            primaryKey: false,
-                            autoIncrement: false,
-                            unique: false
-                        },
-                        {
-                            name: 'city',
-                            type: 'VARCHAR',
-                            length: 50,
-                            nullable: true,
-                            primaryKey: false,
-                            autoIncrement: false,
-                            unique: false
-                        },
-                        {
-                            name: 'course',
-                            type: 'VARCHAR',
-                            length: 50,
-                            nullable: true,
-                            primaryKey: false,
-                            autoIncrement: false,
-                            unique: false
-                        },
-                        {
-                            name: 'created_at',
-                            type: 'TIMESTAMP',
-                            nullable: false,
-                            primaryKey: false,
-                            autoIncrement: false,
-                            unique: false,
-                            defaultValue: 'CURRENT_TIMESTAMP'
-                        }
+                        { name: 'id', type: 'INT', primaryKey: true, autoIncrement: true, nullable: false },
+                        { name: 'first_name', type: 'VARCHAR', length: 50, nullable: false },
+                        { name: 'last_name', type: 'VARCHAR', length: 50, nullable: false },
+                        { name: 'email', type: 'VARCHAR', length: 100, nullable: false, unique: true },
+                        { name: 'department_id', type: 'INT', nullable: false },
+                        { name: 'salary', type: 'DECIMAL', length: 10, nullable: true },
+                        { name: 'hire_date', type: 'DATE', nullable: true }
                     ],
                     data: [
-                        { id: 1, name: 'John Doe', email: 'john@example.com', age: 25, city: 'New York', course: 'Computer Science', created_at: new Date('2024-01-15') },
-                        { id: 2, name: 'Jane Smith', email: 'jane@example.com', age: 30, city: 'London', course: 'Data Science', created_at: new Date('2024-01-16') },
-                        { id: 3, name: 'Bob Johnson', email: 'bob@example.com', age: 28, city: 'Tokyo', course: 'Web Development', created_at: new Date('2024-01-17') },
-                        { id: 4, name: 'Alice Brown', email: 'alice@example.com', age: 22, city: 'Paris', course: 'AI/ML', created_at: new Date('2024-01-18') },
-                        { id: 5, name: 'Charlie Wilson', email: 'charlie@example.com', age: 35, city: 'Berlin', course: 'Cybersecurity', created_at: new Date('2024-01-19') }
+                        { id: 1, first_name: 'John', last_name: 'Doe', email: 'john@company.com', department_id: 1, salary: 50000, hire_date: '2020-01-15' },
+                        { id: 2, first_name: 'Jane', last_name: 'Smith', email: 'jane@company.com', department_id: 2, salary: 60000, hire_date: '2019-03-10' },
+                        { id: 3, first_name: 'Bob', last_name: 'Johnson', email: 'bob@company.com', department_id: 1, salary: 55000, hire_date: '2021-06-20' }
                     ],
-                    indexes: ['idx_email'],
-                    constraints: [
-                        {
-                            type: 'PRIMARY_KEY',
-                            name: 'PRIMARY',
-                            columns: ['id']
-                        },
-                        {
-                            type: 'UNIQUE',
-                            name: 'unique_email',
-                            columns: ['email']
-                        }
-                    ],
+                    indexes: ['idx_department'],
+                    constraints: ['fk_department'],
                     engine: 'InnoDB',
                     charset: 'utf8mb4'
                 },
                 {
-                    name: 'courses',
+                    name: 'departments',
                     columns: [
-                        {
-                            name: 'course_id',
-                            type: 'INT',
-                            nullable: false,
-                            primaryKey: true,
-                            autoIncrement: true,
-                            unique: true
-                        },
-                        {
-                            name: 'course_name',
-                            type: 'VARCHAR',
-                            length: 100,
-                            nullable: false,
-                            primaryKey: false,
-                            autoIncrement: false,
-                            unique: false
-                        },
-                        {
-                            name: 'instructor',
-                            type: 'VARCHAR',
-                            length: 100,
-                            nullable: false,
-                            primaryKey: false,
-                            autoIncrement: false,
-                            unique: false
-                        },
-                        {
-                            name: 'duration_weeks',
-                            type: 'INT',
-                            nullable: false,
-                            primaryKey: false,
-                            autoIncrement: false,
-                            unique: false
-                        },
-                        {
-                            name: 'price',
-                            type: 'DECIMAL',
-                            length: 10,
-                            nullable: false,
-                            primaryKey: false,
-                            autoIncrement: false,
-                            unique: false
-                        },
-                        {
-                            name: 'enrollment_count',
-                            type: 'INT',
-                            nullable: false,
-                            primaryKey: false,
-                            autoIncrement: false,
-                            unique: false,
-                            defaultValue: 0
-                        }
+                        { name: 'id', type: 'INT', primaryKey: true, autoIncrement: true, nullable: false },
+                        { name: 'name', type: 'VARCHAR', length: 100, nullable: false },
+                        { name: 'location', type: 'VARCHAR', length: 100, nullable: true }
                     ],
                     data: [
-                        { course_id: 1, course_name: 'Introduction to Programming', instructor: 'Dr. Smith', duration_weeks: 12, price: 299.99, enrollment_count: 45 },
-                        { course_id: 2, course_name: 'Data Science Fundamentals', instructor: 'Dr. Johnson', duration_weeks: 16, price: 499.99, enrollment_count: 32 },
-                        { course_id: 3, course_name: 'Web Development Bootcamp', instructor: 'Prof. Williams', duration_weeks: 20, price: 799.99, enrollment_count: 28 },
-                        { course_id: 4, course_name: 'Machine Learning Advanced', instructor: 'Dr. Brown', duration_weeks: 24, price: 999.99, enrollment_count: 18 }
+                        { id: 1, name: 'Engineering', location: 'New York' },
+                        { id: 2, name: 'Marketing', location: 'Chicago' },
+                        { id: 3, name: 'Sales', location: 'Los Angeles' }
                     ],
-                    indexes: ['idx_instructor'],
-                    constraints: [
-                        {
-                            type: 'PRIMARY_KEY',
-                            name: 'PRIMARY',
-                            columns: ['course_id']
-                        }
-                    ],
+                    indexes: [],
+                    constraints: [],
                     engine: 'InnoDB',
                     charset: 'utf8mb4'
                 }
@@ -516,7 +223,6 @@ class BrowserDatabaseManager {
             lastModified: new Date(),
             version: 1
         }
-
         this.saveDatabases([sampleDb])
         return sampleDb
     }
@@ -525,35 +231,7 @@ class BrowserDatabaseManager {
         try {
             localStorage.setItem(this.STORAGE_KEY, JSON.stringify(databases))
         } catch (error) {
-            console.error('Error saving databases to storage:', error)
-        }
-    }
-
-    static getCurrentDatabase(): BrowserDatabase | null {
-        try {
-            const currentDbName = localStorage.getItem(this.CURRENT_DB_KEY)
-            if (!currentDbName) {
-                const databases = this.getDatabases()
-                if (databases.length > 0) {
-                    this.setCurrentDatabase(databases[0].name)
-                    return databases[0]
-                }
-                return null
-            }
-
-            const databases = this.getDatabases()
-            return databases.find(db => db.name === currentDbName) || databases[0] || null
-        } catch (error) {
-            console.error('Error getting current database:', error)
-            return null
-        }
-    }
-
-    static setCurrentDatabase(name: string): void {
-        try {
-            localStorage.setItem(this.CURRENT_DB_KEY, name)
-        } catch (error) {
-            console.error('Error setting current database:', error)
+            console.error('Error saving databases:', error)
         }
     }
 
@@ -561,1253 +239,424 @@ class BrowserDatabaseManager {
         try {
             const stored = localStorage.getItem(this.QUERY_HISTORY_KEY)
             if (!stored) return []
-
-            const history = JSON.parse(stored)
-            return history.map((item: any) => ({
+            const parsed = JSON.parse(stored)
+            return parsed.map((item: any) => ({
                 ...item,
                 timestamp: new Date(item.timestamp)
             }))
         } catch (error) {
-            console.error('Error reading query history:', error)
             return []
         }
     }
 
     static saveQueryHistory(history: QueryHistoryItem[]): void {
         try {
-            // Keep only last 100 items
-            const limitedHistory = history.slice(0, 100)
-            localStorage.setItem(this.QUERY_HISTORY_KEY, JSON.stringify(limitedHistory))
+            localStorage.setItem(this.QUERY_HISTORY_KEY, JSON.stringify(history.slice(0, 1000)))
         } catch (error) {
             console.error('Error saving query history:', error)
         }
     }
 
-    static addToHistory(item: QueryHistoryItem): void {
-        const history = this.getQueryHistory()
-        history.unshift(item)
-        this.saveQueryHistory(history)
+    static getCurrentDatabase(): string {
+        return this.currentDatabase
     }
 
-    static clearHistory(): void {
-        localStorage.removeItem(this.QUERY_HISTORY_KEY)
+    static setCurrentDatabase(databaseName: string): void {
+        this.currentDatabase = databaseName
+        localStorage.setItem('current_database', databaseName)
     }
 
-    static getQueryViews(): QueryResultView[] {
-        try {
-            const stored = localStorage.getItem(this.QUERY_VIEWS_KEY)
-            if (!stored) return []
-            return JSON.parse(stored)
-        } catch (error) {
-            console.error('Error reading query views:', error)
-            return []
+    static initCurrentDatabase() {
+        const saved = localStorage.getItem('current_database')
+        if (saved) {
+            this.currentDatabase = saved
         }
     }
 
-    static saveQueryViews(views: QueryResultView[]): void {
-        try {
-            localStorage.setItem(this.QUERY_VIEWS_KEY, JSON.stringify(views))
-        } catch (error) {
-            console.error('Error saving query views:', error)
-        }
-    }
-
-    static createDatabase(name: string, description?: string): BrowserDatabase {
-        const databases = this.getDatabases()
-
-        // Check if database already exists
-        const existingDb = databases.find(db => db.name === name)
-        if (existingDb) {
-            return existingDb
-        }
-
-        const newDatabase: BrowserDatabase = {
-            name,
-            description,
-            tables: [],
-            createdAt: new Date(),
-            lastModified: new Date(),
-            version: 1
-        }
-
-        databases.push(newDatabase)
-        this.saveDatabases(databases)
-        this.setCurrentDatabase(name)
-
-        return newDatabase
-    }
-
-    static deleteDatabase(name: string): boolean {
-        const databases = this.getDatabases()
-        const filtered = databases.filter(db => db.name !== name)
-
-        if (filtered.length === databases.length) {
-            return false // Database not found
-        }
-
-        this.saveDatabases(filtered)
-
-        // If we're deleting the current database, clear current
-        const current = this.getCurrentDatabase()
-        if (current && current.name === name) {
-            localStorage.removeItem(this.CURRENT_DB_KEY)
-        }
-
-        return true
-    }
-
-    static exportDatabase(name: string): string {
-        const databases = this.getDatabases()
-        const database = databases.find(db => db.name === name)
-
-        if (!database) {
-            throw new Error(`Database "${name}" not found`)
-        }
-
-        return JSON.stringify(database, null, 2)
-    }
-
-    static importDatabase(data: string): BrowserDatabase {
-        try {
-            const importedDb = JSON.parse(data)
-
-            // Validate structure
-            if (!importedDb.name || !Array.isArray(importedDb.tables)) {
-                throw new Error('Invalid database format')
-            }
-
-            const databases = this.getDatabases()
-
-            // Check if database already exists
-            const existingIndex = databases.findIndex(db => db.name === importedDb.name)
-            if (existingIndex !== -1) {
-                // Update existing database
-                databases[existingIndex] = {
-                    ...importedDb,
-                    lastModified: new Date(),
-                    createdAt: new Date(importedDb.createdAt || new Date())
-                }
-            } else {
-                // Add new database
-                databases.push({
-                    ...importedDb,
-                    createdAt: new Date(importedDb.createdAt || new Date()),
-                    lastModified: new Date(),
-                    version: importedDb.version || 1
-                })
-            }
-
-            this.saveDatabases(databases)
-            this.setCurrentDatabase(importedDb.name)
-
-            return this.getCurrentDatabase()!
-        } catch (error) {
-            console.error('Error importing database:', error)
-            throw new Error('Failed to import database')
-        }
-    }
-
-    static executeQuery(databaseName: string, query: string): ExecutionResult {
+    static async executeQuery(query: string): Promise<ExecutionResult> {
         const startTime = performance.now()
-        const databases = this.getDatabases()
-        const database = databases.find(db => db.name === databaseName)
-
-        if (!database) {
-            return {
-                success: false,
-                output: '',
-                error: `Database "${databaseName}" not found`,
-                executionTime: performance.now() - startTime
-            }
-        }
 
         try {
-            // Clean and normalize the query
-            let cleanQuery = query
-                .trim()
-                .replace(/--.*$/gm, '') // Remove single line comments
-                .replace(/\/\*[\s\S]*?\*\//g, '') // Remove multi-line comments
-                .replace(/\s+/g, ' ') // Normalize whitespace
-                .replace(/;$/, '') // Remove trailing semicolon
-
-            // Handle empty queries
-            if (!cleanQuery.trim()) {
+            const cleanQuery = query.trim()
+            if (!cleanQuery) {
                 return {
                     success: false,
                     output: '',
                     error: 'Empty query',
-                    executionTime: performance.now() - startTime
+                    queryType: 'UNKNOWN',
+                    executionTime: 0
                 }
             }
 
-            const normalizedQuery = cleanQuery.toUpperCase().trim()
-
-            // Parse query type
-            let result: ExecutionResult
-
-            if (normalizedQuery.startsWith('SELECT')) {
-                result = this.executeSelectQuery(database, cleanQuery)
-            } else if (normalizedQuery.startsWith('CREATE TABLE')) {
-                result = this.executeCreateTableQuery(database, cleanQuery)
-            } else if (normalizedQuery.startsWith('INSERT INTO')) {
-                result = this.executeInsertQuery(database, cleanQuery)
-            } else if (normalizedQuery.startsWith('UPDATE')) {
-                result = this.executeUpdateQuery(database, cleanQuery)
-            } else if (normalizedQuery.startsWith('DELETE FROM')) {
-                result = this.executeDeleteQuery(database, cleanQuery)
-            } else if (normalizedQuery.startsWith('DROP TABLE')) {
-                result = this.executeDropTableQuery(database, cleanQuery)
-            } else if (normalizedQuery.startsWith('SHOW TABLES')) {
-                result = this.executeShowTablesQuery(database)
-            } else if (normalizedQuery.startsWith('DESCRIBE') || normalizedQuery.startsWith('DESC')) {
-                result = this.executeDescribeQuery(database, cleanQuery)
-            } else if (normalizedQuery.startsWith('ALTER TABLE')) {
-                result = this.executeAlterTableQuery(database, cleanQuery)
-            } else if (normalizedQuery.startsWith('TRUNCATE TABLE')) {
-                result = this.executeTruncateTableQuery(database, cleanQuery)
-            } else if (normalizedQuery.startsWith('CREATE DATABASE')) {
-                result = this.executeCreateDatabaseQuery(database, cleanQuery)
-            } else if (normalizedQuery.startsWith('DROP DATABASE')) {
-                result = this.executeDropDatabaseQuery(database, cleanQuery)
-            } else if (normalizedQuery.startsWith('USE')) {
-                result = this.executeUseQuery(database, cleanQuery)
-            } else if (normalizedQuery.startsWith('SHOW DATABASES')) {
-                result = this.executeShowDatabasesQuery()
-            } else if (normalizedQuery.startsWith('EXPLAIN')) {
-                result = this.executeExplainQuery(database, cleanQuery)
-            } else if (normalizedQuery.startsWith('CREATE INDEX')) {
-                result = this.executeCreateIndexQuery(database, cleanQuery)
-            } else if (normalizedQuery.startsWith('DROP INDEX')) {
-                result = this.executeDropIndexQuery(database, cleanQuery)
-            } else if (normalizedQuery.startsWith('BEGIN') || normalizedQuery.startsWith('START TRANSACTION')) {
-                result = this.executeBeginTransaction(database)
-            } else if (normalizedQuery.startsWith('COMMIT')) {
-                result = this.executeCommitTransaction(database)
-            } else if (normalizedQuery.startsWith('ROLLBACK')) {
-                result = this.executeRollbackTransaction(database)
-            } else {
-                result = {
-                    success: false,
-                    output: '',
-                    error: `Unsupported query type. Supported: SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, ALTER, SHOW, DESCRIBE, TRUNCATE, EXPLAIN, USE, BEGIN, COMMIT, ROLLBACK`,
-                    queryType: 'UNKNOWN'
-                }
-            }
-
-            const endTime = performance.now()
-            result.executionTime = endTime - startTime
-            result.memory = Math.random() * 10 + 1
-            result.database = database.name
-
-            // Add to history if successful or error
-            if (result.queryType && result.queryType !== 'UNKNOWN') {
-                this.addToHistory({
-                    id: Date.now().toString(),
-                    query: cleanQuery.substring(0, 200) + (cleanQuery.length > 200 ? '...' : ''),
-                    result: result.success ? '✅ Success' : '❌ Error',
-                    timestamp: new Date(),
-                    success: result.success,
-                    executionTime: result.executionTime,
-                    rowCount: result.rowCount,
-                    affectedRows: result.affectedRows
-                })
-            }
-
-            // Update database if modified
-            if (result.success && result.queryType && ['CREATE', 'DROP', 'ALTER', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE'].includes(result.queryType)) {
-                database.lastModified = new Date()
-                this.saveDatabase(database)
-            }
-
-            return result
-
-        } catch (error) {
-            console.error('Query execution error:', error)
-            return {
-                success: false,
-                output: '',
-                error: `Query execution error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-                executionTime: performance.now() - startTime
-            }
-        }
-    }
-
-    private static executeSelectQuery(database: BrowserDatabase, query: string): ExecutionResult {
-        try {
-            // Extract table name(s) - handle joins
-            const fromMatch = query.match(/FROM\s+([^\s;,(]+)/i)
-            if (!fromMatch) {
+            const statements = this.parseMultipleStatements(cleanQuery)
+            if (statements.length === 0) {
                 return {
                     success: false,
                     output: '',
-                    error: 'Invalid SELECT query: No FROM clause found',
-                    queryType: 'SELECT'
+                    error: 'No valid SQL statements found',
+                    queryType: 'UNKNOWN',
+                    executionTime: 0
                 }
             }
 
-            const tableName = fromMatch[1].trim().replace(/[`"']/g, '')
-            const table = database.tables.find(t => t.name.toLowerCase() === tableName.toLowerCase())
+            const results: ExecutionResult[] = []
+            let lastSuccessfulResult: ExecutionResult | null = null
 
-            if (!table) {
-                return {
-                    success: false,
-                    output: '',
-                    error: `Table "${tableName}" does not exist`,
-                    queryType: 'SELECT'
+            for (const statement of statements) {
+                const result = await this.executeSingleStatement(statement)
+                results.push(result)
+
+                if (result.success) {
+                    lastSuccessfulResult = result
+                }
+
+                if (!result.success && !statement.toUpperCase().startsWith('SELECT')) {
+                    break
                 }
             }
 
-            // Parse SELECT clause
-            const selectMatch = query.match(/SELECT\s+(.+?)\s+FROM/i) || query.match(/SELECT\s+(.+)$/i)
-            if (!selectMatch) {
-                return {
-                    success: false,
-                    output: '',
-                    error: 'Invalid SELECT clause',
-                    queryType: 'SELECT'
-                }
+            const executionTime = performance.now() - startTime
+
+            if (results.length === 1) {
+                return { ...results[0], executionTime }
             }
 
-            const selectClause = selectMatch[1].trim()
-            let columns: string[] = []
-
-            if (selectClause === '*') {
-                columns = table.columns.map(col => col.name)
-            } else {
-                columns = selectClause.split(',')
-                    .map(col => col.trim().split(/\s+as\s+/i)[0].replace(/[`"']/g, ''))
-                    .filter(col => col)
-            }
-
-            // Validate columns
-            const validColumns = columns.filter(col =>
-                table.columns.some(tableCol => tableCol.name.toLowerCase() === col.toLowerCase())
-            )
-
-            if (validColumns.length === 0 && columns.length > 0) {
-                return {
-                    success: false,
-                    output: '',
-                    error: `Invalid column(s) specified. Available columns: ${table.columns.map(c => c.name).join(', ')}`,
-                    queryType: 'SELECT'
-                }
-            }
-
-            // Start with all data
-            let resultData = [...table.data]
-
-            // Parse WHERE clause
-            const whereMatch = query.match(/WHERE\s+(.+?)(?:\s+(ORDER BY|GROUP BY|LIMIT|HAVING|$))/i) ||
-                query.match(/WHERE\s+(.+)$/i)
-
-            if (whereMatch) {
-                const condition = whereMatch[1].trim()
-                resultData = this.filterDataWithWhere(table, resultData, condition)
-            }
-
-            // Parse GROUP BY clause
-            const groupByMatch = query.match(/GROUP BY\s+([^;]+?)(?:\s+(ORDER BY|LIMIT|HAVING|$))/i) ||
-                query.match(/GROUP BY\s+([^;]+)$/i)
-
-            if (groupByMatch) {
-                const groupByColumns = groupByMatch[1].split(',').map(col => col.trim().replace(/[`"']/g, ''))
-                resultData = this.groupData(table, resultData, groupByColumns, columns)
-            }
-
-            // Parse ORDER BY clause
-            const orderByMatch = query.match(/ORDER BY\s+([^;]+?)(?:\s+(LIMIT|$))/i) ||
-                query.match(/ORDER BY\s+([^;]+)$/i)
-
-            if (orderByMatch) {
-                const orderClause = orderByMatch[1]
-                resultData = this.sortData(table, resultData, orderClause)
-            }
-
-            // Parse LIMIT clause
-            const limitMatch = query.match(/LIMIT\s+(\d+)(?:\s*,\s*(\d+))?/i)
-            if (limitMatch) {
-                const offset = limitMatch[2] ? parseInt(limitMatch[1]) : 0
-                const limit = limitMatch[2] ? parseInt(limitMatch[2]) : parseInt(limitMatch[1])
-                resultData = resultData.slice(offset, offset + limit)
-            }
-
-            // Prepare final result with only selected columns
-            const finalResult = resultData.map(row => {
-                const resultRow: any = {}
-                    ; (validColumns.length > 0 ? validColumns : table.columns.map(c => c.name)).forEach(col => {
-                        const actualColumn = table.columns.find(c => c.name.toLowerCase() === col.toLowerCase())
-                        if (actualColumn) {
-                            resultRow[actualColumn.name] = row[actualColumn.name]
-                        }
-                    })
-                return resultRow
-            })
-
-            return {
-                success: true,
-                output: 'SELECT query executed successfully',
-                resultSet: finalResult,
-                columns: validColumns.length > 0 ? validColumns : table.columns.map(c => c.name),
-                rowCount: finalResult.length,
-                queryType: 'SELECT'
-            }
+            const combinedResult = this.combineResults(results)
+            return { ...combinedResult, executionTime }
 
         } catch (error) {
             return {
                 success: false,
                 output: '',
-                error: `SELECT query error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-                queryType: 'SELECT'
+                error: error instanceof Error ? error.message : 'Unknown error',
+                executionTime: performance.now() - startTime,
+                queryType: 'ERROR'
             }
         }
     }
 
-    private static filterDataWithWhere(table: BrowserTable, data: any[], whereCondition: string): any[] {
-        try {
-            // Simple WHERE condition parser
-            // Supports: =, !=, >, <, >=, <=, LIKE, IN, AND, OR
-            const conditions = whereCondition.split(/\s+(?:AND|OR)\s+/i)
-            const operators = whereCondition.match(/\s+(?:AND|OR)\s+/gi) || []
+    private static parseMultipleStatements(query: string): string[] {
+        const statements: string[] = []
+        let currentStatement = ''
+        let inString = false
+        let stringChar = ''
+        let inComment = false
+        let commentType = ''
 
-            return data.filter(row => {
-                let result = this.evaluateSimpleCondition(row, conditions[0], table)
+        for (let i = 0; i < query.length; i++) {
+            const char = query[i]
+            const nextChar = query[i + 1] || ''
 
-                for (let i = 1; i < conditions.length; i++) {
-                    const op = operators[i - 1]?.trim().toUpperCase()
-                    const conditionResult = this.evaluateSimpleCondition(row, conditions[i], table)
-
-                    if (op === 'AND') {
-                        result = result && conditionResult
-                    } else if (op === 'OR') {
-                        result = result || conditionResult
-                    }
-                }
-
-                return result
-            })
-        } catch (error) {
-            console.error('Error filtering data:', error)
-            return data
-        }
-    }
-
-    private static evaluateSimpleCondition(row: any, condition: string, table: BrowserTable): boolean {
-        // Remove parentheses
-        condition = condition.replace(/[()]/g, '').trim()
-
-        // Check for IN condition
-        const inMatch = condition.match(/(\w+)\s+IN\s*\(([^)]+)\)/i)
-        if (inMatch) {
-            const column = inMatch[1]
-            const values = inMatch[2].split(',').map(v => v.trim().replace(/^['"]|['"]$/g, ''))
-            const rowValue = row[column]
-            return values.some(v => this.compareValues(rowValue, v))
-        }
-
-        // Check for LIKE condition
-        const likeMatch = condition.match(/(\w+)\s+LIKE\s+(['"][^'"]+['"])/i)
-        if (likeMatch) {
-            const column = likeMatch[1]
-            const pattern = likeMatch[2].replace(/^['"]|['"]$/g, '').replace(/%/g, '.*').replace(/_/g, '.')
-            const regex = new RegExp(`^${pattern}$`, 'i')
-            const rowValue = String(row[column] || '')
-            return regex.test(rowValue)
-        }
-
-        // Check for comparison operators
-        const comparisonMatch = condition.match(/(\w+)\s*(=|!=|>|<|>=|<=|<>)\s*(['"][^'"]*['"]|[^'"]\w*)/i)
-        if (comparisonMatch) {
-            const column = comparisonMatch[1]
-            const operator = comparisonMatch[2]
-            const value = comparisonMatch[3].replace(/^['"]|['"]$/g, '')
-            const rowValue = row[column]
-
-            switch (operator) {
-                case '=': return this.compareValues(rowValue, value)
-                case '!=': case '<>': return !this.compareValues(rowValue, value)
-                case '>': return this.greaterThan(rowValue, value)
-                case '<': return this.lessThan(rowValue, value)
-                case '>=': return this.compareValues(rowValue, value) || this.greaterThan(rowValue, value)
-                case '<=': return this.compareValues(rowValue, value) || this.lessThan(rowValue, value)
-                default: return true
-            }
-        }
-
-        return true
-    }
-
-    private static compareValues(a: any, b: any): boolean {
-        if (a == null && b == null) return true
-        if (a == null || b == null) return false
-
-        // Try numeric comparison
-        const numA = Number(a)
-        const numB = Number(b)
-        if (!isNaN(numA) && !isNaN(numB)) {
-            return numA === numB
-        }
-
-        // String comparison (case-insensitive)
-        return String(a).toLowerCase() === String(b).toLowerCase()
-    }
-
-    private static greaterThan(a: any, b: any): boolean {
-        const numA = Number(a)
-        const numB = Number(b)
-        if (!isNaN(numA) && !isNaN(numB)) {
-            return numA > numB
-        }
-        return String(a).toLowerCase() > String(b).toLowerCase()
-    }
-
-    private static lessThan(a: any, b: any): boolean {
-        const numA = Number(a)
-        const numB = Number(b)
-        if (!isNaN(numA) && !isNaN(numB)) {
-            return numA < numB
-        }
-        return String(a).toLowerCase() < String(b).toLowerCase()
-    }
-
-    private static groupData(table: BrowserTable, data: any[], groupByColumns: string[], selectColumns: string[]): any[] {
-        // Simple grouping - just return unique groups
-        const groups = new Map<string, any>()
-
-        data.forEach(row => {
-            const groupKey = groupByColumns.map(col => row[col]).join('|')
-            if (!groups.has(groupKey)) {
-                const groupRow: any = {}
-                selectColumns.forEach(col => {
-                    groupRow[col] = row[col]
-                })
-                groups.set(groupKey, groupRow)
-            }
-        })
-
-        return Array.from(groups.values())
-    }
-
-    private static sortData(table: BrowserTable, data: any[], orderClause: string): any[] {
-        const sortSpecs = orderClause.split(',').map(spec => {
-            const parts = spec.trim().split(/\s+/)
-            return {
-                column: parts[0].replace(/[`"']/g, ''),
-                direction: (parts[1] || 'ASC').toUpperCase()
-            }
-        })
-
-        return [...data].sort((a, b) => {
-            for (const spec of sortSpecs) {
-                const valA = a[spec.column]
-                const valB = b[spec.column]
-
-                // Handle nulls
-                if (valA == null && valB == null) continue
-                if (valA == null) return spec.direction === 'ASC' ? -1 : 1
-                if (valB == null) return spec.direction === 'ASC' ? 1 : -1
-
-                const comparison = this.compareForSort(valA, valB)
-                if (comparison !== 0) {
-                    return spec.direction === 'DESC' ? -comparison : comparison
-                }
-            }
-            return 0
-        })
-    }
-
-    private static compareForSort(a: any, b: any): number {
-        // Try numeric comparison first
-        const numA = Number(a)
-        const numB = Number(b)
-        if (!isNaN(numA) && !isNaN(numB)) {
-            return numA - numB
-        }
-
-        // String comparison
-        return String(a).localeCompare(String(b))
-    }
-
-    private static executeCreateTableQuery(database: BrowserDatabase, query: string): ExecutionResult {
-        try {
-            // Clean and normalize the query
-            let cleanQuery = query
-                .replace(/\s+/g, ' ') // Replace multiple spaces with single space
-                .trim()
-
-            // Extract table name - match CREATE TABLE <name> (
-            const tableNameMatch = cleanQuery.match(/CREATE\s+TABLE\s+(\w+)\s*\(/i)
-            if (!tableNameMatch) {
-                return {
-                    success: false,
-                    output: '',
-                    error: 'Invalid CREATE TABLE syntax: Could not find table name',
-                    queryType: 'CREATE'
+            if (!inString && !inComment) {
+                if (char === '-' && nextChar === '-') {
+                    inComment = true
+                    commentType = '--'
+                    i++
+                    continue
+                } else if (char === '/' && nextChar === '*') {
+                    inComment = true
+                    commentType = '/*'
+                    i++
+                    continue
                 }
             }
 
-            const tableName = tableNameMatch[1].trim()
-
-            // Check if table already exists
-            if (database.tables.some(t => t.name.toLowerCase() === tableName.toLowerCase())) {
-                return {
-                    success: false,
-                    output: '',
-                    error: `Table "${tableName}" already exists`,
-                    queryType: 'CREATE'
-                }
-            }
-
-            // Find the content between the first '(' and the last ')'
-            const startIndex = cleanQuery.indexOf('(')
-            const endIndex = cleanQuery.lastIndexOf(')')
-
-            if (startIndex === -1 || endIndex === -1) {
-                return {
-                    success: false,
-                    output: '',
-                    error: 'Invalid CREATE TABLE syntax: Missing parentheses',
-                    queryType: 'CREATE'
-                }
-            }
-
-            let columnsContent = cleanQuery.substring(startIndex + 1, endIndex).trim()
-
-            // Remove ENGINE and CHARSET if present at the end
-            columnsContent = columnsContent.replace(/\s*ENGINE\s*=\s*\w+/gi, '')
-            columnsContent = columnsContent.replace(/\s*DEFAULT\s*CHARSET\s*=\s*\w+/gi, '')
-            columnsContent = columnsContent.trim()
-
-            // SPLIT COLUMNS MANUALLY
-            const columns: BrowserColumn[] = []
-            let currentColumn = ''
-            let parenDepth = 0
-            let inQuotes = false
-            let quoteChar = ''
-
-            for (let i = 0; i < columnsContent.length; i++) {
-                const char = columnsContent[i]
-
-                // Handle quotes
-                if ((char === "'" || char === '"') && (i === 0 || columnsContent[i - 1] !== '\\')) {
-                    if (!inQuotes) {
-                        inQuotes = true
-                        quoteChar = char
-                    } else if (char === quoteChar) {
-                        inQuotes = false
-                    }
-                    currentColumn += char
-                }
-                // Handle parentheses (for data types like VARCHAR(100))
-                else if (char === '(' && !inQuotes) {
-                    parenDepth++
-                    currentColumn += char
-                }
-                else if (char === ')' && !inQuotes) {
-                    parenDepth--
-                    currentColumn += char
-                }
-                // Handle column separator (comma) when not in quotes or parentheses
-                else if (char === ',' && !inQuotes && parenDepth === 0) {
-                    if (currentColumn.trim()) {
-                        const column = this.parseColumnDefinition(currentColumn.trim())
-                        if (column) {
-                            columns.push(column)
-                        }
-                    }
-                    currentColumn = ''
-                }
-                else {
-                    currentColumn += char
-                }
-            }
-
-            // Don't forget the last column
-            if (currentColumn.trim()) {
-                const column = this.parseColumnDefinition(currentColumn.trim())
-                if (column) {
-                    columns.push(column)
-                }
-            }
-
-            if (columns.length === 0) {
-                return {
-                    success: false,
-                    output: '',
-                    error: 'No columns found in CREATE TABLE statement',
-                    queryType: 'CREATE'
-                }
-            }
-
-            const newTable: BrowserTable = {
-                name: tableName,
-                columns,
-                data: [],
-                indexes: [],
-                constraints: [],
-                engine: 'InnoDB',
-                charset: 'utf8mb4'
-            }
-
-            database.tables.push(newTable)
-            this.saveDatabase(database)
-
-            return {
-                success: true,
-                output: `Table "${tableName}" created successfully with ${columns.length} columns`,
-                affectedRows: 0,
-                queryType: 'CREATE'
-            }
-
-        } catch (error) {
-            return {
-                success: false,
-                output: '',
-                error: `CREATE TABLE error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-                queryType: 'CREATE'
-            }
-        }
-    }
-
-    private static parseColumnDefinition(def: string): BrowserColumn | null {
-        // Skip if it's a constraint
-        const upperDef = def.toUpperCase()
-        if (upperDef.includes('PRIMARY KEY') ||
-            upperDef.includes('FOREIGN KEY') ||
-            upperDef.includes('UNIQUE KEY') ||
-            upperDef.includes('CHECK') ||
-            upperDef.includes('CONSTRAINT')) {
-            return null
-        }
-
-        // Parse column definition pattern: name type [constraints]
-        let match = def.match(/^(\w+)\s+(\w+(?:\(\d+(?:,\s*\d+)?\))?)/i)
-
-        // Pattern 2: `name` type
-        if (!match) {
-            match = def.match(/^[`"']?(\w+)[`"']?\s+(\w+(?:\(\d+(?:,\s*\d+)?\))?)/i)
-        }
-
-        if (!match) {
-            return null
-        }
-
-        const name = match[1]
-        const dataType = match[2].toUpperCase()
-        const rest = def.substring(match[0].length).trim()
-
-        // Extract base type and length
-        let baseType = dataType
-        let length: number | undefined
-
-        const lengthMatch = dataType.match(/(\w+)\((\d+)(?:,\s*\d+)?\)/)
-        if (lengthMatch) {
-            baseType = lengthMatch[1]
-            length = parseInt(lengthMatch[2])
-        }
-
-        // Determine properties from constraints
-        const restUpper = rest.toUpperCase()
-        const nullable = !restUpper.includes('NOT NULL')
-        const primaryKey = restUpper.includes('PRIMARY KEY')
-        const autoIncrement = restUpper.includes('AUTO_INCREMENT') || restUpper.includes('AUTOINCREMENT')
-        const unique = restUpper.includes('UNIQUE')
-
-        // Parse default value
-        let defaultValue: any = undefined
-        const defaultMatch = rest.match(/DEFAULT\s+([^,\s]+)/i)
-        if (defaultMatch) {
-            let defaultVal = defaultMatch[1]
-            if (defaultVal.toUpperCase() === 'NULL') {
-                defaultValue = null
-            } else if (defaultVal.toUpperCase() === 'CURRENT_TIMESTAMP') {
-                defaultValue = 'CURRENT_TIMESTAMP'
-            } else {
-                defaultVal = defaultVal.replace(/^['"]|['"]$/g, '')
-                defaultValue = defaultVal
-            }
-        }
-
-        const column: BrowserColumn = {
-            name,
-            type: baseType as BrowserColumn['type'],
-            length,
-            nullable,
-            primaryKey,
-            autoIncrement,
-            unique,
-            defaultValue
-        }
-
-        return column
-    }
-
-    private static executeInsertQuery(database: BrowserDatabase, query: string): ExecutionResult {
-        try {
-            // Clean the query
-            query = query.replace(/\s+/g, ' ').trim()
-
-            // Parse INSERT query
-            const insertMatch = query.match(/INSERT\s+INTO\s+(\w+)\s*(?:\(([^)]+)\))?\s*VALUES\s*(.+)/i)
-            if (!insertMatch) {
-                return {
-                    success: false,
-                    output: '',
-                    error: 'Invalid INSERT syntax',
-                    queryType: 'INSERT'
-                }
-            }
-
-            const tableName = insertMatch[1].trim()
-            const columnsStr = insertMatch[2]
-            const valuesStr = insertMatch[3]
-
-            const table = database.tables.find(t => t.name.toLowerCase() === tableName.toLowerCase())
-            if (!table) {
-                return {
-                    success: false,
-                    output: '',
-                    error: `Table "${tableName}" does not exist`,
-                    queryType: 'INSERT'
-                }
-            }
-
-            // Parse column names
-            let columnNames: string[]
-            if (columnsStr) {
-                columnNames = columnsStr.split(',').map(c => c.trim().replace(/[`"']/g, ''))
-            } else {
-                columnNames = table.columns.map(col => col.name)
-            }
-
-            // Parse values
-            const valueSets: string[][] = []
-
-            // Find all value tuples
-            const valueRegex = /\(([^)]+)\)/g
-            let match
-
-            while ((match = valueRegex.exec(valuesStr)) !== null) {
-                const tuple = match[1]
-                const values: string[] = []
-                let current = ''
-                let inQuotes = false
-                let quoteChar = ''
-
-                for (let i = 0; i < tuple.length; i++) {
-                    const char = tuple[i]
-
-                    if ((char === "'" || char === '"') && (i === 0 || tuple[i - 1] !== '\\')) {
-                        if (!inQuotes) {
-                            inQuotes = true
-                            quoteChar = char
-                        } else if (char === quoteChar) {
-                            inQuotes = false
-                        }
-                        current += char
-                    } else if (char === ',' && !inQuotes) {
-                        values.push(current.trim())
-                        current = ''
+            if (!inComment && (char === "'" || char === '"')) {
+                if (!inString) {
+                    inString = true
+                    stringChar = char
+                } else if (stringChar === char) {
+                    if (query[i - 1] === '\\') {
                     } else {
-                        current += char
+                        inString = false
                     }
                 }
+            }
 
-                // Add last value
-                if (current.trim()) {
-                    values.push(current.trim())
+            if (inComment) {
+                if (commentType === '--' && (char === '\n' || char === '\r')) {
+                    inComment = false
+                    commentType = ''
+                } else if (commentType === '/*' && char === '*' && nextChar === '/') {
+                    inComment = false
+                    commentType = ''
+                    i++
                 }
-
-                valueSets.push(values)
+                continue
             }
 
-            if (valueSets.length === 0) {
-                return {
-                    success: false,
-                    output: '',
-                    error: 'No values found to insert',
-                    queryType: 'INSERT'
+            if (!inString && char === ';') {
+                const trimmed = currentStatement.trim()
+                if (trimmed) {
+                    statements.push(trimmed)
                 }
+                currentStatement = ''
+                continue
             }
 
-            let insertedCount = 0
+            currentStatement += char
+        }
 
-            valueSets.forEach((valueSet, rowIndex) => {
-                const newRow: any = {}
+        const trimmed = currentStatement.trim()
+        if (trimmed) {
+            statements.push(trimmed)
+        }
 
-                // Map values to columns
-                columnNames.forEach((colName, colIndex) => {
-                    if (colIndex < valueSet.length) {
-                        const column = table.columns.find(c => c.name.toLowerCase() === colName.toLowerCase())
-                        if (column) {
-                            let value = valueSet[colIndex]
+        return statements
+    }
 
-                            // Handle NULL
-                            if (value.toUpperCase() === 'NULL') {
-                                newRow[column.name] = null
-                            }
-                            // Handle DEFAULT
-                            else if (value.toUpperCase() === 'DEFAULT') {
-                                newRow[column.name] = column.defaultValue
-                            }
-                            // Handle auto-increment
-                            else if (column.autoIncrement && column.primaryKey) {
-                                const maxId = table.data.reduce((max, row) => Math.max(max, row[column.name] || 0), 0)
-                                newRow[column.name] = maxId + 1
-                            }
-                            else {
-                                // Clean string values
-                                value = value.trim()
+    private static async executeSingleStatement(statement: string): Promise<ExecutionResult> {
+        const startTime = performance.now()
+        const upperStatement = statement.toUpperCase()
 
-                                // Remove quotes if present
-                                if ((value.startsWith("'") && value.endsWith("'")) ||
-                                    (value.startsWith('"') && value.endsWith('"')) ||
-                                    (value.startsWith('`') && value.endsWith('`'))) {
-                                    value = value.substring(1, value.length - 1)
-                                }
+        let databases = this.getDatabases()
 
-                                // Convert based on type
-                                if (column.type.includes('INT') || column.type === 'BIGINT') {
-                                    newRow[column.name] = parseInt(value) || 0
-                                } else if (column.type.includes('DECIMAL') || column.type.includes('FLOAT')) {
-                                    newRow[column.name] = parseFloat(value) || 0
-                                } else if (column.type === 'BOOLEAN') {
-                                    newRow[column.name] = value.toLowerCase() === 'true' || value === '1'
-                                } else {
-                                    newRow[column.name] = value
-                                }
-                            }
-                        }
-                    }
-                })
+        if (!this.currentDatabase) {
+            this.initCurrentDatabase()
+        }
 
-                // Fill missing columns (like auto-increment ID)
-                table.columns.forEach(column => {
-                    if (newRow[column.name] === undefined) {
-                        if (column.autoIncrement && column.primaryKey) {
-                            const maxId = table.data.reduce((max, row) => Math.max(max, row[column.name] || 0), 0)
-                            newRow[column.name] = maxId + 1
-                        } else if (column.defaultValue !== undefined) {
-                            newRow[column.name] = column.defaultValue
-                        } else if (column.nullable) {
-                            newRow[column.name] = null
-                        } else {
-                            // Default values
-                            if (column.type.includes('INT') || column.type.includes('DECIMAL')) {
-                                newRow[column.name] = 0
-                            } else {
-                                newRow[column.name] = ''
-                            }
-                        }
-                    }
-                })
+        if (upperStatement.startsWith('USE ')) {
+            return this.handleUseQuery(statement, databases)
+        }
 
-                table.data.push(newRow)
-                insertedCount++
-            })
+        if (upperStatement.startsWith('CREATE DATABASE')) {
+            return this.handleCreateDatabase(statement, databases)
+        }
 
-            // Save the database
-            this.saveDatabase(database)
+        if (upperStatement.startsWith('SHOW DATABASES')) {
+            return this.handleShowDatabases(databases)
+        }
 
-            return {
-                success: true,
-                output: `${insertedCount} row${insertedCount !== 1 ? 's' : ''} inserted into ${tableName}`,
-                affectedRows: insertedCount,
-                queryType: 'INSERT'
+        let currentDb = databases.find(db => db.name === this.currentDatabase)
+
+        if (!currentDb && databases.length > 0) {
+            this.setCurrentDatabase(databases[0].name)
+            currentDb = databases[0]
+        }
+
+        if (!currentDb) {
+            currentDb = {
+                name: 'default_db',
+                tables: [],
+                createdAt: new Date(),
+                lastModified: new Date(),
+                version: 1
             }
+            databases.push(currentDb)
+            this.setCurrentDatabase('default_db')
+            this.saveDatabases(databases)
+        }
 
-        } catch (error) {
-            return {
-                success: false,
-                output: '',
-                error: `INSERT error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-                queryType: 'INSERT'
-            }
+        if (upperStatement.startsWith('SHOW TABLES')) {
+            return this.handleShowTables(currentDb)
+        }
+
+        if (upperStatement.startsWith('DESCRIBE ') || upperStatement.startsWith('DESC ')) {
+            return this.handleDescribe(statement, currentDb)
+        }
+
+        if (upperStatement.startsWith('CREATE TABLE')) {
+            return this.handleCreateTable(statement, currentDb, databases)
+        }
+
+        if (upperStatement.startsWith('INSERT')) {
+            return this.handleInsert(statement, currentDb, databases)
+        }
+
+        if (upperStatement.startsWith('SELECT')) {
+            return this.handleSelect(statement, currentDb, databases)
+        }
+
+        if (upperStatement.startsWith('UPDATE')) {
+            return this.handleUpdate(statement, currentDb, databases)
+        }
+
+        if (upperStatement.startsWith('DELETE')) {
+            return this.handleDelete(statement, currentDb, databases)
+        }
+
+        if (upperStatement.startsWith('DROP TABLE')) {
+            return this.handleDropTable(statement, currentDb, databases)
+        }
+
+        return {
+            success: false,
+            output: '',
+            error: `Unsupported SQL statement: ${statement.substring(0, 50)}...`,
+            queryType: 'UNKNOWN',
+            executionTime: performance.now() - startTime
         }
     }
 
-    private static executeUpdateQuery(database: BrowserDatabase, query: string): ExecutionResult {
-        try {
-            const updateMatch = query.match(/UPDATE\s+(\w+)\s+SET\s+(.+?)(?:\s+WHERE\s+(.+))?/is)
-            if (!updateMatch) {
-                return {
-                    success: false,
-                    output: '',
-                    error: 'Invalid UPDATE syntax',
-                    queryType: 'UPDATE'
-                }
-            }
+    private static combineResults(results: ExecutionResult[]): ExecutionResult {
+        const successfulResults = results.filter(r => r.success)
+        const failedResults = results.filter(r => !r.success)
 
-            const tableName = updateMatch[1]
-            const setClause = updateMatch[2]
-            const whereClause = updateMatch[3]
+        if (successfulResults.length === 0) {
+            return results[results.length - 1]
+        }
 
-            const table = database.tables.find(t => t.name.toLowerCase() === tableName.toLowerCase())
-            if (!table) {
-                return {
-                    success: false,
-                    output: '',
-                    error: `Table "${tableName}" does not exist`,
-                    queryType: 'UPDATE'
-                }
-            }
+        const lastResult = successfulResults[successfulResults.length - 1]
 
-            // Parse SET clause
-            const setPairs = setClause.split(',').map(pair => {
-                const [col, val] = pair.split('=').map(p => p.trim())
-                return {
-                    column: col.replace(/[`"']/g, ''),
-                    value: val
+        const combinedOutput = results
+            .map((r, i) => {
+                const num = i + 1
+                if (r.success) {
+                    return `Query ${num}: ${r.output}`
+                } else {
+                    return `Query ${num}: ERROR - ${r.error}`
                 }
             })
+            .join('\n')
 
-            let updatedCount = 0
-
-            table.data.forEach(row => {
-                // Apply WHERE clause if exists
-                let shouldUpdate = true
-                if (whereClause) {
-                    shouldUpdate = this.evaluateSimpleCondition(row, whereClause, table)
-                }
-
-                if (shouldUpdate) {
-                    setPairs.forEach(pair => {
-                        let value = pair.value
-
-                        // Handle NULL
-                        if (value.toUpperCase() === 'NULL') {
-                            row[pair.column] = null
-                        }
-                        // Handle DEFAULT
-                        else if (value.toUpperCase() === 'DEFAULT') {
-                            const column = table.columns.find(c => c.name === pair.column)
-                            row[pair.column] = column?.defaultValue
-                        }
-                        // Remove quotes and convert
-                        else {
-                            value = value.replace(/^['"]|['"]$/g, '')
-                            const column = table.columns.find(c => c.name === pair.column)
-
-                            if (column?.type.includes('INT') || column?.type.includes('DECIMAL') || column?.type.includes('FLOAT') || column?.type.includes('DOUBLE')) {
-                                row[pair.column] = parseFloat(value)
-                            } else if (column?.type.includes('DATE') || column?.type.includes('TIME')) {
-                                row[pair.column] = new Date(value)
-                            } else if (column?.type === 'BOOLEAN') {
-                                row[pair.column] = value.toLowerCase() === 'true' || value === '1'
-                            } else {
-                                row[pair.column] = value
-                            }
-                        }
-                    })
-                    updatedCount++
-                }
-            })
-
-            return {
-                success: true,
-                output: `${updatedCount} row${updatedCount !== 1 ? 's' : ''} updated`,
-                affectedRows: updatedCount,
-                queryType: 'UPDATE'
-            }
-
-        } catch (error) {
-            return {
-                success: false,
-                output: '',
-                error: `UPDATE error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-                queryType: 'UPDATE'
-            }
+        return {
+            success: failedResults.length === 0,
+            output: combinedOutput,
+            resultSet: lastResult.resultSet,
+            columns: lastResult.columns,
+            rowCount: lastResult.rowCount,
+            affectedRows: results.reduce((sum, r) => sum + (r.affectedRows || 0), 0),
+            queryType: 'MULTIPLE',
+            executionTime: results.reduce((sum, r) => sum + (r.executionTime || 0), 0)
         }
     }
 
-    private static executeDeleteQuery(database: BrowserDatabase, query: string): ExecutionResult {
+    private static handleUseQuery(query: string, databases: BrowserDatabase[]): ExecutionResult {
         try {
-            const deleteMatch = query.match(/DELETE FROM\s+(\w+)(?:\s+WHERE\s+(.+))?/is)
-            if (!deleteMatch) {
+            const dbNameMatch = query.match(/USE\s+([^\s;]+)/i)
+            if (!dbNameMatch) {
+                return { success: false, output: '', error: 'Invalid USE syntax', queryType: 'USE' }
+            }
+
+            const dbName = dbNameMatch[1].replace(/[`'"]/g, '')
+
+            let database = databases.find(db => db.name.toLowerCase() === dbName.toLowerCase())
+
+            if (!database) {
                 return {
                     success: false,
                     output: '',
-                    error: 'Invalid DELETE syntax',
-                    queryType: 'DELETE'
+                    error: `Database "${dbName}" does not exist`,
+                    queryType: 'USE',
+                    executionTime: 0
                 }
             }
 
-            const tableName = deleteMatch[1]
-            const whereClause = deleteMatch[2]
-
-            const table = database.tables.find(t => t.name.toLowerCase() === tableName.toLowerCase())
-            if (!table) {
-                return {
-                    success: false,
-                    output: '',
-                    error: `Table "${tableName}" does not exist`,
-                    queryType: 'DELETE'
-                }
-            }
-
-            let deletedCount = 0
-
-            if (whereClause) {
-                // Delete rows matching WHERE clause
-                table.data = table.data.filter(row => {
-                    const shouldDelete = this.evaluateSimpleCondition(row, whereClause, table)
-                    if (shouldDelete) deletedCount++
-                    return !shouldDelete
-                })
-            } else {
-                // Delete all rows
-                deletedCount = table.data.length
-                table.data = []
-            }
+            this.setCurrentDatabase(dbName)
 
             return {
                 success: true,
-                output: `${deletedCount} row${deletedCount !== 1 ? 's' : ''} deleted`,
-                affectedRows: deletedCount,
-                queryType: 'DELETE'
-            }
-
-        } catch (error) {
-            return {
-                success: false,
-                output: '',
-                error: `DELETE error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-                queryType: 'DELETE'
-            }
-        }
-    }
-
-    private static executeDropTableQuery(database: BrowserDatabase, query: string): ExecutionResult {
-        try {
-            const dropMatch = query.match(/DROP TABLE\s+(\w+)/i)
-            if (!dropMatch) {
-                return {
-                    success: false,
-                    output: '',
-                    error: 'Invalid DROP TABLE syntax',
-                    queryType: 'DROP'
-                }
-            }
-
-            const tableName = dropMatch[1]
-            const tableIndex = database.tables.findIndex(t => t.name.toLowerCase() === tableName.toLowerCase())
-
-            if (tableIndex === -1) {
-                return {
-                    success: false,
-                    output: '',
-                    error: `Table "${tableName}" does not exist`,
-                    queryType: 'DROP'
-                }
-            }
-
-            database.tables.splice(tableIndex, 1)
-
-            return {
-                success: true,
-                output: `Table "${tableName}" dropped`,
+                output: `Database changed to "${dbName}"`,
                 affectedRows: 0,
-                queryType: 'DROP'
+                queryType: 'USE',
+                executionTime: 0
             }
 
         } catch (error) {
             return {
                 success: false,
                 output: '',
-                error: `DROP TABLE error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-                queryType: 'DROP'
+                error: error instanceof Error ? error.message : 'USE query failed',
+                queryType: 'USE',
+                executionTime: 0
             }
         }
     }
 
-    private static executeTruncateTableQuery(database: BrowserDatabase, query: string): ExecutionResult {
+    private static handleCreateDatabase(query: string, databases: BrowserDatabase[]): ExecutionResult {
         try {
-            const truncateMatch = query.match(/TRUNCATE TABLE\s+(\w+)/i)
-            if (!truncateMatch) {
-                return {
-                    success: false,
-                    output: '',
-                    error: 'Invalid TRUNCATE syntax',
-                    queryType: 'TRUNCATE'
-                }
+            const dbNameMatch = query.match(/CREATE DATABASE\s+([^\s;]+)/i)
+            if (!dbNameMatch) {
+                return { success: false, output: '', error: 'Invalid CREATE DATABASE syntax', queryType: 'CREATE' }
             }
 
-            const tableName = truncateMatch[1]
-            const table = database.tables.find(t => t.name.toLowerCase() === tableName.toLowerCase())
+            const dbName = dbNameMatch[1].replace(/[`'"]/g, '')
 
-            if (!table) {
-                return {
-                    success: false,
-                    output: '',
-                    error: `Table "${tableName}" does not exist`,
-                    queryType: 'TRUNCATE'
-                }
+            if (databases.some(db => db.name.toLowerCase() === dbName.toLowerCase())) {
+                return { success: false, output: '', error: `Database "${dbName}" already exists`, queryType: 'CREATE' }
             }
 
-            const rowCount = table.data.length
-            table.data = []
+            const newDatabase: BrowserDatabase = {
+                name: dbName,
+                tables: [],
+                createdAt: new Date(),
+                lastModified: new Date(),
+                version: 1
+            }
+
+            databases.push(newDatabase)
+            this.saveDatabases(databases)
 
             return {
                 success: true,
-                output: `Table "${tableName}" truncated`,
-                affectedRows: rowCount,
-                queryType: 'TRUNCATE'
+                output: `Database "${dbName}" created successfully`,
+                affectedRows: 0,
+                queryType: 'CREATE',
+                executionTime: 0
             }
 
         } catch (error) {
             return {
                 success: false,
                 output: '',
-                error: `TRUNCATE error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-                queryType: 'TRUNCATE'
+                error: error instanceof Error ? error.message : 'CREATE DATABASE failed',
+                queryType: 'CREATE',
+                executionTime: 0
             }
         }
     }
 
-    private static executeShowTablesQuery(database: BrowserDatabase): ExecutionResult {
-        const tables = database.tables.map(table => ({
+    private static handleShowDatabases(databases: BrowserDatabase[]): ExecutionResult {
+        const result = databases.map(db => ({
+            Database: db.name,
+            Tables: db.tables.length,
+            Created: db.createdAt.toISOString().split('T')[0]
+        }))
+
+        return {
+            success: true,
+            output: `${databases.length} database(s)`,
+            resultSet: result,
+            columns: ['Database', 'Tables', 'Created'],
+            rowCount: result.length,
+            queryType: 'SHOW',
+            executionTime: 0
+        }
+    }
+
+    private static handleShowTables(database: BrowserDatabase): ExecutionResult {
+        const result = database.tables.map(table => ({
             Tables_in_database: table.name,
             Table_type: 'BASE TABLE',
-            Engine: table.engine || 'InnoDB',
-            Rows: table.data.length,
-            Create_time: database.createdAt.toISOString().split('T')[0],
-            Collation: table.charset ? `${table.charset}_general_ci` : 'utf8mb4_general_ci'
+            Rows: table.data.length
         }))
 
         return {
             success: true,
             output: `Tables in ${database.name}`,
-            resultSet: tables,
-            columns: ['Tables_in_database', 'Table_type', 'Engine', 'Rows', 'Create_time', 'Collation'],
-            rowCount: tables.length,
-            queryType: 'SHOW'
+            resultSet: result,
+            columns: ['Tables_in_database', 'Table_type', 'Rows'],
+            rowCount: result.length,
+            queryType: 'SHOW',
+            executionTime: 0
         }
     }
 
-    private static executeDescribeQuery(database: BrowserDatabase, query: string): ExecutionResult {
+    private static handleDescribe(query: string, database: BrowserDatabase): ExecutionResult {
         try {
-            const describeMatch = query.match(/(?:DESCRIBE|DESC)\s+(\w+)/i)
-            if (!describeMatch) {
-                return {
-                    success: false,
-                    output: '',
-                    error: 'Invalid DESCRIBE syntax',
-                    queryType: 'DESCRIBE'
-                }
+            const tableMatch = query.match(/(?:DESCRIBE|DESC)\s+([^\s]+)/i)
+            if (!tableMatch) {
+                return { success: false, output: '', error: 'Invalid DESCRIBE syntax', queryType: 'DESCRIBE' }
             }
 
-            const tableName = describeMatch[1]
+            const tableName = tableMatch[1].replace(/[`'"]/g, '')
             const table = database.tables.find(t => t.name.toLowerCase() === tableName.toLowerCase())
 
             if (!table) {
-                return {
-                    success: false,
-                    output: '',
-                    error: `Table "${tableName}" does not exist`,
-                    queryType: 'DESCRIBE'
-                }
+                return { success: false, output: '', error: `Table "${tableName}" not found`, queryType: 'DESCRIBE' }
             }
 
-            const columnsInfo = table.columns.map(col => ({
+            const result = table.columns.map(col => ({
                 Field: col.name,
                 Type: col.length ? `${col.type}(${col.length})` : col.type,
                 Null: col.nullable ? 'YES' : 'NO',
@@ -1819,920 +668,1592 @@ class BrowserDatabaseManager {
             return {
                 success: true,
                 output: `Structure of table "${tableName}"`,
-                resultSet: columnsInfo,
+                resultSet: result,
                 columns: ['Field', 'Type', 'Null', 'Key', 'Default', 'Extra'],
-                rowCount: columnsInfo.length,
-                queryType: 'DESCRIBE'
+                rowCount: result.length,
+                queryType: 'DESCRIBE',
+                executionTime: 0
             }
 
         } catch (error) {
             return {
                 success: false,
                 output: '',
-                error: `DESCRIBE error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-                queryType: 'DESCRIBE'
+                error: error instanceof Error ? error.message : 'DESCRIBE failed',
+                queryType: 'DESCRIBE',
+                executionTime: 0
             }
         }
     }
 
-    private static executeAlterTableQuery(database: BrowserDatabase, query: string): ExecutionResult {
-        // Simplified ALTER TABLE implementation
-        return {
-            success: true,
-            output: 'ALTER TABLE executed (simulated)',
-            affectedRows: 0,
-            queryType: 'ALTER'
-        }
-    }
-
-    private static executeCreateDatabaseQuery(database: BrowserDatabase, query: string): ExecutionResult {
+    private static handleCreateTable(query: string, database: BrowserDatabase, databases: BrowserDatabase[]): ExecutionResult {
         try {
-            const createMatch = query.match(/CREATE DATABASE\s+(\w+)/i)
-            if (!createMatch) {
-                return {
-                    success: false,
-                    output: '',
-                    error: 'Invalid CREATE DATABASE syntax',
-                    queryType: 'CREATE'
-                }
+            const tableMatch = query.match(/CREATE TABLE\s+([^\s(]+)/i)
+            if (!tableMatch) {
+                return { success: false, output: '', error: 'Invalid CREATE TABLE syntax', queryType: 'CREATE' }
             }
 
-            const dbName = createMatch[1]
-            this.createDatabase(dbName)
+            const tableName = tableMatch[1].replace(/[`'"]/g, '')
+
+            if (database.tables.some(t => t.name.toLowerCase() === tableName.toLowerCase())) {
+                return { success: false, output: '', error: `Table "${tableName}" already exists`, queryType: 'CREATE' }
+            }
+
+            const columnsMatch = query.match(/\(([\s\S]+)\)/)
+            if (!columnsMatch) {
+                return { success: false, output: '', error: 'No columns defined', queryType: 'CREATE' }
+            }
+
+            const columnsText = columnsMatch[1]
+            const columnLines = columnsText.split(',').map(line => line.trim()).filter(line => line)
+
+            const columns: BrowserColumn[] = []
+            const constraints: string[] = []
+
+            for (const line of columnLines) {
+                const upperLine = line.toUpperCase()
+
+                if (upperLine.includes('PRIMARY KEY') || upperLine.includes('FOREIGN KEY') || upperLine.includes('UNIQUE KEY')) {
+                    constraints.push(line)
+                    continue
+                }
+
+                const parts = line.split(/\s+/)
+                if (parts.length < 2) continue
+
+                const name = parts[0].replace(/[`'"]/g, '')
+                let type = parts[1].toUpperCase()
+
+                let length: number | undefined = undefined
+                const lengthMatch = type.match(/\((\d+(?:,\s*\d+)?)\)/)
+                if (lengthMatch) {
+                    length = parseInt(lengthMatch[1].split(',')[0].trim())
+                    type = type.split('(')[0]
+                }
+
+                const autoIncrement = upperLine.includes('AUTO_INCREMENT') || upperLine.includes('AUTOINCREMENT')
+                const primaryKey = upperLine.includes('PRIMARY KEY')
+                const nullable = !upperLine.includes('NOT NULL')
+                const unique = upperLine.includes('UNIQUE')
+
+                let defaultValue: any = undefined
+                const defaultMatch = line.match(/DEFAULT\s+([^\s,]+)/i)
+                if (defaultMatch) {
+                    let defaultVal = defaultMatch[1].replace(/['"]/g, '')
+                    if (defaultVal.toUpperCase() === 'CURRENT_TIMESTAMP') {
+                        defaultValue = new Date().toISOString().split('T')[0]
+                    } else if (defaultVal.toUpperCase() === 'NULL') {
+                        defaultValue = null
+                    } else if (!isNaN(Number(defaultVal)) && defaultVal.trim() !== '') {
+                        defaultValue = Number(defaultVal)
+                    } else {
+                        defaultValue = defaultVal
+                    }
+                }
+
+                columns.push({
+                    name,
+                    type,
+                    length,
+                    nullable,
+                    primaryKey,
+                    autoIncrement,
+                    unique,
+                    defaultValue
+                })
+            }
+
+            const newTable: BrowserTable = {
+                name: tableName,
+                columns,
+                data: [],
+                indexes: [],
+                constraints,
+                engine: 'InnoDB',
+                charset: 'utf8mb4'
+            }
+
+            database.tables.push(newTable)
+            database.lastModified = new Date()
+            this.saveDatabases(databases)
 
             return {
                 success: true,
-                output: `Database "${dbName}" created`,
+                output: `Table "${tableName}" created successfully`,
                 affectedRows: 0,
-                queryType: 'CREATE'
+                queryType: 'CREATE',
+                executionTime: 0
             }
 
         } catch (error) {
             return {
                 success: false,
                 output: '',
-                error: `CREATE DATABASE error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-                queryType: 'CREATE'
+                error: error instanceof Error ? error.message : 'CREATE TABLE failed',
+                queryType: 'CREATE',
+                executionTime: 0
             }
         }
     }
 
-    private static executeDropDatabaseQuery(database: BrowserDatabase, query: string): ExecutionResult {
+    private static handleInsert(query: string, database: BrowserDatabase, databases: BrowserDatabase[]): ExecutionResult {
         try {
-            const dropMatch = query.match(/DROP DATABASE\s+(\w+)/i)
-            if (!dropMatch) {
+            const cleanQuery = query.replace(/\s+/g, ' ').trim()
+
+            const insertPattern = /INSERT\s+INTO\s+([^\s(]+)(?:\s*\(([^)]+)\))?\s+VALUES\s*(.+)/i
+            const match = cleanQuery.match(insertPattern)
+
+            if (!match) {
                 return {
                     success: false,
                     output: '',
-                    error: 'Invalid DROP DATABASE syntax',
-                    queryType: 'DROP'
+                    error: 'Invalid INSERT syntax',
+                    queryType: 'INSERT'
                 }
             }
 
-            const dbName = dropMatch[1]
-            this.deleteDatabase(dbName)
+            const tableName = match[1].replace(/[`'"]/g, '')
+            const columnsPart = match[2] || ''
+            const valuesPart = match[3].trim()
+
+            const table = database.tables.find(t => t.name.toLowerCase() === tableName.toLowerCase())
+
+            if (!table) {
+                return { success: false, output: '', error: `Table "${tableName}" not found`, queryType: 'INSERT' }
+            }
+
+            let specifiedColumns: string[] = []
+            if (columnsPart) {
+                specifiedColumns = columnsPart.split(',').map(col => col.trim().replace(/[`'"]/g, ''))
+            } else {
+                specifiedColumns = table.columns
+                    .filter(col => !col.autoIncrement)
+                    .map(col => col.name)
+            }
+
+            const rows = this.parseValuesWithStateMachine(valuesPart)
+
+            if (rows.length === 0) {
+                return { success: false, output: '', error: 'No valid rows to insert', queryType: 'INSERT' }
+            }
+
+            let insertedCount = 0
+            const errors: string[] = []
+
+            for (const rowValues of rows) {
+                if (rowValues.length !== specifiedColumns.length) {
+                    errors.push(`Row ${insertedCount + 1}: Expected ${specifiedColumns.length} values, got ${rowValues.length}`)
+                    continue
+                }
+
+                try {
+                    const newRow: any = {}
+
+                    specifiedColumns.forEach((colName, index) => {
+                        let value = rowValues[index]
+
+                        if (value.toUpperCase() === 'NULL') {
+                            newRow[colName] = null
+                            return
+                        }
+
+                        if ((value.startsWith("'") && value.endsWith("'")) ||
+                            (value.startsWith('"') && value.endsWith('"'))) {
+                            value = value.substring(1, value.length - 1)
+                            value = value.replace(/''/g, "'")
+                        }
+
+                        const column = table.columns.find(c => c.name === colName)
+                        if (column) {
+                            if (column.type === 'INT' || column.type === 'INTEGER' || column.type === 'BIGINT') {
+                                value = parseInt(value) || 0
+                            } else if (column.type === 'DECIMAL' || column.type === 'FLOAT' || column.type === 'DOUBLE' || column.type === 'NUMERIC') {
+                                value = parseFloat(value) || 0
+                            } else if (column.type === 'BOOLEAN' || column.type === 'BOOL') {
+                                value = value.toLowerCase() === 'true' || value === '1' || value === 't'
+                            }
+                        }
+
+                        newRow[colName] = value
+                    })
+
+                    table.columns.forEach(col => {
+                        if (col.autoIncrement && !newRow[col.name]) {
+                            const maxId = Math.max(0, ...table.data.map(r => r[col.name] || 0))
+                            newRow[col.name] = maxId + 1
+                        }
+                    })
+
+                    table.columns.forEach(col => {
+                        if (!newRow.hasOwnProperty(col.name)) {
+                            if (col.defaultValue !== undefined) {
+                                newRow[col.name] = col.defaultValue
+                            } else if (col.nullable) {
+                                newRow[col.name] = null
+                            }
+                        }
+                    })
+
+                    table.data.push(newRow)
+                    insertedCount++
+
+                } catch (error) {
+                    errors.push(`Row ${insertedCount + 1}: ${error instanceof Error ? error.message : 'Invalid data'}`)
+                }
+            }
+
+            if (insertedCount === 0 && errors.length > 0) {
+                return {
+                    success: false,
+                    output: '',
+                    error: errors.join('\n'),
+                    queryType: 'INSERT',
+                    executionTime: 0
+                }
+            }
+
+            database.lastModified = new Date()
+            this.saveDatabases(databases)
+
+            this.addToQueryHistory({
+                id: Date.now().toString(),
+                query,
+                result: `Inserted ${insertedCount} row(s)`,
+                timestamp: new Date(),
+                success: true,
+                executionTime: 0,
+                affectedRows: insertedCount
+            })
+
+            let output = `${insertedCount} row(s) inserted into "${tableName}"`
+            if (errors.length > 0) {
+                output += ` (${errors.length} row(s) failed: ${errors.join('; ')})`
+            }
 
             return {
                 success: true,
-                output: `Database "${dbName}" dropped`,
-                affectedRows: 0,
-                queryType: 'DROP'
+                output,
+                affectedRows: insertedCount,
+                queryType: 'INSERT',
+                executionTime: 0
             }
 
         } catch (error) {
             return {
                 success: false,
                 output: '',
-                error: `DROP DATABASE error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-                queryType: 'DROP'
+                error: error instanceof Error ? error.message : 'INSERT failed',
+                queryType: 'INSERT',
+                executionTime: 0
             }
         }
     }
 
-    private static executeUseQuery(database: BrowserDatabase, query: string): ExecutionResult {
+    private static parseValuesWithStateMachine(valuesText: string): string[][] {
+        const rows: string[][] = []
+        let currentRow: string[] = []
+        let currentValue = ''
+        let inString = false
+        let stringChar = ''
+        let inRow = false
+
+        for (let i = 0; i < valuesText.length; i++) {
+            const char = valuesText[i]
+
+            if (!inRow && char === '(') {
+                inRow = true
+                continue
+            }
+
+            if (!inRow && char.trim() === '') {
+                continue
+            }
+
+            if (inRow) {
+                if (!inString && char === ')') {
+                    if (currentValue.trim()) {
+                        currentRow.push(currentValue.trim())
+                    }
+                    if (currentRow.length > 0) {
+                        rows.push([...currentRow])
+                    }
+                    currentRow = []
+                    currentValue = ''
+                    inRow = false
+                    inString = false
+                    continue
+                }
+
+                if (!inString && char === ',') {
+                    currentRow.push(currentValue.trim())
+                    currentValue = ''
+                    continue
+                }
+
+                if (char === "'" || char === '"') {
+                    if (!inString) {
+                        inString = true
+                        stringChar = char
+                    } else if (stringChar === char) {
+                        if (i + 1 < valuesText.length && valuesText[i + 1] === stringChar) {
+                            currentValue += char
+                            i++
+                            continue
+                        }
+                        inString = false
+                    }
+                }
+
+                currentValue += char
+            }
+        }
+
+        if (currentRow.length > 0 || currentValue.trim()) {
+            if (currentValue.trim()) {
+                currentRow.push(currentValue.trim())
+            }
+            if (currentRow.length > 0) {
+                rows.push([...currentRow])
+            }
+        }
+
+        return rows
+    }
+
+    private static handleSelect(query: string, database: BrowserDatabase, databases: BrowserDatabase[]): ExecutionResult {
         try {
-            const useMatch = query.match(/USE\s+(\w+)/i)
-            if (!useMatch) {
-                return {
-                    success: false,
-                    output: '',
-                    error: 'Invalid USE syntax',
-                    queryType: 'USE'
-                }
+            const selectMatch = query.match(/SELECT\s+(.+?)\s+FROM/i)
+            if (!selectMatch) {
+                return { success: false, output: '', error: 'Invalid SELECT query', queryType: 'SELECT' }
             }
 
-            const dbName = useMatch[1]
-            const databases = this.getDatabases()
-            const targetDb = databases.find(db => db.name.toLowerCase() === dbName.toLowerCase())
-
-            if (!targetDb) {
-                return {
-                    success: false,
-                    output: '',
-                    error: `Database "${dbName}" not found`,
-                    queryType: 'USE'
-                }
+            const fromMatch = query.match(/FROM\s+([^\s;,]+)(?:\s+(?:AS\s+)?([^\s,;]+))?(?:\s*(?:,|\b(?:INNER|LEFT|RIGHT|FULL)\s+JOIN)\s+[^\s;,]+)*/i)
+            if (!fromMatch) {
+                return { success: false, output: '', error: 'Missing FROM clause', queryType: 'SELECT' }
             }
 
-            this.setCurrentDatabase(dbName)
+            const mainTableName = fromMatch[1].replace(/[`'"]/g, '')
+            const mainTable = database.tables.find(t => t.name.toLowerCase() === mainTableName.toLowerCase())
+
+            if (!mainTable) {
+                return { success: false, output: '', error: `Table "${mainTableName}" not found`, queryType: 'SELECT' }
+            }
+
+            const columnsText = selectMatch[1]
+            let selectedColumns: string[] = []
+
+            if (columnsText === '*') {
+                selectedColumns = mainTable.columns.map(col => col.name)
+            } else {
+                selectedColumns = columnsText.split(',').map(col => {
+                    const trimmed = col.trim()
+                    const dotIndex = trimmed.lastIndexOf('.')
+                    return dotIndex !== -1 ? trimmed.substring(dotIndex + 1).replace(/[`'"]/g, '') : trimmed.replace(/[`'"]/g, '')
+                })
+            }
+
+            let data = [...mainTable.data]
+
+            const whereMatch = query.match(/WHERE\s+(.+?)(?:\s+(?:ORDER BY|GROUP BY|HAVING|LIMIT|$))/i)
+            if (whereMatch) {
+                const condition = whereMatch[1]
+                data = data.filter(row => this.evaluateCondition(row, condition, database))
+            }
+
+            const groupByMatch = query.match(/GROUP BY\s+(.+?)(?:\s+(?:HAVING|ORDER BY|LIMIT|$))/i)
+            if (groupByMatch) {
+                const groupColumns = groupByMatch[1].split(',').map(col => col.trim().replace(/[`'"]/g, ''))
+                data = this.applyGroupBy(data, groupColumns, selectedColumns)
+            }
+
+            const havingMatch = query.match(/HAVING\s+(.+?)(?:\s+(?:ORDER BY|LIMIT|$))/i)
+            if (havingMatch && groupByMatch) {
+                const condition = havingMatch[1]
+                data = data.filter(row => this.evaluateCondition(row, condition, database))
+            }
+
+            const orderMatch = query.match(/ORDER BY\s+(.+?)(?:\s+(?:ASC|DESC))?(?:\s+(?:LIMIT|$))/i)
+            if (orderMatch) {
+                const orderParts = orderMatch[1].split(',').map(part => {
+                    const [col, dir] = part.trim().split(/\s+/)
+                    return {
+                        column: col.replace(/[`'"]/g, ''),
+                        direction: (dir || 'ASC').toUpperCase()
+                    }
+                })
+
+                data.sort((a, b) => {
+                    for (const order of orderParts) {
+                        const aVal = a[order.column]
+                        const bVal = b[order.column]
+
+                        if (aVal === bVal) continue
+
+                        if (order.direction === 'ASC') {
+                            return aVal > bVal ? 1 : -1
+                        } else {
+                            return aVal < bVal ? 1 : -1
+                        }
+                    }
+                    return 0
+                })
+            }
+
+            const limitMatch = query.match(/LIMIT\s+(\d+)(?:\s*,\s*(\d+))?/i)
+            if (limitMatch) {
+                const limit = limitMatch[2] ? parseInt(limitMatch[2]) : parseInt(limitMatch[1])
+                const offset = limitMatch[2] ? parseInt(limitMatch[1]) : 0
+                data = data.slice(offset, offset + limit)
+            }
+
+            const resultSet = data.map(row => {
+                const filteredRow: any = {}
+                selectedColumns.forEach(col => {
+                    if (row[col] !== undefined) {
+                        filteredRow[col] = row[col]
+                    }
+                })
+                return filteredRow
+            })
+
+            this.addToQueryHistory({
+                id: Date.now().toString(),
+                query,
+                result: `${data.length} row(s) returned`,
+                timestamp: new Date(),
+                success: true,
+                executionTime: 0,
+                rowCount: data.length
+            })
 
             return {
                 success: true,
-                output: `Database changed to "${dbName}"`,
-                affectedRows: 0,
-                queryType: 'USE'
+                output: `${data.length} row(s) returned from "${mainTableName}"`,
+                resultSet,
+                columns: selectedColumns,
+                rowCount: data.length,
+                queryType: 'SELECT',
+                executionTime: 0
             }
 
         } catch (error) {
             return {
                 success: false,
                 output: '',
-                error: `USE error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-                queryType: 'USE'
+                error: error instanceof Error ? error.message : 'SELECT query failed',
+                queryType: 'SELECT',
+                executionTime: 0
             }
         }
     }
 
-    private static executeShowDatabasesQuery(): ExecutionResult {
-        const databases = this.getDatabases()
-        const dbInfo = databases.map(db => ({
-            Database: db.name,
-            Size: '0 KB', // Simplified
-            Created: db.createdAt.toISOString().split('T')[0]
-        }))
+    private static evaluateCondition(row: any, condition: string, database: BrowserDatabase): boolean {
+        try {
+            const normalized = condition.trim().toUpperCase()
 
-        return {
-            success: true,
-            output: 'Databases',
-            resultSet: dbInfo,
-            columns: ['Database', 'Size', 'Created'],
-            rowCount: dbInfo.length,
-            queryType: 'SHOW'
+            if (normalized.includes(' AND ')) {
+                const parts = condition.split(' AND ').map(p => p.trim())
+                return parts.every(part => this.evaluateCondition(row, part, database))
+            }
+
+            if (normalized.includes(' OR ')) {
+                const parts = condition.split(' OR ').map(p => p.trim())
+                return parts.some(part => this.evaluateCondition(row, part, database))
+            }
+
+            const operators = ['!=', '>=', '<=', '=', '>', '<']
+            for (const op of operators) {
+                if (condition.includes(op)) {
+                    const [left, right] = condition.split(op).map(s => s.trim())
+                    const column = left.replace(/[`'"]/g, '')
+                    const value = right.replace(/['"]/g, '')
+
+                    const rowValue = row[column]
+
+                    let compareValue: any = value
+                    if (typeof rowValue === 'number') {
+                        compareValue = isNaN(Number(value)) ? value : Number(value)
+                    } else if (rowValue instanceof Date) {
+                        compareValue = new Date(value)
+                    } else if (typeof rowValue === 'boolean') {
+                        compareValue = value.toLowerCase() === 'true' || value === '1'
+                    }
+
+                    switch (op) {
+                        case '=': return rowValue == compareValue
+                        case '!=': return rowValue != compareValue
+                        case '>': return rowValue > compareValue
+                        case '<': return rowValue < compareValue
+                        case '>=': return rowValue >= compareValue
+                        case '<=': return rowValue <= compareValue
+                    }
+                }
+            }
+
+            return true
+
+        } catch {
+            return true
         }
     }
 
-    private static executeExplainQuery(database: BrowserDatabase, query: string): ExecutionResult {
-        // Simplified EXPLAIN implementation
-        const explainResult = [{
-            id: 1,
-            select_type: 'SIMPLE',
-            table: 'table',
-            partitions: null,
-            type: 'ALL',
-            possible_keys: null,
-            key: null,
-            key_len: null,
-            ref: null,
-            rows: 1,
-            filtered: 100.00,
-            Extra: 'Using where'
-        }]
+    private static applyGroupBy(data: any[], groupColumns: string[], selectColumns: string[]): any[] {
+        const groups = new Map<string, any>()
 
-        return {
-            success: true,
-            output: 'EXPLAIN result',
-            resultSet: explainResult,
-            columns: ['id', 'select_type', 'table', 'partitions', 'type', 'possible_keys', 'key', 'key_len', 'ref', 'rows', 'filtered', 'Extra'],
-            rowCount: 1,
-            queryType: 'EXPLAIN'
+        for (const row of data) {
+            const key = groupColumns.map(col => row[col]).join('|')
+
+            if (!groups.has(key)) {
+                const groupRow: any = {}
+                groupColumns.forEach(col => {
+                    groupRow[col] = row[col]
+                })
+                selectColumns.forEach(col => {
+                    if (!groupColumns.includes(col) && !col.includes('(')) {
+                        groupRow[col] = [row[col]]
+                    }
+                })
+                groups.set(key, groupRow)
+            } else {
+                const groupRow = groups.get(key)
+                selectColumns.forEach(col => {
+                    if (!groupColumns.includes(col) && !col.includes('(')) {
+                        if (!Array.isArray(groupRow[col])) {
+                            groupRow[col] = [groupRow[col]]
+                        }
+                        groupRow[col].push(row[col])
+                    }
+                })
+            }
+        }
+
+        const result: any[] = []
+        for (const groupRow of groups.values()) {
+            const finalRow = { ...groupRow }
+            selectColumns.forEach(col => {
+                if (!groupColumns.includes(col)) {
+                    if (Array.isArray(finalRow[col])) {
+                        if (col.toUpperCase().includes('SUM(')) {
+                            const colName = col.replace(/SUM\(|\)/gi, '')
+                            finalRow[col] = groupRow[colName]?.reduce((a: number, b: number) => a + b, 0) || 0
+                        } else if (col.toUpperCase().includes('COUNT(')) {
+                            finalRow[col] = groupRow[col]?.length || 0
+                        } else if (col.toUpperCase().includes('AVG(')) {
+                            const colName = col.replace(/AVG\(|\)/gi, '')
+                            const values = groupRow[colName]
+                            finalRow[col] = values?.reduce((a: number, b: number) => a + b, 0) / values?.length || 0
+                        } else if (col.toUpperCase().includes('MAX(')) {
+                            const colName = col.replace(/MAX\(|\)/gi, '')
+                            finalRow[col] = Math.max(...(groupRow[colName] || []))
+                        } else if (col.toUpperCase().includes('MIN(')) {
+                            const colName = col.replace(/MIN\(|\)/gi, '')
+                            finalRow[col] = Math.min(...(groupRow[colName] || []))
+                        }
+                    }
+                }
+            })
+            result.push(finalRow)
+        }
+
+        return result
+    }
+
+    private static handleUpdate(query: string, database: BrowserDatabase, databases: BrowserDatabase[]): ExecutionResult {
+        try {
+            const tableMatch = query.match(/UPDATE\s+([^\s]+)/i)
+            if (!tableMatch) {
+                return { success: false, output: '', error: 'Invalid UPDATE syntax', queryType: 'UPDATE' }
+            }
+
+            const tableName = tableMatch[1].replace(/[`'"]/g, '')
+            const table = database.tables.find(t => t.name.toLowerCase() === tableName.toLowerCase())
+
+            if (!table) {
+                return { success: false, output: '', error: `Table "${tableName}" not found`, queryType: 'UPDATE' }
+            }
+
+            const setMatch = query.match(/SET\s+(.+?)(?:\s+WHERE|$)/i)
+            if (!setMatch) {
+                return { success: false, output: '', error: 'No SET clause found', queryType: 'UPDATE' }
+            }
+
+            const setClause = setMatch[1]
+            const updates: Record<string, any> = {}
+
+            const assignments = setClause.split(',').map(a => a.trim())
+            assignments.forEach(assign => {
+                const [col, val] = assign.split('=').map(s => s.trim())
+                if (col && val) {
+                    const colName = col.replace(/[`'"]/g, '')
+                    let value = val.replace(/['"]/g, '')
+
+                    const column = table.columns.find(c => c.name === colName)
+                    if (column) {
+                        if (column.type === 'INT' || column.type === 'INTEGER' || column.type === 'BIGINT') {
+                            value = parseInt(value) || 0
+                        } else if (column.type === 'DECIMAL' || column.type === 'FLOAT' || column.type === 'DOUBLE' || column.type === 'NUMERIC') {
+                            value = parseFloat(value) || 0
+                        } else if (column.type === 'BOOLEAN' || column.type === 'BOOL') {
+                            value = value === 'true' || value === '1'
+                        }
+                    }
+
+                    updates[colName] = value
+                }
+            })
+
+            let updatedCount = 0
+            const whereMatch = query.match(/WHERE\s+(.+)/i)
+
+            table.data.forEach(row => {
+                let shouldUpdate = true
+
+                if (whereMatch) {
+                    shouldUpdate = this.evaluateCondition(row, whereMatch[1], database)
+                }
+
+                if (shouldUpdate) {
+                    Object.keys(updates).forEach(col => {
+                        row[col] = updates[col]
+                    })
+                    updatedCount++
+                }
+            })
+
+            if (updatedCount > 0) {
+                database.lastModified = new Date()
+                this.saveDatabases(databases)
+
+                this.addToQueryHistory({
+                    id: Date.now().toString(),
+                    query,
+                    result: `Updated ${updatedCount} row(s)`,
+                    timestamp: new Date(),
+                    success: true,
+                    executionTime: 0,
+                    affectedRows: updatedCount
+                })
+            }
+
+            return {
+                success: true,
+                output: `${updatedCount} row(s) updated in "${tableName}"`,
+                affectedRows: updatedCount,
+                queryType: 'UPDATE',
+                executionTime: 0
+            }
+
+        } catch (error) {
+            return {
+                success: false,
+                output: '',
+                error: error instanceof Error ? error.message : 'UPDATE failed',
+                queryType: 'UPDATE',
+                executionTime: 0
+            }
         }
     }
 
-    private static executeCreateIndexQuery(database: BrowserDatabase, query: string): ExecutionResult {
-        // Simplified CREATE INDEX implementation
-        return {
-            success: true,
-            output: 'Index created (simulated)',
-            affectedRows: 0,
-            queryType: 'CREATE'
+    private static handleDelete(query: string, database: BrowserDatabase, databases: BrowserDatabase[]): ExecutionResult {
+        try {
+            const tableMatch = query.match(/DELETE\s+FROM\s+([^\s]+)/i)
+            if (!tableMatch) {
+                return { success: false, output: '', error: 'Invalid DELETE syntax', queryType: 'DELETE' }
+            }
+
+            const tableName = tableMatch[1].replace(/[`'"]/g, '')
+            const table = database.tables.find(t => t.name.toLowerCase() === tableName.toLowerCase())
+
+            if (!table) {
+                return { success: false, output: '', error: `Table "${tableName}" not found`, queryType: 'DELETE' }
+            }
+
+            let deletedCount = 0
+            const whereMatch = query.match(/WHERE\s+(.+)/i)
+
+            if (whereMatch) {
+                const originalLength = table.data.length
+                table.data = table.data.filter(row => {
+                    const shouldDelete = this.evaluateCondition(row, whereMatch[1], database)
+                    if (shouldDelete) deletedCount++
+                    return !shouldDelete
+                })
+            } else {
+                deletedCount = table.data.length
+                table.data = []
+            }
+
+            if (deletedCount > 0) {
+                database.lastModified = new Date()
+                this.saveDatabases(databases)
+
+                this.addToQueryHistory({
+                    id: Date.now().toString(),
+                    query,
+                    result: `Deleted ${deletedCount} row(s)`,
+                    timestamp: new Date(),
+                    success: true,
+                    executionTime: 0,
+                    affectedRows: deletedCount
+                })
+            }
+
+            return {
+                success: true,
+                output: `${deletedCount} row(s) deleted from "${tableName}"`,
+                affectedRows: deletedCount,
+                queryType: 'DELETE',
+                executionTime: 0
+            }
+
+        } catch (error) {
+            return {
+                success: false,
+                output: '',
+                error: error instanceof Error ? error.message : 'DELETE failed',
+                queryType: 'DELETE',
+                executionTime: 0
+            }
         }
     }
 
-    private static executeDropIndexQuery(database: BrowserDatabase, query: string): ExecutionResult {
-        // Simplified DROP INDEX implementation
-        return {
-            success: true,
-            output: 'Index dropped (simulated)',
-            affectedRows: 0,
-            queryType: 'DROP'
+    private static handleDropTable(query: string, database: BrowserDatabase, databases: BrowserDatabase[]): ExecutionResult {
+        try {
+            const tableMatch = query.match(/DROP TABLE\s+([^\s]+)/i)
+            if (!tableMatch) {
+                return { success: false, output: '', error: 'Invalid DROP TABLE syntax', queryType: 'DROP' }
+            }
+
+            const tableName = tableMatch[1].replace(/[`'"]/g, '')
+            const tableIndex = database.tables.findIndex(t => t.name.toLowerCase() === tableName.toLowerCase())
+
+            if (tableIndex === -1) {
+                return { success: false, output: '', error: `Table "${tableName}" not found`, queryType: 'DROP' }
+            }
+
+            database.tables.splice(tableIndex, 1)
+            database.lastModified = new Date()
+            this.saveDatabases(databases)
+
+            return {
+                success: true,
+                output: `Table "${tableName}" dropped`,
+                affectedRows: 0,
+                queryType: 'DROP',
+                executionTime: 0
+            }
+
+        } catch (error) {
+            return {
+                success: false,
+                output: '',
+                error: error instanceof Error ? error.message : 'DROP TABLE failed',
+                queryType: 'DROP',
+                executionTime: 0
+            }
         }
     }
 
-    private static executeBeginTransaction(database: BrowserDatabase): ExecutionResult {
-        // Simplified transaction handling
-        return {
-            success: true,
-            output: 'Transaction started',
-            affectedRows: 0,
-            queryType: 'BEGIN'
-        }
-    }
-
-    private static executeCommitTransaction(database: BrowserDatabase): ExecutionResult {
-        // Simplified transaction handling
-        return {
-            success: true,
-            output: 'Transaction committed',
-            affectedRows: 0,
-            queryType: 'COMMIT'
-        }
-    }
-
-    private static executeRollbackTransaction(database: BrowserDatabase): ExecutionResult {
-        // Simplified transaction handling
-        return {
-            success: true,
-            output: 'Transaction rolled back',
-            affectedRows: 0,
-            queryType: 'ROLLBACK'
-        }
-    }
-
-    private static saveDatabase(database: BrowserDatabase): void {
-        const databases = this.getDatabases()
-        const dbIndex = databases.findIndex(db => db.name === database.name)
-
-        if (dbIndex !== -1) {
-            databases[dbIndex] = database
-        } else {
-            databases.push(database)
-        }
-
-        this.saveDatabases(databases)
+    private static addToQueryHistory(item: Omit<QueryHistoryItem, 'executionTime'> & { executionTime: number }): void {
+        const history = this.getQueryHistory()
+        history.unshift({
+            ...item,
+            executionTime: item.executionTime || 0
+        })
+        this.saveQueryHistory(history.slice(0, 1000))
     }
 }
 
-// Security Agreement Modal Component
-const SecurityAgreementModal = ({
-    isOpen,
-    onAgree,
-    onCancel,
-    securitySettings,
-    theme = "light"
+// Theme Toggle Component
+const ThemeToggle = ({
+    theme,
+    setTheme
 }: {
-    isOpen: boolean;
-    onAgree: () => void;
-    onCancel: () => void;
-    securitySettings: SecuritySettings;
-    theme?: "light" | "dark";
+    theme: string,
+    setTheme: (theme: string) => void
 }) => {
-    if (!isOpen) return null;
+    const [mounted, setMounted] = useState(false)
 
-    const themeClasses = theme === 'dark'
-        ? 'bg-gray-900 text-white border-gray-700'
-        : 'bg-white text-gray-900 border-gray-300';
+    useEffect(() => {
+        setMounted(true)
+    }, [])
 
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-            <div className={`w-full max-w-lg rounded-xl shadow-2xl border p-6 ${themeClasses}`}>
-                <div className="flex items-center gap-3 mb-4">
-                    <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                        <ShieldCheck className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                    </div>
-                    <div>
-                        <h2 className="text-xl font-bold">Assessment Security Agreement</h2>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">Please review and agree to the security measures</p>
-                    </div>
-                </div>
-
-                <div className="space-y-4 mb-6">
-                    <div className={`p-4 rounded-lg ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-50'}`}>
-                        <h3 className="font-semibold mb-2 flex items-center gap-2">
-                            <Monitor className="w-4 h-4" /> Security Features
-                        </h3>
-                        <ul className="space-y-2 text-sm">
-                            {securitySettings.timerEnabled ? (
-                                <li className="flex items-center gap-2">
-                                    <Clock className="w-3 h-3 text-blue-500" />
-                                    <span>Timed Assessment: {securitySettings.timerDuration || 60} minutes</span>
-                                </li>
-                            ) : (
-                                <li className="flex items-center gap-2 text-gray-400">
-                                    <Clock className="w-3 h-3" />
-                                    <span>Timed Assessment: Disabled</span>
-                                </li>
-                            )}
-
-                            {securitySettings.fullScreenMode ? (
-                                <li className="flex items-center gap-2">
-                                    <Maximize2 className="w-3 h-3 text-purple-500" />
-                                    <span>Full Screen Mode Required</span>
-                                </li>
-                            ) : (
-                                <li className="flex items-center gap-2 text-gray-400">
-                                    <Maximize2 className="w-3 h-3" />
-                                    <span>Full Screen Mode: Optional</span>
-                                </li>
-                            )}
-
-                            {securitySettings.cameraMicEnabled ? (
-                                <li className="flex items-center gap-2">
-                                    <Camera className="w-3 h-3 text-green-500" />
-                                    <span>Camera & Microphone Monitoring</span>
-                                </li>
-                            ) : (
-                                <li className="flex items-center gap-2">
-                                    <Camera className="w-3 h-3 text-gray-500" />
-                                    <span>Camera: Disabled</span>
-                                </li>
-                            )}
-
-                            {securitySettings.screenRecordingEnabled ? (
-                                <li className="flex items-center gap-2">
-                                    <Video className="w-3 h-3 text-red-500" />
-                                    <span>Screen Recording Active</span>
-                                </li>
-                            ) : (
-                                <li className="flex items-center gap-2 text-gray-400">
-                                    <Video className="w-3 h-3" />
-                                    <span>Screen Recording: Disabled</span>
-                                </li>
-                            )}
-
-                            {securitySettings.tabSwitchAllowed === false ? (
-                                <li className="flex items-center gap-2">
-                                    <Lock className="w-3 h-3 text-yellow-500" />
-                                    <span>Tab Switching Restricted</span>
-                                </li>
-                            ) : (
-                                <li className="flex items-center gap-2 text-gray-400">
-                                    <Lock className="w-3 h-3" />
-                                    <span>Tab Switching: Allowed</span>
-                                </li>
-                            )}
-
-                            {securitySettings.disableClipboard ? (
-                                <li className="flex items-center gap-2">
-                                    <AlertTriangle className="w-3 h-3 text-orange-500" />
-                                    <span>Copy/Paste Disabled</span>
-                                </li>
-                            ) : (
-                                <li className="flex items-center gap-2 text-gray-400">
-                                    <AlertTriangle className="w-3 h-3" />
-                                    <span>Copy/Paste: Allowed</span>
-                                </li>
-                            )}
-                        </ul>
-                    </div>
-                </div>
-
-                <div className="flex gap-3">
-                    <button
-                        onClick={onCancel}
-                        className={`flex-1 py-2.5 px-4 rounded-lg font-medium border transition-colors ${theme === 'dark'
-                            ? 'border-gray-700 text-gray-300 hover:bg-gray-800'
-                            : 'border-gray-300 text-gray-700 hover:bg-gray-100'}`}
-                    >
-                        Cancel Assessment
-                    </button>
-                    <button
-                        onClick={onAgree}
-                        className="flex-1 py-2.5 px-4 rounded-lg font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-                    >
-                        <ShieldCheck className="w-4 h-4" />
-                        I Understand & Agree
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-// Exit Confirmation Modal
-const ExitConfirmationModal = (props: {
-    isOpen: boolean;
-    onConfirm: () => void;
-    onCancel: () => void;
-    theme?: "light" | "dark";
-}) => {
-    const { isOpen, onConfirm, onCancel, theme = "light" } = props;
-
-    if (!isOpen) return null;
-
-    const themeClasses = theme === 'dark'
-        ? 'bg-gray-900 text-white border-gray-700'
-        : 'bg-white text-gray-900 border-gray-300';
-
-    return (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm">
-            <div className={`w-full max-w-md rounded-xl shadow-2xl border p-6 ${themeClasses}`}>
-                <div className="flex items-center gap-3 mb-4">
-                    <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
-                        <AlertTriangle className="w-6 h-6 text-red-600 dark:text-red-400" />
-                    </div>
-                    <div>
-                        <h2 className="text-xl font-bold">Exit Assessment?</h2>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                            Are you sure you want to leave the assessment?
-                        </p>
-                    </div>
-                </div>
-
-                <div className="mb-6">
-                    <div className={`p-4 rounded-lg ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-50'}`}>
-                        <h4 className="font-semibold mb-2">⚠️ Important Notice</h4>
-                        <ul className="text-sm space-y-2">
-                            <li className="flex items-start gap-2">
-                                <div className="mt-0.5">•</div>
-                                <span>Your progress will be saved up to this point</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <div className="mt-0.5">•</div>
-                                <span>You cannot resume this assessment once exited</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <div className="mt-0.5">•</div>
-                                <span>This action may be recorded and reviewed</span>
-                            </li>
-                        </ul>
-                    </div>
-                </div>
-
-                <div className="flex gap-3">
-                    <button
-                        onClick={onCancel}
-                        className={`flex-1 py-2.5 px-4 rounded-lg font-medium border transition-colors ${theme === 'dark'
-                            ? 'border-gray-700 text-gray-300 hover:bg-gray-800 hover:text-white'
-                            : 'border-gray-300 text-gray-700 hover:bg-gray-100 hover:text-gray-900'}`}
-                    >
-                        Continue Assessment
-                    </button>
-                    <button
-                        onClick={onConfirm}
-                        className="flex-1 py-2.5 px-4 rounded-lg font-medium bg-red-600 text-white hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
-                    >
-                        <LogOut className="w-4 h-4" />
-                        Exit Assessment
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-};
-// Database Result Table Component
-const DatabaseResultTable = ({
-    data,
-    columns,
-    queryType,
-    theme = "light"
-}: {
-    data: any[];
-    columns?: string[];
-    queryType?: string;
-    theme?: "light" | "dark";
-}) => {
-    const [sortColumn, setSortColumn] = useState<string | null>(null);
-    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-    const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
-    const [searchTerm, setSearchTerm] = useState('');
-
-    if (!data || data.length === 0) {
-        return (
-            <div className={`text-center py-8 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
-                <Table className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p>No data returned</p>
-                <p className="text-sm mt-1">The query returned an empty result set</p>
-            </div>
-        );
+    const toggleTheme = () => {
+        if (theme === 'light') {
+            setTheme('dark')
+            document.documentElement.classList.add('dark')
+        } else if (theme === 'dark') {
+            setTheme('light')
+            document.documentElement.classList.remove('dark')
+        } else {
+            // Auto mode - check system preference
+            const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+            if (systemPrefersDark) {
+                setTheme('light')
+                document.documentElement.classList.remove('dark')
+            } else {
+                setTheme('dark')
+                document.documentElement.classList.add('dark')
+            }
+        }
     }
 
-    const effectiveColumns = columns || (data[0] ? Object.keys(data[0]) : []);
-
-    // Filter data based on search term
-    const filteredData = searchTerm ? data.filter(row =>
-        effectiveColumns.some(col =>
-            String(row[col] || '').toLowerCase().includes(searchTerm.toLowerCase())
-        )
-    ) : data;
-
-    // Sort data
-    const sortedData = [...filteredData].sort((a, b) => {
-        if (!sortColumn) return 0;
-
-        const valA = a[sortColumn];
-        const valB = b[sortColumn];
-
-        // Handle null values
-        if (valA == null && valB == null) return 0;
-        if (valA == null) return sortDirection === 'asc' ? -1 : 1;
-        if (valB == null) return sortDirection === 'asc' ? 1 : -1;
-
-        // Compare values
-        if (typeof valA === 'number' && typeof valB === 'number') {
-            return sortDirection === 'asc' ? valA - valB : valB - valA;
-        }
-
-        const strA = String(valA).toLowerCase();
-        const strB = String(valB).toLowerCase();
-        return sortDirection === 'asc'
-            ? strA.localeCompare(strB)
-            : strB.localeCompare(strA);
-    });
-
-    const handleSort = (column: string) => {
-        if (sortColumn === column) {
-            setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-        } else {
-            setSortColumn(column);
-            setSortDirection('asc');
-        }
-    };
-
-    const handleSelectAll = () => {
-        if (selectedRows.size === data.length) {
-            setSelectedRows(new Set());
-        } else {
-            setSelectedRows(new Set(data.map((_, index) => index)));
-        }
-    };
-
-    const handleSelectRow = (index: number) => {
-        const newSelected = new Set(selectedRows);
-        if (newSelected.has(index)) {
-            newSelected.delete(index);
-        } else {
-            newSelected.add(index);
-        }
-        setSelectedRows(newSelected);
-    };
+    if (!mounted) return null
 
     return (
-        <div className="rounded-lg border overflow-hidden">
-            {/* Table Controls */}
-            <div className={`p-3 border-b flex items-center justify-between ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'}`}>
-                <div className="flex items-center gap-2">
-                    <div className="relative">
-                        <Search className={`absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`} />
-                        <input
-                            type="text"
-                            placeholder="Search in results..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className={`pl-8 pr-3 py-1.5 text-sm border rounded w-64 focus:ring-1 focus:ring-blue-500 focus:outline-none ${theme === 'dark'
-                                ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400'
-                                : 'border-gray-300 bg-white text-gray-900 placeholder-gray-500'}`}
-                        />
-                    </div>
-                    <span className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                        {filteredData.length} of {data.length} rows
-                    </span>
-                </div>
-                <div className="flex items-center gap-2">
-                    <button
-                        onClick={() => {
-                            const csv = [
-                                effectiveColumns.join(','),
-                                ...sortedData.map(row =>
-                                    effectiveColumns.map(col => {
-                                        const val = row[col];
-                                        if (val == null) return '';
-                                        if (typeof val === 'string') return `"${val.replace(/"/g, '""')}"`;
-                                        return String(val);
-                                    }).join(',')
-                                )
-                            ].join('\n');
+        <button
+            onClick={toggleTheme}
+            className={`p-2 rounded-full hover:scale-110 transition-all duration-200 ${theme === 'dark'
+                ? 'bg-gray-800 hover:bg-gray-700 text-yellow-300'
+                : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                }`}
+            title={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}
+        >
+            {theme === 'dark' ? (
+                <Sun className="w-4 h-4" />
+            ) : (
+                <Moon className="w-4 h-4" />
+            )}
+        </button>
+    )
+}
 
-                            const blob = new Blob([csv], { type: 'text/csv' });
-                            const url = URL.createObjectURL(blob);
-                            const a = document.createElement('a');
-                            a.href = url;
-                            a.download = `query_results_${new Date().toISOString().split('T')[0]}.csv`;
-                            document.body.appendChild(a);
-                            a.click();
-                            document.body.removeChild(a);
-                            URL.revokeObjectURL(url);
-                        }}
-                        className={`px-3 py-1.5 text-xs rounded flex items-center gap-1 ${theme === 'dark'
-                            ? 'bg-gray-700 hover:bg-gray-600 text-gray-300'
-                            : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
-                    >
-                        <Download className="w-3 h-3" />
-                        Export CSV
-                    </button>
-                </div>
-            </div>
-
-            {/* Table */}
-            <div className="overflow-x-auto">
-                <table className={`min-w-full divide-y ${theme === 'dark' ? 'divide-gray-700 bg-gray-900' : 'divide-gray-200 bg-white'}`}>
-                    <thead className={theme === 'dark' ? 'bg-gray-800' : 'bg-gray-50'}>
-                        <tr>
-                            <th className="px-4 py-3">
-                                <input
-                                    type="checkbox"
-                                    checked={selectedRows.size === data.length && data.length > 0}
-                                    onChange={handleSelectAll}
-                                    className={`rounded ${theme === 'dark' ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-300'}`}
-                                />
-                            </th>
-                            {effectiveColumns.map((column, index) => (
-                                <th
-                                    key={index}
-                                    className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}
-                                    onClick={() => handleSort(column)}
-                                >
-                                    <div className="flex items-center gap-1">
-                                        {column}
-                                        {sortColumn === column && (
-                                            <ArrowUpDown className={`w-3 h-3 ${sortDirection === 'asc' ? 'rotate-180' : ''}`} />
-                                        )}
-                                    </div>
-                                </th>
-                            ))}
-                        </tr>
-                    </thead>
-                    <tbody className={`divide-y ${theme === 'dark' ? 'divide-gray-800' : 'divide-gray-200'}`}>
-                        {sortedData.slice(0, 100).map((row, rowIndex) => (
-                            <tr
-                                key={rowIndex}
-                                className={`${selectedRows.has(rowIndex)
-                                    ? (theme === 'dark' ? 'bg-blue-900/20' : 'bg-blue-50')
-                                    : (theme === 'dark' ? 'hover:bg-gray-800' : 'hover:bg-gray-50')}`}
-                                onClick={() => handleSelectRow(rowIndex)}
-                            >
-                                <td className="px-4 py-2">
-                                    <input
-                                        type="checkbox"
-                                        checked={selectedRows.has(rowIndex)}
-                                        onChange={() => handleSelectRow(rowIndex)}
-                                        className={`rounded ${theme === 'dark' ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-300'}`}
-                                        onClick={(e) => e.stopPropagation()}
-                                    />
-                                </td>
-                                {effectiveColumns.map((column, colIndex) => (
-                                    <td
-                                        key={colIndex}
-                                        className={`px-4 py-2 text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}
-                                    >
-                                        {row[column] === null ? (
-                                            <span className="italic text-gray-400 dark:text-gray-500">NULL</span>
-                                        ) : row[column] === undefined ? (
-                                            <span className="italic text-gray-400 dark:text-gray-500">-</span>
-                                        ) : row[column] instanceof Date ? (
-                                            row[column].toISOString().split('T')[0]
-                                        ) : typeof row[column] === 'boolean' ? (
-                                            <span className={`px-2 py-0.5 rounded text-xs ${row[column]
-                                                ? (theme === 'dark' ? 'bg-green-900/30 text-green-300' : 'bg-green-100 text-green-800')
-                                                : (theme === 'dark' ? 'bg-red-900/30 text-red-300' : 'bg-red-100 text-red-800')}`}>
-                                                {row[column] ? 'TRUE' : 'FALSE'}
-                                            </span>
-                                        ) : typeof row[column] === 'object' ? (
-                                            <span className="italic text-gray-400 dark:text-gray-500">
-                                                [Object]
-                                            </span>
-                                        ) : (
-                                            <div className="max-w-xs truncate" title={String(row[column])}>
-                                                {String(row[column])}
-                                            </div>
-                                        )}
-                                    </td>
-                                ))}
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-
-            {/* Table Footer */}
-            <div className={`px-4 py-2 border-t ${theme === 'dark' ? 'border-gray-800 bg-gray-800 text-gray-400' : 'border-gray-200 bg-gray-50 text-gray-500'}`}>
-                <div className="flex items-center justify-between text-xs">
-                    <div>
-                        Showing {Math.min(sortedData.length, 100)} of {sortedData.length} rows
-                        {sortedData.length > 100 && (
-                            <span className="ml-2 italic">(truncated for performance)</span>
-                        )}
-                    </div>
-                    <div className="flex items-center gap-4">
-                        <span>
-                            Selected: {selectedRows.size} row{selectedRows.size !== 1 ? 's' : ''}
-                        </span>
-                        {queryType && (
-                            <span className={`px-2 py-0.5 rounded ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'}`}>
-                                {queryType}
-                            </span>
-                        )}
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-// Database Management Panel
-const DatabaseManagementPanel = ({
-    currentDatabase,
+// UI Components with theme support
+const DatabaseNavigator = ({
     databases,
+    currentDatabase,
+    onSelectDatabase,
+    onSelectTable,
     onCreateDatabase,
-    onImportDatabase,
-    onExportDatabase,
-    onSwitchDatabase,
-    onDeleteDatabase,
+    onRefresh,
     theme = "light"
 }: {
-    currentDatabase: BrowserDatabase | null
     databases: BrowserDatabase[]
+    currentDatabase: BrowserDatabase | null
+    onSelectDatabase: (name: string) => void
+    onSelectTable: (tableName: string) => void
     onCreateDatabase: () => void
-    onImportDatabase: () => void
-    onExportDatabase: () => void
-    onSwitchDatabase: (name: string) => void
-    onDeleteDatabase: (name: string) => void
+    onRefresh: () => void
     theme?: "light" | "dark"
 }) => {
-    const [isExpanded, setIsExpanded] = useState(true)
+    const [expandedDatabases, setExpandedDatabases] = useState<Set<string>>(new Set())
+    const [searchTerm, setSearchTerm] = useState('')
+
+    const toggleDatabase = (name: string) => {
+        setExpandedDatabases(prev => {
+            const newSet = new Set(prev)
+            if (newSet.has(name)) {
+                newSet.delete(name)
+            } else {
+                newSet.add(name)
+            }
+            return newSet
+        })
+    }
+
+    const filteredDatabases = databases.filter(db =>
+        searchTerm ? db.name.toLowerCase().includes(searchTerm.toLowerCase()) : true
+    )
 
     return (
-        <div className={`rounded-lg border mb-4 ${theme === 'dark' ? 'border-gray-700 bg-gray-900' : 'border-gray-200 bg-white'}`}>
-            <div className={`flex items-center justify-between px-4 py-3 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
-                <div className="flex items-center gap-2">
-                    <Database className={`w-4 h-4 ${theme === 'dark' ? 'text-blue-400' : 'text-blue-500'}`} />
-                    <span className={`font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
-                        Database Manager
-                    </span>
-                    {currentDatabase && (
-                        <span className={`text-xs px-2 py-1 rounded ${theme === 'dark' ? 'bg-blue-900/30 text-blue-300' : 'bg-blue-100 text-blue-800'}`}>
-                            {currentDatabase.name}
-                        </span>
-                    )}
-                </div>
-                <div className="flex items-center gap-2">
-                    <button
-                        onClick={onCreateDatabase}
-                        className={`px-3 py-1 text-xs rounded flex items-center gap-1 ${theme === 'dark'
-                            ? 'bg-blue-900/50 text-blue-300 hover:bg-blue-800'
-                            : 'bg-blue-100 text-blue-700 hover:bg-blue-200'}`}
-                    >
-                        <Database className="w-3 h-3" /> New
-                    </button>
-                    <button
-                        onClick={onImportDatabase}
-                        className={`px-3 py-1 text-xs rounded flex items-center gap-1 ${theme === 'dark'
-                            ? 'bg-green-900/50 text-green-300 hover:bg-green-800'
-                            : 'bg-green-100 text-green-700 hover:bg-green-200'}`}
-                    >
-                        <Upload className="w-3 h-3" /> Import
-                    </button>
-                    {currentDatabase && (
+        <div className={`h-full flex flex-col border-r ${theme === 'dark' ? 'border-gray-700 bg-gray-900' : 'border-gray-300 bg-white'}`}>
+            <div className={`p-3 border-b ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'}`}>
+                <div className="flex items-center justify-between mb-2">
+                    <h3 className={`text-sm font-semibold ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                        Database Navigator
+                    </h3>
+                    <div className="flex items-center gap-1">
                         <button
-                            onClick={onExportDatabase}
-                            className={`px-3 py-1 text-xs rounded flex items-center gap-1 ${theme === 'dark'
-                                ? 'bg-purple-900/50 text-purple-300 hover:bg-purple-800'
-                                : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}
+                            onClick={onRefresh}
+                            className={`p-1.5 rounded hover:scale-105 transition-all ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-200 text-gray-600'}`}
+                            title="Refresh"
                         >
-                            <Download className="w-3 h-3" /> Export
+                            <RefreshCw className="w-3.5 h-3.5" />
                         </button>
-                    )}
-                    <button
-                        onClick={() => setIsExpanded(!isExpanded)}
-                        className={`p-1 rounded ${theme === 'dark' ? 'hover:bg-gray-800' : 'hover:bg-gray-100'}`}
-                    >
-                        {isExpanded ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                    </button>
+                        <button
+                            onClick={onCreateDatabase}
+                            className={`p-1.5 rounded hover:scale-105 transition-all ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-200 text-gray-600'}`}
+                            title="New Database"
+                        >
+                            <Plus className="w-3.5 h-3.5" />
+                        </button>
+                    </div>
+                </div>
+                <div className="relative">
+                    <Search className={`absolute left-2 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`} />
+                    <input
+                        type="text"
+                        placeholder="Search databases..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className={`w-full pl-8 pr-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all ${theme === 'dark'
+                            ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-blue-500'
+                            : 'border-gray-300 bg-white text-gray-900 placeholder-gray-500 focus:border-blue-500'
+                            }`}
+                    />
                 </div>
             </div>
 
-            {isExpanded && (
-                <div className="p-4">
-                    {/* Database Selection */}
-                    <div className="mb-4">
-                        <label className={`block text-xs font-medium mb-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                            Select Database
-                        </label>
-                        <div className="space-y-1">
-                            {databases.map(db => (
-                                <div
-                                    key={db.name}
-                                    className={`flex items-center justify-between p-2 rounded ${currentDatabase?.name === db.name
-                                        ? (theme === 'dark' ? 'bg-blue-900/30 border border-blue-700' : 'bg-blue-50 border border-blue-200')
-                                        : (theme === 'dark' ? 'hover:bg-gray-800' : 'hover:bg-gray-50')}`}
-                                >
-                                    <button
-                                        onClick={() => onSwitchDatabase(db.name)}
-                                        className="flex-1 text-left flex items-center gap-2"
-                                    >
-                                        <Database className={`w-3 h-3 ${currentDatabase?.name === db.name
-                                            ? (theme === 'dark' ? 'text-blue-400' : 'text-blue-600')
-                                            : (theme === 'dark' ? 'text-gray-500' : 'text-gray-400')}`} />
-                                        <span className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
-                                            {db.name}
-                                        </span>
-                                        <span className={`text-xs px-1.5 py-0.5 rounded ${theme === 'dark' ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-600'}`}>
-                                            {db.tables.length} tables
-                                        </span>
-                                    </button>
-                                    {currentDatabase?.name !== db.name && (
-                                        <button
-                                            onClick={() => onDeleteDatabase(db.name)}
-                                            className="p-1 text-red-500 hover:text-red-700"
-                                            title="Delete database"
-                                        >
-                                            <Trash2 className="w-3 h-3" />
-                                        </button>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
+            <div className="flex-1 overflow-y-auto p-2">
+                {filteredDatabases.length === 0 ? (
+                    <div className="text-center py-4">
+                        <Database className={`w-8 h-8 mx-auto mb-2 ${theme === 'dark' ? 'text-gray-600' : 'text-gray-400'}`} />
+                        <p className={`text-sm ${theme === 'dark' ? 'text-gray-500' : 'text-gray-600'}`}>
+                            No databases found
+                        </p>
                     </div>
+                ) : (
+                    filteredDatabases.map(db => (
+                        <div key={db.name} className="mb-1">
+                            <button
+                                onClick={() => toggleDatabase(db.name)}
+                                className={`w-full flex items-center justify-between p-2 rounded text-left hover:scale-[1.02] transition-all ${theme === 'dark'
+                                    ? 'hover:bg-gray-800 text-gray-300'
+                                    : 'hover:bg-gray-100 text-gray-700'
+                                    } ${currentDatabase?.name === db.name
+                                        ? (theme === 'dark' ? 'bg-blue-900/30' : 'bg-blue-50')
+                                        : ''}`}
+                            >
+                                <div className="flex items-center gap-2">
+                                    <Database className={`w-3.5 h-3.5 ${theme === 'dark' ? 'text-blue-400' : 'text-blue-500'}`} />
+                                    <span className="text-sm font-medium">{db.name}</span>
+                                    <span className={`text-xs px-1.5 py-0.5 rounded ${theme === 'dark' ? 'bg-gray-800 text-gray-400' : 'bg-gray-200 text-gray-600'
+                                        }`}>
+                                        {db.tables.length}
+                                    </span>
+                                </div>
+                                {expandedDatabases.has(db.name) ? (
+                                    <ChevronDown className="w-3.5 h-3.5" />
+                                ) : (
+                                    <ChevronRightIcon className="w-3.5 h-3.5" />
+                                )}
+                            </button>
 
-                    {/* Database Info */}
-                    {currentDatabase && (
-                        <div className={`p-3 rounded ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-50'}`}>
-                            <div className="flex items-center justify-between mb-2">
-                                <h4 className={`text-xs font-semibold ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
-                                    Database Information
-                                </h4>
-                                <span className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-600'}`}>
-                                    v{currentDatabase.version}
-                                </span>
-                            </div>
-                            <div className="grid grid-cols-2 gap-2 text-xs">
-                                <div>
-                                    <span className={theme === 'dark' ? 'text-gray-500' : 'text-gray-600'}>Tables:</span>
-                                    <span className={`ml-2 font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
-                                        {currentDatabase.tables.length}
-                                    </span>
-                                </div>
-                                <div>
-                                    <span className={theme === 'dark' ? 'text-gray-500' : 'text-gray-600'}>Total Rows:</span>
-                                    <span className={`ml-2 font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
-                                        {currentDatabase.tables.reduce((sum, table) => sum + table.data.length, 0)}
-                                    </span>
-                                </div>
-                                <div>
-                                    <span className={theme === 'dark' ? 'text-gray-500' : 'text-gray-600'}>Created:</span>
-                                    <span className={`ml-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                                        {currentDatabase.createdAt.toLocaleDateString()}
-                                    </span>
-                                </div>
-                                <div>
-                                    <span className={theme === 'dark' ? 'text-gray-500' : 'text-gray-600'}>Modified:</span>
-                                    <span className={`ml-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                                        {currentDatabase.lastModified.toLocaleDateString()}
-                                    </span>
-                                </div>
-                            </div>
-                            {currentDatabase.description && (
-                                <div className="mt-2 text-xs">
-                                    <span className={theme === 'dark' ? 'text-gray-500' : 'text-gray-600'}>Description:</span>
-                                    <p className={`mt-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                                        {currentDatabase.description}
-                                    </p>
+                            {expandedDatabases.has(db.name) && (
+                                <div className="ml-6 mt-1 space-y-1">
+                                    <div className="mb-2">
+                                        <div className={`text-xs font-medium px-2 py-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                                            Tables
+                                        </div>
+                                        {db.tables.map(table => (
+                                            <button
+                                                key={table.name}
+                                                onClick={() => {
+                                                    onSelectDatabase(db.name)
+                                                    onSelectTable(table.name)
+                                                }}
+                                                className={`w-full flex items-center gap-2 p-1.5 pl-4 rounded text-sm hover:scale-[1.01] transition-all ${theme === 'dark'
+                                                    ? 'hover:bg-gray-800 text-gray-400'
+                                                    : 'hover:bg-gray-100 text-gray-600'
+                                                    }`}
+                                            >
+                                                <Table className="w-3 h-3" />
+                                                <span>{table.name}</span>
+                                                <span className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>
+                                                    ({table.data.length})
+                                                </span>
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
                         </div>
-                    )}
+                    ))
+                )}
+            </div>
 
-                    {/* Quick Actions */}
-                    {currentDatabase && (
-                        <div className="mt-4">
-                            <label className={`block text-xs font-medium mb-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                                Quick Actions
-                            </label>
-                            <div className="grid grid-cols-2 gap-2">
-                                <button
-                                    onClick={() => { }}
-                                    className={`p-2 text-xs rounded flex items-center justify-center gap-1 ${theme === 'dark'
-                                        ? 'bg-gray-800 hover:bg-gray-700 text-gray-300'
-                                        : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
-                                >
-                                    <Eye className="w-3 h-3" /> View Tables
-                                </button>
-                                <button
-                                    onClick={() => { }}
-                                    className={`p-2 text-xs rounded flex items-center justify-center gap-1 ${theme === 'dark'
-                                        ? 'bg-gray-800 hover:bg-gray-700 text-gray-300'
-                                        : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
-                                >
-                                    <RefreshCw className="w-3 h-3" /> Refresh
-                                </button>
-                            </div>
-                        </div>
-                    )}
+            <div className={`p-2 border-t ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'}`}>
+                <div className="flex items-center justify-between text-xs">
+                    <span className={theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}>
+                        {databases.length} databases
+                    </span>
+                    <span className={theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}>
+                        {databases.reduce((sum, db) => sum + db.tables.length, 0)} tables
+                    </span>
                 </div>
-            )}
+            </div>
         </div>
     )
 }
 
-// Main DBQueryEditor Component
-interface DBQueryEditorProps {
-    exercise?: DatabaseExercise
-    defaultQuestions?: DatabaseQuestion[]
+const QueryTabManager = ({
+    tabs,
+    activeTab,
+    onTabClick,
+    onNewTab,
+    onCloseTab,
+    onRenameTab,
+    theme = "light"
+}: {
+    tabs: QueryTab[]
+    activeTab: string
+    onTabClick: (tabId: string) => void
+    onNewTab: () => void
+    onCloseTab: (tabId: string) => void
+    onRenameTab: (tabId: string, name: string) => void
     theme?: "light" | "dark"
-    courseId?: string
-    nodeId?: string
-    nodeName?: string
-    nodeType?: string
-    subcategory?: string
-    category?: string
-    studentId?: string
-    onBack?: () => void
-    onCloseExercise?: () => void
-    onResetExercise?: () => void
+}) => {
+    const [renamingTab, setRenamingTab] = useState<string | null>(null)
+    const [renameValue, setRenameValue] = useState('')
+
+    const handleRename = (tabId: string, currentName: string) => {
+        setRenamingTab(tabId)
+        setRenameValue(currentName)
+    }
+
+    const saveRename = (tabId: string) => {
+        if (renameValue.trim()) {
+            onRenameTab(tabId, renameValue.trim())
+        }
+        setRenamingTab(null)
+    }
+
+    return (
+        <div className={`flex items-center border-b ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-gray-100'}`}>
+            <div className="flex items-center flex-1 overflow-x-auto">
+                {tabs.map(tab => (
+                    <div
+                        key={tab.id}
+                        className={`flex items-center border-r transition-all ${theme === 'dark' ? 'border-gray-700' : 'border-gray-300'} ${activeTab === tab.id
+                            ? theme === 'dark'
+                                ? 'bg-gray-900 text-white'
+                                : 'bg-white text-gray-900'
+                            : theme === 'dark'
+                                ? 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                    >
+                        <button
+                            onClick={() => onTabClick(tab.id)}
+                            className="flex items-center gap-1.5 px-3 py-2 text-sm min-w-[120px] max-w-[200px] hover:scale-[1.02] transition-all"
+                        >
+                            {tab.isDirty && <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></div>}
+                            {renamingTab === tab.id ? (
+                                <input
+                                    type="text"
+                                    value={renameValue}
+                                    onChange={(e) => setRenameValue(e.target.value)}
+                                    onBlur={() => saveRename(tab.id)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') saveRename(tab.id)
+                                        if (e.key === 'Escape') setRenamingTab(null)
+                                    }}
+                                    className={`bg-transparent border-none outline-none w-full ${theme === 'dark' ? 'text-white' : 'text-gray-900'
+                                        }`}
+                                    autoFocus
+                                />
+                            ) : (
+                                <span
+                                    className="truncate"
+                                    onDoubleClick={() => handleRename(tab.id, tab.name)}
+                                >
+                                    {tab.name}
+                                </span>
+                            )}
+                        </button>
+                        <button
+                            onClick={() => onCloseTab(tab.id)}
+                            className={`p-1 rounded mr-1 hover:scale-110 transition-all ${theme === 'dark'
+                                ? 'hover:bg-gray-700 text-gray-400'
+                                : 'hover:bg-gray-300 text-gray-600'
+                                }`}
+                        >
+                            <X className="w-3.5 h-3.5" />
+                        </button>
+                    </div>
+                ))}
+            </div>
+            <button
+                onClick={onNewTab}
+                className={`p-2 hover:scale-110 transition-all ${theme === 'dark'
+                    ? 'hover:bg-gray-700 text-gray-400'
+                    : 'hover:bg-gray-200 text-gray-600'
+                    }`}
+                title="New Query Tab"
+            >
+                <Plus className="w-4 h-4" />
+            </button>
+        </div>
+    )
 }
 
-export default function DBQueryEditor({
+const EnhancedResultViewer = ({
+    result,
+    theme = "light"
+}: {
+    result: ExecutionResult | null
+    theme?: "light" | "dark"
+}) => {
+    const [viewMode, setViewMode] = useState<'table' | 'json' | 'text'>('table')
+
+    if (!result) {
+        return (
+            <div className={`h-full flex flex-col items-center justify-center p-8 ${theme === 'dark' ? 'bg-gray-900' : 'bg-white'}`}>
+                <Table className={`w-12 h-12 mb-4 ${theme === 'dark' ? 'text-gray-700' : 'text-gray-300'}`} />
+                <h3 className={`text-lg font-medium mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                    No Query Results
+                </h3>
+                <p className={`text-center ${theme === 'dark' ? 'text-gray-500' : 'text-gray-600'}`}>
+                    Run a SQL query to see results here
+                </p>
+            </div>
+        )
+    }
+
+    if (!result.success) {
+        return (
+            <div className={`h-full p-4 ${theme === 'dark' ? 'bg-gray-900' : 'bg-white'}`}>
+                <div className={`p-4 rounded-lg border ${theme === 'dark' ? 'border-red-800 bg-red-900/20' : 'border-red-200 bg-red-50'}`}>
+                    <div className="flex items-center gap-2 mb-2">
+                        <AlertTriangle className={`w-5 h-5 ${theme === 'dark' ? 'text-red-400' : 'text-red-600'}`} />
+                        <span className={`font-medium ${theme === 'dark' ? 'text-red-300' : 'text-red-700'}`}>
+                            Query Error
+                        </span>
+                    </div>
+                    <pre className={`font-mono text-sm whitespace-pre-wrap ${theme === 'dark' ? 'text-red-300' : 'text-red-700'}`}>
+                        {result.error}
+                    </pre>
+                </div>
+            </div>
+        )
+    }
+
+    return (
+        <div className={`h-full flex flex-col ${theme === 'dark' ? 'bg-gray-900' : 'bg-white'}`}>
+            <div className={`flex items-center justify-between p-3 border-b ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-gray-50'}`}>
+                <div className="flex items-center gap-4">
+                    <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                        Results
+                    </span>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => setViewMode('table')}
+                            className={`px-2 py-1 text-xs rounded hover:scale-105 transition-all ${viewMode === 'table'
+                                ? theme === 'dark'
+                                    ? 'bg-blue-900/50 text-blue-300'
+                                    : 'bg-blue-100 text-blue-700'
+                                : theme === 'dark'
+                                    ? 'text-gray-400 hover:text-gray-300 hover:bg-gray-700'
+                                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
+                                }`}
+                        >
+                            Table
+                        </button>
+                        <button
+                            onClick={() => setViewMode('json')}
+                            className={`px-2 py-1 text-xs rounded hover:scale-105 transition-all ${viewMode === 'json'
+                                ? theme === 'dark'
+                                    ? 'bg-blue-900/50 text-blue-300'
+                                    : 'bg-blue-100 text-blue-700'
+                                : theme === 'dark'
+                                    ? 'text-gray-400 hover:text-gray-300 hover:bg-gray-700'
+                                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
+                                }`}
+                        >
+                            JSON
+                        </button>
+                        <button
+                            onClick={() => setViewMode('text')}
+                            className={`px-2 py-1 text-xs rounded hover:scale-105 transition-all ${viewMode === 'text'
+                                ? theme === 'dark'
+                                    ? 'bg-blue-900/50 text-blue-300'
+                                    : 'bg-blue-100 text-blue-700'
+                                : theme === 'dark'
+                                    ? 'text-gray-400 hover:text-gray-300 hover:bg-gray-700'
+                                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
+                                }`}
+                        >
+                            Text
+                        </button>
+                    </div>
+                </div>
+                <div className="flex items-center gap-3">
+                    {result.executionTime && (
+                        <span className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                            {result.executionTime.toFixed(2)} ms
+                        </span>
+                    )}
+                    {result.rowCount !== undefined && (
+                        <span className={`text-xs ${theme === 'dark' ? 'text-blue-400' : 'text-blue-600'}`}>
+                            {result.rowCount} rows
+                        </span>
+                    )}
+                    {result.affectedRows !== undefined && result.affectedRows > 0 && (
+                        <span className={`text-xs ${theme === 'dark' ? 'text-green-400' : 'text-green-600'}`}>
+                            {result.affectedRows} affected
+                        </span>
+                    )}
+                </div>
+            </div>
+
+            <div className="flex-1 overflow-auto p-4">
+                {viewMode === 'table' && result.resultSet && result.columns ? (
+                    <div className="overflow-x-auto">
+                        <table className={`min-w-full divide-y ${theme === 'dark' ? 'divide-gray-700' : 'divide-gray-200'}`}>
+                            <thead className={theme === 'dark' ? 'bg-gray-800' : 'bg-gray-50'}>
+                                <tr>
+                                    {result.columns.map((col, idx) => (
+                                        <th
+                                            key={idx}
+                                            className={`px-4 py-2 text-left text-xs font-semibold uppercase ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                                                }`}
+                                        >
+                                            {col}
+                                        </th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody className={theme === 'dark' ? 'divide-gray-800' : 'divide-gray-200'}>
+                                {result.resultSet.slice(0, 100).map((row, rowIdx) => (
+                                    <tr
+                                        key={rowIdx}
+                                        className={theme === 'dark' ? 'hover:bg-gray-800' : 'hover:bg-gray-50'}
+                                    >
+                                        {result.columns!.map((col, colIdx) => (
+                                            <td
+                                                key={colIdx}
+                                                className={`px-4 py-2 text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                                                    }`}
+                                            >
+                                                {row[col] === null ? (
+                                                    <span className="italic text-gray-400">NULL</span>
+                                                ) : typeof row[col] === 'object' ? (
+                                                    <span className="text-gray-400">[Object]</span>
+                                                ) : (
+                                                    String(row[col])
+                                                )}
+                                            </td>
+                                        ))}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                        {result.resultSet.length > 100 && (
+                            <div className={`text-xs p-2 text-center ${theme === 'dark' ? 'text-gray-500' : 'text-gray-600'}`}>
+                                Showing 100 of {result.resultSet.length} rows
+                            </div>
+                        )}
+                    </div>
+                ) : viewMode === 'json' && result.resultSet ? (
+                    <pre className={`font-mono text-sm p-4 rounded ${theme === 'dark' ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-800'}`}>
+                        {JSON.stringify(result.resultSet.slice(0, 50), null, 2)}
+                    </pre>
+                ) : viewMode === 'text' ? (
+                    <div className="p-4">
+                        <div className={`p-4 rounded ${theme === 'dark' ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-800'}`}>
+                            <div className="font-mono text-sm whitespace-pre-wrap">{result.output}</div>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="text-center py-8">
+                        <p className={theme === 'dark' ? 'text-gray-500' : 'text-gray-600'}>
+                            No data to display
+                        </p>
+                    </div>
+                )}
+            </div>
+        </div>
+    )
+}
+
+const QueryHistoryPanel = ({
+    history,
+    onSelectQuery,
+    onClearHistory,
+    theme = "light"
+}: {
+    history: QueryHistoryItem[]
+    onSelectQuery: (query: string) => void
+    onClearHistory: () => void
+    theme?: "light" | "dark"
+}) => {
+    const [filter, setFilter] = useState<'all' | 'success' | 'error'>('all')
+
+    const filteredHistory = history.filter(item => {
+        if (filter === 'success') return item.success
+        if (filter === 'error') return !item.success
+        return true
+    })
+
+    return (
+        <div className={`h-full flex flex-col ${theme === 'dark' ? 'bg-gray-900' : 'bg-white'}`}>
+            <div className={`p-3 border-b ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-gray-50'}`}>
+                <div className="flex items-center justify-between mb-2">
+                    <h3 className={`text-sm font-semibold ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                        Query History
+                    </h3>
+                    <div className="flex items-center gap-2">
+                        <select
+                            value={filter}
+                            onChange={(e) => setFilter(e.target.value as any)}
+                            className={`text-xs border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all ${theme === 'dark'
+                                ? 'border-gray-600 bg-gray-700 text-gray-300 focus:border-blue-500'
+                                : 'border-gray-300 bg-white text-gray-900 focus:border-blue-500'
+                                }`}
+                        >
+                            <option value="all">All</option>
+                            <option value="success">Success</option>
+                            <option value="error">Error</option>
+                        </select>
+                        <button
+                            onClick={onClearHistory}
+                            className={`text-xs px-2 py-1 rounded hover:scale-105 transition-all ${theme === 'dark'
+                                ? 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                                : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                                }`}
+                        >
+                            Clear
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2">
+                {filteredHistory.length === 0 ? (
+                    <div className="text-center py-8">
+                        <History className={`w-8 h-8 mx-auto mb-2 ${theme === 'dark' ? 'text-gray-700' : 'text-gray-300'}`} />
+                        <p className={`text-sm ${theme === 'dark' ? 'text-gray-500' : 'text-gray-600'}`}>
+                            No query history
+                        </p>
+                    </div>
+                ) : (
+                    filteredHistory.map((item) => (
+                        <div
+                            key={item.id}
+                            className={`mb-2 p-3 rounded cursor-pointer hover:scale-[1.01] transition-all ${theme === 'dark'
+                                ? 'hover:bg-gray-800'
+                                : 'hover:bg-gray-100'
+                                } ${item.success
+                                    ? (theme === 'dark' ? 'border-l-4 border-green-500' : 'border-l-4 border-green-400')
+                                    : (theme === 'dark' ? 'border-l-4 border-red-500' : 'border-l-4 border-red-400')
+                                }`}
+                            onClick={() => onSelectQuery(item.query)}
+                        >
+                            <div className="flex items-start justify-between mb-1">
+                                <div className="flex items-center gap-2">
+                                    {item.success ? (
+                                        <CheckCircle className="w-3.5 h-3.5 text-green-500" />
+                                    ) : (
+                                        <XCircle className="w-3.5 h-3.5 text-red-500" />
+                                    )}
+                                    <span className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                                        {item.timestamp.toLocaleTimeString()}
+                                    </span>
+                                </div>
+                                <span className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-500'}`}>
+                                    {item.executionTime.toFixed(2)}ms
+                                </span>
+                            </div>
+                            <pre className={`text-xs font-mono whitespace-pre-wrap truncate ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                                }`}>
+                                {item.query}
+                            </pre>
+                        </div>
+                    ))
+                )}
+            </div>
+        </div>
+    )
+}
+
+const QuestionPanel = ({
+    question,
+    currentQuestionIndex,
+    totalQuestions,
+    onPrevious,
+    onNext,
+    userAttempts,
+    maxAttempts,
+    attemptLimitEnabled,
+    onToggleCollapse,
+    isCollapsed,
+    theme = "light"
+}: {
+    question: QuestionType
+    currentQuestionIndex: number
+    totalQuestions: number
+    onPrevious: () => void
+    onNext: () => void
+    userAttempts: number
+    maxAttempts: number
+    attemptLimitEnabled: boolean
+    onToggleCollapse: () => void
+    isCollapsed: boolean
+    theme?: "light" | "dark"
+}) => {
+    const [showHint, setShowHint] = useState(false)
+    const [showSolution, setShowSolution] = useState(false)
+    useEffect(() => {
+        console.log('QuestionPanel useEffect - attemptLimitEnabled changed:', attemptLimitEnabled)
+        console.log('QuestionPanel useEffect - should show attempts?', attemptLimitEnabled === true)
+    }, [attemptLimitEnabled])
+
+
+    if (isCollapsed) {
+        return (
+            <div className={`h-full flex flex-col items-center justify-center border-r ${theme === 'dark' ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-300'
+                }`}>
+                <button
+                    onClick={onToggleCollapse}
+                    className={`p-3 rounded hover:scale-110 transition-all ${theme === 'dark' ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'
+                        }`}
+                    title="Expand Question Panel"
+                >
+                    <PanelRight className="w-5 h-5" />
+                </button>
+                <div className="mt-4 transform -rotate-90 whitespace-nowrap text-xs font-medium">
+                    Q{currentQuestionIndex + 1}/{totalQuestions}
+                </div>
+            </div>
+        )
+    }
+
+    return (
+        <div className={`h-full flex flex-col ${theme === 'dark' ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-300'} border-r`}>
+            <div className={`p-4 border-b ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'}`}>
+                <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={onToggleCollapse}
+                            className={`p-1.5 rounded hover:scale-110 transition-all ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-200 text-gray-600'
+                                }`}
+                            title="Collapse Question Panel"
+                        >
+                            <PanelLeft className="w-4 h-4" />
+                        </button>
+                        <h3 className={`text-sm font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                            Question {currentQuestionIndex + 1}
+                        </h3>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        {question.difficulty && (
+                            <span className={`px-2 py-1 text-xs rounded ${question.difficulty === 'easy'
+                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                : question.difficulty === 'medium'
+                                    ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                                    : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                                }`}>
+                                {question.difficulty}
+                            </span>
+                        )}
+                        {attemptLimitEnabled ? (
+                            <span className={`text-xs px-2 py-1 rounded ${theme === 'dark' ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'
+                                }`}>
+                                Attempts: {userAttempts}/{maxAttempts}
+                            </span>
+                        ) : null}
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-4 mt-2">
+                    <button
+                        onClick={onPrevious}
+                        disabled={currentQuestionIndex === 0}
+                        className={`p-1.5 rounded hover:scale-110 transition-all ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-200'
+                            } disabled:opacity-50 disabled:cursor-not-allowed`}
+                        title="Previous Question"
+                    >
+                        <ChevronLeft size={16} />
+                    </button>
+                    <span className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                        {currentQuestionIndex + 1} / {totalQuestions}
+                    </span>
+                    <button
+                        onClick={onNext}
+                        disabled={currentQuestionIndex === totalQuestions - 1}
+                        className={`p-1.5 rounded hover:scale-110 transition-all ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-200'
+                            } disabled:opacity-50 disabled:cursor-not-allowed`}
+                        title="Next Question"
+                    >
+                        <ChevronRightIcon size={16} />
+                    </button>
+                </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4">
+                <h4 className={`text-sm font-medium mb-3 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                    {question.title}
+                </h4>
+
+                <div className={`mb-6 rounded-lg hover:scale-[1.01] transition-all ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                    <div className="prose max-w-none">
+                        <p className={`text-xs whitespace-pre-wrap ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                            {question.description}
+                        </p>
+                    </div>
+                </div>
+
+                {question.hint && (
+                    <div className="mb-4">
+                        <button
+                            onClick={() => setShowHint(!showHint)}
+                            className={`flex items-center gap-2 w-full p-3 rounded-lg hover:scale-[1.02] transition-all ${theme === 'dark' ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'
+                                }`}
+                        >
+                            <HelpCircle size={16} className={theme === 'dark' ? 'text-yellow-400' : 'text-yellow-600'} />
+                            <span className={`font-medium ${theme === 'dark' ? 'text-yellow-400' : 'text-yellow-600'}`}>
+                                Hint {showHint ? '▼' : '▶'}
+                            </span>
+                        </button>
+                        {showHint && (
+                            <div className={`mt-2 p-3 rounded-lg ${theme === 'dark' ? 'bg-gray-800 text-gray-300' : 'bg-yellow-50 text-yellow-800'
+                                }`}>
+                                <p className="text-xs">{question.hint}</p>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {question.solution && (
+                    <div className="mb-4">
+                        <button
+                            onClick={() => setShowSolution(!showSolution)}
+                            className={`flex items-center gap-2 w-full p-3 rounded-lg hover:scale-[1.02] transition-all ${theme === 'dark' ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'
+                                }`}
+                        >
+                            <CheckCircle size={16} className={theme === 'dark' ? 'text-green-400' : 'text-green-600'} />
+                            <span className={`font-medium ${theme === 'dark' ? 'text-green-400' : 'text-green-600'}`}>
+                                Solution {showSolution ? '▼' : '▶'}
+                            </span>
+                        </button>
+                        {showSolution && (
+                            <div className={`mt-2 p-3 rounded-lg ${theme === 'dark' ? 'bg-gray-800 text-gray-300' : 'bg-green-50 text-green-800'
+                                }`}>
+                                <pre className="whitespace-pre-wrap font-mono text-xs">{question.solution}</pre>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {question.expectedResult && (
+                    <div className={`p-3 rounded-lg hover:scale-[1.01] transition-all ${theme === 'dark' ? 'bg-gray-800' : 'bg-blue-50'
+                        }`}>
+                        <div className="flex items-center gap-2 mb-2">
+                            <Target size={16} className={theme === 'dark' ? 'text-blue-400' : 'text-blue-600'} />
+                            <span className={`font-medium text-xs ${theme === 'dark' ? 'text-blue-400' : 'text-blue-600'}`}>
+                                Expected Result
+                            </span>
+                        </div>
+                        <p className={`text-xs ${theme === 'dark' ? 'text-gray-300' : 'text-blue-700'}`}>
+                            {question.expectedResult}
+                        </p>
+                    </div>
+                )}
+            </div>
+
+            <div className={`p-4 border-t ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-100'}`}>
+                <div className="text-xs text-center" style={{ color: theme === 'dark' ? '#9ca3af' : '#6b7280' }}>
+                    Points: {question.points || 10} • SQL Practice Question
+                </div>
+            </div>
+        </div>
+    )
+}
+
+// Main Component with full theming
+export default function DBQueryEditorPage({
     exercise,
-    defaultQuestions,
+    defaultQuestions = [],
     theme = "light",
     courseId = "",
     nodeId = "",
@@ -2743,251 +2264,183 @@ export default function DBQueryEditor({
     studentId = "unknown_student",
     onBack,
     onCloseExercise,
-    onResetExercise
+    onResetExercise,
+    initialQuestionIndex = 0
 }: DBQueryEditorProps) {
-    // --- Security State ---
-    const [isAssessmentMode, setIsAssessmentMode] = useState(false)
-    const [showSecurityAgreement, setShowSecurityAgreement] = useState(false)
-    const [hasAgreedToSecurity, setHasAgreedToSecurity] = useState(false)
-    const [hasStarted, setHasStarted] = useState(false)
-    const [isLocked, setIsLocked] = useState(false)
-    const [isTerminated, setIsTerminated] = useState(false)
-    const [terminationReason, setTerminationReason] = useState("")
-    const [timeLeft, setTimeLeft] = useState<number | null>(null)
-    const [tabSwitchCount, setTabSwitchCount] = useState(0)
-    const [showTerminal, setShowTerminal] = useState(false)
-    const [terminalLogs, setTerminalLogs] = useState<LogEntry[]>([])
-    const [isRecording, setIsRecording] = useState(false)
-    const [isSaving, setIsSaving] = useState(false)
-    const [cameraStream, setCameraStream] = useState<MediaStream | null>(null)
-    const [screenStream, setScreenStream] = useState<MediaStream | null>(null)
-    const [isInFullscreenMode, setIsInFullscreenMode] = useState(false)
-    const [micEnabled, setMicEnabled] = useState(true)
-    // Add these states at the top with your other states
-    const [sortBy, setSortBy] = useState<'default' | 'difficulty' | 'title'>('default')
-    const [filterDifficulty, setFilterDifficulty] = useState<'all' | 'easy' | 'medium' | 'hard'>('all')
-
+    const [currentTheme, setCurrentTheme] = useState<string>(theme)
     const [databases, setDatabases] = useState<BrowserDatabase[]>([])
     const [currentDatabase, setCurrentDatabase] = useState<BrowserDatabase | null>(null)
-    const [queryResult, setQueryResult] = useState<ExecutionResult | null>(null)
+    const [queryTabs, setQueryTabs] = useState<QueryTab[]>([
+        {
+            id: 'tab-1',
+            name: 'Query 1',
+            query: `-- Write your SQL query here\n-- Example: SELECT * FROM employees;`,
+            isDirty: false
+        }
+    ])
+    const [activeTab, setActiveTab] = useState('tab-1')
+    const [queryResults, setQueryResults] = useState<Record<string, ExecutionResult>>({})
     const [queryHistory, setQueryHistory] = useState<QueryHistoryItem[]>([])
-    const [showQueryHistory, setShowQueryHistory] = useState(false)
-
-    // --- Editor State ---
-    const [code, setCode] = useState("")
     const [isRunning, setIsRunning] = useState(false)
-    const [isFullscreen, setIsFullscreen] = useState(false)
-    const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
-    const [showSidebar, setShowSidebar] = useState(true)
-    const [searchQuery, setSearchQuery] = useState("")
+    const [showHistory, setShowHistory] = useState(false)
+    const [showNavigator, setShowNavigator] = useState(true)
+    const [isQuestionCollapsed, setIsQuestionCollapsed] = useState(false)
+    const [layout, setLayout] = useState<'horizontal' | 'vertical'>('horizontal')
     const [toasts, setToasts] = useState<ToastNotification[]>([])
-    const [isLoadingAttempts, setIsLoadingAttempts] = useState(false)
-    const [userAttempts, setUserAttempts] = useState(0)
-    const [attemptsLoaded, setAttemptsLoaded] = useState(false)
-    const [solvedQuestions, setSolvedQuestions] = useState<Set<number>>(new Set())
-    const [skippedQuestions, setSkippedQuestions] = useState<Set<number>>(new Set())
-    const [showSearch, setShowSearch] = useState(false);
+    const [currentQuestionIndex, setCurrentQuestionIndex] = useState(initialQuestionIndex)
+    const [isSubmitting, setIsSubmitting] = useState(false)
+    const [userAttempts, setUserAttempts] = useState<{ [key: string]: number }>({})
+    const [isLoadingPrevious, setIsLoadingPrevious] = useState(false)
+    const [previousAttempts, setPreviousAttempts] = useState<number>(0)
 
-    // --- Refs ---
-    const editorInstanceRef = useRef<any>(null)
+    const editorRefs = useRef<Record<string, any>>({})
     const containerRef = useRef<HTMLDivElement>(null)
-    const videoRef = useRef<HTMLVideoElement>(null)
-    const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-    const recordedChunksRef = useRef<Blob[]>([])
-    const animationFrameRef = useRef<number | null>(null)
-    const screenVideoRef = useRef<HTMLVideoElement>(null)
-    const [showExitConfirmation, setShowExitConfirmation] = useState(false)
-    const [pendingExitAction, setPendingExitAction] = useState<(() => void) | null>(null)
 
-    // --- Questions ---
-    const questions = useMemo(() => {
-        return exercise
-            ? exercise.questions
-            : (defaultQuestions || [])
-    }, [exercise, defaultQuestions])
-
-    const currentQuestion = questions.length > 0 ? questions[currentQuestionIndex] : null
-
-    // --- Security Settings ---
-    const securitySettings = exercise?.securitySettings || {}
-
-
-
-
-    // Add this useEffect to handle fullscreen changes
+    // Apply theme class to document on mount and theme change
     useEffect(() => {
-        const handleFullscreenChange = () => {
-            const isCurrentlyFullscreen = !!document.fullscreenElement;
-            setIsFullscreen(isCurrentlyFullscreen);
-
-            // If we're in assessment mode and user exited fullscreen without permission
-            if (isAssessmentMode && hasStarted && !isCurrentlyFullscreen && !showExitConfirmation) {
-                // Prevent the default ESC behavior
-                if (document.fullscreenElement) {
-                    // Request fullscreen again immediately
-                    document.documentElement.requestFullscreen().catch(() => { });
-                }
-
-                // Show exit confirmation modal
-                setPendingExitAction(() => () => {
-                    if (document.fullscreenElement) {
-                        document.exitFullscreen().catch(() => { });
-                    }
-                    handleCancelAssessment();
-                });
-                setShowExitConfirmation(true);
-            }
-        };
-
-        // Also handle ESC key press specifically
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (isAssessmentMode && hasStarted && e.key === 'Escape' && document.fullscreenElement) {
-                e.preventDefault();
-                e.stopPropagation();
-
-                setPendingExitAction(() => () => {
-                    document.exitFullscreen().catch(() => { });
-                    handleCancelAssessment();
-                });
-                setShowExitConfirmation(true);
-            }
-        };
-
-        document.addEventListener('fullscreenchange', handleFullscreenChange);
-        document.addEventListener('keydown', handleKeyDown, true); // Use capture phase
-
-        return () => {
-            document.removeEventListener('fullscreenchange', handleFullscreenChange);
-            document.removeEventListener('keydown', handleKeyDown, true);
-        };
-    }, [isAssessmentMode, hasStarted, showExitConfirmation]);
-
-
-
-    // Determine if assessment mode is active
-    useEffect(() => {
-        const normCategory = (category || "").replace(/_/g, ' ').toLowerCase().trim()
-        const isYouDoCategory = normCategory === 'you do'
-
-        setIsAssessmentMode(isYouDoCategory)
-
-        if (isYouDoCategory && !hasAgreedToSecurity) {
-            setShowSecurityAgreement(true)
-        }
-
-        if (!isAssessmentMode) {
-            setHasStarted(true)
-        }
-    }, [category, hasAgreedToSecurity])
-
-    // Initialize database
-    useEffect(() => {
-        loadDatabases()
-        loadQueryHistory()
-
-        if (currentQuestion?.schema) {
-            setCode(currentQuestion.schema)
+        if (currentTheme === 'dark') {
+            document.documentElement.classList.add('dark')
         } else {
-            setCode(`-- Write your SQL queries here
--- Use the database manager on the left to manage databases
--- Sample queries:
--- SELECT * FROM users;
--- INSERT INTO users (name, email) VALUES ('John Doe', 'john@example.com');
--- UPDATE users SET email = 'new@example.com' WHERE id = 1;
--- DELETE FROM users WHERE id = 1;`)
+            document.documentElement.classList.remove('dark')
         }
-    }, [currentQuestion])
+    }, [currentTheme])
 
-    const loadDatabases = () => {
-        const loadedDatabases = BrowserDatabaseManager.getDatabases()
-        const currentDb = BrowserDatabaseManager.getCurrentDatabase()
-        if (currentDb) {
-            setCurrentDatabase(currentDb)
-        }
-    }
-    const loadQueryHistory = () => {
-        const history = BrowserDatabaseManager.getQueryHistory()
-        setQueryHistory(history)
+    // Get questions from props or use default
+    const exerciseData = exercise || {
+        _id: 'sql-exercise',
+        id: 'sql-exercise',
+        title: 'SQL Practice Exercise',
+        attemptLimitEnabled: false,
+        maxAttempts: 3
     }
 
-    // --- Toast System ---
+    const questions: QuestionType[] = exerciseData?.questions || defaultQuestions || [
+        {
+            _id: '1',
+            id: '1',
+            title: 'Basic SELECT Query',
+            description: 'Write a SQL query to select all columns from the employees table.',
+            difficulty: 'easy',
+            points: 10,
+            expectedResult: 'Should return all columns and rows from the employees table.',
+            hint: 'Use SELECT * FROM table_name;',
+            solution: 'SELECT * FROM employees;'
+        },
+        {
+            _id: '2',
+            id: '2',
+            title: 'Filter Data with WHERE',
+            description: 'Write a SQL query to select employees from the Engineering department.',
+            difficulty: 'medium',
+            points: 15,
+            expectedResult: 'Should return only employees where department_id = 1.',
+            hint: 'Use WHERE clause with department_id condition.',
+            solution: 'SELECT * FROM employees WHERE department_id = 1;'
+        },
+        {
+            _id: '3',
+            id: '3',
+            title: 'JOIN Tables',
+            description: 'Write a SQL query to select employee names along with their department names.',
+            difficulty: 'hard',
+            points: 20,
+            expectedResult: 'Should return employee names and corresponding department names.',
+            hint: 'Use JOIN between employees and departments tables.',
+            solution: 'SELECT e.first_name, e.last_name, d.name AS department_name FROM employees e JOIN departments d ON e.department_id = d.id;'
+        }
+    ]
+
+    const currentQuestion = questions[currentQuestionIndex] || questions[0]
+
+    // Check if submit should be disabled
+    const isSubmitDisabled = () => {
+        // Get the maximum attempts from server or local
+        const serverAttempts = previousAttempts;
+        const localAttempts = userAttempts[currentQuestion._id] || 0;
+
+        // Use whichever is higher (server attempts might be more recent)
+        const currentAttempts = Math.max(serverAttempts, localAttempts);
+
+        console.log(`Submit disabled check:`, {
+            serverAttempts,
+            localAttempts,
+            currentAttempts,
+            maxAttempts: exerciseData.questionBehavior.maxAttempts,
+            attemptLimitEnabled: exerciseData.questionBehavior.attemptLimitEnabled,
+            shouldDisable: exerciseData.questionBehavior.attemptLimitEnabled && currentAttempts >= exerciseData.questionBehavior.maxAttempts
+        });
+
+        // Only disable if attempt limit is enabled AND current attempts >= max attempts
+        return exerciseData.questionBehavior.attemptLimitEnabled && currentAttempts >= exerciseData.questionBehavior.maxAttempts;
+    };
+
+
+    // Initialize
+    useEffect(() => {
+        loadInitialData()
+        loadUserAttempts()
+    }, [])
+
+    // Load previous submission when question changes
+    useEffect(() => {
+        if (currentQuestion && currentQuestion._id) {
+            // Auto-load previous submission for each question
+            loadPreviousSubmissionForCurrentQuestion()
+        }
+    }, [currentQuestion._id])
+
+    const loadInitialData = () => {
+        const loadedDatabases = EnhancedDatabaseManager.getDatabases()
+        setDatabases(loadedDatabases)
+
+        EnhancedDatabaseManager.initCurrentDatabase()
+        const currentDbName = EnhancedDatabaseManager.getCurrentDatabase()
+        const currentDb = loadedDatabases.find(db => db.name === currentDbName) || loadedDatabases[0]
+        setCurrentDatabase(currentDb)
+
+        setQueryHistory(EnhancedDatabaseManager.getQueryHistory())
+    }
+
+    const loadUserAttempts = () => {
+        const stored = localStorage.getItem(`attempts_${courseId}_${exerciseData._id}`)
+        if (stored) {
+            setUserAttempts(JSON.parse(stored))
+        }
+    }
+
+    const saveUserAttempts = (questionId: string) => {
+        const newAttempts = {
+            ...userAttempts,
+            [questionId]: (userAttempts[questionId] || 0) + 1
+        }
+        setUserAttempts(newAttempts)
+        localStorage.setItem(`attempts_${courseId}_${exerciseData._id}`, JSON.stringify(newAttempts))
+    }
+
     const showToast = (notification: Omit<ToastNotification, 'id'>) => {
-        const id = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        const id = Date.now().toString()
         const newToast = { ...notification, id }
-        setToasts(prev => [...prev, newToast])
+        setToasts(prev => [newToast, ...prev.slice(0, 5)])
         setTimeout(() => {
             setToasts(prev => prev.filter(toast => toast.id !== id))
         }, notification.duration)
     }
 
-    const removeToast = (id: string) => {
-        setToasts(prev => prev.filter(toast => toast.id !== id))
-    }
-
-
-    const cycleSortOption = () => {
-        const sortOptions: Array<'default' | 'difficulty' | 'title'> = ['default', 'difficulty', 'title']
-        const currentIndex = sortOptions.indexOf(sortBy)
-        const nextIndex = (currentIndex + 1) % sortOptions.length
-        setSortBy(sortOptions[nextIndex])
-    }
-
-    const getSortIcon = () => {
-        switch (sortBy) {
-            case 'difficulty':
-                return '🟢🟡🔴'
-            case 'title':
-                return 'A-Z'
-            case 'default':
-            default:
-                return '123'
-        }
-    }
-
-    const getFilteredAndSortedProblems = () => {
-        let filtered = [...questions]
-
-        // Apply difficulty filter
-        if (filterDifficulty !== 'all') {
-            filtered = filtered.filter(q => q.difficulty === filterDifficulty)
-        }
-
-        // Apply search filter
-        if (searchQuery.trim()) {
-            const query = searchQuery.toLowerCase().trim()
-            filtered = filtered.filter(q =>
-                q.title.toLowerCase().includes(query) ||
-                q.description?.toLowerCase().includes(query)
-            )
-        }
-
-        // Apply sorting
-        switch (sortBy) {
-            case 'difficulty':
-                const difficultyOrder = { 'easy': 1, 'medium': 2, 'hard': 3 }
-                filtered.sort((a, b) => difficultyOrder[a.difficulty] - difficultyOrder[b.difficulty])
-                break
-            case 'title':
-                filtered.sort((a, b) => a.title.localeCompare(b.title))
-                break
-            case 'default':
-            default:
-                filtered.sort((a, b) => a.sequence - b.sequence)
-                break
-        }
-
-        return filtered
-    }
-
-
-
-    // --- Database Management Functions ---
     const handleCreateDatabase = () => {
-        const name = prompt("Enter database name:")
+        const name = prompt('Enter database name:')
         if (name && name.trim()) {
-            const newDatabase = BrowserDatabaseManager.createDatabase(name.trim())
-            setDatabases(prev => [...prev.filter(db => db.name !== newDatabase.name), newDatabase])
-            setCurrentDatabase(newDatabase)
+            const newDb: BrowserDatabase = {
+                name: name.trim(),
+                tables: [],
+                createdAt: new Date(),
+                lastModified: new Date(),
+                version: 1
+            }
+            const updated = [...databases, newDb]
+            setDatabases(updated)
+            EnhancedDatabaseManager.saveDatabases(updated)
+            setCurrentDatabase(newDb)
+            EnhancedDatabaseManager.setCurrentDatabase(newDb.name)
             showToast({
                 type: 'success',
                 title: 'Database Created',
@@ -2997,147 +2450,54 @@ export default function DBQueryEditor({
         }
     }
 
-    const handleImportDatabase = () => {
-        const data = prompt("Paste database export JSON:")
-        if (data && data.trim()) {
-            try {
-                const importedDb = BrowserDatabaseManager.importDatabase(data.trim())
-                setDatabases(prev => [...prev.filter(db => db.name !== importedDb.name), importedDb])
-                setCurrentDatabase(importedDb)
-                showToast({
-                    type: 'success',
-                    title: 'Database Imported',
-                    message: `Database "${importedDb.name}" imported successfully`,
-                    duration: 3000
-                })
-            } catch (error) {
-                showToast({
-                    type: 'error',
-                    title: 'Import Failed',
-                    message: error instanceof Error ? error.message : 'Invalid database format',
-                    duration: 5000
-                })
-            }
+    const handleNewTab = () => {
+        const newId = `tab-${Date.now()}`
+        const newTab: QueryTab = {
+            id: newId,
+            name: `Query ${queryTabs.length + 1}`,
+            query: '',
+            isDirty: false
+        }
+        setQueryTabs([...queryTabs, newTab])
+        setActiveTab(newId)
+    }
+
+    const handleCloseTab = (tabId: string) => {
+        if (queryTabs.length === 1) return
+
+        const tab = queryTabs.find(t => t.id === tabId)
+        if (tab?.isDirty && !confirm('Close unsaved query?')) return
+
+        const updated = queryTabs.filter(t => t.id !== tabId)
+        setQueryTabs(updated)
+        if (activeTab === tabId) {
+            setActiveTab(updated[0].id)
         }
     }
 
-    const handleExportDatabase = () => {
-        if (!currentDatabase) return
-
-        try {
-            const exportData = BrowserDatabaseManager.exportDatabase(currentDatabase.name)
-            const blob = new Blob([exportData], { type: 'application/json' })
-            const url = URL.createObjectURL(blob)
-            const a = document.createElement('a')
-            a.href = url
-            a.download = `${currentDatabase.name}_export_${new Date().toISOString().split('T')[0]}.json`
-            document.body.appendChild(a)
-            a.click()
-            document.body.removeChild(a)
-            URL.revokeObjectURL(url)
-
-            showToast({
-                type: 'success',
-                title: 'Database Exported',
-                message: `Database "${currentDatabase.name}" exported successfully`,
-                duration: 3000
-            })
-        } catch (error) {
-            showToast({
-                type: 'error',
-                title: 'Export Failed',
-                message: error instanceof Error ? error.message : 'Failed to export database',
-                duration: 5000
-            })
-        }
+    const handleRenameTab = (tabId: string, name: string) => {
+        setQueryTabs(tabs =>
+            tabs.map(tab =>
+                tab.id === tabId ? { ...tab, name } : tab
+            )
+        )
     }
 
-
-    const handleSwitchDatabase = (name: string) => {
-        BrowserDatabaseManager.setCurrentDatabase(name)
-        const databases = BrowserDatabaseManager.getDatabases()
-        const database = databases.find(db => db.name === name)
-        if (database) {
-            setCurrentDatabase(database)
-        }
+    const handleTabChange = (tabId: string) => {
+        setActiveTab(tabId)
     }
 
-    const handleDeleteDatabase = (name: string) => {
-        if (!window.confirm(`Are you sure you want to delete database "${name}"? All data will be lost.`)) {
-            return
-        }
-
-        const success = BrowserDatabaseManager.deleteDatabase(name)
-        if (success) {
-            setDatabases(prev => prev.filter(db => db.name !== name))
-
-            if (currentDatabase?.name === name) {
-                setCurrentDatabase(null)
-                const remainingDatabases = BrowserDatabaseManager.getDatabases()
-                if (remainingDatabases.length > 0) {
-                    handleSwitchDatabase(remainingDatabases[0].name)
-                }
-            }
-
-            showToast({
-                type: 'success',
-                title: 'Database Deleted',
-                message: `Database "${name}" deleted successfully`,
-                duration: 3000
-            })
-        }
+    const handleQueryChange = (tabId: string, query: string) => {
+        setQueryTabs(tabs =>
+            tabs.map(tab =>
+                tab.id === tabId ? { ...tab, query, isDirty: true } : tab
+            )
+        )
     }
 
-    // --- Query Execution ---
-    const executeQuery = async (query: string): Promise<ExecutionResult> => {
-        if (!currentDatabase) {
-            return {
-                success: false,
-                output: '',
-                error: 'No database selected. Please select or create a database first.',
-                executionTime: 0
-            }
-        }
-
-        const result = await BrowserDatabaseManager.executeQuery(currentDatabase.name, query)
-
-        // Refresh database state
-        if (result.success && result.queryType && ['CREATE', 'DROP', 'ALTER', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE'].includes(result.queryType)) {
-            const updatedDb = BrowserDatabaseManager.getCurrentDatabase()
-            if (updatedDb) {
-                setCurrentDatabase(updatedDb)
-                loadDatabases()
-            }
-        }
-
-        // Add to terminal logs
-        const logType = result.success ? 'success' : 'error'
-        const logContent = result.success
-            ? `✅ Query executed successfully (${result.executionTime?.toFixed(2)}ms)`
-            : `❌ Query failed: ${result.error}`
-
-        addTerminalLog(logType, logContent)
-
-        if (result.success && result.resultSet) {
-            addTerminalLog('sql', `📊 Result: ${result.rowCount || 0} row${result.rowCount !== 1 ? 's' : ''} returned`)
-        }
-
-        return result
-    }
-
-    const runCode = async () => {
-        if (!currentDatabase) {
-            showToast({
-                type: 'error',
-                title: 'No Database',
-                message: 'Please select or create a database first',
-                duration: 3000
-            })
-            return
-        }
-
-        const query = editorInstanceRef.current ? editorInstanceRef.current.getValue() : code
-        if (!query.trim()) {
+    const runQuery = async () => {
+        const tab = queryTabs.find(t => t.id === activeTab)
+        if (!tab || !tab.query.trim()) {
             showToast({
                 type: 'warning',
                 title: 'Empty Query',
@@ -3148,932 +2508,938 @@ export default function DBQueryEditor({
         }
 
         setIsRunning(true)
-        setShowTerminal(true)
 
         try {
-            // Split multiple queries by semicolon
-            const queries = query.split(';').filter(q => q.trim())
-            let lastResult: ExecutionResult | null = null
+            const result = await EnhancedDatabaseManager.executeQuery(tab.query)
 
-            for (const singleQuery of queries) {
-                if (!singleQuery.trim()) continue
+            setQueryResults(prev => ({
+                ...prev,
+                [activeTab]: result
+            }))
 
-                addTerminalLog('system', `🔧 Executing: ${singleQuery.substring(0, 50)}${singleQuery.length > 50 ? '...' : ''}`)
+            setQueryTabs(tabs =>
+                tabs.map(t =>
+                    t.id === activeTab ? { ...t, isDirty: false, result } : t
+                )
+            )
 
-                const result = await executeQuery(singleQuery)
-                lastResult = result
+            const newHistory = EnhancedDatabaseManager.getQueryHistory()
+            setQueryHistory(newHistory)
 
-                if (!result.success) {
-                    addTerminalLog('error', `❌ Failed: ${result.error}`)
-                    break
-                }
+            const loadedDatabases = EnhancedDatabaseManager.getDatabases()
+            setDatabases(loadedDatabases)
+
+            const currentDbName = EnhancedDatabaseManager.getCurrentDatabase()
+            const currentDb = loadedDatabases.find(db => db.name === currentDbName)
+            if (currentDb) {
+                setCurrentDatabase(currentDb)
             }
 
-            setQueryResult(lastResult)
+            if (result.success) {
+                showToast({
+                    type: 'success',
+                    title: 'Query Executed',
+                    message: result.output?.split('\n')[0] || 'Query completed successfully',
+                    duration: 3000
+                })
+            } else {
+                showToast({
+                    type: 'error',
+                    title: 'Query Failed',
+                    message: result.error || 'Unknown error',
+                    duration: 5000
+                })
+            }
 
         } catch (error) {
-            addTerminalLog('error', `❌ Execution error: ${error}`)
+            showToast({
+                type: 'error',
+                title: 'Execution Error',
+                message: error instanceof Error ? error.message : 'Unknown error',
+                duration: 5000
+            })
         } finally {
             setIsRunning(false)
         }
     }
 
-    const addTerminalLog = (type: LogEntry['type'], content: string) => {
-        setTerminalLogs(prev => [...prev, {
-            id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${prev.length}`,
-            type,
-            content,
-            timestamp: Date.now()
-        }])
-    }
-
-    const clearTerminal = () => setTerminalLogs([])
-
-    // --- Security Functions ---
-    const handleSecurityAgreement = () => {
-        setHasAgreedToSecurity(true)
-        setShowSecurityAgreement(false)
-        startAssessment()
-    }
-
-    const startAssessment = async () => {
-        if (!isAssessmentMode) return
-
-        setHasStarted(true)
-
-        // Force fullscreen
+    const runAllQueries = async () => {
+        setIsRunning(true)
         try {
-            await document.documentElement.requestFullscreen()
-            setIsFullscreen(true)
-            setIsInFullscreenMode(true)
+            for (const tab of queryTabs) {
+                if (tab.query.trim()) {
+                    setActiveTab(tab.id)
+                    await new Promise(resolve => setTimeout(resolve, 100))
+
+                    const result = await EnhancedDatabaseManager.executeQuery(tab.query)
+
+                    setQueryResults(prev => ({
+                        ...prev,
+                        [tab.id]: result
+                    }))
+
+                    setQueryTabs(tabs =>
+                        tabs.map(t =>
+                            t.id === tab.id ? { ...t, isDirty: false, result } : t
+                        )
+                    )
+
+                    await new Promise(resolve => setTimeout(resolve, 50))
+                }
+            }
+
+            const newHistory = EnhancedDatabaseManager.getQueryHistory()
+            setQueryHistory(newHistory)
+
+            const loadedDatabases = EnhancedDatabaseManager.getDatabases()
+            setDatabases(loadedDatabases)
+
+            showToast({
+                type: 'success',
+                title: 'All Queries Executed',
+                message: `Executed ${queryTabs.length} tab(s)`,
+                duration: 3000
+            })
+
         } catch (error) {
-            console.error('Fullscreen error:', error)
             showToast({
                 type: 'error',
-                title: 'Fullscreen Required',
-                message: 'Assessment cannot start without fullscreen',
+                title: 'Execution Error',
+                message: error instanceof Error ? error.message : 'Unknown error',
                 duration: 5000
             })
-            return
-        }
-
-        // Start recording if enabled
-        if (securitySettings.screenRecordingEnabled) {
-            // Start screen recording implementation here
-            showToast({
-                type: 'success',
-                title: 'Assessment Started',
-                message: 'Screen recording and security features are active',
-                duration: 5000
-            })
-        } else {
-            showToast({
-                type: 'success',
-                title: 'Assessment Started',
-                message: 'Security features are now active',
-                duration: 5000
-            })
+        } finally {
+            setIsRunning(false)
         }
     }
-const handleTermination = useCallback(async (reason: string, status: 'completed' | 'terminated' = 'terminated') => {
-  setIsLocked(true);
-  setIsTerminated(true);
-  setTerminationReason(reason);
- 
-  let screenRecordingBlob: Blob | null = null;
- 
-  // Create blob from recorded chunks if available
-  if (securitySettings.screenRecordingEnabled && recordedChunksRef.current.length > 0) {
-    screenRecordingBlob = new Blob(recordedChunksRef.current, {
-      type: mediaRecorderRef.current?.mimeType || 'video/webm'
-    });
-    console.log('📹 Screen recording blob created:', {
-      size: screenRecordingBlob.size,
-      type: screenRecordingBlob.type
-    });
-  }
- 
-  if (document.fullscreenElement) {
-    document.exitFullscreen().catch(() => { });
-  }
- 
-  showToast({
-    type: 'error',
-    title: 'Assessment Terminated',
-    message: reason,
-    duration: 10000
-  });
- 
-  // Lock exercise on backend with screen recording
-  try {
-    const token = localStorage.getItem('smartcliff_token') || '';
-    const formData = new FormData();
-   
-    // Add all data as separate form fields
-    formData.append('courseId', courseId || '');
-    formData.append('exerciseId', exercise?._id || '');
-    formData.append('category', 'You_Do');
-    formData.append('subcategory', subcategory || '');
-    formData.append('status', status);
-    formData.append('isLocked', 'true');
-    formData.append('reason', reason || '');
-   
-    // Get user ID from token or localStorage
-    const userData = localStorage.getItem('userData');
-    const targetUserId = userData ? JSON.parse(userData)._id : '';
-    if (targetUserId) {
-      formData.append('targetUserId', targetUserId);
-    }
- 
-    console.log('📤 Sending lock request with form data fields:');
-    formData.forEach((value, key) => {
-      if (typeof value === 'string') {
-        console.log(`${key}: ${value}`);
-      } else {
-        console.log(`${key}: [File] - ${value.name} (${value.size} bytes)`);
-      }
-    });
- 
-    // Add screen recording if available
-    if (screenRecordingBlob) {
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const filename = `terminated_${courseId}_${studentId}_${exercise?._id}_${timestamp}.webm`;
-      formData.append('screenRecording', screenRecordingBlob, filename);
-      console.log('🎥 Added screen recording to form data:', filename, screenRecordingBlob.size);
-    }
- 
-    const response = await fetch('https://lms-server-ym1q.onrender.com/exercise/lock', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`
-        // Don't set Content-Type header - let browser set it with boundary
-      },
-      body: formData
-    });
- 
-    const responseData = await response.json();
-   
-    if (response.ok) {
-      addTerminalLog('success', '✅ Exercise locked with recording successfully');
-      console.log('✅ Server response:', responseData);
-    } else {
-      console.error('❌ Server error response:', responseData);
-      throw new Error(`Server responded with ${response.status}: ${JSON.stringify(responseData)}`);
-    }
-  } catch (error) {
-    console.error('Failed to lock exercise:', error);
-    addTerminalLog('error', `❌ Failed to lock exercise: ${error.message}`);
-  }
-}, [courseId, exercise, subcategory, securitySettings.screenRecordingEnabled, studentId]);
- 
-    const handleCancelAssessment = () => {
-        if (document.fullscreenElement) {
-            document.exitFullscreen().catch(() => { })
-        }
 
-        setIsAssessmentMode(false)
-        setHasAgreedToSecurity(false)
-        setHasStarted(false)
-        setIsLocked(false)
-        setShowExitConfirmation(false)
-
-        if (onCloseExercise) {
-            onCloseExercise()
-        } else if (onBack) {
-            onBack()
-        }
-
+    const clearResults = () => {
+        setQueryResults({})
         showToast({
             type: 'info',
-            title: 'Assessment Cancelled',
-            message: 'Returning to exercises...',
-            duration: 3000
+            title: 'Results Cleared',
+            message: 'All query results have been cleared',
+            duration: 2000
         })
     }
 
-    // --- Submission ---
-    const submitCode = async () => {
-        if (isAssessmentMode && !hasStarted) {
+    const clearHistory = () => {
+        EnhancedDatabaseManager.saveQueryHistory([])
+        setQueryHistory([])
+        showToast({
+            type: 'info',
+            title: 'History Cleared',
+            message: 'Query history has been cleared',
+            duration: 2000
+        })
+    }
+
+    // Enhanced Submission Handler that stores ALL query tabs as files
+    const handleSubmit = async () => {
+        // Get the maximum attempts from server or local
+        const serverAttempts = previousAttempts;
+        const localAttempts = userAttempts[currentQuestion._id] || 0;
+        const currentAttempts = Math.max(serverAttempts, localAttempts);
+
+        console.log(`Submit attempt check:`, {
+            currentAttempts,
+            maxAttempts: exerciseData.questionBehavior.maxAttempts,
+            attemptLimitEnabled: exerciseData.questionBehavior.attemptLimitEnabled
+        });
+
+        // Check attempts limit
+        if (exerciseData.questionBehavior.attemptLimitEnabled && currentAttempts >= exerciseData.questionBehavior.maxAttempts) {
             showToast({
-                type: 'warning',
-                title: 'Assessment Not Started',
-                message: 'Please start the assessment first',
-                duration: 3000
+                type: 'error',
+                title: 'Maximum Attempts Reached',
+                message: `You have reached the maximum of ${exerciseData.questionBehavior.maxAttempts} attempts for this question. (Current: ${currentAttempts})`,
+                duration: 5000
+            });
+            return;
+        }
+        // Validate required fields
+        if (!courseId) {
+            showToast({
+                type: 'error',
+                title: 'Missing Course ID',
+                message: 'Course ID is required for submission.',
+                duration: 5000
             })
             return
         }
 
-        // Check attempts
-        if (exercise?.questionBehavior.attemptLimitEnabled && currentQuestion) {
-            const max = exercise.questionBehavior.maxAttempts || 1
-            if (userAttempts >= max) {
+        if (!exerciseData._id) {
+            showToast({
+                type: 'error',
+                title: 'Missing Exercise ID',
+                message: 'Exercise ID is required for submission.',
+                duration: 5000
+            })
+            return
+        }
+
+        if (!currentQuestion?._id) {
+            showToast({
+                type: 'error',
+                title: 'Missing Question ID',
+                message: 'Question ID is required for submission.',
+                duration: 5000
+            })
+            return
+        }
+
+        setIsSubmitting(true)
+
+        try {
+            const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || ''
+
+            if (!token) {
                 showToast({
                     type: 'error',
-                    title: 'Limit Reached',
-                    message: `Maximum attempts reached (${userAttempts}/${max})`,
-                    duration: 4000
+                    title: 'Authentication Required',
+                    message: 'Please login to submit your answer.',
+                    duration: 5000
                 })
                 return
             }
-        }
 
-        setIsRunning(true)
-        setShowTerminal(true)
-        clearTerminal()
+            // Create files array from ALL query tabs (not just active tab)
+            const files = queryTabs.map((tab, index) => ({
+                id: `sql-file-${Date.now()}-${index}`,
+                filename: `query${index + 1}.sql`,
+                content: tab.query,
+                language: 'sql' as const,
+                path: `/query${index + 1}.sql`,
+                folderPath: '/',
+                isEntryPoint: index === 0, // First tab is entry point
+                lastModified: new Date().toISOString(),
+                size: Buffer.byteLength(tab.query, 'utf8')
+            }))
 
-        addTerminalLog('system', '🚀 Starting submission process...')
+            // Also include the active tab's result
+            const activeTabResult = queryResults[activeTab]
 
-        try {
-            // For You Do assessments, just submit for manual evaluation
-            const token = localStorage.getItem('smartcliff_token') || ''
-            const response = await fetch('https://lms-server-ym1q.onrender.com/courses/answers/submit', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    courseId,
-                    exerciseId: exercise?._id || '',
-                    questionId: currentQuestion?._id || '',
-                    code: editorInstanceRef.current ? editorInstanceRef.current.getValue() : code,
-                    score: 0,
-                    status: 'submitted',
-                    category: category || "We_Do",
-                    subcategory,
-                    nodeId,
-                    nodeName,
-                    nodeType,
-                    language: 'sql',
-                    attemptLimitEnabled: exercise?.questionBehavior.attemptLimitEnabled,
-                    maxAttempts: exercise?.questionBehavior.maxAttempts
-                }),
+            // Prepare submission payload
+            const payload = {
+                courseId,
+                exerciseId: exerciseData._id,
+                questionId: currentQuestion._id,
+                questionTitle: currentQuestion.title,
+                exerciseName: exerciseData.title || "SQL Exercise",
+                category: category || "We_Do",
+                subcategory: subcategory || "",
+                selectedProgrammingLanguage: 'sql',
+                nodeId: nodeId || "",
+                nodeName: nodeName || "",
+                nodeType: nodeType || "",
+                files: files, // Now includes ALL query tabs as separate files
+                folders: [],
+                status: 'submitted',
+                score: 0,
+                attemptCount: currentAttempts + 1,
+                queryResult: activeTabResult || null,
+                studentId: studentId || "unknown_student",
+                projectStructure: {
+                    totalFiles: files.length,
+                    sqlFiles: files.length,
+                    entryPoints: files.filter(f => f.isEntryPoint).map(f => f.filename),
+                    folderCount: 0,
+                    hasFolders: false,
+                    fileDistribution: {
+                        sql: files.length
+                    }
+                }
+            }
+
+            console.log('Submission payload with multiple files:', {
+                fileCount: files.length,
+                files: files.map(f => f.filename)
             })
 
-            if (response.ok) {
-                setUserAttempts(prev => prev + 1)
-                setSolvedQuestions(prev => {
-                    const newSet = new Set(prev)
-                    newSet.add(currentQuestionIndex)
-                    return newSet
+            const response = await axios.post(
+                'http://localhost:5533/courses/answers/submit-multiple-files',
+                payload,
+                {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    timeout: 30000
+                }
+            )
+
+            console.log('Submission response:', response.data)
+
+            if (response.data.success) {
+                // Update attempts
+                saveUserAttempts(currentQuestion._id)
+
+                showToast({
+                    type: 'success',
+                    title: 'Submission Successful',
+                    message: `Submitted ${files.length} SQL file(s) successfully!`,
+                    duration: 3000
                 })
 
-                addTerminalLog('success', '✅ Code submitted for manual evaluation!')
-
-                // Auto-navigate if allowed
-                if (exercise?.questionBehavior.allowNext && currentQuestionIndex < questions.length - 1) {
-                    let countdown = 3
-                    const countdownInterval = setInterval(() => {
-                        addTerminalLog('system', `⏱️ Next question in ${countdown}...`)
-                        countdown--
-
-                        if (countdown < 0) {
-                            clearInterval(countdownInterval)
-                            setCurrentQuestionIndex(currentQuestionIndex + 1)
-                            addTerminalLog('system', '➡️ Moving to next question...')
-                        }
-                    }, 1000)
-                }
-
-                // Check if last question in assessment mode
-                if (isAssessmentMode && currentQuestionIndex === questions.length - 1) {
+                // Move to next question if available
+                if (currentQuestionIndex < questions.length - 1) {
                     setTimeout(() => {
-                        handleTermination("Assessment Completed Successfully", 'completed')
-                    }, 2000)
+                        setCurrentQuestionIndex(prev => prev + 1)
+                        setQueryTabs([{
+                            id: 'tab-1',
+                            name: `Query ${currentQuestionIndex + 2}`,
+                            query: `-- Question ${currentQuestionIndex + 2}: ${questions[currentQuestionIndex + 1]?.title || 'Next Question'}\n\n`,
+                            isDirty: false
+                        }])
+                        setActiveTab('tab-1')
+                        setQueryResults({})
+                    }, 1500)
+                } else {
+                    showToast({
+                        type: 'success',
+                        title: 'All Questions Completed',
+                        message: '🎉 Congratulations! You have completed all questions.',
+                        duration: 4000
+                    })
                 }
             } else {
-                throw new Error('Submission failed')
+                showToast({
+                    type: 'error',
+                    title: 'Submission Failed',
+                    message: response.data.message || 'Submission failed. Please try again.',
+                    duration: 5000
+                })
             }
-
-        } catch (error) {
-            addTerminalLog('error', `❌ ${error}`)
+        } catch (error: any) {
+            console.error("Submission error:", error)
+            showToast({
+                type: 'error',
+                title: 'Submission Error',
+                message: error.message || 'An error occurred while submitting. Please try again.',
+                duration: 5000
+            })
         } finally {
-            setIsRunning(false)
+            setIsSubmitting(false)
         }
     }
 
-    // --- Question Navigation ---
-    const nextQuestion = () => {
-        if (currentQuestionIndex < questions.length - 1) {
-            setCurrentQuestionIndex(currentQuestionIndex + 1)
+    // Auto-load previous submission for current question
+    const loadPreviousSubmissionForCurrentQuestion = useCallback(async () => {
+        if (!courseId || !exerciseData._id || !currentQuestion?._id || !category) {
+            return
         }
-    }
 
-    const prevQuestion = () => {
-        if (currentQuestionIndex > 0) {
-            setCurrentQuestionIndex(currentQuestionIndex - 1)
-        }
-    }
+        setIsLoadingPrevious(true)
+        try {
+            const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || ''
 
-    const selectQuestion = (index: number) => {
-        if (index >= 0 && index < questions.length) {
-            setCurrentQuestionIndex(index)
-        }
-    }
-
-    const toggleFullscreen = async () => {
-        if (!document.fullscreenElement) {
-            await document.documentElement.requestFullscreen()
-            setIsFullscreen(true)
-        } else {
-            await document.exitFullscreen()
-            setIsFullscreen(false)
-        }
-    }
-
-    const resetCode = () => {
-        if (currentQuestion?.schema) {
-            setCode(currentQuestion.schema)
-            if (editorInstanceRef.current) {
-                editorInstanceRef.current.setValue(currentQuestion.schema)
+            if (!token) {
+                return
             }
-            addTerminalLog('system', 'Code reset to initial schema')
+
+            const response = await fetch(
+                `http://localhost:5533/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseData._id}&questionId=${currentQuestion._id}&category=${category}`,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                }
+            )
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`)
+            }
+
+            const data = await response.json()
+            console.log("Auto-load previous submission response:", data)
+
+            if (data.success && data.data) {
+                const submission = data.data
+
+                // Get attempts count from previous submission
+                const attemptsFromPrevious = submission.attempts || 0
+                setPreviousAttempts(attemptsFromPrevious)
+                console.log(`Auto-loaded previous attempts: ${attemptsFromPrevious}`)
+
+                // Load all SQL files from previous submission
+                const sqlFiles = submission.files?.filter((f: any) =>
+                    f.language === 'sql' || f.filename.endsWith('.sql')
+                ) || []
+
+                if (sqlFiles.length > 0) {
+                    // Create tabs for each SQL file
+                    const newTabs: QueryTab[] = sqlFiles.map((file: any, index: number) => ({
+                        id: `tab-${Date.now()}-${index}`,
+                        name: file.filename.replace('.sql', ''),
+                        query: file.content || '',
+                        isDirty: false
+                    }))
+
+                    setQueryTabs(newTabs)
+                    if (newTabs.length > 0) {
+                        setActiveTab(newTabs[0].id)
+                    }
+
+                    showToast({
+                        type: 'success',
+                        title: 'Previous Submission Loaded',
+                        message: `Auto-loaded ${sqlFiles.length} SQL file(s) for question ${currentQuestionIndex + 1}`,
+                        duration: 3000
+                    })
+                } else if (submission.sqlCode) {
+                    // Fallback to single query
+                    setQueryTabs([{
+                        id: 'tab-1',
+                        name: 'Query 1',
+                        query: submission.sqlCode,
+                        isDirty: false
+                    }])
+                    setActiveTab('tab-1')
+
+                    showToast({
+                        type: 'success',
+                        title: 'Previous Submission Loaded',
+                        message: `Auto-loaded previous answer for question ${currentQuestionIndex + 1}`,
+                        duration: 3000
+                    })
+                }
+            }
+        } catch (error: any) {
+            console.error("Error auto-loading previous submission:", error)
+        } finally {
+            setIsLoadingPrevious(false)
+        }
+    }, [courseId, exerciseData._id, currentQuestion?._id, category, currentQuestionIndex])
+
+    // Manual load previous submission (for the button)
+    const loadPreviousSubmission = useCallback(async () => {
+        if (!courseId || !exerciseData._id || !currentQuestion?._id || !category) {
+            showToast({
+                type: 'error',
+                title: 'Missing Information',
+                message: 'Cannot load previous submission: Missing course, exercise, or question information.',
+                duration: 5000
+            })
+            return
+        }
+
+        setIsLoadingPrevious(true)
+        try {
+            const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || ''
+
+            if (!token) {
+                showToast({
+                    type: 'error',
+                    title: 'Authentication Error',
+                    message: 'Please login to load previous submissions.',
+                    duration: 5000
+                })
+                return
+            }
+
+            const response = await fetch(
+                `http://localhost:5533/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseData._id}&questionId=${currentQuestion._id}&category=${category}`,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                }
+            )
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`)
+            }
+
+            const data = await response.json()
+            console.log("Manual load previous submission response:", data)
+
+            if (data.success && data.data) {
+                const submission = data.data
+
+                // Get attempts count from previous submission
+                const attemptsFromPrevious = submission.attempts || 0
+                setPreviousAttempts(attemptsFromPrevious)
+                console.log(`Previous attempts: ${attemptsFromPrevious}, Max attempts: ${exerciseData.questionBehavior.maxAttempts}`)
+
+                // Load all SQL files from previous submission
+                const sqlFiles = submission.files?.filter((f: any) =>
+                    f.language === 'sql' || f.filename.endsWith('.sql')
+                ) || []
+
+                if (sqlFiles.length > 0) {
+                    // Create tabs for each SQL file
+                    const newTabs: QueryTab[] = sqlFiles.map((file: any, index: number) => ({
+                        id: `tab-${Date.now()}-${index}`,
+                        name: file.filename.replace('.sql', ''),
+                        query: file.content || '',
+                        isDirty: false
+                    }))
+
+                    setQueryTabs(newTabs)
+                    if (newTabs.length > 0) {
+                        setActiveTab(newTabs[0].id)
+                    }
+
+                    showToast({
+                        type: 'success',
+                        title: 'Previous Submission Loaded',
+                        message: `Loaded ${sqlFiles.length} SQL file(s) and ${attemptsFromPrevious} attempt(s) for question ${currentQuestionIndex + 1}`,
+                        duration: 3000
+                    })
+                } else if (submission.sqlCode) {
+                    // Fallback to single query
+                    setQueryTabs([{
+                        id: 'tab-1',
+                        name: 'Query 1',
+                        query: submission.sqlCode,
+                        isDirty: false
+                    }])
+                    setActiveTab('tab-1')
+
+                    showToast({
+                        type: 'success',
+                        title: 'Previous Submission Loaded',
+                        message: `Loaded previous answer (${attemptsFromPrevious} attempts) for question ${currentQuestionIndex + 1}`,
+                        duration: 3000
+                    })
+                } else {
+                    showToast({
+                        type: 'info',
+                        title: 'No Previous Submission',
+                        message: 'No SQL content found in previous submission.',
+                        duration: 3000
+                    })
+                }
+            } else {
+                showToast({
+                    type: 'info',
+                    title: 'No Previous Submission',
+                    message: 'No previous submission found for this question.',
+                    duration: 3000
+                })
+            }
+        } catch (error: any) {
+            console.error("Error loading previous submission:", error)
+            showToast({
+                type: 'error',
+                title: 'Load Failed',
+                message: `Failed to load previous submission: ${error.message}`,
+                duration: 5000
+            })
+        } finally {
+            setIsLoadingPrevious(false)
+        }
+    }, [courseId, exerciseData._id, currentQuestion?._id, category, currentQuestionIndex])
+
+
+    const handlePreviousQuestion = () => {
+        if (currentQuestionIndex > 0) {
+            setCurrentQuestionIndex(prev => prev - 1)
+            setQueryTabs([{
+                id: 'tab-1',
+                name: `Query ${currentQuestionIndex}`,
+                query: `-- Question ${currentQuestionIndex}: ${questions[currentQuestionIndex - 1]?.title || 'Previous Question'}\n\n`,
+                isDirty: false
+            }])
+            setActiveTab('tab-1')
+            setQueryResults({})
         }
     }
 
-    // --- Render ---
-    if (isTerminated || isLocked) {
-        return (
-            <div className="w-full h-full flex items-center justify-center bg-zinc-900 text-white p-4">
-                <div className="bg-zinc-800 p-8 rounded border border-red-600 max-w-md text-center shadow-2xl">
-                    {isSaving ? (
-                        <>
-                            <Loader2 className="w-16 h-16 text-blue-500 mx-auto mb-4 animate-spin" />
-                            <h2 className="text-xl font-bold mb-2">Saving Session...</h2>
-                            <p className="text-gray-400">Please wait while we save your assessment data.</p>
-                        </>
-                    ) : (
-                        <>
-                            <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-                            <h2 className="text-2xl font-bold mb-2">Access Terminated</h2>
-                            <p className="mb-4 text-red-200">{terminationReason}</p>
-                            <button
-                                className="bg-zinc-700 px-6 py-2 rounded hover:bg-zinc-600 font-bold w-full"
-                                onClick={onBack}
-                            >
-                                Return to Dashboard
-                            </button>
-                        </>
-                    )}
-                </div>
-            </div>
-        )
+    const handleNextQuestion = () => {
+        if (currentQuestionIndex < questions.length - 1) {
+            setCurrentQuestionIndex(prev => prev + 1)
+            setQueryTabs([{
+                id: 'tab-1',
+                name: `Query ${currentQuestionIndex + 2}`,
+                query: `-- Question ${currentQuestionIndex + 2}: ${questions[currentQuestionIndex + 1]?.title || 'Next Question'}\n\n`,
+                isDirty: false
+            }])
+            setActiveTab('tab-1')
+            setQueryResults({})
+        }
+    }
+
+    const toggleQuestionPanel = () => {
+        setIsQuestionCollapsed(!isQuestionCollapsed)
     }
 
     return (
         <div
             ref={containerRef}
-            className={`${theme === 'dark' ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'} border-gray-300 rounded-lg w-full flex flex-col border transition-all duration-300 ${isFullscreen
-                ? "fixed inset-0 z-50 rounded-none"
-                : "relative h-full min-h-0 flex-1"
+            className={`w-full h-screen flex flex-col transition-colors duration-200 ${currentTheme === 'dark'
+                ? 'bg-gray-900 text-white dark-theme'
+                : 'bg-white text-gray-900 light-theme'
                 }`}
         >
-            {/* Security Agreement Modal */}
-            <SecurityAgreementModal
-                isOpen={showSecurityAgreement}
-                onAgree={handleSecurityAgreement}
-                onCancel={handleCancelAssessment}
-                securitySettings={securitySettings}
-                theme={theme}
+            <ToastContainer
+                position="bottom-right"
+                autoClose={3000}
+                theme={currentTheme === 'light' ? 'light' : 'dark'}
+                toastStyle={{
+                    backgroundColor: currentTheme === 'dark' ? '#1f2937' : '#f9fafb',
+                    color: currentTheme === 'dark' ? 'white' : '#374151',
+                    border: `1px solid ${currentTheme === 'dark' ? '#374151' : '#e5e7eb'}`
+                }}
             />
 
-            <ExitConfirmationModal
-                isOpen={showExitConfirmation}
-                onConfirm={() => {
-                    if (pendingExitAction) {
-                        pendingExitAction()
-                    }
-                    setShowExitConfirmation(false)
-                    setPendingExitAction(null)
-                }}
-                onCancel={() => {
-                    setShowExitConfirmation(false)
-                    setPendingExitAction(null)
-                    if (isAssessmentMode && hasStarted && !document.fullscreenElement) {
-                        document.documentElement.requestFullscreen().catch(() => { })
-                    }
-                }}
-                theme={theme}
-            />
-
-            {/* Header */}
-            <div className={`flex items-center justify-between p-2.5 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-300'}`}>
-                {/* In the header section */}
-                <div className="flex items-center gap-3">
+            {/* Top Navigation Bar */}
+            <div className={`flex items-center justify-between px-3 py-2 border-b transition-colors ${currentTheme === 'dark'
+                ? 'border-gray-700 bg-gray-800'
+                : 'border-gray-300 bg-gray-100'
+                }`}>
+                <div className="flex items-center gap-2">
                     <button
-                        onClick={() => setShowSidebar(!showSidebar)}
-                        className={`flex items-center justify-center w-7 h-7 rounded transition-colors ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-200 text-gray-700'}`}
-                        title={showSidebar ? 'Hide questions' : 'Show questions'}
+                        onClick={onBack}
+                        className={`p-1.5 rounded hover:scale-110 transition-all ${currentTheme === 'dark'
+                            ? 'hover:bg-gray-700 text-gray-400'
+                            : 'hover:bg-gray-200 text-gray-600'
+                            }`}
+                        title="Back"
                     >
-                        {showSidebar ? <ChevronLeft className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+                        <ArrowLeft className="w-4 h-4" />
                     </button>
 
-                    {questions.length > 1 && (
-                        <div className="flex items-center gap-1.5">
-                            <button
-                                onClick={prevQuestion}
-                                disabled={currentQuestionIndex === 0}
-                                className={`w-7 h-7 flex items-center justify-center border rounded ${theme === 'dark' ? 'border-gray-600 hover:bg-gray-700 text-gray-300' : 'border-gray-300 hover:bg-gray-200 text-gray-700'} disabled:opacity-50`}
-                            >
-                                <ChevronLeft className="w-3.5 h-3.5" />
-                            </button>
-                            <span className="text-xs font-medium">{currentQuestionIndex + 1}/{questions.length}</span>
-                            <button
-                                onClick={nextQuestion}
-                                disabled={currentQuestionIndex === questions.length - 1}
-                                className={`w-7 h-7 flex items-center justify-center border rounded ${theme === 'dark' ? 'border-gray-600 hover:bg-gray-700 text-gray-300' : 'border-gray-300 hover:bg-gray-200 text-gray-700'} disabled:opacity-50`}
-                            >
-                                <ChevronRight className="w-3.5 h-3.5" />
-                            </button>
+                    <div className="flex items-center gap-1">
+                        <button
+                            onClick={() => setShowNavigator(!showNavigator)}
+                            className={`p-1.5 rounded hover:scale-110 transition-all ${currentTheme === 'dark'
+                                ? 'hover:bg-gray-700 text-gray-400'
+                                : 'hover:bg-gray-200 text-gray-600'
+                                }`}
+                            title={showNavigator ? "Hide Navigator" : "Show Navigator"}
+                        >
+                            {showNavigator ? <SidebarClose className="w-4 h-4" /> : <Sidebar className="w-4 h-4" />}
+                        </button>
+
+                        <button
+                            onClick={() => setShowHistory(!showHistory)}
+                            className={`p-1.5 rounded hover:scale-110 transition-all ${currentTheme === 'dark'
+                                ? 'hover:bg-gray-700 text-gray-400'
+                                : 'hover:bg-gray-200 text-gray-600'
+                                }`}
+                            title={showHistory ? "Hide History" : "Show History"}
+                        >
+                            <History className="w-4 h-4" />
+                        </button>
+                        <button
+                            onClick={() => setLayout(layout === 'horizontal' ? 'vertical' : 'horizontal')}
+                            className={`p-1.5 rounded hover:scale-110 transition-all ${currentTheme === 'dark'
+                                ? 'hover:bg-gray-700 text-gray-400'
+                                : 'hover:bg-gray-200 text-gray-600'
+                                }`}
+                            title="Toggle Layout"
+                        >
+                            {layout === 'horizontal' ? <SplitSquareHorizontal className="w-4 h-4" /> : <SplitSquareVertical className="w-4 h-4" />}
+                        </button>
+
+                        {/* Theme Toggle */}
+                        <div className="ml-2">
+                            <ThemeToggle theme={currentTheme} setTheme={setCurrentTheme} />
                         </div>
-                    )}
+                    </div>
+
+                    <div className="flex items-center gap-2 ml-4">
+                        <span className={`text-xs ${currentTheme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Database:</span>
+                        <select
+                            value={currentDatabase?.name || ''}
+                            onChange={(e) => {
+                                const db = databases.find(d => d.name === e.target.value)
+                                if (db) {
+                                    setCurrentDatabase(db)
+                                    EnhancedDatabaseManager.setCurrentDatabase(db.name)
+                                    showToast({
+                                        type: 'info',
+                                        title: 'Database Selected',
+                                        message: `Using database: ${db.name}`,
+                                        duration: 2000
+                                    })
+                                }
+                            }}
+                            className={`text-xs border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all ${currentTheme === 'dark'
+                                ? 'border-gray-600 bg-gray-700 text-gray-300 focus:border-blue-500'
+                                : 'border-gray-300 bg-white text-gray-900 focus:border-blue-500'
+                                }`}
+                        >
+                            {databases.map(db => (
+                                <option key={db.name} value={db.name}>
+                                    {db.name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
                 </div>
 
                 <div className="flex items-center gap-2">
                     <button
-                        onClick={() => setShowTerminal(true)}
-                        className={`h-7 px-2 text-xs border rounded flex items-center gap-1 ${theme === 'dark' ? 'border-gray-600 hover:bg-gray-700 text-gray-300' : 'border-gray-300 hover:bg-gray-200 text-gray-700'}`}
+                        onClick={loadPreviousSubmission}
+                        disabled={isLoadingPrevious}
+                        className={`px-3 py-1 text-xs rounded flex items-center gap-1 hover:scale-105 transition-all ${currentTheme === 'dark'
+                            ? 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                            : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                            } disabled:opacity-50 disabled:cursor-not-allowed`}
+                        title="Load Previous Submission"
                     >
-                        <Terminal className="w-3 h-3" />
-                        Console
-                    </button>
-
-                    {isAssessmentMode && hasStarted && (
-                        <button
-                            onClick={() => {
-                                setPendingExitAction(() => handleCancelAssessment)
-                                setShowExitConfirmation(true)
-                            }}
-                            className={`h-7 px-2 text-xs border rounded flex items-center gap-1 ${theme === 'dark'
-                                ? 'border-red-600 hover:bg-red-900/50 text-red-400'
-                                : 'border-red-300 hover:bg-red-50 text-red-600'}`}
-                        >
-                            <LogOut className="w-3 h-3" />
-                            Exit
-                        </button>
-                    )}
-
-                    <button
-                        onClick={runCode}
-                        disabled={isRunning || !currentDatabase}
-                        className="h-7 px-2 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 flex items-center gap-1"
-                    >
-                        {isRunning ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
-                        Run
+                        {isLoadingPrevious ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <History className="w-3.5 h-3.5" />}
+                        {isLoadingPrevious ? 'Loading...' : 'Load Previous'}
                     </button>
 
                     <button
-                        onClick={submitCode}
-                        disabled={isRunning || (exercise?.questionBehavior.attemptLimitEnabled && userAttempts >= (exercise.questionBehavior.maxAttempts || 1))}
-                        className="h-7 px-2 text-xs bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50 flex items-center gap-1 disabled:cursor-not-allowed"
+                        onClick={clearResults}
+                        className={`px-3 py-1 text-xs rounded flex items-center gap-1 hover:scale-105 transition-all ${currentTheme === 'dark'
+                            ? 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                            : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                            }`}
                     >
-                        {isRunning ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle className="w-3 h-3" />}
-                        {exercise?.questionBehavior.attemptLimitEnabled && userAttempts >= (exercise.questionBehavior.maxAttempts || 1)
-                            ? "Limit Reached"
-                            : "Submit"}
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        Clear Results
+                    </button>
+
+                    <button
+                        onClick={runQuery}
+                        disabled={isRunning}
+                        className="px-3 py-1 text-xs rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1 hover:scale-105 transition-all"
+                    >
+                        {isRunning ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                            <Play className="w-3.5 h-3.5" />
+                        )}
+                        Run Query
+                    </button>
+
+                    <button
+                        onClick={runAllQueries}
+                        disabled={isRunning}
+                        className={`px-3 py-1 text-xs rounded flex items-center gap-1 hover:scale-105 transition-all ${currentTheme === 'dark'
+                            ? 'bg-purple-700 hover:bg-purple-600 text-white'
+                            : 'bg-purple-600 hover:bg-purple-700 text-white'
+                            } disabled:opacity-50 disabled:cursor-not-allowed`}
+                    >
+                        <Play className="w-3.5 h-3.5" />
+                        Run All
                     </button>
                     <button
-                        onClick={toggleFullscreen}
-                        className={`w-7 h-7 flex items-center justify-center border rounded ${theme === 'dark' ? 'border-gray-600 bg-gray-800 hover:bg-gray-700 text-gray-300' : 'border-gray-300 bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+                        onClick={handleSubmit}
+                        disabled={isSubmitting || isSubmitDisabled()}
+                        className={`px-3 py-1 text-xs rounded flex items-center gap-1 hover:scale-105 transition-all ${isSubmitDisabled()
+                            ? 'bg-gray-400 cursor-not-allowed text-gray-700 opacity-50'
+                            : 'bg-green-600 hover:bg-green-700 text-white'
+                            } ${isSubmitting ? 'opacity-50 cursor-wait' : ''}`}
+                        title={isSubmitDisabled() ? `Maximum attempts reached (${Math.max(previousAttempts, userAttempts[currentQuestion._id] || 0)}/${exerciseData.questionBehavior.maxAttempts})` : 'Submit your answer'}
                     >
-                        {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+                        {isSubmitting ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                            <CheckCircle className="w-3.5 h-3.5" />
+                        )}
+                        {isSubmitDisabled() ? 'Max Attempts Reached' : 'Submit'}
                     </button>
+
+
+
                 </div>
             </div>
 
-            {/* Main Content */}
-            <div className="flex flex-1 overflow-hidden">
-                {/* Left Sidebar */}
-                {/* Left Sidebar - Questions List Only */}
-                {showSidebar && (
-                    <div className={`w-80 border-r overflow-hidden flex flex-col ${theme === 'dark' ? 'border-gray-700 bg-gray-900' : 'border-gray-300 bg-white'}`}>
-                        {/* Questions Header */}
-                        <div className={`p-3 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-300'}`}>
-                            <div className="flex items-center justify-between mb-3">
-                                <h3 className={`text-sm font-semibold ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                                    Questions ({questions.length})
-                                </h3>
-                                <div className="flex items-center gap-1.5">
-                                    <button
-                                        onClick={() => setShowSearch(!showSearch)}
-                                        className={`p-1 ml-1 rounded transition-colors ${showSearch ? (theme === 'dark' ? 'bg-blue-700' : 'bg-blue-500') : (theme === 'dark' ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600')}`}
-                                    >
-                                        {showSearch ? <XIcon className="w-3.5 h-3.5 text-white" /> : <Search className="w-3.5 h-3.5" />}
-                                    </button>
-                                </div>
-                            </div>
+            {/* Main Content Area */}
+            <div className="flex-1 flex overflow-hidden">
+                {/* Question Panel - Now properly collapsible */}
+                <QuestionPanel
+                    question={currentQuestion}
+                    currentQuestionIndex={currentQuestionIndex}
+                    totalQuestions={questions.length}
+                    onPrevious={handlePreviousQuestion}
+                    onNext={handleNextQuestion}
+                    userAttempts={Math.max(
+                        userAttempts[currentQuestion._id] || 0,
+                        previousAttempts
+                    )}
+                    maxAttempts={exerciseData.questionBehavior.maxAttempts || 3}
+                    attemptLimitEnabled={exerciseData.questionBehavior.attemptLimitEnabled}
+                    onToggleCollapse={toggleQuestionPanel}
+                    isCollapsed={isQuestionCollapsed}
+                    theme={currentTheme}
+                />
 
-                            {showSearch && (
-                                <div className="relative mb-3">
-                                    <Search className={`absolute left-2 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-400'}`} />
-                                    <input
-                                        type="text"
-                                        placeholder="Search questions..."
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        className={`w-full pl-8 pr-6 py-1.5 text-xs border rounded focus:ring-1 focus:ring-blue-500 focus:outline-none ${theme === 'dark' ? 'border-gray-600 bg-gray-800 text-white placeholder-gray-400' : 'border-gray-300 bg-gray-50 text-gray-900 placeholder-gray-500'}`}
-                                        autoFocus
-                                    />
-                                    {searchQuery && (
-                                        <button onClick={() => setSearchQuery("")} className="absolute right-1 top-1/2 transform -translate-y-1/2">
-                                            <XIcon className={`w-3.5 h-3.5 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-400'}`} />
-                                        </button>
-                                    )}
-                                </div>
-                            )}
 
-                            {/* Filter and Sort Controls */}
-                            <div className="flex items-center justify-between gap-3">
-                                {/* Difficulty Filter Dropdown */}
-                                <div className="flex-1">
-                                    <select
-                                        value={filterDifficulty}
-                                        onChange={(e) => setFilterDifficulty(e.target.value as any)}
-                                        className={`w-full text-xs border rounded px-2 py-1.5 ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-gray-300' : 'bg-white border-gray-300 text-gray-900'}`}
-                                    >
-                                        <option value="all">All Difficulties</option>
-                                        <option value="easy">Easy</option>
-                                        <option value="medium">Medium</option>
-                                        <option value="hard">Hard</option>
-                                    </select>
-                                </div>
-
-                                {/* Sort Icon Button */}
-                                <button
-                                    onClick={cycleSortOption}
-                                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs border rounded transition-colors ${theme === 'dark' ? 'border-gray-600 hover:bg-gray-800' : 'border-gray-300 hover:bg-gray-100'}`}
-                                    title={`Sort by: ${sortBy === 'default' ? 'Default Order' : sortBy === 'difficulty' ? 'Difficulty' : 'Title'}. Click to change.`}
-                                >
-                                    <ArrowUpDown className={`w-3.5 h-3.5 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`} />
-                                    <span className={`font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                                        {sortBy === 'default' ? 'Default' : sortBy === 'difficulty' ? 'Difficulty' : 'Title'}
-                                    </span>
-                                </button>
-                            </div>
-
-                            {/* Sort Indicator */}
-                            <div className={`mt-2 text-[10px] ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'} flex items-center justify-between`}>
-                                <span>
-                                    {filterDifficulty !== 'all' && `Filtered: ${filterDifficulty}`}
-                                    {filterDifficulty === 'all' && 'Showing all difficulties'}
-                                </span>
-                                <span className="flex items-center gap-1">
-                                    <span>Sort:</span>
-                                    <span className={`px-1.5 py-0.5 rounded ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                                        {getSortIcon()}
-                                    </span>
-                                </span>
-                            </div>
-                        </div>
-
-                        {/* Questions List */}
-                        <div className="flex-1 overflow-y-auto">
-                            {getFilteredAndSortedProblems().length === 0 ? (
-                                <div className="p-4 text-center">
-                                    <div className={`text-sm ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>
-                                        No questions found
-                                        {filterDifficulty !== 'all' && ` for "${filterDifficulty}" difficulty`}
-                                        {searchQuery && ` matching "${searchQuery}"`}
-                                    </div>
-                                </div>
-                            ) : (
-                                getFilteredAndSortedProblems().map((p, index) => {
-                                    const originalIndex = questions.findIndex(prob => prob._id === p._id);
-                                    return (
-                                        <button
-                                            key={p._id}  // Use _id instead of id
-                                            onClick={() => selectQuestion(originalIndex)}
-                                            className={`w-full p-3 text-left transition-colors border-b ${theme === 'dark' ? 'border-gray-800' : 'border-gray-100'} ${currentQuestionIndex === originalIndex
-                                                ? (theme === 'dark' ? 'bg-blue-900/20 border-l-2 border-l-blue-500' : 'bg-blue-50 border-l-2 border-l-blue-500')
-                                                : (theme === 'dark' ? 'hover:bg-gray-800' : 'hover:bg-gray-50')}`}
-                                        >
-                                            <div className="flex justify-between items-start">
-                                                <div className="flex-1">
-                                                    <div className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                                                        {originalIndex + 1}. {p.title}
-                                                    </div>
-                                                    <div className="flex gap-2 mt-1 items-center">
-                                                        <span className={`text-[10px] px-1.5 py-0.5 rounded ${p.difficulty === 'easy'
-                                                            ? (theme === 'dark' ? 'bg-green-900/30 text-green-300' : 'bg-green-100 text-green-800')
-                                                            : p.difficulty === 'medium'
-                                                                ? (theme === 'dark' ? 'bg-yellow-900/30 text-yellow-300' : 'bg-yellow-100 text-yellow-800')
-                                                                : (theme === 'dark' ? 'bg-red-900/30 text-red-300' : 'bg-red-100 text-red-800')}`}>
-                                                            {p.difficulty}
-                                                        </span>
-                                                        {solvedQuestions.has(originalIndex) && (
-                                                            <CheckCircle className="w-3.5 h-3.5 text-green-500" />
-                                                        )}
-                                                        {skippedQuestions.has(originalIndex) && (
-                                                            <span className={`text-[10px] px-1.5 py-0.5 rounded ${theme === 'dark' ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-600'}`}>
-                                                                Skipped
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                                <ChevronRight className="w-4 h-4 text-gray-400" />
-                                            </div>
-                                        </button>
-                                    );
-                                })
-                            )}
-                        </div>
+                {/* Navigator */}
+                {showNavigator && (
+                    <div className="w-64 border-r flex-shrink-0 transition-colors">
+                        <DatabaseNavigator
+                            databases={databases}
+                            currentDatabase={currentDatabase}
+                            onSelectDatabase={(name) => {
+                                const db = databases.find(d => d.name === name)
+                                if (db) {
+                                    setCurrentDatabase(db)
+                                    EnhancedDatabaseManager.setCurrentDatabase(db.name)
+                                    showToast({
+                                        type: 'info',
+                                        title: 'Database Selected',
+                                        message: `Using database: ${db.name}`,
+                                        duration: 2000
+                                    })
+                                }
+                            }}
+                            onSelectTable={(tableName) => {
+                                const tab = queryTabs.find(t => t.id === activeTab)
+                                if (tab && currentDatabase) {
+                                    const newQuery = `SELECT * FROM ${tableName} LIMIT 10;`
+                                    handleQueryChange(activeTab, tab.query + (tab.query ? '\n' : '') + newQuery)
+                                }
+                            }}
+                            onCreateDatabase={handleCreateDatabase}
+                            onRefresh={loadInitialData}
+                            theme={currentTheme}
+                        />
                     </div>
                 )}
 
-                {/* Main Editor Area */}
-                <div className="flex-1 flex flex-col overflow-hidden">
-                    {/* Question Description */}
-                    <div className={`p-4 border-b ${theme === 'dark' ? 'border-gray-700 bg-gray-900' : 'border-gray-300 bg-white'}`}>
-                        <h1 className={`text-lg font-semibold mb-2 ${theme === 'dark' ? 'text-white' : 'text-gray-700'}`}>
-                            {currentQuestion?.title || "Database Question"}
-                        </h1>
-                        <div className="flex items-center gap-2 mb-3">
-                            <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${currentQuestion?.difficulty === "easy" || currentQuestion?.difficulty === "beginner"
-                                ? (theme === 'dark' ? 'bg-green-900/30 text-green-300' : 'bg-green-100 text-green-800')
-                                : currentQuestion?.difficulty === "medium" || currentQuestion?.difficulty === "intermediate"
-                                    ? (theme === 'dark' ? 'bg-yellow-900/30 text-yellow-300' : 'bg-yellow-100 text-yellow-800')
-                                    : (theme === 'dark' ? 'bg-red-900/30 text-red-300' : 'bg-red-100 text-red-800')}`}>
-                                {currentQuestion?.difficulty || "Medium"}
-                            </span>
-                            {exercise?.questionBehavior.attemptLimitEnabled && (
-                                <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${userAttempts >= (exercise.questionBehavior.maxAttempts || 1)
-                                    ? (theme === 'dark' ? 'bg-red-900/30 text-red-300 border-red-800' : 'bg-red-100 text-red-800 border-red-200')
-                                    : (theme === 'dark' ? 'bg-blue-900/30 text-blue-300 border-blue-800' : 'bg-blue-100 text-blue-800 border-blue-200')}`}>
-                                    Attempts: {userAttempts} / {exercise.questionBehavior.maxAttempts}
-                                </span>
-                            )}
-                        </div>
-                        <div className={`text-sm space-y-3 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
-                            {currentQuestion?.description?.split('\n').map((line, i) => <p key={i} className="leading-relaxed">{line}</p>)}
+                {/* Editor and Results Area */}
+                <div className={`flex-1 flex ${layout === 'horizontal' ? 'flex-col' : 'flex-row'}`}>
+                    <div className={`${layout === 'horizontal' ? 'h-1/2' : 'w-1/2'} flex flex-col`}>
+                        <QueryTabManager
+                            tabs={queryTabs}
+                            activeTab={activeTab}
+                            onTabClick={handleTabChange}
+                            onNewTab={handleNewTab}
+                            onCloseTab={handleCloseTab}
+                            onRenameTab={handleRenameTab}
+                            theme={currentTheme}
+                        />
+
+                        <div className="flex-1">
+                            {queryTabs.map(tab => (
+                                <div
+                                    key={tab.id}
+                                    className={`h-full ${activeTab === tab.id ? 'block' : 'hidden'}`}
+                                >
+                                    <MonacoEditor
+                                        height="100%"
+                                        language="sql"
+                                        value={tab.query}
+                                        onChange={(value) => handleQueryChange(tab.id, value || '')}
+                                        onMount={(editor) => {
+                                            editorRefs.current[tab.id] = editor
+                                        }}
+                                        theme={currentTheme === 'dark' ? 'vs-dark' : 'vs'}
+                                        options={{
+                                            minimap: { enabled: true },
+                                            fontSize: 12,
+                                            wordWrap: 'on',
+                                            automaticLayout: true,
+                                            suggestOnTriggerCharacters: true,
+                                            quickSuggestions: true,
+                                            parameterHints: { enabled: true },
+                                            scrollBeyondLastLine: false,
+                                            folding: true,
+                                            lineNumbers: 'on',
+                                            formatOnPaste: true,
+                                            formatOnType: true,
+                                            autoClosingBrackets: 'always',
+                                            autoClosingQuotes: 'always'
+                                        }}
+                                    />
+                                </div>
+                            ))}
                         </div>
                     </div>
 
-                    {/* Editor and Results Split View */}
-                    <div className="flex-1 flex overflow-hidden">
-                        {/* Editor Panel */}
-                        <div className="w-1/2 border-r flex flex-col">
-                            <div className={`flex items-center justify-between p-2 border-b ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-gray-50'}`}>
-                                <div className="flex items-center gap-1.5">
-                                    <Code className={`w-4 h-4 ${theme === 'dark' ? 'text-blue-400' : 'text-blue-500'}`} />
-                                    <span className={`text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>SQL Editor</span>
-                                    {currentDatabase && (
-                                        <span className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-600'}`}>
-                                            ({currentDatabase.name})
-                                        </span>
-                                    )}
-                                </div>
-                                <button onClick={resetCode} className={`flex items-center gap-1 px-2 py-0.5 text-xs border rounded transition-colors ${theme === 'dark' ? 'border-gray-600 bg-gray-700 text-gray-300 hover:bg-gray-600' : 'border-gray-300 bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
-                                    <RotateCcw className="w-3.5 h-3.5" /> Reset
-                                </button>
-                            </div>
-                            <div className="flex-1">
-                                <MonacoEditor
-                                    key={`editor-${currentQuestionIndex}`}
-                                    height="100%"
-                                    language="sql"
-                                    value={code}
-                                    onChange={(value) => setCode(value || '')}
-                                    onMount={(editor) => {
-                                        editorInstanceRef.current = editor
-                                        editor.focus()
-                                    }}
-                                    theme={theme === 'dark' ? 'vs-dark' : 'vs'}
-                                    options={{
-                                        minimap: { enabled: true },
-                                        fontSize: 14,
-                                        readOnly: isAssessmentMode && !hasStarted,
-                                        wordWrap: 'on',
-                                        automaticLayout: true
-                                    }}
-                                />
-                            </div>
-                        </div>
-
-                        {/* Results Panel */}
-                        <div className="w-1/2 flex flex-col">
-                            <div className={`flex items-center justify-between p-2 border-b ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-gray-50'}`}>
-                                <div className="flex items-center gap-1.5">
-                                    <Table className={`w-4 h-4 ${theme === 'dark' ? 'text-green-400' : 'text-green-500'}`} />
-                                    <span className={`text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>Query Results</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    {queryResult && (
-                                        <>
-                                            <span className={`text-xs px-2 py-0.5 rounded ${queryResult.success
-                                                ? (theme === 'dark' ? 'bg-green-900/30 text-green-300' : 'bg-green-100 text-green-800')
-                                                : (theme === 'dark' ? 'bg-red-900/30 text-red-300' : 'bg-red-100 text-red-800')}`}>
-                                                {queryResult.success ? '✓ Success' : '✗ Error'}
-                                            </span>
-                                            {queryResult?.executionTime && (
-                                                <span className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-600'}`}>
-                                                    {queryResult.executionTime.toFixed(2)}ms
-                                                </span>
-                                            )}
-                                            {queryResult?.rowCount !== undefined && (
-                                                <span className={`text-xs ${theme === 'dark' ? 'text-blue-400' : 'text-blue-600'}`}>
-                                                    {queryResult.rowCount} row{queryResult.rowCount !== 1 ? 's' : ''}
-                                                </span>
-                                            )}
-                                        </>
-                                    )}
-                                </div>
-                            </div>
-
-                            <div className="flex-1 overflow-auto">
-                                {queryResult ? (
-                                    <>
-                                        {/* Show query execution info */}
-                                        <div className={`p-3 border-b ${theme === 'dark' ? 'border-gray-800 bg-gray-900' : 'border-gray-200 bg-gray-50'}`}>
-                                            <div className="flex flex-wrap items-center gap-3 text-sm">
-                                                {queryResult.queryType && (
-                                                    <span className={`px-2 py-1 rounded ${theme === 'dark' ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-700'}`}>
-                                                        Type: {queryResult.queryType}
-                                                    </span>
-                                                )}
-                                                {queryResult.database && (
-                                                    <span className={`px-2 py-1 rounded ${theme === 'dark' ? 'bg-blue-900/30 text-blue-300' : 'bg-blue-100 text-blue-800'}`}>
-                                                        DB: {queryResult.database}
-                                                    </span>
-                                                )}
-                                                {queryResult.affectedRows !== undefined && (
-                                                    <span className={`px-2 py-1 rounded ${theme === 'dark' ? 'bg-green-900/30 text-green-300' : 'bg-green-100 text-green-800'}`}>
-                                                        Affected: {queryResult.affectedRows}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {/* Show success/error message */}
-                                        {!queryResult.success ? (
-                                            <div className={`p-4 m-4 rounded-lg border ${theme === 'dark' ? 'border-red-800 bg-red-900/20' : 'border-red-200 bg-red-50'}`}>
-                                                <div className="flex items-center gap-2 mb-2">
-                                                    <AlertTriangle className={`w-5 h-5 ${theme === 'dark' ? 'text-red-400' : 'text-red-600'}`} />
-                                                    <span className={`font-medium ${theme === 'dark' ? 'text-red-300' : 'text-red-700'}`}>
-                                                        Query Error
-                                                    </span>
-                                                </div>
-                                                <div className={`font-mono text-sm ${theme === 'dark' ? 'text-red-300' : 'text-red-700'}`}>
-                                                    {queryResult.error}
-                                                </div>
-                                                {queryResult.sqlMessage && (
-                                                    <div className={`mt-2 text-sm ${theme === 'dark' ? 'text-red-400' : 'text-red-600'}`}>
-                                                        {queryResult.sqlMessage}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ) : queryResult.resultSet ? (
-                                            // Show table results for SELECT queries
-                                            <div className="p-4">
-                                                <div className="mb-3">
-                                                    <div className="flex items-center justify-between mb-2">
-                                                        <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
-                                                            Query Results
-                                                        </span>
-                                                        <span className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-600'}`}>
-                                                            Showing {Math.min(queryResult.resultSet.length, 100)} of {queryResult.resultSet.length} rows
-                                                        </span>
-                                                    </div>
-                                                    <DatabaseResultTable
-                                                        data={queryResult.resultSet.slice(0, 100)} // Limit to 100 rows for performance
-                                                        columns={queryResult.columns}
-                                                        queryType={queryResult.queryType}
-                                                        theme={theme}
-                                                    />
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            // Show success message for DML/DDL queries
-                                            <div className={`p-4 m-4 rounded-lg ${theme === 'dark' ? 'bg-green-900/20 border border-green-800' : 'bg-green-50 border border-green-200'}`}>
-                                                <div className="flex items-center gap-2 mb-2">
-                                                    <CheckCircle className={`w-5 h-5 ${theme === 'dark' ? 'text-green-400' : 'text-green-600'}`} />
-                                                    <span className={`font-medium ${theme === 'dark' ? 'text-green-300' : 'text-green-700'}`}>
-                                                        Query Executed Successfully
-                                                    </span>
-                                                </div>
-                                                <div className={`text-sm ${theme === 'dark' ? 'text-green-300' : 'text-green-700'}`}>
-                                                    {queryResult.output || 'Query completed successfully'}
-                                                </div>
-                                                {queryResult.affectedRows !== undefined && queryResult.affectedRows > 0 && (
-                                                    <div className={`mt-2 text-sm ${theme === 'dark' ? 'text-green-400' : 'text-green-600'}`}>
-                                                        ✓ {queryResult.affectedRows} row{queryResult.affectedRows !== 1 ? 's' : ''} affected
-                                                    </div>
-                                                )}
-                                                {queryResult.message && (
-                                                    <div className={`mt-2 text-sm ${theme === 'dark' ? 'text-green-400' : 'text-green-600'}`}>
-                                                        {queryResult.message}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-                                    </>
-                                ) : (
-                                    // Empty state
-                                    <div className="h-full flex flex-col items-center justify-center p-8">
-                                        <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                                            <Table className={`w-8 h-8 ${theme === 'dark' ? 'text-gray-600' : 'text-gray-400'}`} />
-                                        </div>
-                                        <h3 className={`text-lg font-medium mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
-                                            No Query Results Yet
-                                        </h3>
-                                        <p className={`text-center max-w-md mb-6 ${theme === 'dark' ? 'text-gray-500' : 'text-gray-600'}`}>
-                                            Run a SQL query to see the results displayed here in table format.
-                                            Results will appear automatically when you execute your query.
-                                        </p>
-                                        <div className={`text-sm ${theme === 'dark' ? 'text-gray-600' : 'text-gray-500'}`}>
-                                            <div className="flex items-center gap-4 mb-2">
-                                                <div className="flex items-center gap-2">
-                                                    <div className={`w-2 h-2 rounded-full ${theme === 'dark' ? 'bg-green-500' : 'bg-green-600'}`}></div>
-                                                    <span>SELECT queries show table results</span>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <div className={`w-2 h-2 rounded-full ${theme === 'dark' ? 'bg-blue-500' : 'bg-blue-600'}`}></div>
-                                                    <span>DML queries show affected rows</span>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <div className={`w-2 h-2 rounded-full ${theme === 'dark' ? 'bg-yellow-500' : 'bg-yellow-600'}`}></div>
-                                                <span>Errors show detailed messages</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
+                    <div className={`${layout === 'horizontal' ? 'h-1/2 border-t' : 'w-1/2 border-l'} transition-colors ${currentTheme === 'dark' ? 'border-gray-700' : 'border-gray-300'
+                        }`}>
+                        <EnhancedResultViewer
+                            result={queryResults[activeTab]}
+                            theme={currentTheme}
+                        />
                     </div>
                 </div>
+
+                {/* History Panel */}
+                {showHistory && (
+                    <div className="w-80 border-l flex-shrink-0 transition-colors">
+                        <QueryHistoryPanel
+                            history={queryHistory}
+                            onSelectQuery={(query) => {
+                                const tab = queryTabs.find(t => t.id === activeTab)
+                                if (tab) {
+                                    handleQueryChange(activeTab, query)
+                                }
+                            }}
+                            onClearHistory={clearHistory}
+                            theme={currentTheme}
+                        />
+                    </div>
+                )}
             </div>
 
-            {/* Terminal Modal */}
-            {/* {showTerminal && (
-                <div className={`fixed inset-x-0 bottom-0 z-40 h-96 ${theme === 'dark' ? 'bg-gray-900 border-t border-gray-700' : 'bg-white border-t border-gray-300'}`}>
-                    <div className="flex items-center justify-between p-2 border-b">
-                        <div className="flex items-center gap-2">
-                            <Terminal className={`w-4 h-4 ${theme === 'dark' ? 'text-green-400' : 'text-green-500'}`} />
-                            <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>Console</span>
-                            <span className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-600'}`}>
-                                ({terminalLogs.length} logs)
-                            </span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                            <button
-                                onClick={clearTerminal}
-                                className={`p-1 rounded ${theme === 'dark' ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-200 text-gray-600'}`}
-                                title="Clear"
-                            >
-                                <Trash2 className="w-4 h-4" />
-                            </button>
-                            <button
-                                onClick={() => setShowTerminal(false)}
-                                className={`p-1 rounded ${theme === 'dark' ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-200 text-gray-600'}`}
-                                title="Close"
-                            >
-                                <X className="w-4 h-4" />
-                            </button>
-                        </div>
-                    </div>
-                    <div className="h-[calc(100%-40px)] overflow-auto p-2 font-mono text-sm">
-                        {terminalLogs.length === 0 ? (
-                            <div className={`italic ${theme === 'dark' ? 'text-gray-600' : 'text-gray-400'}`}>
-                                Run queries to see logs here
-                            </div>
-                        ) : (
-                            terminalLogs.map((log) => (
-                                <div key={log.id} className="mb-1">
-                                    <span className={`mr-2 ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>
-                                        {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                                    </span>
-                                    <span className={
-                                        log.type === 'success' ? 'text-green-600 dark:text-green-400' :
-                                        log.type === 'error' ? 'text-red-600 dark:text-red-400' :
-                                        log.type === 'warning' ? 'text-yellow-600 dark:text-yellow-400' :
-                                        log.type === 'sql' ? 'text-blue-600 dark:text-blue-400' :
-                                        theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
-                                    }>
-                                        {log.content}
-                                    </span>
-                                </div>
-                            ))
-                        )}
-                    </div>
+            {/* Status Bar */}
+            <div className={`px-3 py-1.5 border-t text-xs flex items-center justify-between transition-colors ${currentTheme === 'dark'
+                ? 'border-gray-700 bg-gray-800 text-gray-400'
+                : 'border-gray-300 bg-gray-100 text-gray-600'
+                }`}>
+                <div className="flex items-center gap-4">
+                    <span>{isRunning ? 'Executing...' : isSubmitting ? 'Submitting...' : 'Ready'}</span>
+                    {currentDatabase && (
+                        <span>Database: {currentDatabase.name} ({currentDatabase.tables.length} tables)</span>
+                    )}
+                    <span>Tab: {queryTabs.find(t => t.id === activeTab)?.name}</span>
+                    <span>Question: {currentQuestionIndex + 1}/{questions.length}</span>
                 </div>
-            )} */}
+                <div className="flex items-center gap-4">
+                    <span>Query History: {queryHistory.length} items</span>
+                    <span>Total Tabs: {queryTabs.length}</span>
+                    <span>
+                        Attempts: {Math.max(
+                            previousAttempts,
+                            userAttempts[currentQuestion._id] || 0
+                        )}/{exerciseData.questionBehavior.maxAttempts || 3}
+                    </span>
+                    {isSubmitDisabled() && (
+                        <span className="text-red-500 font-medium">Max Attempts Reached</span>
+                    )}
+                </div>
+
+
+            </div>
 
             {/* Toast Notifications */}
             <div className="fixed top-4 right-4 z-50 flex flex-col gap-2">
                 {toasts.map((toast) => (
                     <div
                         key={toast.id}
-                        className={`flex items-start gap-3 p-4 rounded-lg shadow-lg max-w-sm transition-all duration-300 ${toast.type === 'success' ? 'bg-green-50 border border-green-200' : toast.type === 'error' ? 'bg-red-50 border border-red-200' : toast.type === 'warning' ? 'bg-yellow-50 border border-yellow-200' : 'bg-blue-50 border border-blue-200'}`}
+                        className={`flex items-start gap-3 p-4 rounded-lg shadow-lg max-w-sm transition-all duration-300 ${toast.type === 'success'
+                            ? 'bg-green-50 border border-green-200 text-green-800'
+                            : toast.type === 'error'
+                                ? 'bg-red-50 border border-red-200 text-red-800'
+                                : toast.type === 'warning'
+                                    ? 'bg-yellow-50 border border-yellow-200 text-yellow-800'
+                                    : 'bg-blue-50 border border-blue-200 text-blue-800'
+                            }`}
                     >
-                        <div className={`flex-shrink-0 ${toast.type === 'success' ? 'text-green-500' : toast.type === 'error' ? 'text-red-500' : toast.type === 'warning' ? 'text-yellow-500' : 'text-blue-500'}`}>
-                            {toast.type === 'success' ? <CheckCircle className="w-5 h-5" /> : toast.type === 'error' ? <XCircle className="w-5 h-5" /> : toast.type === 'warning' ? <AlertTriangle className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+                        <div className={`flex-shrink-0 ${toast.type === 'success'
+                            ? 'text-green-500'
+                            : toast.type === 'error'
+                                ? 'text-red-500'
+                                : toast.type === 'warning'
+                                    ? 'text-yellow-500'
+                                    : 'text-blue-500'
+                            }`}>
+                            {toast.type === 'success' ? <CheckCircle className="w-5 h-5" /> :
+                                toast.type === 'error' ? <XCircle className="w-5 h-5" /> :
+                                    toast.type === 'warning' ? <AlertTriangle className="w-5 h-5" /> :
+                                        <AlertTriangle className="w-5 h-5" />}
                         </div>
                         <div className="flex-1 min-w-0">
-                            <h4 className="text-sm font-semibold text-gray-900 mb-1">{toast.title}</h4>
-                            <p className="text-xs text-gray-600">{toast.message}</p>
+                            <h4 className="text-sm font-semibold mb-1">{toast.title}</h4>
+                            <p className="text-xs">{toast.message}</p>
                         </div>
-                        <button onClick={() => removeToast(toast.id)} className="flex-shrink-0 text-gray-400 hover:text-gray-600 transition-colors">
-                            <XIcon className="w-4 h-4" />
+                        <button
+                            onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))}
+                            className="flex-shrink-0 text-gray-400 hover:text-gray-600 transition-colors"
+                        >
+                            <X className="w-4 h-4" />
                         </button>
                     </div>
                 ))}

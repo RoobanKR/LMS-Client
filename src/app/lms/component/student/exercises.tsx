@@ -1,7 +1,8 @@
 "use client"
 
-import { useState } from "react"
-import { Code, Calendar, Target, Hash, ChevronRight, Clock, AlertCircle } from "lucide-react"
+import { useState, useMemo } from "react"
+import { Code, Calendar, Target, Hash, ChevronRight, Clock, AlertCircle, MoreVertical } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 // --- Interfaces ---
 
@@ -90,13 +91,46 @@ interface Exercise {
 }
 
 interface ExercisesProps {
+  courseId?: number | string
   exercises: Exercise[]
   onExerciseSelect: (exercise: Exercise) => void
-  method?: string 
+  method?: string
+  category?: string
+  subcategory?: string
+  // NEW: Add hierarchy and topic props
+  topic?: string
+  module?: string
+  nodeType?: string
+  hierarchy?: string[]
+  selectedItem?: any
+  currentHierarchy?: string[]
 }
 
-export default function Exercises({ exercises, onExerciseSelect, method }: ExercisesProps) {
+export default function Exercises({ 
+  category,
+  subcategory,
+  courseId,
+  exercises, 
+  onExerciseSelect, 
+  method,
+  // NEW: Accept hierarchy and topic props
+  topic = '',
+  module = '',
+  nodeType = '',
+  hierarchy = [],
+  selectedItem = null,
+  currentHierarchy = []
+}: ExercisesProps) {
+  const router = useRouter()
   const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(null)
+  const [showMenuForId, setShowMenuForId] = useState<string | null>(null)
+
+  // --- Sort exercises by createdAt in descending order (newest/last exercise first) ---
+  const sortedExercises = useMemo(() => {
+    return [...exercises].sort((a, b) => {
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    })
+  }, [exercises])
 
   // --- Helper Functions ---
 
@@ -163,9 +197,59 @@ export default function Exercises({ exercises, onExerciseSelect, method }: Exerc
     onExerciseSelect(exercise)
   }
 
+  const handleGradeClick = (exercise: Exercise, e: React.MouseEvent) => {
+    e.stopPropagation() // Prevent triggering the row click
+    
+    // Prepare hierarchy string for URL
+    const hierarchyString = encodeURIComponent(JSON.stringify({
+      // Use provided hierarchy or fallback to currentHierarchy
+      hierarchy: hierarchy.length > 0 ? hierarchy : currentHierarchy,
+      topic: topic || (selectedItem?.title || ''),
+      module: module || (currentHierarchy[0] || ''),
+      nodeType: nodeType || (selectedItem?.type || '')
+    }))
+    
+    // Prepare query parameters
+    const queryParams = new URLSearchParams({
+      category: category || '',
+      subcategory: subcategory || '',
+      courseId: courseId?.toString() || '',
+      exerciseId: exercise._id,
+      exerciseName: exercise.exerciseInformation.exerciseName,
+      exerciseLevel: exercise.exerciseInformation.exerciseLevel,
+      totalPoints: exercise.exerciseInformation.totalPoints?.toString() || "0",
+      totalQuestions: calculateTotalQuestions(exercise).toString(),
+      programmingLanguages: exercise.programmingSettings?.selectedLanguages?.join(',') || '',
+      startDate: exercise.availabilityPeriod?.startDate || '',
+      endDate: exercise.availabilityPeriod?.endDate || '',
+      practiceMode: exercise.evaluationSettings?.practiceMode?.toString() || 'false',
+      manualEvaluationEnabled: exercise.evaluationSettings?.manualEvaluation?.enabled?.toString() || 'false',
+      aiEvaluation: exercise.evaluationSettings?.aiEvaluation?.toString() || 'false',
+      method: method || '',
+      
+      // NEW: Add hierarchy params
+      hierarchy: hierarchyString,
+      topic: encodeURIComponent(topic || (selectedItem?.title || '')),
+      module: encodeURIComponent(module || (currentHierarchy[0] || ''))
+    })
+
+    // Navigate to grading page with all necessary data
+    router.push(`/lms/pages/courses/coursesdetailedview/exercisegrade?${queryParams.toString()}`)
+  }
+
+  const toggleMenu = (exerciseId: string, e: React.MouseEvent) => {
+    e.stopPropagation() // Prevent triggering the row click
+    setShowMenuForId(showMenuForId === exerciseId ? null : exerciseId)
+  }
+
+  // Close menu when clicking outside
+  const closeMenu = () => {
+    setShowMenuForId(null)
+  }
+
   // --- Render ---
 
-  if (!exercises || exercises.length === 0) {
+  if (!sortedExercises || sortedExercises.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 px-4 text-center h-full min-h-[300px] bg-white border border-slate-200 rounded-xl">
         <div className="w-14 h-14 bg-slate-50 rounded-full flex items-center justify-center mb-3 border border-slate-100">
@@ -180,7 +264,7 @@ export default function Exercises({ exercises, onExerciseSelect, method }: Exerc
   }
 
   return (
-    <div className="flex flex-col h-full bg-white border border-slate-200 rounded-xl overflow-hidden">
+    <div className="flex flex-col h-full bg-white border border-slate-200 rounded-xl overflow-hidden" onClick={closeMenu}>
       
       <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-50 hover:scrollbar-thumb-slate-400">
         <table className="min-w-full border-collapse w-full">
@@ -203,13 +287,13 @@ export default function Exercises({ exercises, onExerciseSelect, method }: Exerc
                 Stack
               </th>
               <th scope="col" className="px-4 py-3 text-right text-[11px] font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200 w-[10%]">
-                Action
+                Actions
               </th>
             </tr>
           </thead>
           
           <tbody className="bg-white">
-            {exercises.map((exercise) => {
+            {sortedExercises.map((exercise) => {
               const isSelected = selectedExerciseId === exercise._id
               const endDate = exercise.availabilityPeriod?.endDate ? new Date(exercise.availabilityPeriod.endDate) : new Date()
               const today = new Date()
@@ -244,6 +328,12 @@ export default function Exercises({ exercises, onExerciseSelect, method }: Exerc
                         <div className={`text-[13px] font-medium leading-tight truncate ${isSelected ? 'text-blue-700' : 'text-slate-900'}`}>
                           {exercise.exerciseInformation.exerciseName}
                         </div>
+                        {/* Display topic if available */}
+                        {topic && (
+                          <div className="text-[10px] text-slate-500 truncate mt-0.5">
+                            Topic: {topic}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </td>
@@ -306,17 +396,56 @@ export default function Exercises({ exercises, onExerciseSelect, method }: Exerc
                     )}
                   </td>
 
-                  {/* Action */}
-                  <td className="px-4 py-3 whitespace-nowrap text-right border-b border-slate-100">
-                    <button className={`
-                      inline-flex items-center justify-center w-7 h-7 rounded-lg transition-all duration-200
-                      ${isSelected 
-                        ? 'bg-blue-600 text-white hover:bg-blue-700' 
-                        : 'bg-white text-slate-400 border border-slate-200 hover:text-blue-600 hover:border-blue-200 group-hover:bg-blue-50'
-                      }
-                    `} title={exercise.evaluationSettings?.practiceMode ? 'Start Practice' : 'Start Exercise'}>
-                      <ChevronRight className="w-4 h-4" />
-                    </button>
+                  {/* Actions */}
+                  <td className="px-4 py-3 whitespace-nowrap border-b border-slate-100">
+                    <div className="flex items-center justify-end gap-1">
+                      {/* Start Button */}
+                      <button 
+                        className={`
+                          inline-flex items-center justify-center w-7 h-7 rounded-lg transition-all duration-200
+                          ${isSelected 
+                            ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                            : 'bg-white text-slate-400 border border-slate-200 hover:text-blue-600 hover:border-blue-200 group-hover:bg-blue-50'
+                          }
+                        `} 
+                        title={exercise.evaluationSettings?.practiceMode ? 'Start Practice' : 'Start Exercise'}
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+
+                      {/* Three Dots Menu */}
+                      <div className="relative">
+                        <button
+                          onClick={(e) => toggleMenu(exercise._id, e)}
+                          className={`
+                            inline-flex items-center justify-center w-7 h-7 rounded-lg transition-all duration-200
+                            ${isSelected 
+                              ? 'bg-blue-50 text-blue-600 hover:bg-blue-100' 
+                              : 'bg-white text-slate-400 border border-slate-200 hover:text-slate-700 hover:border-slate-300 group-hover:bg-slate-50'
+                            }
+                            ${showMenuForId === exercise._id ? 'bg-slate-100 text-slate-700 border-slate-300' : ''}
+                          `}
+                          title="More options"
+                        >
+                          <MoreVertical className="w-4 h-4" />
+                        </button>
+
+                        {/* Dropdown Menu */}
+                        {showMenuForId === exercise._id && (
+                          <div className="absolute right-0 mt-1 w-36 bg-white rounded-lg shadow-lg border border-slate-200 z-20">
+                            <div className="py-1">
+                              <button
+                                onClick={(e) => handleGradeClick(exercise, e)}
+                                className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                              >
+                                <Target className="w-3.5 h-3.5" />
+                                view grade
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </td>
                 </tr>
               )
@@ -324,6 +453,13 @@ export default function Exercises({ exercises, onExerciseSelect, method }: Exerc
           </tbody>
         </table>
       </div>
+      
+      {/* Debug info (optional - remove in production) */}
+      {/* {process.env.NODE_ENV === 'development' && (
+        <div className="p-2 border-t border-slate-200 text-xs text-slate-500 bg-slate-50">
+          <div>Context: {module} &gt; {topic} | Hierarchy: {hierarchy.length > 0 ? hierarchy.join(' > ') : currentHierarchy.join(' > ')}</div>
+        </div>
+      )} */}
     </div>
   )
 }

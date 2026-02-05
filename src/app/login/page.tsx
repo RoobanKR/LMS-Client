@@ -14,6 +14,20 @@ import { useRouter } from "next/navigation";
 import { toast, ToastContainer } from "react-toastify";
 import { showErrorToast } from "@/components/ui/toastUtils";
 
+interface Permission {
+  permissionName: string;
+  permissionKey: string;
+  permissionFunctionality: any[];
+  icon: string;
+  color: string;
+  description: string;
+  isActive: boolean;
+  order: number;
+  createdAt: string;
+  updatedAt: string;
+  _id: string;
+}
+
 interface LoginResponse {
   message: Array<{ key: string; value: string }>;
   user: {
@@ -29,6 +43,7 @@ interface LoginResponse {
       [key: string]: any;
     } | string;
     firstTimeLoginDone: boolean;
+    permissions?: Permission[];
     [key: string]: any;
   };
   token: string;
@@ -69,6 +84,8 @@ const SmartCliffLogin = () => {
     localStorage.removeItem("smartcliff_roleValue");
     localStorage.removeItem("smartcliff_originalRole");
     localStorage.removeItem("smartcliff_renameRole");
+    localStorage.removeItem("smartcliff_firstPermissionKey");
+    localStorage.removeItem("smartcliff_permissions");
   };
 
   useEffect(() => {
@@ -81,17 +98,24 @@ const SmartCliffLogin = () => {
     const existingRole = localStorage.getItem("smartcliff_role");
     const existingRoleValue = localStorage.getItem("smartcliff_roleValue");
     const originalRole = localStorage.getItem("smartcliff_originalRole");
+    const firstPermissionKey = localStorage.getItem("smartcliff_firstPermissionKey");
 
-    if (existingToken && existingInstitution && existingBasedOn && existingRole && existingRoleValue) {
-      // Determine redirect based on role
-      let userRole = originalRole?.toLowerCase() || existingRoleValue?.toLowerCase() || existingRole?.toLowerCase() || '';
-      let redirectPath = "/lms/pages/admindashboard";
+    if (existingToken && existingInstitution && existingBasedOn) {
+      // Determine redirect based on first permission key if available
+      let redirectPath = "/lms/pages/admindashboard"; // Default fallback
       
-      if (userRole === 'student' || userRole.includes('student')) {
-        redirectPath = "/lms/pages/studentdashboard";
+      if (firstPermissionKey) {
+        redirectPath = `/lms/pages/${firstPermissionKey}`;
+      } else if (existingRole && existingRoleValue) {
+        // Fallback to role-based redirect
+        let userRole = originalRole?.toLowerCase() || existingRoleValue?.toLowerCase() || existingRole?.toLowerCase() || '';
+        
+        if (userRole === 'student' || userRole.includes('student')) {
+          redirectPath = "/lms/pages/studentdashboard";
+        }
       }
       
-      console.log(`Auto-redirecting ${userRole} to: ${redirectPath}`);
+      console.log(`Auto-redirecting to: ${redirectPath}`);
       toast.info("Welcome back!");
       router.push(redirectPath);
     }
@@ -99,7 +123,7 @@ const SmartCliffLogin = () => {
 
   const loginMutation = useMutation({
     mutationFn: async (credentials: { email: string; password: string }) => {
-      const response = await fetch("https://lms-server-ym1q.onrender.com/user/login", {
+      const response = await fetch("http://localhost:5533/user/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -114,126 +138,148 @@ const SmartCliffLogin = () => {
 
       return response.json();
     },
-   onSuccess: async (data: LoginResponse) => {
-  try {
-    const { user, token, institution, institutionName, userId, basedOn } = data;
+    onSuccess: async (data: LoginResponse) => {
+      try {
+        const { user, token, institution, institutionName, userId, basedOn } = data;
 
-    if (!token || !institution || !institutionName || !userId || !basedOn) {
-      throw new Error("No token received");
-    }
+        if (!token || !institution || !institutionName || !userId || !basedOn) {
+          throw new Error("No token received");
+        }
 
-    // Store all authentication data
-    localStorage.setItem("smartcliff_token", token);
-    localStorage.setItem("smartcliff_institution", institution);
-    localStorage.setItem("smartcliff_institutionname", institutionName);
-    localStorage.setItem("smartcliff_basedOn", basedOn);
-    localStorage.setItem("smartcliff_userId", userId);
-    
-    // Store user data
-    localStorage.setItem("smartcliff_userData", JSON.stringify(user));
-    
-    // Store role information and determine user role
-    let userRoleValue = 'User'; // Default role
-    let originalRoleValue = ''; // Store original role separately
-    
-    if (user.role) {
-      if (typeof user.role === 'object' && user.role !== null) {
-        // Handle role as object (with _id, roleValue, etc.)
-        const roleId = user.role._id || user.role.$oid || '';
-        const originalRole = user.role.originalRole || '';
-        const renameRole = user.role.renameRole || '';
-        const roleValue = user.role.roleValue || renameRole || originalRole || 'User';
+        // Store all authentication data
+        localStorage.setItem("smartcliff_token", token);
+        localStorage.setItem("smartcliff_institution", institution);
+        localStorage.setItem("smartcliff_institutionname", institutionName);
+        localStorage.setItem("smartcliff_basedOn", basedOn);
+        localStorage.setItem("smartcliff_userId", userId);
         
-        userRoleValue = roleValue.toLowerCase();
-        originalRoleValue = originalRole.toLowerCase();
+        // Store user data
+        localStorage.setItem("smartcliff_userData", JSON.stringify(user));
         
-        console.log("User role details:", { 
-          originalRole, 
-          renameRole, 
-          roleValue, 
-          userRoleValue,
-          originalRoleValue 
-        });
+        // Store permissions if available
+        if (user.permissions && Array.isArray(user.permissions)) {
+          localStorage.setItem("smartcliff_permissions", JSON.stringify(user.permissions));
+          
+          // Sort permissions by order and get the first active permission
+          const sortedPermissions = [...user.permissions]
+            .filter(permission => permission.isActive)
+            .sort((a, b) => a.order - b.order);
+          
+          if (sortedPermissions.length > 0) {
+            const firstPermission = sortedPermissions[0];
+            localStorage.setItem("smartcliff_firstPermissionKey", firstPermission.permissionKey);
+            console.log("First permission key:", firstPermission.permissionKey);
+          }
+        }
         
-        localStorage.setItem("smartcliff_roleId", roleId);
-        localStorage.setItem("smartcliff_roleValue", roleValue);
-        localStorage.setItem("smartcliff_originalRole", originalRole);
-        localStorage.setItem("smartcliff_renameRole", renameRole);
+        // Store role information and determine user role
+        let userRoleValue = 'User'; // Default role
+        let originalRoleValue = ''; // Store original role separately
         
-        // Store the entire role object if needed
-        localStorage.setItem("smartcliff_role", JSON.stringify(user.role));
-      } else {
-        // If role is just a string or ID
-        const roleString = String(user.role);
-        userRoleValue = roleString.toLowerCase();
-        originalRoleValue = roleString.toLowerCase();
-        localStorage.setItem("smartcliff_role", roleString);
-        localStorage.setItem("smartcliff_roleValue", roleString);
-        localStorage.setItem("smartcliff_roleId", roleString);
-        localStorage.setItem("smartcliff_originalRole", roleString);
+        if (user.role) {
+          if (typeof user.role === 'object' && user.role !== null) {
+            // Handle role as object (with _id, roleValue, etc.)
+            const roleId = user.role._id || user.role.$oid || '';
+            const originalRole = user.role.originalRole || '';
+            const renameRole = user.role.renameRole || '';
+            const roleValue = user.role.roleValue || renameRole || originalRole || 'User';
+            
+            userRoleValue = roleValue.toLowerCase();
+            originalRoleValue = originalRole.toLowerCase();
+            
+            console.log("User role details:", { 
+              originalRole, 
+              renameRole, 
+              roleValue, 
+              userRoleValue,
+              originalRoleValue 
+            });
+            
+            localStorage.setItem("smartcliff_roleId", roleId);
+            localStorage.setItem("smartcliff_roleValue", roleValue);
+            localStorage.setItem("smartcliff_originalRole", originalRole);
+            localStorage.setItem("smartcliff_renameRole", renameRole);
+            
+            // Store the entire role object if needed
+            localStorage.setItem("smartcliff_role", JSON.stringify(user.role));
+          } else {
+            // If role is just a string or ID
+            const roleString = String(user.role);
+            userRoleValue = roleString.toLowerCase();
+            originalRoleValue = roleString.toLowerCase();
+            localStorage.setItem("smartcliff_role", roleString);
+            localStorage.setItem("smartcliff_roleValue", roleString);
+            localStorage.setItem("smartcliff_roleId", roleString);
+            localStorage.setItem("smartcliff_originalRole", roleString);
+          }
+        } else {
+          // Default role if none provided
+          userRoleValue = 'user';
+          originalRoleValue = 'user';
+          localStorage.setItem("smartcliff_role", "User");
+          localStorage.setItem("smartcliff_roleValue", "User");
+          localStorage.setItem("smartcliff_roleId", "");
+          localStorage.setItem("smartcliff_originalRole", "User");
+        }
+
+        // Verify token
+        const verifyResponse = await fetch(
+          "http://localhost:5533/user/verify-token",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        if (!verifyResponse.ok) {
+          clearAuthData();
+          throw new Error("Token verification failed");
+        }
+
+        // Determine redirect path based on permissions first, then role
+        let redirectPath = "";
+        const firstPermissionKey = localStorage.getItem("smartcliff_firstPermissionKey");
+        
+        // Priority 1: Use first permission key if available
+        if (firstPermissionKey) {
+          redirectPath = `/lms/pages/${firstPermissionKey}`;
+          console.log(`Redirecting based on permission key: ${firstPermissionKey} to: ${redirectPath}`);
+        } else {
+          // Priority 2: Fallback to role-based redirect
+          const roleForRedirect = originalRoleValue || userRoleValue;
+          const isStudent = roleForRedirect.includes('student');
+          
+          console.log(`No permission found, falling back to role: ${roleForRedirect}, isStudent: ${isStudent}`);
+
+          if (isStudent) {
+            redirectPath = "/lms/pages/studentdashboard";
+          } else {
+            redirectPath = "/lms/pages/admindashboard";
+          }
+        }
+
+        // Store showWelcomeToast flag if first time login
+        if (!user.firstTimeLoginDone) {
+          localStorage.setItem("showWelcomeToast", "true");
+        }
+
+        console.log(`Final redirect path: ${redirectPath}`);
+        
+        // Force a hard redirect to prevent any caching issues
+        window.location.href = redirectPath;
+        
+      } catch (error) {
+        clearAuthData();
+        if (error instanceof Error) {
+          toast.error(error.message);
+        } else {
+          toast.error("An unexpected error occurred");
+        }
       }
-    } else {
-      // Default role if none provided
-      userRoleValue = 'user';
-      originalRoleValue = 'user';
-      localStorage.setItem("smartcliff_role", "User");
-      localStorage.setItem("smartcliff_roleValue", "User");
-      localStorage.setItem("smartcliff_roleId", "");
-      localStorage.setItem("smartcliff_originalRole", "User");
-    }
-
-    // Verify token
-    const verifyResponse = await fetch(
-      "https://lms-server-ym1q.onrender.com/user/verify-token",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    );
-
-    if (!verifyResponse.ok) {
-      clearAuthData();
-      throw new Error("Token verification failed");
-    }
-
-    // Determine redirect path based on user role
-    let redirectPath = "";
-    const roleForRedirect = originalRoleValue || userRoleValue;
-    
-    // Check for student role (case-insensitive and partial match)
-    const isStudent = roleForRedirect.includes('student');
-    
-    console.log(`Role check - originalRoleValue: ${originalRoleValue}, userRoleValue: ${userRoleValue}, isStudent: ${isStudent}`);
-
-    // Always redirect based on role, regardless of firstTimeLoginDone
-    if (isStudent) {
-      redirectPath = "/lms/pages/studentdashboard";
-    } else {
-      redirectPath = "/lms/pages/admindashboard";
-    }
-
-    // Store showWelcomeToast flag if first time login
-    if (!user.firstTimeLoginDone) {
-      localStorage.setItem("showWelcomeToast", "true");
-    }
-
-    console.log(`Redirecting ${roleForRedirect} to: ${redirectPath}`);
-    
-    // Force a hard redirect to prevent any caching issues
-    window.location.href = redirectPath;
-    
-  } catch (error) {
-    clearAuthData();
-    if (error instanceof Error) {
-      toast.error(error.message);
-    } else {
-      toast.error("An unexpected error occurred");
-    }
-  }
-},
+    },
     onError: (error: Error) => {
       showErrorToast(error.message);
     },

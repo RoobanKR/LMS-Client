@@ -17,7 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import DashboardLayout from '../../component/layout';
 
 // --- API & UTILS ---
-const API_BASE_URL = 'https://lms-server-ym1q.onrender.com';
+const API_BASE_URL = 'http://localhost:5533';
 const ENDPOINT = '/student-Dashboard/courses-data/analytics';
 
 const fetchDashboardData = async () => {
@@ -455,7 +455,6 @@ export default function AdminDashboard() {
                                         <th className="py-5 text-[11px] font-bold text-gray-400 uppercase tracking-widest font-heading">Service Type</th>
                                         <th className="py-5 text-center text-[11px] font-bold text-gray-400 uppercase tracking-widest font-heading">Structure</th>
                                         <th className="py-5 text-right text-[11px] font-bold text-gray-400 uppercase tracking-widest font-heading">Participants</th>
-                                        <th className="py-5 pr-8 text-right text-[11px] font-bold text-gray-400 uppercase tracking-widest font-heading">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
@@ -487,7 +486,7 @@ export default function AdminDashboard() {
                                                     {course.stats?.modules || 0} Modules
                                                 </div>
                                             </td>
-                                            <td className="py-4 text-right">
+                                             <td className="py-4 pr-8 text-right">
                                                 <div className="flex flex-col items-end gap-1">
                                                     <span className="text-sm font-bold text-gray-700 font-heading">{course.stats?.participants || 0}</span>
                                                     <span className="text-[10px] text-emerald-600 flex items-center gap-1 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-100">
@@ -495,11 +494,7 @@ export default function AdminDashboard() {
                                                     </span>
                                                 </div>
                                             </td>
-                                            <td className="py-4 pr-8 text-right">
-                                                <Button variant="ghost" size="sm" className="text-indigo-600 hover:bg-indigo-50 font-bold text-xs uppercase tracking-wide">
-                                                    Manage
-                                                </Button>
-                                            </td>
+                                           
                                         </tr>
                                     )) : (
                                         <tr>

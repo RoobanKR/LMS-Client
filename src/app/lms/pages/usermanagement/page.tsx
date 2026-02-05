@@ -2466,7 +2466,7 @@ const handleViewDetails = async (user: User) => {
                               className="flex items-center gap-1 text-xs"
                             >
                               <Upload className="h-3 w-3" />
-                              Bulk Upload
+                              Bulk Upload Users
                             </Button>
                           )}
                         </div>

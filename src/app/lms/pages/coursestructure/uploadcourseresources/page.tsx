@@ -455,21 +455,29 @@ export default function DynamicLMSCoordinator() {
       setTimeout(() => setIsRestoringFromAnalytics(false), 300);
     }
     // --- NORMAL URL NAVIGATION (direct links, bookmarks, etc.) ---
+    // --- NORMAL URL NAVIGATION (direct links, bookmarks, etc.) ---
     else {
       const tabFromUrl = urlParams.get('activeTab') as "I_Do" | "We_Do" | "You_Do" | null;
       const subcategoryFromUrl = urlParams.get('activeSubcategory');
       const nodeIdFromUrl = urlParams.get('nodeId');
 
-      // Apply normal URL params if they exist and differ from current state
-      if (tabFromUrl && tabFromUrl !== activeTab) {
+      // Only apply URL params if we're NOT in the middle of a node selection
+      // This prevents URL params from overriding user's current selection
+      const shouldApplyTabFromUrl = tabFromUrl &&
+        tabFromUrl !== activeTab &&
+        !nodeIdFromUrl; // Don't apply tab change if nodeId is also in URL
+
+      if (shouldApplyTabFromUrl) {
         setActiveTabPersistent(tabFromUrl);
       }
 
-      if (subcategoryFromUrl && subcategoryFromUrl !== activeSubcategory) {
+      if (subcategoryFromUrl &&
+        subcategoryFromUrl !== activeSubcategory &&
+        !nodeIdFromUrl) { // Don't apply subcategory change if nodeId is also in URL
         setActiveSubcategoryPersistent(subcategoryFromUrl);
       }
 
-      // Select node from URL if provided and different from current
+      // Select node from URL if provided
       if (nodeIdFromUrl && selectedNode?.id !== nodeIdFromUrl) {
         const findNode = (nodes: CourseNode[]): CourseNode | null => {
           for (const node of nodes) {
@@ -494,6 +502,15 @@ export default function DynamicLMSCoordinator() {
               parentPath.forEach(id => next.add(id));
               return next;
             });
+          }
+
+          // When selecting a node from URL, preserve current tab/subcategory
+          // unless the URL explicitly specifies different ones
+          if (tabFromUrl && tabFromUrl !== activeTab) {
+            setActiveTabPersistent(tabFromUrl);
+          }
+          if (subcategoryFromUrl && subcategoryFromUrl !== activeSubcategory) {
+            setActiveSubcategoryPersistent(subcategoryFromUrl);
           }
         }
       }
@@ -524,6 +541,14 @@ export default function DynamicLMSCoordinator() {
     }
   }, [courseData, isRestoringFromAnalytics]);
 
+  useEffect(() => {
+    if (selectedNode && !isRestoringFromAnalytics) {
+      const refreshNodeData = async () => {
+        await refreshContentData(selectedNode);
+      };
+      refreshNodeData();
+    }
+  }, [selectedNode?.id, isRestoringFromAnalytics]);
   // --- Persistence Wrappers ---
   const setActiveTabPersistent = (tab: "I_Do" | "We_Do" | "You_Do" | null) => {
     setActiveTab(tab);
@@ -1050,14 +1075,26 @@ export default function DynamicLMSCoordinator() {
   const selectNode = useCallback(async (node: CourseNode) => {
     if (sidebarCollapsed) setSidebarCollapsed(false);
 
+    // Clear any previous content data for the node
+    setContentData(prev => {
+      const newData = { ...prev };
+      delete newData[node.id];
+      return newData;
+    });
+
     // Set selected node
     setSelectedNodePersistent(node);
 
-    // Update URL with essential params
+    // IMPORTANT: DO NOT change activeTab or activeSubcategory
+    // Keep whatever the user has already selected
+    const currentTab = activeTab;
+    const currentSubcategory = activeSubcategory;
+
+    // Update URL with current states
     updateURL({
       nodeId: node.id,
-      activeTab: activeTab,
-      activeSubcategory: activeSubcategory
+      activeTab: currentTab,      // Keep current tab
+      activeSubcategory: currentSubcategory // Keep current subcategory
     });
 
     // Ensure parent nodes are expanded
@@ -1077,9 +1114,20 @@ export default function DynamicLMSCoordinator() {
     // Clear any restore flags
     localStorage.removeItem('lms_restore_node_id');
 
-    // Refresh content data
+    // IMPORTANT: DO NOT reset active tab or subcategory
+    // DO NOT call setActiveTabPersistent or setActiveSubcategoryPersistent here
+
+    // Only refresh content data
     await refreshContentData(node);
-  }, [sidebarCollapsed, courseData, activeTab, activeSubcategory, findPathToNode]);
+
+    // Update URL again to ensure consistency
+    updateURL({
+      nodeId: node.id,
+      activeTab: currentTab,
+      activeSubcategory: currentSubcategory
+    });
+
+  }, [sidebarCollapsed, courseData, findPathToNode, activeTab, activeSubcategory, refreshContentData]);
   // --- Folder Management Functions ---
 
   const createFolder = async () => {
@@ -2081,8 +2129,12 @@ export default function DynamicLMSCoordinator() {
           <div
             onClick={(e) => {
               e.stopPropagation();
-              if (hasChildren) toggleNode(node.id);
-              if (!hasChildren) selectNode(node);
+              if (hasChildren) {
+                toggleNode(node.id);
+              } else {
+                // FIXED: Properly call selectNode for leaf nodes
+                selectNode(node);
+              }
             }}
             className={`
             group flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-all duration-200 border-l-[3px]
@@ -2100,8 +2152,8 @@ export default function DynamicLMSCoordinator() {
               )}
             </div>
             <div className={`
-             flex-shrink-0 p-1 rounded-md
-             ${isSelected ? 'bg-blue-100 text-blue-600' : 'text-gray-400 group-hover:text-gray-600'}
+            flex-shrink-0 p-1 rounded-md
+            ${isSelected ? 'bg-blue-100 text-blue-600' : 'text-gray-400 group-hover:text-gray-600'}
           `}>
               <Icon size={14} />
             </div>
@@ -2126,9 +2178,10 @@ export default function DynamicLMSCoordinator() {
     node: CourseNode;
     onSelect: (node: CourseNode) => void;
     isSelected: boolean;
-  }> = ({ node, onSelect, isSelected }) => {
-    const [isExpanded, setIsExpanded] = useState(false)
-    const hasChildren = node.children && node.children.length > 0
+    selectedNode: CourseNode | null;
+  }> = ({ node, onSelect, isSelected, selectedNode }) => {
+    const [isExpanded, setIsExpanded] = useState(false);
+    const hasChildren = node.children && node.children.length > 0;
 
     const getNodeTypeLabel = (type: string) => {
       switch (type) {
@@ -2160,6 +2213,18 @@ export default function DynamicLMSCoordinator() {
       }
     };
 
+    const getNodeIcon = (type: string) => {
+      switch (type) {
+        case "module": return BookOpen;
+        case "submodule": return FolderOpen;
+        case "topic": return FileText;
+        case "subtopic": return FileIcon;
+        default: return FileIcon;
+      }
+    };
+
+    const Icon = getNodeIcon(node.type);
+
     return (
       <div className="mb-1">
         <div
@@ -2189,8 +2254,8 @@ export default function DynamicLMSCoordinator() {
           {hasChildren && (
             <button
               onClick={(e) => {
-                e.stopPropagation()
-                setIsExpanded(!isExpanded)
+                e.stopPropagation();
+                setIsExpanded(!isExpanded);
               }}
               className="p-1 hover:bg-gray-200 rounded transition-colors"
             >
@@ -2209,6 +2274,7 @@ export default function DynamicLMSCoordinator() {
                 node={child}
                 onSelect={onSelect}
                 isSelected={selectedNode?.id === child.id}
+                selectedNode={selectedNode}
               />
             ))}
           </div>
@@ -4837,4 +4903,4 @@ export default function DynamicLMSCoordinator() {
     </>
   )
 }
-                       
+

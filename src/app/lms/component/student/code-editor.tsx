@@ -1,6 +1,10 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react"
+import { useRouter } from 'next/navigation';
+
+// Then, inside your CodeEditor component, add the router hook:
+
 import {
     Play, RotateCcw, CheckCircle2, Maximize2, Minimize2,  // Add this
     X, Code, FileText, AlertCircle, Terminal, Menu, ChevronRight, ChevronLeft, Search, AlertTriangle, CheckCircle, XCircle, Lock, ArrowUpDown, X as XIcon, Loader2, SkipForward, Clock, ShieldAlert, Camera, Video, Save, LogOut, Trash2, Shield, Mic, MicOff, ShieldCheck, UserCheck, Monitor
@@ -712,6 +716,10 @@ export default function CodeEditor({
     // --- Available Languages ---
     const [availableLanguages, setAvailableLanguages] = useState<string[]>(["javascript", "python", "java", "cpp", "c", "csharp"]);
 
+
+    useEffect(() => {
+        console.log(currentQuestion)
+    }, [currentQuestion])
     // --- Refs ---
     const currentQuestionRef = useRef<string>("");
     const editorInstanceRef = useRef<any>(null);
@@ -736,6 +744,7 @@ export default function CodeEditor({
             : (defaultProblems || [])
     }, [exercise, defaultProblems])
     const problem = problems.length > 0 ? problems[currentProblemIndex] : null
+    const router = useRouter();
 
     // --- Security Configuration ---
     const securitySettings = exercise?.securitySettings || {};
@@ -908,7 +917,7 @@ function solve() {
                 subcategory: subcategory || ""
             });
 
-            const response = await fetch(`https://lms-server-ym1q.onrender.com/courses/answers/single?${params.toString()}`, {
+            const response = await fetch(`http://localhost:5533/courses/answers/single?${params.toString()}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
 
@@ -1495,63 +1504,63 @@ function solve() {
             });
         }
     };
-   const stopScreenRecording = async () => {
-  if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-    console.log('🎥 Stopping screen recording...');
-    
-    // Stop the recorder
-    mediaRecorderRef.current.stop();
-    setIsRecording(false);
-    
-    // Wait for recording to fully stop
-    return new Promise<void>((resolve) => {
-      if (mediaRecorderRef.current) {
-        mediaRecorderRef.current.onstop = async () => {
-          console.log('🎥 MediaRecorder stopped event fired');
-          await cleanupMediaStreams();
-          resolve();
-        };
-      } else {
-        resolve();
-      }
-      
-      // Timeout fallback
-      setTimeout(() => {
-        console.log('🎥 Fallback cleanup after timeout');
-        cleanupMediaStreams();
-        resolve();
-      }, 1000);
-    });
-  }
-};
+    const stopScreenRecording = async () => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+            console.log('🎥 Stopping screen recording...');
 
-const cleanupMediaStreams = () => {
-  // Stop all tracks
-  if (cameraStream) {
-    cameraStream.getTracks().forEach(track => track.stop());
-    setCameraStream(null);
-  }
-  
-  if (screenStream) {
-    screenStream.getTracks().forEach(track => track.stop());
-    setScreenStream(null);
-  }
-  
-  // Cancel animation frame
-  if (animationFrameRef.current) {
-    cancelAnimationFrame(animationFrameRef.current);
-    animationFrameRef.current = null;
-  }
-  
-  // Clean up video elements
-  if (videoRef.current) {
-    videoRef.current.srcObject = null;
-  }
-  
-  if (screenVideoRef.current) {
-    screenVideoRef.current.srcObject = null;
-  }
-};
+            // Stop the recorder
+            mediaRecorderRef.current.stop();
+            setIsRecording(false);
+
+            // Wait for recording to fully stop
+            return new Promise<void>((resolve) => {
+                if (mediaRecorderRef.current) {
+                    mediaRecorderRef.current.onstop = async () => {
+                        console.log('🎥 MediaRecorder stopped event fired');
+                        await cleanupMediaStreams();
+                        resolve();
+                    };
+                } else {
+                    resolve();
+                }
+
+                // Timeout fallback
+                setTimeout(() => {
+                    console.log('🎥 Fallback cleanup after timeout');
+                    cleanupMediaStreams();
+                    resolve();
+                }, 1000);
+            });
+        }
+    };
+
+    const cleanupMediaStreams = () => {
+        // Stop all tracks
+        if (cameraStream) {
+            cameraStream.getTracks().forEach(track => track.stop());
+            setCameraStream(null);
+        }
+
+        if (screenStream) {
+            screenStream.getTracks().forEach(track => track.stop());
+            setScreenStream(null);
+        }
+
+        // Cancel animation frame
+        if (animationFrameRef.current) {
+            cancelAnimationFrame(animationFrameRef.current);
+            animationFrameRef.current = null;
+        }
+
+        // Clean up video elements
+        if (videoRef.current) {
+            videoRef.current.srcObject = null;
+        }
+
+        if (screenVideoRef.current) {
+            screenVideoRef.current.srcObject = null;
+        }
+    };
 
     const saveRecording = async () => {
         try {
@@ -1608,7 +1617,7 @@ const cleanupMediaStreams = () => {
             // Save recording URL to backend
             try {
                 const token = localStorage.getItem('smartcliff_token') || '';
-                const saveResponse = await fetch('https://lms-server-ym1q.onrender.com/assessment/recording', {
+                const saveResponse = await fetch('http://localhost:5533/assessment/recording', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -1741,144 +1750,144 @@ const cleanupMediaStreams = () => {
         });
     };
 
-const handleTermination = useCallback(async (reason: string, status: 'completed' | 'terminated' = 'terminated') => {
-  // Set terminated state first
-  setIsLocked(true);
-  setIsTerminated(true);
-  setTerminationReason(reason);
-  
-  // 1. STOP ALL RECORDINGS AND STREAMS FIRST
-  await stopAllRecordingsAndStreams();
-  
-  let screenRecordingBlob: Blob | null = null;
-  
-  // 2. Create blob after stopping
-  if (securitySettings.screenRecordingEnabled && recordedChunksRef.current.length > 0) {
-    screenRecordingBlob = new Blob(recordedChunksRef.current, {
-      type: mediaRecorderRef.current?.mimeType || 'video/webm'
-    });
-  }
-  
-  // 3. Exit fullscreen
-  if (document.fullscreenElement) {
-    await document.exitFullscreen().catch(() => {});
-  }
-  
-  showToast({
-    type: 'error',
-    title: 'Assessment Terminated',
-    message: reason,
-    duration: 10000
-  });
-  
-  // 4. Send data to backend
-  try {
-    const token = localStorage.getItem('smartcliff_token') || '';
-    const formData = new FormData();
-    
-    formData.append('courseId', courseId || '');
-    formData.append('exerciseId', exercise?._id || '');
-    formData.append('category', 'You_Do');
-    formData.append('subcategory', subcategory || '');
-    formData.append('status', status);
-    formData.append('isLocked', 'true');
-    formData.append('reason', reason || '');
-    
-    const userData = localStorage.getItem('userData');
-    const targetUserId = userData ? JSON.parse(userData)._id : '';
-    if (targetUserId) {
-      formData.append('targetUserId', targetUserId);
-    }
-    
-    // Add screen recording
-    if (screenRecordingBlob) {
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const filename = `terminated_${courseId}_${studentId}_${exercise?._id}_${timestamp}.webm`;
-      formData.append('screenRecording', screenRecordingBlob, filename);
-    }
-    
-    await fetch('https://lms-server-ym1q.onrender.com/exercise/lock', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`
-      },
-      body: formData
-    });
-    
-    addTerminalLog('success', '✅ Exercise locked with recording successfully');
-    
-  } catch (error) {
-    console.error('Failed to lock exercise:', error);
-  }
-}, [courseId, exercise, subcategory, securitySettings.screenRecordingEnabled, studentId]);
+    const handleTermination = useCallback(async (reason: string, status: 'completed' | 'terminated' = 'terminated') => {
+        // Set terminated state first
+        setIsLocked(true);
+        setIsTerminated(true);
+        setTerminationReason(reason);
 
-// Add this helper function to properly stop all recordings
-const stopAllRecordingsAndStreams = async () => {
-  console.log('🛑 Stopping all recordings and streams...');
-  
-  // 1. Stop MediaRecorder if active
-  if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-    console.log('🛑 Stopping media recorder...');
-    mediaRecorderRef.current.stop();
-    setIsRecording(false);
-  }
-  
-  // 2. Cancel animation frame
-  if (animationFrameRef.current) {
-    console.log('🛑 Cancelling animation frame...');
-    cancelAnimationFrame(animationFrameRef.current);
-    animationFrameRef.current = null;
-  }
-  
-  // 3. Stop camera stream
-  if (cameraStream) {
-    console.log('🛑 Stopping camera stream...');
-    cameraStream.getTracks().forEach(track => {
-      track.stop();
-      console.log(`🛑 Stopped camera track: ${track.kind}`);
-    });
-    setCameraStream(null);
-    
-    // Clear video element
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-  }
-  
-  // 4. Stop screen stream
-  if (screenStream) {
-    console.log('🛑 Stopping screen stream...');
-    screenStream.getTracks().forEach(track => {
-      track.stop();
-      console.log(`🛑 Stopped screen track: ${track.kind}`);
-    });
-    setScreenStream(null);
-  }
-  
-  // 5. Clear screenVideoRef
-  if (screenVideoRef.current) {
-    screenVideoRef.current.srcObject = null;
-  }
-  
-  // 6. Clear canvas
-  if (canvasRef.current) {
-    const ctx = canvasRef.current.getContext('2d');
-    if (ctx) {
-      ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-    }
-  }
-  
-  // 7. Reset input resolver
-  if (inputResolverRef.current) {
-    inputResolverRef.current('');
-    inputResolverRef.current = null;
-  }
-  
-  // 8. Wait a bit for cleanup
-  await new Promise(resolve => setTimeout(resolve, 500));
-  
-  console.log('✅ All recordings and streams stopped');
-};
+        // 1. STOP ALL RECORDINGS AND STREAMS FIRST
+        await stopAllRecordingsAndStreams();
+
+        let screenRecordingBlob: Blob | null = null;
+
+        // 2. Create blob after stopping
+        if (securitySettings.screenRecordingEnabled && recordedChunksRef.current.length > 0) {
+            screenRecordingBlob = new Blob(recordedChunksRef.current, {
+                type: mediaRecorderRef.current?.mimeType || 'video/webm'
+            });
+        }
+
+        // 3. Exit fullscreen
+        if (document.fullscreenElement) {
+            await document.exitFullscreen().catch(() => { });
+        }
+
+        showToast({
+            type: 'error',
+            title: 'Assessment Terminated',
+            message: reason,
+            duration: 10000
+        });
+
+        // 4. Send data to backend
+        try {
+            const token = localStorage.getItem('smartcliff_token') || '';
+            const formData = new FormData();
+
+            formData.append('courseId', courseId || '');
+            formData.append('exerciseId', exercise?._id || '');
+            formData.append('category', 'You_Do');
+            formData.append('subcategory', subcategory || '');
+            formData.append('status', status);
+            formData.append('isLocked', 'true');
+            formData.append('reason', reason || '');
+
+            const userData = localStorage.getItem('userData');
+            const targetUserId = userData ? JSON.parse(userData)._id : '';
+            if (targetUserId) {
+                formData.append('targetUserId', targetUserId);
+            }
+
+            // Add screen recording
+            if (screenRecordingBlob) {
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                const filename = `terminated_${courseId}_${studentId}_${exercise?._id}_${timestamp}.webm`;
+                formData.append('screenRecording', screenRecordingBlob, filename);
+            }
+
+            await fetch('http://localhost:5533/exercise/lock', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                },
+                body: formData
+            });
+
+            addTerminalLog('success', '✅ Exercise locked with recording successfully');
+
+        } catch (error) {
+            console.error('Failed to lock exercise:', error);
+        }
+    }, [courseId, exercise, subcategory, securitySettings.screenRecordingEnabled, studentId]);
+
+    // Add this helper function to properly stop all recordings
+    const stopAllRecordingsAndStreams = async () => {
+        console.log('🛑 Stopping all recordings and streams...');
+
+        // 1. Stop MediaRecorder if active
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+            console.log('🛑 Stopping media recorder...');
+            mediaRecorderRef.current.stop();
+            setIsRecording(false);
+        }
+
+        // 2. Cancel animation frame
+        if (animationFrameRef.current) {
+            console.log('🛑 Cancelling animation frame...');
+            cancelAnimationFrame(animationFrameRef.current);
+            animationFrameRef.current = null;
+        }
+
+        // 3. Stop camera stream
+        if (cameraStream) {
+            console.log('🛑 Stopping camera stream...');
+            cameraStream.getTracks().forEach(track => {
+                track.stop();
+                console.log(`🛑 Stopped camera track: ${track.kind}`);
+            });
+            setCameraStream(null);
+
+            // Clear video element
+            if (videoRef.current) {
+                videoRef.current.srcObject = null;
+            }
+        }
+
+        // 4. Stop screen stream
+        if (screenStream) {
+            console.log('🛑 Stopping screen stream...');
+            screenStream.getTracks().forEach(track => {
+                track.stop();
+                console.log(`🛑 Stopped screen track: ${track.kind}`);
+            });
+            setScreenStream(null);
+        }
+
+        // 5. Clear screenVideoRef
+        if (screenVideoRef.current) {
+            screenVideoRef.current.srcObject = null;
+        }
+
+        // 6. Clear canvas
+        if (canvasRef.current) {
+            const ctx = canvasRef.current.getContext('2d');
+            if (ctx) {
+                ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+            }
+        }
+
+        // 7. Reset input resolver
+        if (inputResolverRef.current) {
+            inputResolverRef.current('');
+            inputResolverRef.current = null;
+        }
+
+        // 8. Wait a bit for cleanup
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        console.log('✅ All recordings and streams stopped');
+    };
     // --- Code Execution ---
     // Update the executeCode function around line ~730
     const executeCode = async (input: string = ""): Promise<{ output: string; error?: string; runtime?: number }> => {
@@ -1997,7 +2006,7 @@ const stopAllRecordingsAndStreams = async () => {
         }
 
         // Then check exercise setting if security doesn't restrict it
-        if (!isCopyPasteDisabled && !exercise?.compilerSettings.allowCopyPaste && isCopyPasteDetected(code)) {
+        if (!isCopyPasteDisabled && !exercise?.compilerSettings?.allowCopyPaste && isCopyPasteDetected(code)) {
             addTerminalLog('error', 'Copy-paste is not allowed for this exercise. Please type the code yourself.');
             setShowTerminal(true);
             return;
@@ -2046,189 +2055,365 @@ const stopAllRecordingsAndStreams = async () => {
     }, [cameraStream]);
     // --- Submission ---
     const submitProgressToBackend = async (
-  questionId: string,
-  status = 'attempted',
-  score = 0,
-) => {
-  try {
-    const currentCode = editorInstanceRef.current ? editorInstanceRef.current.getValue() : code;
-    const currentCourseId = courseId || (exercise?.courseId ? exercise.courseId.toString() : "");
-    if (!currentCourseId) {
-      throw new Error('No courseId');
-    }
+        questionId: string,
+        status = 'attempted',
+        score = 0,
+    ) => {
+        try {
+            const currentCode = editorInstanceRef.current ? editorInstanceRef.current.getValue() : code;
+            const currentCourseId = courseId || (exercise?.courseId ? exercise.courseId.toString() : "");
+            if (!currentCourseId) {
+                throw new Error('No courseId');
+            }
 
-    const finalScore = score > 0 ? score : (status === 'solved' ? 100 : 0);
+            const finalScore = score > 0 ? score : (status === 'solved' ? 100 : 0);
 
-    // Create FormData for multipart/form-data
-    const formData = new FormData();
-    
-    // Add all data as separate fields for easier parsing on backend
-    formData.append('courseId', currentCourseId);
-    formData.append('exerciseId', exercise?._id || "");
-    formData.append('questionId', questionId);
-    formData.append('code', currentCode);
-    formData.append('score', finalScore.toString());
-    formData.append('status', status);
-    formData.append('category', category || "We_Do");
-    formData.append('subcategory', subcategory);
-    formData.append('nodeId', nodeId || "");
-    formData.append('nodeName', nodeName || "");
-    formData.append('nodeType', nodeType || "");
-    formData.append('language', selectedLanguage);
-    formData.append('attemptLimitEnabled', (exercise?.questionBehavior.attemptLimitEnabled || false).toString());
-    formData.append('maxAttempts', (exercise?.questionBehavior.maxAttempts || 1).toString());
-    
-    // Add screen recording if available
-  
+            // Create FormData for multipart/form-data
+            const formData = new FormData();
+            // Add all data as separate fields for easier parsing on backend
+            formData.append('courseId', currentCourseId);
+            formData.append('exerciseId', exercise?._id || "");
+            formData.append('questionId', questionId);
+            formData.append('code', currentCode);
+            formData.append('score', finalScore.toString());
+            formData.append('status', status);
+            formData.append('category', category || "We_Do");
+            formData.append('subcategory', subcategory);
+            formData.append('nodeId', nodeId || "");
+            formData.append('nodeName', nodeName || "");
+            formData.append('nodeType', nodeType || "");
+            formData.append('language', selectedLanguage);
+            formData.append('attemptLimitEnabled', (exercise?.questionBehavior?.attemptLimitEnabled || false).toString());
+            formData.append('maxAttempts', (exercise?.questionBehavior?.maxAttempts || 1).toString());
 
-    addTerminalLog('system', '📤 Submitting to server...');
+            // Add screen recording if available
 
-    const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
-    const response = await fetch('https://lms-server-ym1q.onrender.com/courses/answers/submit', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`
-        // Don't set Content-Type - let browser set it with boundary
-      },
-      body: formData,
-    });
+            console.log("FOrmDATA", formData);
 
-    const result = await response.json();
+            addTerminalLog('system', '📤 Submitting to server...');
 
-    if (response.status === 403) {
-      const errorMsg = result.message?.find((m: any) => m.key === 'error')?.value || "Max attempts reached.";
-      throw new Error(errorMsg);
-    }
+            const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
+            const response = await fetch('http://localhost:5533/courses/answers/submit', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                    // Don't set Content-Type - let browser set it with boundary
+                },
+                body: formData,
+            });
 
-    if (!response.ok) {
-      throw new Error(`Server error: ${response.status}`);
-    }
+            const result = await response.json();
 
-    addTerminalLog('success', '✅ Submission successful!');
-    return result;
+            if (response.status === 403) {
+                const errorMsg = result.message?.find((m: any) => m.key === 'error')?.value || "Max attempts reached.";
+                throw new Error(errorMsg);
+            }
 
-  } catch (error: any) {
-    addTerminalLog('error', `❌ Submission failed: ${error.message}`);
-    throw error;
-  }
-};
-  const submitCode = async () => {
-  if (isAssessmentMode && !hasStarted) {
-    showToast({
-      type: 'warning',
-      title: 'Assessment Not Started',
-      message: 'Please start the assessment first',
-      duration: 3000
-    });
-    return;
-  }
+            if (!response.ok) {
+                throw new Error(`Server error: ${response.status}`);
+            }
 
-  // Check security setting first
-  const isCopyPasteDisabled = securitySettings.disableClipboard === true;
+            addTerminalLog('success', '✅ Submission successful!');
+            return result;
 
-  if (isCopyPasteDisabled && isCopyPasteDetected(code)) {
-    addTerminalLog('error', 'Submission rejected: Copy-paste is not allowed for this exercise.');
-    setShowTerminal(true);
-    return;
-  }
+        } catch (error: any) {
+            addTerminalLog('error', `❌ Submission failed: ${error.message}`);
+            throw error;
+        }
+    };
+    //   const submitCode = async () => {
+    //   if (isAssessmentMode && !hasStarted) {
+    //     showToast({
+    //       type: 'warning',
+    //       title: 'Assessment Not Started',
+    //       message: 'Please start the assessment first',
+    //       duration: 3000
+    //     });
+    //     return;
+    //   }
 
-  // Then check exercise setting if security doesn't restrict it
-  if (!isCopyPasteDisabled && !exercise?.compilerSettings.allowCopyPaste && isCopyPasteDetected(code)) {
-    addTerminalLog('error', 'Submission rejected: Copy-paste is not allowed for this exercise.');
-    setShowTerminal(true);
-    return;
-  }
+    //   // Check security setting first
+    //   const isCopyPasteDisabled = securitySettings.disableClipboard === true;
 
-  // Check attempts
-  if (exercise?.questionBehavior.attemptLimitEnabled && currentQuestion) {
-    const max = exercise.questionBehavior.maxAttempts || 1;
-    if (userAttempts >= max) {
-      const msg = `Maximum attempts reached (${userAttempts}/${max}). You cannot submit again.`;
-      addTerminalLog('error', msg);
-      setShowTerminal(true);
-      showToast({
-        type: 'error',
-        title: 'Limit Reached',
-        message: msg,
-        duration: 4000
-      });
-      return;
-    }
-  }
+    //   if (isCopyPasteDisabled && isCopyPasteDetected(code)) {
+    //     addTerminalLog('error', 'Submission rejected: Copy-paste is not allowed for this exercise.');
+    //     setShowTerminal(true);
+    //     return;
+    //   }
 
-  setIsRunning(true);
-  setShowTerminal(true);
-  clearTerminal();
+    //   // Then check exercise setting if security doesn't restrict it
+    //   if (!isCopyPasteDisabled && !exercise?.compilerSettings?.allowCopyPaste && isCopyPasteDetected(code)) {
+    //     addTerminalLog('error', 'Submission rejected: Copy-paste is not allowed for this exercise.');
+    //     setShowTerminal(true);
+    //     return;
+    //   }
 
-  addTerminalLog('system', '🚀 Starting submission process...');
+    //   // Check attempts
+    //   if (exercise?.questionBehavior?.attemptLimitEnabled && currentQuestion) {
+    //     const max = exercise.questionBehavior.maxAttempts || 1;
+    //     if (userAttempts >= max) {
+    //       const msg = `Maximum attempts reached (${userAttempts}/${max}). You cannot submit again.`;
+    //       addTerminalLog('error', msg);
+    //       setShowTerminal(true);
+    //       showToast({
+    //         type: 'error',
+    //         title: 'Limit Reached',
+    //         message: msg,
+    //         duration: 4000
+    //       });
+    //       return;
+    //     }
+    //   }
 
-  try {
-    // Prepare screen recording blob if available
-let screenRecordingBlob: Blob | undefined;
-  if (securitySettings.screenRecordingEnabled && recordedChunksRef.current.length > 0) {
-  screenRecordingBlob = new Blob(recordedChunksRef.current, {
-    type: mediaRecorderRef.current?.mimeType || 'video/webm'
-  });
-  addTerminalLog('system', `📹 Including screen recording with submission (${screenRecordingBlob.size} bytes)...`);
-  console.log('📹 Screen recording blob for submission:', {
-    size: screenRecordingBlob.size,
-    type: screenRecordingBlob.type
-  });
-}
+    //   setIsRunning(true);
+    //   setShowTerminal(true);
+    //   clearTerminal();
 
-    // Submit to backend with screen recording
-    addTerminalLog('system', '💾 Saving progress to server for manual evaluation...');
-    const submitResponse = await submitProgressToBackend(
-      currentQuestion!._id,
-      'submitted', // Use 'submitted' status for manual evaluation
-      0, // Score will be assigned manually
-      screenRecordingBlob
-    );
+    //   addTerminalLog('system', '🚀 Starting submission process...');
 
-    if (submitResponse && submitResponse.success) {
-      // Update attempts
-      setUserAttempts(prev => prev + 1);
+    //   try {
+    //     // Prepare screen recording blob if available
+    // let screenRecordingBlob: Blob | undefined;
+    //   if (securitySettings.screenRecordingEnabled && recordedChunksRef.current.length > 0) {
+    //   screenRecordingBlob = new Blob(recordedChunksRef.current, {
+    //     type: mediaRecorderRef.current?.mimeType || 'video/webm'
+    //   });
+    //   addTerminalLog('system', `📹 Including screen recording with submission (${screenRecordingBlob.size} bytes)...`);
+    //   console.log('📹 Screen recording blob for submission:', {
+    //     size: screenRecordingBlob.size,
+    //     type: screenRecordingBlob.type
+    //   });
+    // }
 
-      addTerminalLog('success', '✅ Code submitted for manual evaluation!');
+    //     // Submit to backend with screen recording
+    //     addTerminalLog('system', '💾 Saving progress to server for manual evaluation...');
+    //     const submitResponse = await submitProgressToBackend(
+    //       currentQuestion!._id,
+    //       'submitted', // Use 'submitted' status for manual evaluation
+    //       0, // Score will be assigned manually
+    //       screenRecordingBlob
+    //     );
 
-      // Mark as submitted
-      setSolvedQuestions(prev => {
-        const newSet = new Set(prev);
-        newSet.add(currentProblemIndex);
-        return newSet;
-      });
+    //     if (submitResponse && submitResponse.success) {
+    //       // Update attempts
+    //       setUserAttempts(prev => prev + 1);
 
-      // Auto-navigate if allowed
-      if (exercise?.questionBehavior.allowNext && currentProblemIndex < problems.length - 1) {
-        let countdown = 3;
+    //       addTerminalLog('success', '✅ Code submitted for manual evaluation!');
 
-        const countdownInterval = setInterval(() => {
-          addTerminalLog('system', `⏱️ Next question in ${countdown}...`);
-          countdown--;
+    //       // Mark as submitted
+    //       setSolvedQuestions(prev => {
+    //         const newSet = new Set(prev);
+    //         newSet.add(currentProblemIndex);
+    //         return newSet;
+    //       });
 
-          if (countdown < 0) {
-            clearInterval(countdownInterval);
-            setCurrentProblemIndex(currentProblemIndex + 1);
-            addTerminalLog('system', '➡️ Moving to next question...');
-          }
-        }, 1000);
-      }
+    //       // Auto-navigate if allowed
+    //       if (exercise?.questionBehavior?.allowNext && currentProblemIndex < problems.length - 1) {
+    //         let countdown = 3;
 
-      // Check if last question in assessment mode
-      if (isAssessmentMode && currentProblemIndex === problems.length - 1) {
-        setTimeout(() => {
-          handleTermination("Assessment Completed Successfully", 'completed');
-        }, 2000);
-      }
-    }
+    //         const countdownInterval = setInterval(() => {
+    //           addTerminalLog('system', `⏱️ Next question in ${countdown}...`);
+    //           countdown--;
 
-  } catch (error: any) {
-    console.error("Submission error:", error);
-    addTerminalLog('error', `❌ ${error.message}`);
-  } finally {
-    setIsRunning(false);
-  }
-};
+    //           if (countdown < 0) {
+    //             clearInterval(countdownInterval);
+    //             setCurrentProblemIndex(currentProblemIndex + 1);
+    //             addTerminalLog('system', '➡️ Moving to next question...');
+    //           }
+    //         }, 1000);
+    //       }
+
+    //       // Check if last question in assessment mode
+    //       if (isAssessmentMode && currentProblemIndex === problems.length - 1) {
+    //         setTimeout(() => {
+    //           handleTermination("Assessment Completed Successfully", 'completed');
+    //         }, 2000);
+    //       }
+    //     }
+
+    //   } catch (error: any) {
+    //     console.error("Submission error:", error);
+    //     addTerminalLog('error', `❌ ${error.message}`);
+    //   } finally {
+    //     setIsRunning(false);
+    //   }
+    // };
+
+
+
+    const submitCode = async () => {
+        if (isAssessmentMode && !hasStarted) {
+            showToast({
+                type: 'warning',
+                title: 'Assessment Not Started',
+                message: 'Please start the assessment first',
+                duration: 3000
+            });
+            return;
+        }
+
+        // Check security setting first
+        const isCopyPasteDisabled = securitySettings.disableClipboard === true;
+
+        if (isCopyPasteDisabled && isCopyPasteDetected(code)) {
+            addTerminalLog('error', 'Submission rejected: Copy-paste is not allowed for this exercise.');
+            setShowTerminal(true);
+            return;
+        }
+
+        // Then check exercise setting if security doesn't restrict it
+        if (!isCopyPasteDisabled && !exercise?.compilerSettings?.allowCopyPaste && isCopyPasteDetected(code)) {
+            addTerminalLog('error', 'Submission rejected: Copy-paste is not allowed for this exercise.');
+            setShowTerminal(true);
+            return;
+        }
+
+        // Check attempts
+        if (exercise?.questionBehavior?.attemptLimitEnabled && currentQuestion) {
+            const max = exercise.questionBehavior.maxAttempts || 1;
+            if (userAttempts >= max) {
+                const msg = `Maximum attempts reached (${userAttempts}/${max}). You cannot submit again.`;
+                addTerminalLog('error', msg);
+                setShowTerminal(true);
+                showToast({
+                    type: 'error',
+                    title: 'Limit Reached',
+                    message: msg,
+                    duration: 4000
+                });
+                return;
+            }
+        }
+
+        setIsRunning(true);
+        // setShowTerminal(true);
+        clearTerminal();
+
+        addTerminalLog('system', '🚀 Starting submission process...');
+
+        try {
+            // Prepare screen recording blob if available
+            let screenRecordingBlob: Blob | undefined;
+            if (securitySettings.screenRecordingEnabled && recordedChunksRef.current.length > 0) {
+                screenRecordingBlob = new Blob(recordedChunksRef.current, {
+                    type: mediaRecorderRef.current?.mimeType || 'video/webm'
+                });
+                addTerminalLog('system', `📹 Including screen recording with submission (${screenRecordingBlob.size} bytes)...`);
+            }
+
+            // Submit to backend with screen recording
+            addTerminalLog('system', '💾 Saving progress to server for manual evaluation...');
+            const submitResponse = await submitProgressToBackend(
+                currentQuestion!._id,
+                'submitted', // Use 'submitted' status for manual evaluation
+                0, // Score will be assigned manually
+                screenRecordingBlob
+            );
+
+            if (submitResponse && submitResponse.success) {
+                // Update attempts
+                setUserAttempts(prev => prev + 1);
+
+                addTerminalLog('success', '✅ Code submitted for manual evaluation!');
+
+                // Mark as submitted
+                setSolvedQuestions(prev => {
+                    const newSet = new Set(prev);
+                    newSet.add(currentProblemIndex);
+                    return newSet;
+                });
+
+                // Check if this is the last question
+                const isLastQuestion = currentProblemIndex === problems.length - 1;
+
+                // Auto-navigate if allowed (only if not last question)
+                if (exercise?.questionBehavior?.allowNext && !isLastQuestion) {
+                    let countdown = 3;
+
+                    const countdownInterval = setInterval(() => {
+                        addTerminalLog('system', `⏱️ Next question in ${countdown}...`);
+                        countdown--;
+
+                        if (countdown < 0) {
+                            clearInterval(countdownInterval);
+                            setCurrentProblemIndex(currentProblemIndex + 1);
+                            addTerminalLog('system', '➡️ Moving to next question...');
+                        }
+                    }, 1000);
+                }
+
+                // Check if last question in assessment mode
+                if (isAssessmentMode && isLastQuestion) {
+                    addTerminalLog('success', '🎉 Assessment completed! All questions submitted.');
+
+                    // Show completion message
+                    showToast({
+                        type: 'success',
+                        title: 'Assessment Completed',
+                        message: 'All questions have been submitted successfully!',
+                        duration: 5000
+                    });
+
+                    // Stop recording if active
+                    if (isRecording) {
+                        await stopScreenRecording();
+                    }
+
+                    // Exit fullscreen if in fullscreen mode
+                    if (document.fullscreenElement) {
+                        await document.exitFullscreen();
+                    }
+
+                    // Add a delay before redirecting to let the user see the success message
+                    setTimeout(() => {
+                        // Redirect to the course detailed view
+                        if (courseId) {
+                            // router.refresh();
+
+                            if (onCloseExercise) {
+                                onCloseExercise();
+                            }
+                        } else {
+                            // Fallback if no courseId is available
+                            router.push('/lms/dashboard');
+                        }
+                    }, 2000);
+
+                } else if (isLastQuestion && !isAssessmentMode) {
+                    // For non-assessment mode, still redirect after last question
+                    addTerminalLog('success', '✅ All questions completed!');
+
+                    showToast({
+                        type: 'success',
+                        title: 'Exercise Completed',
+                        message: 'All questions have been submitted!',
+                        duration: 3000
+                    });
+
+                    setTimeout(() => {
+                        if (courseId) {
+                            if (onCloseExercise) {
+                                onCloseExercise();
+                            }
+                        } else {
+                            router.push('/lms/dashboard');
+                        }
+                    }, 2000);
+                }
+
+            }
+
+        } catch (error: any) {
+            console.error("Submission error:", error);
+            addTerminalLog('error', `❌ ${error.message}`);
+        } finally {
+            setIsRunning(false);
+        }
+    };
+
+
+
+
     const cycleSortOption = () => {
         const sortOptions: Array<'default' | 'difficulty' | 'title'> = ['default', 'difficulty', 'title'];
         const currentIndex = sortOptions.indexOf(sortBy);
@@ -2255,7 +2440,7 @@ let screenRecordingBlob: Blob | undefined;
         }
 
         // If exercise settings explicitly allow copy-paste
-        if (exercise?.compilerSettings.allowCopyPaste) {
+        if (exercise?.compilerSettings?.allowCopyPaste) {
             return false;
         }
 
@@ -2367,7 +2552,7 @@ let screenRecordingBlob: Blob | undefined;
     };
 
     const skipCurrentQuestion = async () => {
-        if (!exercise?.questionBehavior.allowSkip) {
+        if (!exercise?.questionBehavior?.allowSkip) {
             addTerminalLog('error', 'Skipping questions is not allowed for this exercise.');
             return;
         }
@@ -2399,7 +2584,7 @@ let screenRecordingBlob: Blob | undefined;
 
     const nextProblem = () => {
         const isCurrentSolved = solvedQuestions.has(currentProblemIndex);
-        if (exercise?.questionBehavior.allowNext) {
+        if (exercise?.questionBehavior?.allowNext) {
             if (currentProblemIndex < problems.length - 1) {
                 setCurrentProblemIndex(currentProblemIndex + 1);
             }
@@ -2432,7 +2617,7 @@ let screenRecordingBlob: Blob | undefined;
 
             try {
                 const token = localStorage.getItem('smartcliff_token') || '';
-                const response = await fetch(`https://lms-server-ym1q.onrender.com/exercise/status?courseId=${courseId}&exerciseId=${exercise._id}&category=You_Do&subcategory=${subcategory}`, {
+                const response = await fetch(`http://localhost:5533/exercise/status?courseId=${courseId}&exerciseId=${exercise._id}&category=You_Do&subcategory=${subcategory}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
 
@@ -2570,7 +2755,7 @@ let screenRecordingBlob: Blob | undefined;
                 strategy="afterInteractive"
             />
 
-            {showCopyWarning && !exercise?.compilerSettings.allowCopyPaste && (
+            {showCopyWarning && !exercise?.compilerSettings?.allowCopyPaste && (
                 <div className="absolute inset-0 bg-black/50 z-50 flex items-center justify-center">
                     <div className="bg-white p-4 rounded-lg shadow-xl max-w-sm mx-4">
                         <div className="flex items-center gap-2 mb-3">
@@ -2662,12 +2847,12 @@ let screenRecordingBlob: Blob | undefined;
                             <span className="text-xs font-medium">{currentProblemIndex + 1}/{problems.length}</span>
                             <button
                                 onClick={nextProblem}
-                                disabled={currentProblemIndex === problems.length - 1 || (!exercise?.questionBehavior.allowNext && !isQuestionSolved(currentProblemIndex))}
+                                disabled={currentProblemIndex === problems.length - 1 || (!exercise?.questionBehavior?.allowNext && !isQuestionSolved(currentProblemIndex))}
                                 className={`w-7 h-7 flex items-center justify-center border rounded ${theme === 'dark' ? 'border-gray-600 hover:bg-gray-700 text-gray-300' : 'border-gray-300 hover:bg-gray-200 text-gray-700'} disabled:opacity-50`}
                             >
                                 <ChevronRight className="w-3.5 h-3.5" />
                             </button>
-                            {exercise?.questionBehavior.allowSkip && (
+                            {exercise?.questionBehavior?.allowSkip && (
                                 <button
                                     onClick={skipCurrentQuestion}
                                     disabled={currentProblemIndex === problems.length - 1}
@@ -2789,11 +2974,11 @@ let screenRecordingBlob: Blob | undefined;
 
                     <button
                         onClick={submitCode}
-                        disabled={isRunning || (exercise?.questionBehavior.attemptLimitEnabled && userAttempts >= (exercise.questionBehavior.maxAttempts || 1))}
+                        disabled={isRunning || (exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1))}
                         className="h-7 px-2 text-xs bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50 flex items-center gap-1 disabled:cursor-not-allowed"
                     >
                         {isRunning ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle className="w-3 h-3" />}
-                        {exercise?.questionBehavior.attemptLimitEnabled && userAttempts >= (exercise.questionBehavior.maxAttempts || 1)
+                        {exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1)
                             ? "Limit Reached"
                             : "Submit"}
                     </button>
@@ -2947,7 +3132,7 @@ let screenRecordingBlob: Blob | undefined;
                                 <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${problem?.difficulty === "Easy" ? (theme === 'dark' ? 'bg-green-900/30 text-green-300' : 'bg-green-100 text-green-800') : problem?.difficulty === "Medium" ? (theme === 'dark' ? 'bg-yellow-900/30 text-yellow-300' : 'bg-yellow-100 text-yellow-800') : (theme === 'dark' ? 'bg-red-900/30 text-red-300' : 'bg-red-100 text-red-800')}`}>
                                     {problem?.difficulty || "Easy"}
                                 </span>
-                                {exercise?.questionBehavior.attemptLimitEnabled && (
+                                {exercise?.questionBehavior?.attemptLimitEnabled && (
                                     <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border flex items-center gap-1 ${userAttempts >= (exercise.questionBehavior.maxAttempts || 1) ? (theme === 'dark' ? 'bg-red-900/30 text-red-300 border-red-800' : 'bg-red-100 text-red-800 border-red-200') : (theme === 'dark' ? 'bg-blue-900/30 text-blue-300 border-blue-800' : 'bg-blue-100 text-blue-800 border-blue-200')}`}>
                                         {userAttempts >= (exercise.questionBehavior.maxAttempts || 1) && <AlertTriangle className="w-3 h-3" />}
                                         Attempts: {userAttempts} / {exercise.questionBehavior.maxAttempts}

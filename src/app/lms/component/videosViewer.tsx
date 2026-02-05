@@ -41,7 +41,6 @@ interface VideoViewerProps {
   onClose: () => void
   availableResolutions?: string[]
   isVideo?: boolean
-  // New props for video playlist
   allVideos?: VideoItem[]
   currentVideoIndex?: number
   onVideoChange?: (index: number) => void
@@ -60,7 +59,6 @@ export default function VideoViewer({
   onClose, 
   availableResolutions = [],
   isVideo = true,
-  // New props with defaults
   allVideos = [],
   currentVideoIndex = 0,
   onVideoChange = () => {}
@@ -74,7 +72,7 @@ export default function VideoViewer({
   const [isMuted, setIsMuted] = useState(false)
   const [playbackRate, setPlaybackRate] = useState(1)
   const [showControls, setShowControls] = useState(true)
-  const [currentResolution, setCurrentResolution] = useState<string>("")
+  const [currentResolution, setCurrentResolution] = useState<string>("base")
   const [availableQualities, setAvailableQualities] = useState<VideoQuality[]>([])
   const [isSwitchingQuality, setIsSwitchingQuality] = useState(false)
   const [networkSpeed, setNetworkSpeed] = useState<number>(0)
@@ -121,43 +119,27 @@ export default function VideoViewer({
     setCurrentVideoIndexState(currentVideoIndex)
   }, [allVideos, currentVideoIndex])
 
-  // Filter out "base" resolution and normalize video URLs
-  const filterOutBaseResolution = (resolutions: string[]): string[] => {
-    return resolutions.filter(res => res !== 'base' && res !== 'source')
-  }
-
-  // Get the highest available resolution (excluding base)
-  const getHighestResolution = (resolutions: string[]): string => {
-    const filtered = filterOutBaseResolution(resolutions)
-    if (filtered.length === 0) return ''
-
-    // Sort by resolution quality (highest first)
-    const resolutionOrder = ['4k', '2160p', '1440p', '1080p', '720p', '480p', '360p', '240p', '144p']
-    
-    return filtered.sort((a, b) => {
-      const aIndex = resolutionOrder.indexOf(a.toLowerCase())
-      const bIndex = resolutionOrder.indexOf(b.toLowerCase())
-      return aIndex - bIndex // Lower index means higher quality
-    })[0] // Return the highest quality
-  }
-
-  // Normalize video URLs and extract available qualities for current video (excluding base)
+  // Extract and normalize video qualities from current video data
   useEffect(() => {
     const extractQualities = () => {
       const qualities: VideoQuality[] = []
       
-      console.log('VideoViewer - Processing fileUrl:', currentVideo.fileUrl)
-      console.log('VideoViewer - Available resolutions:', currentVideo.availableResolutions)
+      console.log('Processing video data:', {
+        fileUrl: currentVideo.fileUrl,
+        availableResolutions: currentVideo.availableResolutions,
+        fileName: currentVideo.fileName
+      })
       
-      const fileUrl = currentVideo.fileUrl
+      const videoData = currentVideo.fileUrl
       
-      // Case 1: fileUrl is an object with multiple resolutions
-      if (typeof fileUrl === 'object' && fileUrl !== null && !Array.isArray(fileUrl)) {
-        Object.entries(fileUrl).forEach(([resolution, url]) => {
-          // FILTER OUT "base" resolution - only show actual quality options
-          if (resolution !== 'base' && typeof url === 'string' && url.startsWith('http')) {
+      // Case 1: fileUrl is an object with multiple resolution URLs
+      if (typeof videoData === 'object' && videoData !== null && !Array.isArray(videoData)) {
+        Object.entries(videoData).forEach(([resolution, url]) => {
+          // Include ALL resolutions including 'base'
+          if (typeof url === 'string' && url.trim() !== '') {
+            const label = resolution === 'base' ? 'BASE' : resolution.toUpperCase()
             qualities.push({
-              label: resolution.toUpperCase(),
+              label: label,
               value: resolution,
               url: url
             })
@@ -165,162 +147,312 @@ export default function VideoViewer({
         })
       }
       
-      // Case 2: Use availableResolutions prop if provided (filter out base)
-      if (currentVideo.availableResolutions && currentVideo.availableResolutions.length > 0 && qualities.length === 0) {
-        const filteredResolutions = filterOutBaseResolution(currentVideo.availableResolutions)
-        filteredResolutions.forEach(resolution => {
-          qualities.push({
-            label: resolution.toUpperCase(),
-            value: resolution,
-            url: typeof fileUrl === 'string' ? fileUrl : '' // Fallback to main URL
+      // Case 2: Use availableResolutions prop with base URL pattern
+      if (currentVideo.availableResolutions && currentVideo.availableResolutions.length > 0) {
+        // If we already have qualities from the object, use those
+        if (qualities.length === 0) {
+          currentVideo.availableResolutions.forEach(resolution => {
+            if (resolution && resolution.trim() !== '') {
+              const label = resolution === 'base' ? 'BASE' : resolution.toUpperCase()
+              qualities.push({
+                label: label,
+                value: resolution,
+                url: typeof videoData === 'string' ? videoData : ''
+              })
+            }
           })
-        })
+        }
       }
       
-      // Case 3: Single URL - create a default quality (only if no other qualities found)
-      if (qualities.length === 0 && typeof fileUrl === 'string' && fileUrl.startsWith('http')) {
-        // Try to detect resolution from filename or create default
-        const detectedResolution = detectResolutionFromFileName(currentVideo.fileName) || 'SD'
+      // Case 3: Single URL - create default quality
+      if (qualities.length === 0 && typeof videoData === 'string' && videoData.trim() !== '') {
         qualities.push({
-          label: detectedResolution,
-          value: 'source',
-          url: fileUrl
+          label: 'BASE',
+          value: 'base',
+          url: videoData
         })
       }
       
-      // Sort qualities by resolution (highest first)
+      // Sort qualities by resolution (base first, then increasing quality)
       if (qualities.length > 1) {
         qualities.sort((a, b) => {
-          const order = ['4K', '2160P', '1440P', '1080P', '720P', '480P', '360P', '240P', '144P', 'SD', 'SOURCE']
-          const aIndex = order.indexOf(a.label.toUpperCase())
-          const bIndex = order.indexOf(b.label.toUpperCase())
-          return aIndex - bIndex
+          // Define order: base is first, then increasing quality
+          const order = ['BASE', '144P', '240P', '360P', '480P', '720P', '1080P', '1440P', '2160P', '4K', 'SOURCE']
+          
+          const aLabel = a.label.toUpperCase()
+          const bLabel = b.label.toUpperCase()
+          
+          const aIndex = order.indexOf(aLabel)
+          const bIndex = order.indexOf(bLabel)
+          
+          // If both are in predefined order
+          if (aIndex !== -1 && bIndex !== -1) {
+            return aIndex - bIndex
+          }
+          
+          // If only one is in order
+          if (aIndex !== -1) return -1
+          if (bIndex !== -1) return 1
+          
+          // Neither in order, sort alphabetically
+          return aLabel.localeCompare(bLabel)
         })
       }
       
-      console.log('VideoViewer - Final qualities (base filtered out):', qualities)
+      console.log('Available qualities:', qualities)
       setAvailableQualities(qualities)
       
-      // Set initial resolution - use highest available quality
-      if (qualities.length > 0 && !currentResolution) {
-        const highestQuality = qualities[0] // Already sorted highest first
-        setCurrentResolution(highestQuality.value)
-        console.log('VideoViewer - Setting initial resolution to:', highestQuality.value)
+      // Set initial resolution - prefer 'base' for faster loading
+      if (qualities.length > 0) {
+        const baseQuality = qualities.find(q => q.value === 'base')
+        const initialQuality = baseQuality || qualities[0]
+        
+        if (currentResolution !== initialQuality.value) {
+          setCurrentResolution(initialQuality.value)
+          console.log('Setting initial resolution to:', initialQuality.value, initialQuality.label)
+        }
       }
     }
 
     extractQualities()
-  }, [currentVideo.fileUrl, currentVideo.availableResolutions, currentVideo.fileName])
+  }, [currentVideo.fileUrl, currentVideo.availableResolutions, currentVideo.fileName, currentVideoIndexState])
 
-  // Helper function to detect resolution from filename
-  const detectResolutionFromFileName = (filename: string): string | null => {
-    const resolutionPatterns = [
-      /(\d{3,4})[pP]/,
-      /[_\-\s](\d{3,4})[xX](\d{3,4})/,
-      /[_\-\s]([48]k|[24]k|hd|fullhd|uhd)/i
-    ]
+  // Get current video URL based on selected resolution
+  const getCurrentVideoUrl = (): string => {
+    const videoData = currentVideo.fileUrl
     
-    for (const pattern of resolutionPatterns) {
-      const match = filename.match(pattern)
-      if (match) {
-        if (match[1] === '4k' || match[1] === '2160') return '4K'
-        if (match[1] === '2k' || match[1] === '1440') return '1440P'
-        if (match[1] === '1080') return '1080P'
-        if (match[1] === '720') return '720P'
-        if (match[1] === '480') return '480P'
-        if (match[1] === '360') return '360P'
-        if (match[1] === '240') return '240P'
+    // If it's a single string URL
+    if (typeof videoData === 'string') {
+      return videoData
+    }
+    
+    // If it's an object with resolution URLs
+    if (typeof videoData === 'object') {
+      // Try the current resolution first
+      if (currentResolution && videoData[currentResolution]) {
+        return videoData[currentResolution]
+      }
+      
+      // Try base as fallback
+      if (videoData.base) {
+        console.log('Using base resolution as fallback')
+        return videoData.base
+      }
+      
+      // Try any available URL
+      const firstKey = Object.keys(videoData)[0]
+      if (firstKey && videoData[firstKey]) {
+        return videoData[firstKey]
       }
     }
     
-    return null
+    // Find URL from available qualities
+    const currentQuality = availableQualities.find(q => q.value === currentResolution)
+    if (currentQuality && currentQuality.url) {
+      return currentQuality.url
+    }
+    
+    // Final fallback
+    if (availableQualities.length > 0 && availableQualities[0].url) {
+      return availableQualities[0].url
+    }
+    
+    return ''
   }
 
-  // Network speed detection
+  // Network speed detection and auto-quality switching
   useEffect(() => {
     const measureNetworkSpeed = async () => {
       if (!autoQuality || availableQualities.length <= 1) return
       
-      const testUrl = 'https://www.gstatic.com/gpso/static/img/favicon.ico?' + Date.now()
-      const startTime = Date.now()
-      
       try {
-        const response = await fetch(testUrl, { method: 'HEAD' })
-        const endTime = Date.now()
-        const duration = (endTime - startTime) / 1000
-        const speed = (Number(response.headers.get('content-length')) || 10000) / duration // bytes per second
+        const testUrl = 'https://www.gstatic.com/gpso/static/img/favicon.ico?' + Date.now()
+        const startTime = performance.now()
+        
+        const response = await fetch(testUrl, { 
+          method: 'HEAD',
+          cache: 'no-cache'
+        })
+        
+        const endTime = performance.now()
+        const durationMs = endTime - startTime
+        
+        // Calculate speed in bytes per second
+        const contentLength = Number(response.headers.get('content-length')) || 10000
+        const speed = (contentLength / durationMs) * 1000
         
         setNetworkSpeed(speed)
+        console.log(`Network speed: ${formatNetworkSpeed(speed)}`)
         
         // Auto-switch quality based on network speed
-        let recommendedQuality = availableQualities[0].value // Highest quality
+        let recommendedQuality = 'base' // Default to base for poor network
         
-        if (speed < 100000) { // < 100 KB/s
-          recommendedQuality = availableQualities.find(q => q.label.includes('240P'))?.value || 
-                             availableQualities[availableQualities.length - 1].value
-        } else if (speed < 500000) { // < 500 KB/s
-          recommendedQuality = availableQualities.find(q => q.label.includes('360P'))?.value || 
-                             availableQualities[Math.floor(availableQualities.length * 0.6)].value
-        } else if (speed < 1000000) { // < 1 MB/s
-          recommendedQuality = availableQualities.find(q => q.label.includes('480P'))?.value || 
-                             availableQualities[Math.floor(availableQualities.length * 0.4)].value
-        } else if (speed < 2000000) { // < 2 MB/s
-          recommendedQuality = availableQualities.find(q => q.label.includes('720P'))?.value || 
-                             availableQualities[Math.floor(availableQualities.length * 0.2)].value
+        if (speed > 2000000) { // > 2 MB/s
+          // Try to get highest available quality (excluding base)
+          const highQualities = availableQualities
+            .filter(q => q.value !== 'base')
+            .sort((a, b) => {
+              // Sort by resolution quality
+              const order = ['240p', '360p', '480p', '720p', '1080p', '1440p', '2160p', '4k']
+              return order.indexOf(b.value) - order.indexOf(a.value)
+            })
+          recommendedQuality = highQualities[0]?.value || 'base'
+        } else if (speed > 1000000) { // > 1 MB/s
+          recommendedQuality = availableQualities.find(q => q.value === '1080p')?.value || 
+                              availableQualities.find(q => q.value === '720p')?.value || 'base'
+        } else if (speed > 500000) { // > 500 KB/s
+          recommendedQuality = availableQualities.find(q => q.value === '720p')?.value || 
+                              availableQualities.find(q => q.value === '480p')?.value || 'base'
+        } else if (speed > 200000) { // > 200 KB/s
+          recommendedQuality = availableQualities.find(q => q.value === '480p')?.value || 
+                              availableQualities.find(q => q.value === '360p')?.value || 'base'
+        } else if (speed > 100000) { // > 100 KB/s
+          recommendedQuality = availableQualities.find(q => q.value === '360p')?.value || 
+                              availableQualities.find(q => q.value === '240p')?.value || 'base'
+        } else if (speed > 50000) { // > 50 KB/s
+          recommendedQuality = availableQualities.find(q => q.value === '240p')?.value || 'base'
+        }
+        // < 50 KB/s stays as 'base'
+        
+        // Ensure the recommended quality exists
+        const qualityExists = availableQualities.some(q => q.value === recommendedQuality)
+        if (!qualityExists) {
+          recommendedQuality = 'base'
         }
         
+        // Switch quality if different from current and not already switching
         if (recommendedQuality && recommendedQuality !== currentResolution && !isSwitchingQuality) {
-          switchQuality(recommendedQuality)
+          console.log(`Auto-quality: Switching to ${recommendedQuality}`)
+          await switchQuality(recommendedQuality)
         }
+        
       } catch (error) {
         console.warn('Network speed test failed:', error)
+        // On network error, ensure we're on base quality
+        if (currentResolution !== 'base' && !isSwitchingQuality) {
+          console.log('Network error detected, switching to base quality')
+          switchQuality('base')
+        }
       }
     }
 
-    // Test network speed every 30 seconds when auto quality is enabled
+    // Test network speed periodically when auto quality is enabled
     if (autoQuality && availableQualities.length > 1) {
-      networkTestRef.current = setInterval(measureNetworkSpeed, 30000)
-      measureNetworkSpeed() // Initial test
-    }
-
-    return () => {
-      if (networkTestRef.current) {
-        clearInterval(networkTestRef.current)
+      const interval = 30000 // 30 seconds
+      networkTestRef.current = setInterval(measureNetworkSpeed, interval)
+      
+      // Initial test after a short delay
+      const initialDelay = setTimeout(measureNetworkSpeed, 2000)
+      
+      return () => {
+        if (networkTestRef.current) clearInterval(networkTestRef.current)
+        clearTimeout(initialDelay)
       }
     }
   }, [autoQuality, availableQualities, currentResolution, isSwitchingQuality])
 
-  // Get current video URL based on selected resolution
-  const getCurrentVideoUrl = (): string => {
-    const fileUrl = currentVideo.fileUrl
+  // Switch video quality
+  const switchQuality = async (newResolution: string) => {
+    if (newResolution === currentResolution || !videoRef.current) return
     
-    if (typeof fileUrl === 'string') {
-      return fileUrl
+    setIsSwitchingQuality(true)
+    setShowQualityMenu(false)
+    setVideoError("")
+    
+    try {
+      // Store current state
+      const currentTime = videoRef.current.currentTime
+      const wasPlaying = !videoRef.current.paused
+      const currentVolume = videoRef.current.volume
+      const currentMuted = videoRef.current.muted
+      
+      // Find new quality
+      const newQuality = availableQualities.find(q => q.value === newResolution)
+      if (!newQuality) {
+        throw new Error(`Quality ${newResolution} not found`)
+      }
+      
+      console.log(`Switching quality: ${currentResolution} -> ${newResolution} at ${currentTime.toFixed(2)}s`)
+      
+      // Store current source for fallback
+      const previousSrc = videoRef.current.src
+      const previousTime = videoRef.current.currentTime
+      
+      // Pause current playback
+      safePause()
+      
+      // Set new source
+      videoRef.current.src = newQuality.url
+      
+      // Wait for video to load
+      await new Promise<void>((resolve, reject) => {
+        if (!videoRef.current) {
+          reject(new Error('Video element not found'))
+          return
+        }
+        
+        const handleLoadedMetadata = () => {
+          cleanup()
+          console.log(`New quality loaded: ${newQuality.label}`)
+          resolve()
+        }
+        
+        const handleError = () => {
+          cleanup()
+          reject(new Error(`Failed to load ${newQuality.label}`))
+        }
+        
+        const cleanup = () => {
+          videoRef.current?.removeEventListener('loadedmetadata', handleLoadedMetadata)
+          videoRef.current?.removeEventListener('error', handleError)
+        }
+        
+        videoRef.current.addEventListener('loadedmetadata', handleLoadedMetadata, { once: true })
+        videoRef.current.addEventListener('error', handleError, { once: true })
+        
+        setTimeout(() => {
+          cleanup()
+          reject(new Error('Quality switch timeout'))
+        }, 15000)
+      })
+      
+      // Restore playback position
+      videoRef.current.currentTime = currentTime
+      
+      // Restore volume
+      videoRef.current.volume = currentVolume
+      videoRef.current.muted = currentMuted
+      
+      // Update state
+      setCurrentResolution(newResolution)
+      
+      // Resume playback if it was playing
+      if (wasPlaying) {
+        await new Promise(resolve => setTimeout(resolve, 100))
+        await safePlay()
+      }
+      
+      console.log(`Quality switched successfully to ${newQuality.label}`)
+      
+    } catch (error) {
+      console.error('Failed to switch quality:', error)
+      setVideoError(`Failed to switch to ${newResolution}`)
+      
+      // Try to restore previous source
+      if (videoRef.current) {
+        videoRef.current.src = previousSrc
+        videoRef.current.currentTime = previousTime
+        videoRef.current.load()
+      }
+    } finally {
+      setIsSwitchingQuality(false)
     }
-    
-    if (typeof fileUrl === 'object' && currentResolution && fileUrl[currentResolution]) {
-      return fileUrl[currentResolution]
-    }
-    
-    // If selected resolution not found, try to use base as fallback
-    if (typeof fileUrl === 'object' && fileUrl.base) {
-      console.log('VideoViewer - Using base resolution as fallback')
-      return fileUrl.base
-    }
-    
-    // Final fallback: return the first available URL or the fileUrl string
-    const firstQuality = availableQualities[0]
-    if (firstQuality && firstQuality.url) {
-      return firstQuality.url
-    }
-    
-    return typeof fileUrl === 'string' ? fileUrl : ''
   }
 
   // Format network speed
   const formatNetworkSpeed = (bytesPerSecond: number): string => {
     if (bytesPerSecond < 1000) {
-      return `${bytesPerSecond} B/s`
+      return `${bytesPerSecond.toFixed(0)} B/s`
     } else if (bytesPerSecond < 1000000) {
       return `${(bytesPerSecond / 1000).toFixed(1)} KB/s`
     } else {
@@ -362,23 +494,18 @@ export default function VideoViewer({
     }
   }
 
-  // Safe play function with error handling
+  // Safe play function
   const safePlay = async (): Promise<boolean> => {
     if (!videoRef.current) return false
 
     try {
-      // Clear any existing play promise
       if (playPromiseRef.current) {
-        playPromiseRef.current.catch(() => {}) // Ignore any previous errors
+        playPromiseRef.current.catch(() => {})
       }
 
-      // Pause first to reset any pending operations
       videoRef.current.pause()
-
-      // Wait a small amount of time to ensure the video is ready
       await new Promise(resolve => setTimeout(resolve, 100))
 
-      // Create new play promise
       playPromiseRef.current = videoRef.current.play()
       await playPromiseRef.current
       
@@ -399,7 +526,6 @@ export default function VideoViewer({
       videoRef.current.pause()
       setIsPlaying(false)
       
-      // Clear any pending play promise
       if (playPromiseRef.current) {
         playPromiseRef.current.catch(() => {})
         playPromiseRef.current = null
@@ -409,156 +535,7 @@ export default function VideoViewer({
     }
   }
 
-  // Switch video quality - maintains current playback position
-// Switch video quality - maintains current playback position
-const switchQuality = async (newResolution: string) => {
-  if (newResolution === currentResolution || !videoRef.current) return
-  
-  setIsSwitchingQuality(true)
-  setShowQualityMenu(false)
-  setVideoError("")
-  
-  // Store current state to restore after quality switch
-  const currentTime = videoRef.current.currentTime
-  const wasPlaying = !videoRef.current.paused
-  const currentVolume = videoRef.current.volume
-  const currentMuted = videoRef.current.muted
-  
-  // Find new quality URL
-  const newQuality = availableQualities.find(q => q.value === newResolution)
-  if (!newQuality) {
-    setIsSwitchingQuality(false)
-    return
-  }
-  
-  // Declare previousSrc and previousCurrentTime outside try-catch for scope
-  let previousSrc: string = ""
-  let previousCurrentTime: number = 0
-
-  try {
-    // Pause current video but keep the time position
-    safePause()
-    
-    // Store the current source and time to have fallback options
-    previousSrc = videoRef.current.src
-    previousCurrentTime = videoRef.current.currentTime
-    
-    // Wait a bit to ensure clean state
-    await new Promise(resolve => setTimeout(resolve, 50))
-    
-    // Switch to new quality - set the source first
-    videoRef.current.src = newQuality.url
-    
-    // Set the current time immediately after setting source
-    videoRef.current.currentTime = currentTime
-    
-    // Restore volume settings
-    videoRef.current.volume = currentVolume
-    videoRef.current.muted = currentMuted
-    
-    // Load the new source
-    videoRef.current.load()
-    
-    // Wait for the video to be ready to play at the specified time
-    await new Promise((resolve, reject) => {
-      if (!videoRef.current) return reject(new Error('No video element'))
-      
-      const onLoadedData = () => {
-        cleanup()
-        console.log('Video loaded at time:', currentTime)
-        resolve(true)
-      }
-      
-      const onCanPlayThrough = () => {
-        cleanup()
-        console.log('Video can play through at time:', currentTime)
-        resolve(true)
-      }
-      
-      const onError = (e: Event) => {
-        cleanup()
-        console.error('Video loading error:', e)
-        reject(new Error('Failed to load video at specified time'))
-      }
-      
-      const onAbort = () => {
-        cleanup()
-        reject(new Error('Video loading aborted'))
-      }
-      
-      const cleanup = () => {
-        videoRef.current?.removeEventListener('loadeddata', onLoadedData)
-        videoRef.current?.removeEventListener('canplaythrough', onCanPlayThrough)
-        videoRef.current?.removeEventListener('error', onError)
-        videoRef.current?.removeEventListener('abort', onAbort)
-      }
-      
-      // Set up event listeners
-      videoRef.current.addEventListener('loadeddata', onLoadedData, { once: true })
-      videoRef.current.addEventListener('canplaythrough', onCanPlayThrough, { once: true })
-      videoRef.current.addEventListener('error', onError, { once: true })
-      videoRef.current.addEventListener('abort', onAbort, { once: true })
-      
-      // Timeout after 15 seconds
-      setTimeout(() => {
-        cleanup()
-        reject(new Error('Timeout loading video at specified time'))
-      }, 15000)
-    })
-    
-    // Update the current resolution state
-    setCurrentResolution(newResolution)
-    
-    // Resume playback if it was playing - continues from same position
-    if (wasPlaying) {
-      // Wait a bit more to ensure everything is ready
-      await new Promise(resolve => setTimeout(resolve, 100))
-      
-      // Set the time again to ensure it's correct after loading
-      if (videoRef.current) {
-        videoRef.current.currentTime = currentTime
-      }
-      
-      // Attempt to play
-      const playSuccess = await safePlay()
-      
-      if (!playSuccess) {
-        console.warn('Auto-play after quality switch failed, but video is ready')
-      }
-    } else {
-      // If not playing, still ensure we're at the right time
-      if (videoRef.current) {
-        videoRef.current.currentTime = currentTime
-      }
-    }
-    
-    console.log(`Successfully switched to ${newQuality.label} at ${formatTime(currentTime)}`)
-    
-  } catch (error) {
-    console.error('Failed to switch quality:', error)
-    const errorMsg = typeof error === "object" && error !== null && "message" in error 
-      ? (error as { message: string }).message 
-      : String(error)
-    
-    setVideoError(`Failed to switch to ${newQuality.label}: ${errorMsg}`)
-    
-    // Try to restore previous state if possible
-    if (videoRef.current) {
-      try {
-        videoRef.current.src = previousSrc
-        videoRef.current.currentTime = previousCurrentTime
-        videoRef.current.load()
-        console.log('Restored previous video source after quality switch failure')
-      } catch (restoreError) {
-        console.error('Failed to restore previous video source:', restoreError)
-      }
-    }
-  } finally {
-    setIsSwitchingQuality(false)
-  }
-}
-
-  // Video event handlers
+  // Video controls
   const handlePlayPause = async () => {
     if (!videoRef.current) return
 
@@ -619,21 +596,19 @@ const switchQuality = async (newResolution: string) => {
     }
   }
 
-const handleLoadedMetadata = () => {
-  if (videoRef.current) {
-    setDuration(videoRef.current.duration)
-    setVideoError("") // Clear any previous errors
-    
-    // If we're switching quality, don't reset the current time
-    // The current time is managed by the quality switch function
-    if (!isSwitchingQuality && videoRef.current.currentTime !== currentTime) {
-      setCurrentTime(videoRef.current.currentTime)
+  const handleLoadedMetadata = () => {
+    if (videoRef.current) {
+      setDuration(videoRef.current.duration)
+      setVideoError("")
+      
+      if (!isSwitchingQuality) {
+        setCurrentTime(videoRef.current.currentTime)
+      }
     }
   }
-}
+
   const handleEnded = () => {
     setIsPlaying(false)
-    // Auto-play next video if available
     if (currentVideoIndexState < videoPlaylist.length - 1) {
       setTimeout(() => {
         handleNextVideo()
@@ -647,23 +622,6 @@ const handleLoadedMetadata = () => {
 
   const handleCanPlay = () => {
     setBuffering(false)
-  }
-
-  // Simple panel handlers
-  const handleVideoListClick = () => {
-    setVideoListOpen(!videoListOpen)
-  }
-
-  const handleNotesClick = () => {
-    setNotesOpen(!notesOpen)
-  }
-
-  const handleAIClick = () => {
-    setAiOpen(!aiOpen)
-  }
-
-  const handleCloseVideoList = () => {
-    setVideoListOpen(false)
   }
 
   const handleError = (event: React.SyntheticEvent<HTMLVideoElement, Event>) => {
@@ -695,14 +653,12 @@ const handleLoadedMetadata = () => {
   }
 
   const handleClosePlayer = () => {
-    // Clean up video element
     if (videoRef.current) {
       videoRef.current.pause()
       videoRef.current.src = ''
       videoRef.current.load()
     }
     
-    // Clear any pending promises
     if (playPromiseRef.current) {
       playPromiseRef.current.catch(() => {})
       playPromiseRef.current = null
@@ -712,11 +668,27 @@ const handleLoadedMetadata = () => {
     onClose()
   }
 
-  // Controls visibility - ALWAYS show controls initially
+  // Panel handlers
+  const handleVideoListClick = () => {
+    setVideoListOpen(!videoListOpen)
+  }
+
+  const handleNotesClick = () => {
+    setNotesOpen(!notesOpen)
+  }
+
+  const handleAIClick = () => {
+    setAiOpen(!aiOpen)
+  }
+
+  const handleCloseVideoList = () => {
+    setVideoListOpen(false)
+  }
+
+  // Controls visibility
   useEffect(() => {
     setShowControls(true)
     
-    // Hide controls after 3 seconds if playing
     if (isPlaying) {
       controlsTimeoutRef.current = setTimeout(() => {
         setShowControls(false)
@@ -807,14 +779,9 @@ const handleLoadedMetadata = () => {
   // Cleanup
   useEffect(() => {
     return () => {
-      if (controlsTimeoutRef.current) {
-        clearTimeout(controlsTimeoutRef.current)
-      }
-      if (networkTestRef.current) {
-        clearInterval(networkTestRef.current)
-      }
+      if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current)
+      if (networkTestRef.current) clearInterval(networkTestRef.current)
       
-      // Clean up video on unmount
       if (videoRef.current) {
         videoRef.current.pause()
         videoRef.current.src = ''
@@ -832,7 +799,7 @@ const handleLoadedMetadata = () => {
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0
   const currentVideoUrl = getCurrentVideoUrl()
   const currentQuality = availableQualities.find(q => q.value === currentResolution)
-  const currentQualityLabel = currentQuality?.label || 'SD'
+  const currentQualityLabel = currentQuality?.label || 'BASE'
   const hasMultipleQualities = availableQualities.length > 1
   const hasMultipleVideos = videoPlaylist.length > 1
   const canGoNext = currentVideoIndexState < videoPlaylist.length - 1
@@ -847,19 +814,19 @@ const handleLoadedMetadata = () => {
       >
         {currentVideoUrl && !videoError ? (
           <>
-<video
-  ref={videoRef}
-  src={currentVideoUrl}
-  className="w-full h-full object-contain"
-  onTimeUpdate={handleTimeUpdate}
-  onLoadedMetadata={handleLoadedMetadata}
-  onLoadedData={() => console.log('Video data loaded at:', videoRef.current?.currentTime)}
-  onEnded={handleEnded}
-  onWaiting={handleWaiting}
-  onCanPlay={handleCanPlay}
-  onError={handleError}
-  preload="metadata"
-/>            
+            <video
+              ref={videoRef}
+              src={currentVideoUrl}
+              className="w-full h-full object-contain"
+              onTimeUpdate={handleTimeUpdate}
+              onLoadedMetadata={handleLoadedMetadata}
+              onEnded={handleEnded}
+              onWaiting={handleWaiting}
+              onCanPlay={handleCanPlay}
+              onError={handleError}
+              preload="metadata"
+            />
+            
             {/* Buffering Spinner */}
             {buffering && (
               <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
@@ -897,7 +864,7 @@ const handleLoadedMetadata = () => {
           </div>
         )}
 
-        {/* Controls Overlay - Always show when showControls is true */}
+        {/* Controls Overlay */}
         {showControls && currentVideoUrl && !videoError && (
           <div 
             className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent z-20"
@@ -917,7 +884,6 @@ const handleLoadedMetadata = () => {
                   {currentVideo.fileName}
                 </div>
 
-                {/* Video counter */}
                 {hasMultipleVideos && (
                   <div className="text-white text-sm bg-black/50 px-2 py-1 rounded">
                     {currentVideoIndexState + 1} / {videoPlaylist.length}
@@ -931,6 +897,7 @@ const handleLoadedMetadata = () => {
                   <div className="flex items-center gap-1 text-white text-xs bg-black/50 px-2 py-1 rounded">
                     <Wifi className="w-3 h-3" />
                     {formatNetworkSpeed(networkSpeed)}
+                    {autoQuality && <span className="text-green-400 ml-1">AUTO</span>}
                   </div>
                 )}
 
@@ -966,7 +933,7 @@ const handleLoadedMetadata = () => {
               </div>
             </div>
 
-            {/* Center Play/Pause Button - Show when paused or loading */}
+            {/* Center Play/Pause Button */}
             {(!isPlaying || buffering) && currentVideoUrl && (
               <div 
                 className="absolute inset-0 flex items-center justify-center z-30"
@@ -1109,7 +1076,7 @@ const handleLoadedMetadata = () => {
                     </select>
                   </div>
 
-                  {/* Quality Selector - NOW WITHOUT BASE RESOLUTION */}
+                  {/* Quality Selector */}
                   <div className="relative">
                     <button
                       onClick={() => hasMultipleQualities && setShowQualityMenu(!showQualityMenu)}
@@ -1122,8 +1089,8 @@ const handleLoadedMetadata = () => {
                       <span className="text-sm">{currentQualityLabel}</span>
                       {hasMultipleQualities && (
                         <>
-                          {autoQuality && <span className="text-xs text-green-400">AUTO</span>}
-                          <span className="text-xs">▼</span>
+                          {autoQuality && <span className="text-xs text-green-400 ml-1">AUTO</span>}
+                          <span className="text-xs ml-1">▼</span>
                         </>
                       )}
                     </button>
@@ -1152,7 +1119,7 @@ const handleLoadedMetadata = () => {
                                   ? 'bg-blue-600 text-white' 
                                   : 'text-white'
                               } ${autoQuality ? 'opacity-70' : ''}`}
-                              disabled={autoQuality || isSwitchingQuality}
+                              disabled={isSwitchingQuality}
                             >
                               <div className="flex items-center justify-between">
                                 <span>{quality.label}</span>

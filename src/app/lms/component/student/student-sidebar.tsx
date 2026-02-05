@@ -474,6 +474,9 @@ export function StudentSidebar({ isOpen = true, onClose, activeRoute }: StudentS
     } else if (key.includes('schedule') || key.includes('calendar')) {
       return { count: 2, progress: 0 };
     }
+    else if (key.includes('grades') || key.includes('grades')) {
+      return { count: 2, progress: 0 };
+    }
     
     return { count: 0, progress: 0 };
   }
@@ -502,8 +505,8 @@ export function StudentSidebar({ isOpen = true, onClose, activeRoute }: StudentS
     },
     { 
       icon: Trophy, 
-      label: "Progress", 
-      href: `${BASE_PATH}progress`, 
+      label: "grades", 
+      href: `${BASE_PATH}grades`, 
       count: userAnalytics.completedCourses, 
       progress: userAnalytics.overallProgress 
     },
@@ -566,7 +569,7 @@ export function StudentSidebar({ isOpen = true, onClose, activeRoute }: StudentS
       'performance-analytics': 'progress',
       'analytics': 'progress',
       'progress': 'progress',
-      'grades': 'progress',
+      'grades': 'grades',
       'message-center': 'messages',
       'messages': 'messages',
       'chat': 'messages',
@@ -643,19 +646,19 @@ export function StudentSidebar({ isOpen = true, onClose, activeRoute }: StudentS
     }
   };
 
-  // Handle theme toggle - GLOBAL THEME MANAGEMENT
-  const handleThemeToggle = () => {
-    const newTheme = theme === 'light' ? 'dark' : 'light';
+  // // Handle theme toggle - GLOBAL THEME MANAGEMENT
+  // const handleThemeToggle = () => {
+  //   const newTheme = theme === 'light' ? 'dark' : 'light';
     
-    // Update local state
-    setTheme(newTheme);
+  //   // Update local state
+  //   setTheme(newTheme);
     
-    // Save to localStorage
-    setStoredTheme(newTheme);
+  //   // Save to localStorage
+  //   setStoredTheme(newTheme);
     
-    // Apply to document
-    applyThemeToDocument(newTheme);
-  };
+  //   // Apply to document
+  //   applyThemeToDocument(newTheme);
+  // };
 
   if (loading) {
     return (
@@ -797,7 +800,7 @@ export function StudentSidebar({ isOpen = true, onClose, activeRoute }: StudentS
           </div>
 
           {/* Theme Toggle (Segmented Control) */}
-          <div className="flex items-center justify-between">
+          {/* <div className="flex items-center justify-between">
             <div className="flex-1">
               <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
                 Theme
@@ -829,7 +832,7 @@ export function StudentSidebar({ isOpen = true, onClose, activeRoute }: StudentS
                 Dark
               </button>
             </div>
-          </div>
+          </div> */}
         </div>
       </aside>
     </>

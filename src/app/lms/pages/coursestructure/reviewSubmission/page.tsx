@@ -90,7 +90,7 @@ const inter = Inter({ subsets: ['latin'] });
 const montserrat = Montserrat({ subsets: ['latin'] });
 
 // API CONFIG
-const BACKEND_API_URL = "https://lms-server-ym1q.onrender.com";
+const BACKEND_API_URL = "http://localhost:5533";
 const PISTON_API_URL = "https://emkc.org/api/v2/piston/execute";
 
 // --- INTERFACES ---

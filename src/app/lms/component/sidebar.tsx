@@ -17,7 +17,7 @@ import {
     Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSidebar } from "./layout";
 
 // Define types for permissions
@@ -265,6 +265,32 @@ const MAX_RECENT_ITEMS = 5;
 // Local storage key for user data
 const USER_DATA_KEY = "smartcliff_userData";
 
+// Tooltip Component - Clean design without arrow
+interface TooltipProps {
+    title: string;
+    position: { x: number; y: number };
+    isVisible: boolean;
+}
+
+const Tooltip = ({ title, position, isVisible }: TooltipProps) => {
+    if (!isVisible) return null;
+
+    return (
+        <div
+            className="fixed z-[100] pointer-events-none transition-opacity duration-200"
+            style={{
+                left: `${position.x}px`,
+                top: `${position.y}px`,
+                transform: 'translateY(-50%)',
+            }}
+        >
+            <div className="bg-gray-800 text-white text-xs font-medium py-2 px-3 rounded-md shadow-lg whitespace-nowrap">
+                {title}
+            </div>
+        </div>
+    );
+};
+
 export function Sidebar({ className }: SidebarProps) {
     const pathname = usePathname();
     const router = useRouter();
@@ -275,6 +301,23 @@ export function Sidebar({ className }: SidebarProps) {
     const [recentItems, setRecentItems] = useState<SidebarItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [hoveredItem, setHoveredItem] = useState<string | null>(null);
+    
+    // Tooltip state
+    const [tooltip, setTooltip] = useState<{
+        title: string;
+        position: { x: number; y: number };
+        isVisible: boolean;
+    }>({
+        title: "",
+        position: { x: 0, y: 0 },
+        isVisible: false,
+    });
+
+    // Refs for tooltip positioning
+    const sidebarRef = useRef<HTMLDivElement>(null);
+    const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    // Store refs for each sidebar item for tooltip positioning
+    const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
     // Check if mobile view
     useEffect(() => {
@@ -333,6 +376,15 @@ export function Sidebar({ className }: SidebarProps) {
         }
     }, [pathname, sidebarItems]);
 
+    // Clean up timeout on unmount
+    useEffect(() => {
+        return () => {
+            if (hoverTimeoutRef.current) {
+                clearTimeout(hoverTimeoutRef.current);
+            }
+        };
+    }, []);
+
     // Build sidebar items from user permissions
     const buildSidebarItems = (permissions: UserPermission[]): SidebarItem[] => {
         const items: SidebarItem[] = [];
@@ -345,7 +397,7 @@ export function Sidebar({ className }: SidebarProps) {
                 const route = `/lms/pages/${routeKey}`;
                 
                 items.push({
-                    title: permission.permissionName,
+                    title: permission.permissionName, // Full permission name for tooltip
                     href: route,
                     icon: IconComponent,
                     iconName: permission.icon || "ShieldCheck",
@@ -432,6 +484,14 @@ export function Sidebar({ className }: SidebarProps) {
 
     // Handle sidebar item click
     const handleItemClick = (item: SidebarItem) => {
+        // Hide tooltip if visible
+        setTooltip(prev => ({ ...prev, isVisible: false }));
+        
+        // Clear any pending hover timeout
+        if (hoverTimeoutRef.current) {
+            clearTimeout(hoverTimeoutRef.current);
+        }
+        
         // Update recent items
         setRecentItems(prev => {
             // Remove if already exists
@@ -447,6 +507,40 @@ export function Sidebar({ className }: SidebarProps) {
         
         // Navigate to the item
         router.push(item.href);
+    };
+
+    // Handle mouse enter for tooltip
+    const handleMouseEnter = (item: SidebarItem, element: HTMLDivElement | null) => {
+        if (!isCollapsed || !element) return; // Only show tooltip when sidebar is collapsed
+        
+        // Clear any existing timeout
+        if (hoverTimeoutRef.current) {
+            clearTimeout(hoverTimeoutRef.current);
+        }
+        
+        // Set a timeout to show tooltip after a short delay
+        hoverTimeoutRef.current = setTimeout(() => {
+            const rect = element.getBoundingClientRect();
+            setTooltip({
+                title: item.title, // This is the full permissionName from your data
+                position: {
+                    x: rect.right + 10, // Position to the right of the icon with more spacing
+                    y: rect.top + rect.height / 2, // Center vertically
+                },
+                isVisible: true,
+            });
+        }, 200); // 200ms delay before showing tooltip (reduced from 300ms)
+    };
+
+    // Handle mouse leave for tooltip
+    const handleMouseLeave = () => {
+        // Clear timeout if mouse leaves before tooltip shows
+        if (hoverTimeoutRef.current) {
+            clearTimeout(hoverTimeoutRef.current);
+        }
+        
+        // Hide tooltip
+        setTooltip(prev => ({ ...prev, isVisible: false }));
     };
 
     // Remove a single recent item
@@ -467,7 +561,7 @@ export function Sidebar({ className }: SidebarProps) {
         localStorage.removeItem(RECENT_ITEMS_KEY);
     };
 
-    // Function to get user data from localStorage (export if needed elsewhere)
+    // Function to get user data from localStorage
     const getCurrentUser = (): UserData | null => {
         try {
             const userDataString = localStorage.getItem(USER_DATA_KEY);
@@ -478,36 +572,10 @@ export function Sidebar({ className }: SidebarProps) {
         }
     };
 
-    // Function to update user data in localStorage (if needed)
-    const updateUserData = (updatedData: Partial<UserData>) => {
-        try {
-            const currentUserData = getCurrentUser();
-            if (currentUserData) {
-                const newUserData = { ...currentUserData, ...updatedData };
-                localStorage.setItem(USER_DATA_KEY, JSON.stringify(newUserData));
-                
-                // If permissions were updated, rebuild sidebar
-                if (updatedData.permissions) {
-                    setUserPermissions(updatedData.permissions);
-                    const sidebarItemsFromPermissions = buildSidebarItems(updatedData.permissions);
-                    setSidebarItems(sidebarItemsFromPermissions);
-                }
-            }
-        } catch (error) {
-            console.error("Error updating user data:", error);
-        }
-    };
-
-    // Function to clear user data (for logout)
-    const clearUserData = () => {
-        localStorage.removeItem(USER_DATA_KEY);
-        localStorage.removeItem("smartcliff_token");
-        localStorage.removeItem(RECENT_ITEMS_KEY);
-    };
-
     return (
         <>
             <div
+                ref={sidebarRef}
                 className={cn(
                     "border-r border-gray-200 transition-all duration-300 relative z-40 h-full",
                     isCollapsed ? "w-16" : "w-60",
@@ -548,16 +616,23 @@ export function Sidebar({ className }: SidebarProps) {
                                     const isActive = pathname === item.href || 
                                                    pathname?.startsWith(item.href + '/');
                                     const colorClass = getColorClass(item.color);
+                                    const itemKey = item.permissionKey || item.href;
 
                                     return (
                                         <div
-                                            key={item.permissionKey || item.href}
+                                            key={itemKey}
+                                            ref={(el) => {
+                                                itemRefs.current[itemKey] = el;
+                                            }}
                                             onClick={() => handleItemClick(item)}
+                                            onMouseEnter={() => handleMouseEnter(item, itemRefs.current[itemKey])}
+                                            onMouseLeave={handleMouseLeave}
                                             className={cn(
-                                                "flex items-center justify-between px-4 py-0.5 hover:bg-gray-100 cursor-pointer group transition-colors",
+                                                "flex items-center justify-between px-4 py-0.5 hover:bg-gray-100 cursor-pointer group transition-colors relative",
                                                 isActive && `${colorClass.bg} border-r-2 ${colorClass.border}`,
                                                 isCollapsed ? "justify-center" : "",
                                             )}
+                                            title={isCollapsed ? item.title : ""} // HTML title attribute as fallback
                                         >
                                             <div className="flex items-center gap-3">
                                                 <div className={cn(
@@ -620,17 +695,28 @@ export function Sidebar({ className }: SidebarProps) {
                                                            pathname?.startsWith(item.href + '/');
                                             const colorClass = getColorClass(item.color);
                                             const isHovered = hoveredItem === item.permissionKey;
+                                            const itemKey = `recent-${item.permissionKey}`;
                                             
                                             return (
                                                 <div
-                                                    key={`recent-${item.permissionKey}`}
+                                                    key={itemKey}
+                                                    ref={(el) => {
+                                                        itemRefs.current[itemKey] = el;
+                                                    }}
                                                     onClick={() => handleItemClick(item)}
-                                                    onMouseEnter={() => setHoveredItem(item.permissionKey || null)}
-                                                    onMouseLeave={() => setHoveredItem(null)}
+                                                    onMouseEnter={() => {
+                                                        handleMouseEnter(item, itemRefs.current[itemKey]);
+                                                        setHoveredItem(item.permissionKey || null);
+                                                    }}
+                                                    onMouseLeave={() => {
+                                                        handleMouseLeave();
+                                                        setHoveredItem(null);
+                                                    }}
                                                     className={cn(
                                                         "flex items-center justify-between px-8 py-2 hover:bg-gray-100 cursor-pointer transition-colors group relative",
                                                         isActive && colorClass.bg
                                                     )}
+                                                    title={isCollapsed ? item.title : ""} // HTML title attribute as fallback
                                                 >
                                                     <div className="flex items-center gap-3 flex-1">
                                                         <div className={cn(
@@ -672,7 +758,26 @@ export function Sidebar({ className }: SidebarProps) {
                             {/* Bottom Navigation - Settings */}
                             {!isCollapsed && (
                                 <div className="mt-8 relative">
-                                    <div className="flex items-center justify-between px-4 py-2 hover:bg-gray-100 cursor-pointer group">
+                                    <div 
+                                        className="flex items-center justify-between px-4 py-2 hover:bg-gray-100 cursor-pointer group"
+                                        ref={(el) => {
+                                            itemRefs.current["settings"] = el;
+                                        }}
+                                        onMouseEnter={() => {
+                                            if (isCollapsed) {
+                                                const item = { 
+                                                    title: "Settings", 
+                                                    href: "#",
+                                                    icon: Settings,
+                                                    iconName: "settings",
+                                                    color: "gray"
+                                                };
+                                                handleMouseEnter(item, itemRefs.current["settings"]);
+                                            }
+                                        }}
+                                        onMouseLeave={handleMouseLeave}
+                                        title={isCollapsed ? "Settings" : ""}
+                                    >
                                         <div className="flex items-center gap-3">
                                             <MoreVertical className="w-4 h-4 text-gray-600" />
                                             <span style={sidebarTextStyle}>
@@ -686,6 +791,13 @@ export function Sidebar({ className }: SidebarProps) {
                     )}
                 </div>
             </div>
+
+            {/* Tooltip - Clean design without arrow */}
+            <Tooltip
+                title={tooltip.title}
+                position={tooltip.position}
+                isVisible={tooltip.isVisible && isCollapsed}
+            />
 
             {isMobile && !isCollapsed && (
                 <Button

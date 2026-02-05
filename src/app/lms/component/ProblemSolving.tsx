@@ -41,23 +41,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger
-} from "@/components/ui/tabs";
 
 // --- Custom Components & Services ---
 import ExerciseSettings from './ExerciseSettings';
 import Questions from './QuestionsView';
-import { exerciseApi } from '@/apiServices/exercise';
+import { exerciseApi, EntityType } from '@/apiServices/exercise';
+import { Separator } from '@radix-ui/react-select';
 
 // ----------------------------------------------------------------------
 // Interfaces
@@ -73,145 +63,39 @@ interface HierarchyData {
   level: number;
 }
 
+// Simplified Exercise interface matching your API
 interface Exercise {
   _id: string;
   exerciseInformation: {
+    exerciseId: string;
     exerciseName: string;
-    exerciseId?: string;
-    description?: string;
-    // Added 'medium' to handle legacy data
-    exerciseLevel?: 'beginner' | 'intermediate' | 'advanced' | 'medium';
-    totalPoints?: number;
-    totalQuestions?: number;
-    estimatedTime?: number;
+    description: string;
+    exerciseLevel: 'beginner' | 'intermediate' | 'expert';
+    totalDuration: number;
   };
+  exerciseType: 'MCQ' | 'Programming' | 'Combined';
+  tabType: 'I_Do' | 'We_Do' | 'You_Do';
+  subcategory: string;
+  configurationType: 'manual';
   programmingSettings?: {
-    selectedLanguages?: string[];
-    selectedModule?: string;
-    levelConfiguration?: {
-      levelType: 'levelBased' | 'general';
-      levelBased?: {
-        easy: number;
-        medium: number;
-        hard: number;
-      };
-      general?: number;
-    };
+    selectedModule: string;
+    selectedLanguages: string[];
   };
-  evaluationSettings?: {
-    practiceMode?: boolean;
-    manualEvaluation?: {
-      enabled: boolean;
-      submissionNeeded: boolean;
-    };
-    aiEvaluation?: boolean;
-    automationEvaluation?: boolean;
-    passingScore?: number;
-    showResultsImmediately?: boolean;
-    allowReview?: boolean;
-  };
-  availabilityPeriod?: {
-    startDate?: string;
-    endDate?: string;
-    gracePeriodAllowed?: boolean;
-    gracePeriodDate?: string;
-    extendedDays?: number;
-  };
-  compilerSettings?: {
-    allowCopyPaste: boolean;
-    autoSuggestion: boolean;
-    autoCloseBrackets: boolean;
-    theme?: string;
-    fontSize?: number;
-    tabSize?: number;
-  };
-  questionBehavior?: {
-    shuffleQuestions: boolean;
-    allowNext: boolean;
-    allowSkip: boolean;
-    attemptLimitEnabled: boolean;
-    maxAttempts: number;
-    showPoints?: boolean;
-    showDifficulty?: boolean;
-    allowHintUsage?: boolean;
-    allowTestRun?: boolean;
-  };
-  groupSettings?: {
-    groupSettingsEnabled?: boolean;
-    showExistingUsers?: boolean;
-    selectedGroups?: string[];
-    chatEnabled?: boolean;
-    collaborationEnabled?: boolean;
-  };
-  scoreSettings?: {
-    scoreType?: string;
-    evenMarks?: number;
-    totalMarks?: number;
-    separateMarks?: {
-      levelBased?: {
-        easy: number[];
-        medium: number[];
-        hard: number[];
-      };
-      general?: number[];
-    };
-    levelBasedMarks?: {
-      easy: number;
-      medium: number;
-      hard: number;
-    };
-  };
-  // 👇 THIS IS THE NEW PART 👇
-  securitySettings?: {
-    timerEnabled: boolean;
-    timerType?: string;
-    timerDuration?: number;
-    cameraMicEnabled?: boolean;
-    restrictMinimize?: boolean;
-    fullScreenMode?: boolean;
-    tabSwitchAllowed?: boolean;
-    maxTabSwitches?: number;
-    disableClipboard?: boolean;
-    screenRecordingEnabled?: Boolean;
-  };
-  // 👆 END NEW PART 👆
-  questions?: any[];
   createdAt: string;
   updatedAt?: string;
 }
+
 interface ProblemSolvingProps {
   nodeId: string;
   nodeName: string;
   subcategory: string;
   subcategoryLabel: string;
-  contentData: any[];
-  folderNavigationState: any;
   hierarchyData: HierarchyData;
   onRefresh?: () => Promise<void>;
-  activeTab: string; // 'I_Do' | 'We_Do' | 'You_Do'
+  activeTab: 'I_Do' | 'We_Do' | 'You_Do';
   nodeType: string;
   courseId: string;
 }
-
-// ----------------------------------------------------------------------
-// Helper Functions
-// ----------------------------------------------------------------------
-
-const parseMongoDate = (dateValue: any): string => {
-  if (!dateValue) return '';
-  try {
-    if (typeof dateValue === 'object' && dateValue.$date) {
-      return new Date(dateValue.$date).toISOString().split('T')[0];
-    } else if (typeof dateValue === 'string') {
-      return dateValue.split('T')[0];
-    } else if (dateValue instanceof Date) {
-      return dateValue.toISOString().split('T')[0];
-    }
-  } catch (error) {
-    console.error('Error parsing date:', error);
-  }
-  return '';
-};
 
 // ----------------------------------------------------------------------
 // Main Component
@@ -233,7 +117,6 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
   } = props;
 
   // --- State Management ---
-
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
@@ -262,13 +145,24 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
   });
 
   // --- Effects ---
+  useEffect(() => {
+    if (showQuestions) {
+      setShowQuestions(false);
+      setSelectedExercise(null);
+    }
+
+    setShowSettingsModal(false);
+    setShowViewModal(false);
+    setShowDeleteModal(false);
+    setExerciseToDelete(null);
+    setExerciseToView(null);
+    setEditingExercise(null);
+  }, [nodeId, subcategory, activeTab]);
 
   useEffect(() => {
-    // FIX: Only fetch if NOT drilling down AND subcategory is present and not empty string
     if (!showQuestions && subcategory && subcategory.trim() !== "") {
       fetchExercises();
     } else {
-      // Clear exercises if no subcategory is selected to prevent stale data
       setExercises([]);
       setLoadingExercises(false);
     }
@@ -276,10 +170,9 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
   }, [nodeId, subcategory, nodeType, activeTab, showQuestions]);
 
   // --- API Handling ---
-
-  const getEntityType = (nodeType: string): string => {
+  const getEntityType = (nodeType: string): EntityType => {
     const normalized = nodeType.toLowerCase().trim();
-    const mapping: Record<string, string> = {
+    const mapping: Record<string, EntityType> = {
       'module': 'modules',
       'modules': 'modules',
       'submodule': 'submodules',
@@ -293,7 +186,6 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
   };
 
   const fetchExercises = async () => {
-    // FIX: Guard clause to prevent API call if subcategory is empty
     if (!subcategory || subcategory.trim() === "") {
       console.warn("Skipping fetch: No subcategory selected");
       return;
@@ -302,20 +194,18 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
     setLoadingExercises(true);
     try {
       const entityType = getEntityType(nodeType);
-      const currentCategory = activeTab || "We_Do";
 
-      console.log('🔍 DEBUG: Fetching exercises with:', {
+      console.log('🔍 Fetching exercises with:', {
         entityType,
         nodeId,
-        currentCategory,
-        subcategory,
-        activeTab
+        activeTab,
+        subcategory
       });
 
       const response = await exerciseApi.getExercises(
-        entityType as any,
+        entityType,
         nodeId,
-        currentCategory,
+        activeTab,
         subcategory
       );
 
@@ -334,27 +224,25 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
       }
     } catch (error) {
       console.error('Error fetching exercises:', error);
+      toast.error('Failed to fetch exercises');
       setExercises([]);
     } finally {
       setLoadingExercises(false);
     }
   };
 
-  const handleSaveSettings = async (settings: any) => {
-    try {
-      // 1. Close Modal
-      setShowSettingsModal(false);
-      setEditingExercise(null);
-      setIsEditing(false);
+  // --- EDIT FUNCTIONALITY ---
+  const handleEditExercise = (exercise: Exercise) => {
+    console.log('Editing exercise:', exercise);
+    setEditingExercise(exercise);
+    setIsEditing(true);
+    setShowSettingsModal(true);
+  };
 
-      // 2. Refresh List
-      await fetchExercises();
-      showNotification('Exercise saved successfully', 'success');
-
-    } catch (error: any) {
-      console.error('Error refreshing list:', error);
-      showNotification('Saved, but failed to refresh list.', 'warning');
-    }
+  // --- DELETE FUNCTIONALITY ---
+  const handleDeleteClick = (exercise: Exercise) => {
+    setExerciseToDelete(exercise);
+    setShowDeleteModal(true);
   };
 
   const handleDeleteConfirm = async () => {
@@ -363,13 +251,12 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
     setDeleting(true);
     try {
       const entityType = getEntityType(nodeType);
-      const currentCategory = activeTab || "We_Do";
 
       await exerciseApi.deleteExercise(
-        entityType as any,
+        entityType,
         nodeId,
         exerciseToDelete._id,
-        currentCategory,
+        activeTab,
         subcategory
       );
 
@@ -379,35 +266,36 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
       setShowDeleteModal(false);
       setExerciseToDelete(null);
 
-      // Full refresh
-      await fetchExercises();
-
-      if (onRefresh) await onRefresh();
-      showNotification('Exercise deleted successfully', 'success');
+      toast.success('Exercise deleted successfully', { position: "top-right", autoClose: 3000 });
 
     } catch (error: any) {
       console.error('Error deleting exercise:', error);
-      showNotification(error.message || 'Failed to delete exercise.', 'error');
+      toast.error(error.message || 'Failed to delete exercise.', { position: "top-right", autoClose: 3000 });
     } finally {
       setDeleting(false);
     }
   };
 
-  // --- Logic Helpers ---
+  // --- SAVE FUNCTIONALITY ---
+  const handleSaveSettings = async () => {
+    try {
+      setShowSettingsModal(false);
+      setEditingExercise(null);
+      setIsEditing(false);
 
-  const calculateTotalQuestions = (exercise: Exercise) => {
-    const config = exercise.programmingSettings?.levelConfiguration;
-    if (!config) return 0;
+      await fetchExercises();
+      toast.success(isEditing ? 'Exercise updated successfully' : 'Exercise created successfully', {
+        position: "top-right",
+        autoClose: 3000,
+      });
 
-    if (config.levelType === 'levelBased' && config.levelBased) {
-      return (config.levelBased.easy || 0) +
-        (config.levelBased.medium || 0) +
-        (config.levelBased.hard || 0);
-    } else {
-      return config.general || 0;
+    } catch (error: any) {
+      console.error('Error saving exercise:', error);
+      toast.error('Failed to save exercise', { position: "top-right", autoClose: 3000 });
     }
   };
 
+  // --- Helper Functions ---
   const showNotification = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
     const options = { position: "top-right" as const, autoClose: 3000 };
     if (type === 'success') toast.success(message, options);
@@ -416,40 +304,10 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
     else toast.info(message, options);
   };
 
-  // --- Navigation & Actions ---
-
-  const handleAnalytics = (exercise: Exercise) => {
-    console.log('Navigating to analytics, setting restore flags');
-
-    // Store State
-    localStorage.setItem('lms_returning_from_analytics', 'true');
-    localStorage.setItem('lms_sidebar_collapsed', 'true');
-    localStorage.setItem('lms_selected_tab', activeTab || 'We_Do');
-    localStorage.setItem('lms_selected_subcategory', subcategory);
-    localStorage.setItem('lms_selected_node_id', nodeId);
-    localStorage.setItem('lms_selected_node_name', nodeName);
-
-    // Build URL
-    const query = new URLSearchParams({
-      exerciseId: exercise._id,
-      nodeId: nodeId,
-      nodeType: nodeType,
-      sourceTab: activeTab || 'We_Do',
-      sourceSubcategory: subcategory,
-      courseId: courseId,
-      moduleName: hierarchyData.moduleName || "",
-      returnUrl: '/lms/pages/coursestructure/uploadcourseresources'
-    }).toString();
-
-    router.push(`/lms/pages/coursestructure/reviewSubmission?${query}`);
-  };
-
   const handleAction = (actionType: string, exercise: Exercise) => {
     switch (actionType) {
       case 'edit':
-        setEditingExercise(exercise);
-        setIsEditing(true);
-        setShowSettingsModal(true);
+        handleEditExercise(exercise);
         break;
       case 'view':
         setExerciseToView(exercise);
@@ -460,8 +318,7 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
         setShowQuestions(true);
         break;
       case 'delete':
-        setExerciseToDelete(exercise);
-        setShowDeleteModal(true);
+        handleDeleteClick(exercise);
         break;
       case 'share':
         showNotification(`Share feature for ${exercise.exerciseInformation.exerciseName} coming soon`, 'info');
@@ -472,44 +329,17 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
     }
   };
 
-  // --- Filtering & Pagination ---
-
-  const getFilteredExercises = () => {
-    let filtered = exercises;
-
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      filtered = filtered.filter(ex =>
-        ex.exerciseInformation?.exerciseName?.toLowerCase().includes(q) ||
-        ex.exerciseInformation?.exerciseId?.toLowerCase().includes(q)
-      );
-    }
-
-    if (selectedFilter !== 'all') {
-      filtered = filtered.filter(ex => ex.exerciseInformation?.exerciseLevel === selectedFilter);
-    }
-
-    return filtered;
-  };
-
-  const getPaginatedExercises = () => {
-    const filtered = getFilteredExercises();
-    const startIndex = (pagination.currentPage - 1) * pagination.itemsPerPage;
-    return filtered.slice(startIndex, startIndex + pagination.itemsPerPage);
-  };
-
   // --- Render Helpers ---
-
   const renderLevelBadge = (level: string = 'intermediate') => {
-    const normalizedLevel = level === 'medium' ? 'intermediate' : level;
+    const normalizedLevel = level.toLowerCase() as 'beginner' | 'intermediate' | 'expert';
 
     const config = {
       beginner: { color: 'bg-emerald-50 text-emerald-700 border-emerald-200', icon: CheckCircle },
       intermediate: { color: 'bg-amber-50 text-amber-700 border-amber-200', icon: AlertTriangle },
-      advanced: { color: 'bg-rose-50 text-rose-700 border-rose-200', icon: Zap },
+      expert: { color: 'bg-rose-50 text-rose-700 border-rose-200', icon: Zap },
     };
 
-    const style = config[normalizedLevel as keyof typeof config] || config.intermediate;
+    const style = config[normalizedLevel] || config.intermediate;
     const Icon = style.icon;
 
     return (
@@ -542,106 +372,39 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
           <DownloadIcon className="h-3 w-3 mr-2 text-green-600" /> Export
         </DropdownMenuItem>
         <Separator className="my-1" />
-        <DropdownMenuItem onClick={() => handleAction('delete', exercise)} className="cursor-pointer text-xs text-red-600 focus:text-red-600">
+        <DropdownMenuItem
+          onClick={() => handleAction('delete', exercise)}
+          className="cursor-pointer text-xs text-red-600 focus:text-red-600"
+        >
           <Trash2 className="h-3 w-3 mr-2" /> Delete
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
 
-  const ExerciseDetailsModal = ({ exercise, onClose }: { exercise: Exercise, onClose: () => void }) => {
-    const totalQ = calculateTotalQuestions(exercise);
-    return (
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-        <div className="bg-white rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-          <div className="bg-blue-600 p-4 text-white flex justify-between items-center shrink-0">
-            <div className="flex items-center gap-3">
-              <div className="p-1.5 bg-white/20 rounded">
-                <Code size={20} />
-              </div>
-              <div>
-                <h2 className="font-bold text-lg">{exercise.exerciseInformation.exerciseName}</h2>
-                <div className="flex gap-2 text-xs opacity-90 mt-1">
-                  <span>ID: {exercise.exerciseInformation.exerciseId}</span>
-                  <span>•</span>
-                  <span className="capitalize">{exercise.exerciseInformation.exerciseLevel}</span>
-                </div>
-              </div>
-            </div>
-            <Button variant="ghost" size="icon" onClick={onClose} className="text-white hover:bg-white/20">
-              <X size={18} />
-            </Button>
-          </div>
+  // --- Filtering & Pagination ---
+  const getFilteredExercises = () => {
+    let filtered = exercises;
 
-          <div className="p-0 overflow-y-auto flex-1">
-            <Tabs defaultValue="overview" className="w-full">
-              <div className="px-4 pt-4 sticky top-0 bg-white z-10 border-b">
-                <TabsList className="w-full justify-start h-9 p-0 bg-transparent border-b rounded-none">
-                  <TabsTrigger value="overview" className="data-[state=active]:border-b-2 data-[state=active]:border-blue-600 rounded-none h-9 px-4">Overview</TabsTrigger>
-                  <TabsTrigger value="settings" className="data-[state=active]:border-b-2 data-[state=active]:border-blue-600 rounded-none h-9 px-4">Settings</TabsTrigger>
-                </TabsList>
-              </div>
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter(ex =>
+        ex.exerciseInformation?.exerciseName?.toLowerCase().includes(q) ||
+        ex.exerciseInformation?.exerciseId?.toLowerCase().includes(q)
+      );
+    }
 
-              <TabsContent value="overview" className="p-6 space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Card>
-                    <CardContent className="pt-6 text-center">
-                      <div className="text-2xl font-bold text-blue-600">{totalQ}</div>
-                      <p className="text-xs text-muted-foreground mt-1">Total Questions</p>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="pt-6 text-center">
-                      <div className="text-2xl font-bold text-purple-600">{exercise.programmingSettings?.selectedLanguages?.length || 0}</div>
-                      <p className="text-xs text-muted-foreground mt-1">Languages</p>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="pt-6 text-center">
-                      <div className="text-2xl font-bold text-green-600">{exercise.evaluationSettings?.passingScore || 0}%</div>
-                      <p className="text-xs text-muted-foreground mt-1">Passing Score</p>
-                    </CardContent>
-                  </Card>
-                </div>
+    if (selectedFilter !== 'all') {
+      filtered = filtered.filter(ex => ex.exerciseInformation?.exerciseLevel === selectedFilter);
+    }
 
-                <div className="space-y-2">
-                  <h3 className="font-semibold text-sm">Description</h3>
-                  <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded border">
-                    {exercise.exerciseInformation.description || "No description provided."}
-                  </p>
-                </div>
-              </TabsContent>
+    return filtered;
+  };
 
-              <TabsContent value="settings" className="p-6">
-                <div className="grid grid-cols-2 gap-x-8 gap-y-4 text-sm">
-                  <div>
-                    <span className="font-medium text-gray-500 block mb-1">Languages</span>
-                    <div className="flex flex-wrap gap-1">
-                      {exercise.programmingSettings?.selectedLanguages?.map(lang => (
-                        <Badge key={lang} variant="secondary" className="text-xs">{lang}</Badge>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <span className="font-medium text-gray-500 block mb-1">Attempts</span>
-                    <span>{exercise.questionBehavior?.maxAttempts || 'Unlimited'}</span>
-                  </div>
-                  <div>
-                    <span className="font-medium text-gray-500 block mb-1">Evaluation Mode</span>
-                    <Badge variant="outline">{exercise.evaluationSettings?.practiceMode ? 'Practice' : 'Assessment'}</Badge>
-                  </div>
-                </div>
-              </TabsContent>
-            </Tabs>
-          </div>
-
-          <div className="p-4 border-t bg-gray-50 shrink-0 flex justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={onClose}>Close</Button>
-            <Button size="sm" onClick={() => { onClose(); handleAction('edit', exercise); }}>Edit</Button>
-          </div>
-        </div>
-      </div>
-    );
+  const getPaginatedExercises = () => {
+    const filtered = getFilteredExercises();
+    const startIndex = (pagination.currentPage - 1) * pagination.itemsPerPage;
+    return filtered.slice(startIndex, startIndex + pagination.itemsPerPage);
   };
 
   // ----------------------------------------------------------------------
@@ -649,22 +412,23 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
   // ----------------------------------------------------------------------
 
   if (showQuestions && selectedExercise) {
-    return (
-      <Questions
-        exercise={selectedExercise}
-        nodeId={nodeId}
-        nodeName={nodeName}
-        subcategory={subcategory}
-        nodeType={nodeType}
-        tabType={activeTab} // PASS THE ACTIVE TAB
-        onBack={() => {
-          setShowQuestions(false);
-          setSelectedExercise(null);
-          fetchExercises();
-        }}
-      />
-    );
-  }
+  return (
+    <Questions
+      exercise={selectedExercise}
+      nodeId={nodeId}
+      nodeName={nodeName}
+      subcategory={subcategory}
+      nodeType={nodeType}
+      tabType={activeTab}
+      hierarchyData={hierarchyData} // Add this line
+      onBack={() => {
+        setShowQuestions(false);
+        setSelectedExercise(null);
+        fetchExercises();
+      }}
+    />
+  );
+}
 
   // ----------------------------------------------------------------------
   // Main Render: Exercise List
@@ -713,7 +477,7 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
               variant="ghost"
               size="icon"
               onClick={fetchExercises}
-              disabled={loadingExercises || !subcategory} // Also disable refresh if no subcategory
+              disabled={loadingExercises || !subcategory}
               className="h-8 w-8 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
             >
               <RefreshCw size={14} className={loadingExercises ? 'animate-spin text-blue-600' : ''} />
@@ -726,7 +490,7 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
                 setIsEditing(false);
                 setShowSettingsModal(true);
               }}
-              disabled={isLoading || !subcategory} // Prevent adding if no subcategory
+              disabled={isLoading || !subcategory}
               className="h-8 px-3 text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1.5 rounded-lg shadow-sm"
             >
               {isLoading ? <Loader2 size={12} className="animate-spin" /> : <Plus size={14} strokeWidth={2.5} />}
@@ -736,71 +500,98 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
         </div>
 
         {/* --- Table Content --- */}
-        <div className="flex-1 min-h-0 overflow-auto scrollbar-thin scrollbar-thumb-slate-200">
+        <div className="flex-1 min-h-0 overflow-auto">
           <Table className="relative w-full border-collapse">
             <TableHeader className="sticky top-0 z-10">
               <TableRow className="bg-slate-50/75 backdrop-blur border-b border-slate-200 h-9">
-                <TableHead className="px-4 py-2 text-[11px] uppercase tracking-wider font-semibold text-slate-500 w-[30%]">Exercise Name</TableHead>
-                <TableHead className="px-4 py-2 text-[11px] uppercase tracking-wider font-semibold text-slate-500 w-[15%]">ID</TableHead>
-                <TableHead className="px-4 py-2 text-[11px] uppercase tracking-wider font-semibold text-slate-500 w-[10%]">Level</TableHead>
-                <TableHead className="px-4 py-2 text-[11px] uppercase tracking-wider font-semibold text-slate-500 w-[15%]">Created</TableHead>
-                <TableHead className="px-4 py-2 text-[11px] uppercase tracking-wider font-semibold text-slate-500 w-[15%] text-center">Analytics</TableHead>
-                <TableHead className="px-4 py-2 text-[11px] uppercase tracking-wider font-semibold text-slate-500 w-[5%] text-center">Actions</TableHead>
+                <TableHead className="px-4 py-2 text-[11px] uppercase tracking-wider font-semibold text-slate-500 w-[25%]">
+                  Exercise Name
+                </TableHead>
+                <TableHead className="px-4 py-2 text-[11px] uppercase tracking-wider font-semibold text-slate-500 w=[12%]">
+                  ID
+                </TableHead>
+                <TableHead className="px-4 py-2 text-[11px] uppercase tracking-wider font-semibold text-slate-500 w=[12%]">
+                  Type
+                </TableHead>
+                <TableHead className="px-4 py-2 text-[11px] uppercase tracking-wider font-semibold text-slate-500 w=[12%]">
+                  Level
+                </TableHead>
+                <TableHead className="px-4 py-2 text-[11px] uppercase tracking-wider font-semibold text-slate-500 w=[12%]">
+                  Created
+                </TableHead>
+                <TableHead className="px-4 py-2 text-[11px] uppercase tracking-wider font-semibold text-slate-500 w=[8%] text-center">
+                  Actions
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loadingExercises ? (
-                // Loading Skeleton
                 Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i} className="h-12 border-b border-slate-50">
-                    <TableCell colSpan={6}><div className="h-2 bg-slate-100 rounded w-full animate-pulse"></div></TableCell>
+                    <TableCell colSpan={6}>
+                      <div className="h-2 bg-slate-100 rounded w-full animate-pulse"></div>
+                    </TableCell>
                   </TableRow>
                 ))
               ) : getPaginatedExercises().length > 0 ? (
-                // Data Rows
                 getPaginatedExercises().map((exercise) => (
                   <TableRow key={exercise._id} className="group border-b border-slate-50 hover:bg-blue-50/30 transition-colors h-11">
                     <TableCell className="px-4 py-2">
                       <div className="flex items-start gap-2">
-                        <div className="p-1 bg-blue-50 rounded border border-blue-100">
+                        <div className="p-1 bg-blue-50 rounded border border-blue-100 flex-shrink-0">
                           <Code size={12} className="text-blue-600" />
                         </div>
-                        <div>
-                          <div className="font-medium text-slate-900 text-[13px]">{exercise.exerciseInformation.exerciseName}</div>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-medium text-slate-900 text-[13px] truncate">
+                            {exercise.exerciseInformation.exerciseName}
+                          </div>
+                          {exercise.exerciseInformation.description && (
+                            <div className="text-[11px] text-slate-500 mt-0.5 truncate max-w-[200px]">
+                              {exercise.exerciseInformation.description}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </TableCell>
+
                     <TableCell className="px-4 py-2">
                       <Badge variant="outline" className="font-mono text-[11px] bg-slate-50 text-slate-600">
-                        {exercise.exerciseInformation.exerciseId || exercise._id.slice(-6)}
+                        {exercise.exerciseInformation.exerciseId}
                       </Badge>
                     </TableCell>
+
+                    <TableCell className="px-4 py-2">
+                      <Badge variant="outline" className={`text-[11px] px-2 ${exercise.exerciseType === 'MCQ'
+                        ? 'bg-green-50 text-green-700 border-green-200'
+                        : exercise.exerciseType === 'Programming'
+                          ? 'bg-blue-50 text-blue-700 border-blue-200'
+                          : 'bg-purple-50 text-purple-700 border-purple-200'
+                        }`}>
+                        {exercise.exerciseType}
+                      </Badge>
+                    </TableCell>
+
                     <TableCell className="px-4 py-2">
                       {renderLevelBadge(exercise.exerciseInformation.exerciseLevel)}
                     </TableCell>
+
                     <TableCell className="px-4 py-2">
                       <div className="flex items-center gap-1.5 text-[12px] text-slate-600">
                         <Calendar size={12} className="text-slate-400" />
-                        {new Date(exercise.createdAt).toLocaleDateString()}
+                        {new Date(exercise.createdAt).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric'
+                        })}
                       </div>
                     </TableCell>
-                    <TableCell className="px-4 py-2 text-center">
-                      <Button
-                        variant="default"
-                        size="sm"
-                        className="h-7 px-3 text-[11px] bg-blue-600 hover:bg-blue-700"
-                        onClick={() => handleAnalytics(exercise)}
-                      >
-                        <BarChart3 size={12} className="mr-1.5" /> Review Submission
-                      </Button>
-                    </TableCell>
+
                     <TableCell className="px-4 py-2 text-center">
                       <Windows10ActionMenu exercise={exercise} />
                     </TableCell>
                   </TableRow>
                 ))
               ) : (
-                // Empty State
                 <TableRow>
                   <TableCell colSpan={6} className="h-64 text-center">
                     <div className="flex flex-col items-center justify-center">
@@ -868,10 +659,7 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
           Modals
       ---------------------------------------------------------------------- */}
 
-      {showViewModal && exerciseToView && (
-        <ExerciseDetailsModal exercise={exerciseToView} onClose={() => setShowViewModal(false)} />
-      )}
-
+      {/* Delete Confirmation Modal */}
       {showDeleteModal && exerciseToDelete && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-sm p-6">
@@ -885,11 +673,24 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
               </div>
             </div>
             <p className="text-sm text-gray-600 mb-6">
-              Are you sure you want to delete <span className="font-semibold text-gray-900">{exerciseToDelete.exerciseInformation.exerciseName}</span>? All associated student submissions and data will be permanently removed.
+              Are you sure you want to delete <span className="font-semibold text-gray-900">"{exerciseToDelete.exerciseInformation.exerciseName}"</span>? All associated data will be permanently removed.
             </p>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setShowDeleteModal(false)} disabled={deleting}>Cancel</Button>
-              <Button variant="destructive" onClick={handleDeleteConfirm} disabled={deleting}>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setExerciseToDelete(null);
+                }}
+                disabled={deleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDeleteConfirm}
+                disabled={deleting}
+              >
                 {deleting ? <Loader2 size={14} className="animate-spin mr-1" /> : <Trash2 size={14} className="mr-1" />}
                 Delete
               </Button>
@@ -906,83 +707,25 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
           subcategory={subcategory}
           nodeType={nodeType}
           level={hierarchyData.level}
-
-          // Pass the dynamic tab active state so the modal knows which pedagogy context to use
-          tabType={activeTab as 'I_Do' | 'We_Do' | 'You_Do'}
-
+          tabType={activeTab}
           onSave={handleSaveSettings}
           onClose={() => {
             setShowSettingsModal(false);
             setEditingExercise(null);
             setIsEditing(false);
           }}
-          initialData={editingExercise ? {
-            exerciseInformation: {
-              exerciseId: editingExercise.exerciseInformation?.exerciseId || '',
-              exerciseName: editingExercise.exerciseInformation?.exerciseName || '',
-              description: editingExercise.exerciseInformation?.description || '',
-              exerciseLevel: (editingExercise.exerciseInformation?.exerciseLevel === 'medium'
-                ? 'intermediate'
-                : editingExercise.exerciseInformation?.exerciseLevel) || 'intermediate'
-            },
-            programmingSettings: {
-              selectedModule: editingExercise.programmingSettings?.selectedModule || 'Core Programming',
-              selectedLanguages: editingExercise.programmingSettings?.selectedLanguages || [],
-              levelConfiguration: editingExercise.programmingSettings?.levelConfiguration || {
-                levelType: 'levelBased',
-                levelBased: { easy: 0, medium: 0, hard: 0 },
-                general: 0
-              }
-            },
-            compilerSettings: {
-              allowCopyPaste: editingExercise.compilerSettings?.allowCopyPaste ?? true,
-              autoSuggestion: editingExercise.compilerSettings?.autoSuggestion ?? true,
-              autoCloseBrackets: editingExercise.compilerSettings?.autoCloseBrackets ?? true
-            },
-            availabilityPeriod: {
-              startDate: parseMongoDate(editingExercise.availabilityPeriod?.startDate) || new Date().toISOString().split('T')[0],
-              endDate: parseMongoDate(editingExercise.availabilityPeriod?.endDate) || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-              gracePeriodAllowed: editingExercise.availabilityPeriod?.gracePeriodAllowed ?? false,
-              gracePeriodDate: parseMongoDate(editingExercise.availabilityPeriod?.gracePeriodDate) || '',
-              extendedDays: 0
-            },
-            questionBehavior: {
-              shuffleQuestions: editingExercise.questionBehavior?.shuffleQuestions ?? false,
-              allowNext: editingExercise.questionBehavior?.allowNext ?? true,
-              allowSkip: editingExercise.questionBehavior?.allowSkip ?? false,
-              attemptLimitEnabled: editingExercise.questionBehavior?.attemptLimitEnabled ?? false,
-              maxAttempts: editingExercise.questionBehavior?.maxAttempts || 3
-            },
-            evaluationSettings: {
-              practiceMode: editingExercise.evaluationSettings?.practiceMode ?? true,
-              manualEvaluation: editingExercise.evaluationSettings?.manualEvaluation || { enabled: false, submissionNeeded: false },
-              aiEvaluation: editingExercise.evaluationSettings?.aiEvaluation ?? false,
-              automationEvaluation: editingExercise.evaluationSettings?.automationEvaluation ?? false
-            },
-            groupSettings: {
-              groupSettingsEnabled: editingExercise.groupSettings?.groupSettingsEnabled ?? false,
-              showExistingUsers: editingExercise.groupSettings?.showExistingUsers ?? true,
-              selectedGroups: editingExercise.groupSettings?.selectedGroups || [],
-              chatEnabled: editingExercise.groupSettings?.chatEnabled ?? false
-            },
-            // 👇 THIS IS THE NEW PART - MAPPING SECURITY SETTINGS 👇
-            securitySettings: {
-              timerEnabled: editingExercise.securitySettings?.timerEnabled ?? false,
-              timerType: editingExercise.securitySettings?.timerType || 'exercise',
-              timerDuration: editingExercise.securitySettings?.timerDuration || 60,
-              cameraMicEnabled: editingExercise.securitySettings?.cameraMicEnabled ?? false,
-              restrictMinimize: editingExercise.securitySettings?.restrictMinimize ?? false,
-              fullScreenMode: editingExercise.securitySettings?.fullScreenMode ?? false,
-              tabSwitchAllowed: editingExercise.securitySettings?.tabSwitchAllowed ?? true,
-              maxTabSwitches: editingExercise.securitySettings?.maxTabSwitches || 3,
-              disableClipboard: editingExercise.securitySettings?.disableClipboard ?? false,
-              screenRecordingEnabled: editingExercise.securitySettings?.screenRecordingEnabled ?? false,
-
-            }
-            // 👆 END NEW PART 👆
-          } : undefined}
           isEditing={isEditing}
-          exerciseId={editingExercise?._id}
+          exercise_Id={editingExercise?._id} // Make sure this is passed
+          initialData={editingExercise ? {
+            exerciseType: editingExercise.exerciseType,
+            exerciseInformation: {
+              exerciseId: editingExercise.exerciseInformation.exerciseId,
+              exerciseName: editingExercise.exerciseInformation.exerciseName,
+              description: editingExercise.exerciseInformation.description,
+              exerciseLevel: editingExercise.exerciseInformation.exerciseLevel,
+              totalDuration: editingExercise.exerciseInformation.totalDuration
+            }
+          } : undefined}
         />
       )}
     </div>

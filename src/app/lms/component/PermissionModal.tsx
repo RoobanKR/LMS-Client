@@ -3,7 +3,7 @@ import { useState, useEffect, Key } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Check, X, Save, Loader2, ShieldCheck, Settings2, Users, BookOpen,Computer, FileText, Folder, BarChart, Settings, ChevronDown, ChevronRight, Palette, Image as ImageIcon, Edit, Bell, Home } from "lucide-react"
+import { Check, X, Save, Loader2,MarsStroke, ShieldCheck, Settings2, Users, BookOpen,Computer, FileText, Folder, BarChart, Settings, ChevronDown, ChevronRight, Palette, Image as ImageIcon, Edit, Bell, Home } from "lucide-react"
 import { toast } from "react-toastify"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { iconMap, availableColors, colorClasses } from "../../../lib/iconMapping"
@@ -63,13 +63,28 @@ const permissionCategories = [
 // Define default permissions with multiple categories
 const defaultPermissionData: PermissionItem[] = [
   {
-    id: "dashboard",
+    id: "admindashboard",
     key: "admindashboard",
-    name: "Admin Dashboard",
+    name: "Dashboard",
     icon: "Home",
     color: "green",
-    categories: ["staff", "admin"], // Multiple categories
+    categories: ["admin"], // Multiple categories
     description: "Admin Dashboard Management",
+    functionalities: [
+      { id: "view_users", label: "View Users", description: "View user list" },
+      { id: "add_users", label: "Add Users", description: "Create new accounts" },
+      { id: "edit_users", label: "Edit Users", description: "Modify user info" },
+      { id: "delete_users", label: "Delete Users", description: "Remove accounts" },
+    ]
+  },
+   {
+    id: "dashboard",
+    key: "dashboard",
+    name: "Dashboard",
+    icon: "Home",
+    color: "green",
+    categories: ["staff"], // Multiple categories
+    description: "Staff Dashboard Management",
     functionalities: [
       { id: "view_users", label: "View Users", description: "View user list" },
       { id: "add_users", label: "Add Users", description: "Create new accounts" },
@@ -102,7 +117,8 @@ const defaultPermissionData: PermissionItem[] = [
     functionalities: [
       { id: "Add User", label: "Add User", description: "Create new accounts" },
       { id: "View Full Details", label: "View Full Details", description: "View user full details" },
-      { id: "Bulk Permission", label: "Bulk Permission", description: " Bulk user Permissions" },
+      { id: "Bulk Upload", label: "Bulk Upload", description: "Upload multiple users at once" },
+      { id: "Bulk Permission", label: "Bulk Permission", description: "Set permissions for multiple users" },
       { id: "Edit", label: "Edit", description: "Modify user info" },
       { id: "Permissions", label: "Permissions", description: "single User Permissions" },
       { id: "Delete", label: "Delete", description: "Delete the user" },
@@ -115,7 +131,7 @@ const defaultPermissionData: PermissionItem[] = [
     name: "Course Management",
     icon: "BookOpen",
     color: "green",
-    categories: ["staff", "admin"], // Multiple categories
+    categories: ["admin"], // Multiple categories
     description: "Manage courses and materials",
     functionalities: [
       { id: "Add Course Structure", label: "Add Course Structure", description: "Add Course Structure new courses" },
@@ -143,21 +159,7 @@ const defaultPermissionData: PermissionItem[] = [
       { id: "view_schedule", label: "View Schedule", description: "View course schedule" },
     ]
   },
-  {
-    id: "compiler-management",
-    key: "compailertest",
-    name: "Compiler Management",
-    icon: "FileText",
-    color: "purple",
-    categories: ["admin"], // Admin only
-    description: "Manage compiler tests",
-    functionalities: [
-      { id: "view_tests", label: "View Tests", description: "View test list" },
-      { id: "create_tests", label: "Create Tests", description: "Create assessments" },
-      { id: "edit_tests", label: "Edit Tests", description: "Modify questions" },
-      { id: "delete_tests", label: "Delete Tests", description: "Remove tests" },
-    ]
-  },
+ 
   {
     id: "dynamicfieldsettings",
     key: "dynamicfieldsettings",
@@ -184,6 +186,26 @@ const defaultPermissionData: PermissionItem[] = [
       { id: "view_notifications", label: "View Notifications", description: "View notifications" },
       { id: "edit_notifications", label: "Edit Notifications", description: "Modify notifications" },
     ]
+  },
+    {
+    id: "grades",
+    key: "grades",
+    name: "Grades",
+    icon: "graduation-cap",
+    color: "green",
+    categories: ["staff", "admin"], // Multiple categories
+    description: "Staff Grade Management",
+    functionalities: []
+  },
+  {
+    id: "grade",
+    key: "grade",
+    name: "Grade",
+    icon: "graduation-cap",
+    color: "green",
+    categories: ["student"], // Multiple categories
+    description: "Student Grade Management",
+    functionalities: []
   },
 ]
 
@@ -251,7 +273,7 @@ export function PermissionModal({ isOpen, onClose, userId, userName, userEmail }
 
   const updateMutation = useMutation({
     mutationFn: async (permissions: any[]) => {
-      const response = await fetch(`https://lms-server-ym1q.onrender.com/user-permission/update/${userId}`, {
+      const response = await fetch(`http://localhost:5533/user-permission/update/${userId}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -290,7 +312,7 @@ export function PermissionModal({ isOpen, onClose, userId, userName, userEmail }
         setExpandedCategories([permissionCategories[0].key])
       }
 
-      fetch(`https://lms-server-ym1q.onrender.com/user/get-permission/${userId}`, {
+      fetch(`http://localhost:5533/user/get-permission/${userId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
         .then(res => res.ok ? res.json() : Promise.reject())
