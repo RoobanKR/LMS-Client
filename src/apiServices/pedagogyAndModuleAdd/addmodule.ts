@@ -1,7 +1,7 @@
 // moduleService.ts - React Query version
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:5533';
+const API_BASE_URL = 'https://lms-server-ym1q.onrender.com';
 
 // Type definitions
 interface Module {
@@ -17,6 +17,8 @@ interface Module {
     updatedAt: Date;
     index?: number;
     updatedBy?: string;
+        testConfiguration?: any; // Add this
+
 }
 
 interface ModuleCreateData {
@@ -28,6 +30,8 @@ interface ModuleCreateData {
     level?: string;
     index?: number;
     createdBy?: string;
+        testConfiguration?: any; // Add this
+
 }
 
 interface ModuleUpdateData {
@@ -85,7 +89,12 @@ export const fetchModuleById = async (moduleId: string): Promise<Module> => {
 };
 
 export const createModule = async (moduleData: ModuleCreateData): Promise<Module> => {
-    const response = await apiClient.post('/module/create', moduleData);
+    // Ensure testConfiguration is included if it exists
+    const payload = {
+        ...moduleData,
+        testConfiguration: moduleData.testConfiguration || null
+    };
+    const response = await apiClient.post('/module/create', payload);
     return response.data;
 };
 

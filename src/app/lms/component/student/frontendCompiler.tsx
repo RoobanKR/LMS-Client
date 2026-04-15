@@ -361,7 +361,17 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
   level
 }) => {
   const router = useRouter();
-  
+  // Add these state variables for collapsible sections
+const [isExplorerCollapsed, setIsExplorerCollapsed] = useState(false);
+const [isEditorCollapsed, setIsEditorCollapsed] = useState(false);
+const [isPreviewCollapsed, setIsPreviewCollapsed] = useState(false);
+const [explorerWidth, setExplorerWidth] = useState(260);
+const [isResizingExplorer, setIsResizingExplorer] = useState(false);
+const [isResizingPreview, setIsResizingPreview] = useState(false);
+const explorerStartXRef = useRef(0);
+const explorerStartWidthRef = useRef(260);
+const previewStartXRef = useRef(0);
+const previewStartWidthRef = useRef(50);
   // Log initial props
   console.log("FrontendCompiler props:", {
     hasInitialFiles: !!initialFiles,
@@ -373,7 +383,80 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
     exerciseId,
     category
   });
+// Handle explorer resize start
+const handleExplorerResizeStart = (e: React.MouseEvent) => {
+  e.preventDefault();
+  setIsResizingExplorer(true);
+  explorerStartXRef.current = e.clientX;
+  explorerStartWidthRef.current = explorerWidth;
+};
 
+// Handle explorer resize move
+useEffect(() => {
+  const handleExplorerResizeMove = (e: MouseEvent) => {
+    if (!isResizingExplorer) return;
+    
+    const delta = e.clientX - explorerStartXRef.current;
+    const newWidth = Math.min(Math.max(180, explorerStartWidthRef.current + delta), 400);
+    setExplorerWidth(newWidth);
+  };
+
+  const handleExplorerResizeEnd = () => {
+    setIsResizingExplorer(false);
+  };
+
+  if (isResizingExplorer) {
+    document.addEventListener('mousemove', handleExplorerResizeMove);
+    document.addEventListener('mouseup', handleExplorerResizeEnd);
+    document.body.style.cursor = 'ew-resize';
+    document.body.style.userSelect = 'none';
+  }
+
+  return () => {
+    document.removeEventListener('mousemove', handleExplorerResizeMove);
+    document.removeEventListener('mouseup', handleExplorerResizeEnd);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  };
+}, [isResizingExplorer]);
+
+// Handle preview resize start
+const handlePreviewResizeStart = (e: React.MouseEvent) => {
+  e.preventDefault();
+  setIsResizingPreview(true);
+  previewStartXRef.current = e.clientX;
+  previewStartWidthRef.current = previewWidth;
+};
+
+// Handle preview resize move
+useEffect(() => {
+  const handlePreviewResizeMove = (e: MouseEvent) => {
+    if (!isResizingPreview) return;
+    
+    const containerWidth = document.querySelector('.main-content-container')?.clientWidth || window.innerWidth;
+    const delta = (e.clientX - previewStartXRef.current) / containerWidth * 100;
+    const newWidth = Math.min(Math.max(30, previewStartWidthRef.current + delta), 70);
+    setPreviewWidth(newWidth);
+  };
+
+  const handlePreviewResizeEnd = () => {
+    setIsResizingPreview(false);
+  };
+
+  if (isResizingPreview) {
+    document.addEventListener('mousemove', handlePreviewResizeMove);
+    document.addEventListener('mouseup', handlePreviewResizeEnd);
+    document.body.style.cursor = 'ew-resize';
+    document.body.style.userSelect = 'none';
+  }
+
+  return () => {
+    document.removeEventListener('mousemove', handlePreviewResizeMove);
+    document.removeEventListener('mouseup', handlePreviewResizeEnd);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  };
+}, [isResizingPreview]);
   // ---------------------------------------------------------------------------
   // 1. SECURITY & MODE CHECK
   // ---------------------------------------------------------------------------
@@ -459,6 +542,592 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
   // Use colors based on theme
   const colors = theme === 'light' ? lightColors : darkColors;
 
+
+
+  // Add this new component before the FrontendCompiler component
+
+// --- QUESTION SIDEBAR COMPONENT WITH EXPAND/COLLAPSE ---
+const QuestionSidebar = ({
+  isOpen,
+  onClose,
+  question,
+  currentIndex,
+  totalQuestions,
+  onNavigate,
+  theme = "light"
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  question: any;
+  currentIndex: number;
+  totalQuestions: number;
+  onNavigate: (direction: 'prev' | 'next') => void;
+  theme?: "light" | "dark";
+}) => {
+  const [sidebarWidth, setSidebarWidth] = useState(384); // 96 * 4 = 384px (w-96)
+  const [isResizing, setIsResizing] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const startXRef = useRef(0);
+  const startWidthRef = useRef(384);
+
+  if (!isOpen) return null;
+
+  const themeClasses = theme === 'dark'
+    ? 'bg-gray-900 text-white border-gray-700'
+    : 'bg-white text-gray-900 border-gray-300';
+
+    const [modalImage, setModalImage] = useState<{ url: string; alt: string } | null>(null);
+
+// Add this useEffect to expose the openImageModal function globally
+useEffect(() => {
+  // Expose the function globally so images can call it
+  (window as any).openImageModal = (url: string, alt: string) => {
+    setModalImage({ url, alt });
+  };
+  
+  return () => {
+    delete (window as any).openImageModal;
+  };
+}, []);
+
+// Add this useEffect to handle Escape key to close modal
+useEffect(() => {
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'Escape' && modalImage) {
+      setModalImage(null);
+    }
+  };
+  
+  window.addEventListener('keydown', handleKeyDown);
+  return () => window.removeEventListener('keydown', handleKeyDown);
+}, [modalImage]);
+
+const ImageModal = ({ image, onClose }: { image: { url: string; alt: string } | null; onClose: () => void }) => {
+    useEffect(() => {
+        document.body.style.overflow = image ? 'hidden' : 'unset';
+        return () => { document.body.style.overflow = 'unset'; };
+    }, [image]);
+
+    if (!image) return null;
+
+    return (
+        <div
+            className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/70 backdrop-blur-sm"
+            onClick={onClose}
+        >
+            <div
+                className="relative flex flex-col rounded-xl shadow-2xl border overflow-hidden"
+                style={{
+                    width: '560px',
+                    height: '500px',
+                    maxWidth: '90vw',
+                    maxHeight: '85vh',
+                    backgroundColor: theme === 'vs-dark' ? '#1e1e1e' : '#ffffff',
+                    borderColor: theme === 'vs-dark' ? '#3e3e42' : '#d4d4d4'
+                }}
+                onClick={(e) => e.stopPropagation()}
+            >
+                {/* Header */}
+                <div
+                    className="flex items-center justify-between px-4 py-2.5 border-b flex-shrink-0"
+                    style={{
+                        height: '42px',
+                        backgroundColor: theme === 'vs-dark' ? '#2d2d30' : '#f3f3f3',
+                        borderColor: theme === 'vs-dark' ? '#3e3e42' : '#d4d4d4'
+                    }}
+                >
+                    <span className="text-xs font-semibold truncate" style={{ color: colors.text }}>
+                        🖼️ {image.alt || 'Question Image'}
+                    </span>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <button
+                            onClick={() => window.open(image.url, '_blank')}
+                            className="h-6 px-2 text-[10px] rounded flex items-center gap-1 transition-colors"
+                            style={{ backgroundColor: colors.hoverBg, color: colors.text }}
+                        >
+                            <Maximize2 size={10} />
+                            Full
+                        </button>
+                        <button
+                            onClick={onClose}
+                            className="h-6 w-6 flex items-center justify-center rounded transition-colors hover:bg-red-100"
+                            style={{ color: colors.textSecondary }}
+                        >
+                            <X size={14} />
+                        </button>
+                    </div>
+                </div>
+
+                {/* Scrollable Image Area */}
+                <div
+                    className="flex-1 overflow-auto flex items-center justify-center"
+                    style={{
+                        height: 'calc(500px - 42px)',
+                        backgroundColor: theme === 'vs-dark' ? '#141414' : '#f0f0f0'
+                    }}
+                >
+                    <img
+                        src={image.url}
+                        alt={image.alt}
+                        style={{
+                            maxWidth: '100%',
+                            maxHeight: '100%',
+                            width: 'auto',
+                            height: 'auto',
+                            objectFit: 'contain',
+                            borderRadius: '4px',
+                            display: 'block'
+                        }}
+                    />
+                </div>
+            </div>
+        </div>
+    );
+};
+// Helper function to render description blocks with clickable images
+const renderDescriptionBlocks = (description: any): string => {
+  if (!description) return 'No description provided';
+  
+  // Escape HTML helper
+  const escapeHtml = (text: string): string => {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  };
+  
+  // If description is a string
+  if (typeof description === 'string') {
+    return `<div class="text-block">${escapeHtml(description)}</div>`;
+  }
+  
+  // If description has contentBlocks array
+  if (Array.isArray(description.contentBlocks)) {
+    return description.contentBlocks.map((block: any) => {
+      if (block.type === 'text') {
+        return `<div class="text-block">${escapeHtml(block.value || '')}</div>`;
+      }
+      if (block.type === 'code') {
+        const escaped = (block.value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const bgColor = block.bgColor || '#f5f5f5';
+        return `<pre style="background:${bgColor};border-radius:8px;padding:10px 14px;font-size:12px;font-family:ui-monospace,monospace;overflow-x:auto;line-height:1.6;margin:6px 0"><code>${escaped}</code></pre>`;
+      }
+      if (block.type === 'image') {
+        const alignMap: { [key: string]: string } = { 'left': 'flex-start', 'center': 'center', 'right': 'flex-end' };
+        const justifyContent = alignMap[block.alignment] || 'flex-start';
+        const maxWidth = block.sizePercent || 100;
+        return `<div style="display:flex;justify-content:${justifyContent};margin:6px 0">
+                  <img src="${block.url}" alt="" style="max-width:${maxWidth}%;border-radius:8px;border:1px solid #e4e4ed;cursor:pointer" 
+                       onclick="window.openImageModal('${block.url}', 'Question Image')" />
+                </div>`;
+      }
+      return '';
+    }).join('');
+  }
+  
+  // If description has text array
+  if (Array.isArray(description.text)) {
+    return description.text.map((block: any) => {
+      if (block.type === 'text') {
+        return `<div class="text-block">${escapeHtml(block.value || '')}</div>`;
+      }
+      if (block.type === 'code') {
+        const escaped = (block.value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const bgColor = block.bgColor || '#f5f5f5';
+        return `<pre style="background:${bgColor};border-radius:8px;padding:10px 14px;font-size:12px;font-family:ui-monospace,monospace;overflow-x:auto;line-height:1.6;margin:6px 0"><code>${escaped}</code></pre>`;
+      }
+      if (block.type === 'image') {
+        const alignMap: { [key: string]: string } = { 'left': 'flex-start', 'center': 'center', 'right': 'flex-end' };
+        const justifyContent = alignMap[block.alignment] || 'flex-start';
+        const maxWidth = block.sizePercent || 100;
+        return `<div style="display:flex;justify-content:${justifyContent};margin:6px 0">
+                  <img src="${block.url}" alt="" style="max-width:${maxWidth}%;border-radius:8px;border:1px solid #e4e4ed;cursor:pointer" 
+                       onclick="window.openImageModal('${block.url}', 'Question Image')" />
+                </div>`;
+      }
+      return '';
+    }).join('');
+  }
+  
+  // If description is an object with text string
+  if (typeof description.text === 'string') {
+    let html = `<div class="text-block">${escapeHtml(description.text)}</div>`;
+    if (description.imageUrl) {
+      const alignMap: { [key: string]: string } = { 'left': 'flex-start', 'center': 'center', 'right': 'flex-end' };
+      const justifyContent = alignMap[description.imageAlignment] || 'flex-start';
+      const maxWidth = description.imageSizePercent || 100;
+      html += `<div style="display:flex;justify-content:${justifyContent};margin:6px 0">
+                <img src="${description.imageUrl}" style="max-width:${maxWidth}%;border-radius:8px;border:1px solid #e4e4ed;cursor:pointer" 
+                     onclick="window.openImageModal('${description.imageUrl}', 'Question Image')" />
+              </div>`;
+    }
+    return html;
+  }
+  
+  // Fallback
+  return '<div>No description provided</div>';
+};
+  const getDifficultyColor = (difficulty: string) => {
+    switch (difficulty?.toLowerCase()) {
+      case 'easy': return 'text-green-600 bg-green-100 dark:text-green-400 dark:bg-green-900/30';
+      case 'medium': return 'text-yellow-600 bg-yellow-100 dark:text-yellow-400 dark:bg-yellow-900/30';
+      case 'hard': return 'text-red-600 bg-red-100 dark:text-red-400 dark:bg-red-900/30';
+      default: return 'text-gray-600 bg-gray-100 dark:text-gray-400 dark:bg-gray-800';
+    }
+  };
+
+  // Handle resize start
+  const handleResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+    startXRef.current = e.clientX;
+    startWidthRef.current = sidebarWidth;
+  };
+
+  // Handle resize move
+  useEffect(() => {
+    const handleResizeMove = (e: MouseEvent) => {
+      if (!isResizing) return;
+      
+      const delta = startXRef.current - e.clientX;
+      const newWidth = Math.min(Math.max(280, startWidthRef.current + delta), 600);
+      setSidebarWidth(newWidth);
+    };
+
+    const handleResizeEnd = () => {
+      setIsResizing(false);
+    };
+
+    if (isResizing) {
+      document.addEventListener('mousemove', handleResizeMove);
+      document.addEventListener('mouseup', handleResizeEnd);
+      document.body.style.cursor = 'ew-resize';
+      document.body.style.userSelect = 'none';
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleResizeMove);
+      document.removeEventListener('mouseup', handleResizeEnd);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isResizing]);
+
+  // Toggle collapse
+  const toggleCollapse = () => {
+    setIsCollapsed(!isCollapsed);
+  };
+
+  return (
+    <>
+      {/* Resize Handle (only when not collapsed) */}
+      {!isCollapsed && (
+        <div
+          className="fixed left-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-blue-500 transition-colors z-50"
+          style={{
+            left: `${sidebarWidth - 2}px`,
+            backgroundColor: isResizing ? '#007acc' : 'transparent',
+          }}
+          onMouseDown={handleResizeStart}
+        />
+      )}
+
+      {/* Sidebar Content */}
+      <div
+        className="fixed inset-y-0 right-0 shadow-2xl border-l transform transition-all duration-300 ease-in-out z-50 overflow-hidden flex flex-col"
+        style={{
+          width: isCollapsed ? '48px' : `${sidebarWidth}px`,
+          backgroundColor: theme === 'dark' ? '#1e1e1e' : '#ffffff',
+          borderColor: theme === 'dark' ? '#3e3e42' : '#d4d4d4',
+          boxShadow: '-4px 0 15px rgba(0, 0, 0, 0.1)',
+          transition: 'width 0.3s ease-in-out'
+        }}
+      >
+        {/* Header with Collapse Toggle */}
+        <div className="flex items-center justify-between p-3 border-b flex-shrink-0" style={{
+          borderColor: theme === 'dark' ? '#3e3e42' : '#d4d4d4',
+          backgroundColor: theme === 'dark' ? '#2d2d30' : '#f3f3f3'
+        }}>
+          {!isCollapsed ? (
+            <>
+              <div className="flex items-center gap-2">
+                <BookOpen size={18} className={theme === 'dark' ? 'text-blue-400' : 'text-blue-600'} />
+                <h2 className="font-semibold" style={{ color: theme === 'dark' ? '#ffffff' : '#333333' }}>
+                  Question {currentIndex + 1}
+                </h2>
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={toggleCollapse}
+                  className="p-1.5 hover:bg-[#d5d5d5] dark:hover:bg-[#3e3e42] rounded transition-colors"
+                  style={{ color: theme === 'dark' ? '#858585' : '#666666' }}
+                  title="Collapse Sidebar"
+                >
+                  <ChevronRight size={16} />
+                </button>
+                <button
+                  onClick={onClose}
+                  className="p-1.5 hover:bg-[#d5d5d5] dark:hover:bg-[#3e3e42] rounded transition-colors"
+                  style={{ color: theme === 'dark' ? '#858585' : '#666666' }}
+                  title="Close Sidebar"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="flex flex-col items-center w-full gap-3">
+              <button
+                onClick={toggleCollapse}
+                className="p-2 hover:bg-[#d5d5d5] dark:hover:bg-[#3e3e42] rounded transition-colors"
+                style={{ color: theme === 'dark' ? '#858585' : '#666666' }}
+                title="Expand Sidebar"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <div className="text-xs font-medium transform -rotate-90 whitespace-nowrap" style={{ color: theme === 'dark' ? '#858585' : '#666666' }}>
+                Q{currentIndex + 1}/{totalQuestions}
+              </div>
+              <button
+                onClick={onClose}
+                className="p-2 hover:bg-[#d5d5d5] dark:hover:bg-[#3e3e42] rounded transition-colors mt-auto"
+                style={{ color: theme === 'dark' ? '#858585' : '#666666' }}
+                title="Close Sidebar"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Content - Only show when not collapsed */}
+        {!isCollapsed && (
+          <>
+            <div className="overflow-y-auto flex-1 p-4" style={{
+              backgroundColor: theme === 'dark' ? '#1e1e1e' : '#ffffff',
+              color: theme === 'dark' ? '#cccccc' : '#333333'
+            }}>
+              {/* Question Title */}
+              {question?.title && (
+                <div className="mb-4">
+                  <h3 className="text-sm font-medium mb-2" style={{ color: theme === 'dark' ? '#858585' : '#666666' }}>
+                    Title
+                  </h3>
+                  <p className="text-base font-semibold">{question.title}</p>
+                </div>
+              )}
+
+              {/* Metadata Badges */}
+              <div className="flex flex-wrap gap-2 mb-4">
+                {question?.difficulty && (
+                  <span className={`text-xs px-2 py-1 rounded-full ${getDifficultyColor(question.difficulty)}`}>
+                    {question.difficulty}
+                  </span>
+                )}
+                {question?.score && (
+                  <span className="text-xs px-2 py-1 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+                    Score: {question.score}
+                  </span>
+                )}
+              </div>
+
+              {/* Description */}
+              {question?.description && (
+                <div className="mb-4">
+                  <h3 className="text-sm font-medium mb-2" style={{ color: theme === 'dark' ? '#858585' : '#666666' }}>
+                    Description
+                  </h3>
+                  <div
+                    className="prose prose-sm max-w-none"
+                    style={{ 
+                      color: theme === 'dark' ? '#cccccc' : '#333333',
+                      lineHeight: '1.6'
+                    }}
+                    dangerouslySetInnerHTML={{
+                      __html: renderDescriptionBlocks(question.description)
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* Sample Input/Output */}
+              {(question?.sampleInput || question?.sampleOutput) && (
+                <div className="mb-4">
+                  <h3 className="text-sm font-medium mb-2" style={{ color: theme === 'dark' ? '#858585' : '#666666' }}>
+                    Sample
+                  </h3>
+                  {question.sampleInput && (
+                    <div className="mb-2">
+                      <div className="text-xs font-medium mb-1" style={{ color: theme === 'dark' ? '#858585' : '#666666' }}>
+                        Input:
+                      </div>
+                      <pre className="p-2 rounded text-xs font-mono" style={{
+                        backgroundColor: theme === 'dark' ? '#2d2d30' : '#f5f5f5',
+                        border: `1px solid ${theme === 'dark' ? '#3e3e42' : '#e0e0e0'}`
+                      }}>
+                        {question.sampleInput}
+                      </pre>
+                    </div>
+                  )}
+                  {question.sampleOutput && (
+                    <div>
+                      <div className="text-xs font-medium mb-1" style={{ color: theme === 'dark' ? '#858585' : '#666666' }}>
+                        Output:
+                      </div>
+                      <pre className="p-2 rounded text-xs font-mono" style={{
+                        backgroundColor: theme === 'dark' ? '#2d2d30' : '#f5f5f5',
+                        border: `1px solid ${theme === 'dark' ? '#3e3e42' : '#e0e0e0'}`
+                      }}>
+                        {question.sampleOutput}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Constraints */}
+              {question?.constraints && question.constraints.length > 0 && (
+                <div className="mb-4">
+                  <h3 className="text-sm font-medium mb-2" style={{ color: theme === 'dark' ? '#858585' : '#666666' }}>
+                    Constraints
+                  </h3>
+                  <ul className="list-disc pl-5 space-y-1 text-sm">
+                    {question.constraints.map((constraint: string, index: number) => (
+                      <li key={index}>{constraint}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Hints */}
+              {question?.hints && question.hints.length > 0 && (
+                <div className="mb-4">
+                  <h3 className="text-sm font-medium mb-2 flex items-center gap-1">
+                    <Lightbulb size={14} className="text-yellow-500" />
+                    <span style={{ color: theme === 'dark' ? '#858585' : '#666666' }}>Hints ({question.hints.length})</span>
+                  </h3>
+                  <ul className="space-y-2">
+                    {question.hints.map((hint: any, index: number) => {
+                      let hintText = '';
+                      let isPublic = true;
+                      let pointsDeduction = 0;
+                      
+                      if (typeof hint === 'object') {
+                        hintText = hint.hintText || '';
+                        isPublic = hint.isPublic !== undefined ? hint.isPublic : true;
+                        pointsDeduction = hint.pointsDeduction || 0;
+                      } else {
+                        hintText = hint;
+                      }
+                      
+                      if (!isPublic) return null;
+                      
+                      return (
+                        <li key={index} className="text-sm p-3 rounded" style={{
+                          backgroundColor: theme === 'dark' ? '#2d2d30' : '#fff9e6',
+                          border: `1px solid ${theme === 'dark' ? '#3e3e42' : '#ffd700'}`
+                        }}>
+                          <div className="flex items-start gap-2">
+                            <span className="text-yellow-500">💡</span>
+                            <div className="flex-1">
+                              <div className="mb-1">{hintText}</div>
+                              {pointsDeduction > 0 && (
+                                <div className="text-xs mt-1" style={{ color: theme === 'dark' ? '#858585' : '#999' }}>
+                                  Points deduction: {pointsDeduction}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </li>
+                      );
+                    })}
+                    
+                    {question.hints.filter((h: any) => typeof h === 'object' ? h.isPublic : true).length === 0 && (
+                      <li className="text-sm p-2 text-center italic" style={{ color: theme === 'dark' ? '#858585' : '#999' }}>
+                        No public hints available
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              )}
+
+              {/* Test Cases Info */}
+              {question?.testCases && question.testCases.length > 0 && (
+                <div className="mb-4">
+                  <h3 className="text-sm font-medium mb-2" style={{ color: theme === 'dark' ? '#858585' : '#666666' }}>
+                    Test Cases ({question.testCases.length})
+                  </h3>
+                  <div className="space-y-2">
+                    {question.testCases.slice(0, 3).map((testCase: any, index: number) => (
+                      <div key={index} className="text-xs p-2 rounded" style={{
+                        backgroundColor: theme === 'dark' ? '#2d2d30' : '#f5f5f5',
+                        border: `1px solid ${theme === 'dark' ? '#3e3e42' : '#e0e0e0'}`
+                      }}>
+                        <div className="font-medium mb-1">Test {index + 1}</div>
+                        <div>Input: {testCase.input || 'N/A'}</div>
+                        <div>Expected: {testCase.expectedOutput || 'N/A'}</div>
+                      </div>
+                    ))}
+                    {question.testCases.length > 3 && (
+                      <div className="text-xs text-center mt-1" style={{ color: theme === 'dark' ? '#858585' : '#666666' }}>
+                        +{question.testCases.length - 3} more test cases
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Empty State */}
+              {!question && (
+                <div className="text-center py-8" style={{ color: theme === 'dark' ? '#858585' : '#666666' }}>
+                  <BookOpen size={48} className="mx-auto mb-3 opacity-30" />
+                  <p>No question details available</p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer with Navigation */}
+            <div className="flex-shrink-0 p-4 border-t" style={{
+              borderColor: theme === 'dark' ? '#3e3e42' : '#d4d4d4',
+              backgroundColor: theme === 'dark' ? '#2d2d30' : '#f3f3f3'
+            }}>
+              <div className="flex items-center justify-between">
+                <button
+                  onClick={() => onNavigate('prev')}
+                  disabled={currentIndex === 0}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded text-sm disabled:opacity-50 transition-colors hover:bg-[#d5d5d5] dark:hover:bg-[#3e3e42]"
+                  style={{ color: theme === 'dark' ? '#cccccc' : '#333333' }}
+                >
+                  <ChevronLeft size={14} />
+                  Previous
+                </button>
+                <span className="text-xs" style={{ color: theme === 'dark' ? '#858585' : '#666666' }}>
+                  {currentIndex + 1} / {totalQuestions}
+                </span>
+                <button
+                  onClick={() => onNavigate('next')}
+                  disabled={currentIndex === totalQuestions - 1}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded text-sm disabled:opacity-50 transition-colors hover:bg-[#d5d5d5] dark:hover:bg-[#3e3e42]"
+                  style={{ color: theme === 'dark' ? '#cccccc' : '#333333' }}
+                >
+                  Next
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Image Modal */}
+      <ImageModal 
+        image={modalImage} 
+        onClose={() => setModalImage(null)} 
+        theme={theme} 
+      />
+    </>
+  );
+};
   // Default files (used when no previous submission exists)
   const defaultFiles: FileType[] = [
     {
@@ -884,6 +1553,7 @@ const [folders, setFolders] = useState<FolderType[]>(() => {
   const [fontSize, setFontSize] = useState(15);
   const [showSettings, setShowSettings] = useState(false);
   const [isUIFullscreen, setIsUIFullscreen] = useState(false);
+const [showQuestionSidebar, setShowQuestionSidebar] = useState(true);
 
   // Recording refs
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -1036,7 +1706,7 @@ const [folders, setFolders] = useState<FolderType[]>(() => {
       try {
         const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
         
-        await axios.post('http://localhost:5533/exercise/lock', {
+        await axios.post('https://lms-server-ym1q.onrender.com/exercise/lock', {
           courseId,
           exerciseId,
           category,
@@ -1133,7 +1803,7 @@ const [folders, setFolders] = useState<FolderType[]>(() => {
 
     try {
       const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
-      await axios.post('http://localhost:5533/exercise/lock', {
+      await axios.post('https://lms-server-ym1q.onrender.com/exercise/lock', {
         courseId,
         exerciseId,
         category,
@@ -1502,7 +2172,7 @@ const [folders, setFolders] = useState<FolderType[]>(() => {
 
       try {
         const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
-        const response = await axios.get('http://localhost:5533/exercise/status', {
+        const response = await axios.get('https://lms-server-ym1q.onrender.com/exercise/status', {
           params: { courseId, exerciseId, category, subcategory },
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -1534,149 +2204,149 @@ const [folders, setFolders] = useState<FolderType[]>(() => {
   // FILE TREE FUNCTIONS - FIXED TO PREVENT RECURSION
   // ---------------------------------------------------------------------------
 
-  // Function to load previous submission
-  const loadPreviousSubmission = useCallback(async () => {
-    const questionId = getQuestionId();
-    if (!questionId || !courseId || !exerciseId || !category) {
-      toast.error("Missing information to load previous submission");
-      return;
-    }
+  // // Function to load previous submission
+  // const loadPreviousSubmission = useCallback(async () => {
+  //   const questionId = getQuestionId();
+  //   if (!questionId || !courseId || !exerciseId || !category) {
+  //     toast.error("Missing information to load previous submission");
+  //     return;
+  //   }
 
-    setIsLoadingPrevious(true);
-    try {
-      const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
+  //   setIsLoadingPrevious(true);
+  //   try {
+  //     const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
       
-      if (!token) {
-        toast.error("Authentication token missing");
-        return;
-      }
+  //     if (!token) {
+  //       toast.error("Authentication token missing");
+  //       return;
+  //     }
 
-      const response = await fetch(
-        `http://localhost:5533/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseId}&questionId=${questionId}&category=${category}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
+  //     const response = await fetch(
+  //       `https://lms-server-ym1q.onrender.com/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseId}&questionId=${questionId}&category=${category}`,
+  //       {
+  //         headers: {  
+  //           'Authorization': `Bearer ${token}`,
+  //           'Content-Type': 'application/json'
+  //         }
+  //       }
+  //     );
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+  //     if (!response.ok) {
+  //       throw new Error(`HTTP error! status: ${response.status}`);
+  //     }
 
-      const data = await response.json();
-      console.log("Previous submission response:", data);
+  //     const data = await response.json();
+  //     console.log("Previous submission response:", data);
 
-      if (data.success && data.data) {
-        const submission = data.data;
+  //     if (data.success && data.data) {
+  //       const submission = data.data;
         
-        // Transform files
-        const transformedFiles: FileType[] = (submission.files || []).map((file: any, index: number) => {
-          let language: FileType['language'] = file.language as FileType['language'];
-          if (!language && file.filename) {
-            const ext = file.filename.split('.').pop()?.toLowerCase();
-            if (ext === 'html' || ext === 'htm') language = 'html';
-            else if (ext === 'css') language = 'css';
-            else if (ext === 'js') language = 'javascript';
-            else if (ext === 'json') language = 'json';
-            else if (ext === 'xml') language = 'xml';
-            else if (ext === 'md' || ext === 'markdown') language = 'markdown';
-            else if (ext === 'txt') language = 'text';
-            else language = 'text';
-          }
+  //       // Transform files
+  //       const transformedFiles: FileType[] = (submission.files || []).map((file: any, index: number) => {
+  //         let language: FileType['language'] = file.language as FileType['language'];
+  //         if (!language && file.filename) {
+  //           const ext = file.filename.split('.').pop()?.toLowerCase();
+  //           if (ext === 'html' || ext === 'htm') language = 'html';
+  //           else if (ext === 'css') language = 'css';
+  //           else if (ext === 'js') language = 'javascript';
+  //           else if (ext === 'json') language = 'json';
+  //           else if (ext === 'xml') language = 'xml';
+  //           else if (ext === 'md' || ext === 'markdown') language = 'markdown';
+  //           else if (ext === 'txt') language = 'text';
+  //           else language = 'text';
+  //         }
 
-          return {
-            id: file.id || `file-${Date.now()}-${index}`,
-            filename: file.filename || `file${index}.txt`,
-            content: file.content || '',
-            language: language || 'text',
-            path: file.path || `/${file.filename}`,
-            folderPath: file.folderPath || '/',
-            isEntryPoint: file.isEntryPoint || false,
-            lastModified: file.lastModified ? new Date(file.lastModified) : new Date(),
-            size: file.size || (file.content ? Buffer.byteLength(file.content, 'utf8') : 0),
-            isDirty: false
-          };
-        });
+  //         return {
+  //           id: file.id || `file-${Date.now()}-${index}`,
+  //           filename: file.filename || `file${index}.txt`,
+  //           content: file.content || '',
+  //           language: language || 'text',
+  //           path: file.path || `/${file.filename}`,
+  //           folderPath: file.folderPath || '/',
+  //           isEntryPoint: file.isEntryPoint || false,
+  //           lastModified: file.lastModified ? new Date(file.lastModified) : new Date(),
+  //           size: file.size || (file.content ? Buffer.byteLength(file.content, 'utf8') : 0),
+  //           isDirty: false
+  //         };
+  //       });
 
-        // Transform folders
-        const transformedFolders: FolderType[] = (submission.folders || []).map((folder: any, index: number) => {
-          const path = folder.path || `/${folder.name}`;
-          const parentPath = folder.parentPath || '/';
+  //       // Transform folders
+  //       const transformedFolders: FolderType[] = (submission.folders || []).map((folder: any, index: number) => {
+  //         const path = folder.path || `/${folder.name}`;
+  //         const parentPath = folder.parentPath || '/';
           
-          return {
-            id: folder.id || `folder-${Date.now()}-${index}`,
-            name: folder.name || `folder${index}`,
-            path: path,
-            parentPath: parentPath,
-            children: [],
-            folderChildren: [],
-            isOpen: true,
-            depth: folder.depth || (path.split('/').filter(Boolean).length - 1)
-          };
-        });
+  //         return {
+  //           id: folder.id || `folder-${Date.now()}-${index}`,
+  //           name: folder.name || `folder${index}`,
+  //           path: path,
+  //           parentPath: parentPath,
+  //           children: [],
+  //           folderChildren: [],
+  //           isOpen: true,
+  //           depth: folder.depth || (path.split('/').filter(Boolean).length - 1)
+  //         };
+  //       });
 
-        // If we have files but no folders, create a root folder
-        if (transformedFiles.length > 0 && transformedFolders.length === 0) {
-          transformedFolders.push({
-            id: 'folder-root',
-            name: 'Root',
-            path: '/',
-            parentPath: '',
-            children: [],
-            folderChildren: [],
-            isOpen: true,
-            depth: 0
-          });
-        }
+  //       // If we have files but no folders, create a root folder
+  //       if (transformedFiles.length > 0 && transformedFolders.length === 0) {
+  //         transformedFolders.push({
+  //           id: 'folder-root',
+  //           name: 'Root',
+  //           path: '/',
+  //           parentPath: '',
+  //           children: [],
+  //           folderChildren: [],
+  //           isOpen: true,
+  //           depth: 0
+  //         });
+  //       }
 
-        console.log("Setting transformed data:", {
-          files: transformedFiles.length,
-          folders: transformedFolders.length
-        });
+  //       console.log("Setting transformed data:", {
+  //         files: transformedFiles.length,
+  //         folders: transformedFolders.length
+  //       });
 
-        // Update state
-        setFiles(transformedFiles);
-        setFolders(transformedFolders);
+  //       // Update state
+  //       setFiles(transformedFiles);
+  //       setFolders(transformedFolders);
         
-        if (transformedFiles.length > 0) {
-          const entryPoint = transformedFiles.find(f => f.isEntryPoint);
-          const htmlFile = transformedFiles.find(f => f.language === 'html');
-          const firstFileId = transformedFiles[0].id;
-          const newActiveFileId = entryPoint?.id || htmlFile?.id || firstFileId;
+  //       if (transformedFiles.length > 0) {
+  //         const entryPoint = transformedFiles.find(f => f.isEntryPoint);
+  //         const htmlFile = transformedFiles.find(f => f.language === 'html');
+  //         const firstFileId = transformedFiles[0].id;
+  //         const newActiveFileId = entryPoint?.id || htmlFile?.id || firstFileId;
           
-          setActiveFileId(newActiveFileId);
-          setOpenFiles([newActiveFileId]);
-        }
+  //         setActiveFileId(newActiveFileId);
+  //         setOpenFiles([newActiveFileId]);
+  //       }
 
-        toast.success(`Loaded previous submission with ${transformedFiles.length} files and ${transformedFolders.length} folders`);
+  //       toast.success(`Loaded previous submission with ${transformedFiles.length} files and ${transformedFolders.length} folders`);
         
-        // Trigger preview compilation
-        setTimeout(() => {
-          compileCode();
-        }, 100);
-      } else {
-        toast.info("No previous submission found");
-      }
-    } catch (error: any) {
-      console.error("Error loading previous submission:", error);
-      toast.error(`Failed to load previous submission: ${error.message}`);
-    } finally {
-      setIsLoadingPrevious(false);
-    }
-  }, [courseId, exerciseId, category, getQuestionId]);
+  //       // Trigger preview compilation
+  //       setTimeout(() => {
+  //         compileCode();
+  //       }, 100);
+  //     } else {
+  //       toast.info("No previous submission found");
+  //     }
+  //   } catch (error: any) {
+  //     console.error("Error loading previous submission:", error);
+  //     toast.error(`Failed to load previous submission: ${error.message}`);
+  //   } finally {
+  //     setIsLoadingPrevious(false);
+  //   }
+  // }, [courseId, exerciseId, category, getQuestionId]);
 
-  // Auto-load previous submission on mount if initial data wasn't provided
-  useEffect(() => {
-    if (!initialFiles || initialFiles.length === 0) {
-      const timeout = setTimeout(() => {
-        loadPreviousSubmission();
-      }, 500);
+  // // Auto-load previous submission on mount if initial data wasn't provided
+  // useEffect(() => {
+  //   if (!initialFiles || initialFiles.length === 0) {
+  //     const timeout = setTimeout(() => {
+  //       loadPreviousSubmission();
+  //     }, 500);
       
-      return () => clearTimeout(timeout);
-    }
-  }, [initialFiles, loadPreviousSubmission]);
+  //     return () => clearTimeout(timeout);
+  //   }
+  // }, [initialFiles, loadPreviousSubmission]);
 
   // Helper function to get folder path for display
   const getFolderPathForDisplay = (path: string) => {
@@ -3061,7 +3731,7 @@ document.addEventListener('DOMContentLoaded', init${name.charAt(0).toUpperCase()
       };
 
       const response = await axios.post(
-        'http://localhost:5533/courses/answers/submit-multiple-files',
+        'https://lms-server-ym1q.onrender.com/courses/answers/submit-multiple-files',
         payload,
         {
           headers: {
@@ -4002,7 +4672,7 @@ document.addEventListener('DOMContentLoaded', init${name.charAt(0).toUpperCase()
           <div className="h-5 w-px" style={{ backgroundColor: colors.border, margin: '0 8px' }}></div>
 
           {/* Load Previous Submission Button */}
-          <button
+          {/* <button
             onClick={loadPreviousSubmission}
             disabled={isLoadingPrevious}
             className="px-3 py-1.5 text-sm rounded flex items-center gap-2 hover:opacity-90 disabled:opacity-50 transition-opacity"
@@ -4011,7 +4681,7 @@ document.addEventListener('DOMContentLoaded', init${name.charAt(0).toUpperCase()
           >
             {isLoadingPrevious ? <Loader2 size={14} className="animate-spin" /> : <History size={14} />}
             {isLoadingPrevious ? 'Loading...' : 'Load Previous'}
-          </button>
+          </button> */}
 
           <button
             onClick={() => setTheme(theme === 'light' ? 'vs-dark' : 'light')}
@@ -4031,7 +4701,14 @@ document.addEventListener('DOMContentLoaded', init${name.charAt(0).toUpperCase()
           >
             {showPreview ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>
-
+  <button
+      onClick={() => setShowQuestionSidebar(!showQuestionSidebar)}
+      className={`p-2 rounded hover:bg-[#d5d5d5] dark:hover:bg-[#2d2d2d] transition-colors ${showQuestionSidebar ? 'bg-[#007acc] hover:bg-[#0062a3] text-white' : ''}`}
+      style={{ color: showQuestionSidebar ? 'white' : colors.textSecondary }}
+      title={`${showQuestionSidebar ? 'Hide' : 'Show'} Question Details`}
+    >
+      <BookOpen size={16} />
+    </button>
           {/* Open in New Tab Button */}
           <button
             onClick={() => {
@@ -4085,91 +4762,60 @@ document.addEventListener('DOMContentLoaded', init${name.charAt(0).toUpperCase()
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Activity Bar */}
-        <div className="w-12 flex flex-col items-center py-3 gap-4" style={{
-          backgroundColor: colors.activityBar,
-          borderRight: `1px solid ${colors.border}`
-        }}>
-          <button
-            onClick={() => setShowFileTree(!showFileTree)}
-            className="p-2 rounded hover:bg-[#d5d5d5] dark:hover:bg-[#2d2d2d] transition-colors"
-            style={{ color: colors.textSecondary }}
-            title="Explorer (Ctrl+Shift+E)"
-          >
-            <Folder size={20} />
-          </button>
-          <button
-            onClick={() => setShowProblems(!showProblems)}
-            className="p-2 rounded hover:bg-[#d5d5d5] dark:hover:bg-[#2d2d2d] transition-colors"
-            style={{ color: colors.textSecondary }}
-            title="Problems (Ctrl+Shift+M)"
-          >
-            <AlertCircle size={20} />
-          </button>
-          <button
-            onClick={() => setShowExtensions(!showExtensions)}
-            className="p-2 rounded hover:bg-[#d5d5d5] dark:hover:bg-[#2d2d2d] transition-colors"
-            style={{ color: colors.textSecondary }}
-            title="Extensions (Ctrl+Shift+X)"
-          >
-            <Code2 size={20} />
-          </button>
-          <div className="flex-1"></div>
-          <button
-            onClick={saveFilesLocally}
-            className="p-2 rounded hover:bg-[#d5d5d5] dark:hover:bg-[#2d2d2d] transition-colors"
-            style={{ color: colors.textSecondary }}
-            title="Save (Ctrl+S)"
-          >
-            <Save size={20} />
-          </button>
-          <button
-            className="p-2 rounded hover:bg-[#d5d5d5] dark:hover:bg-[#2d2d2d] transition-colors"
-            style={{ color: colors.textSecondary }}
-            title="Download Project"
-          >
-            <Download size={20} />
-          </button>
-        </div>
-
-        {/* Sidebar */}
+    {/* Main Content Area */}
+<div className="flex-1 flex overflow-hidden main-content-container">
+  {/* Explorer Section */}
+  {!isExplorerCollapsed && (
+    <>
+      <div 
+        className="flex flex-col flex-shrink-0 relative"
+        style={{ width: showFileTree ? `${explorerWidth}px` : '0px', transition: 'width 0.2s ease' }}
+      >
         {showFileTree && (
-          <div className="w-64 flex flex-col" style={{
+          <div className="h-full flex flex-col" style={{
             backgroundColor: colors.sidebar,
-            borderRight: `1px solid ${colors.border}`
+            borderRight: `1px solid ${colors.border}`,
+            width: `${explorerWidth}px`
           }}>
-            <div className="px-3 py-2 border-b" style={{ borderColor: colors.border }}>
-              <div className="flex items-center justify-between">
+            <div className="px-3 py-2 border-b flex items-center justify-between" style={{ borderColor: colors.border }}>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setIsExplorerCollapsed(true)}
+                  className="p-1 hover:bg-[#d5d5d5] dark:hover:bg-[#2d2d2d] rounded transition-colors"
+                  style={{ color: colors.textSecondary }}
+                  title="Collapse Explorer"
+                >
+                  <ChevronLeft size={16} />
+                </button>
                 <div className="text-xs font-semibold uppercase tracking-wider" style={{ color: colors.textSecondary }}>
                   Explorer
                 </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={startCreatingFolder}
-                    className="p-1 hover:bg-[#d5d5d5] dark:hover:bg-[#2d2d2d] rounded transition-colors"
-                    style={{ color: colors.textSecondary }}
-                    title="New Folder"
-                  >
-                    <FolderPlus size={14} />
-                  </button>
-                  <button
-                    onClick={startCreatingFile}
-                    className="p-1 hover:bg-[#d5d5d5] dark:hover:bg-[#2d2d2d] rounded transition-colors"
-                    style={{ color: colors.textSecondary }}
-                    title="New File"
-                  >
-                    <FilePlus size={14} />
-                  </button>
-                  <button
-                    onClick={loadLocalFiles}
-                    className="p-1 hover:bg-[#d5d5d5] dark:hover:bg-[#2d2d2d] rounded transition-colors"
-                    style={{ color: colors.textSecondary }}
-                    title="Refresh"
-                  >
-                    <RefreshCw size={14} />
-                  </button>
-                </div>
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={startCreatingFolder}
+                  className="p-1 hover:bg-[#d5d5d5] dark:hover:bg-[#2d2d2d] rounded transition-colors"
+                  style={{ color: colors.textSecondary }}
+                  title="New Folder"
+                >
+                  <FolderPlus size={14} />
+                </button>
+                <button
+                  onClick={startCreatingFile}
+                  className="p-1 hover:bg-[#d5d5d5] dark:hover:bg-[#2d2d2d] rounded transition-colors"
+                  style={{ color: colors.textSecondary }}
+                  title="New File"
+                >
+                  <FilePlus size={14} />
+                </button>
+                <button
+                  onClick={loadLocalFiles}
+                  className="p-1 hover:bg-[#d5d5d5] dark:hover:bg-[#2d2d2d] rounded transition-colors"
+                  style={{ color: colors.textSecondary }}
+                  title="Refresh"
+                >
+                  <RefreshCw size={14} />
+                </button>
               </div>
             </div>
 
@@ -4190,324 +4836,432 @@ document.addEventListener('DOMContentLoaded', init${name.charAt(0).toUpperCase()
             </div>
           </div>
         )}
+      </div>
+      
+      {/* Resize Handle for Explorer */}
+      {showFileTree && !isExplorerCollapsed && (
+        <div
+          className="w-1 cursor-ew-resize hover:bg-blue-500 transition-colors flex-shrink-0"
+          style={{ backgroundColor: isResizingExplorer ? '#007acc' : 'transparent' }}
+          onMouseDown={handleExplorerResizeStart}
+        />
+      )}
+    </>
+  )}
+  
+  {/* Collapsed Explorer Indicator */}
+  {isExplorerCollapsed && (
+    <div className="w-10 flex-shrink-0 flex flex-col items-center py-4 gap-2 border-r" style={{
+      backgroundColor: colors.sidebar,
+      borderColor: colors.border
+    }}>
+      <button
+        onClick={() => setIsExplorerCollapsed(false)}
+        className="p-2 hover:bg-[#d5d5d5] dark:hover:bg-[#2d2d2d] rounded transition-colors"
+        style={{ color: colors.textSecondary }}
+        title="Expand Explorer"
+      >
+        <ChevronRight size={18} />
+      </button>
+      <Folder size={20} style={{ color: colors.textSecondary }} />
+      <div className="text-xs font-mono" style={{ color: colors.textSecondary }}>
+        {files.length}
+      </div>
+    </div>
+  )}
 
-        {/* Editor Area */}
-        <div className={`flex-1 flex flex-col ${!showPreview ? 'w-full' : ''}`}>
-          {/* Editor Tabs */}
-          <div className="flex items-center border-b" style={{
-            backgroundColor: colors.editorGroup,
-            borderColor: colors.border
-          }}>
-            <div className="flex items-center flex-1 overflow-x-auto">
-              {files
-                .filter(file => openFiles.includes(file.id))
-                .map(file => {
-                  const isActive = activeFileId === file.id;
-                  return (
-                    <div
-                      key={file.id}
-                      className={`group flex items-center gap-2 px-4 py-2 border-r text-sm cursor-pointer min-w-[150px] max-w-[200px] ${isActive
-                        ? 'border-t-2'
-                        : 'hover:bg-[#e5e5e5] dark:hover:bg-[#2d2d2d]'
-                        }`}
-                      style={{
-                        backgroundColor: isActive ? colors.tabActive : colors.tabInactive,
-                        borderTopColor: isActive ? colors.primary : 'transparent',
-                        borderRightColor: colors.border,
-                        color: isActive ? colors.text : colors.textSecondary
-                      }}
-                      onClick={() => setActiveFileId(file.id)}
-                    >
-                      {getLanguageIcon(file.language)}
-                      <span className="flex-1 truncate">{file.filename}</span>
-
-                      {file.isDirty && (
-                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: colors.primary }}></div>
-                      )}
-
-                      {/* X button to close tab */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setOpenFiles(prev => prev.filter(id => id !== file.id));
-
-                          if (activeFileId === file.id) {
-                            const remainingOpenFiles = openFiles.filter(id => id !== file.id);
-                            if (remainingOpenFiles.length > 0) {
-                              setActiveFileId(remainingOpenFiles[0]);
-                            } else {
-                              setActiveFileId(files[0].id);
-                            }
-                          }
-                        }}
-                        className="p-0.5 rounded hover:bg-[#d5d5d5] dark:hover:bg-[#3e3e42] opacity-0 group-hover:opacity-100 transition-opacity"
-                        style={{ color: colors.textSecondary }}
-                        title="Close Tab"
-                      >
-                        <X size={12} />
-                      </button>
-                    </div>
-                  );
-                })}
-            </div>
-
-            <div className="flex items-center px-2 gap-1">
-              <button
-                onClick={() => setEditorZoom(prev => Math.min(prev + 10, 200))}
-                className="p-1.5 hover:bg-[#d5d5d5] dark:hover:bg-[#2d2d2d] rounded transition-colors"
-                style={{ color: colors.textSecondary }}
-                title="Zoom In"
-              >
-                <ZoomIn size={14} />
-              </button>
-              <button
-                onClick={() => setEditorZoom(prev => Math.max(prev - 10, 50))}
-                className="p-1.5 hover:bg-[#d5d5d5] dark:hover:bg-[#2d2d2d] rounded transition-colors"
-                style={{ color: colors.textSecondary }}
-                title="Zoom Out"
-              >
-                <ZoomOut size={14} />
-              </button>
-              <div className="text-xs px-2 py-1 rounded" style={{
-                backgroundColor: theme === 'light' ? '#e5e5e5' : '#2d2d2d',
-                color: colors.textSecondary
-              }}>
-                {editorZoom}%
-              </div>
-            </div>
-          </div>
-
-          {/* Editor */}
-          <div className="flex-1 relative">
-            {isLoading || isLoadingSubmission ? (
-              <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: colors.background }}>
-                <div className="text-center">
-                  <Loader2 className="animate-spin mx-auto mb-2" size={24} style={{ color: colors.primary }} />
-                  <div className="text-sm" style={{ color: colors.textSecondary }}>
-                    {isLoadingPrevious ? 'Loading previous submission...' : 'Loading project...'}
-                  </div>
-                </div>
-              </div>
-            ) : isRenaming ? (
-              <div className="absolute inset-0 flex items-center justify-center z-10" style={{
-                backgroundColor: theme === 'light' ? 'rgba(255, 255, 255, 0.9)' : 'rgba(30, 30, 30, 0.9)'
-              }}>
-                <div className="p-4 rounded-lg shadow-lg" style={{
-                  backgroundColor: colors.sidebar,
-                  border: `1px solid ${colors.border}`
-                }}>
-                  <h3 className="font-semibold mb-2" style={{ color: colors.text }}>Rename File</h3>
-                  <input
-                    type="text"
-                    value={renameValue}
-                    onChange={(e) => setRenameValue(e.target.value)}
-                    className="px-3 py-2 rounded w-64 mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+  {/* Editor and Preview Container */}
+  <div className="flex-1 flex overflow-hidden">
+    {/* Editor Section */}
+    {!isEditorCollapsed && (
+      <div 
+        className="flex flex-col h-full"
+        style={{ 
+          width: !isPreviewCollapsed && showPreview ? `${100 - previewWidth}%` : '100%',
+          transition: 'width 0.2s ease'
+        }}
+      >
+        {/* Editor Tabs */}
+        <div className="flex items-center border-b" style={{
+          backgroundColor: colors.editorGroup,
+          borderColor: colors.border
+        }}>
+          <div className="flex items-center flex-1 overflow-x-auto">
+            <button
+              onClick={() => setIsEditorCollapsed(true)}
+              className="p-2 hover:bg-[#d5d5d5] dark:hover:bg-[#2d2d2d] rounded transition-colors mr-1"
+              style={{ color: colors.textSecondary }}
+              title="Collapse Editor"
+            >
+              <ChevronRight size={14} />
+            </button>
+            {files
+              .filter(file => openFiles.includes(file.id))
+              .map(file => {
+                const isActive = activeFileId === file.id;
+                return (
+                  <div
+                    key={file.id}
+                    className={`group flex items-center gap-2 px-4 py-2 border-r text-sm cursor-pointer min-w-[150px] max-w-[200px] ${isActive
+                      ? 'border-t-2'
+                      : 'hover:bg-[#e5e5e5] dark:hover:bg-[#2d2d2d]'
+                      }`}
                     style={{
-                      backgroundColor: colors.background,
-                      color: colors.text,
-                      border: `1px solid ${colors.border}`
+                      backgroundColor: isActive ? colors.tabActive : colors.tabInactive,
+                      borderTopColor: isActive ? colors.primary : 'transparent',
+                      borderRightColor: colors.border,
+                      color: isActive ? colors.text : colors.textSecondary
                     }}
-                    autoFocus
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') renameFile();
-                      if (e.key === 'Escape') setIsRenaming(null);
-                    }}
-                  />
-                  <div className="flex gap-2">
+                    onClick={() => setActiveFileId(file.id)}
+                  >
+                    {getLanguageIcon(file.language)}
+                    <span className="flex-1 truncate">{file.filename}</span>
+
+                    {file.isDirty && (
+                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: colors.primary }}></div>
+                    )}
+
                     <button
-                      onClick={renameFile}
-                      className="px-3 py-1 rounded hover:opacity-90 transition-opacity"
-                      style={{ backgroundColor: colors.primary, color: 'white' }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenFiles(prev => prev.filter(id => id !== file.id));
+
+                        if (activeFileId === file.id) {
+                          const remainingOpenFiles = openFiles.filter(id => id !== file.id);
+                          if (remainingOpenFiles.length > 0) {
+                            setActiveFileId(remainingOpenFiles[0]);
+                          } else {
+                            setActiveFileId(files[0].id);
+                          }
+                        }
+                      }}
+                      className="p-0.5 rounded hover:bg-[#d5d5d5] dark:hover:bg-[#3e3e42] opacity-0 group-hover:opacity-100 transition-opacity"
+                      style={{ color: colors.textSecondary }}
+                      title="Close Tab"
                     >
-                      Rename
-                    </button>
-                    <button
-                      onClick={() => setIsRenaming(null)}
-                      className="px-3 py-1 rounded hover:bg-[#d5d5d5] dark:hover:bg-[#2d2d2d] transition-colors"
-                      style={{ color: colors.text, border: `1px solid ${colors.border}` }}
-                    >
-                      Cancel
+                      <X size={12} />
                     </button>
                   </div>
-                </div>
-              </div>
-            ) : (
-              <MonacoEditor
-                language={activeFile.language}
-                theme={theme}
-                value={activeFile.content}
-                onChange={handleFileContentChange}
-                options={{
-                  fontSize: 14 * (editorZoom / 100),
-                  minimap: { enabled: true },
-                  wordWrap: 'on',
-                  automaticLayout: true,
-                  scrollBeyondLastLine: false,
-                  tabSize: 2,
-                  insertSpaces: true,
-                  formatOnPaste: true,
-                  formatOnType: true,
-                  renderLineHighlight: 'all',
-                  cursorBlinking: 'smooth',
-                  cursorSmoothCaretAnimation: 'on',
-                  mouseWheelZoom: true,
-                  padding: { top: 10 },
-                  lineNumbers: 'on',
-                  glyphMargin: true,
-                  folding: true,
-                  lineDecorationsWidth: 10,
-                  overviewRulerBorder: false,
-                  scrollbar: {
-                    vertical: 'visible',
-                    horizontal: 'visible',
-                    useShadows: false
-                  }
-                }}
-              />
-            )}
+                );
+              })}
           </div>
 
-          {/* Status Bar */}
-          <div className="px-3 py-1.5 border-t flex items-center justify-between text-xs" style={{
-            borderColor: colors.border,
-            backgroundColor: theme === 'light' ? '#e5e5e5' : '#2d2d2d'
-          }}>
-            <div className="flex items-center gap-4" style={{ color: colors.textSecondary }}>
-              <button
-                onClick={() => setShowOutput(!showOutput)}
-                className="flex items-center gap-1 hover:text-[#007acc] transition-colors"
-              >
-                <Terminal size={12} />
-                <span>Output</span>
-              </button>
-              <div className="flex items-center gap-1">
-                <span>{activeFile.language.toUpperCase()}</span>
-                {activeFile.isEntryPoint && <Star size={10} className="text-[#dcdcaa]" />}
-              </div>
-              <span>Ln {activeFile.content.split('\n').length}, Col 1</span>
-            </div>
-            <div className="flex items-center gap-3" style={{ color: colors.textSecondary }}>
-              <button
-                onClick={() => setLayout(layout === 'horizontal' ? 'vertical' : 'horizontal')}
-                className="hover:text-[#007acc] transition-colors"
-                title="Toggle Layout"
-              >
-                {layout === 'horizontal' ? <SplitSquareHorizontal size={12} /> : <SplitSquareVertical size={12} />}
-              </button>
-              <button
-                onClick={() => setShowPreview(!showPreview)}
-                className="hover:text-[#007acc] transition-colors"
-                title="Toggle Preview"
-              >
-                {showPreview ? <PanelLeftClose size={12} /> : <PanelLeftOpen size={12} />}
-              </button>
-              <span className="text-[#4ec9b0]">● Live</span>
+          <div className="flex items-center px-2 gap-1">
+            <button
+              onClick={() => setEditorZoom(prev => Math.min(prev + 10, 200))}
+              className="p-1.5 hover:bg-[#d5d5d5] dark:hover:bg-[#2d2d2d] rounded transition-colors"
+              style={{ color: colors.textSecondary }}
+              title="Zoom In"
+            >
+              <ZoomIn size={14} />
+            </button>
+            <button
+              onClick={() => setEditorZoom(prev => Math.max(prev - 10, 50))}
+              className="p-1.5 hover:bg-[#d5d5d5] dark:hover:bg-[#2d2d2d] rounded transition-colors"
+              style={{ color: colors.textSecondary }}
+              title="Zoom Out"
+            >
+              <ZoomOut size={14} />
+            </button>
+            <div className="text-xs px-2 py-1 rounded" style={{
+              backgroundColor: theme === 'light' ? '#e5e5e5' : '#2d2d2d',
+              color: colors.textSecondary
+            }}>
+              {editorZoom}%
             </div>
           </div>
         </div>
 
-        {/* Preview Panel */}
-        {showPreview && (
-          <div className="w-1/2 flex flex-col border-l" style={{
-            backgroundColor: colors.editorGroup,
-            borderColor: colors.border
-          }}>
-            <div className="px-3 py-2 border-b flex items-center justify-between" style={{ borderColor: colors.border }}>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium" style={{ color: colors.text }}>Preview</span>
-                <span className="text-xs px-2 py-0.5 rounded" style={{
-                  backgroundColor: theme === 'light' ? '#e5e5e5' : '#2d2d2d',
-                  color: '#4ec9b0'
-                }}>
-                  {currentPreviewFile || 'No file'}
-                </span>
-              </div>
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={compileCode}
-                  className="p-1.5 hover:bg-[#d5d5d5] dark:hover:bg-[#2d2d2d] rounded transition-colors"
-                  style={{ color: colors.textSecondary }}
-                  title="Refresh Preview"
-                >
-                  <RefreshCw size={14} />
-                </button>
-                <button
-                  onClick={() => {
-                    setTimeout(() => {
-                      const newWindow = window.open('', '_blank');
-                      if (newWindow) {
-                        const htmlContent = generateCompleteHtmlForNewWindow(activeFile);
-                        newWindow.document.open();
-                        newWindow.document.write(htmlContent);
-                        newWindow.document.close();
-                      }
-                    }, 100);
-                  }}
-                  className="p-1.5 hover:bg-[#d5d5d5] dark:hover:bg-[#2d2d2d] rounded transition-colors"
-                  style={{ color: colors.textSecondary }}
-                  title="Open in New Window"
-                >
-                  <ExternalLink size={14} />
-                </button>
-                <button
-                  onClick={() => setIsFullscreen(!isFullscreen)}
-                  className="p-1.5 hover:bg-[#d5d5d5] dark:hover:bg-[#2d2d2d] rounded transition-colors"
-                  style={{ color: colors.textSecondary }}
-                  title="Toggle Fullscreen"
-                >
-                  {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-                </button>
-              </div>
-            </div>
-
-            <div className="flex-1 relative">
-              {isFullscreen ? (
-                <div className="fixed inset-0 z-50" style={{ backgroundColor: colors.background }}>
-                  <div className="h-12 border-b flex items-center justify-between px-4" style={{
-                    borderColor: colors.border,
-                    backgroundColor: colors.sidebar
-                  }}>
-                    <span style={{ color: colors.text }}>Fullscreen Preview - {activeFile.filename}</span>
-                    <button
-                      onClick={() => setIsFullscreen(false)}
-                      className="p-2 hover:bg-[#d5d5d5] dark:hover:bg-[#2d2d2d] rounded transition-colors"
-                      style={{ color: colors.text }}
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-                  <iframe
-                    srcDoc={srcDoc}
-                    title="preview"
-                    sandbox="allow-scripts allow-same-origin allow-forms"
-                    className="w-full h-[calc(100vh-3rem)] border-0"
-                    referrerPolicy="no-referrer"
-                  />
+        {/* Editor */}
+        <div className="flex-1 relative">
+          {isLoading || isLoadingSubmission ? (
+            <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: colors.background }}>
+              <div className="text-center">
+                <Loader2 className="animate-spin mx-auto mb-2" size={24} style={{ color: colors.primary }} />
+                <div className="text-sm" style={{ color: colors.textSecondary }}>
+                  {isLoadingPrevious ? 'Loading previous submission...' : 'Loading project...'}
                 </div>
-              ) : (
-                <iframe
-                  srcDoc={srcDoc}
-                  title="preview"
-                  sandbox="allow-scripts allow-same-origin allow-forms"
-                  className="w-full h-full border-0"
-                  referrerPolicy="no-referrer"
-                />
-              )}
-            </div>
-
-            {/* Preview Status */}
-            <div className="px-3 py-1.5 border-t text-xs" style={{
-              borderColor: colors.border,
-              backgroundColor: theme === 'light' ? '#e5e5e5' : '#2d2d2d'
-            }}>
-              <div className="flex items-center justify-between" style={{ color: colors.textSecondary }}>
-                <span>Safe Navigation: <span className="text-[#4ec9b0]">Active</span></span>
-                <span>All links stay within preview</span>
               </div>
             </div>
+          ) : isRenaming ? (
+            <div className="absolute inset-0 flex items-center justify-center z-10" style={{
+              backgroundColor: theme === 'light' ? 'rgba(255, 255, 255, 0.9)' : 'rgba(30, 30, 30, 0.9)'
+            }}>
+              <div className="p-4 rounded-lg shadow-lg" style={{
+                backgroundColor: colors.sidebar,
+                border: `1px solid ${colors.border}`
+              }}>
+                <h3 className="font-semibold mb-2" style={{ color: colors.text }}>Rename File</h3>
+                <input
+                  type="text"
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  className="px-3 py-2 rounded w-64 mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  style={{
+                    backgroundColor: colors.background,
+                    color: colors.text,
+                    border: `1px solid ${colors.border}`
+                  }}
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') renameFile();
+                    if (e.key === 'Escape') setIsRenaming(null);
+                  }}
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={renameFile}
+                    className="px-3 py-1 rounded hover:opacity-90 transition-opacity"
+                    style={{ backgroundColor: colors.primary, color: 'white' }}
+                  >
+                    Rename
+                  </button>
+                  <button
+                    onClick={() => setIsRenaming(null)}
+                    className="px-3 py-1 rounded hover:bg-[#d5d5d5] dark:hover:bg-[#2d2d2d] transition-colors"
+                    style={{ color: colors.text, border: `1px solid ${colors.border}` }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <MonacoEditor
+              language={activeFile.language}
+              theme={theme}
+              value={activeFile.content}
+              onChange={handleFileContentChange}
+              options={{
+                fontSize: 14 * (editorZoom / 100),
+                minimap: { enabled: true },
+                wordWrap: 'on',
+                automaticLayout: true,
+                scrollBeyondLastLine: false,
+                tabSize: 2,
+                insertSpaces: true,
+                formatOnPaste: true,
+                formatOnType: true,
+                renderLineHighlight: 'all',
+                cursorBlinking: 'smooth',
+                cursorSmoothCaretAnimation: 'on',
+                mouseWheelZoom: true,
+                padding: { top: 10 },
+                lineNumbers: 'on',
+                glyphMargin: true,
+                folding: true,
+                lineDecorationsWidth: 10,
+                overviewRulerBorder: false,
+                scrollbar: {
+                  vertical: 'visible',
+                  horizontal: 'visible',
+                  useShadows: false
+                }
+              }}
+            />
+          )}
+        </div>
+
+        {/* Status Bar */}
+        <div className="px-3 py-1.5 border-t flex items-center justify-between text-xs" style={{
+          borderColor: colors.border,
+          backgroundColor: theme === 'light' ? '#e5e5e5' : '#2d2d2d'
+        }}>
+          <div className="flex items-center gap-4" style={{ color: colors.textSecondary }}>
+            <button
+              onClick={() => setShowOutput(!showOutput)}
+              className="flex items-center gap-1 hover:text-[#007acc] transition-colors"
+            >
+              <Terminal size={12} />
+              <span>Output</span>
+            </button>
+            <div className="flex items-center gap-1">
+              <span>{activeFile.language.toUpperCase()}</span>
+              {activeFile.isEntryPoint && <Star size={10} className="text-[#dcdcaa]" />}
+            </div>
+            <span>Ln {activeFile.content.split('\n').length}, Col 1</span>
           </div>
-        )}
+          <div className="flex items-center gap-3" style={{ color: colors.textSecondary }}>
+            <button
+              onClick={() => setLayout(layout === 'horizontal' ? 'vertical' : 'horizontal')}
+              className="hover:text-[#007acc] transition-colors"
+              title="Toggle Layout"
+            >
+              {layout === 'horizontal' ? <SplitSquareHorizontal size={12} /> : <SplitSquareVertical size={12} />}
+            </button>
+            <span className="text-[#4ec9b0]">● Live</span>
+          </div>
+        </div>
       </div>
+    )}
+    
+    {/* Collapsed Editor Indicator */}
+    {isEditorCollapsed && (
+      <div className="w-10 flex-shrink-0 flex flex-col items-center py-4 gap-2 border-r" style={{
+        backgroundColor: colors.sidebar,
+        borderColor: colors.border
+      }}>
+        <button
+          onClick={() => setIsEditorCollapsed(false)}
+          className="p-2 hover:bg-[#d5d5d5] dark:hover:bg-[#2d2d2d] rounded transition-colors"
+          style={{ color: colors.textSecondary }}
+          title="Expand Editor"
+        >
+          <ChevronLeft size={18} />
+        </button>
+        <Code2 size={20} style={{ color: colors.textSecondary }} />
+        <div className="text-xs font-mono" style={{ color: colors.textSecondary }}>
+          {activeFile?.filename?.split('.').pop()?.toUpperCase() || 'JS'}
+        </div>
+      </div>
+    )}
+
+    {/* Resize Handle for Preview */}
+    {!isEditorCollapsed && !isPreviewCollapsed && showPreview && (
+      <div
+        className="w-1 cursor-ew-resize hover:bg-blue-500 transition-colors flex-shrink-0"
+        style={{ backgroundColor: isResizingPreview ? '#007acc' : 'transparent' }}
+        onMouseDown={handlePreviewResizeStart}
+      />
+    )}
+
+    {/* Preview Section */}
+    {!isPreviewCollapsed && showPreview && (
+      <div 
+        className="flex flex-col border-l h-full"
+        style={{ 
+          width: `${previewWidth}%`,
+          backgroundColor: colors.editorGroup,
+          borderColor: colors.border,
+          transition: 'width 0.2s ease'
+        }}
+      >
+        <div className="px-3 py-2 border-b flex items-center justify-between" style={{ borderColor: colors.border }}>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsPreviewCollapsed(true)}
+              className="p-1.5 hover:bg-[#d5d5d5] dark:hover:bg-[#2d2d2d] rounded transition-colors"
+              style={{ color: colors.textSecondary }}
+              title="Collapse Preview"
+            >
+              <ChevronRight size={16} />
+            </button>
+            <span className="text-sm font-medium" style={{ color: colors.text }}>Preview</span>
+            <span className="text-xs px-2 py-0.5 rounded" style={{
+              backgroundColor: theme === 'light' ? '#e5e5e5' : '#2d2d2d',
+              color: '#4ec9b0'
+            }}>
+              {currentPreviewFile || 'No file'}
+            </span>
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={compileCode}
+              className="p-1.5 hover:bg-[#d5d5d5] dark:hover:bg-[#2d2d2d] rounded transition-colors"
+              style={{ color: colors.textSecondary }}
+              title="Refresh Preview"
+            >
+              <RefreshCw size={14} />
+            </button>
+            <button
+              onClick={() => {
+                setTimeout(() => {
+                  const newWindow = window.open('', '_blank');
+                  if (newWindow) {
+                    const htmlContent = generateCompleteHtmlForNewWindow(activeFile);
+                    newWindow.document.open();
+                    newWindow.document.write(htmlContent);
+                    newWindow.document.close();
+                  }
+                }, 100);
+              }}
+              className="p-1.5 hover:bg-[#d5d5d5] dark:hover:bg-[#2d2d2d] rounded transition-colors"
+              style={{ color: colors.textSecondary }}
+              title="Open in New Window"
+            >
+              <ExternalLink size={14} />
+            </button>
+            <button
+              onClick={() => setIsFullscreen(!isFullscreen)}
+              className="p-1.5 hover:bg-[#d5d5d5] dark:hover:bg-[#2d2d2d] rounded transition-colors"
+              style={{ color: colors.textSecondary }}
+              title="Toggle Fullscreen"
+            >
+              {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 relative">
+          {isFullscreen ? (
+            <div className="fixed inset-0 z-50" style={{ backgroundColor: colors.background }}>
+              <div className="h-12 border-b flex items-center justify-between px-4" style={{
+                borderColor: colors.border,
+                backgroundColor: colors.sidebar
+              }}>
+                <span style={{ color: colors.text }}>Fullscreen Preview - {activeFile.filename}</span>
+                <button
+                  onClick={() => setIsFullscreen(false)}
+                  className="p-2 hover:bg-[#d5d5d5] dark:hover:bg-[#2d2d2d] rounded transition-colors"
+                  style={{ color: colors.text }}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <iframe
+                srcDoc={srcDoc}
+                title="preview"
+                sandbox="allow-scripts allow-same-origin allow-forms"
+                className="w-full h-[calc(100vh-3rem)] border-0"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+          ) : (
+            <iframe
+              srcDoc={srcDoc}
+              title="preview"
+              sandbox="allow-scripts allow-same-origin allow-forms"
+              className="w-full h-full border-0"
+              referrerPolicy="no-referrer"
+            />
+          )}
+        </div>
+
+        {/* Preview Status */}
+        <div className="px-3 py-1.5 border-t text-xs" style={{
+          borderColor: colors.border,
+          backgroundColor: theme === 'light' ? '#e5e5e5' : '#2d2d2d'
+        }}>
+          <div className="flex items-center justify-between" style={{ color: colors.textSecondary }}>
+            <span>Safe Navigation: <span className="text-[#4ec9b0]">Active</span></span>
+            <span>All links stay within preview</span>
+          </div>
+        </div>
+      </div>
+    )}
+    
+    {/* Collapsed Preview Indicator */}
+    {isPreviewCollapsed && showPreview && (
+      <div className="w-10 flex-shrink-0 flex flex-col items-center py-4 gap-2 border-l" style={{
+        backgroundColor: colors.sidebar,
+        borderColor: colors.border
+      }}>
+        <button
+          onClick={() => setIsPreviewCollapsed(false)}
+          className="p-2 hover:bg-[#d5d5d5] dark:hover:bg-[#2d2d2d] rounded transition-colors"
+          style={{ color: colors.textSecondary }}
+          title="Expand Preview"
+        >
+          <ChevronLeft size={18} />
+        </button>
+        <MonitorPlay size={20} style={{ color: colors.textSecondary }} />
+        <div className="text-xs font-mono" style={{ color: colors.textSecondary }}>
+          PREV
+        </div>
+      </div>
+    )}
+  </div>
+</div>
 
       {/* Question Info */}
       {currentQuestion && (
@@ -4564,7 +5318,24 @@ document.addEventListener('DOMContentLoaded', init${name.charAt(0).toUpperCase()
           </div>
         </div>
       )}
-
+{/* Question Sidebar Overlay */}
+{showQuestionSidebar && (
+  <QuestionSidebar
+    isOpen={showQuestionSidebar}
+    onClose={() => setShowQuestionSidebar(false)}
+    question={currentQuestion}
+    currentIndex={currentQuestionIndex}
+    totalQuestions={questions.length}
+    onNavigate={(direction) => {
+      if (direction === 'prev' && currentQuestionIndex > 0) {
+        setCurrentQuestionIndex(currentQuestionIndex - 1);
+      } else if (direction === 'next' && currentQuestionIndex < questions.length - 1) {
+        setCurrentQuestionIndex(currentQuestionIndex + 1);
+      }
+    }}
+    theme={theme === 'vs-dark' ? 'dark' : 'light'}
+  />
+)}
       {/* Context Menu */}
       {contextMenu && (
         <div

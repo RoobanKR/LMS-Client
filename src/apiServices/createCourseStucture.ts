@@ -1,7 +1,7 @@
-// courseStructureService.ts - React Query version
+// courseStructureService.ts - Updated version
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:5533';
+const API_BASE_URL = 'https://lms-server-ym1q.onrender.com';
 
 // Configure axios instance
 const apiClient = axios.create({
@@ -36,7 +36,67 @@ apiClient.interceptors.response.use(
     }
 );
 
-// Basic fetch functions (no caching logic here - React Query will handle that)
+const objectToFormData = (obj: any, formData: FormData = new FormData(), parentKey?: string): FormData => {
+  for (let key in obj) {
+    if (obj.hasOwnProperty(key)) {
+      const value = obj[key];
+      const formKey = parentKey ? `${parentKey}[${key}]` : key;
+      
+      if (value === null || value === undefined) {
+        continue;
+      }
+      
+      // Handle File objects
+      if (value instanceof File) {
+        formData.append(formKey, value);
+        continue;
+      }
+      
+      // Handle arrays
+      if (Array.isArray(value)) {
+        if (value.length === 0) {
+          formData.append(formKey, '');
+        } else {
+          value.forEach((item, index) => {
+            if (typeof item === 'object' && item !== null && !(item instanceof File)) {
+              objectToFormData(item, formData, `${formKey}[${index}]`);
+            } else {
+              formData.append(`${formKey}[${index}]`, String(item));
+            }
+          });
+        }
+        continue;
+      }
+      
+      // Handle nested objects
+      if (typeof value === 'object' && value !== null) {
+        // For empty objects, send empty string
+        if (Object.keys(value).length === 0) {
+          formData.append(formKey, '');
+        } else {
+          objectToFormData(value, formData, formKey);
+        }
+        continue;
+      }
+      
+      // Handle primitive values
+      formData.append(formKey, String(value));
+    }
+  }
+  return formData;
+};
+
+// Helper to convert resourcesType to proper format
+const formatResourcesType = (resourcesType: any) => {
+    if (!resourcesType) return { iDo: [], weDo: [], youDo: [] };
+    
+    return {
+        iDo: resourcesType.iDo || [],
+        weDo: resourcesType.weDo || [],
+        youDo: resourcesType.youDo || []
+    };
+};
+
 export const fetchAllCourseStructures = async (): Promise<any> => {
     const response = await apiClient.get('/courses-structure/getAll');
     return response.data.data;
@@ -48,62 +108,67 @@ export const fetchCourseStructureById = async (courseId: string): Promise<any> =
 };
 
 export const createCourseStructure = async (courseData: any): Promise<any> => {
-    const formData = new FormData();
+  const formData = new FormData();
+  
+  const preparedData = {
+    clientName: courseData.clientName,
+    serviceType: courseData.serviceType,
+    serviceModal: courseData.serviceModal,
+    category: courseData.category,
+    courseCode: courseData.courseCode,
+    courseName: courseData.courseName,
+    courseDescription: courseData.courseDescription || '',
+    courseDuration: courseData.courseDuration || '',
+    courseLevel: courseData.courseLevel,
+    I_Do: courseData.I_Do || [],
+    We_Do: courseData.We_Do || [],
+    You_Do: courseData.You_Do || [],
+    aiChatGlobal: courseData.aiChatGlobal || false,
+    courseHierarchy: courseData.courseHierarchy || [],
+    resourcesType: courseData.resourcesType,
+    testConfiguration: courseData.testConfiguration, // Add this line
+    createdBy: courseData.createdBy,
+    institution: courseData.institution
+  };
+  
+  // Convert to FormData
+  objectToFormData(preparedData, formData);
+  
+  // Handle image separately
+  if (courseData.courseImage && courseData.courseImage instanceof File) {
+    formData.append('courseImage', courseData.courseImage);
+  }
 
-    // Append all fields to formData
-    Object.keys(courseData).forEach(key => {
-        if (key === 'courseImage') {
-            // Skip for now, handle separately
-        } else if (Array.isArray(courseData[key])) {
-            // For arrays, append each element individually with same key
-            courseData[key].forEach((item: string) => {
-                formData.append(key, item);
-            });
-        } else {
-            formData.append(key, courseData[key]);
-        }
-    });
-
-    // Append image file if it exists
-    if (courseData.courseImage) {
-        formData.append('courseImage', courseData.courseImage);
+  const response = await apiClient.post(
+    '/courses-structure/create',
+    formData,
+    {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      }
     }
+  );
 
-    const response = await apiClient.post(
-        '/courses-structure/create',
-        formData,
-        {
-            headers: {
-                'Content-Type': 'multipart/form-data',
-            }
-        }
-    );
-
-    return response.data;
+  return response.data;
 };
 
 export const updateCourseStructure = async (courseId: string, courseData: any): Promise<any> => {
     const formData = new FormData();
+    
+    // Format resourcesType properly
+    const formattedData = {
+        ...courseData,
+        resourcesType: formatResourcesType(courseData.resourcesType)
+    };
+    
+    // Convert the entire formattedData object to FormData
+    objectToFormData(formattedData, formData);
 
-    // Append all fields to formData
-    Object.keys(courseData).forEach(key => {
-        if (key === 'courseImage') {
-            // Skip for now, handle separately
-        } else if (Array.isArray(courseData[key])) {
-            // For arrays, append each element individually with same key
-            courseData[key].forEach((item: string) => {
-                formData.append(key, item);
-            });
-        } else {
-            formData.append(key, courseData[key]);
-        }
-    });
-
-    // Append image file if it exists
-    if (courseData.courseImage) {
+    // Ensure courseImage is properly handled if it's a File object
+    if (courseData.courseImage && courseData.courseImage instanceof File) {
         formData.append('courseImage', courseData.courseImage);
     }
-
+    
     // Append removeImage flag if needed
     if (courseData.removeImage) {
         formData.append('removeImage', 'true');
@@ -181,16 +246,16 @@ export const courseStructureApi = {
     getAll: () => ({
         queryKey: ['courseStructures'],
         queryFn: fetchAllCourseStructures,
-        staleTime: 1000 * 30, // 30 seconds - data becomes stale after this time
-        refetchInterval: 1000 * 30, // 30 seconds - auto refetch interval
-        refetchIntervalInBackground: true, // Continue refetching when tab is not active
-        refetchOnWindowFocus: false, // Don't refetch on window focus (since we're polling)
+        staleTime: 1000 * 30,
+        refetchInterval: 1000 * 30,
+        refetchIntervalInBackground: true,
+        refetchOnWindowFocus: false,
     }),
     getById: (courseId: string) => ({
         queryKey: ['courseStructure', courseId],
         queryFn: () => fetchCourseStructureById(courseId),
-        staleTime: 1000 * 30, // 30 seconds
-        refetchInterval: 1000 * 30, // 30 seconds
+        staleTime: 1000 * 30,
+        refetchInterval: 1000 * 30,
         refetchIntervalInBackground: true,
         refetchOnWindowFocus: false,
     }),

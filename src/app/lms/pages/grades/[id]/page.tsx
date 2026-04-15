@@ -16,10 +16,12 @@ import {
   GraduationCap,
   ChevronRight,
   ChevronDown,
+  AlertCircle,
+  Award
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-const API_BASE_URL = 'http://localhost:5533';
+const API_BASE_URL = 'https://lms-server-ym1q.onrender.com';
 
 // Main Component
 export default function ExerciseStudentsQuestionsFlow() {
@@ -42,6 +44,7 @@ export default function ExerciseStudentsQuestionsFlow() {
   const [sectionFilter, setSectionFilter] = useState("all");
   const [difficultyFilter, setDifficultyFilter] = useState("all");
   const [showFilters, setShowFilters] = useState(false);
+  const [passFailFilter, setPassFailFilter] = useState("all");
 
   // Extract courseId from URL and fetch course data
   useEffect(() => {
@@ -130,6 +133,7 @@ export default function ExerciseStudentsQuestionsFlow() {
         const data = await response.json();
         if (data.success && data.data) {
           setStudents(data.data.students || []);
+          console.log("Students data:", data.data.students);
         }
       }
     } catch (error) {
@@ -176,7 +180,7 @@ export default function ExerciseStudentsQuestionsFlow() {
     if (!data || data.length === 0) return [];
 
     return data.filter((item: any) => {
-      // Search filter - check if any searchable field matches
+      // Search filter
       if (searchTerm) {
         const searchLower = searchTerm.toLowerCase();
         let matchesSearch = false;
@@ -213,6 +217,13 @@ export default function ExerciseStudentsQuestionsFlow() {
         if (!matchesStatus) return false;
       }
       
+      // Pass/Fail filter for students tab
+      if (activeTab === "students" && passFailFilter !== "all") {
+        const isPassing = item.exerciseProgress?.isPassing;
+        if (passFailFilter === "pass" && !isPassing) return false;
+        if (passFailFilter === "fail" && isPassing !== false) return false;
+      }
+      
       // Section filter (for exercises only)
       if (activeTab === "exercises" && sectionFilter !== "all") {
         if (item.section !== sectionFilter) return false;
@@ -225,14 +236,14 @@ export default function ExerciseStudentsQuestionsFlow() {
       
       return true;
     });
-  }, [activeTab, exercises, students, questions, searchTerm, statusFilter, sectionFilter, difficultyFilter]);
+  }, [activeTab, exercises, students, questions, searchTerm, statusFilter, sectionFilter, difficultyFilter, passFailFilter]);
 
   const handleSelectExercise = (exercise: any) => {
     setSelectedExercise(exercise);
     fetchStudents(exercise._id);
     setActiveTab("students");
-    // Reset filters for students tab
     setStatusFilter("all");
+    setPassFailFilter("all");
     setSearchTerm("");
   };
 
@@ -240,7 +251,6 @@ export default function ExerciseStudentsQuestionsFlow() {
     setSelectedStudent(student);
     fetchQuestions(student._id, selectedExercise._id);
     setActiveTab("questions");
-    // Reset filters for questions tab
     setStatusFilter("all");
     setDifficultyFilter("all");
     setSearchTerm("");
@@ -250,20 +260,20 @@ export default function ExerciseStudentsQuestionsFlow() {
     setActiveTab("exercises");
     setSelectedExercise(null);
     setSelectedStudent(null);
-    // Reset all filters
     setSearchTerm("");
     setStatusFilter("all");
     setSectionFilter("all");
     setDifficultyFilter("all");
+    setPassFailFilter("all");
   };
 
   const handleBackToStudents = () => {
     setActiveTab("students");
     setSelectedStudent(null);
-    // Reset filters for students tab
     setSearchTerm("");
     setStatusFilter("all");
     setDifficultyFilter("all");
+    setPassFailFilter("all");
   };
 
   // Get table headers based on active tab
@@ -272,7 +282,7 @@ export default function ExerciseStudentsQuestionsFlow() {
       case "exercises":
         return ["Exercise Name", "Section", "Questions", "Points", "Status"];
       case "students":
-        return ["Student Name", "Email", "Progress", "Score", "Last Activity", "Status"];
+        return ["Student Name", "Email", "Progress", "Score", "Pass/Fail", "Last Activity", "Status"];
       case "questions":
         return ["Question", "Difficulty", "Student Answer", "Score", "Attempts", "Status"];
       default:
@@ -295,6 +305,11 @@ export default function ExerciseStudentsQuestionsFlow() {
           ]
         };
       case "students":
+        const totalScore = item.exerciseProgress?.overallScore || 0;
+        const maxScore = item.exerciseProgress?.totalMaxScore || selectedExercise?.totalPoints || 0;
+        const isPassing = item.exerciseProgress?.isPassing || false;
+        const passingMarks = item.exerciseProgress?.passingMarksRequired || selectedExercise?.passingMarksRequired;
+        
         return {
           id: item._id || item.id,
           cells: [
@@ -302,8 +317,15 @@ export default function ExerciseStudentsQuestionsFlow() {
             <div key="email" className="text-gray-600 truncate">{item.email}</div>,
             <ProgressBadge key="progress" progress={item.exerciseProgress?.completionPercentage || 0} />,
             <div key="score" className="font-medium text-gray-900">
-              {item.exerciseProgress?.overallScore || 0}/{selectedExercise?.totalPoints || 0}
+              {totalScore}/{maxScore}
             </div>,
+            <PassFailBadge 
+              key="passfail" 
+              isPassing={isPassing} 
+              score={totalScore} 
+              maxScore={maxScore}
+              passingMarks={passingMarks}
+            />,
             <div key="activity" className="text-gray-600 text-sm">
               {item.exerciseProgress?.lastActivity ? 
                 new Date(item.exerciseProgress.lastActivity).toLocaleDateString() : "Never"
@@ -368,6 +390,11 @@ export default function ExerciseStudentsQuestionsFlow() {
             { value: "in_progress", label: "In Progress" },
             { value: "not_started", label: "Not Started" },
             { value: "evaluated", label: "Evaluated" }
+          ],
+          passFailOptions: [
+            { value: "all", label: "All Students" },
+            { value: "pass", label: "Pass" },
+            { value: "fail", label: "Fail" }
           ]
         };
       case "questions":
@@ -397,28 +424,24 @@ export default function ExerciseStudentsQuestionsFlow() {
   const renderBreadcrumb = () => {
     const breadcrumbItems = [];
 
-    // Dashboard link
     breadcrumbItems.push({
       title: "Dashboard",
       icon: Home,
       onClick: () => router.push('/lms/pages/studentdashboard'),
     });
 
-    // Grades link (non-clickable)
     breadcrumbItems.push({
       title: "Grades",
       icon: BookOpen,
       onClick: null,
     });
 
-    // Overall Grade text
     breadcrumbItems.push({
       title: "Overall Grade",
       icon: GraduationCap,
       onClick: null,
     });
 
-    // Current Course (always visible)
     if (courseData) {
       breadcrumbItems.push({
         title: courseData.name || "Course",
@@ -427,7 +450,6 @@ export default function ExerciseStudentsQuestionsFlow() {
       });
     }
 
-    // Exercise (if selected)
     if (selectedExercise) {
       breadcrumbItems.push({
         title: selectedExercise.exerciseName,
@@ -438,7 +460,6 @@ export default function ExerciseStudentsQuestionsFlow() {
       });
     }
 
-    // Student (if selected)
     if (selectedStudent) {
       breadcrumbItems.push({
         title: selectedStudent.name,
@@ -449,7 +470,6 @@ export default function ExerciseStudentsQuestionsFlow() {
       });
     }
 
-    // Current context (last item, non-clickable)
     let currentContext = "";
     if (activeTab === "exercises") {
       currentContext = "Exercises";
@@ -471,7 +491,6 @@ export default function ExerciseStudentsQuestionsFlow() {
         <nav className="flex items-center gap-1 text-sm" aria-label="Breadcrumb">
           {breadcrumbItems.map((item, index) => (
             <React.Fragment key={index}>
-              {/* Breadcrumb Item */}
               <div
                 className={`flex items-center gap-1 px-3 py-1 transition-all duration-200 rounded-full border flex-shrink-0 ${
                   index === breadcrumbItems.length - 1
@@ -487,8 +506,6 @@ export default function ExerciseStudentsQuestionsFlow() {
                 }`} />
                 <span className="text-xs">{item.title}</span>
               </div>
-
-              {/* Separator (except for last item) */}
               {index < breadcrumbItems.length - 1 && (
                 <ChevronRight className="w-3 h-3 text-gray-400 mx-1 flex-shrink-0" />
               )}
@@ -513,23 +530,15 @@ export default function ExerciseStudentsQuestionsFlow() {
   return (
     <div className="h-screen bg-white p-6 text-slate-800 flex flex-col overflow-hidden">
       <div className="flex justify-between items-center">
-                <button
-                  onClick={() => router.back()}
-                  className="flex items-center gap-1 px-3 py-1 text-xs text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded transition-all duration-200"
-                >
-                  <ArrowLeft className="w-3 h-3" />
-                  Back to Exercises
-                </button>
-                
-                {/* Context Info Chip */}
-                {/* {contextInfo?.method && (
-                  <div className="px-2 py-1 bg-gray-100 rounded-full text-xs text-gray-600">
-                    {contextInfo.method === "I_Do" ? "I Do" : 
-                     contextInfo.method === "We_Do" ? "We Do" : 
-                     contextInfo.method === "You_Do" ? "You Do" : "Exercise"}
-                  </div>
-                )} */}
-              </div>
+        <button
+          onClick={() => router.back()}
+          className="flex items-center gap-1 px-3 py-1 text-xs text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded transition-all duration-200"
+        >
+          <ArrowLeft className="w-3 h-3" />
+          Back to Exercises
+        </button>
+      </div>
+      
       {/* Import Fonts */}
       <style jsx global>{`
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
@@ -582,59 +591,6 @@ export default function ExerciseStudentsQuestionsFlow() {
         )}
       </div>
 
-      {/* --- Top Navigation Tabs --- */}
-      {/* <div className="mb-6 flex items-center border-b border-gray-200">
-        <button
-          onClick={handleBackToExercises}
-          className={`relative mr-8 flex items-center gap-2 pb-4 text-sm font-medium ${
-            activeTab === "exercises" ? "font-semibold text-blue-600 font-heading" : "text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          <Dumbbell className="h-4 w-4" />
-          Exercises
-          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[10px] text-white">
-            {exercises.length}
-          </span>
-          {activeTab === "exercises" && (
-            <span className="absolute bottom-0 left-0 h-0.5 w-full bg-blue-600"></span>
-          )}
-        </button>
-        
-        <button
-          onClick={() => selectedExercise && setActiveTab("students")}
-          className={`relative mr-8 flex items-center gap-2 pb-4 text-sm font-medium ${
-            activeTab === "students" ? "font-semibold text-blue-600 font-heading" : "text-gray-500 hover:text-gray-700"
-          } ${!selectedExercise ? "opacity-50 cursor-not-allowed" : ""}`}
-          disabled={!selectedExercise}
-        >
-          <Users className="h-4 w-4" />
-          Students
-          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[10px] text-white">
-            {students.length}
-          </span>
-          {activeTab === "students" && (
-            <span className="absolute bottom-0 left-0 h-0.5 w-full bg-blue-600"></span>
-          )}
-        </button>
-        
-        <button
-          onClick={() => selectedStudent && setActiveTab("questions")}
-          className={`relative flex items-center gap-2 pb-4 text-sm font-medium ${
-            activeTab === "questions" ? "font-semibold text-blue-600 font-heading" : "text-gray-500 hover:text-gray-700"
-          } ${!selectedStudent ? "opacity-50 cursor-not-allowed" : ""}`}
-          disabled={!selectedStudent}
-        >
-          <HelpCircle className="h-4 w-4" />
-          Questions
-          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[10px] text-white">
-            {questions.length}
-          </span>
-          {activeTab === "questions" && (
-            <span className="absolute bottom-0 left-0 h-0.5 w-full bg-blue-600"></span>
-          )}
-        </button>
-      </div> */}
-
       {/* --- Toolbar Section --- */}
       <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         {/* Search Bar */}
@@ -680,7 +636,7 @@ export default function ExerciseStudentsQuestionsFlow() {
             </button>
             
             {showFilters && (
-              <div className="absolute right-0 mt-1 w-64 rounded-lg border border-gray-200 bg-white p-4 shadow-lg z-50">
+              <div className="absolute right-0 mt-1 w-72 rounded-lg border border-gray-200 bg-white p-4 shadow-lg z-50">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-medium text-gray-900 font-heading">Filters</h3>
                   <button
@@ -706,6 +662,24 @@ export default function ExerciseStudentsQuestionsFlow() {
                       ))}
                     </select>
                   </div>
+                  
+                  {/* Pass/Fail Filter for students */}
+                  {activeTab === "students" && filterOptions.passFailOptions && (
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-gray-700 font-inter">Pass/Fail</label>
+                      <select
+                        value={passFailFilter}
+                        onChange={(e) => setPassFailFilter(e.target.value)}
+                        className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-inter"
+                      >
+                        {filterOptions.passFailOptions.map(option => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   
                   {/* Section Filter (for exercises only) */}
                   {activeTab === "exercises" && filterOptions.sectionOptions && (
@@ -749,6 +723,7 @@ export default function ExerciseStudentsQuestionsFlow() {
                         setStatusFilter("all");
                         setSectionFilter("all");
                         setDifficultyFilter("all");
+                        setPassFailFilter("all");
                       }}
                       className="w-full rounded-lg bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200 font-inter"
                     >
@@ -784,7 +759,7 @@ export default function ExerciseStudentsQuestionsFlow() {
       </div>
 
       {/* Active Filters Display */}
-      {(statusFilter !== "all" || sectionFilter !== "all" || difficultyFilter !== "all" || searchTerm) && (
+      {(statusFilter !== "all" || sectionFilter !== "all" || difficultyFilter !== "all" || passFailFilter !== "all" || searchTerm) && (
         <div className="mb-4 flex flex-wrap gap-2">
           {searchTerm && (
             <FilterTag 
@@ -796,6 +771,12 @@ export default function ExerciseStudentsQuestionsFlow() {
             <FilterTag 
               label={`Status: ${filterOptions.statusOptions.find(opt => opt.value === statusFilter)?.label}`}
               onRemove={() => setStatusFilter("all")}
+            />
+          )}
+          {activeTab === "students" && passFailFilter !== "all" && (
+            <FilterTag 
+              label={`Result: ${passFailFilter === "pass" ? "Pass" : "Fail"}`}
+              onRemove={() => setPassFailFilter("all")}
             />
           )}
           {activeTab === "exercises" && sectionFilter !== "all" && (
@@ -816,6 +797,7 @@ export default function ExerciseStudentsQuestionsFlow() {
               setStatusFilter("all");
               setSectionFilter("all");
               setDifficultyFilter("all");
+              setPassFailFilter("all");
             }}
             className="text-sm text-blue-600 hover:text-blue-800 font-inter"
           >
@@ -852,13 +834,14 @@ export default function ExerciseStudentsQuestionsFlow() {
                     <div className="flex flex-col items-center gap-2">
                       <Search className="h-8 w-8 text-gray-300" />
                       <p className="font-inter">No {activeTab} found</p>
-                      {(searchTerm || statusFilter !== "all" || sectionFilter !== "all" || difficultyFilter !== "all") && (
+                      {(searchTerm || statusFilter !== "all" || sectionFilter !== "all" || difficultyFilter !== "all" || passFailFilter !== "all") && (
                         <button
                           onClick={() => {
                             setSearchTerm("");
                             setStatusFilter("all");
                             setSectionFilter("all");
                             setDifficultyFilter("all");
+                            setPassFailFilter("all");
                           }}
                           className="text-sm text-blue-600 hover:text-blue-800 font-inter"
                         >
@@ -901,7 +884,7 @@ export default function ExerciseStudentsQuestionsFlow() {
       {/* Footer Stats */}
       <div className="mt-4 text-sm text-gray-500 font-inter">
         Showing {filteredData.length} of {activeTab === "exercises" ? exercises.length : activeTab === "students" ? students.length : questions.length} {activeTab}
-        {(searchTerm || statusFilter !== "all" || sectionFilter !== "all" || difficultyFilter !== "all") && " (filtered)"}
+        {(searchTerm || statusFilter !== "all" || sectionFilter !== "all" || difficultyFilter !== "all" || passFailFilter !== "all") && " (filtered)"}
       </div>
     </div>
   );
@@ -1008,6 +991,40 @@ function ProgressBadge({ progress }: { progress: number }) {
         {progress}%
       </span>
     </div>
+  );
+}
+
+function PassFailBadge({ isPassing, score, maxScore, passingMarks }: { 
+  isPassing: boolean; 
+  score: number; 
+  maxScore: number;
+  passingMarks?: number;
+}) {
+  if (maxScore === 0 || score === 0) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium bg-gray-100 text-gray-500 font-inter">
+        <AlertCircle className="h-3 w-3" />
+        No Attempt
+      </span>
+    );
+  }
+  
+  if (isPassing) {
+    const passMark = passingMarks || Math.ceil(maxScore * 0.5);
+    return (
+      <span className="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium bg-emerald-50 text-emerald-700 font-inter">
+        <CheckCircle className="h-3 w-3" />
+        Pass ({score}/{passMark})
+      </span>
+    );
+  }
+  
+  const passMark = passingMarks || Math.ceil(maxScore * 0.5);
+  return (
+    <span className="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium bg-rose-50 text-rose-700 font-inter">
+      <XCircle className="h-3 w-3" />
+      Fail ({score}/{passMark})
+    </span>
   );
 }
 

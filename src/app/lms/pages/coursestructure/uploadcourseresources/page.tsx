@@ -197,7 +197,6 @@ export default function DynamicLMSCoordinator() {
     }
     return "module";
   }
-
   const transformToCourseNodes = (courseData: CourseStructureData): CourseNode[] => {
     const courseNode: CourseNode = {
       id: courseData._id,
@@ -360,6 +359,35 @@ export default function DynamicLMSCoordinator() {
   const [currentPPTUrl, setCurrentPPTUrl] = useState("")
   const [currentPPTName, setCurrentPPTName] = useState("")
   const [fileDisplayNames, setFileDisplayNames] = useState<Record<string, string>>({})
+
+
+
+  // Add near other state declarations (around line 200)
+const [configuredLanguages, setConfiguredLanguages] = useState<{
+  coreProgram: string[];
+  frontend: string[];
+  database: string[];
+}>({
+  coreProgram: [],
+  frontend: [],
+  database: []
+});
+
+// Load configuredLanguages from the selected node's own testConfiguration (flat format)
+useEffect(() => {
+  if (selectedNode) {
+    const tc = selectedNode.originalData?.testConfiguration;
+    const cleaned = {
+      coreProgram: (tc?.coreProgram ?? []).filter(Boolean),
+      frontend: (tc?.frontend ?? []).filter(Boolean),
+      database: (tc?.database ?? []).filter(Boolean),
+    };
+    setConfiguredLanguages(cleaned);
+  } else {
+    setConfiguredLanguages({ coreProgram: [], frontend: [], database: [] });
+  }
+}, [selectedNode]);
+
 
   // --- Helper: Convert Frontend Tab to Backend String ---
   const toBackendTab = (tab: "I_Do" | "We_Do" | "You_Do" | null): "I_Do" | "We_Do" | "You_Do" => {
@@ -1679,12 +1707,7 @@ export default function DynamicLMSCoordinator() {
         formData.append("allowDownload", "true");
       }
 
-      if (folderTags.length > 0) {
-        formData.append("tags", JSON.stringify(folderTags.map(tag => ({
-          tagName: tag.tagName,
-          tagColor: tag.tagColor
-        }))));
-      }
+      if (uploadTags.length) formData.append("tags", JSON.stringify(uploadTags));
 
       filesToUpload.forEach((file) => formData.append("files", file));
 
@@ -2572,6 +2595,33 @@ export default function DynamicLMSCoordinator() {
 
   // --- Utility Helpers ---
 
+// Replace the existing getModuleNodeForSelected function (around line 2900-2915)
+
+const getModuleNodeForSelected = (node: CourseNode): CourseNode | null => {
+  if (!node) return null;
+  
+  // If the node itself is a module, return it
+  if (node.type === 'module') return node;
+  
+  // Function to find module ancestor
+  const findModuleAncestor = (nodes: CourseNode[], targetId: string): CourseNode | null => {
+    for (const n of nodes) {
+      if (n.id === targetId) {
+        // If we found the target, check if it's a module
+        if (n.type === 'module') return n;
+        return null;
+      }
+      if (n.children && n.children.length > 0) {
+        const found = findModuleAncestor(n.children, targetId);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+  
+  // Search for the module ancestor
+  return findModuleAncestor(courseData, node.id);
+};
   const getParentNodeName = (node: CourseNode, targetType: string): string => {
     if (!node || !courseData) return "";
     const findParentNode = (nodes: CourseNode[], targetId: string, parent: CourseNode | null = null): CourseNode | null => {
@@ -3252,7 +3302,7 @@ export default function DynamicLMSCoordinator() {
                             </p>
                           </div>
                         ) : (activeTab === "We_Do" || activeTab === "You_Do") && activeSubcategory && isValidSubcategory ? (
-                          /* 3. Problem Solving Component - Only when both tab and subcategory are selected AND VALID */
+                          /* 3. Problem Solving Component */
                           <ProblemSolving
                             key={`${activeTab}-${activeSubcategory}`}
                             nodeId={selectedNode.id}
@@ -3273,6 +3323,13 @@ export default function DynamicLMSCoordinator() {
                             nodeType={selectedNode.type}
                             activeTab={activeTab}
                             courseId={courseId || ""}
+                            configuredLanguages={
+                              (configuredLanguages.coreProgram.length > 0 ||
+                               configuredLanguages.frontend.length > 0 ||
+                               configuredLanguages.database.length > 0)
+                                ? configuredLanguages
+                                : undefined
+                            }
                           />
                         ) : (
                           /* 4. I_Do Content or other content */
@@ -3868,8 +3925,9 @@ export default function DynamicLMSCoordinator() {
                             <div className="col-span-3 flex items-end">
                               <button
                                 onClick={() => {
-                                  if (uploadCurrentTag.trim()) {
-                                    addTag(uploadCurrentTag.trim(), uploadTagColor);
+                                  const trimmed = uploadCurrentTag.trim();
+                                  if (trimmed && !uploadTags.some(t => t.tagName === trimmed)) {
+                                    setUploadTags(prev => [...prev, { tagName: trimmed, tagColor: uploadTagColor }]);
                                     setUploadCurrentTag('');
                                     setUploadTagColor('#3B82F6');
                                   }

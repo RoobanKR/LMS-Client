@@ -12,19 +12,28 @@ import {
     Clock,
     BarChart3,
     ChevronRight,
-    Eye,
     Download,
-    Filter,
     Search,
-    Calendar,
     UserCheck,
-    Users as UsersIcon,
     Percent,
     FileText,
-    FolderTree,
-    LineChart,
     ArrowUpRight,
-    ArrowDownRight
+    ArrowDownRight,
+    ChevronLeft,
+    Home,
+    Grid3X3,
+    List,
+    Edit,
+    ChevronDown,
+    Star,
+    Trophy,
+    Wifi,
+    MoreHorizontal,
+    Circle,
+    Square,
+    Triangle,
+    BookMarked,
+    Calendar,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -35,516 +44,539 @@ import { getStaffStudentAnalytics, getStudentCourseProgress } from '@/apiService
 import { getCurrentUser } from '@/apiServices/tokenVerify';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { StudentLayout } from '../../component/student/student-layout';
+import { StaffLayout } from '../../component/stafflayout/staff-layout';
 
-// Type Definitions
+// ─── Types ──────────────────────────────────────────────────────────────────
+
 interface User {
-  _id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  department?: string;
-  role?: string;
+    _id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    department?: string;
+    role?: { renameRole?: string; originalRole?: string; roleValue?: string };
 }
 
 interface ProgressDetail {
-  completed: number;
-  total: number;
-  percentage: number;
-  questionProgress?: number;
+    completed: number;
+    total: number;
+    percentage: number;
 }
 
 interface StudentProgress {
-  overall: number;
-  weDo: {
-    practical: ProgressDetail;
-    project_development: ProgressDetail;
-    others: ProgressDetail;
-  };
-  youDo: {
-    assessments: ProgressDetail;
-  };
+    overall: number;
+    [pedagogyType: string]: any;
+    metadata?: { totalExercisesInCourse: number; totalAttempts: number; pedagogyStructure: { [p: string]: string[] } };
 }
 
 interface StudentAnalytic {
-  student: User & { enrolledAt?: string };
-  progress: StudentProgress;
-  lastActivity?: string;
+    student: User & { enrolledAt?: string };
+    progress: StudentProgress;
+    lastActivity?: string;
 }
 
 interface CourseStats {
-  totalStudents: number;
-  averageProgress: number;
-  completedStudents: number;
-  inProgressStudents: number;
-  notStartedStudents: number;
-  weDoStats: {
-    practical: { averageCompletion: number };
-    project_development: { averageCompletion: number };
-  };
+    totalStudents: number;
+    averageProgress: number;
+    completedStudents: number;
+    inProgressStudents: number;
+    notStartedStudents: number;
+    categoryStats: { [key: string]: { averageCompletion: number } };
 }
 
 interface CourseAnalytic {
-  course: {
-    _id: string;
-    courseName: string;
-    courseCode: string;
-    courseLevel: string;
-    serviceType: string;
-    courseImage?: string;
-    totalModules: number;
-  };
-  stats: CourseStats;
-  students: StudentAnalytic[];
+    course: {
+        _id: string;
+        courseName: string;
+        courseCode: string;
+        courseLevel: string;
+        serviceType: string;
+        totalModules: number;
+        totalParticipants: number;
+        totalStudents: number;
+        pedagogyStructure?: { [p: string]: string[] };
+    };
+    stats: CourseStats;
+    students: StudentAnalytic[];
 }
 
 interface OverallStats {
-  totalCourses: number;
-  totalStudents: number;
-  averageCourseProgress: number;
-  performanceDistribution: {
-    excellent: number;
-    good: number;
-    average: number;
-    poor: number;
-  };
-  weDoEngagement: {
-    practical: number;
-    project: number;
-  };
+    totalCourses: number;
+    totalStudents: number;
+    averageCourseProgress: number;
+    performanceDistribution: { excellent: number; good: number; average: number; poor: number };
+    allPedagogyCategories: { [p: string]: string[] };
 }
 
 interface AnalyticsData {
-  courses: CourseAnalytic[];
-  overall: OverallStats;
+    courses: CourseAnalytic[];
+    overall: OverallStats;
 }
 
 interface Exercise {
-  type: string;
-  category: string;
-  exerciseId: string;
-  exerciseName: string;
-  status: string;
-  completedQuestions: number;
-  totalQuestions: number;
-  score: number;
-  maxScore: number;
-  lastAttempt?: string;
-  attempts: number;
-  submissionDate?: string;
-  evaluated?: boolean;
+    type: string;
+    category: string;
+    exerciseId: string;
+    exerciseName: string;
+    status: string;
+    completedQuestions: number;
+    totalQuestions: number;
+    score: number;
+    maxScore: number;
+    lastAttempt?: string;
+    attempts: number;
 }
 
 interface StudentDetailData {
-  course: {
-    courseName: string;
-    courseCode: string;
-    courseLevel: string;
-  };
-  student: User;
-  progress: {
-    overall: number;
-    averageScore: number;
-    totalExercises: number;
-    completedExercises: number;
-    pendingExercises: number;
-    exercises: Exercise[];
-  };
-  summary: {
-    weDo: {
-      practical: Exercise[];
-      project_development: Exercise[];
+    course: { courseName: string; courseCode: string; courseLevel: string };
+    student: User;
+    progress: {
+        overall: number;
+        averageScore: number;
+        totalExercises: number;
+        completedExercises: number;
+        pendingExercises: number;
+        exercises: Exercise[];
+        categoryStats: { [p: string]: { [c: string]: { total: number; completed: number; percentage: number; averageScore: number } } };
     };
-    youDo: {
-      assessments: Exercise[];
+    summary: { [p: string]: { [c: string]: Exercise[] } };
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+const COURSE_PALETTE = [
+    { bg: '#eeeafd', icon: '#7c6be8', dot: '#7c6be8' },
+    { bg: '#fdeee9', icon: '#e87c5a', dot: '#e87c5a' },
+    { bg: '#edf8ee', icon: '#5abf65', dot: '#5abf65' },
+    { bg: '#fdf6e9', icon: '#e8b95a', dot: '#e8b95a' },
+];
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+
+const progressColor = (p: number) =>
+    p >= 80 ? '#10b981' : p >= 50 ? '#f59e0b' : p >= 30 ? '#ef4444' : '#9ca3af';
+
+// ─── Mini Components ─────────────────────────────────────────────────────────
+
+const ProgressBar = ({ percentage, color = '#7c6be8' }: { percentage: number; color?: string }) => (
+    <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-1.5 overflow-hidden">
+        <div className="h-full rounded-full transition-all duration-700" style={{ width: `${percentage}%`, backgroundColor: color }} />
+    </div>
+);
+
+// Gauge / speedometer for performance panel
+const GaugeChart = ({ value, max = 10000 }: { value: number; max?: number }) => {
+    const pct = Math.min(value / max, 1);
+    // Half-circle: sweep from 180° to 0° (left to right)
+    const r = 60;
+    const cx = 80;
+    const cy = 80;
+    const startAngle = Math.PI;
+    const endAngle = 0;
+    const angle = startAngle + pct * (endAngle - startAngle); // decreasing → rightward
+    const needleX = cx + r * Math.cos(angle);
+    const needleY = cy + r * Math.sin(angle);
+
+    const arcPath = (innerR: number, outerR: number, fromDeg: number, toDeg: number, fill: string) => {
+        const from = (fromDeg * Math.PI) / 180;
+        const to = (toDeg * Math.PI) / 180;
+        const x1o = cx + outerR * Math.cos(from);
+        const y1o = cy + outerR * Math.sin(from);
+        const x2o = cx + outerR * Math.cos(to);
+        const y2o = cy + outerR * Math.sin(to);
+        const x1i = cx + innerR * Math.cos(to);
+        const y1i = cy + innerR * Math.sin(to);
+        const x2i = cx + innerR * Math.cos(from);
+        const y2i = cy + innerR * Math.sin(from);
+        return (
+            <path
+                d={`M ${x1o} ${y1o} A ${outerR} ${outerR} 0 0 1 ${x2o} ${y2o} L ${x1i} ${y1i} A ${innerR} ${innerR} 0 0 0 ${x2i} ${y2i} Z`}
+                fill={fill}
+            />
+        );
     };
-  };
-}
 
-interface StudentDetailResponse {
-  success: boolean;
-  data: StudentDetailData;
-}
-
-interface UserData {
-  user: User;
-}
-
-// Chart Components
-const ProgressBar = ({ 
-    percentage, 
-    color = '#3b82f6',
-    height = 8,
-    showLabel = true 
-}: { 
-    percentage: number; 
-    color?: string;
-    height?: number;
-    showLabel?: boolean;
-}) => {
     return (
-        <div className="space-y-1">
-            <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
-                <div 
-                    className="h-full rounded-full transition-all duration-700"
-                    style={{ width: `${percentage}%`, backgroundColor: color }}
-                />
-            </div>
-            {showLabel && (
-                <div className="flex justify-between items-center">
-                    <span className="text-xs text-gray-500 dark:text-gray-400">Progress</span>
-                    <span className="text-xs font-semibold text-gray-900 dark:text-white">{percentage}%</span>
+        <div className="flex flex-col items-center">
+            <svg viewBox="0 0 160 90" className="w-40 h-20 overflow-visible">
+                {/* Track segments */}
+                {arcPath(46, 62, 180, 216, '#ef4444')}
+                {arcPath(46, 62, 216, 252, '#f97316')}
+                {arcPath(46, 62, 252, 288, '#eab308')}
+                {arcPath(46, 62, 288, 324, '#84cc16')}
+                {arcPath(46, 62, 324, 360, '#10b981')}
+                {/* Needle */}
+                <line x1={cx} y1={cy} x2={needleX} y2={needleY} stroke="#374151" strokeWidth="2.5" strokeLinecap="round" />
+                <circle cx={cx} cy={cy} r="5" fill="#374151" />
+            </svg>
+        </div>
+    );
+};
+
+// Bar chart for Hours Spent
+const HoursBarChart = ({ studyData, examData, labels }: { studyData: number[]; examData: number[]; labels: string[] }) => {
+    const max = Math.max(...studyData, ...examData, 1);
+    const h = 80; // px height of chart area
+
+    return (
+        <div className="w-full">
+            {/* Y axis labels */}
+            <div className="flex">
+                <div className="flex flex-col justify-between text-[10px] text-gray-400 pr-2 h-[80px]">
+                    {[80, 60, 40, 20, 0].map(v => <span key={v}>{v} Hr</span>)}
                 </div>
+                {/* Bars */}
+                <div className="flex-1 flex items-end gap-3 border-l border-gray-100 dark:border-gray-700 pl-2">
+                    {labels.map((label, i) => (
+                        <div key={label} className="flex-1 flex flex-col items-center gap-1">
+                            <div className="flex items-end gap-0.5 w-full justify-center" style={{ height: h }}>
+                                {/* Exam bar */}
+                                <div
+                                    className="w-3 rounded-t-md transition-all duration-700"
+                                    style={{ height: `${(examData[i] / max) * h}px`, backgroundColor: '#fde68a' }}
+                                />
+                                {/* Study bar */}
+                                <div
+                                    className="w-3 rounded-t-md transition-all duration-700"
+                                    style={{ height: `${(studyData[i] / max) * h}px`, backgroundColor: '#f97316' }}
+                                />
+                            </div>
+                            <span className="text-[10px] text-gray-400">{label}</span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// Loading
+const LoadingSpinner = ({ message = 'Loading...' }: { message?: string }) => (
+    <div className="flex flex-col items-center justify-center h-64">
+        <div className="w-12 h-12 border-4 border-orange-100 border-t-orange-500 rounded-full animate-spin" />
+        <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">{message}</p>
+    </div>
+);
+
+const EmptyState = ({ icon: Icon = BookOpen, title, description, action }: { icon?: React.ElementType; title: string; description: string; action?: React.ReactNode }) => (
+    <div className="text-center py-12">
+        <div className="w-14 h-14 mx-auto mb-4 bg-gray-100 dark:bg-gray-800 rounded-2xl flex items-center justify-center">
+            <Icon className="w-7 h-7 text-gray-400" />
+        </div>
+        <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-1">{title}</h3>
+        <p className="text-sm text-gray-500 dark:text-gray-400 max-w-sm mx-auto mb-4">{description}</p>
+        {action}
+    </div>
+);
+
+// ─── Course Card ─────────────────────────────────────────────────────────────
+
+const CourseCard = ({ course, palette, onClick }: { course: CourseAnalytic; palette: typeof COURSE_PALETTE[0]; onClick: () => void }) => (
+    <div
+        onClick={onClick}
+        className="rounded-2xl p-4 cursor-pointer hover:shadow-md transition-all duration-200 group"
+        style={{ backgroundColor: palette.bg }}
+    >
+        <div className="flex items-center justify-between mb-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: palette.icon + '30' }}>
+                <BookOpen className="w-5 h-5" style={{ color: palette.icon }} />
+            </div>
+            <span className="text-xs font-semibold px-2 py-1 rounded-full bg-white/60" style={{ color: palette.icon }}>
+                {course.stats.averageProgress}%
+            </span>
+        </div>
+
+        <h3 className="text-[13px] font-bold text-gray-900 dark:text-gray-800 leading-snug mb-1 line-clamp-2">
+            {course.course.courseName}
+        </h3>
+
+        <div className="flex items-center gap-3 text-[11px] text-gray-500 mb-3">
+            <span className="flex items-center gap-1">
+                <BookMarked className="w-3 h-3" />
+                {course.course.totalModules}
+            </span>
+            <span className="flex items-center gap-1">
+                <FileText className="w-3 h-3" />
+                8
+            </span>
+            <span className="flex items-center gap-1">
+                <Users className="w-3 h-3" />
+                {course.stats.totalStudents}
+            </span>
+        </div>
+
+        <ProgressBar percentage={course.stats.averageProgress} color={palette.icon} />
+
+        <div className="flex items-center justify-between mt-2 text-[10px] text-gray-500">
+            <span className="flex items-center gap-1"><CheckCircle className="w-3 h-3 text-green-500" />{course.stats.completedStudents}</span>
+            <span className="flex items-center gap-1"><Clock className="w-3 h-3 text-yellow-500" />{course.stats.inProgressStudents}</span>
+            <span className="flex items-center gap-1"><Activity className="w-3 h-3 text-gray-400" />{course.stats.notStartedStudents}</span>
+        </div>
+    </div>
+);
+
+// ─── Student Card (condensed) ─────────────────────────────────────────────────
+
+const StudentCard = ({ student, onClick }: { student: StudentAnalytic; onClick: (id: string) => void }) => {
+    const pct = student.progress.overall;
+    return (
+        <div
+            onClick={() => onClick(student.student._id)}
+            className="bg-white dark:bg-[#1e2235] rounded-2xl border border-gray-100 dark:border-gray-700/50 p-4 hover:shadow-md transition-all cursor-pointer"
+        >
+            <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-orange-400 to-rose-400 flex items-center justify-center text-white text-[11px] font-bold">
+                        {student.student.firstName?.[0]}{student.student.lastName?.[0]}
+                    </div>
+                    <div>
+                        <p className="text-[13px] font-semibold text-gray-900 dark:text-white">{student.student.firstName} {student.student.lastName}</p>
+                        <p className="text-[11px] text-gray-400 truncate max-w-[160px]">{student.student.email}</p>
+                    </div>
+                </div>
+                <span className={cn(
+                    'text-[11px] font-bold px-2 py-0.5 rounded-full',
+                    pct >= 80 ? 'bg-green-100 text-green-700' : pct >= 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-600'
+                )}>{pct}%</span>
+            </div>
+            <ProgressBar percentage={pct} color={progressColor(pct)} />
+            {student.lastActivity && (
+                <p className="text-[10px] text-gray-400 mt-2 flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    {new Date(student.lastActivity).toLocaleDateString()}
+                </p>
             )}
         </div>
     );
 };
 
-const MiniBarChart = ({ 
-    data, 
-    labels, 
-    color = '#3b82f6', 
-    height = 60 
-}: { 
-    data: number[]; 
-    labels?: string[]; 
-    color?: string; 
-    height?: number;
-}) => {
-    const max = Math.max(...data, 1);
-    
-    return (
-        <div className="flex items-end justify-between h-16 w-full px-2">
-            {data.map((value, index) => (
-                <div key={index} className="flex flex-col items-center flex-1 mx-0.5">
-                    <div 
-                        className="w-full rounded-t-md transition-all duration-300 hover:opacity-80"
-                        style={{ 
-                            height: `${(value / max) * height}px`,
-                            backgroundColor: color,
-                            opacity: 0.7 + (value / max) * 0.3
-                        }}
-                    />
-                    {labels && labels[index] && (
-                        <span className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate max-w-full">
-                            {labels[index]}
-                        </span>
-                    )}
-                </div>
-            ))}
-        </div>
-    );
-};
+// ─── Exercise Card ────────────────────────────────────────────────────────────
 
-const StatCard = ({ 
-    icon: Icon, 
-    title, 
-    value, 
-    change, 
-    color = '#3b82f6',
-    description 
-}: { 
-    icon: React.ElementType; 
-    title: string; 
-    value: string | number; 
-    change?: number; 
-    color?: string;
-    description?: string;
-}) => {
-    return (
-        <div className={cn(
-            "bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5",
-            "hover:shadow-lg transition-all duration-300"
-        )}>
-            <div className="flex items-start justify-between mb-4">
-                <div className={`p-3 rounded-lg`} style={{ backgroundColor: `${color}15` }}>
-                    <Icon className="w-5 h-5" style={{ color }} />
-                </div>
-                {change !== undefined && (
-                    <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs ${
-                        change >= 0 
-                            ? 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400' 
-                            : 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
-                    }`}>
-                        {change >= 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-                        {Math.abs(change)}%
-                    </div>
-                )}
-            </div>
-            <div className="space-y-1">
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{value}</p>
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{title}</p>
-                {description && (
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">{description}</p>
-                )}
-            </div>
-        </div>
-    );
-};
-
-const CourseCard = ({ 
-    course, 
-    onClick 
-}: { 
-    course: CourseAnalytic; 
-    onClick: () => void;
-}) => {
-    const getPerformanceColor = (percentage: number) => {
-        if (percentage >= 80) return '#10b981';
-        if (percentage >= 50) return '#f59e0b';
-        if (percentage >= 30) return '#ef4444';
-        return '#9ca3af';
+const ExerciseCard = ({ exercise }: { exercise: Exercise }) => {
+    const pct = exercise.totalQuestions > 0 ? Math.round((exercise.completedQuestions / exercise.totalQuestions) * 100) : 0;
+    const statusMap: Record<string, { label: string; color: string }> = {
+        evaluated: { label: 'Evaluated', color: '#10b981' },
+        attempted: { label: 'In Progress', color: '#f59e0b' },
+        submitted: { label: 'Submitted', color: '#3b82f6' },
     };
+    const s = statusMap[exercise.status] || { label: 'Not Started', color: '#9ca3af' };
 
     return (
-        <div 
-            onClick={onClick}
-            className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 hover:shadow-lg transition-all duration-300 cursor-pointer group"
-        >
-            <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-lg bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center">
-                        <BookOpen className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                    </div>
-                    <div>
-                        <h3 className="font-semibold text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                            {course.course.courseName}
-                        </h3>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">{course.course.courseCode}</p>
-                    </div>
+        <div className="bg-white dark:bg-[#1e2235] rounded-2xl border border-gray-100 dark:border-gray-700/50 p-4">
+            <div className="flex items-start justify-between mb-3">
+                <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-semibold text-gray-900 dark:text-white truncate">{exercise.exerciseName}</p>
+                    <p className="text-[11px] text-gray-400 capitalize mt-0.5">{exercise.type.replace(/_/g, ' ')} · {exercise.category.replace(/_/g, ' ')}</p>
                 </div>
-                <Badge 
-                    className="text-xs"
-                    style={{ 
-                        backgroundColor: `${getPerformanceColor(course.stats.averageProgress)}20`,
-                        color: getPerformanceColor(course.stats.averageProgress)
-                    }}
-                >
-                    {course.stats.averageProgress}%
-                </Badge>
+                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full ml-2 flex-shrink-0" style={{ backgroundColor: s.color + '20', color: s.color }}>
+                    {s.label}
+                </span>
             </div>
-            
-            <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                        <UsersIcon className="w-4 h-4" />
-                        <span>{course.stats.totalStudents} Students</span>
-                    </div>
-                    <div className="text-sm font-semibold text-gray-900 dark:text-white">
-                        {course.stats.completedStudents} Completed
-                    </div>
-                </div>
-                
-                <ProgressBar percentage={course.stats.averageProgress} color={getPerformanceColor(course.stats.averageProgress)} />
-                
-                <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-                    <div className="flex items-center gap-2">
-                        <CheckCircle className="w-3 h-3 text-green-500" />
-                        <span>{course.stats.completedStudents}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <Clock className="w-3 h-3 text-yellow-500" />
-                        <span>{course.stats.inProgressStudents}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <Activity className="w-3 h-3 text-gray-500" />
-                        <span>{course.stats.notStartedStudents}</span>
-                    </div>
-                </div>
+            <div className="flex items-center justify-between text-[11px] text-gray-500 mb-2">
+                <span>Questions: {exercise.completedQuestions}/{exercise.totalQuestions}</span>
+                {exercise.score > 0 && <span>Score: {exercise.score}/{exercise.maxScore}</span>}
             </div>
+            <ProgressBar percentage={pct} />
         </div>
     );
 };
 
-const StudentCard = ({ 
-    student, 
-    courseId, 
-    onClick 
-}: { 
-    student: StudentAnalytic; 
-    courseId: string; 
-    onClick: (studentId: string) => void;
+// ─── Right Panel ──────────────────────────────────────────────────────────────
+
+const RightPanel = ({
+    analytics,
+    user,
+}: {
+    analytics: AnalyticsData | null;
+    user: { user: User } | null;
 }) => {
+    const [currentMonth, setCurrentMonth] = useState(new Date());
+    const today = new Date();
+
+    const daysInMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate();
+    const firstDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).getDay();
+    const adjustedFirstDay = (firstDay + 6) % 7; // Monday start
+
+    const monthLabel = currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const prevMonth = () => setCurrentMonth(m => new Date(m.getFullYear(), m.getMonth() - 1, 1));
+    const nextMonth = () => setCurrentMonth(m => new Date(m.getFullYear(), m.getMonth() + 1, 1));
+
+    const todos = [
+        { label: 'Developing Restaurant Apps', sub: 'Programming  |  08:00 AM', done: false },
+        { label: 'Integrate API', sub: '', done: false },
+        { label: 'Slicing Home Screen', sub: '', done: false },
+        { label: 'Research Objective User', sub: 'Product Design  |  02:40 PM', done: false },
+        { label: 'Report Analysis P2P Business', sub: 'Business  |  04:50 PM', done: true },
+    ];
+
+    const initials = user?.user ? `${user.user.firstName?.charAt(0) || ''}${user.user.lastName?.charAt(0) || ''}` : 'SC';
+    const fullName = user?.user ? `${user.user.firstName} ${user.user.lastName}` : 'Student';
+    const role = user?.user?.role?.renameRole || 'College Student';
+    const overallPct = analytics?.overall?.averageCourseProgress || 0;
+
     return (
-        <div 
-            onClick={() => onClick(student.student._id)}
-            className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 hover:shadow-lg transition-all duration-300 cursor-pointer group"
-        >
-            <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center">
-                        <span className="font-semibold text-blue-600 dark:text-blue-400">
-                            {student.student.firstName?.[0]}{student.student.lastName?.[0]}
-                        </span>
-                    </div>
-                    <div>
-                        <h3 className="font-semibold text-gray-900 dark:text-white">
-                            {student.student.firstName} {student.student.lastName}
-                        </h3>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">{student.student.email}</p>
-                    </div>
+        <aside className="w-[260px] flex-shrink-0 flex flex-col gap-4">
+            {/* Profile Card */}
+            <div className="bg-white dark:bg-[#1e2235] rounded-2xl p-4 border border-gray-100 dark:border-gray-700/50">
+                <div className="flex items-center justify-between mb-4">
+                    <p className="text-[13px] font-bold text-gray-900 dark:text-white">Profile</p>
+                    <button className="p-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                        <Edit className="w-3.5 h-3.5 text-gray-400" />
+                    </button>
                 </div>
-                <Badge 
-                    className={`text-xs ${
-                        student.progress.overall >= 80 ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' :
-                        student.progress.overall >= 50 ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400' :
-                        student.progress.overall >= 30 ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400' :
-                        'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'
-                    }`}
-                >
-                    {student.progress.overall}%
-                </Badge>
+
+                <div className="flex flex-col items-center">
+                    {/* Circular progress ring */}
+                    <div className="relative w-20 h-20 mb-3">
+                        <svg viewBox="0 0 80 80" className="absolute inset-0 -rotate-90">
+                            <circle cx="40" cy="40" r="34" fill="none" stroke="#f1f5f9" strokeWidth="6" />
+                            <circle
+                                cx="40" cy="40" r="34" fill="none"
+                                stroke="#14b8a6" strokeWidth="6"
+                                strokeDasharray={`${2 * Math.PI * 34}`}
+                                strokeDashoffset={`${2 * Math.PI * 34 * (1 - overallPct / 100)}`}
+                                strokeLinecap="round"
+                            />
+                        </svg>
+                        <div className="absolute inset-1.5 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                            <span className="text-lg font-bold text-gray-700 dark:text-white">{initials}</span>
+                        </div>
+                    </div>
+
+                    <p className="text-[13px] font-bold text-gray-900 dark:text-white flex items-center gap-1">
+                        {fullName}
+                        <CheckCircle className="w-3.5 h-3.5 text-teal-500" />
+                    </p>
+                    <p className="text-[11px] text-gray-400 mt-0.5">{role}</p>
+                </div>
             </div>
-            
-            <div className="space-y-3">
-                <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                        <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Overall Progress</span>
-                        <span className="text-xs font-bold text-gray-900 dark:text-white">{student.progress.overall}%</span>
-                    </div>
-                    <ProgressBar percentage={student.progress.overall} />
+
+            {/* Calendar */}
+            <div className="bg-white dark:bg-[#1e2235] rounded-2xl p-4 border border-gray-100 dark:border-gray-700/50">
+                <div className="flex items-center justify-between mb-3">
+                    <button onClick={prevMonth} className="p-1 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <ChevronLeft className="w-4 h-4 text-gray-400" />
+                    </button>
+                    <p className="text-[12px] font-bold text-gray-900 dark:text-white">{monthLabel}</p>
+                    <button onClick={nextMonth} className="p-1 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <ChevronRight className="w-4 h-4 text-gray-400" />
+                    </button>
                 </div>
-                
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div className="bg-blue-50 dark:bg-blue-900/20 p-2 rounded-lg">
-                        <div className="font-semibold text-blue-600 dark:text-blue-400">
-                            We_Do: {student.progress.weDo?.practical?.percentage || 0}%
-                        </div>
-                        <div className="text-gray-600 dark:text-gray-400">
-                            {student.progress.weDo?.practical?.completed || 0}/{student.progress.weDo?.practical?.total || 0} exercises
-                        </div>
-                    </div>
-                    <div className="bg-purple-50 dark:bg-purple-900/20 p-2 rounded-lg">
-                        <div className="font-semibold text-purple-600 dark:text-purple-400">
-                            You_Do: {student.progress.youDo?.assessments?.percentage || 0}%
-                        </div>
-                        <div className="text-gray-600 dark:text-gray-400">
-                            {student.progress.youDo?.assessments?.completed || 0}/{student.progress.youDo?.assessments?.total || 0} assessments
-                        </div>
-                    </div>
+
+                <div className="grid grid-cols-7 mb-1">
+                    {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
+                        <div key={i} className="text-center text-[10px] font-semibold text-gray-400 py-1">{d}</div>
+                    ))}
                 </div>
-                
-                {student.lastActivity && (
-                    <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-                        <Clock className="w-3 h-3" />
-                        <span>Last active: {new Date(student.lastActivity).toLocaleDateString()}</span>
-                    </div>
-                )}
+
+                <div className="grid grid-cols-7 gap-y-0.5">
+                    {Array.from({ length: adjustedFirstDay }).map((_, i) => <div key={`e${i}`} />)}
+                    {Array.from({ length: daysInMonth }).map((_, i) => {
+                        const day = i + 1;
+                        const isToday = today.getDate() === day && today.getMonth() === currentMonth.getMonth() && today.getFullYear() === currentMonth.getFullYear();
+                        return (
+                            <button
+                                key={day}
+                                className={cn(
+                                    "w-full aspect-square flex items-center justify-center text-[11px] rounded-full transition-colors font-medium",
+                                    isToday
+                                        ? "bg-orange-500 text-white font-bold"
+                                        : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
+                                )}
+                            >
+                                {day}
+                            </button>
+                        );
+                    })}
+                </div>
             </div>
-        </div>
+
+            {/* To Do List */}
+            <div className="bg-white dark:bg-[#1e2235] rounded-2xl p-4 border border-gray-100 dark:border-gray-700/50">
+                <p className="text-[13px] font-bold text-gray-900 dark:text-white mb-3">To Do List</p>
+                <ul className="space-y-2.5">
+                    {todos.map((todo, i) => (
+                        <li key={i} className="flex items-start gap-2.5">
+                            <div className={cn(
+                                "w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors",
+                                todo.done
+                                    ? "bg-orange-500 border-orange-500"
+                                    : "border-gray-300 dark:border-gray-600"
+                            )}>
+                                {todo.done && <CheckCircle className="w-3 h-3 text-white" />}
+                            </div>
+                            <div className="min-w-0">
+                                <p className={cn(
+                                    "text-[12px] font-medium leading-tight",
+                                    todo.done ? "line-through text-gray-400" : "text-gray-800 dark:text-gray-200"
+                                )}>
+                                    {todo.label}
+                                </p>
+                                {todo.sub && <p className="text-[10px] text-gray-400 mt-0.5">{todo.sub}</p>}
+                            </div>
+                        </li>
+                    ))}
+                </ul>
+            </div>
+        </aside>
     );
 };
 
-// Exercise Card Component
-const ExerciseCard = ({ 
-    exercise 
-}: { 
-    exercise: Exercise;
-}) => {
-    const getStatusColor = (status: string) => {
-        switch (status) {
-            case 'evaluated': return '#10b981';
-            case 'attempted': return '#f59e0b';
-            case 'submitted': return '#3b82f6';
-            default: return '#9ca3af';
-        }
-    };
+// ─── Leaderboard Row ─────────────────────────────────────────────────────────
 
-    const getStatusText = (status: string) => {
-        switch (status) {
-            case 'evaluated': return 'Evaluated';
-            case 'attempted': return 'In Progress';
-            case 'submitted': return 'Submitted';
-            default: return 'Not Started';
-        }
-    };
-
-    const completionPercentage = exercise.totalQuestions > 0 
-        ? Math.round((exercise.completedQuestions / exercise.totalQuestions) * 100)
-        : 0;
-
-    return (
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 hover:shadow-md transition-all duration-300">
-            <div className="flex items-start justify-between mb-4">
-                <div>
-                    <h4 className="font-semibold text-gray-900 dark:text-white mb-1">{exercise.exerciseName}</h4>
-                    <div className="flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400">
-                        <span className="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
-                            {exercise.type} • {exercise.category}
-                        </span>
-                        <span>ID: {exercise.exerciseId}</span>
-                    </div>
-                </div>
-                <Badge 
-                    style={{ 
-                        backgroundColor: `${getStatusColor(exercise.status)}20`,
-                        color: getStatusColor(exercise.status)
-                    }}
-                >
-                    {getStatusText(exercise.status)}
-                </Badge>
+const LeaderboardRow = ({ rank, name, course, hours, points, isHighlighted }: {
+    rank: number;
+    name: string;
+    course: string;
+    hours: number;
+    points: number;
+    isHighlighted?: boolean;
+}) => (
+    <tr className={cn("transition-colors", isHighlighted && "bg-orange-50 dark:bg-orange-900/10")}>
+        <td className="py-3 pl-4 pr-2 text-[12px] font-semibold text-gray-500 dark:text-gray-400">
+            <div className="flex items-center gap-1">
+                {rank <= 3 ? <span className="text-orange-500">▲</span> : null}
+                {rank}
             </div>
-            
-            <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                    <div className="text-sm text-gray-600 dark:text-gray-400">
-                        Questions: {exercise.completedQuestions}/{exercise.totalQuestions}
-                    </div>
-                    {exercise.score > 0 && (
-                        <div className="text-sm font-semibold text-gray-900 dark:text-white">
-                            Score: {exercise.score}/{exercise.maxScore}
-                        </div>
-                    )}
+        </td>
+        <td className="py-3 px-2">
+            <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-orange-400 to-rose-400 flex items-center justify-center text-white text-[10px] font-bold">
+                    {name.charAt(0)}
                 </div>
-                
-                <ProgressBar percentage={completionPercentage} />
-                
-                <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-                    <div className="flex items-center gap-2">
-                        <Clock className="w-3 h-3" />
-                        <span>
-                            {exercise.lastAttempt 
-                                ? `Last attempt: ${new Date(exercise.lastAttempt).toLocaleDateString()}`
-                                : 'No attempts yet'
-                            }
-                        </span>
-                    </div>
-                    {exercise.attempts > 0 && (
-                        <span>Attempts: {exercise.attempts}</span>
-                    )}
-                </div>
+                <span className="text-[12px] font-semibold text-gray-800 dark:text-gray-200">{name}</span>
             </div>
-        </div>
-    );
-};
+        </td>
+        <td className="py-3 px-2 text-[12px] text-gray-500">{course}</td>
+        <td className="py-3 px-2 text-[12px] font-semibold text-gray-700 dark:text-gray-300">{hours}</td>
+        <td className="py-3 pr-4 text-right text-[12px] font-bold text-orange-500">{points.toLocaleString()}</td>
+    </tr>
+);
 
-// Main Staff Dashboard Component
+// ─── Main Dashboard ───────────────────────────────────────────────────────────
+
 export default function StaffDashboardPage() {
-    const [user, setUser] = useState<UserData | null>(null);
+    const [user, setUser] = useState<{ user: User } | null>(null);
     const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
-    const [loading, setLoading] = useState<boolean>(true);
+    const [loading, setLoading] = useState(true);
     const [selectedCourse, setSelectedCourse] = useState<CourseAnalytic | null>(null);
-    const [filter, setFilter] = useState<string>('all');
-    const [searchQuery, setSearchQuery] = useState<string>('');
-    const [studentDetail, setStudentDetail] = useState<StudentDetailResponse | null>(null);
-    const [studentLoading, setStudentLoading] = useState<boolean>(false);
-    
+    const [filter, setFilter] = useState('all');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [studentDetail, setStudentDetail] = useState<{ success: boolean; data: StudentDetailData } | null>(null);
+    const [studentLoading, setStudentLoading] = useState(false);
+    const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+
     const router = useRouter();
 
-    useEffect(() => {
-        fetchDashboardData();
-    }, []);
+    useEffect(() => { fetchDashboardData(); }, []);
 
     const fetchDashboardData = async () => {
         try {
-            const [userData, analyticsData] = await Promise.all([
-                getCurrentUser(),
-                getStaffStudentAnalytics()
-            ]);
+            const [userData, analyticsData] = await Promise.all([getCurrentUser(), getStaffStudentAnalytics()]);
             setUser(userData);
             setAnalytics(analyticsData);
-        } catch (error) {
-            console.error('Failed to fetch dashboard data:', error);
+        } catch (e) {
+            console.error(e);
         } finally {
             setLoading(false);
         }
@@ -555,468 +587,305 @@ export default function StaffDashboardPage() {
         try {
             const data = await getStudentCourseProgress(courseId, studentId);
             setStudentDetail(data);
-        } catch (error) {
-            console.error('Failed to fetch student details:', error);
+        } catch (e) {
+            console.error(e);
         } finally {
             setStudentLoading(false);
         }
     };
 
-    const handleViewCourse = (course: CourseAnalytic) => {
-        setSelectedCourse(course);
+    const handleViewCourse = (c: CourseAnalytic) => {
+        setSelectedCourse(c);
         setStudentDetail(null);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    const handleViewStudent = (studentId: string) => {
+    const handleViewStudent = (id: string) => {
         if (selectedCourse) {
-            fetchStudentDetail(studentId, selectedCourse.course._id);
+            fetchStudentDetail(id, selectedCourse.course._id);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
-    };
-
-    const handleBackToCourses = () => {
-        setSelectedCourse(null);
-        setStudentDetail(null);
-    };
-
-    const handleBackToStudents = () => {
-        setStudentDetail(null);
     };
 
     const filteredCourses = useMemo(() => {
         if (!analytics?.courses) return [];
-        return analytics.courses.filter(course => {
-            if (filter === 'all') return true;
-            if (filter === 'high' && course.stats?.averageProgress >= 80) return true;
-            if (filter === 'medium' && course.stats?.averageProgress >= 50 && course.stats?.averageProgress < 80) return true;
-            if (filter === 'low' && course.stats?.averageProgress < 50) return true;
-            return false;
+        return analytics.courses.filter(c => {
+            if (filter === 'high') return c.stats?.averageProgress >= 80;
+            if (filter === 'medium') return c.stats?.averageProgress >= 50 && c.stats?.averageProgress < 80;
+            if (filter === 'low') return c.stats?.averageProgress < 50;
+            return true;
         });
     }, [analytics, filter]);
 
     const filteredStudents = useMemo(() => {
         if (!selectedCourse?.students) return [];
-        return selectedCourse.students.filter(student => {
-            const fullName = `${student.student?.firstName || ''} ${student.student?.lastName || ''}`.toLowerCase();
-            const email = student.student?.email?.toLowerCase() || '';
-            const query = searchQuery.toLowerCase();
-            
-            return fullName.includes(query) || email.includes(query);
+        const q = searchQuery.toLowerCase();
+        return selectedCourse.students.filter(s => {
+            const name = `${s.student?.firstName || ''} ${s.student?.lastName || ''}`.toLowerCase();
+            return name.includes(q) || s.student?.email?.toLowerCase().includes(q);
         });
     }, [selectedCourse, searchQuery]);
 
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center h-screen bg-white dark:bg-gray-900">
-                <div className="text-center">
-                    <div className="w-16 h-16 border-4 border-blue-200 dark:border-blue-800 border-t-blue-600 dark:border-t-blue-400 rounded-full animate-spin mx-auto"></div>
-                    <p className="mt-4 text-gray-600 dark:text-gray-400 font-medium">Loading staff dashboard...</p>
-                </div>
-            </div>
-        );
-    }
+    if (loading) return (
+        <div className="flex items-center justify-center h-screen bg-[#f5f6fa] dark:bg-[#12131f]">
+            <LoadingSpinner message="Loading dashboard..." />
+        </div>
+    );
 
-    const overallStats = analytics?.overall || {
-        totalCourses: 0,
-        totalStudents: 0,
-        averageCourseProgress: 0,
-        performanceDistribution: {
-            excellent: 0,
-            good: 0,
-            average: 0,
-            poor: 0
-        },
-        weDoEngagement: {
-            practical: 0,
-            project: 0
-        }
-    };
+    const overall = analytics?.overall || { totalCourses: 0, totalStudents: 0, averageCourseProgress: 0, performanceDistribution: { excellent: 0, good: 0, average: 0, poor: 0 }, allPedagogyCategories: {} };
+
+    // Fake leaderboard data (replace with real data when available)
+    const leaderboard = [
+        { name: 'Charlie Rawal', course: 'UI Design', hours: 53, points: 13450 },
+        { name: 'Priya Sharma', course: 'React Dev', hours: 88, points: 10333 },
+        { name: 'Arun Kumar', course: 'Data Science', hours: 72, points: 9870 },
+        { name: 'Sneha Patel', course: 'DevOps', hours: 60, points: 8990 },
+    ];
+
+    // Fake hours data
+    const studyHours = [45, 30, 62, 55, 25, 40];
+    const examHours = [30, 20, 35, 32, 18, 25];
 
     return (
-                    <StudentLayout>
+        <StaffLayout>
+            <div className="flex gap-5 min-h-full">
+                {/* ── MAIN CONTENT ── */}
+                <div className="flex-1 min-w-0">
 
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
-            {/* Header */}
-            <div className="mb-8">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                    <div>
-                        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-                            Staff Analytics Dashboard
-                        </h1>
-                        <p className="text-gray-600 dark:text-gray-300">
-                            Monitor student progress across all courses
-                        </p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
-                            {user?.user?.firstName} {user?.user?.lastName}
-                        </Badge>
-                        <Button
-                            onClick={() => router.push('/staff/analytics/reports')}
-                            className="bg-blue-600 hover:bg-blue-700 text-white"
-                        >
-                            <Download className="w-4 h-4 mr-2" />
-                            Export Reports
-                        </Button>
-                    </div>
-                </div>
-            </div>
-
-            {/* Overall Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                <StatCard
-                    icon={Users}
-                    title="Total Students"
-                    value={overallStats.totalStudents}
-                    change={12}
-                    color="#3b82f6"
-                    description="Across all courses"
-                />
-                <StatCard
-                    icon={BookOpen}
-                    title="Active Courses"
-                    value={overallStats.totalCourses}
-                    change={5}
-                    color="#10b981"
-                    description="With enrolled students"
-                />
-                <StatCard
-                    icon={TrendingUp}
-                    title="Avg. Progress"
-                    value={`${overallStats.averageCourseProgress}%`}
-                    change={8}
-                    color="#f59e0b"
-                    description="Across all students"
-                />
-                <StatCard
-                    icon={Award}
-                    title="We_Do Engagement"
-                    value={`${overallStats.weDoEngagement.practical}%`}
-                    change={15}
-                    color="#8b5cf6"
-                    description="Practical exercises completion"
-                />
-            </div>
-
-            {/* Performance Distribution */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 mb-8">
-                <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Course Performance Distribution</h2>
-                    <div className="flex items-center gap-2">
-                        <Filter className="w-4 h-4 text-gray-500" />
-                        <span className="text-sm text-gray-600 dark:text-gray-400">Based on average progress</span>
-                    </div>
-                </div>
-                <div className="grid grid-cols-4 gap-4">
-                    {[
-                        { label: 'Excellent', value: overallStats.performanceDistribution.excellent, color: '#10b981', min: 80 },
-                        { label: 'Good', value: overallStats.performanceDistribution.good, color: '#f59e0b', min: 50 },
-                        { label: 'Average', value: overallStats.performanceDistribution.average, color: '#ef4444', min: 30 },
-                        { label: 'Poor', value: overallStats.performanceDistribution.poor, color: '#9ca3af', min: 0 }
-                    ].map((item, index) => (
-                        <div key={index} className="text-center">
-                            <div className={`text-2xl font-bold mb-1`} style={{ color: item.color }}>
-                                {item.value}
-                            </div>
-                            <div className="text-sm text-gray-600 dark:text-gray-400">{item.label}</div>
-                            <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">≥{item.min}% progress</div>
-                        </div>
-                    ))}
-                </div>
-            </div>
-
-            {/* Main Content Area */}
-            {!selectedCourse ? (
-                // Course List View
-                <div>
-                    <div className="flex items-center justify-between mb-6">
-                        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">All Courses</h2>
-                        <div className="flex items-center gap-3">
-                            <Select value={filter} onValueChange={setFilter}>
-                                <SelectTrigger className="w-[180px]">
-                                    <SelectValue placeholder="Filter by performance" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">All Courses</SelectItem>
-                                    <SelectItem value="high">High (≥80%)</SelectItem>
-                                    <SelectItem value="medium">Medium (50-79%)</SelectItem>
-                                    <SelectItem value="low">Low (&lt;50%)</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
-
-                    {filteredCourses.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {filteredCourses.map((course, index) => (
-                                <CourseCard
-                                    key={course.course._id || index}
-                                    course={course}
-                                    onClick={() => handleViewCourse(course)}
-                                />
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="text-center py-12">
-                            <BookOpen className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No courses found</h3>
-                            <p className="text-gray-600 dark:text-gray-400">No courses match the selected filter</p>
-                        </div>
-                    )}
-                </div>
-            ) : !studentDetail ? (
-                // Student List View for Selected Course
-                <div>
-                    <div className="mb-6">
-                        <Button
-                            variant="ghost"
-                            onClick={handleBackToCourses}
-                            className="mb-4 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
-                        >
-                            ← Back to all courses
-                        </Button>
-                        
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                                    {selectedCourse.course.courseName}
-                                </h2>
-                                <p className="text-gray-600 dark:text-gray-400">
-                                    {selectedCourse.stats.totalStudents} students • {selectedCourse.course.courseCode}
-                                </p>
-                            </div>
-                            <div className="flex items-center gap-3">
-                                <div className="relative">
-                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                                    <Input
-                                        placeholder="Search students..."
-                                        className="pl-9 w-64"
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                    />
-                                </div>
-                                <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
-                                    Avg: {selectedCourse.stats.averageProgress}%
-                                </Badge>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Course Stats */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                        <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
-                            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400 mb-1">
-                                {selectedCourse.stats.completedStudents}
-                            </div>
-                            <div className="text-sm text-gray-600 dark:text-gray-400">Completed Students</div>
-                        </div>
-                        <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg">
-                            <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400 mb-1">
-                                {selectedCourse.stats.inProgressStudents}
-                            </div>
-                            <div className="text-sm text-gray-600 dark:text-gray-400">In Progress</div>
-                        </div>
-                        <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
-                            <div className="text-2xl font-bold text-gray-600 dark:text-gray-400 mb-1">
-                                {selectedCourse.stats.notStartedStudents}
-                            </div>
-                            <div className="text-sm text-gray-600 dark:text-gray-400">Not Started</div>
-                        </div>
-                        <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg">
-                            <div className="text-2xl font-bold text-green-600 dark:text-green-400 mb-1">
-                                {selectedCourse.stats.weDoStats.practical.averageCompletion}%
-                            </div>
-                            <div className="text-sm text-gray-600 dark:text-gray-400">We_Do Engagement</div>
-                        </div>
-                    </div>
-
-                    {/* Students Grid */}
-                    {filteredStudents.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {filteredStudents.map((student, index) => (
-                                <StudentCard
-                                    key={student.student._id || index}
-                                    student={student}
-                                    courseId={selectedCourse.course._id}
-                                    onClick={handleViewStudent}
-                                />
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="text-center py-12">
-                            <Users className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No students found</h3>
-                            <p className="text-gray-600 dark:text-gray-400">No students match your search criteria</p>
-                        </div>
-                    )}
-                </div>
-            ) : (
-                // Student Detail View
-                <div>
-                    <div className="mb-6">
-                        <div className="flex items-center gap-2 mb-4">
-                            <Button
-                                variant="ghost"
-                                onClick={handleBackToStudents}
-                                className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
-                            >
-                                ← Back to students
-                            </Button>
-                            <ChevronRight className="w-4 h-4 text-gray-400" />
-                            <span className="text-gray-600 dark:text-gray-400">
-                                {studentDetail.data?.student?.firstName} {studentDetail.data?.student?.lastName}
-                            </span>
-                        </div>
-                        
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                                    {studentDetail.data?.student?.firstName} {studentDetail.data?.student?.lastName}
-                                </h2>
-                                <p className="text-gray-600 dark:text-gray-400">
-                                    {studentDetail.data?.student?.email} • {studentDetail.data?.course?.courseName}
-                                </p>
-                            </div>
-                            <Badge className={`text-lg px-4 py-1 ${
-                                (studentDetail.data?.progress?.overall || 0) >= 80 ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' :
-                                (studentDetail.data?.progress?.overall || 0) >= 50 ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400' :
-                                (studentDetail.data?.progress?.overall || 0) >= 30 ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400' :
-                                'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'
-                            }`}>
-                                {studentDetail.data?.progress?.overall || 0}% Overall
-                            </Badge>
-                        </div>
-                    </div>
-
-                    {studentLoading ? (
-                        <div className="text-center py-12">
-                            <div className="w-12 h-12 border-4 border-blue-200 dark:border-blue-800 border-t-blue-600 dark:border-t-blue-400 rounded-full animate-spin mx-auto"></div>
-                        </div>
-                    ) : (
+                    {/* ── COURSE LIST VIEW ── */}
+                    {!selectedCourse && (
                         <>
-                            {/* Progress Overview */}
-                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-                                <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-                                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Progress Overview</h3>
-                                    <div className="space-y-4">
-                                        <div className="space-y-2">
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Overall Progress</span>
-                                                <span className="text-sm font-bold text-gray-900 dark:text-white">
-                                                    {studentDetail.data?.progress?.overall || 0}%
-                                                </span>
-                                            </div>
-                                            <ProgressBar 
-                                                percentage={studentDetail.data?.progress?.overall || 0} 
-                                                height={10}
-                                            />
-                                        </div>
-                                        
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="space-y-2">
-                                                <div className="flex justify-between items-center">
-                                                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Average Score</span>
-                                                    <span className="text-sm font-bold text-gray-900 dark:text-white">
-                                                        {studentDetail.data?.progress?.averageScore || 0}%
-                                                    </span>
-                                                </div>
-                                                <div className="text-xs text-gray-500 dark:text-gray-400">
-                                                    Based on evaluated exercises
-                                                </div>
-                                            </div>
-                                            <div className="space-y-2">
-                                                <div className="flex justify-between items-center">
-                                                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Exercises Completed</span>
-                                                    <span className="text-sm font-bold text-gray-900 dark:text-white">
-                                                        {studentDetail.data?.progress?.completedExercises || 0}/{studentDetail.data?.progress?.totalExercises || 0}
-                                                    </span>
-                                                </div>
-                                                <div className="text-xs text-gray-500 dark:text-gray-400">
-                                                    Total exercises in course
-                                                </div>
-                                            </div>
+                            {/* Course cards */}
+                            <div className="flex items-center justify-between mb-4">
+                                <div>
+                                    <h2 className="text-[15px] font-bold text-gray-900 dark:text-white">All Courses</h2>
+                                    <p className="text-[12px] text-gray-400">{filteredCourses.length} courses</p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <div className="flex border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+                                        <button onClick={() => setViewMode('grid')} className={cn("p-2 transition-colors", viewMode === 'grid' ? "bg-gray-900 dark:bg-white text-white dark:text-gray-900" : "text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800")}>
+                                            <Grid3X3 className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button onClick={() => setViewMode('list')} className={cn("p-2 transition-colors", viewMode === 'list' ? "bg-gray-900 dark:bg-white text-white dark:text-gray-900" : "text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800")}>
+                                            <List className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
+                                    <select
+                                        value={filter}
+                                        onChange={e => setFilter(e.target.value)}
+                                        className="text-[12px] border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 bg-white dark:bg-[#1e2235] text-gray-700 dark:text-gray-300 outline-none"
+                                    >
+                                        <option value="all">All Courses</option>
+                                        <option value="high">High ≥80%</option>
+                                        <option value="medium">Medium 50-79%</option>
+                                        <option value="low">Low &lt;50%</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {filteredCourses.length > 0 ? (
+                                <div className={cn("grid gap-4 mb-6", viewMode === 'grid' ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" : "grid-cols-1")}>
+                                    {filteredCourses.map((course, i) => (
+                                        <CourseCard
+                                            key={course.course._id || i}
+                                            course={course}
+                                            palette={COURSE_PALETTE[i % COURSE_PALETTE.length]}
+                                            onClick={() => handleViewCourse(course)}
+                                        />
+                                    ))}
+                                </div>
+                            ) : (
+                                <EmptyState icon={BookOpen} title="No courses found" description="Try changing the filter." action={<button onClick={() => setFilter('all')} className="text-sm font-semibold text-orange-500 hover:underline">Show all</button>} />
+                            )}
+
+                            {/* Hours Spent + Performance row */}
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+                                {/* Hours Spent */}
+                                <div className="bg-white dark:bg-[#1e2235] rounded-2xl border border-gray-100 dark:border-gray-700/50 p-5">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h3 className="text-[14px] font-bold text-gray-900 dark:text-white">Hours Spent</h3>
+                                        <div className="flex items-center gap-3 text-[11px] text-gray-500">
+                                            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" /> Study</span>
+                                            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-yellow-200 inline-block" /> Exams</span>
                                         </div>
                                     </div>
+                                    <HoursBarChart studyData={studyHours} examData={examHours} labels={MONTHS} />
                                 </div>
 
-                                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-                                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Stats</h3>
-                                    <div className="space-y-4">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                                <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20">
-                                                    <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                                                </div>
-                                                <span className="text-sm text-gray-700 dark:text-gray-300">We_Do Exercises</span>
-                                            </div>
-                                            <span className="font-semibold text-gray-900 dark:text-white">
-                                                {studentDetail.data?.summary?.weDo?.practical?.length || 0}
-                                            </span>
+                                {/* Performance */}
+                                <div className="bg-white dark:bg-[#1e2235] rounded-2xl border border-gray-100 dark:border-gray-700/50 p-5">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <h3 className="text-[14px] font-bold text-gray-900 dark:text-white">Performance</h3>
+                                        <div className="flex items-center gap-1 text-[11px] text-gray-500">
+                                            <span className="w-2 h-2 rounded-full bg-teal-500 inline-block" />
+                                            Point Progress
+                                            <select className="ml-1 text-[11px] border-none outline-none bg-transparent text-gray-500">
+                                                <option>Monthly</option>
+                                                <option>Weekly</option>
+                                            </select>
                                         </div>
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                                <div className="p-2 rounded-lg bg-purple-50 dark:bg-purple-900/20">
-                                                    <FolderTree className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                                                </div>
-                                                <span className="text-sm text-gray-700 dark:text-gray-300">Projects</span>
-                                            </div>
-                                            <span className="font-semibold text-gray-900 dark:text-white">
-                                                {studentDetail.data?.summary?.weDo?.project_development?.length || 0}
-                                            </span>
-                                        </div>
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                                <div className="p-2 rounded-lg bg-green-50 dark:bg-green-900/20">
-                                                    <Award className="w-4 h-4 text-green-600 dark:text-green-400" />
-                                                </div>
-                                                <span className="text-sm text-gray-700 dark:text-gray-300">Assessments</span>
-                                            </div>
-                                            <span className="font-semibold text-gray-900 dark:text-white">
-                                                {studentDetail.data?.summary?.youDo?.assessments?.length || 0}
-                                            </span>
-                                        </div>
+                                    </div>
+
+                                    <GaugeChart value={Math.round(overall.averageCourseProgress * 100)} max={10000} />
+
+                                    <div className="text-center mt-2">
+                                        <p className="text-[22px] font-bold text-gray-900 dark:text-white">
+                                            Your Point: <span className="text-teal-500">{(overall.averageCourseProgress * 89.66).toFixed(0)}</span>
+                                        </p>
+                                        <p className="text-[12px] text-teal-500 mt-0.5 flex items-center justify-center gap-1">
+                                            <Trophy className="w-3.5 h-3.5" />
+                                            Top in Leaderboard
+                                        </p>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Exercises Breakdown */}
-                            <Tabs defaultValue="all" className="mb-8">
-                                <TabsList className="grid grid-cols-4 mb-4">
-                                    <TabsTrigger value="all">All Exercises</TabsTrigger>
-                                    <TabsTrigger value="we_do">We_Do</TabsTrigger>
-                                    <TabsTrigger value="projects">Projects</TabsTrigger>
-                                    <TabsTrigger value="assessments">Assessments</TabsTrigger>
-                                </TabsList>
-                                
-                                <TabsContent value="all" className="space-y-4">
-                                    {studentDetail.data?.progress?.exercises?.map((exercise, index) => (
-                                        <ExerciseCard key={index} exercise={exercise} />
-                                    ))}
-                                </TabsContent>
-                                
-                                <TabsContent value="we_do" className="space-y-4">
-                                    {studentDetail.data?.summary?.weDo?.practical?.map((exercise, index) => (
-                                        <ExerciseCard key={index} exercise={exercise} />
-                                    ))}
-                                </TabsContent>
-                                
-                                <TabsContent value="projects" className="space-y-4">
-                                    {studentDetail.data?.summary?.weDo?.project_development?.map((exercise, index) => (
-                                        <ExerciseCard key={index} exercise={exercise} />
-                                    ))}
-                                </TabsContent>
-                                
-                                <TabsContent value="assessments" className="space-y-4">
-                                    {studentDetail.data?.summary?.youDo?.assessments?.map((exercise, index) => (
-                                        <ExerciseCard key={index} exercise={exercise} />
-                                    ))}
-                                </TabsContent>
-                            </Tabs>
+                            {/* Leaderboard */}
+                            <div className="bg-white dark:bg-[#1e2235] rounded-2xl border border-gray-100 dark:border-gray-700/50 overflow-hidden">
+                                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-700/50">
+                                    <h3 className="text-[14px] font-bold text-gray-900 dark:text-white">Leader Board</h3>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full">
+                                        <thead>
+                                            <tr className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-50 dark:border-gray-700/50">
+                                                <th className="py-2.5 pl-4 pr-2 text-left">Rank</th>
+                                                <th className="py-2.5 px-2 text-left">Name</th>
+                                                <th className="py-2.5 px-2 text-left">Course</th>
+                                                <th className="py-2.5 px-2 text-left">Hour</th>
+                                                <th className="py-2.5 pr-4 text-right">Point</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {leaderboard.map((row, i) => (
+                                                <LeaderboardRow
+                                                    key={i}
+                                                    rank={i + 1}
+                                                    name={row.name}
+                                                    course={row.course}
+                                                    hours={row.hours}
+                                                    points={row.points}
+                                                    isHighlighted={i === 0}
+                                                />
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
                         </>
                     )}
-                </div>
-            )}
-        </div>
-                    </StudentLayout>
 
+                    {/* ── STUDENT LIST ── */}
+                    {selectedCourse && !studentDetail && (
+                        <div>
+                            <button
+                                onClick={() => { setSelectedCourse(null); setStudentDetail(null); }}
+                                className="flex items-center gap-1.5 text-[12px] font-semibold text-orange-500 hover:underline mb-4"
+                            >
+                                <ChevronLeft className="w-4 h-4" /> Back to All Courses
+                            </button>
+
+                            <div className="flex items-center justify-between mb-4">
+                                <div>
+                                    <h2 className="text-[15px] font-bold text-gray-900 dark:text-white">{selectedCourse.course.courseName}</h2>
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                        <span className="text-[11px] text-gray-400">{selectedCourse.course.courseCode}</span>
+                                        <span className="text-[11px] text-gray-300">·</span>
+                                        <span className="text-[11px] text-gray-400">{selectedCourse.stats.totalStudents} students</span>
+                                    </div>
+                                </div>
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                                    <input
+                                        placeholder="Search students..."
+                                        className="pl-8 pr-3 h-9 text-[12px] border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-[#1e2235] text-gray-700 dark:text-gray-300 outline-none focus:border-orange-300"
+                                        value={searchQuery}
+                                        onChange={e => setSearchQuery(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Course stat chips */}
+                            <div className="grid grid-cols-4 gap-3 mb-5">
+                                {[
+                                    { label: 'Completed', value: selectedCourse.stats.completedStudents, color: '#10b981', bg: '#ecfdf5' },
+                                    { label: 'In Progress', value: selectedCourse.stats.inProgressStudents, color: '#f59e0b', bg: '#fffbeb' },
+                                    { label: 'Not Started', value: selectedCourse.stats.notStartedStudents, color: '#9ca3af', bg: '#f9fafb' },
+                                    { label: 'Avg Progress', value: `${selectedCourse.stats.averageProgress}%`, color: '#7c6be8', bg: '#f5f3ff' },
+                                ].map(chip => (
+                                    <div key={chip.label} className="rounded-xl p-3 text-center" style={{ backgroundColor: chip.bg }}>
+                                        <div className="text-[18px] font-bold" style={{ color: chip.color }}>{chip.value}</div>
+                                        <div className="text-[10px] text-gray-500 mt-0.5">{chip.label}</div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {filteredStudents.length > 0 ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {filteredStudents.map((s, i) => (
+                                        <StudentCard key={s.student._id || i} student={s} onClick={handleViewStudent} />
+                                    ))}
+                                </div>
+                            ) : (
+                                <EmptyState icon={Users} title="No students found" description={searchQuery ? `No results for "${searchQuery}"` : 'No students enrolled.'} action={searchQuery ? <button onClick={() => setSearchQuery('')} className="text-sm font-semibold text-orange-500 hover:underline">Clear search</button> : null} />
+                            )}
+                        </div>
+                    )}
+
+                    {/* ── STUDENT DETAIL ── */}
+                    {studentDetail && (
+                        <div>
+                            <button
+                                onClick={() => setStudentDetail(null)}
+                                className="flex items-center gap-1.5 text-[12px] font-semibold text-orange-500 hover:underline mb-4"
+                            >
+                                <ChevronLeft className="w-4 h-4" /> Back to Students
+                            </button>
+
+                            {studentLoading ? <LoadingSpinner message="Loading student details..." /> : (
+                                <>
+                                    <div className="bg-white dark:bg-[#1e2235] rounded-2xl border border-gray-100 dark:border-gray-700/50 p-5 mb-4">
+                                        <div className="flex items-start justify-between mb-4">
+                                            <div>
+                                                <h2 className="text-[15px] font-bold text-gray-900 dark:text-white">{studentDetail.data?.student?.firstName} {studentDetail.data?.student?.lastName}</h2>
+                                                <p className="text-[12px] text-gray-400">{studentDetail.data?.student?.email}</p>
+                                            </div>
+                                            <span className={cn("text-[13px] font-bold px-3 py-1 rounded-full", (studentDetail.data?.progress?.overall || 0) >= 80 ? "bg-green-100 text-green-700" : (studentDetail.data?.progress?.overall || 0) >= 50 ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-600")}>
+                                                {studentDetail.data?.progress?.overall || 0}% Overall
+                                            </span>
+                                        </div>
+                                        <div className="grid grid-cols-4 gap-4">
+                                            {[
+                                                { label: 'Avg Score', value: `${studentDetail.data?.progress?.averageScore || 0}%` },
+                                                { label: 'Exercises', value: `${studentDetail.data?.progress?.completedExercises || 0}/${studentDetail.data?.progress?.totalExercises || 0}` },
+                                                { label: 'Pending', value: studentDetail.data?.progress?.pendingExercises || 0 },
+                                                { label: 'Completion', value: `${Math.round((studentDetail.data?.progress?.completedExercises || 0) / Math.max(studentDetail.data?.progress?.totalExercises || 1, 1) * 100)}%` },
+                                            ].map(stat => (
+                                                <div key={stat.label} className="text-center">
+                                                    <div className="text-[20px] font-bold text-gray-900 dark:text-white">{stat.value}</div>
+                                                    <div className="text-[11px] text-gray-400 mt-0.5">{stat.label}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <h3 className="text-[14px] font-bold text-gray-900 dark:text-white mb-3">Exercises</h3>
+                                    <div className="space-y-3">
+                                        {studentDetail.data?.progress?.exercises?.map((ex, i) => (
+                                            <ExerciseCard key={i} exercise={ex} />
+                                        )) || <EmptyState icon={FileText} title="No exercises" description="No exercises attempted yet." />}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    )}
+                </div>
+
+                {/* ── RIGHT PANEL ── */}
+                <div className="hidden xl:block">
+                    <RightPanel analytics={analytics} user={user} />
+                </div>
+            </div>
+        </StaffLayout>
     );
 }

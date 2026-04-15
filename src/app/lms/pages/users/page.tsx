@@ -420,7 +420,7 @@ const UserManagementPage: React.FC = () => {
                   <div className="text-gray-900 text-lg font-semibold">
                     {activeStudents}
                   </div>
-                  <div className="text-gray-500 text-xs">Active students</div>
+                  <div className="text-gray-500 text-xs">Active</div>
                 </div>
               </div>
             </div>

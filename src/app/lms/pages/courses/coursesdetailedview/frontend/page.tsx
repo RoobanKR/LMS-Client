@@ -22,6 +22,80 @@ const CompilerPageContent = () => {
   const exerciseName = searchParams.get('exerciseName');
   const urlCourseId = searchParams.get('courseId') || "";
   const exerciseId = searchParams.get('exerciseId');
+  const hierarchy = searchParams.get('hierarchy')?.split(',') || [];
+
+  // Function to fetch exercise data from API
+  const fetchExerciseData = async () => {
+    if (!exerciseId) {
+      console.error("No exercise ID provided");
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
+      
+      if (!token) {
+        console.error("Authentication token missing");
+        setIsLoading(false);
+        return;
+      }
+
+      const response = await fetch(`https://lms-server-ym1q.onrender.com/exercise/${exerciseId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log("Frontend",data)
+
+      if (data.message?.[0]?.key === 'success' && data.data?.exercise) {
+        const fetchedExercise = data.data.exercise;
+        setExerciseData(fetchedExercise);
+        
+        // Extract questions
+        let extractedQuestions = [];
+        if (fetchedExercise.questions && Array.isArray(fetchedExercise.questions)) {
+          extractedQuestions = fetchedExercise.questions;
+        } else if (fetchedExercise.exerciseInformation?.questions) {
+          extractedQuestions = fetchedExercise.exerciseInformation.questions;
+        }
+        
+        setQuestions(extractedQuestions);
+        setCourseId(urlCourseId || fetchedExercise.courseId || "");
+
+        console.log("Loaded exercise data:", {
+          exerciseId: fetchedExercise._id,
+          questionsCount: extractedQuestions.length
+        });
+
+        // If there are questions, try to load previous submission for the first question
+        if (extractedQuestions.length > 0) {
+          const firstQuestion = extractedQuestions[0];
+          const questionId = getQuestionId(firstQuestion);
+          
+          if (questionId) {
+            const submission = await fetchPreviousSubmission(questionId);
+            if (submission) {
+              setPreviousSubmission(submission);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error("❌ Error fetching exercise:", error);
+      toast.error("Failed to load exercise data");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Function to fetch previous submission
   const fetchPreviousSubmission = async (questionId: string) => {
@@ -40,7 +114,7 @@ const CompilerPageContent = () => {
       }
 
       const response = await fetch(
-        `http://localhost:5533/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseId}&questionId=${questionId}&category=${category}`,
+        `https://lms-server-ym1q.onrender.com/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseId}&questionId=${questionId}&category=${category}`,
         {
           method: 'GET',
           headers: {
@@ -55,8 +129,7 @@ const CompilerPageContent = () => {
         if (data.success && data.data) {
           console.log("Loaded submission data:", {
             files: data.data.files?.length || 0,
-            folders: data.data.folders?.length || 0,
-            rawData: data.data
+            folders: data.data.folders?.length || 0
           });
           return data.data;
         }
@@ -72,20 +145,10 @@ const CompilerPageContent = () => {
 
   // Enhanced function to transform submission data
   const transformSubmissionToCompilerFormat = (submission: any) => {
-    if (!submission) {
-      console.log("No submission data to transform");
-      return null;
-    }
-
-    console.log("Transforming submission:", {
-      filesCount: submission.files?.length || 0,
-      foldersCount: submission.folders?.length || 0,
-      submissionKeys: Object.keys(submission)
-    });
+    if (!submission) return null;
 
     // Transform files from submission
     const transformedFiles = (submission.files || []).map((file: any, index: number) => {
-      // Determine language from filename if not provided
       let language = file.language;
       if (!language && file.filename) {
         const ext = file.filename.split('.').pop()?.toLowerCase();
@@ -144,74 +207,12 @@ const CompilerPageContent = () => {
       });
     }
 
-    console.log("Transformed data:", {
-      files: transformedFiles.length,
-      folders: transformedFolders.length,
-      sampleFile: transformedFiles[0],
-      sampleFolder: transformedFolders[0]
-    });
-
     return {
       files: transformedFiles,
       folders: transformedFolders,
       submissionData: submission
     };
   };
-
-  useEffect(() => {
-    const loadExerciseData = async () => {
-      if (typeof window !== 'undefined') {
-        const storedData = localStorage.getItem('currentFrontendExercise');
-        
-        if (storedData) {
-          try {
-            const parsedData = JSON.parse(storedData);
-           
-            let extractedCourseId = urlCourseId || parsedData.courseId || parsedData.context?.courseId || "";
-            setCourseId(extractedCourseId);
-           
-            let extractedQuestions = [];
-            if (parsedData.questions && Array.isArray(parsedData.questions)) {
-              extractedQuestions = parsedData.questions;
-            } else if (parsedData.exerciseInformation?.questions) {
-              extractedQuestions = parsedData.exerciseInformation.questions;
-            }
-           
-            setExerciseData(parsedData);
-            setQuestions(extractedQuestions);
-
-            console.log("Loaded exercise data:", {
-              courseId: extractedCourseId,
-              exerciseId,
-              questionsCount: extractedQuestions.length
-            });
-
-            // If there's a current question, try to load previous submission
-            if (extractedQuestions.length > 0 && extractedCourseId && exerciseId) {
-              const currentQuestion = extractedQuestions[0];
-              const questionId = getQuestionId(currentQuestion);
-              
-              if (questionId) {
-                console.log("Fetching submission for question:", questionId);
-                const submission = await fetchPreviousSubmission(questionId);
-                if (submission) {
-                  console.log("Submission received:", submission);
-                  setPreviousSubmission(submission);
-                } else {
-                  console.log("No previous submission found");
-                }
-              }
-            }
-           
-          } catch (error) {
-            console.error("❌ Error parsing exercise data:", error);
-          }
-        }
-        setIsLoading(false);
-      }
-    };
-    loadExerciseData();
-  }, [urlCourseId, exerciseId, exerciseName, subcategory]);
 
   // Helper function to get question ID
   const getQuestionId = (question: any) => {
@@ -235,12 +236,41 @@ const CompilerPageContent = () => {
     return foundId.toString();
   };
 
+  // Load data on component mount
+  useEffect(() => {
+    fetchExerciseData();
+  }, [exerciseId, urlCourseId]);
+
   const handleBack = () => {
-    localStorage.removeItem('currentFrontendExercise');
     router.back();
   };
 
-  if (isLoading) return <div className="w-full h-screen bg-[#1e1e1e] flex items-center justify-center text-white">Loading...</div>;
+  if (isLoading) {
+    return (
+      <div className="w-full h-screen bg-[#1e1e1e] flex items-center justify-center text-white">
+        <div className="text-center">
+          <div className="w-10 h-10 border-3 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+          <p>Loading exercise data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!exerciseData) {
+    return (
+      <div className="w-full h-screen bg-[#1e1e1e] flex items-center justify-center text-white">
+        <div className="text-center">
+          <p className="text-red-400 mb-2">Failed to load exercise data</p>
+          <button 
+            onClick={handleBack}
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Go Back
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const behaviorSettings = exerciseData?.questionBehavior || {};
   const exerciseInfo = exerciseData?.exerciseInformation || {};
@@ -255,42 +285,34 @@ const CompilerPageContent = () => {
     ? transformSubmissionToCompilerFormat(previousSubmission)
     : null;
 
-  console.log("Rendering with data:", {
-    hasPreviousSubmission: !!previousSubmission,
-    hasTransformedData: !!previousSubmissionData,
-    files: previousSubmissionData?.files?.length || 0,
-    folders: previousSubmissionData?.folders?.length || 0,
-    isLoadingSubmission
-  });
-
   return (
     <div className="w-full h-screen bg-[#1e1e1e] overflow-hidden">
-    <FrontendCompiler
-  onBack={handleBack}
-  title={exerciseInfo.exerciseName || exerciseName || "Frontend Lab"}
-  questions={questions}
-  selectedLanguages={settings.selectedLanguages}
-  level={exerciseInfo.exerciseLevel || "beginner"}
-  attemptLimitEnabled={behaviorSettings.attemptLimitEnabled}
-  maxAttempts={behaviorSettings.maxAttempts}
-  entityId={entityId}
-  entityType={entityType}
-  security={security}
-  exerciseId={exerciseData?._id || exerciseInfo._id || exerciseId || ""}
-  courseId={courseId}
-  category={category}
-  subcategory={subcategory}
-  selectedProgrammingLanguage={exerciseData?.programmingSettings?.selectedModule}
-  
-  // Pass previous submission data if available
-  initialFiles={previousSubmissionData?.files}
-  initialFolders={previousSubmissionData?.folders}
-  isLoadingSubmission={isLoadingSubmission}
-  
-  // Pass current question index
-  initialQuestionIndex={0}
-/>
-
+      <FrontendCompiler
+        onBack={handleBack}
+        title={exerciseInfo.exerciseName || exerciseName || "Frontend Lab"}
+        questions={questions}
+        selectedLanguages={settings.selectedLanguages}
+        level={exerciseInfo.exerciseLevel || "beginner"}
+        attemptLimitEnabled={behaviorSettings.attemptLimitEnabled}
+        maxAttempts={behaviorSettings.maxAttempts}
+        entityId={entityId}
+        entityType={entityType}
+        security={security}
+        exerciseId={exerciseData?._id || exerciseInfo._id || exerciseId || ""}
+        courseId={courseId}
+        category={category}
+        subcategory={subcategory}
+        selectedProgrammingLanguage={exerciseData?.programmingSettings?.selectedModule}
+        
+        // Pass previous submission data if available
+        initialFiles={previousSubmissionData?.files}
+        initialFolders={previousSubmissionData?.folders}
+        isLoadingSubmission={isLoadingSubmission}
+        
+        // Pass current question index
+        initialQuestionIndex={0}
+        hierarchy={hierarchy}
+      />
     </div>
   );
 };

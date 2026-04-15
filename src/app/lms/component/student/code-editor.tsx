@@ -131,7 +131,12 @@ interface GroupSettings {
 interface ExerciseQuestion {
     _id: string
     title: string
-    description: string
+    description: string | {
+        text: string
+        imageUrl: string | null
+        imageAlignment: string
+        imageSizePercent: number
+    }
     difficulty: "easy" | "medium" | "hard" | "beginner" | "intermediate" | "advanced"
     sampleInput: string
     sampleOutput: string
@@ -249,7 +254,66 @@ interface CodeEditorProps {
     onCloseExercise?: () => void; // Renamed for clarity
     onResetExercise?: () => void; // Alternative: specific function to reset exercise
 }
+// Render a ProgContentBlock[] array to HTML
+const renderBlocksToHtml = (blocks: any[]): string =>
+  blocks.map((block: any) => {
+    if (block.type === 'text') return block.value || '';
+    if (block.type === 'code') {
+      const escaped = (block.value || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      return `<pre style="background:${block.bgColor||'#f5f5f5'};border-radius:8px;padding:10px 14px;font-size:12.5px;font-family:ui-monospace,monospace;overflow-x:auto;line-height:1.6;margin:6px 0"><code class="language-${block.language||''}">${escaped}</code></pre>`;
+    }
+    if (block.type === 'image') {
+      const align = block.alignment === 'right' ? 'flex-end' : block.alignment === 'center' ? 'center' : 'flex-start';
+      return `<div style="display:flex;justify-content:${align};margin:6px 0"><img src="${block.url}" alt="" style="max-width:${block.sizePercent||100}%;border-radius:8px;border:1px solid #e4e4ed" /></div>`;
+    }
+    return '';
+  }).join('');
 
+// Helper to extract description HTML from rich blocks or fallback to description.text
+// Helper to extract description HTML from rich blocks or fallback to description.text
+const getDescriptionHtml = (question: ExerciseQuestion): string => {
+  // Priority 1: description is an object with text array (new format)
+  if (typeof question.description === 'object' && question.description !== null) {
+    const desc = question.description as any;
+    
+    // Check if description.text is an array of blocks
+    if (Array.isArray(desc.text) && desc.text.length > 0) {
+      return renderBlocksToHtml(desc.text);
+    }
+    
+    // Check if description has direct contentBlocks
+    if (Array.isArray(desc.contentBlocks) && desc.contentBlocks.length > 0) {
+      return renderBlocksToHtml(desc.contentBlocks);
+    }
+    
+    // If description.text is a string, use it
+    if (typeof desc.text === 'string' && desc.text.trim()) {
+      let html = desc.text;
+      if (desc.imageUrl) {
+        html += `<img src="${desc.imageUrl}" style="max-width:${desc.imageSizePercent || 100}%;display:block;margin-top:8px;border-radius:8px" />`;
+      }
+      return html;
+    }
+  }
+
+  // Priority 2: description is directly a ProgContentBlock[] array (old format)
+  if (Array.isArray(question.description) && (question.description as any[]).length > 0) {
+    return renderBlocksToHtml(question.description as any[]);
+  }
+
+  // Priority 3: programmingQuestionDescription (legacy field — backward compat)
+  if (Array.isArray((question as any).programmingQuestionDescription) &&
+      (question as any).programmingQuestionDescription.length > 0) {
+    return renderBlocksToHtml((question as any).programmingQuestionDescription);
+  }
+
+  // Priority 4: plain string fallback
+  if (typeof question.description === 'string') {
+    return question.description;
+  }
+
+  return 'Solve the question';
+};
 const convertExerciseToProblems = (exercise: Exercise): ProblemData[] => {
     if (!exercise.questions || exercise.questions.length === 0) {
         return [{
@@ -265,21 +329,27 @@ const convertExerciseToProblems = (exercise: Exercise): ProblemData[] => {
         }];
     }
 
-    return exercise.questions.map((question, index) => ({
-        id: index + 1,
-        title: question.title || `Question ${index + 1}`,
-        description: question.description || `Solve question ${index + 1}`,
-        difficulty: (question.difficulty.charAt(0).toUpperCase() + question.difficulty.slice(1)) as "Easy" | "Medium" | "Hard",
-        examples: [{
-            input: question.sampleInput,
-            output: question.sampleOutput,
-            explanation: "Sample input and output"
-        }],
-        constraints: question.constraints || [],
-        initialCode: question.solutions?.startedCode || question.solutions?.staetedCode || `// Write your solution here\nfunction ${question.solutions?.functionName || 'solution'}() {\n    // Your code here\n    return null;\n}`,
-        hints: question.hints?.map(h => h.hintText) || [],
-        solution: question.solutions?.startedCode || question.solutions?.staetedCode
-    }));
+return exercise.questions.map((question, index) => ({
+  id: index + 1,
+  title: question.title || `Question ${index + 1}`,
+  description: getDescriptionHtml(question),   // ← use helper
+  difficulty: (question?.difficulty?.charAt(0).toUpperCase() + question?.difficulty?.slice(1)) as "Easy" | "Medium" | "Hard",
+  examples: question.testCases
+    ?.filter(tc => tc.isSample && !tc.isHidden)
+    .map(tc => ({
+      input: tc.input,
+      output: tc.expectedOutput,
+      explanation: tc.explanation || "Sample test case"
+    })) || (question.sampleInput ? [{
+      input: question.sampleInput,
+      output: question.sampleOutput,
+      explanation: "Sample input and output"
+    }] : []),
+  constraints: question.constraints || [],
+  initialCode: question.solutions?.startedCode || question.solutions?.staetedCode || 
+    `# Write your solution here\ndef main():\n    # Your code here\n    pass`,
+  hints: question.hints?.map(h => h.hintText) || [],
+}));
 };
 
 const getPistonLanguage = (language: string): { language: string; version: string } => {
@@ -716,6 +786,8 @@ export default function CodeEditor({
     // --- Available Languages ---
     const [availableLanguages, setAvailableLanguages] = useState<string[]>(["javascript", "python", "java", "cpp", "c", "csharp"]);
 
+    // --- Image Modal State ---
+    const [modalImage, setModalImage] = useState<{ url: string; alt: string } | null>(null);
 
     useEffect(() => {
         console.log(currentQuestion)
@@ -748,6 +820,196 @@ export default function CodeEditor({
 
     // --- Security Configuration ---
     const securitySettings = exercise?.securitySettings || {};
+
+    // Helper function to escape HTML
+    const escapeHtml = (text: string): string => {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    };
+
+    // Expose global function for images to call
+    useEffect(() => {
+        (window as any).openImageModal = (url: string, alt: string) => {
+            setModalImage({ url, alt });
+        };
+
+        return () => {
+            delete (window as any).openImageModal;
+        };
+    }, []);
+
+    // Close modal with Escape key
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && modalImage) {
+                setModalImage(null);
+            }
+        };
+        
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [modalImage]);
+
+    // Function to render description with clickable images
+    const renderDescriptionWithClickableImages = (description: any): string => {
+        if (!description) return '<div>No description provided</div>';
+
+        // Helper to make images in HTML clickable
+        const makeImagesClickable = (html: string): string => {
+            return html.replace(
+                /<img\s+([^>]*?)src=["']([^"']+)["']([^>]*?)>/gi,
+                (match, before, src, after) => {
+                    return `<img ${before} src="${src}" ${after} style="cursor:pointer;transition:transform 0.2s, box-shadow 0.2s;max-width:100%;border-radius:8px;" 
+                            onclick="window.openImageModal('${src}', 'Question Image')"
+                            onmouseover="this.style.transform='scale(1.02)';this.style.boxShadow='0 4px 12px rgba(0,0,0,0.15)';"
+                            onmouseout="this.style.transform='scale(1)';this.style.boxShadow='none';" />`;
+                }
+            );
+        };
+
+        // If description is already HTML string, process it
+        if (typeof description === 'string') {
+            return makeImagesClickable(description);
+        }
+
+        // If description is an object with text property
+        if (typeof description === 'object' && description.text) {
+            let html = '';
+            if (typeof description.text === 'string') {
+                html += makeImagesClickable(escapeHtml(description.text));
+            } else if (Array.isArray(description.text)) {
+                // Handle array of blocks
+                description.text.forEach((block: any) => {
+                    if (block.type === 'text') {
+                        html += `<div class="text-block" style="margin-bottom: 12px; line-height: 1.6;">${escapeHtml(block.value || '')}</div>`;
+                    } else if (block.type === 'image') {
+                        html += `<div style="display:flex;justify-content:${block.alignment === 'right' ? 'flex-end' : block.alignment === 'center' ? 'center' : 'flex-start'};margin:12px 0;">
+                                  <img 
+                                    src="${block.url}" 
+                                    alt="Question image" 
+                                    style="max-width:${block.sizePercent || 100}%;border-radius:8px;cursor:pointer;transition:transform 0.2s, box-shadow 0.2s;" 
+                                    onclick="window.openImageModal('${block.url}', 'Question Image')"
+                                    onmouseover="this.style.transform='scale(1.02)';this.style.boxShadow='0 4px 12px rgba(0,0,0,0.15)';"
+                                    onmouseout="this.style.transform='scale(1)';this.style.boxShadow='none';"
+                                  />
+                                </div>`;
+                    }
+                });
+            }
+            if (description.imageUrl) {
+                html += `<div style="margin:12px 0;">
+                          <img 
+                            src="${description.imageUrl}" 
+                            alt="Question image" 
+                            style="max-width:${description.imageSizePercent || 100}%;border-radius:8px;cursor:pointer;transition:transform 0.2s, box-shadow 0.2s;" 
+                            onclick="window.openImageModal('${description.imageUrl}', 'Question Image')"
+                            onmouseover="this.style.transform='scale(1.02)';this.style.boxShadow='0 4px 12px rgba(0,0,0,0.15)';"
+                            onmouseout="this.style.transform='scale(1)';this.style.boxShadow='none';"
+                          />
+                        </div>`;
+            }
+            return html;
+        }
+
+        // If description is an array directly
+        if (Array.isArray(description)) {
+            let html = '';
+            description.forEach((block: any) => {
+                if (block.type === 'text') {
+                    html += `<div class="text-block" style="margin-bottom: 12px; line-height: 1.6;">${escapeHtml(block.value || '')}</div>`;
+                } else if (block.type === 'image') {
+                    html += `<div style="display:flex;justify-content:${block.alignment === 'right' ? 'flex-end' : block.alignment === 'center' ? 'center' : 'flex-start'};margin:12px 0;">
+                              <img 
+                                src="${block.url}" 
+                                alt="Question image" 
+                                style="max-width:${block.sizePercent || 100}%;border-radius:8px;cursor:pointer;transition:transform 0.2s, box-shadow 0.2s;" 
+                                onclick="window.openImageModal('${block.url}', 'Question Image')"
+                                onmouseover="this.style.transform='scale(1.02)';this.style.boxShadow='0 4px 12px rgba(0,0,0,0.15)';"
+                                onmouseout="this.style.transform='scale(1)';this.style.boxShadow='none';"
+                              />
+                            </div>`;
+                }
+            });
+            return html;
+        }
+
+        return '<div>No description provided</div>';
+    };
+
+const ImageModal = ({ image, onClose, theme }: { image: { url: string; alt: string } | null; onClose: () => void; theme: string }) => {
+    useEffect(() => {
+        if (image) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = 'unset';
+        }
+        return () => {
+            document.body.style.overflow = 'unset';
+        };
+    }, [image]);
+
+    if (!image) return null;
+
+    return (
+        <div
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm"
+            onClick={onClose}
+        >
+            <div
+                className={`relative flex flex-col rounded-xl shadow-2xl border overflow-hidden ${theme === 'dark' ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'}`}
+                style={{ width: '600px', height: '500px', maxWidth: '90vw', maxHeight: '85vh' }}
+                onClick={(e) => e.stopPropagation()}
+            >
+                {/* Fixed Header - never shrinks */}
+                <div
+                    className={`flex items-center justify-between px-4 py-2.5 border-b flex-shrink-0 ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'}`}
+                    style={{ height: '42px' }}
+                >
+                    <span className={`text-xs font-semibold truncate ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                        🖼️ {image.alt || 'Question Image'}
+                    </span>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <button
+                            onClick={() => window.open(image.url, '_blank')}
+                            className={`h-6 px-2 text-[10px] rounded flex items-center gap-1 transition-colors ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
+                        >
+                            <Maximize2 className="w-3 h-3" />
+                            Full
+                        </button>
+                        <button
+                            onClick={onClose}
+                            className={`h-6 w-6 flex items-center justify-center rounded transition-colors ${theme === 'dark' ? 'hover:bg-red-900/50 text-gray-400 hover:text-red-400' : 'hover:bg-red-100 text-gray-500 hover:text-red-600'}`}
+                        >
+                            <X className="w-3.5 h-3.5" />
+                        </button>
+                    </div>
+                </div>
+
+                {/* Fixed Image Area - always exactly fills remaining space */}
+                <div
+                    className={`flex-1 overflow-auto flex items-center justify-center ${theme === 'dark' ? 'bg-gray-950' : 'bg-gray-100'}`}
+                    style={{ height: 'calc(500px - 42px)' }}
+                >
+                    <img
+                        src={image.url}
+                        alt={image.alt}
+                        style={{
+                            maxWidth: '100%',
+                            maxHeight: '100%',
+                            width: 'auto',
+                            height: 'auto',
+                            objectFit: 'contain',
+                            borderRadius: '4px',
+                            display: 'block',
+                        }}
+                    />
+                </div>
+            </div>
+        </div>
+    );
+};
 
     // Determine if assessment mode is active (You Do category)
     useEffect(() => {
@@ -917,7 +1179,7 @@ function solve() {
                 subcategory: subcategory || ""
             });
 
-            const response = await fetch(`http://localhost:5533/courses/answers/single?${params.toString()}`, {
+            const response = await fetch(`https://lms-server-ym1q.onrender.com/courses/answers/single?${params.toString()}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
 
@@ -1617,7 +1879,7 @@ function solve() {
             // Save recording URL to backend
             try {
                 const token = localStorage.getItem('smartcliff_token') || '';
-                const saveResponse = await fetch('http://localhost:5533/assessment/recording', {
+                const saveResponse = await fetch('https://lms-server-ym1q.onrender.com/assessment/recording', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -1806,7 +2068,7 @@ function solve() {
                 formData.append('screenRecording', screenRecordingBlob, filename);
             }
 
-            await fetch('http://localhost:5533/exercise/lock', {
+            await fetch('https://lms-server-ym1q.onrender.com/exercise/lock', {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`
@@ -1930,12 +2192,27 @@ function solve() {
                 }
             }
 
+            // Java requires filename to match the public class name exactly
+            const getFileName = (lang: string, code: string): string => {
+                if (lang === 'java') {
+                    const match = code.match(/public\s+class\s+(\w+)/);
+                    return match ? `${match[1]}.java` : 'Main.java';
+                }
+                const extMap: Record<string, string> = {
+                    python: 'main.py', javascript: 'main.js', typescript: 'main.ts',
+                    cpp: 'main.cpp', c: 'main.c', csharp: 'main.cs', go: 'main.go',
+                    rust: 'main.rs', kotlin: 'main.kt', swift: 'main.swift',
+                    php: 'main.php', ruby: 'main.rb', scala: 'main.scala',
+                };
+                return extMap[lang] || 'main';
+            };
+
             const requestBody = {
                 language: pistonLang.language,
                 version: pistonLang.version,
                 files: [
                     {
-                        name: "main",
+                        name: getFileName(pistonLang.language, currentCode),
                         content: currentCode
                     }
                 ],
@@ -2093,7 +2370,7 @@ function solve() {
             addTerminalLog('system', '📤 Submitting to server...');
 
             const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
-            const response = await fetch('http://localhost:5533/courses/answers/submit', {
+            const response = await fetch('https://lms-server-ym1q.onrender.com/courses/answers/submit', {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`
@@ -2121,125 +2398,6 @@ function solve() {
             throw error;
         }
     };
-    //   const submitCode = async () => {
-    //   if (isAssessmentMode && !hasStarted) {
-    //     showToast({
-    //       type: 'warning',
-    //       title: 'Assessment Not Started',
-    //       message: 'Please start the assessment first',
-    //       duration: 3000
-    //     });
-    //     return;
-    //   }
-
-    //   // Check security setting first
-    //   const isCopyPasteDisabled = securitySettings.disableClipboard === true;
-
-    //   if (isCopyPasteDisabled && isCopyPasteDetected(code)) {
-    //     addTerminalLog('error', 'Submission rejected: Copy-paste is not allowed for this exercise.');
-    //     setShowTerminal(true);
-    //     return;
-    //   }
-
-    //   // Then check exercise setting if security doesn't restrict it
-    //   if (!isCopyPasteDisabled && !exercise?.compilerSettings?.allowCopyPaste && isCopyPasteDetected(code)) {
-    //     addTerminalLog('error', 'Submission rejected: Copy-paste is not allowed for this exercise.');
-    //     setShowTerminal(true);
-    //     return;
-    //   }
-
-    //   // Check attempts
-    //   if (exercise?.questionBehavior?.attemptLimitEnabled && currentQuestion) {
-    //     const max = exercise.questionBehavior.maxAttempts || 1;
-    //     if (userAttempts >= max) {
-    //       const msg = `Maximum attempts reached (${userAttempts}/${max}). You cannot submit again.`;
-    //       addTerminalLog('error', msg);
-    //       setShowTerminal(true);
-    //       showToast({
-    //         type: 'error',
-    //         title: 'Limit Reached',
-    //         message: msg,
-    //         duration: 4000
-    //       });
-    //       return;
-    //     }
-    //   }
-
-    //   setIsRunning(true);
-    //   setShowTerminal(true);
-    //   clearTerminal();
-
-    //   addTerminalLog('system', '🚀 Starting submission process...');
-
-    //   try {
-    //     // Prepare screen recording blob if available
-    // let screenRecordingBlob: Blob | undefined;
-    //   if (securitySettings.screenRecordingEnabled && recordedChunksRef.current.length > 0) {
-    //   screenRecordingBlob = new Blob(recordedChunksRef.current, {
-    //     type: mediaRecorderRef.current?.mimeType || 'video/webm'
-    //   });
-    //   addTerminalLog('system', `📹 Including screen recording with submission (${screenRecordingBlob.size} bytes)...`);
-    //   console.log('📹 Screen recording blob for submission:', {
-    //     size: screenRecordingBlob.size,
-    //     type: screenRecordingBlob.type
-    //   });
-    // }
-
-    //     // Submit to backend with screen recording
-    //     addTerminalLog('system', '💾 Saving progress to server for manual evaluation...');
-    //     const submitResponse = await submitProgressToBackend(
-    //       currentQuestion!._id,
-    //       'submitted', // Use 'submitted' status for manual evaluation
-    //       0, // Score will be assigned manually
-    //       screenRecordingBlob
-    //     );
-
-    //     if (submitResponse && submitResponse.success) {
-    //       // Update attempts
-    //       setUserAttempts(prev => prev + 1);
-
-    //       addTerminalLog('success', '✅ Code submitted for manual evaluation!');
-
-    //       // Mark as submitted
-    //       setSolvedQuestions(prev => {
-    //         const newSet = new Set(prev);
-    //         newSet.add(currentProblemIndex);
-    //         return newSet;
-    //       });
-
-    //       // Auto-navigate if allowed
-    //       if (exercise?.questionBehavior?.allowNext && currentProblemIndex < problems.length - 1) {
-    //         let countdown = 3;
-
-    //         const countdownInterval = setInterval(() => {
-    //           addTerminalLog('system', `⏱️ Next question in ${countdown}...`);
-    //           countdown--;
-
-    //           if (countdown < 0) {
-    //             clearInterval(countdownInterval);
-    //             setCurrentProblemIndex(currentProblemIndex + 1);
-    //             addTerminalLog('system', '➡️ Moving to next question...');
-    //           }
-    //         }, 1000);
-    //       }
-
-    //       // Check if last question in assessment mode
-    //       if (isAssessmentMode && currentProblemIndex === problems.length - 1) {
-    //         setTimeout(() => {
-    //           handleTermination("Assessment Completed Successfully", 'completed');
-    //         }, 2000);
-    //       }
-    //     }
-
-    //   } catch (error: any) {
-    //     console.error("Submission error:", error);
-    //     addTerminalLog('error', `❌ ${error.message}`);
-    //   } finally {
-    //     setIsRunning(false);
-    //   }
-    // };
-
-
 
     const submitCode = async () => {
         if (isAssessmentMode && !hasStarted) {
@@ -2539,10 +2697,10 @@ function solve() {
 
     const toggleFullscreen = async () => {
         if (!document.fullscreenElement) {
-            await document.documentElement.requestFullscreen();
+            try { await document.documentElement.requestFullscreen(); } catch { }
             setIsFullscreen(true);
         } else {
-            await document.exitFullscreen();
+            try { await document.exitFullscreen(); } catch { }
             setIsFullscreen(false);
         }
     }
@@ -2617,7 +2775,7 @@ function solve() {
 
             try {
                 const token = localStorage.getItem('smartcliff_token') || '';
-                const response = await fetch(`http://localhost:5533/exercise/status?courseId=${courseId}&exerciseId=${exercise._id}&category=You_Do&subcategory=${subcategory}`, {
+                const response = await fetch(`https://lms-server-ym1q.onrender.com/exercise/status?courseId=${courseId}&exerciseId=${exercise._id}&category=You_Do&subcategory=${subcategory}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
 
@@ -2692,10 +2850,8 @@ function solve() {
     return (
         <div
             ref={editorRef}
-            className={`${theme === 'dark' ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'} border-gray-300 rounded-lg w-full flex flex-col border transition-all duration-300 ${isFullscreen
-                ? "fixed inset-0 z-50 rounded-none"
-                : "relative h-full min-h-0 flex-1"
-                }`}
+            className={`${theme === 'dark' ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'} border-gray-300 flex flex-col border ${isFullscreen ? 'rounded-none' : 'rounded-lg relative h-full min-h-0 flex-1'}`}
+            style={isFullscreen ? { position: 'fixed', inset: 0, width: '100vw', height: '100vh', zIndex: 2147483647, overflow: 'hidden' } : undefined}
         >
             {/* Security Agreement Modal */}
             <SecurityAgreementModal
@@ -3124,56 +3280,89 @@ function solve() {
                         </div>
                     </div>
                 )}
-                <div style={{ width: `${leftPanelWidth}%` }} className="overflow-y-auto h-full custom-scrollbar border-r border-gray-300 dark:border-gray-700">
-                    <div className={`p-5 space-y-6 ${theme === 'dark' ? 'bg-gray-900' : 'bg-white'}`}>
-                        <div>
-                            <h1 className={`text-xl font-semibold mb-1.5 ${theme === 'dark' ? 'text-white' : 'text-gray-700'}`}>{problem?.title || "Problem"}</h1>
-                            <div className="flex items-center gap-2">
-                                <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${problem?.difficulty === "Easy" ? (theme === 'dark' ? 'bg-green-900/30 text-green-300' : 'bg-green-100 text-green-800') : problem?.difficulty === "Medium" ? (theme === 'dark' ? 'bg-yellow-900/30 text-yellow-300' : 'bg-yellow-100 text-yellow-800') : (theme === 'dark' ? 'bg-red-900/30 text-red-300' : 'bg-red-100 text-red-800')}`}>
-                                    {problem?.difficulty || "Easy"}
-                                </span>
-                                {exercise?.questionBehavior?.attemptLimitEnabled && (
-                                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border flex items-center gap-1 ${userAttempts >= (exercise.questionBehavior.maxAttempts || 1) ? (theme === 'dark' ? 'bg-red-900/30 text-red-300 border-red-800' : 'bg-red-100 text-red-800 border-red-200') : (theme === 'dark' ? 'bg-blue-900/30 text-blue-300 border-blue-800' : 'bg-blue-100 text-blue-800 border-blue-200')}`}>
-                                        {userAttempts >= (exercise.questionBehavior.maxAttempts || 1) && <AlertTriangle className="w-3 h-3" />}
-                                        Attempts: {userAttempts} / {exercise.questionBehavior.maxAttempts}
+                <div style={{ width: `${leftPanelWidth}%` }} className="h-full flex flex-col border-r border-gray-300 dark:border-gray-700 overflow-hidden">
+                    <div className="flex-1 overflow-y-auto custom-scrollbar">
+                        <div className={`p-5 space-y-6 ${theme === 'dark' ? 'bg-gray-900' : 'bg-white'}`}>
+                            <div>
+                                <h1 className={`text-xl font-semibold mb-1.5 ${theme === 'dark' ? 'text-white' : 'text-gray-700'}`}>{problem?.title || "Problem"}</h1>
+                                <div className="flex items-center gap-2">
+                                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${problem?.difficulty === "Easy" ? (theme === 'dark' ? 'bg-green-900/30 text-green-300' : 'bg-green-100 text-green-800') : problem?.difficulty === "Medium" ? (theme === 'dark' ? 'bg-yellow-900/30 text-yellow-300' : 'bg-yellow-100 text-yellow-800') : (theme === 'dark' ? 'bg-red-900/30 text-red-300' : 'bg-red-100 text-red-800')}`}>
+                                        {problem?.difficulty || "Easy"}
                                     </span>
-                                )}
+                                    {exercise?.questionBehavior?.attemptLimitEnabled && (
+                                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border flex items-center gap-1 ${userAttempts >= (exercise.questionBehavior.maxAttempts || 1) ? (theme === 'dark' ? 'bg-red-900/30 text-red-300 border-red-800' : 'bg-red-100 text-red-800 border-red-200') : (theme === 'dark' ? 'bg-blue-900/30 text-blue-300 border-blue-800' : 'bg-blue-100 text-blue-800 border-blue-200')}`}>
+                                            {userAttempts >= (exercise.questionBehavior.maxAttempts || 1) && <AlertTriangle className="w-3 h-3" />}
+                                            Attempts: {userAttempts} / {exercise.questionBehavior.maxAttempts}
+                                        </span>
+                                    )}
+                                </div>
                             </div>
-                        </div>
 
-                        <div>
-                            <div className="flex items-center gap-1.5 mb-2">
-                                <FileText className={`w-4 h-4 ${theme === 'dark' ? 'text-blue-400' : 'text-blue-500'}`} />
-                                <h3 className={`text-sm font-semibold ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>Description</h3>
-                            </div>
-                            <div className={`text-xs space-y-3 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
-                                {problem?.description?.split('\n').map((line, i) => <p key={i} className="leading-relaxed">{line}</p>)}
-                            </div>
-                        </div>
-
-                        {problem?.examples && problem.examples.length > 0 && (
                             <div>
                                 <div className="flex items-center gap-1.5 mb-2">
-                                    <Terminal className={`w-4 h-4 ${theme === 'dark' ? 'text-green-400' : 'text-green-500'}`} />
-                                    <h3 className={`text-sm font-semibold ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>Sample Input & Output</h3>
+                                    <FileText className={`w-4 h-4 ${theme === 'dark' ? 'text-blue-400' : 'text-blue-500'}`} />
+                                    <h3 className={`text-sm font-semibold ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>Description</h3>
                                 </div>
-                                <div className="space-y-3">
-                                    {problem.examples.map((example, index) => (
-                                        <div key={index}>
-                                            <strong className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Example {index + 1}</strong>
-                                            <div className="mt-1 mb-2">
-                                                <div className={`text-xs font-medium mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-700'}`}>Input:</div>
-                                                <div className={`p-2 rounded font-mono text-xs ${theme === 'dark' ? 'bg-gray-800 text-gray-300 border border-gray-700' : 'bg-gray-100 text-gray-900 border border-gray-200'}`}>{example.input}</div>
+                                <div
+                                    className={`text-xs leading-relaxed ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}
+                                    style={{ lineHeight: '1.8' }}
+                                    dangerouslySetInnerHTML={{ __html: renderDescriptionWithClickableImages(problem?.description || '') }}
+                                />
+                            </div>
+
+                            {problem?.examples && problem.examples.length > 0 && (
+                                <div>
+                                    <div className="flex items-center gap-1.5 mb-2">
+                                        <Terminal className={`w-4 h-4 ${theme === 'dark' ? 'text-green-400' : 'text-green-500'}`} />
+                                        <h3 className={`text-sm font-semibold ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>Sample Input & Output</h3>
+                                    </div>
+                                    <div className="space-y-3">
+                                        {problem.examples.map((example, index) => (
+                                            <div key={index}>
+                                                <strong className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Example {index + 1}</strong>
+                                                <div className="mt-1 mb-2">
+                                                    <div className={`text-xs font-medium mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-700'}`}>Input:</div>
+                                                    <div className={`p-2 rounded font-mono text-xs ${theme === 'dark' ? 'bg-gray-800 text-gray-300 border border-gray-700' : 'bg-gray-100 text-gray-900 border border-gray-200'}`}>{example.input}</div>
+                                                </div>
+                                                <div className="mb-2">
+                                                    <div className={`text-xs font-medium mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-700'}`}>Output:</div>
+                                                    <div className={`p-2 rounded font-mono text-xs ${theme === 'dark' ? 'bg-gray-800 text-gray-300 border border-gray-700' : 'bg-gray-100 text-gray-900 border border-gray-200'}`}>{example.output}</div>
+                                                </div>
                                             </div>
-                                            <div className="mb-2">
-                                                <div className={`text-xs font-medium mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-700'}`}>Output:</div>
-                                                <div className={`p-2 rounded font-mono text-xs ${theme === 'dark' ? 'bg-gray-800 text-gray-300 border border-gray-700' : 'bg-gray-100 text-gray-900 border border-gray-200'}`}>{example.output}</div>
-                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {currentQuestion?.constraints && currentQuestion.constraints.length > 0 && (
+                                <div>
+                                    <div className="flex items-center gap-1.5 mb-2">
+                                        <AlertCircle className={`w-4 h-4 ${theme === 'dark' ? 'text-yellow-400' : 'text-yellow-500'}`} />
+                                        <h3 className={`text-sm font-semibold ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>Constraints</h3>
+                                    </div>
+                                    <ul className={`space-y-1 text-xs ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                                        {currentQuestion.constraints.map((c, i) => (
+                                            <li key={i} className={`px-2 py-1 rounded font-mono ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-50'}`}>
+                                                {c}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+                            {currentQuestion?.hints && currentQuestion.hints.filter(h => h.isPublic).length > 0 && (
+                                <div>
+                                    <div className="flex items-center gap-1.5 mb-2">
+                                        <AlertCircle className={`w-4 h-4 ${theme === 'dark' ? 'text-blue-400' : 'text-blue-500'}`} />
+                                        <h3 className={`text-sm font-semibold ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>Hints</h3>
+                                    </div>
+                                    {currentQuestion.hints.filter(h => h.isPublic).map((hint, i) => (
+                                        <div key={i} className={`text-xs px-3 py-2 rounded mb-1 ${theme === 'dark' ? 'bg-blue-900/20 text-blue-300 border border-blue-800' : 'bg-blue-50 text-blue-800 border border-blue-100'}`}>
+                                            💡 {hint.hintText}
                                         </div>
                                     ))}
                                 </div>
-                            </div>
-                        )}
+                            )}
+                        </div>
                     </div>
                 </div>
 
@@ -3216,41 +3405,6 @@ function solve() {
                             />
                         </div>
                     </div>
-
-                    {/* <div className={`h-2 flex items-center justify-center cursor-row-resize transition-colors ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-200'}`} onMouseDown={(e) => { setIsHorizontalResizing(true); e.preventDefault(); }}>
-                        <div className={`w-full h-px ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-300'}`}></div>
-                    </div> */}
-
-                    {/* Simple Output Panel */}
-                    {/* <div className="h-1/4 border-t border-zinc-700 bg-zinc-900 p-2 overflow-y-auto flex flex-col">
-                        <div className="flex items-center gap-1.5 mb-2">
-                            <Terminal className="w-4 h-4 text-green-400" />
-                            <span className="text-xs font-medium text-zinc-300">Output</span>
-                        </div>
-                        <div className="flex-1 overflow-auto custom-scrollbar">
-                            {terminalLogs.length === 0 && !isRunning && (
-                                <div className="italic text-zinc-500 text-xs">
-                                    Run your code to see output here
-                                </div>
-                            )}
-                            {terminalLogs.slice(-20).map((log) => (
-                                <div key={log.id} className="text-xs font-mono break-all whitespace-pre-wrap">
-                                    {log.type === 'stdout' && <span className="text-zinc-300">{log.content}</span>}
-                                    {log.type === 'stderr' && <span className="text-rose-400">{log.content}</span>}
-                                    {log.type === 'error' && <span className="text-red-400">{log.content}</span>}
-                                    {log.type === 'success' && <span className="text-green-400">{log.content}</span>}
-                                    {log.type === 'info' && <span className="text-blue-400">{log.content}</span>}
-                                    {log.type === 'warning' && <span className="text-yellow-400">{log.content}</span>}
-                                </div>
-                            ))}
-                            {isRunning && (
-                                <div className="flex items-center gap-2 mt-2">
-                                    <Loader2 className="w-3 h-3 text-emerald-500 animate-spin" />
-                                    <span className="text-zinc-500 text-xs">Executing...</span>
-                                </div>
-                            )}
-                        </div>
-                    </div> */}
                 </div>
             </div>
 
@@ -3274,6 +3428,13 @@ function solve() {
                     </div>
                 ))}
             </div>
+
+            {/* Image Modal */}
+            <ImageModal 
+                image={modalImage} 
+                onClose={() => setModalImage(null)} 
+                theme={theme} 
+            />
 
             <style jsx global>{`
                 .custom-scrollbar { scrollbar-width: thin; scrollbar-color: ${theme === 'dark' ? '#4b5563 transparent' : '#9ca3af transparent'}; }

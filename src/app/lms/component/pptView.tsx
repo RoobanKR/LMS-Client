@@ -1,564 +1,1093 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import React, { useState, useRef, useEffect } from "react"
 import {
-  X,
-  Download,
-  FileText,
-  Sparkles,
-  ZoomIn,
-  ZoomOut,
-  ChevronLeft,
-  ChevronRight,
-  Printer,
-  Bookmark,
-  Share,
-  Maximize,
-  Minimize,
-  Settings,
-  Play,
-  Pause,
-  Square,
-  ExternalLink,
-  Layers,
-  BookOpen,
-  Menu,
-  Eye,
-  Fullscreen,
+  X, Download, FileText, ZoomIn, ZoomOut, ChevronLeft, ChevronRight,
+  Printer, Maximize, Minimize, Settings, ExternalLink,
+  HelpCircle, Save, Loader, AlertCircle, Plus, Trash2,
+  Copy, ChevronUp, ChevronDown, List, CheckSquare, AlignLeft,
+  Image, Check, SlidersHorizontal, BookOpen, Hash,
+  MousePointer, Link, Zap, Share2, Sparkles,
 } from "lucide-react"
-// import AIPanel from "./ai-panel"
-// import NotesPanel from "./notes-panel"
 
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
+let _uid = 0
+const uid = (prefix = "id") => `${prefix}-${++_uid}-${Math.random().toString(36).slice(2, 7)}`
+
+// ─── GENERATED LINK POPUP ────────────────────────────────────────────────────
+function GeneratedLinkPopup({
+  link, slideNumber, questionCount, fileName, onClose,
+}: {
+  link: string; slideNumber: number; questionCount: number; fileName: string; onClose: () => void
+}) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(link)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      const el = document.createElement("textarea")
+      el.value = link
+      document.body.appendChild(el)
+      el.select()
+      document.execCommand("copy")
+      document.body.removeChild(el)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 20000,
+      backgroundColor: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      animation: "fadeIn 0.2s ease-out",
+    }}>
+      <div style={{
+        backgroundColor: "#0f172a", border: "1px solid #1e293b", borderRadius: 16,
+        padding: 32, maxWidth: 520, width: "90%",
+        boxShadow: "0 25px 60px rgba(0,0,0,0.8)", animation: "slideUp 0.25s ease-out",
+      }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <div style={{
+              width: 48, height: 48, backgroundColor: "rgba(245,158,11,0.15)",
+              border: "1px solid rgba(245,158,11,0.3)", borderRadius: 12,
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <Share2 size={22} color="#f59e0b" />
+            </div>
+            <div>
+              <h3 style={{ color: "white", fontWeight: 700, fontSize: 16, margin: 0 }}>Live MCQ Link Generated</h3>
+              <p style={{ color: "#64748b", fontSize: 12, margin: "3px 0 0" }}>
+                {questionCount} question{questionCount !== 1 ? "s" : ""} · Slide {slideNumber}
+              </p>
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#475569", padding: 4 }}>
+            <X size={18} />
+          </button>
+        </div>
+<div style={{
+  display: "flex", alignItems: "center", gap: 8,
+  backgroundColor: "rgba(0,0,0,0.4)", borderRadius: 20,
+  padding: "6px 14px", fontSize: 11, color: "#9ca3af",
+  border: "1px solid #374151",
+}}>
+          <FileText size={14} color="#64748b" />
+          <span style={{ fontSize: 12, color: "#94a3b8", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{fileName}</span>
+          <span style={{ fontSize: 10, color: "#f59e0b", backgroundColor: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.2)", padding: "2px 8px", borderRadius: 99, fontWeight: 700 }}>
+            Slide {slideNumber}
+          </span>
+        </div>
+
+        <div style={{ backgroundColor: "#1e293b", border: "1px solid #334155", borderRadius: 10, padding: "12px 14px", marginBottom: 12 }}>
+          <div style={{ fontSize: 10, color: "#64748b", fontWeight: 600, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.5px" }}>Shareable Link</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ flex: 1, fontSize: 12, color: "#94a3b8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "monospace" }}>{link}</span>
+            <button onClick={handleCopy} style={{
+              display: "flex", alignItems: "center", gap: 5, padding: "6px 12px",
+              backgroundColor: copied ? "rgba(16,185,129,0.15)" : "rgba(245,158,11,0.15)",
+              border: `1px solid ${copied ? "rgba(16,185,129,0.3)" : "rgba(245,158,11,0.3)"}`,
+              borderRadius: 6, cursor: "pointer", color: copied ? "#10b981" : "#f59e0b",
+              fontSize: 11, fontWeight: 700, flexShrink: 0, transition: "all 0.2s",
+            }}>
+              {copied ? <Check size={12} /> : <Copy size={12} />}
+              {copied ? "Copied!" : "Copy"}
+            </button>
+          </div>
+        </div>
+
+        <a href={link} target="_blank" rel="noopener noreferrer" style={{
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+          width: "100%", padding: "11px 0", backgroundColor: "#f59e0b", borderRadius: 8,
+          color: "#0f172a", fontWeight: 700, fontSize: 13, textDecoration: "none",
+          transition: "background-color 0.15s", marginBottom: 12,
+        }}
+          onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#d97706")}
+          onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#f59e0b")}
+        >
+          <ExternalLink size={14} /> Open Live MCQ Page
+        </a>
+
+        <p style={{ fontSize: 11, color: "#475569", textAlign: "center", margin: 0, lineHeight: 1.6 }}>
+          Anyone with this link can answer the MCQ questions for slide {slideNumber}.<br />
+          Share it with your students to let them respond in real time.
+        </p>
+      </div>
+      <style>{`
+        @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px) } to { opacity: 1; transform: translateY(0) } }
+      `}</style>
+    </div>
+  )
+}
+
+// ─── CONTEXT MENU ─────────────────────────────────────────────────────────────
+function ContextMenu({ x, y, slideNumber, onAddMcq, onLiveAddMcq, onClose }: {
+  x: number; y: number; slideNumber: number
+  onAddMcq: (slide: number) => void; onLiveAddMcq: (slide: number) => void; onClose: () => void
+}) {
+  const menuRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const out = (e: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(e.target as Node)) onClose() }
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") onClose() }
+    document.addEventListener("mousedown", out)
+    document.addEventListener("keydown", esc)
+    return () => { document.removeEventListener("mousedown", out); document.removeEventListener("keydown", esc) }
+  }, [onClose])
+
+  return (
+    <div ref={menuRef} style={{
+      position: "fixed", left: x, top: y, zIndex: 10000,
+      minWidth: 240, backgroundColor: "#1f2937", border: "1px solid #374151",
+      borderRadius: 10, boxShadow: "0 10px 30px rgba(0,0,0,0.6)", padding: "4px 0",
+      animation: "ctxFade 0.12s ease-out",
+    }}>
+      <div style={{ padding: "8px 12px", borderBottom: "1px solid #374151", fontSize: 11, color: "#9ca3af", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", display: "flex", alignItems: "center", gap: 6 }}>
+        <Hash size={12} color="#a78bfa" /> Slide {slideNumber}
+      </div>
+      <button onClick={() => { onAddMcq(slideNumber); onClose() }}
+        style={{ width: "100%", padding: "10px 12px", backgroundColor: "transparent", border: "none", color: "#f3f4f6", fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 10, transition: "background-color 0.15s" }}
+        onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#374151")}
+        onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}>
+        <HelpCircle size={14} color="#a78bfa" />
+        <span style={{ flex: 1, textAlign: "left" }}>Add MCQ Question</span>
+        <span style={{ fontSize: 10, color: "#a78bfa", backgroundColor: "rgba(124,58,237,0.15)", padding: "2px 6px", borderRadius: 4, fontWeight: 700 }}>default</span>
+      </button>
+      <button onClick={() => { onLiveAddMcq(slideNumber); onClose() }}
+        style={{ width: "100%", padding: "10px 12px", backgroundColor: "transparent", border: "none", color: "#f3f4f6", fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 10, transition: "background-color 0.15s" }}
+        onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#374151")}
+        onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}>
+        <Zap size={14} color="#f59e0b" />
+        <span style={{ flex: 1, textAlign: "left" }}>Live Add MCQ Question</span>
+        <span style={{ fontSize: 10, color: "#f59e0b", backgroundColor: "rgba(245,158,11,0.15)", padding: "2px 6px", borderRadius: 4, fontWeight: 700 }}>link</span>
+      </button>
+      <div style={{ padding: "8px 12px", fontSize: 10, color: "#6b7280", borderTop: "1px solid #374151", marginTop: 4, display: "flex", alignItems: "center", gap: 6 }}>
+        <MousePointer size={10} color="#6b7280" /> Right-click any slide to add questions
+      </div>
+    </div>
+  )
+}
+
+// ─── TYPE CONFIG ──────────────────────────────────────────────────────────────
+const typeConfig = {
+  "multiple-choice": { label: "Multiple Choice", icon: <List className="h-3.5 w-3.5" />, color: "text-violet-600", bg: "bg-violet-50" },
+  "checkboxes": { label: "Checkboxes", icon: <CheckSquare className="h-3.5 w-3.5" />, color: "text-blue-600", bg: "bg-blue-50" },
+  "short-answer": { label: "Short Answer", icon: <AlignLeft className="h-3.5 w-3.5" />, color: "text-orange-600", bg: "bg-orange-50" },
+  "paragraph": { label: "Paragraph", icon: <BookOpen className="h-3.5 w-3.5" />, color: "text-teal-600", bg: "bg-teal-50" },
+}
+
+// ─── OPTIONS PER ROW PICKER ───────────────────────────────────────────────────
+function OptionsPerRowPicker({ value, onChange }: { value: number; onChange: (n: number) => void }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="text-[10px] font-semibold text-slate-400">Layout:</span>
+      {[1, 2, 3, 4].map(n => (
+        <button key={n} type="button" onClick={() => onChange(n)}
+          className={`w-6 h-6 rounded-md text-[10px] font-bold transition-all ${value === n ? "bg-violet-600 text-white shadow-sm" : "bg-slate-100 text-slate-500 hover:bg-violet-50 hover:text-violet-600"}`}>
+          {n}
+        </button>
+      ))}
+      <span className="text-[10px] text-slate-400">per row</span>
+    </div>
+  )
+}
+
+// ─── SETTINGS MENU ────────────────────────────────────────────────────────────
+function SettingsMenu({ isOpen, onClose, onCollapseAll, onExpandAll }: any) {
+  if (!isOpen) return null
+  return (
+    <div className="absolute top-full right-0 mt-1.5 w-52 bg-white rounded-xl shadow-2xl border border-slate-200 py-2 z-50">
+      <p className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">View</p>
+      {([["Collapse All", <ChevronRight className="h-3.5 w-3.5 text-slate-400" />, onCollapseAll],
+        ["Expand All", <ChevronDown className="h-3.5 w-3.5 text-slate-400" />, onExpandAll]] as any[]).map(([label, icon, handler]) => (
+          <button key={label} onClick={() => { handler(); onClose() }}
+            className="w-full px-3 py-2 flex items-center gap-2 hover:bg-slate-50 transition-colors text-xs text-slate-700">
+            {icon}{label}
+          </button>
+        ))}
+    </div>
+  )
+}
+
+// ─── IMAGE TOOLBAR ────────────────────────────────────────────────────────────
+function ImageToolbar({ alignment, sizePercent, onAlignmentChange, onSizeChange, onRemove, onClose }: any) {
+  return (
+    <div className="absolute top-2 left-1/2 -translate-x-1/2 z-50 bg-white rounded-xl shadow-2xl border border-slate-200 flex items-stretch divide-x divide-slate-100" style={{ minWidth: 260 }}>
+      <div className="flex flex-col items-center justify-center px-3 py-2 gap-1">
+        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Align</span>
+        <div className="flex gap-0.5">
+          {["left", "center", "right"].map(a => (
+            <button key={a} onClick={() => onAlignmentChange(a)}
+              className={`w-6 h-6 rounded-md text-[10px] font-bold transition-all ${alignment === a ? "bg-violet-600 text-white" : "bg-slate-100 text-slate-400 hover:bg-violet-50 hover:text-violet-600"}`}>
+              {a[0].toUpperCase()}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="flex flex-col justify-center px-3 py-2 gap-1 flex-1">
+        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Size {sizePercent}%</span>
+        <div className="flex items-center gap-1.5">
+          <ZoomOut className="h-3 w-3 text-slate-300" />
+          <input type="range" min={10} max={100} step={5} value={sizePercent} onChange={e => onSizeChange(parseInt(e.target.value))} className="flex-1 h-1.5 accent-violet-600 cursor-pointer" />
+          <ZoomIn className="h-3 w-3 text-slate-300" />
+        </div>
+      </div>
+      <div className="flex items-center gap-0.5 px-2 py-2">
+        <button onClick={onRemove} className="p-1.5 hover:bg-red-50 rounded-lg text-slate-400 hover:text-red-500 transition-colors"><Trash2 className="h-3.5 w-3.5" /></button>
+        <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 transition-colors"><X className="h-3.5 w-3.5" /></button>
+      </div>
+    </div>
+  )
+}
+
+// ─── MCQ QUESTION FORM ────────────────────────────────────────────────────────
+function MCQQuestionForm({
+  onClose, onSave, initialSlideNumber = 1,
+  fileId, fileName, entityType, entityId, tabType, subcategory, folderPath = [],
+  apiBaseUrl = "https://lms-server-ym1q.onrender.com", mcqMode = "default", sampleLink = "",
+  onLinkGenerated,
+}: any) {
+
+  const makeBlock = () => ({
+    id: uid("block"), isActive: true, sequence: 0, slideNumber: initialSlideNumber,
+    mcqQuestion: {
+      questionTitle: "",
+      options: [
+        { id: uid("opt"), text: "", isCorrect: false, imageUrl: null, imageAlignment: "left", imageSizePercent: 100 },
+        { id: uid("opt"), text: "", isCorrect: false, imageUrl: null, imageAlignment: "left", imageSizePercent: 100 },
+      ],
+      correctAnswers: [], explanation: "",
+    },
+    type: "multiple-choice", hasExplanation: false, optionsPerRow: 1, isRequired: false,
+    questionImage: { imageUrl: "", alignment: "center", sizePercent: 60 }, explanationImageUrl: "",
+  })
+
+  const [blocks, setBlocks] = useState([makeBlock()])
+  const [errors, setErrors] = useState<Record<string, any>>({})
+  const [collapsedState, setCollapsed] = useState<Record<string, boolean>>({})
+  const [showTypeMenu, setShowTypeMenu] = useState<string | null>(null)
+  const [showSettings, setShowSettings] = useState(false)
+  const [activeImgToolbar, setActiveImgToolbar] = useState<any>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [linkValue, setLinkValue] = useState(sampleLink || "https://example.com/live-mcq-sample")
+  const isLinkMode = mcqMode === "link"
+
+  const updateBlock = (id: string, patch: any) => setBlocks(bs => bs.map(b => b.id === id ? { ...b, ...patch } : b))
+  const updateMcqQuestion = (id: string, patch: any) => setBlocks(bs => bs.map(b => b.id === id ? { ...b, mcqQuestion: { ...b.mcqQuestion, ...patch } } : b))
+  const updateOption = (bid: string, oid: string, patch: any) => setBlocks(bs => bs.map(b => b.id === bid ? { ...b, mcqQuestion: { ...b.mcqQuestion, options: b.mcqQuestion.options.map((o: any) => o.id === oid ? { ...o, ...patch } : o) } } : b))
+  const addBlock = () => { const nb = makeBlock(); setBlocks(bs => [...bs, nb]); setCollapsed(p => ({ ...p, [nb.id]: false })) }
+  const removeBlock = (id: string) => { if (blocks.length === 1) { const nb = makeBlock(); setBlocks([nb]); setCollapsed({ [nb.id]: false }) } else { setBlocks(bs => bs.filter(b => b.id !== id)); setCollapsed(p => { const n = { ...p }; delete n[id]; return n }) } }
+  const moveBlock = (id: string, dir: "up" | "down") => { const idx = blocks.findIndex(b => b.id === id); if (dir === "up" && idx === 0) return; if (dir === "down" && idx === blocks.length - 1) return; const nb = [...blocks]; const ni = dir === "up" ? idx - 1 : idx + 1; [nb[idx], nb[ni]] = [nb[ni], nb[idx]]; setBlocks(nb) }
+  const duplicateBlock = (id: string) => { const src = blocks.find(b => b.id === id); if (!src) return; const nid = uid("block"); const dup = { ...src, id: nid, mcqQuestion: { ...src.mcqQuestion, options: src.mcqQuestion.options.map((o: any) => ({ ...o, id: uid("opt"), imageUrl: o.imageUrl?.startsWith("data:") ? "" : o.imageUrl })), correctAnswers: [] } }; setBlocks(bs => [...bs, dup]); setCollapsed(p => ({ ...p, [nid]: false })) }
+  const collapseAll = () => { const s: any = {}; blocks.forEach(b => (s[b.id] = true)); setCollapsed(s) }
+  const expandAll = () => { const s: any = {}; blocks.forEach(b => (s[b.id] = false)); setCollapsed(s) }
+
+  const addOption = (bid: string) => setBlocks(bs => bs.map(b => b.id === bid ? { ...b, mcqQuestion: { ...b.mcqQuestion, options: [...b.mcqQuestion.options, { id: uid("opt"), text: "", isCorrect: false, imageUrl: null, imageAlignment: "left", imageSizePercent: 100 }] } } : b))
+  const removeOption = (bid: string, oid: string) => setBlocks(bs => bs.map(b => { if (b.id !== bid) return b; const opt = b.mcqQuestion.options.find((o: any) => o.id === oid); const newOpts = b.mcqQuestion.options.filter((o: any) => o.id !== oid); let newCA = [...b.mcqQuestion.correctAnswers]; if (opt?.isCorrect) newCA = newCA.filter((a: string) => a !== opt.text); return { ...b, mcqQuestion: { ...b.mcqQuestion, options: newOpts, correctAnswers: newCA } } }))
+  const setCorrect = (bid: string, oid: string) => setBlocks(bs => bs.map(b => { if (b.id !== bid) return b; const updated = b.mcqQuestion.options.map((o: any) => ({ ...o, isCorrect: o.id === oid })); const correct = updated.find((o: any) => o.id === oid); return { ...b, mcqQuestion: { ...b.mcqQuestion, options: updated, correctAnswers: correct?.text ? [correct.text] : [] } } }))
+  const toggleCorrect = (bid: string, oid: string) => setBlocks(bs => bs.map(b => { if (b.id !== bid) return b; const updated = b.mcqQuestion.options.map((o: any) => o.id === oid ? { ...o, isCorrect: !o.isCorrect } : o); const newCA = updated.filter((o: any) => o.isCorrect).map((o: any) => o.text).filter((t: string) => t.trim()); return { ...b, mcqQuestion: { ...b.mcqQuestion, options: updated, correctAnswers: newCA } } }))
+  const updateOptionText = (bid: string, oid: string, newText: string) => setBlocks(bs => bs.map(b => { if (b.id !== bid) return b; const old = b.mcqQuestion.options.find((o: any) => o.id === oid); const updated = b.mcqQuestion.options.map((o: any) => o.id === oid ? { ...o, text: newText } : o); let newCA = [...b.mcqQuestion.correctAnswers]; if (old?.isCorrect) { newCA = newCA.filter((a: string) => a !== old.text); if (newText.trim()) newCA.push(newText) } return { ...b, mcqQuestion: { ...b.mcqQuestion, options: updated, correctAnswers: newCA } } }))
+
+  const uploadQuestionImage = (bid: string, file: File) => { const r = new FileReader(); r.onload = e => { updateBlock(bid, { questionImage: { ...blocks.find(b => b.id === bid)?.questionImage, imageUrl: (e.target as any).result } }); setActiveImgToolbar({ type: "question", blockId: bid }) }; r.readAsDataURL(file) }
+  const uploadOptionImage = (bid: string, oid: string, file: File) => { const r = new FileReader(); r.onload = e => { updateOption(bid, oid, { imageUrl: (e.target as any).result }); setActiveImgToolbar({ type: "option", blockId: bid, optionId: oid }) }; r.readAsDataURL(file) }
+
+  const isQImgActive = (bid: string) => activeImgToolbar?.type === "question" && activeImgToolbar.blockId === bid
+  const isOptImgActive = (bid: string, oid: string) => activeImgToolbar?.type === "option" && activeImgToolbar.blockId === bid && activeImgToolbar.optionId === oid
+
+  const validate = () => {
+    const errs: any = {}; let valid = true
+    blocks.forEach(b => {
+      const be: any = {}
+      const cleanTitle = b.mcqQuestion?.questionTitle?.replace(/<[^>]*>/g, "").trim() || ""
+      if (!cleanTitle) { be.questionTitle = "Question title is required"; valid = false }
+      if (b.mcqQuestion.options.length < 2) { be.options = "At least 2 options are required"; valid = false }
+      const nonEmpty = b.mcqQuestion.options.filter((o: any) => o.text.trim())
+      if (nonEmpty.length < 2) { be.options = "At least 2 non-empty options are required"; valid = false }
+      if (b.mcqQuestion.correctAnswers.length === 0) { be.correctAnswer = "Mark at least one correct answer"; valid = false }
+      if (Object.keys(be).length) errs[b.id] = be
+    })
+    setErrors(errs); return valid
+  }
+
+  const base64ToFile = (b64: string, name: string) => {
+    try {
+      const m = b64.match(/^data:([^;]+);base64,(.+)$/); if (!m) return null
+      const bytes = atob(m[2]); const buf = new Uint8Array(bytes.length)
+      for (let i = 0; i < bytes.length; i++) buf[i] = bytes.charCodeAt(i)
+      return new File([buf], name, { type: m[1] })
+    } catch { return null }
+  }
+
+  const handleSave = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    if (!validate()) return
+    setIsSaving(true)
+    try {
+      const formData = new FormData()
+      formData.append("tabType", tabType)
+      formData.append("subcategory", subcategory)
+      formData.append("folderPath", JSON.stringify(Array.isArray(folderPath) && folderPath.length > 0 ? folderPath : []))
+      formData.append("fileId", fileId)
+      formData.append("type", isLinkMode ? "link" : "default")
+      if (isLinkMode) formData.append("link", linkValue)
+
+      const questionsData = blocks.map((b, idx) => {
+        const cleanQuestionTitle = b.mcqQuestion?.questionTitle?.replace(/<[^>]*>/g, "").trim() || ""
+        const options = b.mcqQuestion.options.map((o: any, oi: number) => {
+          const option: any = { text: o.text.trim(), isCorrect: o.isCorrect, imageAlignment: o.imageAlignment || "left", imageSizePercent: o.imageSizePercent || 100 }
+          if (o.imageUrl?.startsWith("data:")) {
+            const imageKey = `question_${idx}_option_${oi}_image`
+            const file = base64ToFile(o.imageUrl, `option_${b.id}_${o.id}_${Date.now()}.jpg`)
+            if (file) { formData.append(imageKey, file); option.imageUrl = imageKey }
+          } else { option.imageUrl = o.imageUrl || null }
+          return option
+        })
+        const correctAnswers = b.mcqQuestion.correctAnswers.filter((a: string) => a && a.trim())
+        const questionData: any = {
+          mcqQuestionTitle: cleanQuestionTitle,
+          mcqQuestionType: "multiple_choice",
+          mcqQuestionOptionsPerRow: b.optionsPerRow || 1,
+          mcqQuestionOptions: options,
+          mcqQuestionCorrectAnswers: correctAnswers,
+          mcqQuestionRequired: b.isRequired || false,
+          mcqQuestionDescription: b.hasExplanation ? (b.explanation || "") : "",
+          isActive: true, sequence: idx,
+          pageNumber: initialSlideNumber,
+          timestamp: initialSlideNumber,
+          type: isLinkMode ? "link" : "default",
+          ...(isLinkMode ? { link: linkValue } : {}),
+        }
+        if (b.questionImage?.imageUrl) {
+          if (b.questionImage.imageUrl.startsWith("data:")) {
+            const imageKey = `question_${idx}_image`
+            const file = base64ToFile(b.questionImage.imageUrl, `question_${b.id}_${Date.now()}.jpg`)
+            if (file) { formData.append(imageKey, file); questionData.mcqQuestionImageUrl = imageKey; questionData.mcqQuestionImageAlignment = b.questionImage.alignment || "center"; questionData.mcqQuestionImageSizePercent = b.questionImage.sizePercent || 60 }
+          } else { questionData.mcqQuestionImageUrl = b.questionImage.imageUrl; questionData.mcqQuestionImageAlignment = b.questionImage.alignment || "center"; questionData.mcqQuestionImageSizePercent = b.questionImage.sizePercent || 60 }
+        }
+        return questionData
+      })
+
+      formData.append("questionsData", JSON.stringify(questionsData))
+      const token = typeof localStorage !== "undefined" ? localStorage.getItem("smartcliff_token") : ""
+      const headers: any = token ? { Authorization: `Bearer ${token}` } : {}
+
+      const response = await fetch(`${apiBaseUrl}/file-mcq-add/${entityType}/${entityId}`, {
+        method: "POST", headers, body: formData,
+      })
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message?.[0]?.value || `API error ${response.status}`)
+      }
+
+      const savedQuestions = blocks.map(b => ({
+        id: b.id, questionTitle: b.mcqQuestion?.questionTitle,
+        options: b.mcqQuestion?.options, explanation: b.explanation,
+        pageNumber: initialSlideNumber,
+        type: isLinkMode ? "link" : "default",
+        ...(isLinkMode ? { link: linkValue } : {}),
+      }))
+
+      onSave(savedQuestions)
+
+      if (isLinkMode && onLinkGenerated) {
+        const base = typeof window !== "undefined" ? window.location.origin : ""
+        const params = new URLSearchParams({ fileId, entityType, entityId, page: String(initialSlideNumber), tabType, subcategory })
+        const generatedUrl = `${base}/live-mcq?${params.toString()}`
+        onLinkGenerated(generatedUrl, blocks.length)
+        return
+      }
+      onClose()
+    } catch (err: any) {
+      console.error("Failed to save MCQ:", err)
+      alert("Failed to save questions: " + err.message)
+    } finally { setIsSaving(false) }
+  }
+
+  const renderOptions = (block: any) => {
+    const cols = block.optionsPerRow || 1
+    const gridCls = ["grid-cols-1", "grid-cols-2", "grid-cols-3", "grid-cols-4"][cols - 1]
+    return (
+      <div className={`grid ${gridCls} gap-2`}>
+        {block.mcqQuestion.options.map((opt: any, idx: number) => (
+          <div key={opt.id} className="group/opt relative">
+            <div className={`flex flex-col rounded-lg border transition-all overflow-hidden ${opt.isCorrect ? "border-emerald-300 bg-emerald-50/40" : "border-slate-200 bg-white hover:border-slate-300"}`}>
+              {opt.imageUrl && (
+                <div className="px-2 pt-2 relative">
+                  {isOptImgActive(block.id, opt.id) && <ImageToolbar alignment={opt.imageAlignment || "left"} sizePercent={opt.imageSizePercent || 100} onAlignmentChange={(a: string) => updateOption(block.id, opt.id, { imageAlignment: a })} onSizeChange={(v: number) => updateOption(block.id, opt.id, { imageSizePercent: v })} onRemove={() => { updateOption(block.id, opt.id, { imageUrl: null }); setActiveImgToolbar(null) }} onClose={() => setActiveImgToolbar(null)} />}
+                  <div style={{ display: "flex", justifyContent: opt.imageAlignment === "left" ? "flex-start" : opt.imageAlignment === "right" ? "flex-end" : "center", marginTop: isOptImgActive(block.id, opt.id) ? 64 : 0 }}>
+                    <div style={{ width: `${opt.imageSizePercent || 100}%` }} className="cursor-pointer" onClick={() => setActiveImgToolbar(isOptImgActive(block.id, opt.id) ? null : { type: "option", blockId: block.id, optionId: opt.id })}>
+                      <img src={opt.imageUrl} alt="" className={`w-full h-auto rounded-md border-2 transition-all ${isOptImgActive(block.id, opt.id) ? "border-violet-400 ring-2 ring-violet-100" : "border-transparent hover:border-violet-200"}`} />
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div className="flex items-center gap-2 px-2.5 py-2">
+                <button type="button" className="flex-shrink-0" onClick={() => block.type === "checkboxes" ? toggleCorrect(block.id, opt.id) : setCorrect(block.id, opt.id)}>
+                  {block.type === "checkboxes" ? (
+                    <div className={`w-3.5 h-3.5 rounded border-2 flex items-center justify-center transition-all ${opt.isCorrect ? "border-emerald-500 bg-emerald-500" : "border-slate-300 hover:border-violet-400"}`}>{opt.isCorrect && <svg className="h-2 w-2 text-white" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 010 1.414l-8 8a1 1 01-1.414 0l-4-4a1 1 011.414-1.414L8 12.586l7.293-7.293a1 1 011.414 0z" clipRule="evenodd" /></svg>}</div>
+                  ) : (
+                    <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center transition-all ${opt.isCorrect ? "border-emerald-500 bg-emerald-500" : "border-slate-300 hover:border-violet-400"}`}>{opt.isCorrect && <div className="w-1.5 h-1.5 rounded-full bg-white" />}</div>
+                  )}
+                </button>
+                <input type="text" value={opt.text} onChange={e => updateOptionText(block.id, opt.id, e.target.value)} placeholder={`Option ${String.fromCharCode(65 + idx)}`} className={`flex-1 text-xs outline-none bg-transparent placeholder:text-slate-300 ${opt.isCorrect ? "text-emerald-700 font-semibold" : "text-slate-700"}`} />
+                <div className="opacity-0 group-hover/opt:opacity-100 flex items-center gap-0.5 transition-opacity">
+                  {!opt.imageUrl && (<label className="cursor-pointer p-1 hover:bg-slate-100 rounded-md transition-colors"><Image className="h-3 w-3 text-slate-400" /><input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadOptionImage(block.id, opt.id, f) }} /></label>)}
+                  {block.mcqQuestion.options.length > 2 && (<button onClick={() => removeOption(block.id, opt.id)} className="p-1 hover:bg-red-50 rounded-md transition-colors"><X className="h-3 w-3 text-slate-300 hover:text-red-400" /></button>)}
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  const renderQuestionContent = (block: any) => {
+    if (collapsedState[block.id]) return null
+    return (
+      <div className="px-4 py-3 space-y-2.5">
+        <div className="flex items-center justify-between">
+          <OptionsPerRowPicker value={block.optionsPerRow || 1} onChange={v => updateBlock(block.id, { optionsPerRow: v })} />
+          <span className={`text-[10px] px-2 py-0.5 rounded font-semibold ${typeConfig[block.type as keyof typeof typeConfig]?.bg || "bg-slate-50"} ${typeConfig[block.type as keyof typeof typeConfig]?.color || "text-slate-600"}`}>
+            {block.type === "multiple-choice" ? "Single correct" : block.type === "checkboxes" ? "Multiple correct" : "Dropdown"}
+          </span>
+        </div>
+        {renderOptions(block)}
+        <button onClick={() => addOption(block.id)} className="text-[11px] text-violet-500 hover:text-violet-700 font-semibold">+ Add option</button>
+        {errors[block.id]?.options && <div className="flex items-center gap-1.5 text-xs text-red-600 bg-red-50 px-2.5 py-1.5 rounded-lg"><AlertCircle className="h-3.5 w-3.5" />{errors[block.id].options}</div>}
+        {errors[block.id]?.correctAnswer && <div className="flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 px-2.5 py-1.5 rounded-lg"><AlertCircle className="h-3.5 w-3.5" />{errors[block.id].correctAnswer}</div>}
+      </div>
+    )
+  }
+
+  const qTypeConfig = (type: string) => typeConfig[type as keyof typeof typeConfig] || typeConfig["multiple-choice"]
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex flex-col bg-slate-900/60 backdrop-blur-sm">
+      {/* HEADER */}
+      <div className="flex items-center justify-between px-5 py-3 bg-white border-b border-slate-200 shadow-sm flex-shrink-0">
+        <div className="flex items-center gap-3">
+          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shadow-sm ${isLinkMode ? "bg-amber-500" : "bg-violet-600"}`}>
+            {isLinkMode ? <Zap className="h-4 w-4 text-white" /> : <HelpCircle className="h-4 w-4 text-white" />}
+          </div>
+          <div>
+            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              {isLinkMode ? "Live Add MCQ Questions" : "Add MCQ Questions"}
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${isLinkMode ? "bg-amber-100 text-amber-700" : "bg-violet-100 text-violet-700"}`}>
+                {isLinkMode ? "link" : "default"}
+              </span>
+            </h2>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              On slide <span className="font-mono text-violet-600">#{initialSlideNumber}</span>
+              &nbsp;·&nbsp;{blocks.length} question{blocks.length !== 1 ? "s" : ""}
+              {fileName && <span className="ml-2">· {fileName}</span>}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="relative">
+            <button onClick={() => setShowSettings(s => !s)} className="p-2 hover:bg-slate-100 rounded-lg transition-colors"><SlidersHorizontal className="h-4 w-4 text-slate-500" /></button>
+            <SettingsMenu isOpen={showSettings} onClose={() => setShowSettings(false)} onCollapseAll={collapseAll} onExpandAll={expandAll} />
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg transition-colors"><X className="h-4 w-4 text-slate-400" /></button>
+        </div>
+      </div>
+
+      {/* LINK BANNER */}
+      {isLinkMode && (
+        <div style={{ padding: "10px 20px", backgroundColor: "#fffbeb", borderBottom: "1px solid #fcd34d", display: "flex", alignItems: "center", gap: 10 }}>
+          <Link size={15} color="#d97706" style={{ flexShrink: 0 }} />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "#b45309", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 4 }}>
+              Live Link — sent as <code style={{ backgroundColor: "#fef3c7", padding: "0 4px", borderRadius: 3 }}>type: "link"</code> in payload
+            </div>
+            <input type="url" value={linkValue} onChange={e => setLinkValue(e.target.value)}
+              placeholder="https://example.com/live-mcq-sample"
+              style={{ width: "100%", fontSize: 12, border: "1px solid #fcd34d", borderRadius: 8, padding: "6px 10px", outline: "none", backgroundColor: "white", color: "#1f2937" }} />
+          </div>
+        </div>
+      )}
+
+      {/* BODY */}
+      <div className="flex-1 overflow-y-auto bg-slate-50/80 px-4 py-4">
+        <div className="space-y-3 max-w-3xl mx-auto">
+          {blocks.map((block, idx) => {
+            const collapsed = collapsedState[block.id] || false
+            const hasErr = !!errors[block.id]
+            const qtype = qTypeConfig(block.type)
+            return (
+              <div key={block.id} className={`bg-white rounded-xl border shadow-sm transition-all ${hasErr ? "border-red-300 shadow-red-100" : "border-slate-200 hover:border-slate-300"}`}>
+                <div className="flex items-start gap-2.5 px-4 pt-3.5 pb-2">
+                  <div className={`flex-shrink-0 w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-black text-white mt-0.5 ${isLinkMode ? "bg-amber-500" : "bg-violet-600"}`}>{idx + 1}</div>
+                  <button onClick={() => setCollapsed(p => ({ ...p, [block.id]: !p[block.id] }))} className="flex-shrink-0 p-1 hover:bg-slate-100 rounded-md transition-colors mt-0.5">
+                    {collapsed ? <ChevronRight className="h-3.5 w-3.5 text-slate-400" /> : <ChevronDown className="h-3.5 w-3.5 text-slate-400" />}
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    {collapsed ? (
+                      <p className="text-xs text-slate-500 py-0.5 truncate">{block.mcqQuestion?.questionTitle?.replace(/<[^>]*>/g, "").trim() || <span className="italic text-slate-300">Empty question</span>}</p>
+                    ) : (
+                      <>
+                        {!block.questionImage?.imageUrl && (
+                          <label className="inline-flex items-center gap-1 text-[10px] text-slate-400 hover:text-violet-600 cursor-pointer transition-colors mb-1.5">
+                            <Image className="h-2.5 w-2.5" /><span>Add image to question</span>
+                            <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadQuestionImage(block.id, f) }} />
+                          </label>
+                        )}
+                        <input type="text" value={block.mcqQuestion?.questionTitle || ""} onChange={e => updateMcqQuestion(block.id, { questionTitle: e.target.value })} placeholder="Type your question here..." className="w-full text-sm font-medium outline-none border-b-2 border-slate-200 focus:border-violet-400 pb-1.5 mb-2" />
+                        {block.questionImage?.imageUrl && (
+                          <div className="mt-2 relative">
+                            {isQImgActive(block.id) && <ImageToolbar alignment={block.questionImage.alignment || "center"} sizePercent={block.questionImage.sizePercent || 60} onAlignmentChange={(a: string) => updateBlock(block.id, { questionImage: { ...block.questionImage, alignment: a } })} onSizeChange={(v: number) => updateBlock(block.id, { questionImage: { ...block.questionImage, sizePercent: v } })} onRemove={() => { updateBlock(block.id, { questionImage: { imageUrl: "", alignment: "center", sizePercent: 60 } }); setActiveImgToolbar(null) }} onClose={() => setActiveImgToolbar(null)} />}
+                            <div style={{ display: "flex", justifyContent: block.questionImage.alignment === "left" ? "flex-start" : block.questionImage.alignment === "right" ? "flex-end" : "center", marginTop: isQImgActive(block.id) ? 64 : 0 }}>
+                              <div style={{ width: `${block.questionImage.sizePercent || 60}%` }} className="cursor-pointer" onClick={() => setActiveImgToolbar(isQImgActive(block.id) ? null : { type: "question", blockId: block.id })}>
+                                <img src={block.questionImage.imageUrl} alt="" className={`w-full h-auto rounded-lg border-2 transition-all ${isQImgActive(block.id) ? "border-violet-400 ring-2 ring-violet-100" : "border-transparent hover:border-violet-200"}`} />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        {hasErr && errors[block.id]?.questionTitle && <div className="mt-2 flex items-center gap-1.5 text-xs text-red-600 bg-red-50 px-2.5 py-1.5 rounded-lg"><AlertCircle className="h-3.5 w-3.5" />{errors[block.id].questionTitle}</div>}
+                        <div className="mt-2.5">
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input type="checkbox" checked={block.hasExplanation} onChange={() => updateBlock(block.id, { hasExplanation: !block.hasExplanation })} className="w-3.5 h-3.5 rounded border-slate-300 accent-violet-600" />
+                            <span className="text-[11px] text-slate-400 hover:text-violet-600 transition-colors flex items-center gap-1"><HelpCircle className="h-3 w-3" />Add explanation</span>
+                          </label>
+                          {block.hasExplanation && (
+                            <div className="mt-1.5 ml-5 pl-3 border-l-2 border-violet-200">
+                              <textarea value={block.explanation || ""} onChange={e => updateBlock(block.id, { explanation: e.target.value })} placeholder="Explain the correct answer…" className="w-full text-sm border border-slate-200 rounded-lg p-2 min-h-[80px] focus:outline-none focus:ring-2 focus:ring-violet-400" />
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  <div className="relative flex-shrink-0">
+                    <button onClick={() => setShowTypeMenu(showTypeMenu === block.id ? null : block.id)} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-all ${qtype.bg} ${qtype.color} border-transparent hover:border-current/20`}>
+                      {qtype.icon}<span className="max-w-[80px] truncate">{qtype.label}</span><ChevronDown className="h-3 w-3 opacity-60" />
+                    </button>
+                    {showTypeMenu === block.id && (
+                      <div className="absolute top-full right-0 mt-1 w-48 bg-white rounded-xl shadow-2xl border border-slate-200 py-1.5 z-50">
+                        <p className="px-3 py-1 text-[9px] font-bold text-slate-300 uppercase tracking-widest">Question Type</p>
+                        {Object.entries(typeConfig).map(([t, cfg]) => (
+                          <button key={t} onClick={() => { updateBlock(block.id, { type: t }); setShowTypeMenu(null) }} className={`w-full px-3 py-2 flex items-center gap-2 hover:bg-slate-50 text-xs ${block.type === t ? `${cfg.color} font-semibold` : "text-slate-700"}`}>
+                            <span className={block.type === t ? cfg.color : "text-slate-400"}>{cfg.icon}</span>{cfg.label}{block.type === t && <Check className="h-3 w-3 ml-auto" />}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                {renderQuestionContent(block)}
+                <div className="flex items-center justify-between px-4 py-2 border-t border-slate-100 bg-slate-50/50 rounded-b-xl">
+                  <div className="flex items-center gap-0.5">
+                    <button onClick={() => duplicateBlock(block.id)} title="Duplicate" className="p-1.5 hover:bg-white hover:shadow-sm rounded-lg text-slate-400 hover:text-slate-700 transition-all"><Copy className="h-3.5 w-3.5" /></button>
+                    <button onClick={() => removeBlock(block.id)} title="Delete" className="p-1.5 hover:bg-red-50 rounded-lg text-slate-400 hover:text-red-500 transition-all"><Trash2 className="h-3.5 w-3.5" /></button>
+                    <div className="w-px h-4 bg-slate-200 mx-1" />
+                    <button onClick={() => moveBlock(block.id, "up")} disabled={idx === 0} className="p-1.5 hover:bg-white rounded-lg text-slate-400 hover:text-slate-700 disabled:opacity-25 disabled:cursor-not-allowed transition-all"><ChevronUp className="h-3.5 w-3.5" /></button>
+                    <button onClick={() => moveBlock(block.id, "down")} disabled={idx === blocks.length - 1} className="p-1.5 hover:bg-white rounded-lg text-slate-400 hover:text-slate-700 disabled:opacity-25 disabled:cursor-not-allowed transition-all"><ChevronDown className="h-3.5 w-3.5" /></button>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <span className="text-[11px] font-semibold text-slate-500">Required</span>
+                    <button type="button" onClick={() => updateBlock(block.id, { isRequired: !block.isRequired })} className={`relative rounded-full transition-colors ${block.isRequired ? "bg-violet-600" : "bg-slate-200"}`} style={{ width: 32, height: 18 }}>
+                      <div className={`absolute top-0.5 h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform ${block.isRequired ? "translate-x-3.5" : "translate-x-0.5"}`} />
+                    </button>
+                  </label>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+        <div className="max-w-3xl mx-auto mt-3">
+          <button onClick={addBlock} className="w-full border-2 border-dashed border-slate-300 hover:border-violet-400 py-3.5 rounded-xl flex items-center justify-center gap-2 text-sm font-bold text-slate-500 hover:text-violet-700 hover:bg-violet-50 transition-all">
+            <Plus className="h-5 w-5" />Add another question
+          </button>
+        </div>
+      </div>
+
+      {/* FOOTER */}
+      <div className="flex items-center justify-between px-5 py-3 border-t border-slate-200 bg-white flex-shrink-0">
+        <span className="flex items-center gap-1.5 text-xs text-slate-500">
+          <div className={`w-1.5 h-1.5 rounded-full ${isLinkMode ? "bg-amber-400" : "bg-emerald-400"}`} />
+          {blocks.length} question{blocks.length !== 1 ? "s" : ""} ready
+          {isLinkMode && <span className="ml-1 text-amber-600 font-semibold">· will generate shareable link</span>}
+        </span>
+        <div className="flex items-center gap-2">
+          <button onClick={onClose} className="px-4 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold transition-all">Cancel</button>
+          <button onClick={handleSave} disabled={isSaving} className={`px-5 py-2 rounded-lg text-xs font-bold text-white flex items-center gap-1.5 disabled:opacity-50 shadow-sm transition-all ${isLinkMode ? "bg-amber-500 hover:bg-amber-600" : "bg-emerald-600 hover:bg-emerald-700"}`}>
+            {isSaving ? <><Loader className="h-3.5 w-3.5 animate-spin" />Saving…</> : isLinkMode ? <><Share2 className="h-3.5 w-3.5" />Save & Generate Link</> : <><Save className="h-3.5 w-3.5" />Save Questions</>}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── SINGLE SLIDE CANVAS (mirrors PdfPageCanvas exactly) ─────────────────────
+/**
+ * Renders one "slide" as a 16:9 iframe panel — no scroll, click-based.
+ * The iframe is hidden behind a transparent overlay that intercepts right-clicks
+ * and ctrl+clicks exactly like PdfPageCanvas does.
+ */
+function SlideCanvas({
+  pptUrl, zoom, onContextMenu, onClick,
+  showMcqMarker, mcqCount,
+}: {
+  pptUrl: string; zoom: number;
+  onContextMenu?: (e: React.MouseEvent, slide: number) => void;
+  onClick?: (e: React.MouseEvent, slide: number) => void;
+  showMcqMarker?: boolean; mcqCount?: number;
+}) {
+  // Single embed — no wdStartOn, no slide number. Office Online handles navigation internally.
+  const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(pptUrl)}`
+
+  return (
+    <div style={{ position: "relative", width: "100%" }}>
+      <div style={{
+        position: "relative",
+        width: "100%",
+        paddingBottom: "56.25%",
+        transform: `scale(${zoom})`,
+        transformOrigin: "top center",
+        transition: "transform 0.2s ease",
+      }}>
+        <iframe
+          src={viewerUrl}
+          title="Presentation"
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            border: "none",
+            borderRadius: 4,
+            boxShadow: "0 4px 24px rgba(0,0,0,0.5)",
+            backgroundColor: "white",
+          }}
+          allowFullScreen
+        />
+
+        {/* Overlay only for right-click context menu — must be transparent so iframe is clickable */}
+        {onContextMenu && (
+          <div
+            onContextMenu={e => { e.preventDefault(); onContextMenu(e, 1) }}
+            style={{
+              position: "absolute",
+              inset: 0,
+              zIndex: 5,
+              cursor: "default",
+              background: "transparent",
+              // pointer-events none so clicks pass through to the iframe
+              pointerEvents: "none",
+            }}
+          />
+        )}
+
+        {showMcqMarker && (
+          <div style={{
+            position: "absolute", top: 10, right: 10, zIndex: 10,
+            backgroundColor: "rgba(124,58,237,0.9)", color: "white",
+            borderRadius: 999, padding: "4px 10px", fontSize: 11, fontWeight: 700,
+            display: "flex", alignItems: "center", gap: 4,
+            boxShadow: "0 2px 8px rgba(0,0,0,0.4)", pointerEvents: "none",
+          }}>
+            <HelpCircle size={11} /> {mcqCount || 1} MCQ{(mcqCount || 1) !== 1 ? "s" : ""}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+// ─── PPT VIEWER PROPS ─────────────────────────────────────────────────────────
 interface PPTViewerProps {
   isOpen: boolean
   onClose: () => void
   pptUrl: string
   title?: string
+  totalSlides?: number
+  fileId?: string
+  entityType?: string
+  entityId?: string
+  tabType?: string
+  subcategory?: string
+  folderPath?: string[]
+  apiBaseUrl?: string
+  initialMcqs?: any[]
+  isTeacher?: boolean
+  isStudent?: boolean
+  sampleLiveLink?: string
 }
 
+// ─── MAIN PPT VIEWER ──────────────────────────────────────────────────────────
 export default function PPTViewer({
-  isOpen,
-  onClose,
-  pptUrl,
+  isOpen, onClose, pptUrl,
   title = "Presentation",
+  totalSlides = 20,
+  fileId = "", entityType = "", entityId = "",
+  tabType = "", subcategory = "", folderPath = [],
+  apiBaseUrl = "https://lms-server-ym1q.onrender.com",
+  initialMcqs = [],
+  isTeacher = true, isStudent = false,
+  sampleLiveLink = "https://example.com/live-mcq-sample",
 }: PPTViewerProps) {
   const [zoom, setZoom] = useState(1)
   const [currentSlide, setCurrentSlide] = useState(1)
-  const [totalSlides, setTotalSlides] = useState(1)
-  const [notesOpen, setNotesOpen] = useState(false)
-  const [aiOpen, setAiOpen] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const [showThumbnails, setShowThumbnails] = useState(false)
-  const [showOutline, setShowOutline] = useState(false)
-  const [isPlaying, setIsPlaying] = useState(false)
-  const [fitMode, setFitMode] = useState<"fit-width" | "fit-height" | "auto">("fit-width")
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showMcqList, setShowMcqList] = useState(false)
 
-  const iframeRef = useRef<HTMLIFrameElement>(null)
+  // MCQ state — mirrors PDFViewer exactly
+  const [savedMcqs, setSavedMcqs] = useState<any[]>(initialMcqs || [])
+  const [showMcqForm, setShowMcqForm] = useState(false)
+  const [mcqSlideNumber, setMcqSlideNumber] = useState(1)
+  const [mcqMode, setMcqMode] = useState<"default" | "link">("default")
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; slideNumber: number } | null>(null)
+  const [generatedLinkData, setGeneratedLinkData] = useState<{ link: string; slideNumber: number; questionCount: number } | null>(null)
+
   const containerRef = useRef<HTMLDivElement>(null)
-  const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const presentationTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const bodyRef = useRef<HTMLDivElement>(null)
 
-  const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(pptUrl)}`;
-
-  // Panel handlers
-  const handleNotesClick = () => {
-    setNotesOpen(!notesOpen)
-    setAiOpen(false)
+  // ── helpers ──────────────────────────────────────────────────────────────────
+  const getMcqSlide = (q: any): number => {
+    const raw = q.pageNumber ?? q.videoTimestamp ?? q.timestamp ?? 0
+    return typeof raw === "number" ? Math.round(raw) : parseInt(String(raw)) || 0
   }
 
-  const handleAIClick = () => {
-    setAiOpen(!aiOpen)
-    setNotesOpen(false)
+  const mcqsBySlide = React.useMemo(() => {
+    const map = new Map<number, any[]>()
+    savedMcqs.forEach(mcq => {
+      const slide = getMcqSlide(mcq)
+      if (!map.has(slide)) map.set(slide, [])
+      map.get(slide)!.push(mcq)
+    })
+    return map
+  }, [savedMcqs])
+
+  const slidesWithMcqs = new Set(Array.from(mcqsBySlide.keys()))
+  const mcqsOnCurrentSlide = mcqsBySlide.get(currentSlide) || []
+
+  // ── navigation (click-based, no scroll — mirrors PDF) ────────────────────────
+  const goToSlide = (n: number) => {
+    setCurrentSlide(Math.max(1, Math.min(totalSlides, n)))
+    // Scroll body back to top so the slide view is always centred
+    if (bodyRef.current) bodyRef.current.scrollTop = 0
   }
 
-
-  // Function to handle menu click
-  const handleMenuClick = () => {
-    setSidebarOpen(prev => !prev); // toggle sidebar
-    setNotesOpen(false);           // close notes
-    setAiOpen(false);              // close AI panel
-  };
-
-  // Zoom and view controls
-  const handleZoomIn = () => {
-    setZoom(prev => Math.min(prev + 0.25, 3))
+  // ── MCQ handlers ─────────────────────────────────────────────────────────────
+  const openMcqForm = (slide: number, mode: "default" | "link" = "default") => {
+    setMcqSlideNumber(slide); setMcqMode(mode); setShowMcqForm(true)
   }
 
-  const handleZoomOut = () => {
-    setZoom(prev => Math.max(prev - 0.25, 0.5))
+  const handleMcqSave = (questions: any[]) => {
+    setSavedMcqs(prev => [...prev, ...questions.map(q => ({ ...q, savedAt: new Date() }))])
+    if (mcqMode !== "link") setShowMcqForm(false)
   }
 
-  const handleZoomTo = (level: number) => {
-    setZoom(level)
+  const handleLinkGenerated = (link: string, questionCount: number) => {
+    setGeneratedLinkData({ link, slideNumber: mcqSlideNumber, questionCount })
+    setShowMcqForm(false)
   }
 
-  const handleFitWidth = () => {
-    setFitMode("fit-width")
-    setZoom(1)
-  }
-
-  const handleFitHeight = () => {
-    setFitMode("fit-height")
-    setZoom(1)
-  }
-
-  const handleAutoFit = () => {
-    setFitMode("auto")
-    setZoom(1)
-  }
-
-  // Slide navigation
-  const handlePreviousSlide = () => {
-    setCurrentSlide(prev => Math.max(1, prev - 1))
-    // In a real implementation, you would control the PPT viewer
-  }
-
-  const handleNextSlide = () => {
-    setCurrentSlide(prev => Math.min(totalSlides, prev + 1))
-    // In a real implementation, you would control the PPT viewer
-  }
-
-  const handleSlideInput = (slide: number) => {
-    setCurrentSlide(Math.max(1, Math.min(totalSlides, slide)))
-  }
-
-  // Presentation mode
-  const handlePlayPause = () => {
-    setIsPlaying(!isPlaying)
-    if (!isPlaying) {
-      // Start presentation mode
-      startPresentationMode()
-    } else {
-      // Stop presentation mode
-      stopPresentationMode()
+  // ── keyboard shortcuts (mirrors PDF) ─────────────────────────────────────────
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!isOpen || showMcqForm || generatedLinkData) return
+      if (e.key === "Escape" && isFullscreen) document.exitFullscreen?.()
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") { e.preventDefault(); goToSlide(currentSlide + 1) }
+      if (e.key === "ArrowLeft" || e.key === "ArrowUp") { e.preventDefault(); goToSlide(currentSlide - 1) }
+      if (e.key === "+" || e.key === "=") setZoom(z => Math.min(3, +(z + 0.25).toFixed(2)))
+      if (e.key === "-") setZoom(z => Math.max(0.5, +(z - 0.25).toFixed(2)))
     }
-  }
+    document.addEventListener("keydown", onKey)
+    return () => document.removeEventListener("keydown", onKey)
+  }, [isOpen, showMcqForm, generatedLinkData, isFullscreen, currentSlide, totalSlides])
 
-  const startPresentationMode = () => {
-    // In a real implementation, this would enter full presentation mode
-    console.log("Starting presentation mode")
-  }
+  useEffect(() => {
+    const fn = () => setIsFullscreen(!!document.fullscreenElement)
+    document.addEventListener("fullscreenchange", fn)
+    return () => document.removeEventListener("fullscreenchange", fn)
+  }, [])
 
-  const stopPresentationMode = () => {
-    // In a real implementation, this would exit presentation mode
-    console.log("Stopping presentation mode")
-  }
-
-  // Fullscreen
+  const handleDownload = () => { const a = document.createElement("a"); a.href = pptUrl; a.download = title || "presentation.pptx"; a.click() }
   const handleFullscreen = async () => {
     if (!containerRef.current) return
-
-    try {
-      if (!isFullscreen) {
-        await containerRef.current.requestFullscreen()
-      } else {
-        await document.exitFullscreen()
-      }
-      setIsFullscreen(!isFullscreen)
-    } catch (error) {
-      console.error('Fullscreen error:', error)
-    }
+    try { if (!isFullscreen) await containerRef.current.requestFullscreen(); else await document.exitFullscreen() } catch {}
   }
-
-
-  const handlePrint = () => {
-    if (iframeRef.current?.contentWindow) {
-      iframeRef.current.contentWindow.print()
-    }
-  }
-
-
-  const handleDownload = () => {
-    const link = document.createElement('a')
-    link.href = pptUrl
-    link.download = title || 'presentation.pptx'
-    link.click()
-  }
-
-
-
-  // Reset when PPT changes
-  useEffect(() => {
-    setZoom(1)
-    setCurrentSlide(1)
-    setNotesOpen(false)
-    setAiOpen(false)
-    setIsPlaying(false)
-  }, [pptUrl])
-
-  // Fullscreen change listener
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement)
-    }
-
-    document.addEventListener('fullscreenchange', handleFullscreenChange)
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
-  }, [])
-
-  // Cleanup
-  useEffect(() => {
-    return () => {
-      if (controlsTimeoutRef.current) {
-        clearTimeout(controlsTimeoutRef.current)
-      }
-      if (presentationTimerRef.current) {
-        clearTimeout(presentationTimerRef.current)
-      }
-    }
-  }, [])
-
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyPress = (e: KeyboardEvent) => {
-      if (!isOpen) return
-
-      switch (e.key) {
-        case 'Escape':
-          e.preventDefault()
-          if (notesOpen || aiOpen || showThumbnails || showOutline) {
-            setNotesOpen(false)
-            setAiOpen(false)
-            setShowThumbnails(false)
-            setShowOutline(false)
-          } else if (isPlaying) {
-            handlePlayPause()
-          } else if (isFullscreen) {
-            handleFullscreen()
-          } else {
-            onClose()
-          }
-          break
-        case 'ArrowLeft':
-          e.preventDefault()
-          handlePreviousSlide()
-          break
-        case 'ArrowRight':
-        case ' ':
-          e.preventDefault()
-          handleNextSlide()
-          break
-        case '+':
-        case '=':
-          e.preventDefault()
-          handleZoomIn()
-          break
-        case '-':
-          e.preventDefault()
-          handleZoomOut()
-          break
-        case '0':
-          e.preventDefault()
-          handleZoomTo(1)
-          break
-        case 'f':
-        case 'F':
-          e.preventDefault()
-          handleFullscreen()
-          break
-        case 'p':
-        case 'P':
-          e.preventDefault()
-          handlePlayPause()
-          break
-      }
-    }
-
-    document.addEventListener('keydown', handleKeyPress)
-    return () => document.removeEventListener('keydown', handleKeyPress)
-  }, [isOpen, notesOpen, aiOpen, showThumbnails, showOutline, isFullscreen, isPlaying])
 
   if (!isOpen) return null
 
   return (
-    <div
-      ref={containerRef}
-      className="fixed inset-0 z-50 bg-gray-900 flex"
-    >
-      {/* Side Panels */}
-      {/* {showThumbnails && (
-        <div className="w-64 bg-gray-800 border-r border-gray-700 flex flex-col">
-          <div className="p-4 border-b border-gray-700 flex items-center justify-between">
-            <h3 className="text-white font-semibold">Slides</h3>
-            <button
-              onClick={() => setShowThumbnails(false)}
-              className="text-gray-400 hover:text-white"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-          <div className="flex-1 overflow-y-auto p-2">
-            {Array.from({ length: totalSlides }, (_, i) => (
-              <div
-                key={i + 1}
-                className="p-2 mb-2 border border-gray-600 rounded cursor-pointer hover:bg-gray-700"
-                onClick={() => handleSlideInput(i + 1)}
-              >
-                <div className="bg-gray-600 h-24 rounded flex items-center justify-center mb-2">
-                  <FileText className="w-6 h-6 text-gray-400" />
-                </div>
-                <p className="text-white text-xs text-center">Slide {i + 1}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )} */}
+    <div ref={containerRef} style={{ position: "fixed", inset: 0, zIndex: isFullscreen ? 2000 : 1000, backgroundColor: "#111827", display: "flex", flexDirection: "column" }}>
 
-      {showOutline && (
-        <div className="w-64 bg-gray-800 border-r border-gray-700 flex flex-col">
-          <div className="p-4 border-b border-gray-700 flex items-center justify-between">
-            <h3 className="text-white font-semibold">Outline</h3>
-            <button
-              onClick={() => setShowOutline(false)}
-              className="text-gray-400 hover:text-white"
-            >
-              <X className="w-4 h-4" />
-            </button>
+      {/* ── HEADER (mirrors PDFViewer header exactly) ─────────────────────── */}
+      {!isFullscreen && (
+        <div style={{
+          backgroundColor: "#1f2937", color: "white",
+          padding: "8px 14px", borderBottom: "1px solid #374151",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          gap: 10, flexShrink: 0, flexWrap: "wrap", minHeight: 48,
+        }}>
+          {/* Left: Title */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+            <FileText size={15} style={{ flexShrink: 0, color: "#fb923c" }} />
+            <span style={{ fontSize: 13, fontWeight: 600, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={title}>{title}</span>
+            {!isStudent && isTeacher && (
+              <span style={{ fontSize: 10, backgroundColor: "#7c3aed", padding: "2px 6px", borderRadius: 4, color: "white", fontWeight: 600, marginLeft: 4 }}>Teacher Mode</span>
+            )}
           </div>
-          <div className="flex-1 overflow-y-auto p-2 text-white text-sm">
-            <div className="p-2 hover:bg-gray-700 rounded cursor-pointer">Introduction</div>
-            <div className="p-2 hover:bg-gray-700 rounded cursor-pointer">Agenda</div>
-            <div className="p-2 hover:bg-gray-700 rounded cursor-pointer">Key Points</div>
-            <div className="p-2 hover:bg-gray-700 rounded cursor-pointer">Conclusion</div>
+
+          {/* Center: Slide nav + MCQ buttons — mirrors PDF center nav exactly */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            {/* Slide nav */}
+            <div style={{ display: "flex", alignItems: "center", gap: 4, backgroundColor: "#111827", borderRadius: 8, padding: "4px 8px", border: "1px solid #374151" }}>
+              <button onClick={() => goToSlide(currentSlide - 1)} disabled={currentSlide <= 1}
+                style={{ background: "none", border: "none", color: currentSlide <= 1 ? "#374151" : "#9ca3af", cursor: currentSlide <= 1 ? "not-allowed" : "pointer", padding: 2, display: "flex" }}>
+                <ChevronLeft size={14} />
+              </button>
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                {slidesWithMcqs.has(currentSlide) && <div style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: "#a78bfa" }} />}
+                <span style={{ fontSize: 11, color: "#9ca3af" }}>Slide</span>
+                <span style={{ minWidth: 28, padding: "1px 6px", backgroundColor: "#111827", border: "1px solid #4b5563", borderRadius: 4, color: "white", fontSize: 13, fontWeight: 700, textAlign: "center" }}>{currentSlide}</span>
+                <span style={{ fontSize: 11, color: "#4b5563" }}>/ {totalSlides}</span>
+              </div>
+              <button onClick={() => goToSlide(currentSlide + 1)} disabled={currentSlide >= totalSlides}
+                style={{ background: "none", border: "none", color: currentSlide >= totalSlides ? "#374151" : "#9ca3af", cursor: currentSlide >= totalSlides ? "not-allowed" : "pointer", padding: 2, display: "flex" }}>
+                <ChevronRight size={14} />
+              </button>
+            </div>
+
+            {/* MCQ Buttons */}
+            {!isStudent && isTeacher && (
+              <>
+                <button onClick={() => openMcqForm(currentSlide, "default")}
+                  title="Add MCQ (default)"
+                  style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", backgroundColor: "#7c3aed", border: "none", borderRadius: 6, color: "white", fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
+                  <HelpCircle size={13} />+ MCQ
+                  <span style={{ backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 4, padding: "1px 5px", fontSize: 11 }}>slide {currentSlide}</span>
+                </button>
+                <button onClick={() => openMcqForm(currentSlide, "link")}
+                  title="Live Add MCQ (link)"
+                  style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", backgroundColor: "#d97706", border: "none", borderRadius: 6, color: "white", fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
+                  <Zap size={13} />Live MCQ
+                  <span style={{ backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 4, padding: "1px 5px", fontSize: 11 }}>slide {currentSlide}</span>
+                </button>
+              </>
+            )}
+
+            {/* MCQ count badge on current slide */}
+            {mcqsOnCurrentSlide.length > 0 && (
+              <span style={{ backgroundColor: "#059669", color: "white", fontSize: 10, fontWeight: 700, padding: "3px 7px", borderRadius: 999, display: "flex", alignItems: "center", gap: 3 }}>
+                <Check size={10} /> {mcqsOnCurrentSlide.length} MCQ{mcqsOnCurrentSlide.length !== 1 ? "s" : ""} on this slide
+              </span>
+            )}
+
+            {savedMcqs.length > 0 && (
+              <button onClick={() => setShowMcqList(!showMcqList)}
+                style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", backgroundColor: showMcqList ? "#6d28d9" : "#374151", border: "none", borderRadius: 6, color: "white", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+                <Hash size={12} />{savedMcqs.length} total MCQ{savedMcqs.length !== 1 ? "s" : ""}
+              </button>
+            )}
+          </div>
+
+          {/* Right: Zoom + actions */}
+          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <button onClick={() => setZoom(z => Math.max(0.5, +(z - 0.25).toFixed(2)))} style={{ padding: 5, backgroundColor: "#374151", color: "white", border: "none", borderRadius: 4, cursor: "pointer", display: "flex" }}><ZoomOut size={14} /></button>
+            <span style={{ fontSize: 11, color: "#d1d5db", minWidth: 38, textAlign: "center" }}>{Math.round(zoom * 100)}%</span>
+            <button onClick={() => setZoom(z => Math.min(3, +(z + 0.25).toFixed(2)))} style={{ padding: 5, backgroundColor: "#374151", color: "white", border: "none", borderRadius: 4, cursor: "pointer", display: "flex" }}><ZoomIn size={14} /></button>
+            <button onClick={handleFullscreen} style={{ padding: 5, backgroundColor: "#3b82f6", color: "white", border: "none", borderRadius: 4, cursor: "pointer", display: "flex" }}><Maximize size={14} /></button>
+            <button onClick={handleDownload} style={{ padding: 5, backgroundColor: "#10b981", color: "white", border: "none", borderRadius: 4, cursor: "pointer", display: "flex" }}><Download size={14} /></button>
+            <button onClick={onClose} style={{ padding: 5, backgroundColor: "#ef4444", color: "white", border: "none", borderRadius: 4, cursor: "pointer", display: "flex" }}><X size={14} /></button>
           </div>
         </div>
       )}
 
-      {/* Main Presentation Area */}
-      <div className="flex flex-col h-screen bg-gray-800 relative">
+      {/* ── BODY ──────────────────────────────────────────────────────────── */}
+      <div style={{ flex: 1, position: "relative", overflow: "hidden", display: "flex" }}>
+
+        {/* Main slide area — single visible slide, no scroll (mirrors PDF) */}
         <div
-          id="top-nav"
-          className="w-full flex flex-wrap items-center justify-between fixed top-0 left-0 right-0 z-50
-     bg-white/90 backdrop-blur-md shadow-lg border-b border-gray-200
-     transition-all duration-300 hover:shadow-xl px-3 sm:px-5 py-2 sm:py-3"
-          style={{ height: '60px' }}
-        >
-          {/* Left: Close + File Title */}
-          <div className="flex items-center gap-2 sm:gap-4 truncate">
-            <button
-              onClick={onClose}
-              className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg
-        bg-gradient-to-r from-red-500 to-pink-500 text-white font-medium
-        shadow-md hover:shadow-lg hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer"
-            >
-              <X className="w-4 h-4 sm:w-5 sm:h-5" />
-              <span className="text-xs sm:text-sm truncate max-w-[70px] sm:max-w-[120px]">Close</span>
-            </button>
-
-            <div className="flex items-center gap-1 sm:gap-2 text-gray-800 font-semibold truncate max-w-[100px] sm:max-w-xs">
-              <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500 flex-shrink-0" />
-              <span className="text-xs sm:text-sm truncate">{title}</span>
-            </div>
-          </div>
-
-          {/* Right: Notes, AI, Menu */}
-          <div className="flex flex-wrap items-center gap-1 sm:gap-3 mt-2 sm:mt-0">
-
-            {/* Notes Button */}
-            <button
-              onClick={handleNotesClick}
-              className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg font-medium transition-all duration-300 cursor-pointer whitespace-nowrap
-        ${notesOpen
-                  ? 'bg-blue-600 text-white shadow-lg scale-105'
-                  : 'bg-gray-100 text-gray-700 hover:bg-blue-100 hover:text-blue-700 shadow-sm'
-                }`}
-            >
-              <FileText className="w-4 h-4 sm:w-5 sm:h-5" />
-              <span className="text-xs sm:text-sm truncate">Notes</span>
-            </button>
-
-            {/* AI Button */}
-            <button
-              onClick={handleAIClick}
-              className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg font-medium transition-all duration-300 cursor-pointer whitespace-nowrap
-        ${aiOpen
-                  ? 'bg-purple-600 text-white shadow-lg scale-105'
-                  : 'bg-gray-100 text-gray-700 hover:bg-purple-100 hover:text-purple-700 shadow-sm'
-                }`}
-            >
-              <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
-              <span className="text-xs sm:text-sm truncate">AI</span>
-            </button>
-
-            {/* Menu Button */}
-            <button
-              onClick={handleMenuClick}
-              className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-black shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer whitespace-nowrap"
-            >
-              <Menu className="w-4 h-4 sm:w-5 sm:h-5" />
-              <span className="text-xs sm:text-sm truncate">Menu</span>
-            </button>
-          </div>
-        </div>
-
-
-
-
-        {/* Frame section (below nav) */}
-        <div
-          className="flex-1 flex items-center justify-center bg-gradient-to-br from-gray-100 via-gray-200 to-gray-300 transition-all duration-500"
+          ref={bodyRef}
           style={{
-            marginTop: '60px', // push below navbar
-            overflowX: 'hidden', // fixes right border clipping
+            flex: 1,
+            overflowY: "auto",
+            overflowX: "auto",
+            backgroundColor: "#374151",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            padding: "16px 16px 24px",
+            gap: 12,
           }}
         >
-          <div
-            style={{
-              transform: `scale(${zoom})`,
-              transition: 'transform 0.25s ease',
-              transformOrigin: 'center center',
-            }}
-            className="rounded-2xl overflow-hidden shadow-2xl border border-gray-300 hover:shadow-[0_0_40px_rgba(0,0,0,0.15)] transition-all duration-500 w-screen"
-          >
-            <iframe
-              ref={iframeRef}
-              src={viewerUrl}
-              title={title}
-              className="bg-white border-none rounded-2xl"
-              style={{
-                width: '100vw', // full width of viewport
-                height: 'calc(100vh - 60px)', // below navbar
-                border: 'none',
-                display: 'block',
-              }}
-              onLoad={() => setTotalSlides(20)}
-            />
-          </div>
-        </div>
-
-
-      </div>
-
-
-      {sidebarOpen && (
-        <div
-          className="fixed top-0 right-0 h-full w-100 bg-white/80 backdrop-blur-lg text-gray-900 shadow-2xl z-50 p-6 border-l border-gray-200 transition-all duration-500 ease-in-out"
-        >
-          {/* Close Button */}
-          <button
-            onClick={() => setSidebarOpen(false)}
-            className="absolute top-4 right-4 p-2 rounded-full bg-white/80 shadow-md hover:bg-gray-100 hover:scale-110 transition-all cursor-pointer"
-          >
-            <X className="w-5 h-5 text-gray-700" />
-          </button>
-          {/* Sidebar Header */}
-          <div className="mt-3 mb-6 text-center select-none">
-            <div className="flex items-center justify-center gap-2">
-              <Settings className="w-5 h-5 text-gray-700" />
-              <h2 className="text-base font-semibold text-gray-800 tracking-wide">
-                Presentation Control
-              </h2>
+          {/* Teacher hint banner — mirrors PDF sticky hint */}
+          {!isStudent && isTeacher && (
+            <div style={{
+              position: "sticky", top: 10, zIndex: 10,
+              backgroundColor: "rgba(0,0,0,0.7)", color: "#9ca3af",
+              fontSize: 10, padding: "6px 12px", borderRadius: 20,
+              border: "1px solid #374151",
+              display: "flex", alignItems: "center", gap: 6,
+              marginBottom: 10, pointerEvents: "none", whiteSpace: "nowrap",
+            }}>
+              <MousePointer size={10} color="#a78bfa" />
+              Right-click: <span style={{ color: "#a78bfa" }}>Add MCQ</span> or <span style={{ color: "#f59e0b" }}>Live Add MCQ</span>
             </div>
-            <p className="text-xs text-gray-500 mt-1">
-              Adjust view, zoom & file options
-            </p>
-          </div>
+          )}
 
-          {/* Zoom Controls */}
-          <div className="mt-8 w-full">
-            <h3 className="font-semibold tracking-wide mb-3 text-sm uppercase text-gray-600 border-b border-gray-300 pb-1 select-none">
-              View Control
-            </h3>
+          {/* Current slide canvas — ONE slide visible at a time */}
+         <div style={{ width: "100%", maxWidth: 1200, flexShrink: 0 }}>
+  <SlideCanvas
+    pptUrl={pptUrl}
+    zoom={zoom}
+    onContextMenu={!isStudent && isTeacher ? (e, slide) => {
+      e.preventDefault()
+      setContextMenu({ x: e.clientX, y: e.clientY, slideNumber: slide })
+    } : undefined}
+    showMcqMarker={savedMcqs.length > 0}
+    mcqCount={savedMcqs.length}
+  />
+</div>
 
-            <div className="flex items-center justify-between bg-gray-50 rounded-2xl p-3 w-full shadow-sm border border-gray-200">
-              {/* Zoom Out */}
-              <button
-                onClick={handleZoomOut}
-                disabled={zoom <= 0.5}
-                className="p-2 rounded-lg hover:bg-blue-100 active:scale-95 transition-all disabled:opacity-40 cursor-pointer flex-shrink-0"
-                title="Zoom Out"
-              >
-                <ZoomOut className="w-5 h-5 text-gray-700" />
-              </button>
+          {/* Prev / Next nav arrows below slide — mirrors PDF ergonomics */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8 }}>
+            <button
+              onClick={() => goToSlide(currentSlide - 1)}
+              disabled={currentSlide <= 1}
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "8px 18px", backgroundColor: currentSlide <= 1 ? "#1f2937" : "#374151",
+                color: currentSlide <= 1 ? "#374151" : "#e5e7eb",
+                border: "1px solid #4b5563", borderRadius: 8,
+                cursor: currentSlide <= 1 ? "not-allowed" : "pointer",
+                fontSize: 12, fontWeight: 600, transition: "all 0.15s",
+              }}
+              onMouseEnter={e => { if (currentSlide > 1) e.currentTarget.style.backgroundColor = "#4b5563" }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = currentSlide <= 1 ? "#1f2937" : "#374151" }}
+            >
+              <ChevronLeft size={15} /> Previous
+            </button>
 
-              {/* Preset Zoom Buttons */}
-              <div className="flex items-center justify-evenly flex-grow mx-3 min-w-0">
-                {[0.75, 1, 1.5].map((z) => (
-                  <button
-                    key={z}
-                    onClick={() => handleZoomTo(z)}
-                    className={`px-3 py-1 text-sm font-medium rounded-lg transition-all duration-300 cursor-pointer flex-shrink-0 whitespace-nowrap ${zoom === z
-                      ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md scale-105'
-                      : 'bg-white hover:bg-blue-500 hover:text-white border border-gray-200'
-                      }`}
-                  >
-                    {z * 100}%
-                  </button>
-                ))}
-              </div>
-
-              {/* Zoom In */}
-              <button
-                onClick={handleZoomIn}
-                disabled={zoom >= 3}
-                className="p-2 rounded-lg hover:bg-blue-100 active:scale-95 transition-all disabled:opacity-40 cursor-pointer flex-shrink-0"
-                title="Zoom In"
-              >
-                <ZoomIn className="w-5 h-5 text-gray-700" />
-              </button>
-
-              {/* Current Zoom Label */}
-              <span className="text-gray-800 text-sm font-semibold px-3 ml-2 whitespace-nowrap select-none bg-white rounded-md shadow-inner border border-gray-200 flex-shrink-0">
-                {Math.round(zoom * 100)}%
+            {/* Slide dots / jump inputs — mirrors PDF page indicator */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6, backgroundColor: "#111827", borderRadius: 8, padding: "6px 12px", border: "1px solid #374151" }}>
+              {slidesWithMcqs.has(currentSlide) && <div style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: "#a78bfa" }} />}
+              <span style={{ fontSize: 12, color: "#9ca3af" }}>
+                Slide <strong style={{ color: "white" }}>{currentSlide}</strong> / {totalSlides}
               </span>
             </div>
-          </div>
 
-          {/* File Options */}
-          <div className="mt-10 w-full">
-            <h3 className="font-semibold tracking-wide mb-3 text-sm uppercase text-gray-600 border-b border-gray-300 pb-1 select-none">
-              File Options
-            </h3>
-
-            <div className="flex items-center gap-4 flex-wrap bg-white/60 rounded-2xl p-3 shadow-inner hover:shadow-lg transition-all duration-300">
-              <button
-                onClick={handlePrint}
-                className="p-3 rounded-xl hover:bg-blue-100 active:scale-95 transition-all shadow-sm cursor-pointer"
-                title="Print"
-              >
-                <Printer className="w-5 h-5 text-gray-700 cursor-pointer" />
-              </button>
-
-              <button
-                onClick={handleDownload}
-                className="p-3 rounded-xl hover:bg-blue-100 active:scale-95 transition-all shadow-sm cursor-pointer"
-                title="Download"
-              >
-                <Download className="w-5 h-5 text-gray-700 cursor-pointer" />
-              </button>
-
-              <button
-                onClick={handleFullscreen}
-                className="p-3 rounded-xl hover:bg-blue-100 active:scale-95 transition-all shadow-sm cursor-pointer"
-                title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
-              >
-                {isFullscreen ? (
-                  <Minimize className="w-5 h-5 text-gray-700 cursor-pointer" />
-                ) : (
-                  <Maximize className="w-5 h-5 text-gray-700 cursor-pointer" />
-                )}
-              </button>
-            </div>
+            <button
+              onClick={() => goToSlide(currentSlide + 1)}
+              disabled={currentSlide >= totalSlides}
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "8px 18px", backgroundColor: currentSlide >= totalSlides ? "#1f2937" : "#374151",
+                color: currentSlide >= totalSlides ? "#374151" : "#e5e7eb",
+                border: "1px solid #4b5563", borderRadius: 8,
+                cursor: currentSlide >= totalSlides ? "not-allowed" : "pointer",
+                fontSize: 12, fontWeight: 600, transition: "all 0.15s",
+              }}
+              onMouseEnter={e => { if (currentSlide < totalSlides) e.currentTarget.style.backgroundColor = "#4b5563" }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = currentSlide >= totalSlides ? "#1f2937" : "#374151" }}
+            >
+              Next <ChevronRight size={15} />
+            </button>
           </div>
         </div>
+
+        {/* MCQ list side panel — mirrors PDFViewer MCQ panel exactly */}
+        {showMcqList && savedMcqs.length > 0 && (
+          <div style={{
+            position: "absolute", top: 0, right: 0, bottom: 0, width: 290,
+            backgroundColor: "#1f2937", borderLeft: "1px solid #374151",
+            display: "flex", flexDirection: "column", zIndex: 20,
+          }}>
+            <div style={{ padding: "10px 14px", borderBottom: "1px solid #374151", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ color: "white", fontWeight: 600, fontSize: 13 }}>All MCQs ({savedMcqs.length})</span>
+              <button onClick={() => setShowMcqList(false)} style={{ background: "none", border: "none", color: "#6b7280", cursor: "pointer", padding: 2 }}><X size={15} /></button>
+            </div>
+            <div style={{ flex: 1, overflowY: "auto", padding: 8 }}>
+              {savedMcqs.map((mcq, i) => {
+                const slide = getMcqSlide(mcq)
+                const isLink = mcq.type === "link"
+                return (
+                  <div key={mcq.id + i}
+                    onClick={() => goToSlide(slide)}
+                    style={{
+                      padding: 10, borderRadius: 7,
+                      border: `1px solid ${slide === currentSlide ? "#7c3aed" : "#374151"}`,
+                      marginBottom: 6,
+                      backgroundColor: slide === currentSlide ? "rgba(124,58,237,0.1)" : "#111827",
+                      cursor: "pointer",
+                    }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 4 }}>
+                      <Hash size={11} color="#a78bfa" />
+                      <span style={{ fontSize: 11, color: "#a78bfa", fontWeight: 700 }}>Slide {slide}</span>
+                      <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 3, fontWeight: 700, backgroundColor: isLink ? "rgba(245,158,11,0.2)" : "rgba(124,58,237,0.2)", color: isLink ? "#f59e0b" : "#a78bfa" }}>
+                        {isLink ? "link" : "default"}
+                      </span>
+                      {slide === currentSlide && <span style={{ marginLeft: "auto", fontSize: 9, backgroundColor: "#7c3aed", color: "white", padding: "1px 5px", borderRadius: 3 }}>current</span>}
+                    </div>
+                    <p style={{ fontSize: 12, color: "#e5e7eb", fontWeight: 500, margin: "0 0 4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {mcq.questionTitle?.replace(/<[^>]*>/g, "").trim() || "Untitled"}
+                    </p>
+                    {isLink && mcq.link && <p style={{ fontSize: 9, color: "#f59e0b", margin: "2px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>🔗 {mcq.link}</p>}
+                    <p style={{ fontSize: 9, color: "#4b5563", margin: "4px 0 0" }}>Click to jump to slide</p>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Context Menu */}
+      {contextMenu && !isStudent && isTeacher && (
+        <ContextMenu
+          x={contextMenu.x} y={contextMenu.y}
+          slideNumber={contextMenu.slideNumber}
+          onAddMcq={slide => { openMcqForm(slide, "default"); setContextMenu(null) }}
+          onLiveAddMcq={slide => { openMcqForm(slide, "link"); setContextMenu(null) }}
+          onClose={() => setContextMenu(null)}
+        />
       )}
 
+      {/* Fullscreen exit button */}
+      {isFullscreen && (
+        <button onClick={() => document.exitFullscreen?.()} style={{ position: "fixed", top: 16, right: 16, zIndex: 2100, padding: "7px 14px", backgroundColor: "rgba(0,0,0,0.7)", color: "white", border: "1px solid #374151", borderRadius: 7, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
+          <Minimize size={15} /> Exit Fullscreen
+        </button>
+      )}
 
-      {/* External Components */}
+      {/* MCQ Form */}
+      {showMcqForm && (
+        <MCQQuestionForm
+          initialSlideNumber={mcqSlideNumber}
+          onClose={() => setShowMcqForm(false)}
+          onSave={handleMcqSave}
+          onLinkGenerated={handleLinkGenerated}
+          fileId={fileId} fileName={title}
+          entityType={entityType} entityId={entityId}
+          tabType={tabType} subcategory={subcategory}
+          folderPath={folderPath} apiBaseUrl={apiBaseUrl}
+          mcqMode={mcqMode} sampleLink={sampleLiveLink}
+        />
+      )}
 
+      {/* Generated Link Popup */}
+      {generatedLinkData && (
+        <GeneratedLinkPopup
+          link={generatedLinkData.link}
+          slideNumber={generatedLinkData.slideNumber}
+          questionCount={generatedLinkData.questionCount}
+          fileName={title}
+          onClose={() => setGeneratedLinkData(null)}
+        />
+      )}
 
-      {/* <AIPanel
-        isOpen={aiOpen}
-        onClose={() => setAiOpen(false)}
-      />
-
-
-      <NotesPanel
-        isOpen={notesOpen}
-        onClose={() => setNotesOpen(false)}
-      /> */}
-
+      <style>{`
+        @keyframes ctxFade { from { opacity: 0; transform: scale(0.95) } to { opacity: 1; transform: scale(1) } }
+      `}</style>
     </div>
   )
 }

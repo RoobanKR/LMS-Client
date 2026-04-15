@@ -1,4 +1,3 @@
-// components/UserTable.tsx
 import { Edit, Key, Loader2, Trash2, ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -104,7 +103,7 @@ export const UserTable = ({
             key={`ellipsis-${index}`}
             variant="ghost"
             size="sm"
-            className="w-8 h-8 p-0 cursor-default text-xs text-gray-500 font-normal"
+            className="w-8 h-8 p-0 cursor-default text-xs text-gray-500 dark:text-gray-400 font-normal"
             disabled
           >
             ...
@@ -120,8 +119,8 @@ export const UserTable = ({
           onClick={() => handlePageChange(Number(page))}
           className={`w-8 h-8 p-0 cursor-pointer text-xs transition-all font-medium ${
             pagination.currentPage === page 
-              ? 'bg-blue-600 text-white shadow-sm' 
-              : 'text-gray-600 hover:bg-gray-100'
+              ? 'bg-blue-600 text-white shadow-sm dark:bg-blue-600' 
+              : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
           }`}
           disabled={isLoading}
         >
@@ -133,10 +132,10 @@ export const UserTable = ({
 
   return (
     <div className="space-y-4">
-      <div className="overflow-hidden bg-white">
+      <div className="overflow-hidden bg-white dark:bg-gray-800">
         <Table className="min-w-full">
           <TableHeader>
-            <TableRow className="border-b border-gray-300">
+            <TableRow className="border-b border-gray-300 dark:border-gray-700">
               {columns.map((column) => (
                 <TableHead
                   key={column.key}
@@ -148,14 +147,14 @@ export const UserTable = ({
                     width: column.width || 'auto'
                   }}
                 >
-                  <span className="text-xs font-semibold text-gray-1300 tracking-wide font-inter">
+                  <span className="text-xs font-semibold text-gray-1300 dark:text-gray-300 tracking-wide font-inter">
                     {column.label}
                   </span>
                 </TableHead>
               ))}
               {actionButtons && (
                 <TableHead className="px-2 py-2 w-12 text-center">
-                  <span className="text-xs font-semibold text-gray-700 tracking-wide font-inter">
+                  <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 tracking-wide font-inter">
                     Actions
                   </span>
                 </TableHead>
@@ -170,17 +169,17 @@ export const UserTable = ({
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ duration: 0.3 }}
-                  className="border-b border-gray-100"
+                  className="border-b border-gray-100 dark:border-gray-700"
                 >
                   {columns.map((column) => (
                     <TableCell key={`skeleton-cell-${column.key}-${index}`} className="px-3 py-2">
-                      <div className="h-4 bg-gradient-to-r from-gray-100 to-gray-200 rounded animate-pulse font-sans"></div>
+                      <div className="h-4 bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600 rounded animate-pulse font-sans"></div>
                     </TableCell>
                   ))}
                   {actionButtons && (
                     <TableCell className="px-3 py-2">
                       <div className="flex justify-center">
-                        <div className="h-6 w-6 bg-gradient-to-r from-gray-100 to-gray-200 rounded animate-pulse"></div>
+                        <div className="h-6 w-6 bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600 rounded animate-pulse"></div>
                       </div>
                     </TableCell>
                   )}
@@ -190,7 +189,7 @@ export const UserTable = ({
               users.map((user, index) => (
                 <TableRow 
                   key={user.id || `user-${index}`} 
-                  className="border-b border-gray-100 hover:bg-gray-50 transition-colors last:border-b-0"
+                  className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors last:border-b-0"
                 >
                   {columns.map((column, colIndex) => (
                     <TableCell
@@ -200,7 +199,7 @@ export const UserTable = ({
                         column.align === 'right' ? 'text-right' : 'text-left'
                       }`}
                     >
-                      <span className="text-sm font-normal text-gray-700 font-sans">
+                      <span className="text-sm font-normal text-gray-700 dark:text-gray-300 font-sans">
                         {column.renderCell
                           ? column.renderCell(user)
                           : user[column.key]}
@@ -218,34 +217,37 @@ export const UserTable = ({
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-7 w-7 p-0 opacity-70 hover:opacity-100 transition-opacity font-sans"
+                              className="h-7 w-7 p-0 opacity-70 hover:opacity-100 transition-opacity font-sans text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
                             >
                               <MoreHorizontal className="h-3.5 w-3.5" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="center" className="w-40">
+                          <DropdownMenuContent 
+                            align="center" 
+                            className="w-40 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
+                          >
                             {actionButtons.edit && (
                               <DropdownMenuItem
                                 onClick={() => handleActionClick(actionButtons.edit!, user)}
-                                className="flex items-center justify-center gap-2 cursor-pointer text-sm font-sans"
+                                className="flex items-center justify-center gap-2 cursor-pointer text-sm font-sans text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 focus:bg-gray-100 dark:focus:bg-gray-700"
                               >
-                                <Edit className="h-4 w-4" />
+                                <Edit className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                                 Edit
                               </DropdownMenuItem>
                             )}
                             {actionButtons.permissions && (
                               <DropdownMenuItem
                                 onClick={() => handleActionClick(actionButtons.permissions!, user)}
-                                className="flex items-center justify-center gap-2 cursor-pointer text-sm font-sans"
+                                className="flex items-center justify-center gap-2 cursor-pointer text-sm font-sans text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 focus:bg-gray-100 dark:focus:bg-gray-700"
                               >
-                                <Key className="h-4 w-4" />
+                                <Key className="h-4 w-4 text-purple-600 dark:text-purple-400" />
                                 Permissions
                               </DropdownMenuItem>
                             )}
                             {actionButtons.delete && (
                               <DropdownMenuItem
                                 onClick={() => handleActionClick(actionButtons.delete!, user)}
-                                className="flex items-center justify-center gap-2 cursor-pointer text-sm text-red-600 focus:text-red-600 font-sans"
+                                className="flex items-center justify-center gap-2 cursor-pointer text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 focus:bg-gray-100 dark:focus:bg-gray-700 focus:text-red-600 dark:focus:text-red-400"
                               >
                                 <Trash2 className="h-4 w-4" />
                                 Delete
@@ -264,14 +266,14 @@ export const UserTable = ({
                   colSpan={columns.length + (actionButtons ? 1 : 0)} 
                   className="px-4 py-8 text-center"
                 >
-                  <div className="flex flex-col items-center justify-center text-gray-400 font-sans">
-                    <div className="rounded-full bg-gray-100 p-3 mb-3">
+                  <div className="flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 font-sans">
+                    <div className="rounded-full bg-gray-100 dark:bg-gray-800 p-3 mb-3">
                       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                     </div>
-                    <p className="text-sm font-medium text-gray-500 mb-1">No users found</p>
-                    <p className="text-xs font-normal text-gray-400">No data matches your current criteria</p>
+                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">No users found</p>
+                    <p className="text-xs font-normal text-gray-400 dark:text-gray-500">No data matches your current criteria</p>
                   </div>
                 </TableCell>
               </TableRow>
@@ -282,11 +284,11 @@ export const UserTable = ({
 
       {/* Pagination */}
       {pagination && pagination.totalItems > 0 && (
-        <div className="flex items-center justify-between px-4 py-3 bg-white border-t border-gray-200 font-sans">
-          <div className="text-sm font-normal text-gray-600">
-            Showing <span className="font-semibold text-gray-900">{((pagination.currentPage - 1) * pagination.itemsPerPage) + 1}</span> to{" "}
-            <span className="font-semibold text-gray-900">{Math.min(pagination.currentPage * pagination.itemsPerPage, pagination.totalItems)}</span> of{" "}
-            <span className="font-semibold text-gray-900">{pagination.totalItems}</span> Course Structures
+        <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 font-sans">
+          <div className="text-sm font-normal text-gray-600 dark:text-gray-400">
+            Showing <span className="font-semibold text-gray-900 dark:text-gray-100">{((pagination.currentPage - 1) * pagination.itemsPerPage) + 1}</span> to{" "}
+            <span className="font-semibold text-gray-900 dark:text-gray-100">{Math.min(pagination.currentPage * pagination.itemsPerPage, pagination.totalItems)}</span> of{" "}
+            <span className="font-semibold text-gray-900 dark:text-gray-100">{pagination.totalItems}</span> Course Structures
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -294,7 +296,7 @@ export const UserTable = ({
               size="sm"
               onClick={() => handlePageChange(pagination.currentPage - 1)}
               disabled={pagination.currentPage === 1 || isLoading}
-              className="flex items-center gap-2 cursor-pointer text-sm font-medium px-3 py-2 h-9 border-gray-300 hover:bg-gray-50 text-gray-700"
+              className="flex items-center gap-2 cursor-pointer text-sm font-medium px-3 py-2 h-9 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800"
             >
               <ChevronLeft className="h-4 w-4" />
               Previous
@@ -309,7 +311,7 @@ export const UserTable = ({
               size="sm"
               onClick={() => handlePageChange(pagination.currentPage + 1)}
               disabled={pagination.currentPage === pagination.totalPages || isLoading}
-              className="flex items-center gap-2 cursor-pointer text-sm font-medium px-3 py-2 h-9 border-gray-300 hover:bg-gray-50 text-gray-700"
+              className="flex items-center gap-2 cursor-pointer text-sm font-medium px-3 py-2 h-9 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800"
             >
               Next
               <ChevronRight className="h-4 w-4" />

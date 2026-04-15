@@ -63,6 +63,7 @@ import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { subModuleApi } from "@/apiServices/pedagogyAndModuleAdd/addsubmodule"
 import { topicApi } from "@/apiServices/pedagogyAndModuleAdd/addtopic"
+import TestConfigurationSection from "@/app/lms/component/Addcoursestructure/TestConfigurationSection"
 import { subTopicApi } from "@/apiServices/pedagogyAndModuleAdd/addsubtopic"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { pedagogyViewApi } from "@/apiServices/pedagogyAndModuleAdd/pedagogy"
@@ -72,7 +73,7 @@ import PrintComponent, { PrintComponentRef } from "@/components/ui/PrintComponen
 import DropdownSection from "@/components/ui/dropdownSection";
 import { toast, Toaster } from 'sonner';
 import { createPortal } from "react-dom";
-import DashboardLayout from "../../../component/layout";
+import DashboardLayout from "@/app/lms/component/layout";
 
 interface Modules {
     _id: string
@@ -523,6 +524,15 @@ export default function PedagogyManagement() {
     // Update the pedagogy views query to include modules dependency
     const [isSelectingCells, setIsSelectingCells] = useState(false);
     const [dragOverId, setDragOverId] = useState<string | null>(null);
+    const [moduleTestConfig, setModuleTestConfig] = useState<{
+        coreProgram: string[];
+        frontend: string[];
+        database: string[];
+    }>({
+        coreProgram: [],
+        frontend: [],
+        database: []
+    });
     const {
         data: modules = [],
         isLoading: isModulesLoading,
@@ -966,7 +976,15 @@ export default function PedagogyManagement() {
         setSelectedLevelSubTopicsForMerge(new Set());
         setShowMergeLevelSection(false);
     };
-
+    // Add this near your other useEffect hooks
+    useEffect(() => {
+        if (selectedCourse && !selectedCourse.testConfiguration) {
+            toast.warning('This course does not have test configuration. Module creation is disabled.', {
+                duration: 5000,
+                position: 'top-right',
+            });
+        }
+    }, [selectedCourse]);
     const clearPedagogyMergeSelections = (activityType?: "iDo" | "weDo" | "youDo", activity?: string) => {
         if (activityType && activity) {
             // Clear specific activity merge
@@ -2299,6 +2317,18 @@ export default function PedagogyManagement() {
         }
         setExpandedSet(newSet);
     };
+    // Normalize testConfiguration from backend (handles both flat and legacy nested formats)
+    const getCourseSkillSet = () => {
+        const tc = selectedCourse?.testConfiguration;
+        if (!tc) return { coreProgram: [], frontend: [], database: [] };
+        if (Array.isArray(tc.coreProgram) || Array.isArray(tc.frontend) || Array.isArray(tc.database)) {
+            return { coreProgram: tc.coreProgram || [], frontend: tc.frontend || [], database: tc.database || [] };
+        }
+        // Legacy nested format
+        const languages = tc?.programming?.languages || {};
+        return { coreProgram: languages.coreProgram || [], frontend: languages.frontend || [], database: languages.database || [] };
+    };
+
     const isLastHierarchy = () => {
         if (!selectedCourse || !dialogType) return false;
 
@@ -2715,64 +2745,68 @@ export default function PedagogyManagement() {
             setPedagogyFormData(null);
         }
     };
-    // Add this function near your other state declarations
-    const resetAllFormStates = () => {
-        // Reset form data
-        setModuleFormData({ title: '', description: '', level: 'Easy', duration: 0, index: 0 });
-        setSubModuleFormData({ title: '', description: '', level: 'Easy', duration: 0 });
-        setTopicFormData({ title: '', description: '', level: 'Easy', duration: 0 });
-        setSubTopicFormData({ title: '', description: '', level: 'Easy', duration: 0 });
-        setAddOnlyPedagogyLevel(false);
-        // Reset level and pedagogy sections
-        setShowLevelSection(false);
-        setShowPedagogySection(false);
-        setShowMergeLevelSection(false);
-        setShowMergePedagogySection({
-            iDo: false,
-            weDo: false,
-            youDo: false
-        });
-        setSelectedLevelModulesForMerge(new Set());
-        setSelectedLevelSubModulesForMerge(new Set());
-        setSelectedLevelTopicsForMerge(new Set());
-        setSelectedLevelSubTopicsForMerge(new Set());
+const resetAllFormStates = () => {
+    // Reset form data
+      setModuleFormData({ title: '', description: '', level: 'Easy', duration: 0, index: 0 });
+    setSubModuleFormData({ title: '', description: '', level: 'Easy', duration: 0 });
+    setTopicFormData({ title: '', description: '', level: 'Easy', duration: 0 });
+    setSubTopicFormData({ title: '', description: '', level: 'Easy', duration: 0 });
+    // Only reset skill set configuration if NOT in edit mode
+    if (!editMode) {
+        setModuleTestConfig({ coreProgram: [], frontend: [], database: [] });
+    }
 
-        setSelectedPedagogyModulesForMerge({});
-        setSelectedPedagogySubModulesForMerge({});
-        setSelectedPedagogyTopicsForMerge({});
-        setSelectedPedagogySubTopicsForMerge({});
-        // Reset pedagogy activities and hours
-        setSelectedPedagogyActivities({
-            iDo: [],
-            weDo: [],
-            youDo: []
-        });
-        setPedagogyHours({
-            iDo: {},
-            weDo: {},
-            youDo: {}
-        });
+    setAddOnlyPedagogyLevel(false);
+    // Reset level and pedagogy sections
+    setShowLevelSection(false);
+    setShowPedagogySection(false);
+    setShowMergeLevelSection(false);
+    setShowMergePedagogySection({
+        iDo: false,
+        weDo: false,
+        youDo: false
+    });
+    setSelectedLevelModulesForMerge(new Set());
+    setSelectedLevelSubModulesForMerge(new Set());
+    setSelectedLevelTopicsForMerge(new Set());
+    setSelectedLevelSubTopicsForMerge(new Set());
 
-        // Reset saved merge selections
-        setSavedLevelMergeSelections(null);
-        setSavedPedagogyMergeSelections({
-            iDo: {},
-            weDo: {},
-            youDo: {}
-        });
+    setSelectedPedagogyModulesForMerge({});
+    setSelectedPedagogySubModulesForMerge({});
+    setSelectedPedagogyTopicsForMerge({});
+    setSelectedPedagogySubTopicsForMerge({});
+    // Reset pedagogy activities and hours
+    setSelectedPedagogyActivities({
+        iDo: [],
+        weDo: [],
+        youDo: []
+    });
+    setPedagogyHours({
+        iDo: {},
+        weDo: {},
+        youDo: {}
+    });
 
-        // Reset expanded states
-        setExpandedModules(new Set());
-        setExpandedSubModules(new Set());
-        setExpandedTopics(new Set());
+    // Reset saved merge selections
+    setSavedLevelMergeSelections(null);
+    setSavedPedagogyMergeSelections({
+        iDo: {},
+        weDo: {},
+        youDo: {}
+    });
 
-        // Reset selected level
-        setSelectedLevel('');
-        setDisableAddonlyMode(false);
-        // Reset dialog and edit mode
-        setDialogType(null);
-        setEditMode(null);
-    };
+    // Reset expanded states
+    setExpandedModules(new Set());
+    setExpandedSubModules(new Set());
+    setExpandedTopics(new Set());
+
+    // Reset selected level
+    setSelectedLevel('');
+    setDisableAddonlyMode(false);
+    // Reset dialog and edit mode
+    setDialogType(null);
+    // Don't reset editMode here if we're in the middle of editing
+};
 
     const isFirstChild = (dialogType: string | null, editMode: any) => {
         if (!dialogType || editMode) return false;
@@ -2902,25 +2936,25 @@ export default function PedagogyManagement() {
         const pedagogyToUpdate = pedagogyViews?.[0];
         if (!pedagogyToUpdate) return;
 
-          // Get current element indices for comparison
-    let currentModuleIndex = 0;
-    let currentSubModuleIndex = 0;
-    let currentTopicIndex = 0;
+        // Get current element indices for comparison
+        let currentModuleIndex = 0;
+        let currentSubModuleIndex = 0;
+        let currentTopicIndex = 0;
 
-    if (hierarchyIds.modules?.[0]) {
-        const currentModule = modules.find(m => m._id === hierarchyIds.modules[0]);
-        currentModuleIndex = currentModule?.index ?? 0;
-    }
-    if (hierarchyIds.subModules?.[0]) {
-        const currentSubModule = subModules.find(sm => sm._id === hierarchyIds.subModules[0]);
-        currentSubModuleIndex = currentSubModule?.index ?? 0;
-    }
-    if (hierarchyIds.topics?.[0]) {
-        const currentTopic = topics.find(t => t._id === hierarchyIds.topics[0]);
-        currentTopicIndex = currentTopic?.index ?? 0;
-    }
+        if (hierarchyIds.modules?.[0]) {
+            const currentModule = modules.find(m => m._id === hierarchyIds.modules[0]);
+            currentModuleIndex = currentModule?.index ?? 0;
+        }
+        if (hierarchyIds.subModules?.[0]) {
+            const currentSubModule = subModules.find(sm => sm._id === hierarchyIds.subModules[0]);
+            currentSubModuleIndex = currentSubModule?.index ?? 0;
+        }
+        if (hierarchyIds.topics?.[0]) {
+            const currentTopic = topics.find(t => t._id === hierarchyIds.topics[0]);
+            currentTopicIndex = currentTopic?.index ?? 0;
+        }
 
-    
+
         // Determine if this is the first child
         const firstChild = isFirstChild(dialogType, editMode);
 
@@ -3083,26 +3117,26 @@ export default function PedagogyManagement() {
             }
             // For subsequent children: only delete MERGED pedagogy containing the last child ID
             else if (!editMode) {
-            let shouldDelete = false;
+                let shouldDelete = false;
 
-            // Check module-level merging with higher index
-            if (hierarchyIds.modules?.[0] && checkIfMergedWithHigherIndexModule(pedagogy, hierarchyIds.modules[0], currentModuleIndex)) {
-                shouldDelete = true;
-            }
-            // Check submodule-level merging with higher index
-            else if (hierarchyIds.subModules?.[0] && checkIfMergedWithHigherIndexSubModule(pedagogy, hierarchyIds.subModules[0], currentSubModuleIndex)) {
-                shouldDelete = true;
-            }
-            // Check topic-level merging with higher index
-            else if (hierarchyIds.topics?.[0] && checkIfMergedWithHigherIndexTopic(pedagogy, hierarchyIds.topics[0], currentTopicIndex)) {
-                shouldDelete = true;
+                // Check module-level merging with higher index
+                if (hierarchyIds.modules?.[0] && checkIfMergedWithHigherIndexModule(pedagogy, hierarchyIds.modules[0], currentModuleIndex)) {
+                    shouldDelete = true;
+                }
+                // Check submodule-level merging with higher index
+                else if (hierarchyIds.subModules?.[0] && checkIfMergedWithHigherIndexSubModule(pedagogy, hierarchyIds.subModules[0], currentSubModuleIndex)) {
+                    shouldDelete = true;
+                }
+                // Check topic-level merging with higher index
+                else if (hierarchyIds.topics?.[0] && checkIfMergedWithHigherIndexTopic(pedagogy, hierarchyIds.topics[0], currentTopicIndex)) {
+                    shouldDelete = true;
+                }
+
+                return shouldDelete;
             }
 
-            return shouldDelete;
-        }
-
-        return false;
-    });
+            return false;
+        });
 
         for (const pedagogy of pedagogiesToDelete) {
             if (pedagogy._id) {
@@ -3569,52 +3603,133 @@ export default function PedagogyManagement() {
             setMergedLevels(updatedMergedLevels);
         }
         // For subsequent children: only remove merged cells containing the parent's last child element ID
-         else {
-        let currentElementId = null;
-        let currentModuleId = null;
-        let currentSubModuleId = null;
-        let currentTopicId = null;
+        else {
+            let currentElementId = null;
+            let currentModuleId = null;
+            let currentSubModuleId = null;
+            let currentTopicId = null;
 
-        // Get current element IDs based on dialog type
-        if (dialogType === 'submodule') {
-            currentElementId = hierarchyIds.subModules?.[0];
-            currentModuleId = hierarchyIds.modules?.[0];
-        } else if (dialogType === 'topic') {
-            currentElementId = hierarchyIds.topics?.[0];
-            currentModuleId = hierarchyIds.modules?.[0];
-            currentSubModuleId = hierarchyIds.subModules?.[0];
-        } else if (dialogType === 'subtopic') {
-            currentElementId = hierarchyIds.subTopics?.[0];
-            currentModuleId = hierarchyIds.modules?.[0];
-            currentSubModuleId = hierarchyIds.subModules?.[0];
-            currentTopicId = hierarchyIds.topics?.[0];
-        }
+            // Get current element IDs based on dialog type
+            if (dialogType === 'submodule') {
+                currentElementId = hierarchyIds.subModules?.[0];
+                currentModuleId = hierarchyIds.modules?.[0];
+            } else if (dialogType === 'topic') {
+                currentElementId = hierarchyIds.topics?.[0];
+                currentModuleId = hierarchyIds.modules?.[0];
+                currentSubModuleId = hierarchyIds.subModules?.[0];
+            } else if (dialogType === 'subtopic') {
+                currentElementId = hierarchyIds.subTopics?.[0];
+                currentModuleId = hierarchyIds.modules?.[0];
+                currentSubModuleId = hierarchyIds.subModules?.[0];
+                currentTopicId = hierarchyIds.topics?.[0];
+            }
 
-        // Get current element's module index
-        const currentModule = currentModuleId ? modules.find(m => m._id === currentModuleId) : null;
-        const currentModuleIndex = currentModule?.index ?? 0;
+            // Get current element's module index
+            const currentModule = currentModuleId ? modules.find(m => m._id === currentModuleId) : null;
+            const currentModuleIndex = currentModule?.index ?? 0;
 
-        Object.keys(updatedMergedCells).forEach(key => {
-            updatedMergedCells[key] = updatedMergedCells[key].filter(merge => {
-                // Check if this merged cell contains the current element
-                const containsCurrentElement = 
-                    (currentElementId && merge.hierarchyIds?.subTopics.includes(currentElementId)) ||
-                    (currentTopicId && merge.hierarchyIds?.topics.includes(currentTopicId)) ||
-                    (currentSubModuleId && merge.hierarchyIds?.subModules.includes(currentSubModuleId)) ||
-                    (currentModuleId && merge.hierarchyIds?.modules.includes(currentModuleId));
+            Object.keys(updatedMergedCells).forEach(key => {
+                updatedMergedCells[key] = updatedMergedCells[key].filter(merge => {
+                    // Check if this merged cell contains the current element
+                    const containsCurrentElement =
+                        (currentElementId && merge.hierarchyIds?.subTopics.includes(currentElementId)) ||
+                        (currentTopicId && merge.hierarchyIds?.topics.includes(currentTopicId)) ||
+                        (currentSubModuleId && merge.hierarchyIds?.subModules.includes(currentSubModuleId)) ||
+                        (currentModuleId && merge.hierarchyIds?.modules.includes(currentModuleId));
+
+                    if (!containsCurrentElement) return true;
+
+                    // Condition 1: Check if current element's module is merged with other modules that have higher index
+                    if (merge.hierarchyIds?.modules && merge.hierarchyIds.modules.length > 1) {
+                        const hasHigherIndexModule = merge.hierarchyIds.modules.some(moduleId => {
+                            if (moduleId === currentModuleId) return false; // Skip current module
+                            const otherModule = modules.find(m => m._id === moduleId);
+                            return otherModule && (otherModule.index ?? 0) > currentModuleIndex;
+                        });
+
+                        if (hasHigherIndexModule) {
+                            // Delete this merged cell as it contains modules with higher index
+                            return false;
+                        }
+                    }
+
+                    // Condition 2: Check if any parent hierarchy is merged with elements that have higher index
+                    let shouldDelete = false;
+
+                    // Check submodule merges with higher index
+                    if (merge.hierarchyIds?.subModules && merge.hierarchyIds.subModules.length > 1 && currentSubModuleId) {
+                        const currentSubModule = subModules.find(sm => sm._id === currentSubModuleId);
+                        const currentSubModuleIndex = currentSubModule?.index ?? 0;
+
+                        const hasHigherIndexSubModule = merge.hierarchyIds.subModules.some(subModuleId => {
+                            if (subModuleId === currentSubModuleId) return false;
+                            const otherSubModule = subModules.find(sm => sm._id === subModuleId);
+                            return otherSubModule && (otherSubModule.index ?? 0) > currentSubModuleIndex;
+                        });
+
+                        if (hasHigherIndexSubModule) {
+                            shouldDelete = true;
+                        }
+                    }
+
+                    // Check topic merges with higher index
+                    if (merge.hierarchyIds?.topics && merge.hierarchyIds.topics.length > 1 && currentTopicId) {
+                        const currentTopic = topics.find(t => t._id === currentTopicId);
+                        const currentTopicIndex = currentTopic?.index ?? 0;
+
+                        const hasHigherIndexTopic = merge.hierarchyIds.topics.some(topicId => {
+                            if (topicId === currentTopicId) return false;
+                            const otherTopic = topics.find(t => t._id === topicId);
+                            return otherTopic && (otherTopic.index ?? 0) > currentTopicIndex;
+                        });
+
+                        if (hasHigherIndexTopic) {
+                            shouldDelete = true;
+                        }
+                    }
+
+                    // Check subtopic merges with higher index
+                    if (merge.hierarchyIds?.subTopics && merge.hierarchyIds.subTopics.length > 1 && currentElementId) {
+                        const currentSubtopic = subTopics.find(st => st._id === currentElementId);
+                        const currentSubtopicIndex = currentSubtopic?.index ?? 0;
+
+                        const hasHigherIndexSubtopic = merge.hierarchyIds.subTopics.some(subtopicId => {
+                            if (subtopicId === currentElementId) return false;
+                            const otherSubtopic = subTopics.find(st => st._id === subtopicId);
+                            return otherSubtopic && (otherSubtopic.index ?? 0) > currentSubtopicIndex;
+                        });
+
+                        if (hasHigherIndexSubtopic) {
+                            shouldDelete = true;
+                        }
+                    }
+
+                    return !shouldDelete;
+                });
+            });
+
+            setMergedCells(updatedMergedCells);
+
+            // Apply same logic to mergedLevels
+            const updatedMergedLevels = mergedLevels.filter(merge => {
+                // Check if this merged level contains the current element
+                const containsCurrentElement =
+                    (currentElementId && merge.hierarchyIds.subTopics.includes(currentElementId)) ||
+                    (currentTopicId && merge.hierarchyIds.topics.includes(currentTopicId)) ||
+                    (currentSubModuleId && merge.hierarchyIds.subModules.includes(currentSubModuleId)) ||
+                    (currentModuleId && merge.hierarchyIds.modules.includes(currentModuleId));
 
                 if (!containsCurrentElement) return true;
 
                 // Condition 1: Check if current element's module is merged with other modules that have higher index
-                if (merge.hierarchyIds?.modules && merge.hierarchyIds.modules.length > 1) {
+                if (merge.hierarchyIds.modules && merge.hierarchyIds.modules.length > 1) {
                     const hasHigherIndexModule = merge.hierarchyIds.modules.some(moduleId => {
-                        if (moduleId === currentModuleId) return false; // Skip current module
+                        if (moduleId === currentModuleId) return false;
                         const otherModule = modules.find(m => m._id === moduleId);
                         return otherModule && (otherModule.index ?? 0) > currentModuleIndex;
                     });
-                    
+
                     if (hasHigherIndexModule) {
-                        // Delete this merged cell as it contains modules with higher index
                         return false;
                     }
                 }
@@ -3623,7 +3738,7 @@ export default function PedagogyManagement() {
                 let shouldDelete = false;
 
                 // Check submodule merges with higher index
-                if (merge.hierarchyIds?.subModules && merge.hierarchyIds.subModules.length > 1 && currentSubModuleId) {
+                if (merge.hierarchyIds.subModules && merge.hierarchyIds.subModules.length > 1 && currentSubModuleId) {
                     const currentSubModule = subModules.find(sm => sm._id === currentSubModuleId);
                     const currentSubModuleIndex = currentSubModule?.index ?? 0;
 
@@ -3639,7 +3754,7 @@ export default function PedagogyManagement() {
                 }
 
                 // Check topic merges with higher index
-                if (merge.hierarchyIds?.topics && merge.hierarchyIds.topics.length > 1 && currentTopicId) {
+                if (merge.hierarchyIds.topics && merge.hierarchyIds.topics.length > 1 && currentTopicId) {
                     const currentTopic = topics.find(t => t._id === currentTopicId);
                     const currentTopicIndex = currentTopic?.index ?? 0;
 
@@ -3655,7 +3770,7 @@ export default function PedagogyManagement() {
                 }
 
                 // Check subtopic merges with higher index
-                if (merge.hierarchyIds?.subTopics && merge.hierarchyIds.subTopics.length > 1 && currentElementId) {
+                if (merge.hierarchyIds.subTopics && merge.hierarchyIds.subTopics.length > 1 && currentElementId) {
                     const currentSubtopic = subTopics.find(st => st._id === currentElementId);
                     const currentSubtopicIndex = currentSubtopic?.index ?? 0;
 
@@ -3672,121 +3787,40 @@ export default function PedagogyManagement() {
 
                 return !shouldDelete;
             });
+
+            setMergedLevels(updatedMergedLevels);
+        }
+    };
+    // Also update the helper functions to check for higher index elements
+    const checkIfMergedWithHigherIndexModule = (pedagogy: any, currentModuleId: string, currentModuleIndex: number): boolean => {
+        if (!pedagogy.module || pedagogy.module.length <= 1) return false;
+
+        return pedagogy.module.some((moduleId: string) => {
+            if (moduleId === currentModuleId) return false;
+            const otherModule = modules.find(m => m._id === moduleId);
+            return otherModule && (otherModule.index ?? 0) > currentModuleIndex;
         });
+    };
 
-        setMergedCells(updatedMergedCells);
+    const checkIfMergedWithHigherIndexSubModule = (pedagogy: any, currentSubModuleId: string, currentSubModuleIndex: number): boolean => {
+        if (!pedagogy.subModule || pedagogy.subModule.length <= 1) return false;
 
-        // Apply same logic to mergedLevels
-        const updatedMergedLevels = mergedLevels.filter(merge => {
-            // Check if this merged level contains the current element
-            const containsCurrentElement = 
-                (currentElementId && merge.hierarchyIds.subTopics.includes(currentElementId)) ||
-                (currentTopicId && merge.hierarchyIds.topics.includes(currentTopicId)) ||
-                (currentSubModuleId && merge.hierarchyIds.subModules.includes(currentSubModuleId)) ||
-                (currentModuleId && merge.hierarchyIds.modules.includes(currentModuleId));
-
-            if (!containsCurrentElement) return true;
-
-            // Condition 1: Check if current element's module is merged with other modules that have higher index
-            if (merge.hierarchyIds.modules && merge.hierarchyIds.modules.length > 1) {
-                const hasHigherIndexModule = merge.hierarchyIds.modules.some(moduleId => {
-                    if (moduleId === currentModuleId) return false;
-                    const otherModule = modules.find(m => m._id === moduleId);
-                    return otherModule && (otherModule.index ?? 0) > currentModuleIndex;
-                });
-                
-                if (hasHigherIndexModule) {
-                    return false;
-                }
-            }
-
-            // Condition 2: Check if any parent hierarchy is merged with elements that have higher index
-            let shouldDelete = false;
-
-            // Check submodule merges with higher index
-            if (merge.hierarchyIds.subModules && merge.hierarchyIds.subModules.length > 1 && currentSubModuleId) {
-                const currentSubModule = subModules.find(sm => sm._id === currentSubModuleId);
-                const currentSubModuleIndex = currentSubModule?.index ?? 0;
-
-                const hasHigherIndexSubModule = merge.hierarchyIds.subModules.some(subModuleId => {
-                    if (subModuleId === currentSubModuleId) return false;
-                    const otherSubModule = subModules.find(sm => sm._id === subModuleId);
-                    return otherSubModule && (otherSubModule.index ?? 0) > currentSubModuleIndex;
-                });
-
-                if (hasHigherIndexSubModule) {
-                    shouldDelete = true;
-                }
-            }
-
-            // Check topic merges with higher index
-            if (merge.hierarchyIds.topics && merge.hierarchyIds.topics.length > 1 && currentTopicId) {
-                const currentTopic = topics.find(t => t._id === currentTopicId);
-                const currentTopicIndex = currentTopic?.index ?? 0;
-
-                const hasHigherIndexTopic = merge.hierarchyIds.topics.some(topicId => {
-                    if (topicId === currentTopicId) return false;
-                    const otherTopic = topics.find(t => t._id === topicId);
-                    return otherTopic && (otherTopic.index ?? 0) > currentTopicIndex;
-                });
-
-                if (hasHigherIndexTopic) {
-                    shouldDelete = true;
-                }
-            }
-
-            // Check subtopic merges with higher index
-            if (merge.hierarchyIds.subTopics && merge.hierarchyIds.subTopics.length > 1 && currentElementId) {
-                const currentSubtopic = subTopics.find(st => st._id === currentElementId);
-                const currentSubtopicIndex = currentSubtopic?.index ?? 0;
-
-                const hasHigherIndexSubtopic = merge.hierarchyIds.subTopics.some(subtopicId => {
-                    if (subtopicId === currentElementId) return false;
-                    const otherSubtopic = subTopics.find(st => st._id === subtopicId);
-                    return otherSubtopic && (otherSubtopic.index ?? 0) > currentSubtopicIndex;
-                });
-
-                if (hasHigherIndexSubtopic) {
-                    shouldDelete = true;
-                }
-            }
-
-            return !shouldDelete;
+        return pedagogy.subModule.some((subModuleId: string) => {
+            if (subModuleId === currentSubModuleId) return false;
+            const otherSubModule = subModules.find(sm => sm._id === subModuleId);
+            return otherSubModule && (otherSubModule.index ?? 0) > currentSubModuleIndex;
         });
+    };
 
-        setMergedLevels(updatedMergedLevels);
-    }
-};
-// Also update the helper functions to check for higher index elements
-const checkIfMergedWithHigherIndexModule = (pedagogy: any, currentModuleId: string, currentModuleIndex: number): boolean => {
-    if (!pedagogy.module || pedagogy.module.length <= 1) return false;
-    
-    return pedagogy.module.some((moduleId: string) => {
-        if (moduleId === currentModuleId) return false;
-        const otherModule = modules.find(m => m._id === moduleId);
-        return otherModule && (otherModule.index ?? 0) > currentModuleIndex;
-    });
-};
+    const checkIfMergedWithHigherIndexTopic = (pedagogy: any, currentTopicId: string, currentTopicIndex: number): boolean => {
+        if (!pedagogy.topic || pedagogy.topic.length <= 1) return false;
 
-const checkIfMergedWithHigherIndexSubModule = (pedagogy: any, currentSubModuleId: string, currentSubModuleIndex: number): boolean => {
-    if (!pedagogy.subModule || pedagogy.subModule.length <= 1) return false;
-    
-    return pedagogy.subModule.some((subModuleId: string) => {
-        if (subModuleId === currentSubModuleId) return false;
-        const otherSubModule = subModules.find(sm => sm._id === subModuleId);
-        return otherSubModule && (otherSubModule.index ?? 0) > currentSubModuleIndex;
-    });
-};
-
-const checkIfMergedWithHigherIndexTopic = (pedagogy: any, currentTopicId: string, currentTopicIndex: number): boolean => {
-    if (!pedagogy.topic || pedagogy.topic.length <= 1) return false;
-    
-    return pedagogy.topic.some((topicId: string) => {
-        if (topicId === currentTopicId) return false;
-        const otherTopic = topics.find(t => t._id === topicId);
-        return otherTopic && (otherTopic.index ?? 0) > currentTopicIndex;
-    });
-};
+        return pedagogy.topic.some((topicId: string) => {
+            if (topicId === currentTopicId) return false;
+            const otherTopic = topics.find(t => t._id === topicId);
+            return otherTopic && (otherTopic.index ?? 0) > currentTopicIndex;
+        });
+    };
 
     // Update the getLastChildId function to ensure it returns the correct last child
     const isPedagogyMerged = (pedagogy: any): boolean => {
@@ -4618,6 +4652,13 @@ const checkIfMergedWithHigherIndexTopic = (pedagogy: any, currentTopicId: string
         }));
     }, []);
 
+    // Skill set handler for last hierarchy dialog
+  // Skill set handler
+const handleSkillSetChange = useCallback((config: { coreProgram: string[]; frontend: string[]; database: string[] }) => {
+    console.log('Skill set changed:', config);
+    setModuleTestConfig(config);
+}, []);
+
     const handleSubModuleFormChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         setSubModuleFormData(prev => ({
@@ -4660,7 +4701,8 @@ const checkIfMergedWithHigherIndexTopic = (pedagogy: any, currentTopicId: string
                         id: editMode.data._id,
                         data: {
                             ...moduleFormData,
-                            courses: selectedCourse._id
+                            courses: selectedCourse._id,
+                            testConfiguration: moduleTestConfig    
                         }
                     });
                 } else {
@@ -4673,8 +4715,12 @@ const checkIfMergedWithHigherIndexTopic = (pedagogy: any, currentTopicId: string
                         ...moduleFormData,
                         index: nextIndex,
                         courses: selectedCourse._id,
-                        institution: ""
+                        institution: "",
+                        testConfiguration: moduleTestConfig 
                     });
+
+
+
                     moduleIdToUnmerge = newModule.module._id;
                 }
             }
@@ -4967,7 +5013,8 @@ const checkIfMergedWithHigherIndexTopic = (pedagogy: any, currentTopicId: string
                             ...subModuleFormData,
                             moduleId: selectedModuleForSubModule.id,
                             courses: selectedCourse._id,
-                            index: editMode.data.index
+                            index: editMode.data.index,
+                            testConfiguration: moduleTestConfig
                         }
                     });
 
@@ -4981,7 +5028,8 @@ const checkIfMergedWithHigherIndexTopic = (pedagogy: any, currentTopicId: string
                         ...subModuleFormData,
                         moduleId: selectedModuleForSubModule.id,
                         courses: selectedCourse._id,
-                        index: nextIndex
+                        index: nextIndex,
+                        testConfiguration: moduleTestConfig
                     });
 
                     const moduleIdToUnmerge = selectedModuleForSubModule.id;
@@ -5309,10 +5357,6 @@ const checkIfMergedWithHigherIndexTopic = (pedagogy: any, currentTopicId: string
                 });
 
                 // Collect hierarchy IDs for PEDAGOGY deletion (only from pedagogy selections)
-
-
-
-
                 // Convert Sets to Arrays for the deletion functions
                 const levelIdsForDeletion = {
                     modules: Array.from(levelHierarchyIds.modules),
@@ -5407,6 +5451,7 @@ const checkIfMergedWithHigherIndexTopic = (pedagogy: any, currentTopicId: string
                 ...topicFormData,
                 moduleId: selectedSubModuleForTopic.moduleId,
                 courses: selectedCourse._id,
+                testConfiguration: moduleTestConfig,
                 // Only include subModuleId if submodules are in the hierarchy
                 ...(hasSubModules && { subModuleId: selectedSubModuleForTopic.id })
             };
@@ -5864,6 +5909,7 @@ const checkIfMergedWithHigherIndexTopic = (pedagogy: any, currentTopicId: string
                 ...subTopicFormData,
                 topicId: selectedTopicForSubTopic.id,
                 courses: selectedCourse._id,
+                testConfiguration: moduleTestConfig,
                 // Include parent hierarchy references
                 moduleId: selectedTopicForSubTopic.moduleId,
                 ...(hasSubModules && { subModuleId: selectedTopicForSubTopic.subModuleId })
@@ -8422,98 +8468,122 @@ const checkIfMergedWithHigherIndexTopic = (pedagogy: any, currentTopicId: string
             setIsLevelUnmergeConfirm(false);
         }
     };
-    const handleEdit = useCallback(async (type: 'module' | 'submodule' | 'topic' | 'subtopic', data: any) => {
-        setEditMode({ type, data });
+const handleEdit = useCallback(async (type: 'module' | 'submodule' | 'topic' | 'subtopic', data: any) => {
+    setEditMode({ type, data });
 
-        const existingLevelData = preserveLevelDataForEditing(type, data._id);
+    const existingLevelData = preserveLevelDataForEditing(type, data._id);
+    setEditingExistingLevelData(existingLevelData);
 
-        // Store these in state to use during submission
-        setEditingExistingLevelData(existingLevelData);
+    // Reset form data first
+    if (type === 'module') {
+        setModuleFormData({
+            title: data.title,
+            description: data.description || '',
+            level: data.level || 'Easy',
+            duration: data.duration || 0,
+            index: data.index || 0
+        });
+        
+        // CRITICAL: Set test configuration with a new object reference
+        const testConfig = {
+            coreProgram: data.testConfiguration?.coreProgram ? [...data.testConfiguration.coreProgram] : [],
+            frontend: data.testConfiguration?.frontend ? [...data.testConfiguration.frontend] : [],
+            database: data.testConfiguration?.database ? [...data.testConfiguration.database] : []
+        };
+        console.log('Setting test config for edit:', testConfig);
+        setModuleTestConfig(testConfig);
+        
+        setDialogType('module');
+    } else if (type === 'submodule') {
+        setSubModuleFormData({
+            title: data.title,
+            description: data.description || '',
+            level: data.level || 'Easy',
+            duration: data.duration || 0
+        });
+        
+        const testConfig = {
+            coreProgram: data.testConfiguration?.coreProgram ? [...data.testConfiguration.coreProgram] : [],
+            frontend: data.testConfiguration?.frontend ? [...data.testConfiguration.frontend] : [],
+            database: data.testConfiguration?.database ? [...data.testConfiguration.database] : []
+        };
+        setModuleTestConfig(testConfig);
 
-        // Populate form based on type
-        if (type === 'module') {
-            setModuleFormData({
-                title: data.title,
-                description: data.description || '',
-                level: data.level || 'Easy',
-                duration: data.duration || 0,
-                index: data.index || 0 // Populate index
+        const parentModule = modules.find(m => m._id === data.moduleId);
+        if (parentModule) {
+            setSelectedModuleForSubModule({
+                id: parentModule._id,
+                name: parentModule.title
             });
-            setDialogType('module');
-        } else if (type === 'submodule') {
-            setSubModuleFormData({
-                title: data.title,
-                description: data.description || '',
-                level: data.level || 'Easy',
-                duration: data.duration || 0
-            });
-            // Find the parent module for the submodule
-            const parentModule = modules.find(m => m._id === data.moduleId);
+        }
+        setDialogType('submodule');
+    } else if (type === 'topic') {
+        setTopicFormData({
+            title: data.title,
+            description: data.description || '',
+            level: data.level || 'Easy',
+            duration: data.duration || 0
+        });
+        
+        const testConfig = {
+            coreProgram: data.testConfiguration?.coreProgram ? [...data.testConfiguration.coreProgram] : [],
+            frontend: data.testConfiguration?.frontend ? [...data.testConfiguration.frontend] : [],
+            database: data.testConfiguration?.database ? [...data.testConfiguration.database] : []
+        };
+        setModuleTestConfig(testConfig);
+
+        const parentModule = modules.find(m => m._id === data.moduleId);
+        const hierarchyLevels = selectedCourse?.courseHierarchy.map(level => level.toLowerCase()) || [];
+        if (hierarchyLevels.includes('sub module')) {
+            const parentSubModule = subModules.find(sm => sm._id === data.subModuleId);
+            if (parentSubModule) {
+                setSelectedSubModuleForTopic({
+                    id: parentSubModule._id,
+                    moduleId: parentSubModule.moduleId,
+                    name: parentSubModule.title
+                });
+            }
+        } else {
             if (parentModule) {
-                setSelectedModuleForSubModule({
+                setSelectedSubModuleForTopic({
                     id: parentModule._id,
+                    moduleId: parentModule._id,
                     name: parentModule.title
                 });
             }
-            setDialogType('submodule');
-        } else if (type === 'topic') {
-            setTopicFormData({
-                title: data.title,
-                description: data.description || '',
-                level: data.level || 'Easy',
-                duration: data.duration || 0
-            });
-
-            // Find the parent module for the topic
-            const parentModule = modules.find(m => m._id === data.moduleId);
-
-            // Only set submodule if it's in the hierarchy
-            const hierarchyLevels = selectedCourse?.courseHierarchy.map(level => level.toLowerCase()) || [];
-            if (hierarchyLevels.includes('sub module')) {
-                const parentSubModule = subModules.find(sm => sm._id === data.subModuleId);
-                if (parentSubModule) {
-                    setSelectedSubModuleForTopic({
-                        id: parentSubModule._id,
-                        moduleId: parentSubModule.moduleId,
-                        name: parentSubModule.title
-                    });
-                }
-            } else {
-                // If submodules aren't in hierarchy, just set the module
-                if (parentModule) {
-                    setSelectedSubModuleForTopic({
-                        id: parentModule._id,
-                        moduleId: parentModule._id,
-                        name: parentModule.title
-                    });
-                }
-            }
-            setDialogType('topic');
-        } else if (type === 'subtopic') {
-            setSubTopicFormData({
-                title: data.title,
-                description: data.description || '',
-                level: data.level || 'Easy',
-                duration: data.duration || 0
-            });
-            // Find the parent topic for the subtopic
-            const parentTopic = topics.find(t => t._id === data.topicId);
-            if (parentTopic) {
-                setSelectedTopicForSubTopic({
-                    id: parentTopic._id,
-                    moduleId: parentTopic.moduleId,
-                    subModuleId: parentTopic.subModuleId,
-                    name: parentTopic.title
-                });
-            }
-            setDialogType('subtopic');
         }
-        await fetchAndSetLevelData(type, data._id);
-
-        // Fetch and set existing pedagogy data
-        await fetchAndSetPedagogyData(type, data._id);
-        setShowDialog(true);
-    }, [])
+        setDialogType('topic');
+    } else if (type === 'subtopic') {
+        setSubTopicFormData({
+            title: data.title,
+            description: data.description || '',
+            level: data.level || 'Easy',
+            duration: data.duration || 0
+        });
+        
+        const testConfig = {
+            coreProgram: data.testConfiguration?.coreProgram ? [...data.testConfiguration.coreProgram] : [],
+            frontend: data.testConfiguration?.frontend ? [...data.testConfiguration.frontend] : [],
+            database: data.testConfiguration?.database ? [...data.testConfiguration.database] : []
+        };
+        setModuleTestConfig(testConfig);
+        
+        const parentTopic = topics.find(t => t._id === data.topicId);
+        if (parentTopic) {
+            setSelectedTopicForSubTopic({
+                id: parentTopic._id,
+                moduleId: parentTopic.moduleId,
+                subModuleId: parentTopic.subModuleId,
+                name: parentTopic.title
+            });
+        }
+        setDialogType('subtopic');
+    }
+    
+    await fetchAndSetLevelData(type, data._id);
+    await fetchAndSetPedagogyData(type, data._id);
+    setShowDialog(true);
+}, [modules, subModules, topics, selectedCourse]);
 
     const fetchAndSetLevelData = async (type: string, id: string) => {
         if (!levelViews || !selectedCourse) return;
@@ -8854,39 +8924,6 @@ const checkIfMergedWithHigherIndexTopic = (pedagogy: any, currentTopicId: string
         }
     };
 
-    // Function to activate hierarchical delete mode
-    // const activateHierarchicalDeleteMode = (parentType: 'module' | 'submodule' | 'topic', parentId: string) => {
-    //     const children = getImmediateChildren(parentType, parentId);
-
-    //     if (children.length === 0) {
-    //         // If no children, show message
-    //         setErrorMessage(`No ${getChildType(parentType)} found for this ${parentType}`);
-    //         setShowErrorDialog(true);
-    //         return;
-    //     }
-
-    //     // Determine the child type based on hierarchy
-    //     const childType = getChildType(parentType);
-
-    //     setDeleteMode({
-    //         type: childType,
-    //         selectedItems: new Set()
-    //     });
-    // };
-
-    // Helper to get child type name
-    // const getChildType = (parentType: 'module' | 'submodule' | 'topic'): 'submodule' | 'topic' | 'subtopic' => {
-    //     switch (parentType) {
-    //         case 'module':
-    //             return selectedCourse?.courseHierarchy.includes('Sub Module') ? 'submodule' : 'topic';
-    //         case 'submodule':
-    //             return 'topic';
-    //         case 'topic':
-    //             return 'subtopic';
-    //         default:
-    //             return 'subtopic';
-    //     }
-    // };
 
     // Helper function to check if item should show checkbox in hierarchical delete mode
     const shouldShowCheckbox = (itemType: 'module' | 'submodule' | 'topic' | 'subtopic', itemId: string) => {
@@ -8903,14 +8940,7 @@ const checkIfMergedWithHigherIndexTopic = (pedagogy: any, currentTopicId: string
         setShowMultipleDeleteDialog(true);
     };
 
-    // New function to handle delete mode activation
-    // const activateDeleteMode = (type: 'module' | 'submodule' | 'topic' | 'subtopic') => {
-    //     setDeleteMode({
-    //         type,
-    //         selectedItems: new Set()
-    //     });
-    //     setShowMultipleDeleteDialog(false);
-    // };
+
     const activateGlobalDeleteMode = (type: 'module' | 'submodule' | 'topic' | 'subtopic') => {
         setDeleteMode({
             type,
@@ -15221,15 +15251,14 @@ const checkIfMergedWithHigherIndexTopic = (pedagogy: any, currentTopicId: string
                                                                             key={level}
                                                                             className={`border border-gray-400 overflow-hidden text-center font-bold text-xs p-1 bg-blue-100 z-10`}
                                                                             style={{
-
                                                                                 ...(hierarchyWidthPercentage ? { width: `${hierarchyWidthPercentage}%` } : {})
                                                                             }}
                                                                             rowSpan={3}
                                                                         >
                                                                             <div className="flex items-center justify-center gap-1 group">
                                                                                 {level}
-                                                                                {/* Add Module button */}
-                                                                                {level === 'Module' && (
+                                                                                {/* Add Module button - only show if course has testConfiguration */}
+                                                                                {level === 'Module' && selectedCourse.testConfiguration && (
                                                                                     <div className="relative">
                                                                                         <button
                                                                                             onClick={() => {
@@ -15244,10 +15273,15 @@ const checkIfMergedWithHigherIndexTopic = (pedagogy: any, currentTopicId: string
                                                                                         <div className="absolute inset-0 rounded-full border-2 border-blue-300 animate-ping"></div>
                                                                                     </div>
                                                                                 )}
-
                                                                             </div>
                                                                         </TableHead>
                                                                     ))}
+                                                                    <TableHead
+                                                                        className={`border border-gray-400 text-center font-bold text-xs p-1 bg-blue-100 z-10 min-w-[120px]`}
+                                                                        rowSpan={3}
+                                                                    >
+                                                                        Skills
+                                                                    </TableHead>
                                                                     <AnimatePresence>
                                                                         <motion.th
                                                                             key="level-header"
@@ -15382,6 +15416,11 @@ const checkIfMergedWithHigherIndexTopic = (pedagogy: any, currentTopicId: string
                                                                     }}
                                                                 />
                                                             ))}
+                                                            <TableHead className="border-0 p-0" style={{
+                                                                height: '0px',
+                                                                lineHeight: '0px',
+                                                                minWidth: '120px'
+                                                            }} />
                                                             <TableHead className="border-0 p-0" style={{
                                                                 height: '0px',
                                                                 lineHeight: '0px',
@@ -15867,6 +15906,80 @@ const checkIfMergedWithHigherIndexTopic = (pedagogy: any, currentTopicId: string
                                                                                 </div>
                                                                             </TableCell>
                                                                         )}
+                                                                        {/* Languages Cell - renders every row for correct column alignment */}
+                                                                        {isFirstSubtopicInModule && (() => {
+                                                                            const moduleObj = modules.find(m => m._id === row.moduleId);
+                                                                            const coreProgram = (moduleObj as any)?.testConfiguration?.coreProgram || [];
+                                                                            const frontend = (moduleObj as any)?.testConfiguration?.frontend || [];
+                                                                            const database = (moduleObj as any)?.testConfiguration?.database || [];
+
+                                                                            const hasAny = coreProgram.length > 0 || frontend.length > 0 || database.length > 0;
+
+                                                                            return (
+                                                                                <TableCell
+                                                                                    rowSpan={moduleSpans[row.moduleId]}
+                                                                                    className="border border-gray-400 text-gray-700 p-2 bg-purple-50 align-middle min-w-[120px] max-w-[150px]"
+                                                                                >
+                                                                                    {hasAny ? (
+                                                                                        <div className="flex flex-col gap-2 items-center w-full">
+                                                                                            {coreProgram.length > 0 && (
+                                                                                                <div className="flex flex-col items-center w-full">
+                                                                                                    <span className="font-bold text-purple-700 text-[11px] uppercase tracking-wide mb-1">
+                                                                                                        Core
+                                                                                                    </span>
+                                                                                                    <div className="flex flex-wrap gap-1 justify-center">
+                                                                                                        {coreProgram.map((lang: string) => (
+                                                                                                            <span
+                                                                                                                key={lang}
+                                                                                                                className="bg-purple-100 text-purple-800 rounded-md px-1.5 py-0.5 text-[13px] font-medium text-center"
+                                                                                                            >
+                                                                                                                {lang}
+                                                                                                            </span>
+                                                                                                        ))}
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            )}
+                                                                                            {frontend.length > 0 && (
+                                                                                                <div className="flex flex-col items-center w-full">
+                                                                                                    <span className="font-bold text-blue-700 text-[11px] uppercase tracking-wide mb-1">
+                                                                                                        Frontend
+                                                                                                    </span>
+                                                                                                    <div className="flex flex-wrap gap-1 justify-center">
+                                                                                                        {frontend.map((lang: string) => (
+                                                                                                            <span
+                                                                                                                key={lang}
+                                                                                                                className="bg-blue-100 text-blue-800 rounded-md px-1.5 py-0.5 text-[13px] font-medium text-center"
+                                                                                                            >
+                                                                                                                {lang}
+                                                                                                            </span>
+                                                                                                        ))}
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            )}
+                                                                                            {database.length > 0 && (
+                                                                                                <div className="flex flex-col items-center w-full">
+                                                                                                    <span className="font-bold text-green-700 text-[11px] uppercase tracking-wide mb-1">
+                                                                                                        Database
+                                                                                                    </span>
+                                                                                                    <div className="flex flex-wrap gap-1 justify-center">
+                                                                                                        {database.map((lang: string) => (
+                                                                                                            <span
+                                                                                                                key={lang}
+                                                                                                                className="bg-green-100 text-green-800 rounded-md px-1.5 py-0.5 text-[13px] font-medium text-center"
+                                                                                                            >
+                                                                                                                {lang}
+                                                                                                            </span>
+                                                                                                        ))}
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    ) : (
+                                                                                        <div className="text-center text-gray-400 text-[12px]">-</div>
+                                                                                    )}
+                                                                                </TableCell>
+                                                                            );
+                                                                        })()}
                                                                         {/* Learning Level Cell */}
                                                                         {renderLevelCell(row, index)}
                                                                         {/* Replace the activity cells rendering with: */}
@@ -15927,6 +16040,11 @@ const checkIfMergedWithHigherIndexTopic = (pedagogy: any, currentTopicId: string
                                                                     <TableHead className="border-0 p-0" style={{
                                                                         height: '0px',
                                                                         lineHeight: '0px',
+                                                                        minWidth: '120px'
+                                                                    }} />
+                                                                    <TableHead className="border-0 p-0" style={{
+                                                                        height: '0px',
+                                                                        lineHeight: '0px',
                                                                         minWidth: '80px'
                                                                     }} />
                                                                     {selectedPedagogyTypes.length > 0 && (
@@ -15963,7 +16081,7 @@ const checkIfMergedWithHigherIndexTopic = (pedagogy: any, currentTopicId: string
 
                                                                         <TableCell
                                                                             className={`border border-gray-400 text-center p-1 text-[10px] bg-gray-200 z-10 left-0`}
-                                                                            colSpan={selectedCourse.courseHierarchy.length + 1}
+                                                                            colSpan={selectedCourse.courseHierarchy.length + 2}
                                                                         >
                                                                             Total Hours
                                                                         </TableCell>
@@ -16262,7 +16380,28 @@ const checkIfMergedWithHigherIndexTopic = (pedagogy: any, currentTopicId: string
                                 </div>
                             )}
                             {/* Compact Form */}
-                            <div className="py-1 px-4">
+                            <div className="py-1 px-4  thin-scrollbar" style={{
+                                maxHeight: '75vh',
+                                overflowY: 'auto',
+                            }}>
+
+                                {/* Add this at the very top inside the div */}
+                                <style>{`
+    .thin-scrollbar::-webkit-scrollbar {
+      width: 6px;
+    }
+    .thin-scrollbar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .thin-scrollbar::-webkit-scrollbar-thumb {
+      background-color: #475569;
+      border-radius: 999px;
+    }
+    .thin-scrollbar::-webkit-scrollbar-thumb:hover {
+      background-color: #1e293b;
+    }
+  `}</style>
+
                                 <form
                                     onSubmit={(e) => {
                                         e.preventDefault();
@@ -16333,8 +16472,34 @@ const checkIfMergedWithHigherIndexTopic = (pedagogy: any, currentTopicId: string
                                                     placeholder="Brief description ..."
                                                 />
                                             </div>
-
-
+{(() => {
+    const skillSet = getCourseSkillSet();
+    const hasAny = skillSet.coreProgram.length > 0 || skillSet.frontend.length > 0 || skillSet.database.length > 0;
+    
+    if (!hasAny) return null;
+    
+    // Use moduleTestConfig directly - it already contains the edited values
+    const currentTestConfig = moduleTestConfig;
+    
+    // Create a unique key that changes when editMode changes
+    const componentKey = editMode ? `${editMode.type}-${editMode.data._id}-${Date.now()}` : 'new';
+    
+    return (
+        <div className="space-y-2 mt-2" key={componentKey}>
+            <h3 className="text-xs font-semibold text-slate-700 border-b pb-1 flex items-center">
+                <svg className="w-3.5 h-3.5 mr-1.5 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1h4v1a2 2 0 11-4 0zM12 14c.015-.34.208-.646.5-.8l1.5-.75a.5.5 0 00.5-.4V10.5a.5.5 0 00-.5-.5h-5a.5.5 0 00-.5.5v1.55c0 .2.12.39.3.5l1.5.75c.292.154.485.46.5.8h1z" />
+                </svg>
+                Skill Set Configuration
+            </h3>
+            <TestConfigurationSection
+                testConfiguration={currentTestConfig}
+                onChange={handleSkillSetChange}
+                availableLanguages={skillSet}
+            />
+        </div>
+    );
+})()}
                                         </div>
                                     )}
 
@@ -21265,24 +21430,3 @@ const checkIfMergedWithHigherIndexTopic = (pedagogy: any, currentTopicId: string
         </DashboardLayout >
     )
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-///////// maximum update limit reached again delete functionlities

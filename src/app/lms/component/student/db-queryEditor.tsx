@@ -104,14 +104,19 @@ interface QuestionType {
     _id: string
     id: string
     title: string
-    description: string
+    description: any
     difficulty?: 'easy' | 'medium' | 'hard'
     points?: number
+    score?: number
     expectedResult?: string
     hint?: string
+    hints?: any[]
     solution?: string
+    sampleQuery?: string
+    sampleResult?: any
+    questionType?: string
+    isDatabase?: boolean
 }
-
 interface DBQueryEditorProps {
     exercise?: any
     defaultQuestions?: any[]
@@ -1486,7 +1491,6 @@ const ThemeToggle = ({
             setTheme('light')
             document.documentElement.classList.remove('dark')
         } else {
-            // Auto mode - check system preference
             const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
             if (systemPrefersDark) {
                 setTheme('light')
@@ -1518,7 +1522,6 @@ const ThemeToggle = ({
     )
 }
 
-// UI Components with theme support
 const DatabaseNavigator = ({
     databases,
     currentDatabase,
@@ -1526,6 +1529,8 @@ const DatabaseNavigator = ({
     onSelectTable,
     onCreateDatabase,
     onRefresh,
+    isVisible = true,
+    onToggleVisibility,
     theme = "light"
 }: {
     databases: BrowserDatabase[]
@@ -1534,10 +1539,13 @@ const DatabaseNavigator = ({
     onSelectTable: (tableName: string) => void
     onCreateDatabase: () => void
     onRefresh: () => void
+    isVisible?: boolean
+    onToggleVisibility?: () => void
     theme?: "light" | "dark"
 }) => {
     const [expandedDatabases, setExpandedDatabases] = useState<Set<string>>(new Set())
     const [searchTerm, setSearchTerm] = useState('')
+    const [currentTheme, setCurrentTheme] = useState<string>(theme)
 
     const toggleDatabase = (name: string) => {
         setExpandedDatabases(prev => {
@@ -1555,6 +1563,23 @@ const DatabaseNavigator = ({
         searchTerm ? db.name.toLowerCase().includes(searchTerm.toLowerCase()) : true
     )
 
+    if (!isVisible) {
+        return (
+            <div className={`h-full flex flex-col items-center justify-start border-r ${theme === 'dark' ? 'border-gray-700 bg-gray-900' : 'border-gray-300 bg-white'}`}>
+                <button
+                    onClick={onToggleVisibility}
+                    className={`p-3 m-2 rounded hover:scale-110 transition-all ${theme === 'dark' ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'}`}
+                    title="Show Navigator"
+                >
+                    <Sidebar className="w-5 h-5" />
+                </button>
+                <div className="mt-4 transform -rotate-90 whitespace-nowrap text-xs font-medium">
+                    Database Nav
+                </div>
+            </div>
+        )
+    }
+
     return (
         <div className={`h-full flex flex-col border-r ${theme === 'dark' ? 'border-gray-700 bg-gray-900' : 'border-gray-300 bg-white'}`}>
             <div className={`p-3 border-b ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'}`}>
@@ -1570,12 +1595,23 @@ const DatabaseNavigator = ({
                         >
                             <RefreshCw className="w-3.5 h-3.5" />
                         </button>
+
                         <button
                             onClick={onCreateDatabase}
                             className={`p-1.5 rounded hover:scale-105 transition-all ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-200 text-gray-600'}`}
                             title="New Database"
                         >
                             <Plus className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                            onClick={onToggleVisibility}
+                            className={`p-1.5 rounded hover:scale-110 transition-all ${theme === 'dark'
+                                ? 'hover:bg-gray-700 text-gray-400'
+                                : 'hover:bg-gray-200 text-gray-600'
+                                }`}
+                            title="Hide Navigator"
+                        >
+                            <SidebarClose className="w-4 h-4" />
                         </button>
                     </div>
                 </div>
@@ -2068,7 +2104,7 @@ const QuestionPanel = ({
     isCollapsed,
     theme = "light"
 }: {
-    question: QuestionType
+    question: any
     currentQuestionIndex: number
     totalQuestions: number
     onPrevious: () => void
@@ -2082,20 +2118,207 @@ const QuestionPanel = ({
 }) => {
     const [showHint, setShowHint] = useState(false)
     const [showSolution, setShowSolution] = useState(false)
-    useEffect(() => {
-        console.log('QuestionPanel useEffect - attemptLimitEnabled changed:', attemptLimitEnabled)
-        console.log('QuestionPanel useEffect - should show attempts?', attemptLimitEnabled === true)
-    }, [attemptLimitEnabled])
+    const [modalImage, setModalImage] = useState<{ url: string; alt: string } | null>(null)
 
+    const escapeHtml = (text: string): string => {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    };
+
+    useEffect(() => {
+        (window as any).openImageModal = (url: string, alt: string) => {
+            setModalImage({ url, alt });
+        };
+
+        return () => {
+            delete (window as any).openImageModal;
+        };
+    }, []);
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && modalImage) {
+                setModalImage(null);
+            }
+        };
+        
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [modalImage]);
+
+    const renderContentBlocksWithClickableImages = (blocks: any[], theme: string): string => {
+        if (!blocks || !Array.isArray(blocks)) return '';
+
+        return blocks.map((block: any, index: number) => {
+            if (block.type === 'text') {
+                return `<div class="text-block" style="margin-bottom: 12px; line-height: 1.6;">${escapeHtml(block.value || '')}</div>`;
+            }
+
+            if (block.type === 'code') {
+                const escaped = escapeHtml(block.value || '');
+                const bgColor = block.bgColor || (theme === 'dark' ? '#1e1e1e' : '#f5f5f5');
+                const textColor = theme === 'dark' ? '#d4d4d4' : '#333333';
+                return `<pre style="background:${bgColor};border-radius:8px;padding:12px 16px;font-size:13px;font-family:'Menlo', 'Monaco', 'Courier New', monospace;overflow-x:auto;margin:12px 0;border:1px solid ${theme === 'dark' ? '#3e3e42' : '#e0e0e0'};color:${textColor}"><code style="font-family:inherit;">${escaped}</code></pre>`;
+            }
+
+            if (block.type === 'image') {
+                const imageUrl = block.url;
+                const justifyContent = block.alignment === 'right' ? 'flex-end' :
+                    block.alignment === 'center' ? 'center' : 'flex-start';
+                const maxWidth = block.sizePercent || 100;
+                
+                return `<div style="display:flex;justify-content:${justifyContent};margin:12px 0;">
+                          <img 
+                            src="${imageUrl}" 
+                            alt="Sample result image" 
+                            style="max-width:${maxWidth}%;border-radius:8px;border:1px solid ${theme === 'dark' ? '#3e3e42' : '#e0e0e0'};cursor:pointer;transition:transform 0.2s, box-shadow 0.2s;" 
+                            onclick="window.openImageModal('${imageUrl}', 'Sample Result Image')"
+                            onmouseover="this.style.transform='scale(1.02)';this.style.boxShadow='0 4px 12px rgba(0,0,0,0.15)';"
+                            onmouseout="this.style.transform='scale(1)';this.style.boxShadow='none';"
+                          />
+                        </div>`;
+            }
+
+            return '';
+        }).join('');
+    };
+
+    const renderContentBlocks = (blocks: any[], theme: string): string => {
+        if (!blocks || !Array.isArray(blocks)) return '';
+
+        return blocks.map((block: any) => {
+            if (block.type === 'text') {
+                return `<div class="text-block" style="margin-bottom: 12px; line-height: 1.6;">${escapeHtml(block.value || '')}</div>`;
+            }
+
+            if (block.type === 'code') {
+                const escaped = escapeHtml(block.value || '');
+                const bgColor = block.bgColor || (theme === 'dark' ? '#1e1e1e' : '#f5f5f5');
+                const textColor = theme === 'dark' ? '#d4d4d4' : '#333333';
+                return `<pre style="background:${bgColor};border-radius:8px;padding:12px 16px;font-size:13px;font-family:'Menlo', 'Monaco', 'Courier New', monospace;overflow-x:auto;margin:12px 0;border:1px solid ${theme === 'dark' ? '#3e3e42' : '#e0e0e0'};color:${textColor}"><code style="font-family:inherit;">${escaped}</code></pre>`;
+            }
+
+            if (block.type === 'image') {
+                const imageUrl = block.url;
+                const justifyContent = block.alignment === 'right' ? 'flex-end' :
+                    block.alignment === 'center' ? 'center' : 'flex-start';
+                const maxWidth = block.sizePercent || 100;
+                
+                return `<div style="display:flex;justify-content:${justifyContent};margin:12px 0;">
+                          <img 
+                            src="${imageUrl}" 
+                            alt="Question image" 
+                            style="max-width:${maxWidth}%;border-radius:8px;border:1px solid ${theme === 'dark' ? '#3e3e42' : '#e0e0e0'};cursor:pointer;transition:transform 0.2s, box-shadow 0.2s;" 
+                            onclick="window.openImageModal('${imageUrl}', 'Question Image')"
+                            onmouseover="this.style.transform='scale(1.02)';this.style.boxShadow='0 4px 12px rgba(0,0,0,0.15)';"
+                            onmouseout="this.style.transform='scale(1)';this.style.boxShadow='none';"
+                          />
+                        </div>`;
+            }
+
+            return '';
+        }).join('');
+    };
+
+    const renderDescription = (description: any): string => {
+        if (!description) return '<div>No description provided</div>';
+
+        if (typeof description === 'object') {
+            if (Array.isArray(description.contentBlocks) && description.contentBlocks.length > 0) {
+                return renderContentBlocks(description.contentBlocks, theme);
+            }
+
+            let html = '';
+            if (description.text && typeof description.text === 'string') {
+                html += `<div class="text-block" style="margin-bottom: 12px; line-height: 1.6;">${escapeHtml(description.text)}</div>`;
+            }
+            if (description.imageUrl) {
+                const justifyContent = description.imageAlignment === 'right' ? 'flex-end' :
+                    description.imageAlignment === 'center' ? 'center' : 'flex-start';
+                const maxWidth = description.imageSizePercent || 100;
+                html += `<div style="display:flex;justify-content:${justifyContent};margin:12px 0;">
+                          <img 
+                            src="${description.imageUrl}" 
+                            alt="Question image" 
+                            style="max-width:${maxWidth}%;border-radius:8px;border:1px solid ${theme === 'dark' ? '#3e3e42' : '#e0e0e0'};cursor:pointer;transition:transform 0.2s, box-shadow 0.2s;" 
+                            onclick="window.openImageModal('${description.imageUrl}', 'Question Image')"
+                            onmouseover="this.style.transform='scale(1.02)';this.style.boxShadow='0 4px 12px rgba(0,0,0,0.15)';"
+                            onmouseout="this.style.transform='scale(1)';this.style.boxShadow='none';"
+                          />
+                        </div>`;
+            }
+            if (html) return html;
+
+            if (description.text && typeof description.text === 'string') {
+                return `<div style="margin-bottom: 12px; line-height: 1.6;">${escapeHtml(description.text)}</div>`;
+            }
+        }
+
+        if (typeof description === 'string') {
+            return `<div style="margin-bottom: 12px; line-height: 1.6;">${escapeHtml(description)}</div>`;
+        }
+
+        if (Array.isArray(description)) {
+            return renderContentBlocks(description, theme);
+        }
+
+        return '<div>No description provided</div>';
+    };
+
+    const renderSampleContent = (content: any): string => {
+        if (!content) return '';
+
+        if (Array.isArray(content)) {
+            return renderContentBlocksWithClickableImages(content, theme);
+        }
+
+        if (typeof content === 'string') {
+            return `<pre style="background:${theme === 'dark' ? '#1e1e1e' : '#f5f5f5'};border-radius:8px;padding:12px;font-size:12px;font-family:monospace;margin:8px 0;border:1px solid ${theme === 'dark' ? '#3e3e42' : '#e0e0e0'};color:${theme === 'dark' ? '#d4d4d4' : '#333333'}">${escapeHtml(content)}</pre>`;
+        }
+
+        return '';
+    };
+
+    const ImageModal = ({ image, onClose, theme }: { image: { url: string; alt: string } | null; onClose: () => void; theme: string }) => {
+        if (!image) return null;
+
+        return (
+            <div 
+                className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200"
+                onClick={onClose}
+            >
+                <div className="relative max-w-[90vw] max-h-[90vh]">
+                    <img 
+                        src={image.url} 
+                        alt={image.alt}
+                        className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
+                        onClick={(e) => e.stopPropagation()}
+                    />
+                    <button
+                        onClick={onClose}
+                        className="absolute -top-10 -right-10 w-8 h-8 rounded-full bg-white/30 hover:bg-white/50 text-white flex items-center justify-center transition-all backdrop-blur-sm"
+                    >
+                        <X className="w-5 h-5" />
+                    </button>
+                    <button
+                        onClick={() => window.open(image.url, '_blank')}
+                        className="absolute -bottom-12 left-1/2 transform -translate-x-1/2 px-4 py-2 rounded-lg bg-white/30 hover:bg-white/40 text-white text-sm transition-all whitespace-nowrap backdrop-blur-sm"
+                    >
+                        Open in New Tab
+                    </button>
+                </div>
+            </div>
+        );
+    };
 
     if (isCollapsed) {
         return (
-            <div className={`h-full flex flex-col items-center justify-center border-r ${theme === 'dark' ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-300'
-                }`}>
+            <div className={`h-full flex flex-col items-center justify-center border-r ${theme === 'dark' ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-300'}`}>
                 <button
                     onClick={onToggleCollapse}
-                    className={`p-3 rounded hover:scale-110 transition-all ${theme === 'dark' ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'
-                        }`}
+                    className={`p-3 rounded hover:scale-110 transition-all ${theme === 'dark' ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'}`}
                     title="Expand Question Panel"
                 >
                     <PanelRight className="w-5 h-5" />
@@ -2104,7 +2327,7 @@ const QuestionPanel = ({
                     Q{currentQuestionIndex + 1}/{totalQuestions}
                 </div>
             </div>
-        )
+        );
     }
 
     return (
@@ -2112,32 +2335,32 @@ const QuestionPanel = ({
             <div className={`p-4 border-b ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'}`}>
                 <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
-                        <button
-                            onClick={onToggleCollapse}
-                            className={`p-1.5 rounded hover:scale-110 transition-all ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-200 text-gray-600'
-                                }`}
-                            title="Collapse Question Panel"
-                        >
-                            <PanelLeft className="w-4 h-4" />
-                        </button>
+                       
                         <h3 className={`text-sm font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
                             Question {currentQuestionIndex + 1}
                         </h3>
                     </div>
                     <div className="flex items-center gap-2">
                         {question.difficulty && (
-                            <span className={`px-2 py-1 text-xs rounded ${question.difficulty === 'easy'
-                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                                : question.difficulty === 'medium'
-                                    ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-                                    : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                                }`}>
+                            <span className={`px-2 py-1 text-xs rounded ${
+                                question.difficulty === 'easy'
+                                    ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                    : question.difficulty === 'medium'
+                                        ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                                        : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                            }`}>
                                 {question.difficulty}
                             </span>
                         )}
+                         <button
+                            onClick={onToggleCollapse}
+                            className={`p-1.5 rounded hover:scale-110 transition-all ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-200 text-gray-600'}`}
+                            title="Collapse Question Panel"
+                        >
+                            <PanelLeft className="w-4 h-4" />
+                        </button>
                         {attemptLimitEnabled ? (
-                            <span className={`text-xs px-2 py-1 rounded ${theme === 'dark' ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'
-                                }`}>
+                            <span className={`text-xs px-2 py-1 rounded ${theme === 'dark' ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}>
                                 Attempts: {userAttempts}/{maxAttempts}
                             </span>
                         ) : null}
@@ -2148,8 +2371,7 @@ const QuestionPanel = ({
                     <button
                         onClick={onPrevious}
                         disabled={currentQuestionIndex === 0}
-                        className={`p-1.5 rounded hover:scale-110 transition-all ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-200'
-                            } disabled:opacity-50 disabled:cursor-not-allowed`}
+                        className={`p-1.5 rounded hover:scale-110 transition-all ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-200'} disabled:opacity-50 disabled:cursor-not-allowed`}
                         title="Previous Question"
                     >
                         <ChevronLeft size={16} />
@@ -2160,8 +2382,7 @@ const QuestionPanel = ({
                     <button
                         onClick={onNext}
                         disabled={currentQuestionIndex === totalQuestions - 1}
-                        className={`p-1.5 rounded hover:scale-110 transition-all ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-200'
-                            } disabled:opacity-50 disabled:cursor-not-allowed`}
+                        className={`p-1.5 rounded hover:scale-110 transition-all ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-200'} disabled:opacity-50 disabled:cursor-not-allowed`}
                         title="Next Question"
                     >
                         <ChevronRightIcon size={16} />
@@ -2169,72 +2390,107 @@ const QuestionPanel = ({
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4">
-                <h4 className={`text-sm font-medium mb-3 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+            <div className="flex-1 overflow-y-auto p-6">
+                <h4 className={`text-lg font-semibold mb-4 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
                     {question.title}
                 </h4>
 
-                <div className={`mb-6 rounded-lg hover:scale-[1.01] transition-all ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
-                    }`}>
-                    <div className="prose max-w-none">
-                        <p className={`text-xs whitespace-pre-wrap ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
-                            {question.description}
-                        </p>
+                {question.description && (
+                    <div className={`mb-8 rounded-lg transition-all ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                        <div
+                            className="prose max-w-none prose-sm"
+                            style={{ fontSize: '14px', lineHeight: '1.6' }}
+                            dangerouslySetInnerHTML={{ __html: renderDescription(question.description) }}
+                        />
                     </div>
-                </div>
+                )}
 
-                {question.hint && (
-                    <div className="mb-4">
+                {question.sampleQuery && (
+                    <div className={`mb-6 p-4 rounded-lg transition-all ${theme === 'dark' ? 'bg-gray-800' : 'bg-blue-50'}`}>
+                        <div className="flex items-center gap-2 mb-3">
+                            <Database size={16} className={theme === 'dark' ? 'text-blue-400' : 'text-blue-600'} />
+                            <span className={`font-semibold text-sm ${theme === 'dark' ? 'text-blue-400' : 'text-blue-600'}`}>
+                                Sample Query
+                            </span>
+                        </div>
+                        <pre className={`text-sm font-mono whitespace-pre-wrap p-3 rounded ${theme === 'dark' ? 'bg-gray-900 text-gray-300' : 'bg-white text-gray-700'}`}>
+                            {question.sampleQuery}
+                        </pre>
+                    </div>
+                )}
+
+                {question.sampleResult && (
+                    <div className={`mb-6 p-4 rounded-lg transition-all ${theme === 'dark' ? 'bg-gray-800' : 'bg-green-50'}`}>
+                        <div className="flex items-center gap-2 mb-3">
+                            <Table size={16} className={theme === 'dark' ? 'text-green-400' : 'text-green-600'} />
+                            <span className={`font-semibold text-sm ${theme === 'dark' ? 'text-green-400' : 'text-green-600'}`}>
+                                Sample Result
+                            </span>
+                        </div>
+                        <div
+                            className={`text-sm font-mono p-3 rounded ${theme === 'dark' ? 'bg-gray-900' : 'bg-white'}`}
+                            dangerouslySetInnerHTML={{ __html: renderSampleContent(question.sampleResult) }}
+                        />
+                    </div>
+                )}
+
+                {(question.hint || (question.hints && question.hints.length > 0)) && (
+                    <div className="mb-6">
                         <button
                             onClick={() => setShowHint(!showHint)}
-                            className={`flex items-center gap-2 w-full p-3 rounded-lg hover:scale-[1.02] transition-all ${theme === 'dark' ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'
-                                }`}
+                            className={`flex items-center gap-2 w-full p-3 rounded-lg hover:scale-[1.02] transition-all ${theme === 'dark' ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'}`}
                         >
-                            <HelpCircle size={16} className={theme === 'dark' ? 'text-yellow-400' : 'text-yellow-600'} />
+                            <HelpCircle size={18} className={theme === 'dark' ? 'text-yellow-400' : 'text-yellow-600'} />
                             <span className={`font-medium ${theme === 'dark' ? 'text-yellow-400' : 'text-yellow-600'}`}>
-                                Hint {showHint ? '▼' : '▶'}
+                                Hints {showHint ? '▼' : '▶'}
+                                {question.hints && question.hints.length > 0 && ` (${question.hints.length})`}
                             </span>
                         </button>
                         {showHint && (
-                            <div className={`mt-2 p-3 rounded-lg ${theme === 'dark' ? 'bg-gray-800 text-gray-300' : 'bg-yellow-50 text-yellow-800'
-                                }`}>
-                                <p className="text-xs">{question.hint}</p>
+                            <div className="mt-3 space-y-3">
+                                {question.hint && (
+                                    <div className={`p-4 rounded-lg ${theme === 'dark' ? 'bg-gray-800 text-gray-300' : 'bg-yellow-50 text-yellow-800'}`}>
+                                        <p className="text-sm">{question.hint}</p>
+                                    </div>
+                                )}
+                                {question.hints && question.hints.map((hint: any, idx: number) => (
+                                    <div key={idx} className={`p-4 rounded-lg ${theme === 'dark' ? 'bg-gray-800 text-gray-300' : 'bg-yellow-50 text-yellow-800'}`}>
+                                        <p className="text-sm">{typeof hint === 'string' ? hint : hint.hintText || hint.text || 'No hint text'}</p>
+                                    </div>
+                                ))}
                             </div>
                         )}
                     </div>
                 )}
 
                 {question.solution && (
-                    <div className="mb-4">
+                    <div className="mb-6">
                         <button
                             onClick={() => setShowSolution(!showSolution)}
-                            className={`flex items-center gap-2 w-full p-3 rounded-lg hover:scale-[1.02] transition-all ${theme === 'dark' ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'
-                                }`}
+                            className={`flex items-center gap-2 w-full p-3 rounded-lg hover:scale-[1.02] transition-all ${theme === 'dark' ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'}`}
                         >
-                            <CheckCircle size={16} className={theme === 'dark' ? 'text-green-400' : 'text-green-600'} />
+                            <CheckCircle size={18} className={theme === 'dark' ? 'text-green-400' : 'text-green-600'} />
                             <span className={`font-medium ${theme === 'dark' ? 'text-green-400' : 'text-green-600'}`}>
                                 Solution {showSolution ? '▼' : '▶'}
                             </span>
                         </button>
                         {showSolution && (
-                            <div className={`mt-2 p-3 rounded-lg ${theme === 'dark' ? 'bg-gray-800 text-gray-300' : 'bg-green-50 text-green-800'
-                                }`}>
-                                <pre className="whitespace-pre-wrap font-mono text-xs">{question.solution}</pre>
+                            <div className={`mt-3 p-4 rounded-lg ${theme === 'dark' ? 'bg-gray-800 text-gray-300' : 'bg-green-50 text-green-800'}`}>
+                                <pre className="whitespace-pre-wrap font-mono text-sm">{question.solution}</pre>
                             </div>
                         )}
                     </div>
                 )}
 
                 {question.expectedResult && (
-                    <div className={`p-3 rounded-lg hover:scale-[1.01] transition-all ${theme === 'dark' ? 'bg-gray-800' : 'bg-blue-50'
-                        }`}>
-                        <div className="flex items-center gap-2 mb-2">
-                            <Target size={16} className={theme === 'dark' ? 'text-blue-400' : 'text-blue-600'} />
-                            <span className={`font-medium text-xs ${theme === 'dark' ? 'text-blue-400' : 'text-blue-600'}`}>
+                    <div className={`p-4 rounded-lg transition-all ${theme === 'dark' ? 'bg-gray-800' : 'bg-blue-50'}`}>
+                        <div className="flex items-center gap-2 mb-3">
+                            <Target size={18} className={theme === 'dark' ? 'text-blue-400' : 'text-blue-600'} />
+                            <span className={`font-semibold text-sm ${theme === 'dark' ? 'text-blue-400' : 'text-blue-600'}`}>
                                 Expected Result
                             </span>
                         </div>
-                        <p className={`text-xs ${theme === 'dark' ? 'text-gray-300' : 'text-blue-700'}`}>
+                        <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-blue-700'}`}>
                             {question.expectedResult}
                         </p>
                     </div>
@@ -2243,12 +2499,18 @@ const QuestionPanel = ({
 
             <div className={`p-4 border-t ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-100'}`}>
                 <div className="text-xs text-center" style={{ color: theme === 'dark' ? '#9ca3af' : '#6b7280' }}>
-                    Points: {question.points || 10} • SQL Practice Question
+                    Points: {question.points || question.score || 10} • SQL Practice Question
                 </div>
             </div>
+
+            <ImageModal 
+                image={modalImage} 
+                onClose={() => setModalImage(null)} 
+                theme={theme} 
+            />
         </div>
-    )
-}
+    );
+};
 
 // Main Component with full theming
 export default function DBQueryEditorPage({
@@ -2296,7 +2558,6 @@ export default function DBQueryEditorPage({
     const editorRefs = useRef<Record<string, any>>({})
     const containerRef = useRef<HTMLDivElement>(null)
 
-    // Apply theme class to document on mount and theme change
     useEffect(() => {
         if (currentTheme === 'dark') {
             document.documentElement.classList.add('dark')
@@ -2305,13 +2566,14 @@ export default function DBQueryEditorPage({
         }
     }, [currentTheme])
 
-    // Get questions from props or use default
     const exerciseData = exercise || {
         _id: 'sql-exercise',
         id: 'sql-exercise',
         title: 'SQL Practice Exercise',
-        attemptLimitEnabled: false,
-        maxAttempts: 3
+        questionBehavior: {
+            attemptLimitEnabled: false,
+            maxAttempts: 3
+        }
     }
 
     const questions: QuestionType[] = exerciseData?.questions || defaultQuestions || [
@@ -2352,39 +2614,21 @@ export default function DBQueryEditorPage({
 
     const currentQuestion = questions[currentQuestionIndex] || questions[0]
 
-    // Check if submit should be disabled
     const isSubmitDisabled = () => {
-        // Get the maximum attempts from server or local
         const serverAttempts = previousAttempts;
         const localAttempts = userAttempts[currentQuestion._id] || 0;
-
-        // Use whichever is higher (server attempts might be more recent)
         const currentAttempts = Math.max(serverAttempts, localAttempts);
 
-        console.log(`Submit disabled check:`, {
-            serverAttempts,
-            localAttempts,
-            currentAttempts,
-            maxAttempts: exerciseData.questionBehavior.maxAttempts,
-            attemptLimitEnabled: exerciseData.questionBehavior.attemptLimitEnabled,
-            shouldDisable: exerciseData.questionBehavior.attemptLimitEnabled && currentAttempts >= exerciseData.questionBehavior.maxAttempts
-        });
-
-        // Only disable if attempt limit is enabled AND current attempts >= max attempts
-        return exerciseData.questionBehavior.attemptLimitEnabled && currentAttempts >= exerciseData.questionBehavior.maxAttempts;
+        return exerciseData?.questionBehavior?.attemptLimitEnabled && currentAttempts >= exerciseData?.questionBehavior?.maxAttempts;
     };
 
-
-    // Initialize
     useEffect(() => {
         loadInitialData()
         loadUserAttempts()
     }, [])
 
-    // Load previous submission when question changes
     useEffect(() => {
         if (currentQuestion && currentQuestion._id) {
-            // Auto-load previous submission for each question
             loadPreviousSubmissionForCurrentQuestion()
         }
     }, [currentQuestion._id])
@@ -2634,30 +2878,21 @@ export default function DBQueryEditorPage({
         })
     }
 
-    // Enhanced Submission Handler that stores ALL query tabs as files
     const handleSubmit = async () => {
-        // Get the maximum attempts from server or local
         const serverAttempts = previousAttempts;
         const localAttempts = userAttempts[currentQuestion._id] || 0;
         const currentAttempts = Math.max(serverAttempts, localAttempts);
 
-        console.log(`Submit attempt check:`, {
-            currentAttempts,
-            maxAttempts: exerciseData.questionBehavior.maxAttempts,
-            attemptLimitEnabled: exerciseData.questionBehavior.attemptLimitEnabled
-        });
-
-        // Check attempts limit
-        if (exerciseData.questionBehavior.attemptLimitEnabled && currentAttempts >= exerciseData.questionBehavior.maxAttempts) {
+        if (exerciseData.questionBehavior.attemptLimitEnabled && currentAttempts >= exerciseData?.questionBehavior?.maxAttempts) {
             showToast({
                 type: 'error',
                 title: 'Maximum Attempts Reached',
-                message: `You have reached the maximum of ${exerciseData.questionBehavior.maxAttempts} attempts for this question. (Current: ${currentAttempts})`,
+                message: `You have reached the maximum of ${exerciseData?.questionBehavior?.maxAttempts} attempts for this question. (Current: ${currentAttempts})`,
                 duration: 5000
             });
             return;
         }
-        // Validate required fields
+
         if (!courseId) {
             showToast({
                 type: 'error',
@@ -2703,7 +2938,6 @@ export default function DBQueryEditorPage({
                 return
             }
 
-            // Create files array from ALL query tabs (not just active tab)
             const files = queryTabs.map((tab, index) => ({
                 id: `sql-file-${Date.now()}-${index}`,
                 filename: `query${index + 1}.sql`,
@@ -2711,15 +2945,13 @@ export default function DBQueryEditorPage({
                 language: 'sql' as const,
                 path: `/query${index + 1}.sql`,
                 folderPath: '/',
-                isEntryPoint: index === 0, // First tab is entry point
+                isEntryPoint: index === 0,
                 lastModified: new Date().toISOString(),
                 size: Buffer.byteLength(tab.query, 'utf8')
             }))
 
-            // Also include the active tab's result
             const activeTabResult = queryResults[activeTab]
 
-            // Prepare submission payload
             const payload = {
                 courseId,
                 exerciseId: exerciseData._id,
@@ -2732,7 +2964,7 @@ export default function DBQueryEditorPage({
                 nodeId: nodeId || "",
                 nodeName: nodeName || "",
                 nodeType: nodeType || "",
-                files: files, // Now includes ALL query tabs as separate files
+                files: files,
                 folders: [],
                 status: 'submitted',
                 score: 0,
@@ -2751,13 +2983,8 @@ export default function DBQueryEditorPage({
                 }
             }
 
-            console.log('Submission payload with multiple files:', {
-                fileCount: files.length,
-                files: files.map(f => f.filename)
-            })
-
             const response = await axios.post(
-                'http://localhost:5533/courses/answers/submit-multiple-files',
+                'https://lms-server-ym1q.onrender.com/courses/answers/submit-multiple-files',
                 payload,
                 {
                     headers: {
@@ -2768,10 +2995,7 @@ export default function DBQueryEditorPage({
                 }
             )
 
-            console.log('Submission response:', response.data)
-
             if (response.data.success) {
-                // Update attempts
                 saveUserAttempts(currentQuestion._id)
 
                 showToast({
@@ -2781,7 +3005,6 @@ export default function DBQueryEditorPage({
                     duration: 3000
                 })
 
-                // Move to next question if available
                 if (currentQuestionIndex < questions.length - 1) {
                     setTimeout(() => {
                         setCurrentQuestionIndex(prev => prev + 1)
@@ -2823,7 +3046,6 @@ export default function DBQueryEditorPage({
         }
     }
 
-    // Auto-load previous submission for current question
     const loadPreviousSubmissionForCurrentQuestion = useCallback(async () => {
         if (!courseId || !exerciseData._id || !currentQuestion?._id || !category) {
             return
@@ -2838,7 +3060,7 @@ export default function DBQueryEditorPage({
             }
 
             const response = await fetch(
-                `http://localhost:5533/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseData._id}&questionId=${currentQuestion._id}&category=${category}`,
+                `https://lms-server-ym1q.onrender.com/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseData._id}&questionId=${currentQuestion._id}&category=${category}`,
                 {
                     headers: {
                         'Authorization': `Bearer ${token}`,
@@ -2852,23 +3074,18 @@ export default function DBQueryEditorPage({
             }
 
             const data = await response.json()
-            console.log("Auto-load previous submission response:", data)
 
             if (data.success && data.data) {
                 const submission = data.data
 
-                // Get attempts count from previous submission
                 const attemptsFromPrevious = submission.attempts || 0
                 setPreviousAttempts(attemptsFromPrevious)
-                console.log(`Auto-loaded previous attempts: ${attemptsFromPrevious}`)
 
-                // Load all SQL files from previous submission
                 const sqlFiles = submission.files?.filter((f: any) =>
                     f.language === 'sql' || f.filename.endsWith('.sql')
                 ) || []
 
                 if (sqlFiles.length > 0) {
-                    // Create tabs for each SQL file
                     const newTabs: QueryTab[] = sqlFiles.map((file: any, index: number) => ({
                         id: `tab-${Date.now()}-${index}`,
                         name: file.filename.replace('.sql', ''),
@@ -2888,7 +3105,6 @@ export default function DBQueryEditorPage({
                         duration: 3000
                     })
                 } else if (submission.sqlCode) {
-                    // Fallback to single query
                     setQueryTabs([{
                         id: 'tab-1',
                         name: 'Query 1',
@@ -2912,7 +3128,6 @@ export default function DBQueryEditorPage({
         }
     }, [courseId, exerciseData._id, currentQuestion?._id, category, currentQuestionIndex])
 
-    // Manual load previous submission (for the button)
     const loadPreviousSubmission = useCallback(async () => {
         if (!courseId || !exerciseData._id || !currentQuestion?._id || !category) {
             showToast({
@@ -2939,7 +3154,7 @@ export default function DBQueryEditorPage({
             }
 
             const response = await fetch(
-                `http://localhost:5533/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseData._id}&questionId=${currentQuestion._id}&category=${category}`,
+                `https://lms-server-ym1q.onrender.com/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseData._id}&questionId=${currentQuestion._id}&category=${category}`,
                 {
                     headers: {
                         'Authorization': `Bearer ${token}`,
@@ -2953,23 +3168,18 @@ export default function DBQueryEditorPage({
             }
 
             const data = await response.json()
-            console.log("Manual load previous submission response:", data)
 
             if (data.success && data.data) {
                 const submission = data.data
 
-                // Get attempts count from previous submission
                 const attemptsFromPrevious = submission.attempts || 0
                 setPreviousAttempts(attemptsFromPrevious)
-                console.log(`Previous attempts: ${attemptsFromPrevious}, Max attempts: ${exerciseData.questionBehavior.maxAttempts}`)
 
-                // Load all SQL files from previous submission
                 const sqlFiles = submission.files?.filter((f: any) =>
                     f.language === 'sql' || f.filename.endsWith('.sql')
                 ) || []
 
                 if (sqlFiles.length > 0) {
-                    // Create tabs for each SQL file
                     const newTabs: QueryTab[] = sqlFiles.map((file: any, index: number) => ({
                         id: `tab-${Date.now()}-${index}`,
                         name: file.filename.replace('.sql', ''),
@@ -2989,7 +3199,6 @@ export default function DBQueryEditorPage({
                         duration: 3000
                     })
                 } else if (submission.sqlCode) {
-                    // Fallback to single query
                     setQueryTabs([{
                         id: 'tab-1',
                         name: 'Query 1',
@@ -3032,7 +3241,6 @@ export default function DBQueryEditorPage({
             setIsLoadingPrevious(false)
         }
     }, [courseId, exerciseData._id, currentQuestion?._id, category, currentQuestionIndex])
-
 
     const handlePreviousQuestion = () => {
         if (currentQuestionIndex > 0) {
@@ -3104,17 +3312,6 @@ export default function DBQueryEditorPage({
 
                     <div className="flex items-center gap-1">
                         <button
-                            onClick={() => setShowNavigator(!showNavigator)}
-                            className={`p-1.5 rounded hover:scale-110 transition-all ${currentTheme === 'dark'
-                                ? 'hover:bg-gray-700 text-gray-400'
-                                : 'hover:bg-gray-200 text-gray-600'
-                                }`}
-                            title={showNavigator ? "Hide Navigator" : "Show Navigator"}
-                        >
-                            {showNavigator ? <SidebarClose className="w-4 h-4" /> : <Sidebar className="w-4 h-4" />}
-                        </button>
-
-                        <button
                             onClick={() => setShowHistory(!showHistory)}
                             className={`p-1.5 rounded hover:scale-110 transition-all ${currentTheme === 'dark'
                                 ? 'hover:bg-gray-700 text-gray-400'
@@ -3135,7 +3332,6 @@ export default function DBQueryEditorPage({
                             {layout === 'horizontal' ? <SplitSquareHorizontal className="w-4 h-4" /> : <SplitSquareVertical className="w-4 h-4" />}
                         </button>
 
-                        {/* Theme Toggle */}
                         <div className="ml-2">
                             <ThemeToggle theme={currentTheme} setTheme={setCurrentTheme} />
                         </div>
@@ -3228,7 +3424,7 @@ export default function DBQueryEditorPage({
                             ? 'bg-gray-400 cursor-not-allowed text-gray-700 opacity-50'
                             : 'bg-green-600 hover:bg-green-700 text-white'
                             } ${isSubmitting ? 'opacity-50 cursor-wait' : ''}`}
-                        title={isSubmitDisabled() ? `Maximum attempts reached (${Math.max(previousAttempts, userAttempts[currentQuestion._id] || 0)}/${exerciseData.questionBehavior.maxAttempts})` : 'Submit your answer'}
+                        title={isSubmitDisabled() ? `Maximum attempts reached (${Math.max(previousAttempts, userAttempts[currentQuestion._id] || 0)}/${exerciseData?.questionBehavior?.maxAttempts})` : 'Submit your answer'}
                     >
                         {isSubmitting ? (
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -3237,65 +3433,63 @@ export default function DBQueryEditorPage({
                         )}
                         {isSubmitDisabled() ? 'Max Attempts Reached' : 'Submit'}
                     </button>
-
-
-
                 </div>
             </div>
 
             {/* Main Content Area */}
             <div className="flex-1 flex overflow-hidden">
-                {/* Question Panel - Now properly collapsible */}
-                <QuestionPanel
-                    question={currentQuestion}
-                    currentQuestionIndex={currentQuestionIndex}
-                    totalQuestions={questions.length}
-                    onPrevious={handlePreviousQuestion}
-                    onNext={handleNextQuestion}
-                    userAttempts={Math.max(
-                        userAttempts[currentQuestion._id] || 0,
-                        previousAttempts
-                    )}
-                    maxAttempts={exerciseData.questionBehavior.maxAttempts || 3}
-                    attemptLimitEnabled={exerciseData.questionBehavior.attemptLimitEnabled}
-                    onToggleCollapse={toggleQuestionPanel}
-                    isCollapsed={isQuestionCollapsed}
-                    theme={currentTheme}
-                />
+                {/* Question Panel - Wider */}
+                <div className={`${isQuestionCollapsed ? 'w-12' : 'w-[35%] min-w-[400px]'} border-r flex-shrink-0 transition-all duration-300`}>
+                    <QuestionPanel
+                        question={currentQuestion}
+                        currentQuestionIndex={currentQuestionIndex}
+                        totalQuestions={questions.length}
+                        onPrevious={handlePreviousQuestion}
+                        onNext={handleNextQuestion}
+                        userAttempts={Math.max(
+                            userAttempts[currentQuestion._id] || 0,
+                            previousAttempts
+                        )}
+                        maxAttempts={exerciseData?.questionBehavior?.maxAttempts || 3}
+                        attemptLimitEnabled={exerciseData?.questionBehavior?.attemptLimitEnabled || false}
+                        onToggleCollapse={toggleQuestionPanel}
+                        isCollapsed={isQuestionCollapsed}
+                        theme={currentTheme}
+                    />
+                </div>
 
-
-                {/* Navigator */}
-                {showNavigator && (
-                    <div className="w-64 border-r flex-shrink-0 transition-colors">
-                        <DatabaseNavigator
-                            databases={databases}
-                            currentDatabase={currentDatabase}
-                            onSelectDatabase={(name) => {
-                                const db = databases.find(d => d.name === name)
-                                if (db) {
-                                    setCurrentDatabase(db)
-                                    EnhancedDatabaseManager.setCurrentDatabase(db.name)
-                                    showToast({
-                                        type: 'info',
-                                        title: 'Database Selected',
-                                        message: `Using database: ${db.name}`,
-                                        duration: 2000
-                                    })
-                                }
-                            }}
-                            onSelectTable={(tableName) => {
-                                const tab = queryTabs.find(t => t.id === activeTab)
-                                if (tab && currentDatabase) {
-                                    const newQuery = `SELECT * FROM ${tableName} LIMIT 10;`
-                                    handleQueryChange(activeTab, tab.query + (tab.query ? '\n' : '') + newQuery)
-                                }
-                            }}
-                            onCreateDatabase={handleCreateDatabase}
-                            onRefresh={loadInitialData}
-                            theme={currentTheme}
-                        />
-                    </div>
-                )}
+                {/* Navigator - Always render, component handles visibility internally */}
+                <div className={`${showNavigator ? 'w-64' : 'w-12'} border-r flex-shrink-0 transition-all duration-300`}>
+                    <DatabaseNavigator
+                        databases={databases}
+                        currentDatabase={currentDatabase}
+                        onSelectDatabase={(name) => {
+                            const db = databases.find(d => d.name === name)
+                            if (db) {
+                                setCurrentDatabase(db)
+                                EnhancedDatabaseManager.setCurrentDatabase(db.name)
+                                showToast({
+                                    type: 'info',
+                                    title: 'Database Selected',
+                                    message: `Using database: ${db.name}`,
+                                    duration: 2000
+                                })
+                            }
+                        }}
+                        onSelectTable={(tableName) => {
+                            const tab = queryTabs.find(t => t.id === activeTab)
+                            if (tab && currentDatabase) {
+                                const newQuery = `SELECT * FROM ${tableName} LIMIT 10;`
+                                handleQueryChange(activeTab, tab.query + (tab.query ? '\n' : '') + newQuery)
+                            }
+                        }}
+                        onCreateDatabase={handleCreateDatabase}
+                        onRefresh={loadInitialData}
+                        isVisible={showNavigator}
+                        onToggleVisibility={() => setShowNavigator(!showNavigator)}
+                        theme={currentTheme}
+                    />
+                </div>
 
                 {/* Editor and Results Area */}
                 <div className={`flex-1 flex ${layout === 'horizontal' ? 'flex-col' : 'flex-row'}`}>
@@ -3394,14 +3588,12 @@ export default function DBQueryEditorPage({
                         Attempts: {Math.max(
                             previousAttempts,
                             userAttempts[currentQuestion._id] || 0
-                        )}/{exerciseData.questionBehavior.maxAttempts || 3}
+                        )}/{exerciseData?.questionBehavior?.maxAttempts || 3}
                     </span>
                     {isSubmitDisabled() && (
                         <span className="text-red-500 font-medium">Max Attempts Reached</span>
                     )}
                 </div>
-
-
             </div>
 
             {/* Toast Notifications */}

@@ -1,5328 +1,2831 @@
-"use client"
+"use client";
 
-import React, { useState, useRef, useCallback, useEffect, useMemo } from "react"
+import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import {
-  ChevronRight,
+  Brain, Users, HelpCircle, FileText, Video, FileArchive,
+  Link2, BookOpen, FolderPlus, Download, Eye, RefreshCw,
+  Settings, X, Loader2, Folder, Globe, Lock, EyeOff,
+  Upload, File as FileIcon, Plus, BookPlus, AlertCircle,
+  Presentation, Trash2, Home, Library, FolderOpen,
+  File as FileLucide, Sun, Moon, Monitor, ChevronRight,
+  GraduationCap, LayoutDashboard, BookMarked, Layers,
+  User, LogOut, UserCheck2, Zap,
   ChevronDown,
-  ChevronLeft,
-  Upload,
-  FileText,
-  Video,
-  Archive,
-  Trash2,
-  Eye,
-  Download,
-  BookOpen,
-  Users,
-  Target,
-  Brain,
-  File as FileIcon,
-  HelpCircle,
-  Settings,
-  X,
-  Plus,
-  Presentation,
-  RefreshCw,
-  MonitorPlay,
-  Bookmark,
-  File,
-  FolderPlus,
-  Folder,
-  Edit2,
-  Link,
-  FileArchive,
-  Link2,
-  BookPlus,
-  FolderOpen,
-  Lock,
-  LockKeyhole,
-  Globe,
-  AlertCircle,
-  EyeOff,
-  Loader2,
-  Search,
-  SquareChevronRight,
-  ExternalLink,
-  MoreVertical,
-  Home,
-  Library,
-} from "lucide-react"
+  FilePlus2
+} from "lucide-react";
 import dynamic from "next/dynamic";
-import 'react-quill/dist/quill.snow.css';
-import { useQuery } from "@tanstack/react-query"
-import { courseDataApi, entityApi, type CourseStructureData, type Module, type SubModule, type Topic, type SubTopic, updateFileSettingsInComponent } from "@/apiServices/coursesData"
-import { useSearchParams } from "next/navigation"
-import axios from "axios"
+import { getCurrentUser } from "@/apiServices/tokenVerify"
+import "react-quill/dist/quill.snow.css";
+import { useQuery } from "@tanstack/react-query";
+import {
+  courseDataApi, entityApi,
+  type CourseStructureData, type Module, type SubModule,
+  type Topic, type SubTopic, updateFileSettingsInComponent,
+} from "@/apiServices/coursesData";
+import { useRouter, useSearchParams } from "next/navigation";
+import axios from "axios";
 import { showErrorToast, showSuccessToast } from "@/components/ui/toastUtils";
-import PDFViewer from "../../../component/pdfView"
-import VideoViewer from "../../../component/videosViewer"
+import PDFViewer from "../../../component/pdfView";
+import VideoViewer from "../../../component/videosViewer";
 import ZipViewer from "../../../component/zipViewer";
 import PPTViewer from "../../../component/pptView";
-import ProblemSolving from "../../../component/ProblemSolving";
-import { updateURL } from '@/apiServices/urlParams';
+import { updateURL } from "@/apiServices/urlParams";
 import { StudentNavbar } from "@/app/lms/component/student/student-navbar";
 
-// --- Types & Interfaces ---
+import { CourseSidebar } from "./components/Coursesidebar";
+import { CourseContent } from "./components/Coursecontent";
+import { NotionResourceModal } from "./components/Notionresourcemodal";
 
-interface CourseNode {
-  id: string
-  name: string
-  type: "course" | "module" | "submodule" | "topic" | "subtopic"
-  children?: CourseNode[]
-  level: number
-  originalData?: any
-}
+import {
+  CourseNode, FolderItem, UploadedFile, ContentData, SubcategoryData,
+  Tag, FileTypeConfig, VideoItem, BreadcrumbItem, FolderNavState, isFolderItem, isUploadedFile
+} from "../uploadcourseresources/components/Types";
+import toast from "react-hot-toast";
+import TipTapEditor from "@/app/lms/component/tiptopEditor";
 
-interface Tag {
-  tagName: string;
-  tagColor: string;
-}
+const Editor = dynamic(() => import("primereact/editor").then((m) => m.Editor), { ssr: false });
 
-interface FileSettings {
-  showToStudents: boolean;
-  allowDownload: boolean;
-  lastModified?: Date;
-}
-
-interface UploadedFile {
-  id: string
-  name: string
-  type?: string
-  size?: number
-  url?: string | { base: string }
-  uploadedAt?: Date
-  subcategory: string
-  folderId: string | null
-  progress?: number
-  status?: "preparing" | "uploading" | "ready" | "submitting" | "completed" | "error"
-  tags?: Tag[]
-  folderPath?: string
-  isReference?: boolean | string
-  isVideo?: boolean
-  originalFileName?: string
-  description?: string
-  accessLevel?: string
-  availableResolutions?: string[]
-  fileSettings?: FileSettings
-}
-
-interface FolderItem {
-  id: string
-  name: string
-  type: "folder"
-  parentId: string | null
-  children: (FolderItem | UploadedFile)[]
-  tabType: "I_Do" | "We_Do" | "You_Do"
-  subcategory: string
-  files?: UploadedFile[]
-  subfolders?: FolderItem[]
-  tags?: Tag[]
-  folderPath?: string
-}
-
-interface SubcategoryData {
-  [key: string]: (UploadedFile | FolderItem)[]
-}
-
-interface ContentData {
-  I_Do: SubcategoryData
-  We_Do: SubcategoryData
-  You_Do: SubcategoryData
-  [key: string]: SubcategoryData
-}
-
-interface VideoItem {
-  id: string;
-  title: string;
-  fileName: string;
-  fileUrl: string;
-  availableResolutions: string[];
-  isVideo: boolean;
-}
-
-// --- Type Guards ---
-
-const isFolderItem = (item: FolderItem | UploadedFile): item is FolderItem => {
-  return (item as FolderItem).type === 'folder';
+// ─── Design tokens ────────────────────────────────────────────────────────────
+// ─── Design tokens ────────────────────────────────────────────────────────────
+const T = {
+  orange: '#F27757',
+  orangeDark: '#E0623F',
+  orangeGlow: 'rgba(242,119,87,0.22)',
+  orangeLight: 'rgba(242,119,87,0.08)',
+  orangeMid: 'rgba(242,119,87,0.15)',
+  blue: '#3B82F6', // Added blue color
+  blueLight: 'rgba(59,130,246,0.08)',
+  textMain: '#1a1a2e',
+  textSub: '#6b6b7e',
+  textMuted: '#8b8b9e',
+  textHint: '#bcbccc',
+  textDark: '#000000', // Explicit black
+  border: '#e4e4ed',
+  bg: '#ffffff',
+  pageBg: '#f7f7f9',
 };
-
-const isUploadedFile = (item: FolderItem | UploadedFile): item is UploadedFile => {
-  return (item as UploadedFile).url !== undefined;
-};
-
-
-export default function DynamicLMSCoordinator() {
-  const searchParams = useSearchParams()
-  const courseId = searchParams.get("courseId")
-
-  const { data: courseStructureResponse } = useQuery(courseDataApi.getById(courseId || ""))
-
-  // --- Utility Functions for LocalStorage ---
-  const getStoredTab = (): "I_Do" | "We_Do" | "You_Do" | null => {
-    if (typeof window === 'undefined') return null;
-    const stored = localStorage.getItem('lms_selected_tab');
-    return stored as "I_Do" | "We_Do" | "You_Do" | null;
-  };
-
-  const getStoredSubcategory = (): string => {
-    if (typeof window === 'undefined') return '';
-    return localStorage.getItem('lms_selected_subcategory') || '';
-  };
-
-  const getStoredNode = (): string => {
-    if (typeof window === 'undefined') return '';
-    return localStorage.getItem('lms_selected_node_id') || '';
-  };
-
-  // --- Transformation Logic ---
-  const getDeepestLevelType = (courseData: CourseStructureData): string => {
-    for (const module of courseData.modules) {
-      for (const topic of module.topics) {
-        if (topic.subTopics && topic.subTopics.length > 0) return "subtopic";
-      }
-      for (const subModule of module.subModules) {
-        for (const topic of subModule.topics) {
-          if (topic.subTopics && topic.subTopics.length > 0) return "subtopic";
-        }
-      }
-    }
-    for (const module of courseData.modules) {
-      if (module.topics && module.topics.length > 0) return "topic";
-      for (const subModule of module.subModules) {
-        if (subModule.topics && subModule.topics.length > 0) return "topic";
-      }
-    }
-    for (const module of courseData.modules) {
-      if (module.subModules && module.subModules.length > 0) return "submodule";
-    }
-    return "module";
-  }
-
-  const transformToCourseNodes = (courseData: CourseStructureData): CourseNode[] => {
-    const courseNode: CourseNode = {
-      id: courseData._id,
-      name: courseData.courseName,
-      type: "course",
-      level: 0,
-      originalData: courseData,
-      children: courseData.modules.map((module: Module) => ({
-        id: module._id,
-        name: module.title,
-        type: "module",
-        level: 1,
-        originalData: module,
-        children: [
-          ...module.topics.map((topic: Topic) => ({
-            id: topic._id,
-            name: topic.title,
-            type: "topic" as const,
-            level: 2,
+// ─── Transform Helpers ─────────────────────────────────────────────────────────
+function transformToCourseNodes(courseData: CourseStructureData): CourseNode[] {
+  return [{
+    id: courseData._id, name: courseData.courseName, type: "course", level: 0,
+    originalData: courseData,
+    children: courseData.modules.map((module: Module) => ({
+      id: module._id, name: module.title, type: "module" as const, level: 1,
+      originalData: module,
+      children: [
+        ...module.topics.map((topic: Topic) => ({
+          id: topic._id, name: topic.title, type: "topic" as const, level: 2,
+          originalData: topic,
+          children: topic.subTopics.map((st: SubTopic) => ({
+            id: st._id, name: st.title, type: "subtopic" as const, level: 3, originalData: st,
+          })),
+        })),
+        ...module.subModules.map((sm: SubModule) => ({
+          id: sm._id, name: sm.title, type: "submodule" as const, level: 2,
+          originalData: sm,
+          children: sm.topics.map((topic: Topic) => ({
+            id: topic._id, name: topic.title, type: "topic" as const, level: 3,
             originalData: topic,
-            children: topic.subTopics.map((subTopic: SubTopic) => ({
-              id: subTopic._id,
-              name: subTopic.title,
-              type: "subtopic" as const,
-              level: 3,
-              originalData: subTopic,
+            children: topic.subTopics.map((st: SubTopic) => ({
+              id: st._id, name: st.title, type: "subtopic" as const, level: 4, originalData: st,
             })),
           })),
-          ...module.subModules.map((subModule: SubModule) => ({
-            id: subModule._id,
-            name: subModule.title,
-            type: "submodule" as const,
-            level: 2,
-            originalData: subModule,
-            children: subModule.topics.map((topic: Topic) => ({
-              id: topic._id,
-              name: topic.title,
-              type: "topic" as const,
-              level: 3,
-              originalData: topic,
-              children: topic.subTopics.map((subTopic: SubTopic) => ({
-                id: subTopic._id,
-                name: subTopic.title,
-                type: "subtopic" as const,
-                level: 4,
-                originalData: subTopic,
-              })),
-            })),
-          })),
-        ],
-      })),
+        })),
+      ],
+    })),
+  }];
+}
+
+const toBackendTab = (tab: "I_Do" | "We_Do" | "You_Do" | null): "I_Do" | "We_Do" | "You_Do" => {
+  if (tab === "We_Do") return "We_Do";
+  if (tab === "You_Do") return "You_Do";
+  return "I_Do";
+};
+
+// ─── Dark Mode Hook ────────────────────────────────────────────────────────────
+const useDarkMode = () => {
+  const [isDark, setIsDark] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('lms_theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      return saved ? saved === 'dark' : prefersDark;
     }
-    return [courseNode]
-  }
-
-  // --- State Declarations ---
-  const [courseData, setCourseData] = useState<CourseNode[]>([])
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [deepestLevelType, setDeepestLevelType] = useState<string>("subtopic")
-  const [isRestoringFromAnalytics, setIsRestoringFromAnalytics] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
-  const [selectedNode, setSelectedNode] = useState<CourseNode | null>(null)
-
-  const [activeTab, setActiveTab] = useState<"I_Do" | "We_Do" | "You_Do" | null>(getStoredTab());
-  const [activeSubcategory, setActiveSubcategory] = useState<string>(getStoredSubcategory());
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [storedNodeId, setStoredNodeId] = useState<string>(getStoredNode());
-
-  const [contentData, setContentData] = useState<Record<string, ContentData>>({})
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({})
-  const [sidebarWidth, setSidebarWidth] = useState(280)
-  const [isResizing, setIsResizing] = useState(false)
-  const [showUploadDropdown, setShowUploadDropdown] = useState(false)
-  const [showResourcesModal, setShowResourcesModal] = useState(false)
-  const [text, setText] = useState('');
-  const [showUploadModal, setShowUploadModal] = useState(false)
-  const [selectedFileType, setSelectedFileType] = useState<string>("")
-  const [documentSettings, setDocumentSettings] = useState<{
-    [key: string]: { studentShow: boolean; downloadAllow: boolean }
-  }>({})
-  const [uploadingFiles, setUploadingFiles] = useState<UploadedFile[]>([])
-
-  const Editor = dynamic(() => import("primereact/editor").then(mod => mod.Editor), { ssr: false });
-
-  const [showPDFViewer, setShowPDFViewer] = useState(false)
-  const [currentPDFUrl, setCurrentPDFUrl] = useState("")
-  const [currentPDFName, setCurrentPDFName] = useState("")
-  const [showVideoViewer, setShowVideoViewer] = useState(false)
-  const [currentVideoUrl, setCurrentVideoUrl] = useState("")
-  const [currentVideoName, setCurrentVideoName] = useState("")
-  const [updateFileId, setUpdateFileId] = useState<string | null>(null)
-  const [updateFileType, setUpdateFileType] = useState<string>("")
-  const [updateTabType, setUpdateTabType] = useState<"I_Do" | "We_Do" | "You_Do">("I_Do")
-  const [updateSubcategory, setUpdateSubcategory] = useState<string>("")
-  const [folders, setFolders] = useState<FolderItem[]>([])
-  const [showCreateFolderModal, setShowCreateFolderModal] = useState(false)
-  const [newFolderName, setNewFolderName] = useState("")
-  const [isButtonLoading, setIsButtonLoading] = useState(false);
-  const [expandedUploadSection, setExpandedUploadSection] = useState<string | null>("description");
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [tagColor, setTagColor] = useState('');
-  const [expandedSection, setExpandedSection] = useState<string | null>('folderName');
-  const [folderTags, setFolderTags] = useState<Tag[]>([]);
-  const [currentTag, setCurrentTag] = useState('');
-  const [accessLevel, setAccessLevel] = useState('private');
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [folderUrl, setFolderUrl] = useState('')
-  const [urlFileName, setUrlFileName] = useState('')
-  const [urlFileType, setUrlFileType] = useState('url/link')
-  const [currentVideoResolutions, setCurrentVideoResolutions] = useState<string[]>([]);
-  const [videoPlaylist, setVideoPlaylist] = useState<VideoItem[]>([])
-  const [currentVideoIndex, setCurrentVideoIndex] = useState(0)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [activeComponent, setActiveComponent] = useState<string | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [isResourcesModalLoading, setIsResourcesModalLoading] = useState(false);
-  const [breadcrumbs, setBreadcrumbs] = useState<Array<{ 
-    label: string; 
-    type: string;
-    id: string;
-    path?: string 
-  }>>([]);
-  const [hoveredCategory, setHoveredCategory] = useState<string>("");
-
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const uploadModalRef = useRef<HTMLDivElement>(null)
-
-  // --- Folder Navigation State ---
-  const [folderNavigationState, setFolderNavigationState] = useState<{
-    [key: string]: {
-      currentFolderPath: string[]
-      currentFolderId: string | null
-    }
-  }>({})
-
-  const [editingFolder, setEditingFolder] = useState<FolderItem | null>(null)
-  const [editFolderName, setEditFolderName] = useState("")
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [showFolderSettings, setShowFolderSettings] = useState(false)
-  const [selectedFolderForSettings] = useState<FolderItem | null>(null)
-  const [hideStudentSettings, setHideStudentSettings] = useState<{ [key: string]: boolean }>({})
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState<{ type: "folder" | "file"; item: any; name: string } | null>(null)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [fileNames, setFileNames] = useState<Record<string, string>>({})
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
-  const [uploadDescription, setUploadDescription] = useState('')
-  const [uploadTags, setUploadTags] = useState<Tag[]>([])
-  const [uploadCurrentTag, setUploadCurrentTag] = useState('')
-  const [uploadTagColor, setUploadTagColor] = useState('#3B82F6')
-  const [uploadAccessLevel, setUploadAccessLevel] = useState('private')
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [isUploadDropdownOpen, setIsUploadDropdownOpen] = useState(false)
-  const [searchQuery, setSearchQuery] = useState("")
-  const [searchResults, setSearchResults] = useState<CourseNode[]>([])
-  const [isSearching, setIsSearching] = useState(false)
-  const [showZipViewer, setShowZipViewer] = useState(false)
-  const [currentZipUrl, setCurrentZipUrl] = useState("")
-  const [currentZipName, setCurrentZipName] = useState("")
-  const [showPPTViewer, setShowPPTViewer] = useState(false)
-  const [currentPPTUrl, setCurrentPPTUrl] = useState("")
-  const [currentPPTName, setCurrentPPTName] = useState("")
-  const [fileDisplayNames, setFileDisplayNames] = useState<Record<string, string>>({})
-
-  // --- Helper: Convert Frontend Tab to Backend String ---
-  const toBackendTab = (tab: "I_Do" | "We_Do" | "You_Do" | null): "I_Do" | "We_Do" | "You_Do" => {
-    if (tab === "We_Do") return "We_Do";
-    if (tab === "You_Do") return "You_Do";
-    return "I_Do";
-  }
-
-  // --- Effects ---
-
-  useEffect(() => {
-    return () => {
-      // Clean up any temporary restore flags
-      localStorage.removeItem('lms_restore_node_id');
-    };
-  }, []);
-
-  const findPathToNode = useCallback((nodes: CourseNode[], targetId: string, currentPath: string[] = []): string[] | null => {
-    for (const node of nodes) {
-      if (node.id === targetId) {
-        return currentPath; // Return the IDs of parents found so far
-      }
-      if (node.children && node.children.length > 0) {
-        const path = findPathToNode(node.children, targetId, [...currentPath, node.id]);
-        if (path) return path;
-      }
-    }
-    return null;
-  }, []);
-
-  // --- Function to generate breadcrumbs from selected node ---
-  const generateBreadcrumbs = useCallback((node: CourseNode | null, courseNodes: CourseNode[]) => {
-    if (!node || !courseNodes.length) {
-      return [
-        { label: "Dashboard", type: "dashboard", id: "dashboard", path: "/lms/pages/dashboard" },
-        { label: "Courses", type: "courses", id: "courses", path: "/lms/pages/courses" },
-      ];
-    }
-
-    // Find the complete hierarchy path
-    const findNodePath = (nodes: CourseNode[], targetId: string, path: CourseNode[] = []): CourseNode[] | null => {
-      for (const n of nodes) {
-        if (n.id === targetId) {
-          return [...path, n];
-        }
-        if (n.children) {
-          const found = findNodePath(n.children, targetId, [...path, n]);
-          if (found) return found;
-        }
-      }
-      return null;
-    };
-
-    const nodePath = findNodePath(courseNodes, node.id);
-    if (!nodePath) {
-      return [
-        { label: "Dashboard", type: "dashboard", id: "dashboard", path: "/lms/pages/dashboard" },
-        { label: "Courses", type: "courses", id: "courses", path: "/lms/pages/courses" },
-        { label: courseStructureResponse?.data?.courseName || "Course", type: "course", id: courseId || "course" },
-      ];
-    }
-
-    // Build breadcrumbs array
-    const breadcrumbItems = [
-      { label: "Dashboard", type: "dashboard", id: "dashboard", path: "/lms/pages/dashboard" },
-      { label: "Courses", type: "courses", id: "courses", path: "/lms/pages/courses" },
-      { 
-        label: courseStructureResponse?.data?.courseName || "Course", 
-        type: "course", 
-        id: nodePath.find(n => n.type === "course")?.id || courseId || "course",
-        path: undefined // Course doesn't have a direct path
-      },
-    ];
-
-    // Add each level in the hierarchy
-    nodePath.forEach((pathNode, index) => {
-      if (pathNode.type !== "course") { // Course is already added
-        breadcrumbItems.push({
-          label: pathNode.name,
-          type: pathNode.type,
-          id: pathNode.id,
-          path: undefined // Individual nodes don't have direct paths
-        });
-      }
-    });
-
-    return breadcrumbItems;
-  }, [courseStructureResponse, courseId]);
-
-  useEffect(() => {
-    if (courseStructureResponse?.data) {
-      const transformedData = transformToCourseNodes(courseStructureResponse.data)
-      setCourseData(transformedData)
-      const deepest = getDeepestLevelType(courseStructureResponse.data)
-      setDeepestLevelType(deepest)
-      // Only set initial expanded if we are not in restoration mode
-      if (!localStorage.getItem('lms_expanded_nodes')) {
-        setExpandedNodes(new Set([courseStructureResponse.data._id]))
-      }
-    }
-}, [courseStructureResponse, selectedNode]); // Remove sidebarCollapsed
-
-  // Update breadcrumbs when selectedNode or courseData changes
-  useEffect(() => {
-    const newBreadcrumbs = generateBreadcrumbs(selectedNode, courseData);
-    setBreadcrumbs(newBreadcrumbs);
-  }, [selectedNode, courseData, generateBreadcrumbs]);
-
-  // Simplified URL params handling
-  useEffect(() => {
-    if (!courseData.length) return;
-
-    const urlParams = new URLSearchParams(window.location.search);
-
-    // --- ANALYTICS RESTORATION (from ReviewSubmission back) ---
-    if (urlParams.get('fromAnalytics') === 'true') {
-      setIsRestoringFromAnalytics(true);
-
-      // Clean the flag from URL immediately
-      const cleanUrl = new URL(window.location.href);
-      cleanUrl.searchParams.delete('fromAnalytics');
-      window.history.replaceState({}, '', cleanUrl.toString());
-
-      // Restore from localStorage (which was set by ProblemSolving)
-      const storedTab = localStorage.getItem('lms_selected_tab') as "I_Do" | "We_Do" | "You_Do" | null;
-      const storedSubcategory = localStorage.getItem('lms_selected_subcategory');
-      const storedNodeId = localStorage.getItem('lms_selected_node_id');
-
-      if (storedTab) setActiveTabPersistent(storedTab);
-      if (storedSubcategory) setActiveSubcategoryPersistent(storedSubcategory);
-      if (storedNodeId) {
-        const findNode = (nodes: CourseNode[]): CourseNode | null => {
-          for (const node of nodes) {
-            if (node.id === storedNodeId) return node;
-            if (node.children) {
-              const found = findNode(node.children);
-              if (found) return found;
-            }
-          }
-          return null;
-        };
-
-        const foundNode = findNode(courseData);
-        if (foundNode) {
-          setSelectedNodePersistent(foundNode);
-          // Expand parents
-          const parentPath = findPathToNode(courseData, storedNodeId);
-          if (parentPath) {
-            setExpandedNodes(prev => {
-              const next = new Set(prev);
-              parentPath.forEach(id => next.add(id));
-              return next;
-            });
-          }
-        }
-      }
-
-      setTimeout(() => setIsRestoringFromAnalytics(false), 300);
-    }
-    // --- NORMAL URL NAVIGATION (direct links, bookmarks, etc.) ---
-    else {
-      const tabFromUrl = urlParams.get('activeTab') as "I_Do" | "We_Do" | "You_Do" | null;
-      const subcategoryFromUrl = urlParams.get('activeSubcategory');
-      const nodeIdFromUrl = urlParams.get('nodeId');
-
-      // Only apply URL params if we're NOT in the middle of a node selection
-      const shouldApplyTabFromUrl = tabFromUrl &&
-        tabFromUrl !== activeTab &&
-        !nodeIdFromUrl;
-
-      if (shouldApplyTabFromUrl) {
-        setActiveTabPersistent(tabFromUrl);
-      }
-
-      if (subcategoryFromUrl &&
-        subcategoryFromUrl !== activeSubcategory &&
-        !nodeIdFromUrl) {
-        setActiveSubcategoryPersistent(subcategoryFromUrl);
-      }
-
-      // Select node from URL if provided
-      if (nodeIdFromUrl && selectedNode?.id !== nodeIdFromUrl) {
-        const findNode = (nodes: CourseNode[]): CourseNode | null => {
-          for (const node of nodes) {
-            if (node.id === nodeIdFromUrl) return node;
-            if (node.children) {
-              const found = findNode(node.children);
-              if (found) return found;
-            }
-          }
-          return null;
-        };
-
-        const foundNode = findNode(courseData);
-        if (foundNode) {
-          setSelectedNodePersistent(foundNode);
-
-          // Expand parent nodes for this node
-          const parentPath = findPathToNode(courseData, nodeIdFromUrl);
-          if (parentPath && parentPath.length > 0) {
-            setExpandedNodes(prev => {
-              const next = new Set(prev);
-              parentPath.forEach(id => next.add(id));
-              return next;
-            });
-          }
-
-          // When selecting a node from URL, preserve current tab/subcategory
-          if (tabFromUrl && tabFromUrl !== activeTab) {
-            setActiveTabPersistent(tabFromUrl);
-          }
-          if (subcategoryFromUrl && subcategoryFromUrl !== activeSubcategory) {
-            setActiveSubcategoryPersistent(subcategoryFromUrl);
-          }
-        }
-      }
-    }
-  }, [courseData, searchParams, selectedNode, findPathToNode, activeTab, activeSubcategory]);
-
-  useEffect(() => {
-    if (courseData.length > 0 && isRestoringFromAnalytics) {
-      const restoreNodeId = localStorage.getItem('lms_restore_node_id');
-      if (restoreNodeId) {
-        const findNodeWithoutExpanding = (nodes: CourseNode[], targetId: string): CourseNode | null => {
-          for (const node of nodes) {
-            if (node.id === targetId) return node;
-            if (node.children && node.children.length > 0) {
-              const found = findNodeWithoutExpanding(node.children, targetId);
-              if (found) return found;
-            }
-          }
-          return null;
-        };
-
-        const foundNode = findNodeWithoutExpanding(courseData, restoreNodeId);
-        if (foundNode) setSelectedNodePersistent(foundNode);
-
-        localStorage.removeItem('lms_restore_node_id');
-        setTimeout(() => setIsRestoringFromAnalytics(false), 500);
-      }
-    }
-  }, [courseData, isRestoringFromAnalytics]);
-
-  useEffect(() => {
-    if (selectedNode && !isRestoringFromAnalytics) {
-      const refreshNodeData = async () => {
-        await refreshContentData(selectedNode);
-      };
-      refreshNodeData();
-    }
-  }, [selectedNode?.id, isRestoringFromAnalytics]);
-
-  // --- Persistence Wrappers ---
-  const setActiveTabPersistent = (tab: "I_Do" | "We_Do" | "You_Do" | null) => {
-    setActiveTab(tab);
-    if (tab) localStorage.setItem('lms_selected_tab', tab);
-    else localStorage.removeItem('lms_selected_tab');
-  };
-
-  const setActiveSubcategoryPersistent = (subcategory: string) => {
-    setActiveSubcategory(subcategory);
-    localStorage.setItem('lms_selected_subcategory', subcategory);
-  };
-
-  const setSelectedNodePersistent = (node: CourseNode | null) => {
-    setSelectedNode(node);
-    if (node) {
-      localStorage.setItem('lms_selected_node_id', node.id);
-      localStorage.setItem('lms_selected_node_name', node.name);
-
-      // Clear any restore flags
-      localStorage.removeItem('lms_restore_node_id');
-    } else {
-      localStorage.removeItem('lms_selected_node_id');
-      localStorage.removeItem('lms_selected_node_name');
-    }
-  };
-
-  // --- Filtering & Searching ---
-  const [activeFilters, setActiveFilters] = useState({
-    fileTypes: [] as string[],
-    searchFilter: ''
+    return false;
   });
 
-  const addTag = async (tagName: string, tagColor: string = '#3B82F6') => {
-    if (tagName && !folderTags.some(tag => tag.tagName === tagName)) {
-      setLoading(true);
-      setSuccess(false);
-      await new Promise((res) => setTimeout(res, 800));
-      setFolderTags([...folderTags, { tagName, tagColor }]);
-      setCurrentTag('');
-      setLoading(false);
-      setSuccess(true);
+
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (isDark) { root.classList.add('dark'); localStorage.setItem('lms_theme', 'dark'); }
+    else { root.classList.remove('dark'); localStorage.setItem('lms_theme', 'light'); }
+  }, [isDark]);
+
+  return { isDark, toggleDark: () => setIsDark(prev => !prev) };
+};
+
+// ─── Orange Toggle ────────────────────────────────────────────────────────────
+const OrangeToggle = ({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) => (
+  <label className="relative inline-flex items-center cursor-pointer">
+    <input type="checkbox" className="sr-only peer" checked={checked} onChange={e => onChange(e.target.checked)} />
+    <div
+      className="w-10 h-5 rounded-full transition-colors relative"
+      style={{ background: checked ? T.orange : T.border }}
+    >
+      <div
+        className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform"
+        style={{ left: checked ? '22px' : '2px' }}
+      />
+    </div>
+  </label>
+);
+
+// ─── Breadcrumb Icon map ───────────────────────────────────────────────────────
+const CRUMB_ICON: Record<string, React.ReactNode> = {
+  dashboard: <LayoutDashboard size={13} />,
+  courses: <BookMarked size={13} />,
+  course: <GraduationCap size={13} />,
+  module: <Layers size={13} />,
+  submodule: <Layers size={13} />,
+  topic: <BookOpen size={13} />,
+  subtopic: <FileText size={13} />,
+};
+
+
+function UserMenuButton({
+  user, userLoading, showUserMenu, setShowUserMenu, userRef,
+  isDummyStudent, originalRoleInfo, isLoggingOut,
+  getUserInitials, isActualStudent,
+  handleProfileClick, handleSwitchToStudent, handleSwitchBackToOriginal, handleLogout,
+}: any) {
+  const initials = getUserInitials()
+  const isDark = false // or wire up your theme state if needed
+
+  return (
+    <div ref={userRef} className="relative">
+      {/* Pill trigger button */}
+      <button
+        onClick={() => setShowUserMenu(!showUserMenu)}
+        className="flex items-center gap-2.5 transition-all"
+        style={{
+          background: showUserMenu ? "#FFF4F1" : "#ffffff",
+          borderRadius: "999px",
+          border: `1.5px solid ${showUserMenu ? T.orange + "55" : "#e8e4eb"}`,
+          padding: "5px 12px 5px 6px",
+          boxShadow: showUserMenu
+            ? `0 2px 12px rgba(242,119,87,0.25)`
+            : "0 2px 8px rgba(0,0,0,0.07), 0 1px 3px rgba(0,0,0,0.04)",
+        }}
+        onMouseEnter={e => {
+          if (!showUserMenu) {
+            (e.currentTarget as HTMLElement).style.background = "#f6f4f7"
+              ; (e.currentTarget as HTMLElement).style.boxShadow = "0 3px 12px rgba(0,0,0,0.10)"
+          }
+        }}
+        onMouseLeave={e => {
+          if (!showUserMenu) {
+            (e.currentTarget as HTMLElement).style.background = "#ffffff"
+              ; (e.currentTarget as HTMLElement).style.boxShadow = "0 2px 8px rgba(0,0,0,0.07), 0 1px 3px rgba(0,0,0,0.04)"
+          }
+        }}
+      >
+        {userLoading ? (
+          <div className="h-8 w-8 rounded-full animate-pulse" style={{ background: T.border }} />
+        ) : (
+          <div
+            className="h-8 w-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0"
+            style={{
+              background: `linear-gradient(135deg, ${T.orange}, ${T.orangeDark})`,
+              boxShadow: `0 2px 8px rgba(242,119,87,0.25)`,
+            }}
+          >
+            {initials}
+          </div>
+        )}
+        <div className="hidden sm:block text-left">
+          <p className="text-[12.5px] font-semibold leading-tight" style={{ color: T.textMain }}>
+            {user?.firstName || "User"}
+          </p>
+          <p className="text-[10px] leading-tight mt-0.5" style={{ color: T.textMuted }}>
+            {isDummyStudent ? "Student View" : user?.role?.renameRole || "Account"}
+          </p>
+        </div>
+        <ChevronDown
+          className="hidden sm:block ml-0.5"
+          size={14}
+          style={{
+            color: "#bcbccc",
+            transform: showUserMenu ? "rotate(180deg)" : "none",
+            transition: "transform 0.2s",
+          }}
+        />
+      </button>
+
+      {/* Dropdown */}
+      {showUserMenu && (
+        <div
+          className="absolute top-full right-0 mt-2 w-64 z-[9999] overflow-hidden"
+          style={{
+            background: T.bg,
+            borderRadius: "18px",
+            border: `1px solid ${T.border}`,
+            boxShadow: "0 16px 40px rgba(0,0,0,0.10), 0 4px 12px rgba(0,0,0,0.06)",
+            animation: "scDrop .18s cubic-bezier(.16,1,.3,1) both",
+            transformOrigin: "top right",
+          }}
+        >
+          {/* Header */}
+          <div
+            className="px-4 py-3"
+            style={{ background: "#f6f4f7", borderBottom: `1px solid ${T.border}` }}
+          >
+            <div className="flex items-center gap-3">
+              <div
+                className="h-10 w-10 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
+                style={{
+                  background: `linear-gradient(135deg, ${T.orange}, ${T.orangeDark})`,
+                  boxShadow: `0 4px 14px rgba(242,119,87,0.25)`,
+                }}
+              >
+                {initials}
+              </div>
+              <div className="min-w-0">
+                <p className="text-[13px] font-bold truncate" style={{ color: T.textMain }}>
+                  {user?.firstName} {user?.lastName}
+                </p>
+                <p className="text-[11px] truncate" style={{ color: T.textMuted }}>{user?.email}</p>
+                <span
+                  className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded-md mt-0.5"
+                  style={{ background: T.orangeLight, color: T.orange }}
+                >
+                  {isDummyStudent ? "⚡ Student View" : user?.role?.renameRole || "Account"}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Menu items */}
+          <div className="p-1.5">
+            {!isActualStudent() && !isDummyStudent && (
+              <UMRow
+                icon={UserCheck2}
+                label="Switch to Student"
+                sub="Preview student experience"
+                color="#3b82f6"
+                hoverBg="#eff6ff"
+                onClick={handleSwitchToStudent}
+              />
+            )}
+            {isDummyStudent && originalRoleInfo && (
+              <UMRow
+                icon={Zap}
+                label={`Back to ${originalRoleInfo.renameRole}`}
+                sub="Return to original role"
+                color="#f59e0b"
+                hoverBg="#fffbeb"
+                onClick={handleSwitchBackToOriginal}
+              />
+            )}
+            <div className="h-px my-1 mx-1" style={{ background: T.border }} />
+            <UMRow icon={User} label="My Profile" sub="" color={T.textMuted} hoverBg="#f6f4f7" onClick={handleProfileClick} />
+            <UMRow icon={Settings} label="Settings" sub="" color={T.textMuted} hoverBg="#f6f4f7" onClick={() => setShowUserMenu(false)} />
+            <UMRow icon={HelpCircle} label="Help & Support" sub="" color={T.textMuted} hoverBg="#f6f4f7" onClick={() => setShowUserMenu(false)} />
+          </div>
+
+          {/* Sign out */}
+          <div className="p-1.5" style={{ borderTop: `1px solid ${T.border}` }}>
+            <button
+              onClick={handleLogout}
+              disabled={isLoggingOut}
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl transition-colors"
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#fff5f5" }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent" }}
+            >
+              <LogOut size={14} style={{ color: "#e53e3e" }} />
+              <span className="text-[12px] font-semibold" style={{ color: "#e53e3e" }}>
+                {isLoggingOut ? "Signing out…" : "Sign Out"}
+              </span>
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Reusable menu row
+function UMRow({ icon: Icon, label, sub, color, hoverBg, onClick }: {
+  icon: React.ElementType; label: string; sub: string
+  color: string; hoverBg: string; onClick: () => void
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left transition-colors"
+      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = hoverBg }}
+      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent" }}
+    >
+      <Icon size={14} className="flex-shrink-0" style={{ color }} />
+      <div className="min-w-0">
+        <p className="text-[12px] font-medium" style={{ color: T.textMain }}>{label}</p>
+        {sub && <p className="text-[10px]" style={{ color: T.textMuted }}>{sub}</p>}
+      </div>
+    </button>
+  )
+}
+// ─── Enhanced Breadcrumb Bar ──────────────────────────────────────────────────
+const BreadcrumbBar = ({
+  breadcrumbs,
+  activeTab,
+  activeSubcategory,
+}: {
+  breadcrumbs: BreadcrumbItem[];
+  activeTab: "I_Do" | "We_Do" | "You_Do" | null;
+  activeSubcategory: string;
+}) => {
+  const router = useRouter();
+  
+  if (!breadcrumbs.length) return null;
+
+  const tabLabel: Record<string, string> = {
+    I_Do: "I Do",
+    We_Do: "We Do",
+    You_Do: "You Do",
+  };
+
+  // Separate dashboard and courses from the rest
+  const dashboardCourses = breadcrumbs.filter(
+    crumb => crumb.type === "dashboard" || crumb.type === "courses"
+  );
+  
+  const hierarchyBreadcrumbs = breadcrumbs.filter(
+    crumb => crumb.type !== "dashboard" && crumb.type !== "courses"
+  );
+
+  const allCrumbs = [
+    ...hierarchyBreadcrumbs,
+    ...(activeTab ? [{ label: tabLabel[activeTab] ?? activeTab, type: "tab", id: activeTab }] : []),
+    ...(activeSubcategory
+      ? [{ label: activeSubcategory.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()), type: "subcategory", id: activeSubcategory }]
+      : []),
+  ];
+
+  const handleCrumbClick = (crumb: BreadcrumbItem, isLast: boolean) => {
+    if (isLast) return;
+    
+    if (crumb.type === "dashboard") {
+      router.push("/lms/pages/dashboard");
+      return;
+    }
+    
+    if (crumb.type === "courses") {
+      router.push("/lms/pages/courses");
+      return;
+    }
+    
+    if (crumb.onClick) {
+      crumb.onClick();
     }
   };
 
-  const removeTag = (index: number) => {
-    setFolderTags(folderTags.filter((_, i) => i !== index));
-  };
+  return (
+    <div
+      className="flex-shrink-0 flex flex-col"
+      style={{
+        background: T.bg,
+        padding: '8px 20px',
+        marginBottom: 0,
+        gap: '4px',
+      }}
+    >
+      {/* First Row - Dashboard and Courses */}
+      {dashboardCourses.length > 0 && (
+        <div className="flex items-center" style={{ gap: 0 }}>
+          {dashboardCourses.map((crumb, index) => {
+            const isLast = index === dashboardCourses.length - 1;
+            const icon = CRUMB_ICON[crumb.type] ?? null;
+            const textColor = T.blue;
 
-  const getCurrentNavigationState = useCallback(() => {
-    const key = `${activeTab}-${activeSubcategory}`
-    return folderNavigationState[key] || { currentFolderPath: [], currentFolderId: null }
-  }, [activeTab, activeSubcategory, folderNavigationState])
+            return (
+              <React.Fragment key={crumb.id}>
+                <div
+                  className="flex items-center gap-1 flex-shrink-0 select-none"
+                  style={{ cursor: 'pointer' }}
+                  onMouseEnter={e => {
+                    const textEl = e.currentTarget.querySelector('.crumb-text') as HTMLElement;
+                    if (textEl) textEl.style.color = T.orange;
+                  }}
+                  onMouseLeave={e => {
+                    const textEl = e.currentTarget.querySelector('.crumb-text') as HTMLElement;
+                    if (textEl) textEl.style.color = T.blue;
+                  }}
+                  onClick={() => handleCrumbClick(crumb, isLast)}
+                >
+                  {icon && (
+                    <span style={{ display: 'flex', alignItems: 'center', color: textColor }}>
+                      {icon}
+                    </span>
+                  )}
+                  <span
+                    className="crumb-text"
+                    style={{
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      color: textColor,
+                      whiteSpace: 'nowrap',
+                      lineHeight: 1.4,
+                      fontFamily: "'Plus Jakarta Sans', sans-serif",
+                      transition: 'color 0.15s ease',
+                    }}
+                  >
+                    {crumb.label}
+                  </span>
+                </div>
 
-  const updateNavigationState = (updates: Partial<{ currentFolderPath: string[]; currentFolderId: string | null }>) => {
-    const key = `${activeTab}-${activeSubcategory}`
-    setFolderNavigationState((prev) => ({
-      ...prev,
-      [key]: {
-        ...getCurrentNavigationState(),
-        ...updates,
-      },
-    }))
-  }
+                {!isLast && (
+                  <span style={{ margin: '0 4px', color: T.textHint }}>
+                    <ChevronRight size={12} strokeWidth={2.5} />
+                  </span>
+                )}
+              </React.Fragment>
+            );
+          })}
+        </div>
+      )}
 
-  // --- File Handling & Views ---
+      {/* Second Row - Course hierarchy and tabs */}
+      {(allCrumbs.length > 0 || activeTab || activeSubcategory) && (
+        <div 
+          className="flex items-center overflow-x-auto"
+          style={{ 
+            gap: 0,
+            overflowX: 'auto',
+            whiteSpace: 'nowrap',
+            paddingBottom: '2px',
+          }}
+        >
+          {allCrumbs.map((crumb, index) => {
+            const isLast = index === allCrumbs.length - 1;
+            const isCourse = crumb.type === "course";
+            const icon = CRUMB_ICON[crumb.type] ?? null;
 
-  const removeUploadTag = (index: number) => {
-    setUploadTags(uploadTags.filter((_, i) => i !== index));
-  };
+            let textColor = T.textDark;
+            if (isCourse && !isLast) {
+              textColor = T.orange;
+            }
 
-  const handleFileClick = (file: UploadedFile, tabType: "I_Do" | "We_Do" | "You_Do" | null, subcategory: string) => {
-    let fileUrl = "";
-    if (typeof file.url === "string") {
-      fileUrl = file.url;
-    } else if (file.url && typeof file.url === "object" && 'base' in file.url) {
-      fileUrl = (file.url as any).base;
-    }
+            return (
+              <React.Fragment key={crumb.id}>
+                <div
+                  className="flex items-center gap-1 flex-shrink-0 select-none"
+                  style={{ cursor: !isLast ? 'pointer' : 'default' }}
+                  onMouseEnter={e => {
+                    if (!isLast) {
+                      const textEl = e.currentTarget.querySelector('.crumb-text') as HTMLElement;
+                      if (textEl) textEl.style.color = T.orange;
+                    }
+                  }}
+                  onMouseLeave={e => {
+                    if (!isLast) {
+                      const textEl = e.currentTarget.querySelector('.crumb-text') as HTMLElement;
+                      if (textEl) {
+                        if (isCourse) {
+                          textEl.style.color = T.orange;
+                        } else {
+                          textEl.style.color = T.textDark;
+                        }
+                      }
+                    }
+                  }}
+                  onClick={() => handleCrumbClick(crumb, isLast)}
+                >
+                  {icon && (
+                    <span style={{ display: 'flex', alignItems: 'center', color: textColor }}>
+                      {icon}
+                    </span>
+                  )}
+                  <span
+                    className="crumb-text"
+                    style={{
+                      fontSize: isLast ? '14px' : '13px',
+                      fontWeight: isLast ? 700 : 600,
+                      color: textColor,
+                      whiteSpace: 'nowrap',
+                      lineHeight: 1.4,
+                      fontFamily: "'Plus Jakarta Sans', sans-serif",
+                      transition: 'color 0.15s ease',
+                      textTransform: (crumb.type === 'tab' || crumb.type === 'subcategory') ? 'capitalize' : 'none',
+                    }}
+                  >
+                    {crumb.label}
+                  </span>
+                </div>
 
-    if (!fileUrl) {
-      alert("File URL is missing. Please try re-uploading the file.");
-      return;
-    }
+                {!isLast && (
+                  <span style={{ margin: '0 4px', color: T.textHint }}>
+                    <ChevronRight size={12} strokeWidth={2.5} />
+                  </span>
+                )}
+              </React.Fragment>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+// ─── Accordion Header ─────────────────────────────────────────────────────────
+const AccordionHeader = ({ icon, iconColor, iconBg, title, subtitle, sectionKey, currentKey, onToggle }: any) => (
+  <button
+    className="flex items-center justify-between w-full p-3 text-left transition-colors cursor-pointer"
+    style={{ background: currentKey === sectionKey ? T.pageBg : T.bg, borderBottom: `1px solid ${T.border}` }}
+    onClick={() => onToggle(currentKey === sectionKey ? null : sectionKey)}
+    onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = T.pageBg}
+    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = currentKey === sectionKey ? T.pageBg : T.bg}
+  >
+    <div className="flex items-center gap-3">
+      <div className="p-2 rounded-xl" style={{ background: iconBg }}>{React.cloneElement(icon, { size: 15, style: { color: iconColor } })}</div>
+      <div><h4 className="text-[12.5px] font-bold" style={{ color: T.textMain }}>{title}</h4>{subtitle && <p className="text-[11px] mt-0.5" style={{ color: T.textMuted }}>{subtitle}</p>}</div>
+    </div>
+    <svg className="w-4 h-4 transition-transform" style={{ color: T.textHint, transform: currentKey === sectionKey ? 'rotate(180deg)' : 'none' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+  </button>
+);
+// Add this FolderBreadcrumb component inside your DynamicLMSCoordinator component (before the return statement)
 
-    const lowerName = (file.name || "").toLowerCase();
-    const lowerType = (file.type || "").toLowerCase();
+const FolderBreadcrumbBar = ({ 
+  currentFolderPath, 
+  currentFolderId,
+  onNavigateUp,
+  onNavigateToRoot,
+  onNavigateToFolder
+}: { 
+  currentFolderPath: string[];
+  currentFolderId: string | null;
+  onNavigateUp: () => void;
+  onNavigateToRoot: () => void;
+  onNavigateToFolder: (folderName: string, index: number) => void;
+}) => {
+  if (!currentFolderId && currentFolderPath.length === 0) return null;
+  
+  return (
+    <div
+      className="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 mb-3"
+      style={{
+        background: T.warm,
+        borderBottom: `1px solid ${T.border}`,
+        borderLeft: `3px solid ${T.orange}`,
+        borderRadius: '8px',
+      }}
+    >
+      {/* Back button */}
+      <button
+        onClick={onNavigateUp}
+        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all"
+        style={{
+          background: T.bg,
+          color: T.textSub,
+          border: `1px solid ${T.border}`,
+        }}
+        onMouseEnter={(e) => {
+          (e.currentTarget as HTMLElement).style.borderColor = T.orange;
+          (e.currentTarget as HTMLElement).style.color = T.orange;
+          (e.currentTarget as HTMLElement).style.background = T.orangeLight;
+        }}
+        onMouseLeave={(e) => {
+          (e.currentTarget as HTMLElement).style.borderColor = T.border;
+          (e.currentTarget as HTMLElement).style.color = T.textSub;
+          (e.currentTarget as HTMLElement).style.background = T.bg;
+        }}
+      >
+        <ArrowLeft size={12} strokeWidth={2.5} />
+        Back
+      </button>
 
-    if (lowerType.includes("url") || lowerType.includes("link") || lowerName.includes("http")) {
-      window.open(fileUrl, "_blank", "noopener,noreferrer");
-      return;
-    }
+      {/* Separator */}
+      <div className="w-px h-5" style={{ background: T.border }} />
 
-    const isReference = file.isReference === true || String(file.isReference) === "true";
-    if (isReference) {
-      if (lowerName.endsWith(".pdf") || lowerType.includes("pdf")) {
-        setCurrentPDFUrl(fileUrl);
-        setCurrentPDFName("Reference: " + file.name);
-        setShowPDFViewer(true);
-      } else {
-        window.open(fileUrl, "_blank");
-      }
-      return;
-    }
+      {/* Folder icon */}
+      <Folder size={14} style={{ color: T.orange }} />
 
-    if (lowerName.endsWith(".pdf") || lowerType.includes("pdf")) {
-      setCurrentPDFUrl(fileUrl);
-      setCurrentPDFName(file.name);
-      setShowPDFViewer(true);
-      return;
-    }
+      {/* Breadcrumb path */}
+      <div className="flex items-center gap-1 overflow-x-auto flex-1" style={{ scrollbarWidth: "none" }}>
+        {/* Root button */}
+        <button
+          onClick={onNavigateToRoot}
+          className="flex-shrink-0 text-[10.5px] font-semibold px-1.5 py-0.5 rounded transition-all cursor-pointer"
+          style={{ 
+            color: currentFolderPath.length === 0 ? T.orange : T.textHint,
+            background: currentFolderPath.length === 0 ? T.orangeLight : 'transparent',
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLElement).style.color = T.orange;
+            (e.currentTarget as HTMLElement).style.background = T.orangeLight;
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.color = currentFolderPath.length === 0 ? T.orange : T.textHint;
+            (e.currentTarget as HTMLElement).style.background = currentFolderPath.length === 0 ? T.orangeLight : 'transparent';
+          }}
+        >
+          Root
+        </button>
 
-    if (lowerName.endsWith(".ppt") || lowerName.endsWith(".pptx") ||
-      lowerType.includes("presentation") || lowerType.includes("powerpoint")) {
-      setCurrentPPTUrl(fileUrl);
-      setCurrentPPTName(file.name);
-      setShowPPTViewer(true);
-      return;
-    }
+        {/* Breadcrumb segments */}
+        {currentFolderPath.map((segment, idx) => {
+          const isLast = idx === currentFolderPath.length - 1;
+          return (
+            <div key={idx} className="flex items-center gap-1 flex-shrink-0">
+              <ChevronRight size={9} style={{ color: T.textHint }} />
+              <button
+                onClick={() => !isLast && onNavigateToFolder(segment, idx)}
+                className="text-[10.5px] font-semibold px-1.5 py-0.5 rounded max-w-[120px] truncate transition-all"
+                style={{
+                  color: isLast ? T.orange : T.textSub,
+                  background: isLast ? T.orangeLight : "transparent",
+                  border: isLast ? `1px solid ${T.orange}20` : "1px solid transparent",
+                  cursor: isLast ? 'default' : 'pointer',
+                }}
+                onMouseEnter={(e) => {
+                  if (!isLast) {
+                    (e.currentTarget as HTMLElement).style.color = T.orange;
+                    (e.currentTarget as HTMLElement).style.background = T.orangeLight;
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isLast) {
+                    (e.currentTarget as HTMLElement).style.color = T.textSub;
+                    (e.currentTarget as HTMLElement).style.background = "transparent";
+                  }
+                }}
+              >
+                {segment}
+              </button>
+            </div>
+          );
+        })}
+      </div>
 
-    const videoExtensions = [".mp4", ".avi", ".mov", ".mkv", ".webm", ".ogg", ".m4v"];
-    if (lowerType.includes("video") || videoExtensions.some(ext => lowerName.endsWith(ext))) {
-      handleVideoClick(file, tabType || "I_Do", subcategory);
-      return;
-    }
+      {/* Item count badge */}
+      <div className="flex-shrink-0 ml-auto">
+        <span
+          className="text-[10px] font-bold px-2 py-1 rounded-full"
+          style={{
+            background: T.orangeLight,
+            color: T.orange,
+          }}
+        >
+          {currentFolderPath.length > 0 ? 'Folder' : 'Root'}
+        </span>
+      </div>
+    </div>
+  );
+};
+// ─── Main Component ────────────────────────────────────────────────────────────
+export default function DynamicLMSCoordinator() {
+  const { isDark, toggleDark } = useDarkMode();
+  const searchParams = useSearchParams();
+  const courseId = searchParams.get("courseId");
+  const { data: courseStructureResponse } = useQuery(courseDataApi.getById(courseId || ""));
 
-    const zipExtensions = [".zip", ".rar", ".7z", ".tar", ".gz"];
-    if (lowerType.includes("zip") || lowerType.includes("archive") || zipExtensions.some(ext => lowerName.endsWith(ext))) {
-      setCurrentZipUrl(fileUrl);
-      setCurrentZipName(file.name);
-      setShowZipViewer(true);
-      return;
-    }
+  const getLS = (key: string) => (typeof window !== "undefined" ? localStorage.getItem(key) || "" : "");
+  const setLS = (key: string, val: string) => localStorage.setItem(key, val);
+  const delLS = (key: string) => localStorage.removeItem(key);
 
-    window.open(fileUrl, "_blank");
-  };
+  // ── Core state ────────────────────────────────────────────────────────────────
+  const [courseData, setCourseData] = useState<CourseNode[]>([]);
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
+  const [selectedNode, setSelectedNode] = useState<CourseNode | null>(null);
+  const [activeTab, setActiveTab] = useState<"I_Do" | "We_Do" | "You_Do" | null>(() => getLS("lms_selected_tab") as any || null);
+  const [activeSubcategory, setActiveSubcategory] = useState(() => getLS("lms_selected_subcategory"));
+  const [contentData, setContentData] = useState<Record<string, ContentData>>({});
+  const [folders, setFolders] = useState<FolderItem[]>([]);
+  const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbItem[]>([]);
+  const [folderNavState, setFolderNavState] = useState<Record<string, FolderNavState>>({});
+  const [sidebarWidth, setSidebarWidth] = useState(280);
+  const [isResizing, setIsResizing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isRestoringFromAnalytics, setIsRestoringFromAnalytics] = useState(false);
+  const [currentPPTFileId, setCurrentPPTFileId] = useState("");
+  const [currentVideoFileId, setCurrentVideoFileId] = useState("");
+  const [currentPDFFileId, setCurrentPDFFileId] = useState("");
+
+  const [showNotionModal, setShowNotionModal] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [selectedFileType, setSelectedFileType] = useState("");
+  const [uploadingFiles, setUploadingFiles] = useState<UploadedFile[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [fileDisplayNames, setFileDisplayNames] = useState<Record<string, string>>({});
+  const [fileNames, setFileNames] = useState<Record<string, string>>({});
+  const [uploadDescription, setUploadDescription] = useState("");
+  const [uploadTags, setUploadTags] = useState<Tag[]>([]);
+  const [uploadCurrentTag, setUploadCurrentTag] = useState("");
+  const [uploadTagColor, setUploadTagColor] = useState("#3B82F6");
+  const [uploadAccessLevel, setUploadAccessLevel] = useState("private");
+  const [isButtonLoading, setIsButtonLoading] = useState(false);
+  const [expandedUploadSection, setExpandedUploadSection] = useState<string | null>("description");
+  const [text, setText] = useState("");
+  const [folderUrl, setFolderUrl] = useState("");
+  const [urlFileName, setUrlFileName] = useState("");
+  const [urlFileType, setUrlFileType] = useState("url/link");
+  const [documentSettings, setDocumentSettings] = useState<Record<string, { studentShow: boolean; downloadAllow: boolean }>>({});
+  const [folderTags, setFolderTags] = useState<Tag[]>([]);
+  const [tagColor, setTagColor] = useState("");
+  const [currentTag, setCurrentTag] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [updateFileId, setUpdateFileId] = useState<string | null>(null);
+  const [updateFileType, setUpdateFileType] = useState("");
+  const [updateTabType, setUpdateTabType] = useState<"I_Do" | "We_Do" | "You_Do">("I_Do");
+  const [updateSubcategory, setUpdateSubcategory] = useState("");
+  const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [editingFolder, setEditingFolder] = useState<FolderItem | null>(null);
+  const [editFolderName, setEditFolderName] = useState("");
+  const [expandedSection, setExpandedSection] = useState<string | null>("folderName");
+  const [accessLevel, setAccessLevel] = useState("private");
+  const [hideStudentSettings, setHideStudentSettings] = useState<Record<string, boolean>>({});
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ type: "folder" | "file"; item: any; name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showPDFViewer, setShowPDFViewer] = useState(false);
+  const [currentPDFUrl, setCurrentPDFUrl] = useState("");
+  const [currentPDFName, setCurrentPDFName] = useState("");
+  const [showVideoViewer, setShowVideoViewer] = useState(false);
+  const [currentVideoUrl, setCurrentVideoUrl] = useState("");
+  const [currentVideoName, setCurrentVideoName] = useState("");
+  const [currentVideoResolutions, setCurrentVideoResolutions] = useState<string[]>([]);
+  const [currentVideoFileUrlMap, setCurrentVideoFileUrlMap] = useState<Record<string, string>>({});
+  const [videoPlaylist, setVideoPlaylist] = useState<VideoItem[]>([]);
+  const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
+  const [showZipViewer, setShowZipViewer] = useState(false);
+  const [currentZipUrl, setCurrentZipUrl] = useState("");
+  const [currentZipName, setCurrentZipName] = useState("");
+  const [showPPTViewer, setShowPPTViewer] = useState(false);
+  const [currentPPTUrl, setCurrentPPTUrl] = useState("");
+  const [currentPPTName, setCurrentPPTName] = useState("");
+  const router = useRouter() // add this if not present
+  const [showUserMenu, setShowUserMenu] = useState(false)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const [isDummyStudent, setIsDummyStudent] = useState(false)
+  const [originalRoleInfo, setOriginalRoleInfo] = useState<{ roleName: string; renameRole: string } | null>(null)
+  const userRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const subcategories = useMemo(() => {
-    if (!courseStructureResponse?.data) {
-      return { I_Do: [], We_Do: [], You_Do: [] }
-    }
-    const courseData = courseStructureResponse.data
+    if (!courseStructureResponse?.data) return { I_Do: [], We_Do: [], You_Do: [] };
+    const d = courseStructureResponse.data;
     return {
-      I_Do: courseData.I_Do.map((item: string) => ({
-        key: item.toLowerCase().replace(/\s+/g, "_"),
-        label: item,
-        icon: <Brain size={14} />,
-        component: null,
-      })),
-      We_Do: courseData.We_Do.map((item: string) => ({
-        key: item.toLowerCase().replace(/\s+/g, "_"),
-        label: item,
-        icon: <Users size={14} />,
-        component: item.toLowerCase().replace(/\s+/g, "_") === "project_development" ? "Practical" : null,
-      })),
-      You_Do: courseData.You_Do.map((item: string) => ({
-        key: item.toLowerCase().replace(/\s+/g, "_"),
-        label: item,
-        icon: <HelpCircle size={14} />,
-        component: null,
-      })),
-    }
-  }, [courseStructureResponse])
+      I_Do: d.I_Do.map((item: string) => ({ key: item.toLowerCase().replace(/\s+/g, "_"), label: item, icon: <Brain size={14} />, component: null })),
+      We_Do: d.We_Do.map((item: string) => ({ key: item.toLowerCase().replace(/\s+/g, "_"), label: item, icon: <Users size={14} />, component: item.toLowerCase().replace(/\s+/g, "_") === "project_development" ? "Practical" : null })),
+      You_Do: d.You_Do.map((item: string) => ({ key: item.toLowerCase().replace(/\s+/g, "_"), label: item, icon: <HelpCircle size={14} />, component: null })),
+    };
+  }, [courseStructureResponse]);
 
-  // --- File Types Configuration ---
-  const fileTypes = useMemo(() => {
-    const essentialTypes = ['FOLDER', 'ZIP', 'URL', 'REFERENCE'];
-    const baseConfigMap: { [key: string]: any } = {
-      FOLDER: {
-        key: "folder",
-        label: "New Folder",
-        icon: <FolderPlus size={22} />,
-        color: "#22c55e",
-        tooltip: "Create a new folder to organize your resources"
-      },
-      PPT: {
-        key: "ppt",
-        label: "PPT",
-        icon: <FileText size={22} />,
-        color: "#f97316",
-        tooltip: "Upload PowerPoint presentation files",
-        accept: ".ppt,.pptx",
-      },
-      PDF: {
-        key: "pdf",
-        label: "PDF",
-        icon: <FileText size={22} />,
-        color: "#ef4444",
-        tooltip: "Upload PDF documents and files",
-        accept: ".pdf",
-      },
-      VIDEO: {
+const fileTypes: FileTypeConfig[] = useMemo(() => {
+  // Static file types that are always available
+  const staticFileTypes: FileTypeConfig[] = [
+    { key: "folder", label: "New Folder", icon: <FolderPlus size={22} />, color: T.orange, tooltip: "Create a new folder" },
+    { key: "page_creation", label: "Page Builder", icon: <FilePlus2 size={22} />, color: T.orange, tooltip: "Build rich content pages with editable blocks" },
+    { key: "zip", label: "ZIP File", icon: <FileArchive size={22} />, color: "#a855f7", tooltip: "Upload ZIP archives", accept: ".zip,.rar,.7z,.tar,.gz" },
+    { key: "reference", label: "REFERENCE", icon: <BookOpen size={22} />, color: "#8b5cf6", tooltip: "Upload reference materials", accept: "*" },
+  ];
+
+  // Dynamic file types based on resourcesType.iDo configuration
+  const dynamicFileTypes: FileTypeConfig[] = [];
+  
+  // Check if resourcesType and iDo exist
+  if (courseStructureResponse?.data?.resourcesType?.iDo) {
+    const iDoResources = courseStructureResponse.data.resourcesType.iDo;
+    
+    // Video resource
+    if (iDoResources.video?.enabled === true) {
+      dynamicFileTypes.push({
         key: "video",
         label: "Video",
         icon: <Video size={22} />,
         color: "#3b82f6",
-        tooltip: "Upload video files or embed video content",
-        accept: "video/*,.mp4,.avi,.mov,.mkv,.webm,.ogg,.flv,.wmv,.m4v,.3gp,.mpg,.mpeg,.ts,.mts,.m2ts,.vob,.ogv,.qt,.rm,.rmvb,.asf,.amv,.divx,.mxf",
-      },
-      ZIP: {
-        key: "zip",
-        label: "ZIP File",
-        icon: <FileArchive size={22} />,
-        color: "#a855f7",
-        tooltip: "Upload compressed ZIP archive files",
-        accept: ".zip,.rar,.7z,.tar,.gz",
-      },
-      URL: {
+        tooltip: "Upload video files",
+        accept: "video/*,.mp4,.avi,.mov,.mkv"
+      });
+    }
+    
+    // PPT resource
+    if (iDoResources.ppt?.enabled === true) {
+      dynamicFileTypes.push({
+        key: "ppt",
+        label: "PPT",
+        icon: <FileText size={22} />,
+        color: "#f97316",
+        tooltip: "Upload PowerPoint files",
+        accept: ".ppt,.pptx"
+      });
+    }
+    
+    // PDF resource
+    if (iDoResources.pdf?.enabled === true) {
+      dynamicFileTypes.push({
+        key: "pdf",
+        label: "PDF",
+        icon: <FileText size={22} />,
+        color: "#ef4444",
+        tooltip: "Upload PDF documents",
+        accept: ".pdf"
+      });
+    }
+    
+    // URL resource
+    if (iDoResources.url?.enabled === true) {
+      dynamicFileTypes.push({
         key: "url",
         label: "URL",
         icon: <Link2 size={22} />,
         color: "#10b981",
-        tooltip: "Add external web links and URLs",
-        accept: "url",
-      },
-      REFERENCE: {
-        key: "reference",
-        label: "REFERENCE",
-        icon: <BookOpen size={22} />,
-        color: "#8b5cf6",
-        tooltip: "Upload reference materials - files will be stored as 'Reference'",
-        accept: "*",
-      },
-    };
+        tooltip: "Add external URLs",
+        accept: "url"
+      });
+    }
+  }
+  
+  const result = [...staticFileTypes, ...dynamicFileTypes];
+  
+  return result;
+}, [courseStructureResponse]);
 
-    const resultTypes = essentialTypes.map(type => baseConfigMap[type]);
 
-    if (courseStructureResponse?.data?.resourcesType) {
-      courseStructureResponse.data.resourcesType.forEach((type: string) => {
-        const normalizedType = type.trim().toUpperCase();
-        if (essentialTypes.includes(normalizedType)) return;
-        if (baseConfigMap[normalizedType]) {
-          resultTypes.push(baseConfigMap[normalizedType]);
-        } else {
-          resultTypes.push({
-            key: type.toLowerCase().replace(/\s+/g, "_"),
-            label: type,
-            icon: <FileText size={22} />,
-            color: "#6b7280",
-            tooltip: `Upload ${type} files`,
-            accept: "*",
-          });
+// Add this state
+const [configuredLanguages, setConfiguredLanguages] = useState<{
+  coreProgram: string[];
+  frontend: string[];
+  database: string[];
+}>({
+  coreProgram: [],
+  frontend: [],
+  database: []
+});
+
+// Function to find the module for the selected node
+const findModuleForNode = useCallback((node: CourseNode | null): any | null => {
+  if (!node || !courseStructureResponse?.data?.modules) return null;
+  
+  const modules = courseStructureResponse.data.modules;
+  
+  // Helper to search recursively for the module containing this node
+  const findModuleInTree = (module: any, targetId: string): any | null => {
+    // Check if this module matches
+    if (module._id === targetId) return module;
+    
+    // Check topics in module
+    if (module.topics) {
+      for (const topic of module.topics) {
+        if (topic._id === targetId) return module;
+        if (topic.subTopics) {
+          for (const subtopic of topic.subTopics) {
+            if (subtopic._id === targetId) return module;
+          }
         }
-      });
-    }
-    return resultTypes;
-  }, [courseStructureResponse?.data?.resourcesType]);
-
-  const toggleNode = (nodeId: string) => {
-    const newExpanded = new Set(expandedNodes);
-    if (newExpanded.has(nodeId)) {
-      newExpanded.delete(nodeId);
-    } else {
-      newExpanded.add(nodeId);
-    }
-    setExpandedNodes(newExpanded);
-
-    localStorage.setItem('lms_expanded_nodes', JSON.stringify(Array.from(newExpanded)));
-  };
-
-  // --- Filtering Logic ---
-  const getFilteredItems = (folders: FolderItem[], files: UploadedFile[]) => {
-    const currentState = getCurrentNavigationState();
-    const isInFolder = currentState.currentFolderId !== null;
-
-    let filteredFolders = [...folders];
-    let filteredFiles = [...files];
-
-    // Search filter
-    if (activeFilters.searchFilter) {
-      const searchTerm = activeFilters.searchFilter.toLowerCase();
-      const filterFolderContents = (folder: FolderItem): FolderItem => {
-        const filteredSubfolders = (folder.subfolders || []).map(filterFolderContents);
-        const filteredFolderFiles = (folder.files || []).filter(file =>
-          file.name.toLowerCase().includes(searchTerm)
-        );
-        return {
-          ...folder,
-          subfolders: filteredSubfolders,
-          files: filteredFolderFiles,
-          children: [...filteredSubfolders, ...filteredFolderFiles]
-        };
-      };
-
-      if (isInFolder) {
-        filteredFolders = filteredFolders.map(filterFolderContents);
-        filteredFiles = filteredFiles.filter(file => file.name.toLowerCase().includes(searchTerm));
-      } else {
-        filteredFolders = filteredFolders.map(filterFolderContents);
-        filteredFiles = filteredFiles.filter(file => file.name.toLowerCase().includes(searchTerm));
       }
     }
-
-    // Type Filter
-    if (activeFilters.fileTypes.length > 0) {
-      const filterByFileType = (items: (FolderItem | UploadedFile)[]): (FolderItem | UploadedFile)[] => {
-        return items.filter(item => {
-          if (isFolderItem(item)) {
-            const folder = item;
-            const filteredSubfolders = filterByFileType(folder.subfolders || []) as FolderItem[];
-            const filteredFiles = filterByFileType(folder.files || []) as UploadedFile[];
-            const hasFilteredContent = filteredSubfolders.length > 0 || filteredFiles.length > 0;
-            const foldersSelected = activeFilters.fileTypes.includes('folder');
-
-            if (hasFilteredContent || foldersSelected) {
-              return {
-                ...folder,
-                subfolders: filteredSubfolders,
-                files: filteredFiles,
-                children: [...filteredSubfolders, ...filteredFiles]
-              };
+    
+    // Check submodules
+    if (module.subModules) {
+      for (const submodule of module.subModules) {
+        if (submodule._id === targetId) return module;
+        if (submodule.topics) {
+          for (const topic of submodule.topics) {
+            if (topic._id === targetId) return module;
+            if (topic.subTopics) {
+              for (const subtopic of topic.subTopics) {
+                if (subtopic._id === targetId) return module;
+              }
             }
-            return false;
-          } else {
-            const file = item as UploadedFile;
-            const fileType = file.type?.toLowerCase() || '';
-            const fileName = file.name?.toLowerCase() || '';
-
-            return activeFilters.fileTypes.some(selectedType => {
-              switch (selectedType) {
-                case 'url': return fileType.includes('url') || fileType.includes('link') || fileName.includes('http');
-                case 'reference': return file.isReference === true || String(file.isReference) === "true" || fileType.includes('reference');
-                case 'pdf': return fileType.includes('pdf') || fileName.endsWith('.pdf');
-                case 'ppt': return fileType.includes('ppt') || fileType.includes('powerpoint') || fileName.endsWith('.ppt') || fileName.endsWith('.pptx');
-                case 'video': return fileType.includes('video') || fileName.match(/\.(mp4|avi|mov|mkv|webm|ogg|flv|wmv|m4v|3gp|mpg|mpeg)$/i);
-                case 'zip': return fileType.includes('zip') || fileType.includes('archive') || fileName.endsWith('.zip') || fileName.match(/\.(zip|rar|7z|tar|gz)$/i);
-                case 'folder': return false;
-                default: return fileType.includes(selectedType);
-              }
-            });
           }
-        });
-      };
-
-      const allItems = [...filteredFolders, ...filteredFiles];
-      const filteredItems = filterByFileType(allItems);
-      filteredFolders = filteredItems.filter(isFolderItem);
-      filteredFiles = filteredItems.filter(isUploadedFile);
-    }
-
-    return { folders: filteredFolders, files: filteredFiles };
-  };
-
-  // --- Backend Data Processing ---
-
-  const refreshContentData = async (node: CourseNode, backendData?: any) => {
-    const dataToUse = backendData || node.originalData;
-    if (!dataToUse) {
-      console.warn("refreshContentData called without data for node:", node.id);
-      return;
-    }
-
-    if (dataToUse?.pedagogy) {
-      const pedagogy = dataToUse.pedagogy;
-
-      const processPedagogySection = (backendTabType: "I_Do" | "We_Do" | "You_Do", frontendTabType: "I_Do" | "We_Do" | "You_Do") => {
-        if (!pedagogy[backendTabType]) return {};
-        const sectionData: SubcategoryData = {};
-
-        Object.keys(pedagogy[backendTabType]).forEach(subcategoryKey => {
-          const subcategoryData = pedagogy[backendTabType][subcategoryKey];
-          if (subcategoryData) {
-            const frontendKey = subcategoryKey.toLowerCase().replace(/\s+/g, "_");
-
-            const processFoldersForUI = (folders: any[], parentId: string | null = null, currentPath: string[] = []): (FolderItem | UploadedFile)[] => {
-              const result: (FolderItem | UploadedFile)[] = [];
-
-              (folders || []).forEach(folder => {
-                const folderId = folder._id || `folder-${Date.now()}-${Math.random()}`;
-                const folderPath = [...currentPath, folder.name];
-                const fullFolderPath = folderPath.join('/');
-
-                const folderFiles: UploadedFile[] = (folder.files || []).map((file: any) => {
-                  let fileUrl = '';
-                  if (typeof file.fileUrl === 'string') {
-                    fileUrl = file.fileUrl;
-                  } else if (file.fileUrl && typeof file.fileUrl === 'object' && file.fileUrl.base) {
-                    fileUrl = file.fileUrl.base;
-                  }
-
-                  return {
-                    id: file._id || `${Date.now()}-${Math.random()}`,
-                    name: file.fileName,
-                    type: file.fileType,
-                    size: typeof file.size === "string" ? parseInt(file.size) : (file.size || 0),
-                    url: fileUrl,
-                    uploadedAt: new Date(file.uploadedAt || Date.now()),
-                    subcategory: subcategoryKey,
-                    folderId: folderId,
-                    folderPath: fullFolderPath,
-                    tags: file.tags?.map((tag: any) => ({
-                      tagName: tag.tagName || tag.name || '',
-                      tagColor: tag.tagColor || tag.color || '#3B82F6'
-                    })) || [],
-                    fileSettings: file.fileSettings ? {
-                      showToStudents: file.fileSettings.showToStudents,
-                      allowDownload: file.fileSettings.allowDownload,
-                      lastModified: file.fileSettings.lastModified ? new Date(file.fileSettings.lastModified) : undefined
-                    } : undefined
-                  };
-                });
-
-                const subfolders = processFoldersForUI(folder.subfolders || [], folderId, folderPath);
-
-                const folderItem: FolderItem = {
-                  id: folderId,
-                  name: folder.name,
-                  type: "folder" as const,
-                  parentId: parentId,
-                  children: [...subfolders, ...folderFiles],
-                  tabType: frontendTabType,
-                  subcategory: subcategoryKey,
-                  files: folderFiles,
-                  subfolders: subfolders as FolderItem[],
-                  folderPath: fullFolderPath,
-                  tags: folder.tags || [],
-                };
-
-                result.push(folderItem);
-                result.push(...folderFiles);
-              });
-
-              return result;
-            };
-
-            const rootFiles: UploadedFile[] = (subcategoryData.files || []).map((file: any) => {
-              let fileUrl = '';
-              let fileType = file.fileType;
-
-              if (file.fileType?.includes("url") || file.fileType?.includes("link") ||
-                file.fileName?.includes("http") ||
-                (typeof file.fileUrl === 'string' && file.fileUrl.includes("http"))) {
-                fileType = "url/link";
-                fileUrl = typeof file.fileUrl === 'string' ? file.fileUrl : (file.fileUrl as any)?.base || '';
-              } else {
-                fileUrl = typeof file.fileUrl === 'string' ? file.fileUrl : (file.fileUrl as any)?.base || '';
-              }
-
-              return {
-                id: file._id || `${Date.now()}-${Math.random()}`,
-                name: file.fileName,
-                type: fileType,
-                size: typeof file.size === "string" ? parseInt(file.size) : (file.size || 0),
-                url: fileUrl,
-                uploadedAt: new Date(file.uploadedAt || Date.now()),
-                subcategory: subcategoryKey,
-                folderId: null,
-                tags: file.tags?.map((tag: any) => ({
-                  tagName: tag.tagName || tag.name || '',
-                  tagColor: tag.tagColor || tag.color || '#3B82F6'
-                })) || [],
-                fileSettings: file.fileSettings ? {
-                  showToStudents: file.fileSettings.showToStudents !== undefined ? file.fileSettings.showToStudents : true,
-                  allowDownload: file.fileSettings.allowDownload !== undefined ? file.fileSettings.allowDownload : true,
-                  lastModified: file.fileSettings.lastModified ? new Date(file.fileSettings.lastModified) : undefined
-                } : undefined
-              };
-            });
-
-            const uiFolders = processFoldersForUI(subcategoryData.folders || []);
-            sectionData[frontendKey] = [...uiFolders, ...rootFiles];
-          }
-        });
-        return sectionData;
-      };
-
-      const updatedContentData: ContentData = {
-        I_Do: processPedagogySection("I_Do", "I_Do"),
-        We_Do: processPedagogySection("We_Do", "We_Do"),
-        You_Do: processPedagogySection("You_Do", "You_Do"),
-      };
-
-      setContentData(prev => ({ ...prev, [node.id]: updatedContentData }));
-
-      const allFolders: FolderItem[] = [];
-      const collectAllFolders = (items: (FolderItem | UploadedFile)[]) => {
-        items.forEach(item => {
-          if (isFolderItem(item)) {
-            allFolders.push(item);
-            if (item.children) collectAllFolders(item.children);
-          }
-        });
-      };
-
-      Object.values(updatedContentData).forEach(tabData => {
-        Object.values(tabData).forEach(items => {
-          collectAllFolders(items);
-        });
-      });
-
-      setFolders(allFolders);
-    }
-  };
-
-  const handleResourcesModalOpen = async () => {
-    setIsResourcesModalLoading(true);
-    setShowResourcesModal(true);
-    if (selectedNode) {
-      try {
-        await refreshContentData(selectedNode);
-      } catch (error) {
-        console.error("Failed to refresh content data:", error);
-      } finally {
-        setIsResourcesModalLoading(false);
+        }
       }
-    } else {
-      setIsResourcesModalLoading(false);
     }
+    
+    return null;
   };
+  
+  // Search through all modules
+  for (const module of modules) {
+    const found = findModuleInTree(module, node.id);
+    if (found) return found;
+  }
+  
+  return null;
+}, [courseStructureResponse, selectedNode]);
+
+// Extract skill set from the selected node's own testConfiguration (flat format)
+useEffect(() => {
+  if (selectedNode) {
+    const tc = selectedNode.originalData?.testConfiguration;
+    setConfiguredLanguages({
+      coreProgram: (tc?.coreProgram ?? []).filter(Boolean),
+      frontend: (tc?.frontend ?? []).filter(Boolean),
+      database: (tc?.database ?? []).filter(Boolean),
+    });
+  } else {
+    setConfiguredLanguages({ coreProgram: [], frontend: [], database: [] });
+  }
+}, [selectedNode]);
+  const setActiveTabPersistent = (tab: "I_Do" | "We_Do" | "You_Do" | null) => { setActiveTab(tab); if (tab) setLS("lms_selected_tab", tab); else delLS("lms_selected_tab"); };
+  const setActiveSubcategoryPersistent = (sub: string) => { setActiveSubcategory(sub); setLS("lms_selected_subcategory", sub); };
+  const setSelectedNodePersistent = (node: CourseNode | null) => {
+    setSelectedNode(node);
+    if (node) { setLS("lms_selected_node_id", node.id); setLS("lms_selected_node_name", node.name); delLS("lms_restore_node_id"); }
+    else { delLS("lms_selected_node_id"); delLS("lms_selected_node_name"); }
+  };
+
+  const getCurrentNavKey = () => `${activeTab}-${activeSubcategory}`;
+  const getCurrentNavState = useCallback((): FolderNavState => folderNavState[getCurrentNavKey()] || { currentFolderPath: [], currentFolderId: null }, [activeTab, activeSubcategory, folderNavState]);
+  const updateNavState = (updates: Partial<FolderNavState>) => { const key = getCurrentNavKey(); setFolderNavState((prev) => ({ ...prev, [key]: { ...getCurrentNavState(), ...updates } })); };
+
+  const findPathToNode = useCallback((nodes: CourseNode[], targetId: string, path: string[] = []): string[] | null => {
+    for (const node of nodes) {
+      if (node.id === targetId) return path;
+      if (node.children?.length) { const found = findPathToNode(node.children, targetId, [...path, node.id]); if (found) return found; }
+    }
+    return null;
+  }, []);
+
+  const getCurrentFolderContents = useCallback(() => {
+    if (!selectedNode || !activeTab) return { folders: [] as FolderItem[], files: [] as UploadedFile[] };
+    const navState = getCurrentNavState();
+    const tabData = contentData[selectedNode.id]?.[activeTab] || {};
+    const subcatData = tabData[activeSubcategory] || [];
+    if (!navState.currentFolderId) {
+      return { folders: subcatData.filter((i): i is FolderItem => isFolderItem(i) && !i.parentId), files: subcatData.filter((i): i is UploadedFile => isUploadedFile(i) && !i.folderId) };
+    }
+    const findContents = (items: FolderItem[], id: string): { folders: FolderItem[]; files: UploadedFile[] } => {
+      for (const f of items) { if (f.id === id) return { folders: f.subfolders || [], files: f.files || [] }; const res = findContents(f.subfolders || [], id); if (res.folders.length || res.files.length) return res; }
+      return { folders: [], files: [] };
+    };
+    const rootFolders = subcatData.filter((i): i is FolderItem => isFolderItem(i) && !i.parentId);
+    return findContents(rootFolders, navState.currentFolderId);
+  }, [selectedNode, activeTab, activeSubcategory, contentData, getCurrentNavState]);
+
+  const getFolderItemCount = useCallback((folderId: string): number => {
+    if (!selectedNode || !activeTab) return 0;
+    const count = (items: FolderItem[], id: string): number => { for (const f of items) { if (f.id === id) return (f.files?.length || 0) + (f.subfolders?.length || 0); const c = count(f.subfolders || [], id); if (c >= 0 && (f.subfolders?.some((s) => s.id === id) || f.subfolders?.some((s) => count([s], id) >= 0))) return c; } return 0; };
+    const tabData = contentData[selectedNode.id]?.[activeTab] || {};
+    const roots = (tabData[activeSubcategory] || []).filter((i): i is FolderItem => isFolderItem(i) && !i.parentId);
+    return count(roots, folderId);
+  }, [selectedNode, activeTab, activeSubcategory, contentData]);
+
+  const refreshContentData = useCallback(async (node: CourseNode, backendData?: any) => {
+    const data = backendData || node.originalData;
+    if (!data?.pedagogy) return;
+    const processPedagogy = (backendTab: "I_Do" | "We_Do" | "You_Do", frontendTab: "I_Do" | "We_Do" | "You_Do"): SubcategoryData => {
+      const section = data.pedagogy[backendTab]; if (!section) return {};
+      const result: SubcategoryData = {};
+      Object.keys(section).forEach((subcatKey) => {
+        const subcatData = section[subcatKey]; if (!subcatData) return;
+        const frontendKey = subcatKey.toLowerCase().replace(/\s+/g, "_");
+        const processFolders = (foldersArr: any[], parentId: string | null = null, pathArr: string[] = []): (FolderItem | UploadedFile)[] => {
+          const out: (FolderItem | UploadedFile)[] = [];
+          (foldersArr || []).forEach((folder) => {
+            const fid = folder._id || `folder-${Date.now()}-${Math.random()}`;
+            const folderPath = [...pathArr, folder.name];
+const folderFiles: UploadedFile[] = (folder.files || []).map((file: any) => { 
+  const url = typeof file.fileUrl === "string" ? file.fileUrl : file.fileUrl?.base || ""; 
+  const rawMap: Record<string, string> = typeof file.fileUrl === "object" && file.fileUrl !== null ? file.fileUrl : {}; 
+  const resNames: string[] = file.availableResolutions?.length ? file.availableResolutions : Object.keys(rawMap).filter(k => rawMap[k]); 
+  return { 
+    id: file._id || `${Date.now()}-${Math.random()}`, 
+    name: file.fileName, 
+    type: file.fileType, 
+    size: typeof file.size === "string" ? parseInt(file.size) : (file.size || 0), 
+    url, 
+    uploadedAt: new Date(file.uploadedAt || Date.now()), 
+    subcategory: subcatKey, 
+    folderId: fid, 
+    folderPath: folderPath.join("/"), 
+    tags: file.tags?.map((t: any) => ({ tagName: t.tagName || t.name || "", tagColor: t.tagColor || t.color || "#3B82F6" })) || [], 
+    fileSettings: file.fileSettings ? { showToStudents: file.fileSettings.showToStudents ?? true, allowDownload: file.fileSettings.allowDownload ?? true } : undefined, 
+    availableResolutions: resNames, 
+    fileUrlMap: rawMap,
+    description: file.fileDescription || file.description || "" // ✅ This is correct
+  }; 
+});
+
+const subfolders = processFolders(folder.subfolders || [], fid, folderPath);
+            const folderItem: FolderItem = { id: fid, name: folder.name, type: "folder", parentId, children: [...subfolders, ...folderFiles], tabType: frontendTab, subcategory: subcatKey, files: folderFiles, subfolders: subfolders as FolderItem[], folderPath: folderPath.join("/"), tags: folder.tags || [] };
+            out.push(folderItem, ...folderFiles);
+          });
+          return out;
+        };
+ const rootFiles: UploadedFile[] = (subcatData.files || []).map((file: any) => {
+  let fileType = file.fileType; 
+  let fileUrl = typeof file.fileUrl === "string" ? file.fileUrl : file.fileUrl?.base || "";
+  if (fileType?.includes("url") || fileType?.includes("link")) fileType = "url/link";
+  const rawFileUrlMap: Record<string, string> = typeof file.fileUrl === "object" && file.fileUrl !== null ? file.fileUrl : {};
+  const resolvedResolutions: string[] = file.availableResolutions?.length ? file.availableResolutions : Object.keys(rawFileUrlMap).filter(k => rawFileUrlMap[k]);
+  return { 
+    id: file._id || `${Date.now()}-${Math.random()}`, 
+    name: file.fileName, 
+    type: fileType, 
+    size: typeof file.size === "string" ? parseInt(file.size) : (file.size || 0), 
+    url: fileUrl, 
+    uploadedAt: new Date(file.uploadedAt || Date.now()), 
+    subcategory: subcatKey, 
+    folderId: null, 
+    tags: file.tags?.map((t: any) => ({ tagName: t.tagName || "", tagColor: t.tagColor || "#3B82F6" })) || [], 
+    fileSettings: file.fileSettings ? { showToStudents: file.fileSettings.showToStudents ?? true, allowDownload: file.fileSettings.allowDownload ?? true } : undefined, 
+    availableResolutions: resolvedResolutions, 
+    fileUrlMap: rawFileUrlMap,
+    description: file.fileDescription || file.description || "" // ✅ This is correct
+  };
+});
+        result[frontendKey] = [...processFolders(subcatData.folders || []), ...rootFiles];
+      });
+      return result;
+    };
+    const updated: ContentData = { I_Do: processPedagogy("I_Do", "I_Do"), We_Do: processPedagogy("We_Do", "We_Do"), You_Do: processPedagogy("You_Do", "You_Do") };
+    setContentData((prev) => ({ ...prev, [node.id]: updated }));
+    const allFolders: FolderItem[] = [];
+    const collect = (items: (FolderItem | UploadedFile)[]) => { items.forEach((i) => { if (isFolderItem(i)) { allFolders.push(i); collect(i.children || []); } }); };
+    Object.values(updated).forEach((td) => Object.values(td).forEach(collect));
+    setFolders(allFolders);
+  }, []);
+
+
+
+  // ── Fetch fresh data from server, then refresh UI ─────────────────────────────
+  const fetchAndRefresh = useCallback(async (node: CourseNode) => {
+    try {
+      const BASE_URL = "https://lms-server-ym1q.onrender.com";
+      const token = typeof window !== "undefined" ? localStorage.getItem("smartcliff_token") : null;
+      const typePathMap: Record<string, string> = {
+        module: "modules",
+        submodule: "submodules",
+        topic: "topics",
+        subtopic: "subtopics",
+      };
+      const typePath = typePathMap[node.type];
+      if (!typePath) { await refreshContentData(node); return; }
+
+    
+      const courseRes = await fetch(`${BASE_URL}/getAll/courses-data/${courseId}`, {
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      });
+      if (!courseRes.ok) { await refreshContentData(node); return; }
+
+      const courseJson = await courseRes.json();
+      if (!courseJson?.data) { await refreshContentData(node); return; }
+
+      // Find the matching node in fresh data and update originalData
+      const findInFresh = (modules: any[]): any | null => {
+        for (const mod of modules) {
+          if (mod._id === node.id) return mod;
+          for (const topic of mod.topics || []) {
+            if (topic._id === node.id) return topic;
+            for (const st of topic.subTopics || []) {
+              if (st._id === node.id) return st;
+            }
+          }
+          for (const sm of mod.subModules || []) {
+            if (sm._id === node.id) return sm;
+            for (const topic of sm.topics || []) {
+              if (topic._id === node.id) return topic;
+              for (const st of topic.subTopics || []) {
+                if (st._id === node.id) return st;
+              }
+            }
+          }
+        }
+        return null;
+      };
+
+      const freshNodeData = findInFresh(courseJson.data.modules || []);
+      if (freshNodeData) {
+        // Build the fresh node with updated originalData
+        const freshNode: CourseNode = { ...node, originalData: freshNodeData };
+
+        // Update courseData so the node in the tree also has fresh originalData
+        const transformed = transformToCourseNodes(courseJson.data);
+        setCourseData(transformed);
+
+        // ── KEY FIX ──────────────────────────────────────────────────────────
+        // Also update selectedNode state so the rest of the UI sees fresh data
+        setSelectedNode(freshNode);
+        // ─────────────────────────────────────────────────────────────────────
+
+        // Now refresh content from the fresh node
+        await refreshContentData(freshNode);
+      } else {
+        await fetchAndRefresh(node);
+      }
+    } catch (err) {
+      console.error("fetchAndRefresh error:", err);
+      await fetchAndRefresh(node);
+    }
+  }, [courseId, refreshContentData]);
+
+
+
+  const generateBreadcrumbs = useCallback((node: CourseNode | null): BreadcrumbItem[] => {
+    const base: BreadcrumbItem[] = [{ label: "Dashboard", type: "dashboard", id: "dashboard", path: "/lms/pages/dashboard" }, { label: "Courses", type: "courses", id: "courses", path: "/lms/pages/courses" }];
+    if (!node || !courseData.length) return base;
+    const findPath = (nodes: CourseNode[], id: string, path: CourseNode[] = []): CourseNode[] | null => { for (const n of nodes) { if (n.id === id) return [...path, n]; const found = findPath(n.children || [], id, [...path, n]); if (found) return found; } return null; };
+    const nodePath = findPath(courseData, node.id);
+    if (!nodePath) return [...base, { label: courseStructureResponse?.data?.courseName || "Course", type: "course", id: courseId || "" }];
+    return [...base, { label: courseStructureResponse?.data?.courseName || "Course", type: "course", id: nodePath.find((n) => n.type === "course")?.id || courseId || "" }, ...nodePath.filter((n) => n.type !== "course").map((n) => ({ label: n.name, type: n.type, id: n.id }))];
+  }, [courseData, courseStructureResponse, courseId]);
 
   const selectNode = useCallback(async (node: CourseNode) => {
-    if (sidebarCollapsed) setSidebarCollapsed(false);
-
-    // Clear any previous content data for the node
-    setContentData(prev => {
-      const newData = { ...prev };
-      delete newData[node.id];
-      return newData;
-    });
-
-    // Set selected node
+    setContentData((prev) => { const n = { ...prev }; delete n[node.id]; return n; });
     setSelectedNodePersistent(node);
+    const findModuleId = (n: CourseNode, nodes: CourseNode[]): string | null => { if (n.type === "module") return n.id; const findInPath = (ns: CourseNode[], tid: string, path: CourseNode[] = []): CourseNode | null => { for (const x of ns) { if (x.id === tid) return path.find((p) => p.type === "module") || null; const found = findInPath(x.children || [], tid, [...path, x]); if (found) return found; } return null; }; return findInPath(nodes, n.id)?.id || null; };
+    const prevModuleId = selectedNode ? findModuleId(selectedNode, courseData) : null;
+    const newModuleId = findModuleId(node, courseData);
+    const isSameModule = prevModuleId === newModuleId && prevModuleId !== null;
+    if (node.type === "topic" || node.type === "subtopic") {
+      if (isSameModule && activeTab && activeSubcategory) { updateURL({ nodeId: node.id, activeTab, activeSubcategory }); }
+      else { setActiveTabPersistent("I_Do"); const firstSub = subcategories.I_Do[0]?.key || ""; setActiveSubcategoryPersistent(firstSub); updateURL({ nodeId: node.id, activeTab: "I_Do", activeSubcategory: firstSub }); }
+    } else { updateURL({ nodeId: node.id, activeTab, activeSubcategory }); }
+    const path = findPathToNode(courseData, node.id);
+    if (path?.length) setExpandedNodes((prev) => { const n = new Set(prev); path.forEach((id) => n.add(id)); setLS("lms_expanded_nodes", JSON.stringify([...n])); return n; });
+    updateNavState({ currentFolderPath: [], currentFolderId: null });
+    setBreadcrumbs(generateBreadcrumbs(node));
+    await fetchAndRefresh(node);
+  }, [courseData, selectedNode, activeTab, activeSubcategory, subcategories, findPathToNode, generateBreadcrumbs, fetchAndRefresh]);
+  const getParentNodeName = useCallback((node: CourseNode, targetType: string): string => {
+    const findParent = (nodes: CourseNode[], id: string, parent: CourseNode | null = null): CourseNode | null => { for (const n of nodes) { if (n.id === id) return parent; const found = findParent(n.children || [], id, n); if (found) return found; } return null; };
+    const parent = findParent(courseData, node.id);
+    if (!parent) return ""; if (parent.type === targetType) return parent.name; return getParentNodeName(parent, targetType);
+  }, [courseData]);
 
-    // IMPORTANT: DO NOT change activeTab or activeSubcategory
-    const currentTab = activeTab;
-    const currentSubcategory = activeSubcategory;
+  const toggleNode = (nodeId: string) => { setExpandedNodes((prev) => { const n = new Set(prev); if (n.has(nodeId)) n.delete(nodeId); else n.add(nodeId); setLS("lms_expanded_nodes", JSON.stringify([...n])); return n; }); };
 
-    // Update URL with current states
-    updateURL({
-      nodeId: node.id,
-      activeTab: currentTab,
-      activeSubcategory: currentSubcategory
-    });
-
-    // Ensure parent nodes are expanded
-    const parentPath = findPathToNode(courseData, node.id);
-    if (parentPath && parentPath.length > 0) {
-      setExpandedNodes(prev => {
-        const next = new Set(prev);
-        parentPath.forEach(id => next.add(id));
-        localStorage.setItem('lms_expanded_nodes', JSON.stringify(Array.from(next)));
-        return next;
-      });
-    }
-
-    // Reset folder navigation
-    updateNavigationState({ currentFolderPath: [], currentFolderId: null });
-
-    // Clear any restore flags
-    localStorage.removeItem('lms_restore_node_id');
-
-    // Generate new breadcrumbs
-    const newBreadcrumbs = generateBreadcrumbs(node, courseData);
-    setBreadcrumbs(newBreadcrumbs);
-
-    // Only refresh content data
-    await refreshContentData(node);
-
-    // Update URL again to ensure consistency
-    updateURL({
-      nodeId: node.id,
-      activeTab: currentTab,
-      activeSubcategory: currentSubcategory
-    });
-
-  }, [courseData, findPathToNode, activeTab, activeSubcategory, refreshContentData, generateBreadcrumbs]);
-
-  // --- Folder Management Functions ---
+  const navigateToFolder = (folderId: string, folderName: string) => {
+    const findFolder = (items: (FolderItem | UploadedFile)[], id: string): FolderItem | null => { for (const item of items) { if (isFolderItem(item)) { if (item.id === id) return item; const found = findFolder(item.subfolders || [], id); if (found) return found; } } return null; };
+    if (selectedNode && activeTab) { const tabData = contentData[selectedNode.id]?.[activeTab] || {}; const subcatData = tabData[activeSubcategory] || []; const found = findFolder(subcatData, folderId); if (found) { const fullPath = found.folderPath ? found.folderPath.split("/") : [found.name]; updateNavState({ currentFolderId: folderId, currentFolderPath: fullPath }); return; } }
+    const findInFolders = (fols: FolderItem[], id: string): FolderItem | null => { for (const f of fols) { if (f.id === id) return f; const found = findInFolders(f.subfolders || [], id); if (found) return found; } return null; };
+    const fromState = findInFolders(folders, folderId);
+    if (fromState) updateNavState({ currentFolderId: folderId, currentFolderPath: fromState.folderPath ? fromState.folderPath.split("/") : [fromState.name] });
+    else { showErrorToast(`Folder "${folderName}" not found`); updateNavState({ currentFolderPath: [], currentFolderId: null }); }
+  };
 
   const createFolder = async () => {
     if (!newFolderName.trim() || !selectedNode) return;
+    setIsButtonLoading(true);
     try {
-      const currentState = getCurrentNavigationState();
-      setIsButtonLoading(true);
-      const tempFolderId = `temp-folder-${Date.now()}`;
-      const newFolder: FolderItem = {
-        id: tempFolderId,
-        name: newFolderName.trim(),
-        type: "folder",
-        parentId: currentState.currentFolderId,
-        children: [],
-        tabType: activeTab as "I_Do" | "We_Do" | "You_Do",
-        subcategory: activeSubcategory,
-        files: [],
-        subfolders: [],
-        tags: folderTags
-      };
-
-      setFolders(prev => [...prev, newFolder]);
-
-      setContentData(prevData => {
-        const updatedData = { ...prevData };
-        if (!updatedData[selectedNode.id]) {
-          updatedData[selectedNode.id] = { I_Do: {}, We_Do: {}, You_Do: {} };
-        }
-        if (activeTab) {
-          const currentTabData = updatedData[selectedNode.id][activeTab];
-          if (!currentTabData[activeSubcategory]) {
-            currentTabData[activeSubcategory] = [];
-          }
-          currentTabData[activeSubcategory] = [...currentTabData[activeSubcategory], newFolder];
-        }
-        return updatedData;
-      });
-
-      const folderData = {
-        tabType: toBackendTab(activeTab),
-        subcategory: activeSubcategory,
-        folderName: newFolderName.trim(),
-        folderPath: currentState.currentFolderPath.join("/"),
-        courses: selectedNode.originalData?.courses || "",
-        topicId: selectedNode.originalData?.topicId || "",
-        index: selectedNode.originalData?.index || 0,
-        title: selectedNode.originalData?.title || "",
-        description: selectedNode.originalData?.description || "",
-        duration: selectedNode.originalData?.duration || "",
-        level: selectedNode.originalData?.level || "",
-        action: "createFolder",
-        tags: folderTags.map(tag => ({ tagName: tag.tagName, tagColor: tag.tagColor }))
-      };
-
-      const response = await entityApi.createFolder(
-        selectedNode.type as "module" | "submodule" | "topic" | "subtopic",
-        selectedNode.id,
-        folderData
-      );
-
-      if (selectedNode) await refreshContentData(selectedNode, response.data);
-
-      setNewFolderName("");
-      setShowCreateFolderModal(false);
-      setFolderTags([]);
-      setEditingFolder(null);
-      setTimeout(() => setFolders(prev => [...prev]), 100);
-      showSuccessToast("Folder created successfully!");
-
-    } catch (error) {
-      showErrorToast("Failed to create folder")
-      console.error("❌ Failed to create folder:", error);
-      setFolders(prev => prev.filter(f => !f.id.startsWith('temp-folder-')));
-      if (selectedNode) await refreshContentData(selectedNode);
-    } finally {
-      setIsButtonLoading(false);
-    }
+      const navState = getCurrentNavState();
+      const response = await entityApi.createFolder(selectedNode.type as any, selectedNode.id, { tabType: toBackendTab(activeTab), subcategory: activeSubcategory, folderName: newFolderName.trim(), folderPath: navState.currentFolderPath.join("/"), courses: selectedNode.originalData?.courses || "", topicId: selectedNode.originalData?.topicId || "", index: selectedNode.originalData?.index || 0, title: selectedNode.originalData?.title || "", description: selectedNode.originalData?.description || "", duration: selectedNode.originalData?.duration || "", level: selectedNode.originalData?.level || "", action: "createFolder", tags: folderTags.map((t) => ({ tagName: t.tagName, tagColor: t.tagColor })) });
+      await fetchAndRefresh(selectedNode);
+      setNewFolderName(""); setShowCreateFolderModal(false); setFolderTags([]); setEditingFolder(null);
+      showSuccessToast("Folder created!");
+    } catch { showErrorToast("Failed to create folder"); } finally { setIsButtonLoading(false); }
   };
 
-  const navigateToFolder = (folderId: string, folderName: string) => {
-    const findFolderById = (items: (FolderItem | UploadedFile)[], id: string): FolderItem | null => {
-      for (const item of items) {
-        if (isFolderItem(item)) {
-          if (item.id === id) return item;
-          if (item.subfolders && item.subfolders.length > 0) {
-            const found = findFolderById(item.subfolders, id);
-            if (found) return found;
-          }
-          if (item.children && item.children.length > 0) {
-            const found = findFolderById(item.children, id);
-            if (found) return found;
-          }
-        }
-      }
-      return null;
-    };
-
-    let foundFolder: FolderItem | null = null;
-
-    if (selectedNode && activeTab) {
-      const currentTabData = contentData[selectedNode.id]?.[activeTab] || {};
-      const currentSubcategoryData = currentTabData[activeSubcategory] || [];
-      foundFolder = findFolderById(currentSubcategoryData, folderId);
-
-      if (foundFolder) {
-        const fullPath = foundFolder.folderPath ? foundFolder.folderPath.split('/') : [foundFolder.name];
-        updateNavigationState({
-          currentFolderId: folderId,
-          currentFolderPath: fullPath,
-        });
-        return;
-      }
-    }
-
-    // Fallback: search in folders state
-    const findInFoldersState = (folders: FolderItem[], id: string): FolderItem | null => {
-      for (const folder of folders) {
-        if (folder.id === id) return folder;
-        if (folder.subfolders) {
-          const found = findInFoldersState(folder.subfolders, id);
-          if (found) return found;
-        }
-      }
-      return null;
-    };
-
-    const folderFromState = findInFoldersState(folders, folderId);
-    if (folderFromState) {
-      const fullPath = folderFromState.folderPath ? folderFromState.folderPath.split('/') : [folderFromState.name];
-      updateNavigationState({
-        currentFolderId: folderId,
-        currentFolderPath: fullPath,
-      });
-      return;
-    }
-
-    console.error('Folder not found:', folderId);
-    showErrorToast(`Folder "${folderName}" not found. It may have been deleted.`);
-    updateNavigationState({ currentFolderPath: [], currentFolderId: null });
-  };
-
-  const navigateUp = () => {
-    const currentState = getCurrentNavigationState();
-    if (currentState.currentFolderPath.length > 0) {
-      const newPath = [...currentState.currentFolderPath];
-      newPath.pop();
-      let newFolderId: string | null = null;
-      if (newPath.length > 0) {
-        const findFolderByPath = (folders: FolderItem[], path: string[]): FolderItem | null => {
-          if (path.length === 0) return null;
-          const [current, ...rest] = path;
-          const folder = folders.find(f => f.name === current);
-          if (!folder) return null;
-          if (rest.length === 0) return folder;
-          return findFolderByPath(folder.subfolders || [], rest);
-        };
-        const parentFolder = findFolderByPath(
-          folders.filter(f => f.parentId === null && f.tabType === activeTab && f.subcategory === activeSubcategory),
-          newPath
-        );
-        if (parentFolder) newFolderId = parentFolder.id;
-      } else {
-        newFolderId = null;
-      }
-      updateNavigationState({ currentFolderPath: newPath, currentFolderId: newFolderId });
-    }
-  };
-
-  const getCurrentFolderContents = () => {
-    if (!selectedNode || !activeTab) return { folders: [], files: [] };
-    const currentState = getCurrentNavigationState();
-    const currentTabData = contentData[selectedNode.id]?.[activeTab] || {};
-    const currentSubcategoryData = currentTabData[activeSubcategory] || [];
-
-    if (!currentState.currentFolderId) {
-      const foldersInRoot = currentSubcategoryData.filter(
-        (item): item is FolderItem => isFolderItem(item) && !item.parentId
-      );
-      const filesInRoot = currentSubcategoryData.filter(
-        (item): item is UploadedFile => isUploadedFile(item) && !item.folderId
-      );
-      return { folders: foldersInRoot, files: filesInRoot };
-    }
-
-    const findFolderContents = (folders: FolderItem[], targetId: string): { folders: FolderItem[], files: UploadedFile[] } => {
-      for (const folder of folders) {
-        if (folder.id === targetId) {
-          return { folders: folder.subfolders || [], files: folder.files || [] };
-        }
-        if (folder.subfolders && folder.subfolders.length > 0) {
-          const result = findFolderContents(folder.subfolders, targetId);
-          if (result.folders.length > 0 || result.files.length > 0) return result;
-        }
-      }
-      return { folders: [], files: [] };
-    };
-
-    const rootFolders = currentSubcategoryData.filter(
-      (item): item is FolderItem => isFolderItem(item) && !item.parentId
-    );
-    return findFolderContents(rootFolders, currentState.currentFolderId);
-  };
-
-  const getFolderItemCount = (folderId: string) => {
-    if (!selectedNode || !activeTab) return 0;
-    const countItemsInFolder = (folders: FolderItem[], targetId: string): number => {
-      for (const folder of folders) {
-        if (folder.id === targetId) {
-          const fileCount = folder.files?.length || 0;
-          const subfolderCount = folder.subfolders?.length || 0;
-          let subfolderItems = 0;
-          if (folder.subfolders) {
-            subfolderItems = folder.subfolders.reduce((total, subfolder) =>
-              total + countItemsInFolder([subfolder], subfolder.id), 0
-            );
-          }
-          return fileCount + subfolderCount + subfolderItems;
-        }
-        if (folder.subfolders) {
-          const count = countItemsInFolder(folder.subfolders, targetId);
-          if (count > 0) return count;
-        }
-      }
-      return 0;
-    };
-
-    const currentTabData = contentData[selectedNode.id]?.[activeTab] || {};
-    const currentSubcategoryData = currentTabData[activeSubcategory] || [];
-    const rootFolders = currentSubcategoryData.filter(
-      (item): item is FolderItem => isFolderItem(item) && !item.parentId
-    );
-
-    return countItemsInFolder(rootFolders, folderId);
-  };
-
-  const editFolder = (folder: FolderItem) => {
-    setEditingFolder(folder);
-    setEditFolderName(folder.name);
-    setFolderTags(folder.tags || []);
-    setShowCreateFolderModal(true);
-  }
-
-  const saveEditFolder = async () => {
-    if (!editingFolder || !editFolderName.trim()) return;
-    try {
-      const currentState = getCurrentNavigationState();
-      const folderData = {
-        tabType: toBackendTab(activeTab),
-        subcategory: activeSubcategory,
-        folderName: editFolderName.trim(),
-        folderPath: currentState.currentFolderPath.join('/'),
-        originalFolderName: editingFolder.name,
-        courses: selectedNode?.originalData?.courses || "",
-        topicId: selectedNode?.originalData?.topicId || "",
-        index: selectedNode?.originalData?.index || 0,
-        title: selectedNode?.originalData?.title || "",
-        description: selectedNode?.originalData?.description || "",
-        duration: selectedNode?.originalData?.duration || "",
-        level: selectedNode?.originalData?.level || "",
+const saveEditFolder = async () => {
+  if (!editingFolder || !editFolderName.trim() || !selectedNode) return;
+  try {
+    const navState = getCurrentNavState();
+    const response = await entityApi.updateFolder(
+      selectedNode.type as any, 
+      selectedNode.id, 
+      { 
+        tabType: toBackendTab(activeTab), 
+        subcategory: activeSubcategory, 
+        folderName: editFolderName.trim(), 
+        folderPath: navState.currentFolderPath.join("/"), 
+        originalFolderName: editingFolder.name, 
+        courses: selectedNode.originalData?.courses || "", 
+        topicId: selectedNode.originalData?.topicId || "", 
         action: "updateFolder",
-      };
-
-      const updatedFolder = {
-        ...editingFolder,
-        name: editFolderName.trim(),
-        folderPath: editingFolder.folderPath ?
-          editingFolder.folderPath.replace(new RegExp(`${editingFolder.name}$`), editFolderName.trim()) :
-          editFolderName.trim()
-      };
-
-      const updateFolderRecursively = (folders: FolderItem[]): FolderItem[] => {
-        return folders.map(folder => {
-          if (folder.id === editingFolder.id) return updatedFolder;
-          if (folder.subfolders && folder.subfolders.length > 0) {
-            return { ...folder, subfolders: updateFolderRecursively(folder.subfolders) };
-          }
-          return folder;
-        });
-      };
-
-      setFolders(prev => updateFolderRecursively(prev));
-      setShowCreateFolderModal(false);
-      setEditingFolder(null);
-      setEditFolderName("");
-      setFolderTags([]);
-
-      const response = await entityApi.updateFolder(
-        selectedNode?.type as "module" | "submodule" | "topic" | "subtopic",
-        selectedNode?.id!,
-        folderData
-      );
-
-      if (response.data && selectedNode) {
-        setTimeout(async () => {
-          await refreshContentData(selectedNode, response.data);
-        }, 500);
+        tags: folderTags.map((t) => ({ tagName: t.tagName, tagColor: t.tagColor })) // ← ADD THIS
       }
-      showSuccessToast("Updated successfully");
-    } catch (error) {
-      showErrorToast("Failed to update folder");
-      if (selectedNode) await refreshContentData(selectedNode);
-    }
-  };
+    );
+    await fetchAndRefresh(selectedNode);
+    setShowCreateFolderModal(false); 
+    setEditingFolder(null); 
+    setEditFolderName(""); 
+    setFolderTags([]);
+    showSuccessToast("Updated successfully");
+  } catch { 
+    showErrorToast("Failed to update folder"); 
+    await refreshContentData(selectedNode); 
+  }
+};
 
+  // deleteFolder — replace both refresh calls
   const deleteFolder = async (folder: FolderItem) => {
     if (!selectedNode) return;
+    setIsDeleting(true);
     try {
-      const fullFolderPath = folder.folderPath || folder.name;
-      const pathParts = fullFolderPath.split('/').filter(p => p);
+      const pathParts = (folder.folderPath || folder.name).split("/").filter(Boolean);
       const folderName = pathParts.pop();
-      const parentFolderPath = pathParts.join('/');
-
-      const folderData = {
+      await entityApi.deleteFolder(selectedNode.type as any, selectedNode.id, {
         tabType: toBackendTab(activeTab),
         subcategory: activeSubcategory,
-        folderName: folderName,
-        folderPath: parentFolderPath,
-        courses: selectedNode?.originalData?.courses || "",
-        topicId: selectedNode?.originalData?.topicId || "",
-        index: selectedNode?.originalData?.index || 0,
-        title: selectedNode?.originalData?.title || "",
-        description: selectedNode?.originalData?.description || "",
-        duration: selectedNode?.originalData?.duration || "",
-        level: selectedNode?.originalData?.level || "",
+        folderName: folderName || "",
+        folderPath: pathParts.join("/"),
+        courses: selectedNode.originalData?.courses || "",
         action: "deleteFolder",
-      };
-
-      const collectAllFolderIds = (folderItem: FolderItem): string[] => {
-        const folderIds: string[] = [folderItem.id];
-        if (folderItem.subfolders) {
-          folderItem.subfolders.forEach(subfolder => {
-            folderIds.push(...collectAllFolderIds(subfolder));
-          });
-        }
-        return folderIds;
-      };
-
-      const folderIdsToRemove = collectAllFolderIds(folder);
-
-      // Optimistic Update
-      setContentData((prevData) => {
-        const updatedData = { ...prevData };
-        if (activeTab && updatedData[selectedNode.id] && updatedData[selectedNode.id][activeTab]) {
-          const removeFoldersFromItems = (items: (FolderItem | UploadedFile)[]): (FolderItem | UploadedFile)[] => {
-            return items.filter(item => {
-              if (isFolderItem(item)) {
-                if (folderIdsToRemove.includes(item.id)) return false;
-                if (item.subfolders) item.subfolders = removeFoldersFromItems(item.subfolders) as FolderItem[];
-                if (item.children) item.children = removeFoldersFromItems(item.children);
-              }
-              return true;
-            });
-          };
-          updatedData[selectedNode.id][activeTab][activeSubcategory] =
-            removeFoldersFromItems(updatedData[selectedNode.id][activeTab][activeSubcategory]);
-        }
-        return updatedData;
       });
-
-      setFolders(prev => prev.filter((f) => !folderIdsToRemove.includes(f.id)));
-
-      // Reset Nav if inside deleted folder
-      const currentState = getCurrentNavigationState();
-      if (folderIdsToRemove.includes(currentState.currentFolderId || '')) {
-        navigateUp();
-      }
-
-      await entityApi.deleteFolder(
-        selectedNode?.type as "module" | "submodule" | "topic" | "subtopic",
-        selectedNode?.id!,
-        { ...folderData, folderName: folderName || "" }
-      );
-
-      setTimeout(async () => { await refreshContentData(selectedNode); }, 500);
-
-    } catch (error: any) {
-      console.error("❌ Failed to delete folder:", error);
-      if (axios.isAxiosError(error)) {
-        if (error.response?.status === 404) {
-          alert("Folder not found on server.");
-        } else {
-          alert(`Delete failed: ${error.response?.data?.message || error.message}`);
-        }
-      } else {
-        alert("Failed to delete folder.");
-      }
-      await refreshContentData(selectedNode);
+      await fetchAndRefresh(selectedNode);       // ← server fetch first
+      setShowDeleteConfirm(false);
+      setDeleteTarget(null);
+      showSuccessToast(`Folder "${folder.name}" deleted!`);
+    } catch {
+      showErrorToast("Failed to delete folder");
+      await fetchAndRefresh(selectedNode);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
+  // deleteFile — replace refresh call
   const deleteFile = async (fileId: string) => {
     if (!selectedNode) return;
+    setIsDeleting(true);
     try {
-      const fileData = {
+      const navState = getCurrentNavState();
+      await entityApi.deleteFile(selectedNode.type as any, selectedNode.id, {
         tabType: toBackendTab(activeTab),
         subcategory: activeSubcategory,
-        folderPath: getCurrentNavigationState().currentFolderPath.join('/'),
-        courses: selectedNode?.originalData?.courses || "",
-        topicId: selectedNode?.originalData?.topicId || "",
-        index: selectedNode?.originalData?.index || 0,
-        title: selectedNode?.originalData?.title || "",
-        description: selectedNode?.originalData?.description || "",
-        duration: selectedNode?.originalData?.duration || "",
-        level: selectedNode?.originalData?.level || "",
+        folderPath: navState.currentFolderPath.join("/"),
         action: "deleteFile",
         updateFileId: fileId,
-      };
-
-      setContentData((prevData) => {
-        const updatedData = { ...prevData };
-        if (activeTab && updatedData[selectedNode.id] && updatedData[selectedNode.id][activeTab]) {
-          const removeFileFromItems = (items: (FolderItem | UploadedFile)[]): (FolderItem | UploadedFile)[] => {
-            return items.map(item => {
-              if (isFolderItem(item)) {
-                const folderItem = item;
-                const updatedFiles = (folderItem.files || []).filter(f => f.id !== fileId);
-                const updatedChildren = removeFileFromItems(folderItem.children || []);
-                const updatedSubfolders = folderItem.subfolders ? removeFileFromItems(folderItem.subfolders) as FolderItem[] : [];
-                return {
-                  ...folderItem,
-                  files: updatedFiles,
-                  children: updatedChildren,
-                  subfolders: updatedSubfolders
-                };
-              }
-              return item;
-            }).filter(item => {
-              if (isUploadedFile(item) && item.id === fileId) return false;
-              return true;
-            });
-          };
-          updatedData[selectedNode.id][activeTab][activeSubcategory] =
-            removeFileFromItems(updatedData[selectedNode.id][activeTab][activeSubcategory]);
-        }
-        return updatedData;
       });
-
-      setFolders(prev => {
-        const removeFileFromFolder = (folder: FolderItem): FolderItem => {
-          return {
-            ...folder,
-            files: (folder.files || []).filter(f => f.id !== fileId),
-            children: (folder.children || []).filter(item => {
-              if (isUploadedFile(item)) return item.id !== fileId;
-              return true;
-            }),
-            subfolders: (folder.subfolders || []).map(removeFileFromFolder)
-          };
-        };
-        return prev.map(removeFileFromFolder);
-      });
-
-      await entityApi.deleteFile(
-        selectedNode?.type as "module" | "submodule" | "topic" | "subtopic",
-        selectedNode?.id!,
-        fileData
-      );
+      await fetchAndRefresh(selectedNode);       // ← server fetch first
       setShowDeleteConfirm(false);
       setDeleteTarget(null);
-    } catch (error) {
-      console.error("❌ Failed to delete file:", error);
-      alert("Failed to delete file.");
-      await refreshContentData(selectedNode);
+      showSuccessToast("File deleted!");
+    } catch {
+      showErrorToast("Failed to delete file");
+    } finally {
+      setIsDeleting(false);
     }
+  };
+
+  // handleDeletePage — replace refresh call
+
+
+const resetUploadModalStates = () => { 
+  setShowUploadModal(false); 
+  setSelectedFileType(""); 
+  setUploadingFiles([]); 
+  setUpdateFileId(null); 
+  setFileNames({}); 
+  setSelectedFiles([]); 
+  setUploadDescription(""); 
+  setUploadTags([]); 
+  setUploadCurrentTag(""); 
+  setUploadTagColor("#3B82F6"); 
+  setUploadAccessLevel("private"); 
+  setFolderUrl(""); 
+  setUrlFileName(""); 
+  setUrlFileType("url/link"); 
+  setIsButtonLoading(false); 
+  setText(""); 
+  // Clear file display names for update mode
+  setFileDisplayNames({});
+};
+const handleFileSelection = (files: FileList | null) => {
+  if (!files?.length) return;
+  
+  // For update mode - REPLACE the existing selection with the new file
+  if (updateFileId) {
+    const existingFileName = fileDisplayNames[updateFileId] || "";
+    
+    // IMPORTANT: Clear all existing selections and uploading files first
+    setSelectedFiles([]);
+    setUploadingFiles([]);
+    
+    const newDisplay: Record<string, string> = {};
+    const newSelectedFiles = Array.from(files);
+    
+    // Set the display name for the new file
+    newSelectedFiles.forEach((f) => {
+      newDisplay[f.name] = existingFileName || (selectedFileType === "reference" ? "Reference Material" : f.name);
+    });
+    
+    setFileDisplayNames({ ...newDisplay });
+    setSelectedFiles(newSelectedFiles);
+    
+    // Create the new uploading file
+    const newUploadingFiles: UploadedFile[] = newSelectedFiles.map((f, i) => ({ 
+      id: `${Date.now()}-${i}-${Math.random()}`, // Always use a unique ID for the new file
+      name: newDisplay[f.name] || f.name, 
+      progress: 0, 
+      status: "preparing" as const, 
+      subcategory: activeSubcategory, 
+      folderId: getCurrentNavState().currentFolderId, 
+      type: f.type || "unknown", 
+      size: f.size, 
+      url: "", 
+      uploadedAt: new Date(), 
+      tags: [], 
+      folderPath: getCurrentNavState().currentFolderPath.join("/"), 
+      isReference: selectedFileType === "reference", 
+      isVideo: f.type.startsWith("video/") 
+    }));
+    
+    setUploadingFiles(newUploadingFiles);
+    
+    // Simulate upload progress for the new file
+    newUploadingFiles.forEach((u) => { 
+      let p = 0; 
+      const interval = setInterval(() => { 
+        p += 10; 
+        if (p < 100) {
+          setUploadingFiles((prev) => prev.map((f) => f.id === u.id ? { ...f, progress: p, status: "uploading" } : f));
+        } else { 
+          clearInterval(interval); 
+          setUploadingFiles((prev) => prev.map((f) => f.id === u.id ? { ...f, progress: 100, status: "ready" } : f)); 
+        } 
+      }, 100); 
+    });
+    
+  } else {
+    // For new files (multiple files allowed)
+    const newDisplay: Record<string, string> = {};
+    const newSelectedFiles = Array.from(files);
+    
+    newSelectedFiles.forEach((f) => {
+      newDisplay[f.name] = selectedFileType === "reference" ? "Reference Material" : f.name;
+    });
+    
+    setFileDisplayNames((prev) => ({ ...prev, ...newDisplay }));
+    setSelectedFiles(newSelectedFiles);
+    
+    const newUploadingFiles: UploadedFile[] = newSelectedFiles.map((f, i) => ({ 
+      id: `${Date.now()}-${i}`, 
+      name: newDisplay[f.name] || f.name, 
+      progress: 0, 
+      status: "preparing" as const, 
+      subcategory: activeSubcategory, 
+      folderId: getCurrentNavState().currentFolderId, 
+      type: f.type || "unknown", 
+      size: f.size, 
+      url: "", 
+      uploadedAt: new Date(), 
+      tags: [], 
+      folderPath: getCurrentNavState().currentFolderPath.join("/"), 
+      isReference: selectedFileType === "reference", 
+      isVideo: f.type.startsWith("video/") 
+    }));
+    
+    setUploadingFiles((prev) => [...prev, ...newUploadingFiles]);
+    
+    // Simulate upload progress for new files
+    newUploadingFiles.forEach((u) => { 
+      let p = 0; 
+      const interval = setInterval(() => { 
+        p += 10; 
+        if (p < 100) {
+          setUploadingFiles((prev) => prev.map((f) => f.id === u.id ? { ...f, progress: p, status: "uploading" } : f));
+        } else { 
+          clearInterval(interval); 
+          setUploadingFiles((prev) => prev.map((f) => f.id === u.id ? { ...f, progress: 100, status: "ready" } : f)); 
+        } 
+      }, 100); 
+    });
+  }
+};
+// Add this useEffect to reset file input when selections are cleared
+useEffect(() => {
+  if (uploadingFiles.length === 0 && fileInputRef.current) {
+    fileInputRef.current.value = '';
+  }
+}, [uploadingFiles]);
+const handleFileUpload = async (files: FileList | null, tabType: "I_Do" | "We_Do" | "You_Do" | null, subcategory: string) => {
+  if (!files || !selectedNode) return;
+  
+  const navState = getCurrentNavState();
+  const formData = new FormData();
+  
+  // Add hierarchy info
+  if (selectedNode.originalData) { 
+    formData.append("courses", selectedNode.originalData.courses || ""); 
+    formData.append("topicId", selectedNode.originalData.topicId || ""); 
+    formData.append("index", String(selectedNode.originalData.index || 0)); 
+    formData.append("title", selectedNode.originalData.title || ""); 
+  }
+  
+  // Add file type
+  if (selectedFileType) formData.append("selectedFileType", selectedFileType);
+  
+  // Add file settings
+  const fileId = updateFileId || "temp"; 
+  const fSettings = documentSettings[fileId];
+  formData.append("showToStudents", fSettings ? String(fSettings.studentShow) : "true");
+  formData.append("allowDownload", fSettings ? String(fSettings.downloadAllow) : "true");
+  
+  // Add files
+  Array.from(files).forEach((f) => formData.append("files", f));
+  
+  // Add tab and subcategory info
+  formData.append("tabType", toBackendTab(tabType)); 
+  formData.append("subcategory", subcategory);
+  
+  // Add folder path
+  const fp = navState.currentFolderPath.join("/"); 
+  if (fp) formData.append("folderPath", fp);
+
+  // Add tags and description
+  const validTags = uploadTags.filter(t => t.tagName && t.tagName.trim());
+  if (validTags.length) formData.append("tags", JSON.stringify(validTags));
+  if (uploadDescription) formData.append("fileDescription", uploadDescription);
+
+  formData.append("isUpdate", "false");
+
+  try {
+    const response = await entityApi.updateEntity(selectedNode.type as any, selectedNode.id, formData);
+    if (response.data) {
+      setUploadingFiles((prev) => prev.map((f) => f.status === "uploading" ? { ...f, status: "completed", progress: 100 } : f));
+      await fetchAndRefresh(selectedNode);
+      setUploadingFiles([]);
+      resetUploadModalStates();
+      showSuccessToast("Upload completed!");
+    }
+  } catch (err: any) { 
+    setUploadingFiles((prev) => prev.map((f) => f.status === "uploading" ? { ...f, status: "error" } : f)); 
+    setIsButtonLoading(false); 
+    const _msg = axios.isAxiosError(err) ? (typeof err.response?.data?.message === "string" ? err.response?.data?.message : JSON.stringify(err.response?.data ?? err.message)) : (err?.message || String(err)); 
+    showErrorToast(`Upload failed: ${_msg}`); 
+  }
+};
+
+  const buildFullHierarchyInfo = useCallback((): HierarchyInfo | undefined => {
+    if (!selectedNode || !courseData.length) return undefined;
+    const findNodePath = (nodes: CourseNode[], targetId: string, path: CourseNode[] = []): CourseNode[] | null => { for (const node of nodes) { if (node.id === targetId) return [...path, node]; if (node.children?.length) { const found = findNodePath(node.children, targetId, [...path, node]); if (found) return found; } } return null; };
+    const path = findNodePath(courseData, selectedNode.id) ?? [selectedNode];
+    const navState = getCurrentNavState();
+    const courseNode = path.find((n) => n.type === "course"); const moduleNode = path.find((n) => n.type === "module"); const submoduleNode = path.find((n) => n.type === "submodule"); const topicNode = path.find((n) => n.type === "topic"); const subtopicNode = path.find((n) => n.type === "subtopic");
+    return { courseId: courseNode?.id ?? courseData[0]?.id ?? "", courseName: courseNode?.name ?? courseStructureResponse?.data?.courseName ?? "", moduleId: moduleNode?.id, moduleName: moduleNode?.name, subModuleId: submoduleNode?.id, subModuleName: submoduleNode?.name, topicId: topicNode?.id, topicName: topicNode?.name, subTopicId: subtopicNode?.id, subTopicName: subtopicNode?.name, tabType: activeTab ?? undefined, subcategory: activeSubcategory || undefined, folderPath: navState.currentFolderPath.length > 0 ? navState.currentFolderPath : undefined, folderId: navState.currentFolderId ?? undefined, nodeType: selectedNode.type };
+  }, [selectedNode, courseData, courseStructureResponse, activeTab, activeSubcategory, getCurrentNavState]);
+
+const handleFileUpdate = async (files: FileList | null) => {
+  // If no files selected and we're in update mode, update metadata only
+  if ((!files || files.length === 0) && updateFileId) {
+    const navState = getCurrentNavState();
+    const formData = new FormData();
+    
+    // Add hierarchy info
+    if (selectedNode?.originalData) { 
+      formData.append("courses", selectedNode.originalData.courses || ""); 
+      formData.append("topicId", selectedNode.originalData.topicId || ""); 
+      formData.append("index", String(selectedNode.originalData.index || 0)); 
+      formData.append("title", selectedNode.originalData.title || "");
+    }
+    
+    // Add update metadata
+    formData.append("tabType", toBackendTab(updateTabType)); 
+    formData.append("subcategory", updateSubcategory); 
+    formData.append("isUpdate", "true"); 
+    formData.append("updateFileId", updateFileId);
+    formData.append("updateFileName", fileDisplayNames[updateFileId] || "");
+    formData.append("metadataOnly", "true"); // Flag to indicate metadata-only update
+    
+    // Add file settings
+    const fSettings = documentSettings[updateFileId] || { studentShow: true, downloadAllow: true };
+    formData.append("showToStudents", String(fSettings.studentShow)); 
+    formData.append("allowDownload", String(fSettings.downloadAllow));
+    
+    // Add folder path
+    const fp = navState.currentFolderPath.join("/"); 
+    if (fp) formData.append("folderPath", fp);
+    
+    // Add tags and description
+    if (uploadTags.length) formData.append("tags", JSON.stringify(uploadTags));
+    if (uploadDescription) formData.append("fileDescription", uploadDescription); // Make sure this is sent
+    
+    try {
+      const response = await entityApi.updateEntity(selectedNode.type as any, selectedNode.id, formData);
+      await fetchAndRefresh(selectedNode);
+      setUploadingFiles([]);
+      resetUploadModalStates();
+      showSuccessToast("File metadata updated successfully!");
+      setIsButtonLoading(false);
+    } catch (err: any) { 
+      setIsButtonLoading(false); 
+      showErrorToast(`Update failed: ${axios.isAxiosError(err) ? err.response?.data?.message : err.message}`); 
+    }
+    return;
   }
 
-  // --- File Upload & Update Logic ---
+  
+  // If files are selected, proceed with file content update
+  if (!files || !selectedNode || !updateFileId || files.length !== 1) {
+    if (updateFileId) {
+      setIsButtonLoading(false);
+      showErrorToast("Please select a file to update");
+    }
+    return;
+  }
+  
+  const file = files[0]; 
+  const navState = getCurrentNavState(); 
+  const formData = new FormData();
+  
+  // Add hierarchy info
+  if (selectedNode.originalData) { 
+    formData.append("courses", selectedNode.originalData.courses || ""); 
+    formData.append("topicId", selectedNode.originalData.topicId || ""); 
+    formData.append("index", String(selectedNode.originalData.index || 0)); 
+    formData.append("title", selectedNode.originalData.title || "");
+  }
+  
+  // Add file and update info
+  formData.append("files", file); 
+  formData.append("tabType", toBackendTab(updateTabType)); 
+  formData.append("subcategory", updateSubcategory); 
+  formData.append("isUpdate", "true"); 
+  formData.append("updateFileId", updateFileId);
+  formData.append("updateFileName", fileDisplayNames[updateFileId] || "");
+  formData.append("metadataOnly", "false");
+  
+  // Add file settings
+  const fSettings = documentSettings[updateFileId] || { studentShow: true, downloadAllow: true };
+  formData.append("showToStudents", String(fSettings.studentShow)); 
+  formData.append("allowDownload", String(fSettings.downloadAllow));
+  
+  // Add folder path
+  const fp = navState.currentFolderPath.join("/"); 
+  if (fp) formData.append("folderPath", fp);
+  
+  // Add tags and description
+  if (uploadTags.length) formData.append("tags", JSON.stringify(uploadTags));
+  if (uploadDescription) formData.append("fileDescription", uploadDescription);
+  
+  try {
+    const response = await entityApi.updateEntity(selectedNode.type as any, selectedNode.id, formData);
+    await fetchAndRefresh(selectedNode);
+    setUploadingFiles([]);
+    resetUploadModalStates();
+    showSuccessToast("File updated successfully!");
+    setIsButtonLoading(false);
+  } catch (err: any) { 
+    setIsButtonLoading(false); 
+    showErrorToast(`Update failed: ${axios.isAxiosError(err) ? err.response?.data?.message : err.message}`); 
+  }
+};
 
-  const handleFileUpload = useCallback(
-    async (
-      files: FileList | null,
-      tabType: "I_Do" | "We_Do" | "You_Do" | null,
-      subcategory: string,
-      isUpdate = false,
-      updateFileId: string | null = null,
-    ) => {
-      if (!files || !selectedNode) return;
+const initiateFileUpdate = (file: UploadedFile, tabType: "I_Do" | "We_Do" | "You_Do", subcategory: string) => {
+  console.log("Initiating file update for:", file);
+  console.log("File description from data:", file.description); // Use file.description directly
+  
+  setUpdateFileId(file.id); 
+  setUpdateTabType(tabType); 
+  setUpdateSubcategory(subcategory);
+  
+  const fileType = file.type || ""; 
+  const matchedFileType = fileTypes.find((t) => fileType.includes(t.key));
+  const selectedTypeKey = matchedFileType?.key || "";
+  
+  setUpdateFileType(selectedTypeKey); 
+  setSelectedFileType(selectedTypeKey);
+  
+  // IMPORTANT: Set the file display name for the update
+  setFileDisplayNames({ [file.id]: file.name });
+  
+  // FIX: Use file.description directly since that's where it's stored in the UploadedFile type
+  const fileDescription = file.description || "";
+  setUploadDescription(fileDescription);
+  
+  setUploadTags(file.tags || []); 
+  setUploadAccessLevel(file.accessLevel || "private");
+  
+  if (file.id) {
+    setDocumentSettings((prev) => ({ 
+      ...prev, 
+      [file.id]: { 
+        studentShow: file.fileSettings?.showToStudents ?? true, 
+        downloadAllow: file.fileSettings?.allowDownload ?? true 
+      } 
+    }));
+  }
+  
+  // Handle URL files
+  if (fileType.includes("url") || fileType.includes("link")) { 
+    let url = typeof file.url === "string" ? file.url : (file.url as any)?.base || ""; 
+    setFolderUrl(url); 
+    setUrlFileName(file.name || ""); 
+    setUrlFileType(file.type || "url/link"); 
+  } else { 
+    setFolderUrl(""); 
+    setUrlFileName(""); 
+    setUrlFileType("url/link"); 
+  }
+  
+  setSelectedFiles([]); 
+  setUploadingFiles([]); 
+  setShowUploadModal(true);
+};
+useEffect(() => {
+  if (showUploadModal && uploadDescription) {
+    // Force a small delay to ensure Editor is mounted
+    const timer = setTimeout(() => {
+      // Trigger a re-render of the Editor by toggling a key
+      setEditorKey(Date.now());
+    }, 100);
+    return () => clearTimeout(timer);
+  }
+}, [showUploadModal, uploadDescription]);
 
-      const isReferenceUpload = selectedFileType === "reference";
-      const filesArray = Array.from(files);
-      const currentState = getCurrentNavigationState();
-      const currentContents = getCurrentFolderContents();
-      const existingFileNames = new Set(currentContents.files.map(f => f.name));
+// Add state for editor key
+const [editorKey, setEditorKey] = useState(Date.now());
+  const handleFileClick = (file: UploadedFile, tabType: "I_Do" | "We_Do" | "You_Do" | null, subcategory: string) => {
+    const fileUrl = typeof file.url === "string" ? file.url : (file.url as any)?.base || "";
+    if (!fileUrl) { alert("File URL is missing"); return; }
+    const name = (file.name || "").toLowerCase(); const type = (file.type || "").toLowerCase();
+    if (type.includes("url") || type.includes("link")) { window.open(fileUrl, "_blank", "noopener,noreferrer"); return; }
+    if (name.endsWith(".pdf") || type.includes("pdf")) { setCurrentPDFUrl(fileUrl); setCurrentPDFName(file.name); setCurrentPDFFileId(file.id); setShowPDFViewer(true); return; }
+    if (name.endsWith(".ppt") || name.endsWith(".pptx") || type.includes("presentation")) { setCurrentPPTUrl(fileUrl); setCurrentPPTName(file.name); setCurrentPPTFileId(file.id); setShowPPTViewer(true); return; }
+    const videoExts = [".mp4", ".avi", ".mov", ".mkv", ".webm"];
+    if (type.includes("video") || videoExts.some((e) => name.endsWith(e))) { const all = extractVideos(selectedNode!); const idx = all.findIndex((v) => v.id === file.id || v.fileName === file.name); setCurrentVideoUrl(fileUrl); setCurrentVideoName(file.name); setCurrentVideoFileId(file.id); setCurrentVideoResolutions(file.availableResolutions || []); setCurrentVideoFileUrlMap(file.fileUrlMap || {}); setVideoPlaylist(all); setCurrentVideoIndex(idx >= 0 ? idx : 0); setShowVideoViewer(true); return; }
+    const zipExts = [".zip", ".rar", ".7z", ".tar", ".gz"];
+    if (type.includes("zip") || zipExts.some((e) => name.endsWith(e))) { setCurrentZipUrl(fileUrl); setCurrentZipName(file.name); setShowZipViewer(true); return; }
+    window.open(fileUrl, "_blank");
+  };
 
-      const filesToUpload = filesArray.filter(file => {
-        if (existingFileNames.has(file.name) && !isUpdate) return false;
-        return true;
-      });
+  const extractVideos = (node: CourseNode): VideoItem[] => {
+    const videos: VideoItem[] = []; if (!node.originalData?.pedagogy) return videos;
+    const process = (section: any) => { if (!section) return; Object.values(section).forEach((sub: any) => { sub?.files?.forEach((f: any) => { if (f.isVideo || f.fileType?.includes("video")) { const url = typeof f.fileUrl === "string" ? f.fileUrl : f.fileUrl?.base || ""; const rawMap: Record<string, string> = typeof f.fileUrl === "object" && f.fileUrl !== null ? f.fileUrl : {}; const resNames: string[] = f.availableResolutions?.length ? f.availableResolutions : Object.keys(rawMap).filter(k => rawMap[k]); videos.push({ id: f._id || `${Date.now()}`, title: f.fileName, fileName: f.fileName, fileUrl: url, availableResolutions: resNames, fileUrlMap: rawMap, isVideo: true }); } }); }); };
+    process(node.originalData.pedagogy.I_Do); process(node.originalData.pedagogy.We_Do); process(node.originalData.pedagogy.You_Do);
+    return videos;
+  };
 
-      if (filesToUpload.length === 0 && !isUpdate) {
-        alert("All selected files already exist in this location");
-        return;
-      }
-
-      const newUploadingFiles: UploadedFile[] = filesToUpload.map((file) => {
-        const isVideoFile = file.type.startsWith("video/") ||
-          Boolean(file.name.match(/\.(mp4|avi|mov|mkv|webm|ogg|flv|wmv|m4v|3gp|mpg|mpeg|ts|mts|m2ts|vob|ogv|qt|rm|rmvb|asf|amv|divx|mxf)$/i));
-        const isReferenceFile = selectedFileType === "reference";
-
-        return {
-          id: `${Date.now()}-${Math.random()}`,
-          name: isReferenceFile ? "Reference Material" : file.name,
-          type: isReferenceFile ? "reference" : (isVideoFile ? "video/mp4" : file.type || "unknown"),
-          size: file.size,
-          url: "",
-          uploadedAt: new Date(),
-          subcategory: subcategory,
-          folderId: currentState.currentFolderId,
-          progress: 0,
-          status: "uploading" as const,
-          isVideo: Boolean(isVideoFile),
-          isReference: isReferenceFile,
-          availableResolutions: isVideoFile ? ["source"] : [],
-          originalFileName: isReferenceFile ? file.name : undefined,
-          tags: [],
-          folderPath: currentState.currentFolderPath.join('/'),
-          description: "",
-          accessLevel: "private"
-        };
-      });
-
-      setUploadingFiles((prev) => [...prev, ...newUploadingFiles]);
-
-      const formData = new FormData();
-      if (selectedNode.originalData) {
-        formData.append("courses", selectedNode.originalData.courses || "");
-        formData.append("topicId", selectedNode.originalData.topicId || "");
-        formData.append("index", selectedNode.originalData.index?.toString() || "0");
-        formData.append("title", selectedNode.originalData.title || "");
-        formData.append("description", selectedNode.originalData.description || "");
-        formData.append("duration", selectedNode.originalData.duration || "");
-        formData.append("level", selectedNode.originalData.level || "");
-      }
-
-      if (selectedFileType) formData.append("selectedFileType", selectedFileType);
-
-      const fileId = updateFileId || 'temp';
-      const fileSettings = documentSettings[fileId];
-
-      if (fileSettings) {
-        formData.append("showToStudents", fileSettings.studentShow.toString());
-        formData.append("allowDownload", fileSettings.downloadAllow.toString());
-      } else {
-        formData.append("showToStudents", "true");
-        formData.append("allowDownload", "true");
-      }
-
-      if (folderTags.length > 0) {
-        formData.append("tags", JSON.stringify(folderTags.map(tag => ({
-          tagName: tag.tagName,
-          tagColor: tag.tagColor
-        }))));
-      }
-
-      filesToUpload.forEach((file) => formData.append("files", file));
-
-      const currentPedagogy = selectedNode.originalData?.pedagogy || { I_Do: {}, We_Do: {}, You_Do: {} };
-      const backendTabType = toBackendTab(tabType);
-
-      if (!currentPedagogy[backendTabType]) currentPedagogy[backendTabType] = {};
-      if (!currentPedagogy[backendTabType][subcategory]) {
-        currentPedagogy[backendTabType][subcategory] = { description: "", files: [], folders: [] };
-      }
-
-      formData.append("pedagogy", JSON.stringify(currentPedagogy));
-      formData.append("tabType", backendTabType);
-      formData.append("subcategory", subcategory);
-
-      const folderPathStr = currentState.currentFolderPath.join("/");
-      if (folderPathStr) formData.append("folderPath", folderPathStr);
-
-      formData.append("isUpdate", isUpdate.toString());
-      if (isUpdate && updateFileId) formData.append("updateFileId", updateFileId);
-
-      try {
-        const response = await entityApi.updateEntity(
-          selectedNode.type as "module" | "submodule" | "topic" | "subtopic",
-          selectedNode.id,
-          formData,
-        );
-
-        if (response.data) {
-          setUploadingFiles((prev) =>
-            prev.map((f) => (f.status === "uploading" ? { ...f, status: "completed", progress: 100 } : f)),
-          );
-          if (selectedNode) await refreshContentData(selectedNode, response.data);
-          setTimeout(() => {
-            setUploadingFiles((prev) => prev.filter((f) => f.status !== "completed"));
-            resetUploadModalStates();
-            showSuccessToast("Upload completed successfully!");
-          }, 500);
+  const extractFileNameFromUrl = (url: string) => { try { return decodeURIComponent(url).split("/").pop()?.split("?")[0] || "link"; } catch { return "link"; } };
+  const addTag = async (name: string, color: string = "#3B82F6") => { if (!name || folderTags.some((t) => t.tagName === name)) return; setLoading(true); setSuccess(false); await new Promise((r) => setTimeout(r, 500)); setFolderTags((prev) => [...prev, { tagName: name, tagColor: color }]); setCurrentTag(""); setLoading(false); setSuccess(true); };
+  const removeTag = (i: number) => setFolderTags((prev) => prev.filter((_, idx) => idx !== i));
+  const addUploadTag = async (name: string, color: string) => { if (!name || uploadTags.some((t) => t.tagName === name)) return; setUploadTags((prev) => [...prev, { tagName: name, tagColor: color }]); setUploadCurrentTag(""); };
+  const removeUploadTag = (i: number) => setUploadTags((prev) => prev.filter((_, idx) => idx !== i));
+  const doDeletePage = async (pageId: string, name: string) => {
+    if (!selectedNode) return;
+    setIsDeleting(true);
+    try {
+      const navState = getCurrentNavState();
+      await entityApi.deletePage(
+        selectedNode.type as "module" | "submodule" | "topic" | "subtopic",
+        selectedNode.id,
+        pageId,
+        {
+          tabType: toBackendTab(activeTab),
+          subcategory: activeSubcategory,
+          folderPath: navState.currentFolderPath.length > 0
+            ? navState.currentFolderPath.join(",")
+            : "",
         }
-      } catch (error: any) {
-        console.error("❌ Failed to upload files:", error);
-        setUploadingFiles((prev) => prev.map((f) => (f.status === "uploading" ? { ...f, status: "error" } : f)));
-        setIsButtonLoading(false);
-        const errorMessage = axios.isAxiosError(error) ? error.response?.data?.message : error.message;
-        alert(`Upload failed: ${errorMessage}`);
-      }
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [selectedNode, selectedFileType, fileTypes, getCurrentNavigationState, documentSettings, folderTags]
-  );
+      );
+      await fetchAndRefresh(selectedNode);
+      setShowDeleteConfirm(false);
+      setDeleteTarget(null);
+      showSuccessToast(`Page "${name}" deleted`);
+    } catch (err) {
+      console.error("Delete page failed:", err);
+      showErrorToast("Failed to delete page. Please try again.");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleDeletePage = async (pageId: string, name: string) => {
+    if (!selectedNode) return;
+    // Remove the confirm() alert — use the modal instead
+    setDeleteTarget({ type: "file", item: { id: pageId, isPage: true }, name });
+    setShowDeleteConfirm(true);
+  };
+
+
+  useEffect(() => {
+    if (courseStructureResponse?.data) { const transformed = transformToCourseNodes(courseStructureResponse.data); setCourseData(transformed); if (!getLS("lms_expanded_nodes")) setExpandedNodes(new Set([courseStructureResponse.data._id])); }
+  }, [courseStructureResponse]);
+
+  useEffect(() => { setBreadcrumbs(generateBreadcrumbs(selectedNode)); }, [selectedNode, courseData, generateBreadcrumbs]);
+  useEffect(() => {
+    if (selectedNode && !isRestoringFromAnalytics) fetchAndRefresh(selectedNode);
+  }, [selectedNode?.id]);
+  useEffect(() => {
+    if (!courseData.length) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("fromAnalytics") === "true") {
+      setIsRestoringFromAnalytics(true);
+      const cleanUrl = new URL(window.location.href); cleanUrl.searchParams.delete("fromAnalytics"); window.history.replaceState({}, "", cleanUrl.toString());
+      const storedTab = getLS("lms_selected_tab") as "I_Do" | "We_Do" | "You_Do" | null; const storedSub = getLS("lms_selected_subcategory"); const storedId = getLS("lms_selected_node_id");
+      if (storedTab) setActiveTabPersistent(storedTab); if (storedSub) setActiveSubcategoryPersistent(storedSub);
+      if (storedId) { const find = (nodes: CourseNode[]): CourseNode | null => { for (const n of nodes) { if (n.id === storedId) return n; const f = find(n.children || []); if (f) return f; } return null; }; const found = find(courseData); if (found) { setSelectedNodePersistent(found); const path = findPathToNode(courseData, storedId); if (path) setExpandedNodes((prev) => { const n = new Set(prev); path.forEach((id) => n.add(id)); return n; }); } }
+      setTimeout(() => setIsRestoringFromAnalytics(false), 300);
+    } else {
+      const tabUrl = params.get("activeTab") as "I_Do" | "We_Do" | "You_Do" | null; const subUrl = params.get("activeSubcategory"); const nodeId = params.get("nodeId");
+      if (nodeId && selectedNode?.id !== nodeId) { const find = (nodes: CourseNode[]): CourseNode | null => { for (const n of nodes) { if (n.id === nodeId) return n; const f = find(n.children || []); if (f) return f; } return null; }; const found = find(courseData); if (found) { setSelectedNodePersistent(found); if (tabUrl) setActiveTabPersistent(tabUrl); if (subUrl) setActiveSubcategoryPersistent(subUrl); const path = findPathToNode(courseData, nodeId); if (path) setExpandedNodes((prev) => { const n = new Set(prev); path.forEach((id) => n.add(id)); return n; }); } }
+      else { if (tabUrl && tabUrl !== activeTab) setActiveTabPersistent(tabUrl); if (subUrl && subUrl !== activeSubcategory) setActiveSubcategoryPersistent(subUrl); }
+    }
+  }, [courseData]);
+
+  useEffect(() => {
+    if (!isResizing) return;
+    const onMove = (e: MouseEvent) => { if (e.clientX >= 200 && e.clientX <= 500) setSidebarWidth(e.clientX); };
+    const onUp = () => setIsResizing(false);
+    document.addEventListener("mousemove", onMove); document.addEventListener("mouseup", onUp);
+    return () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
+  }, [isResizing]);
 
   const handleUpdateFileSettings = async (fileId: string, settings: { studentShow: boolean; downloadAllow: boolean }) => {
     if (!selectedNode) return;
     try {
-      const currentState = getCurrentNavigationState();
-      await updateFileSettingsInComponent(
-        selectedNode.type as "module" | "submodule" | "topic" | "subtopic",
-        selectedNode.id,
-        {
-          tabType: toBackendTab(activeTab),
-          subcategory: activeSubcategory,
-          fileId: fileId,
-          studentShow: settings.studentShow,
-          downloadAllow: settings.downloadAllow,
-          folderPath: currentState.currentFolderPath.join('/'),
-          originalData: selectedNode.originalData
-        }
-      );
-
-      setDocumentSettings(prev => ({
-        ...prev,
-        [fileId]: settings
-      }));
-
-      // Optimistic UI Update
-      setContentData(prev => {
-        const newData = { ...prev };
-        if (activeTab && newData[selectedNode.id]?.[activeTab]?.[activeSubcategory]) {
-          const updateFileInItems = (items: (FolderItem | UploadedFile)[]): (FolderItem | UploadedFile)[] => {
-            return items.map(item => {
-              if (isUploadedFile(item) && item.id === fileId) {
-                return {
-                  ...item,
-                  fileSettings: {
-                    showToStudents: settings.studentShow,
-                    allowDownload: settings.downloadAllow,
-                    lastModified: new Date()
-                  }
-                };
-              }
-              if (isFolderItem(item)) {
-                return {
-                  ...item,
-                  files: item.files?.map(f =>
-                    f.id === fileId
-                      ? {
-                        ...f, fileSettings: {
-                          showToStudents: settings.studentShow,
-                          allowDownload: settings.downloadAllow,
-                          lastModified: new Date()
-                        }
-                      }
-                      : f
-                  ),
-                  subfolders: updateFileInItems(item.subfolders || []) as FolderItem[]
-                };
-              }
-              return item;
-            });
-          };
-          newData[selectedNode.id][activeTab][activeSubcategory] =
-            updateFileInItems(newData[selectedNode.id][activeTab][activeSubcategory]);
-        }
-        return newData;
-      });
-      showSuccessToast("File settings updated successfully!");
-    } catch (error) {
-      console.error("Failed to update file settings:", error);
-      showErrorToast("Failed to update file settings");
-    }
+      const navState = getCurrentNavState();
+      await updateFileSettingsInComponent(selectedNode.type as any, selectedNode.id, { tabType: toBackendTab(activeTab), subcategory: activeSubcategory, fileId, studentShow: settings.studentShow, downloadAllow: settings.downloadAllow, folderPath: navState.currentFolderPath.join("/"), originalData: selectedNode.originalData });
+      setDocumentSettings((prev) => ({ ...prev, [fileId]: settings })); showSuccessToast("File settings updated!");
+    } catch { showErrorToast("Failed to update file settings"); }
   };
 
-  const handleFileSelection = (files: FileList | null) => {
-    if (files && files.length > 0) {
-      const newFileNames: Record<string, string> = {}
-      const newDisplayNames: Record<string, string> = {}
 
-      if (updateFileId) {
-        Array.from(files).forEach(file => {
-          newFileNames[updateFileId] = file.name;
-          newDisplayNames[updateFileId] = `New file: ${file.name}`;
-        });
-      } else {
-        Array.from(files).forEach(file => {
-          const displayName = selectedFileType === "reference" ? "Reference Material" : file.name;
-          newFileNames[file.name] = file.name;
-          newDisplayNames[file.name] = displayName;
-        });
-      }
 
-      setFileNames(newFileNames)
-      setFileDisplayNames(newDisplayNames)
-      setSelectedFiles(Array.from(files))
+  const { data: userData, isLoading: userLoading } = useQuery({
+    queryKey: ['currentUser'],
+    queryFn: getCurrentUser,
+    retry: 1,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    enabled: typeof window !== 'undefined' && !!localStorage.getItem("smartcliff_token"),
+  })
+  const user = userData?.user || null
 
-      if (updateFileId && files.length > 1) {
-        alert("Please select only one file for update")
-        setSelectedFiles([])
-        return
-      }
-
-      const uploadingFilesData: UploadedFile[] = Array.from(files).map((file, index) => ({
-        id: updateFileId || `${Date.now()}-${index}`,
-        name: updateFileId ? `Updating: ${file.name}` : newDisplayNames[file.name] || file.name,
-        progress: 0,
-        status: 'preparing' as const,
-        subcategory: activeSubcategory,
-        folderId: getCurrentNavigationState().currentFolderId,
-        type: file.type || "unknown",
-        size: file.size,
-        url: "",
-        uploadedAt: new Date(),
-        tags: [],
-        folderPath: getCurrentNavigationState().currentFolderPath.join('/'),
-        isReference: selectedFileType === "reference",
-        isVideo: file.type.startsWith("video/"),
-        originalFileName: file.name,
-        description: "",
-        accessLevel: "private",
-        availableResolutions: []
-      }))
-
-      setUploadingFiles(uploadingFilesData)
-
-      uploadingFilesData.forEach((fileData) => {
-        let progress = 0
-        const interval = setInterval(() => {
-          progress += 10
-          if (progress < 100) {
-            setUploadingFiles(prev => prev.map(f => f.id === fileData.id ? { ...f, progress, status: 'uploading' } : f))
-          } else {
-            clearInterval(interval)
-            setUploadingFiles(prev => prev.map(f => f.id === fileData.id ? { ...f, progress: 100, status: 'ready' } : f))
-          }
-        }, 100)
-      })
-    }
-  }
-
-  const handleFileUpdate = useCallback(
-    async (files: FileList | null) => {
-      if (!files || !selectedNode || !updateFileId) return;
-      if (files.length !== 1) {
-        alert("Please select exactly one file for update")
-        return
-      }
-      const file = files[0]
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const selectedType = fileTypes.find((type) => type.key === updateFileType);
-      const newUploadingFiles: UploadedFile[] = [{
-        id: `${Date.now()}-${Math.random()}`,
-        name: updateFileType === "reference" ? "Reference" : file.name,
-        type: file.type,
-        size: file.size,
-        url: "",
-        uploadedAt: new Date(),
-        subcategory: updateSubcategory,
-        folderId: getCurrentNavigationState().currentFolderId,
-        progress: 0,
-        status: "uploading" as const,
-      }];
-      setUploadingFiles((prev) => [...prev, ...newUploadingFiles]);
-      const formData = new FormData();
-      if (selectedNode.originalData) {
-        formData.append("courses", selectedNode.originalData.courses || "");
-        formData.append("topicId", selectedNode.originalData.topicId || "");
-        formData.append("index", selectedNode.originalData.index?.toString() || "0");
-        formData.append("title", selectedNode.originalData.title || "");
-        formData.append("description", selectedNode.originalData.description || "");
-        formData.append("duration", selectedNode.originalData.duration || "");
-        formData.append("level", selectedNode.originalData.level || "");
-      }
-      formData.append("files", file);
-      const backendTabType = toBackendTab(updateTabType);
-      formData.append("tabType", backendTabType);
-      formData.append("subcategory", updateSubcategory);
-      formData.append("isUpdate", "true");
-      formData.append("updateFileId", updateFileId);
-      const fileId = updateFileId || 'temp';
-      const fileSettings = documentSettings[fileId] || { studentShow: true, downloadAllow: true };
-
-      formData.append("showToStudents", fileSettings.studentShow.toString());
-      formData.append("allowDownload", fileSettings.downloadAllow.toString());
-      const folderPathStr = (getCurrentNavigationState().currentFolderPath || []).join("/");
-      if (folderPathStr) {
-        formData.append("folderPath", folderPathStr);
-      }
-      try {
-        const response = await entityApi.updateEntity(
-          selectedNode.type as "module" | "submodule" | "topic" | "subtopic",
-          selectedNode.id,
-          formData,
-        );
-        setContentData(prev => {
-          const newData = { ...prev };
-          delete newData[selectedNode.id];
-          return newData;
-        });
-        setTimeout(async () => {
-          if (selectedNode) await refreshContentData(selectedNode, response.data);
-          setUploadingFiles((prev) =>
-            prev.map((f) => (f.status === "uploading" ? { ...f, status: "completed", progress: 100 } : f)),
-          );
-          setUploadingFiles((prev) => prev.filter((f) => f.status !== "completed"));
-          setUploadProgress({});
-          setShowUploadModal(false);
-          setUpdateFileId(null);
-          setUpdateFileType("");
-          setSelectedFileType("");
-          setFileNames({});
-          setSelectedFiles([]);
-          setIsButtonLoading(false);
-        }, 200);
-        showSuccessToast("Updated Successfully!")
-      } catch (error: any) {
-        setIsButtonLoading(false);
-        console.error("Failed to update file:", error);
-        setUploadingFiles((prev) => prev.map((f) => (f.status === "uploading" ? { ...f, status: "error" } : f)));
-        if (axios.isAxiosError(error)) {
-          alert(`Update failed: ${error.response?.data?.message || error.message}`);
-        } else {
-          alert("Failed to update file. Please try again.");
+  const checkDummyStudentStatus = () => {
+    try {
+      const stored = localStorage.getItem('smartcliff_roleSwitch')
+      if (stored) {
+        const data = JSON.parse(stored)
+        setIsDummyStudent(data.isDummyStudent || false)
+        if (data.originalRole || data.originalRenameRole) {
+          setOriginalRoleInfo({ roleName: data.originalRole || '', renameRole: data.originalRenameRole || '' })
         }
       }
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [selectedNode, updateFileId, updateTabType, updateSubcategory, fileTypes, getCurrentNavigationState, documentSettings],
-  );
-
-  const initiateFileUpdate = (file: UploadedFile, tabType: "I_Do" | "We_Do" | "You_Do", subcategory: string) => {
-    setUpdateFileId(file.id);
-    const fileType = file.type || '';
-    const foundFileType = fileTypes?.find((type) => fileType.includes(type.key))?.key || "";
-
-    setUpdateFileType(foundFileType);
-    setUpdateTabType(tabType);
-    setUpdateSubcategory(subcategory);
-    setShowUploadModal(true);
-    setSelectedFileType(foundFileType);
-
-    setFileNames({ [file.id]: file.name });
-    setFileDisplayNames({ [file.id]: file.name });
-    setUploadDescription(file?.description || '');
-    setUploadTags(file?.tags || []);
-    setUploadAccessLevel(file?.accessLevel || 'private');
-
-    if (file.id) {
-      setDocumentSettings(prev => ({
-        ...prev,
-        [file.id]: {
-          studentShow: file.fileSettings?.showToStudents ?? true,
-          downloadAllow: file.fileSettings?.allowDownload ?? true
-        }
-      }));
-    }
-
-    if (foundFileType === 'url' || fileType.includes('url') || fileType.includes('link')) {
-      let existingUrl = '';
-      if (typeof file.url === 'string') {
-        existingUrl = file.url;
-      } else if (file.url && typeof file.url === 'object' && 'base' in file.url) {
-        existingUrl = (file.url as any).base || '';
-      }
-      setFolderUrl(existingUrl);
-      setUrlFileName(file.name || 'URL Resource');
-      setUrlFileType(file.type || 'url/link');
-    } else {
-      setFolderUrl('');
-      setUrlFileName('');
-      setUrlFileType('url/link');
-    }
-
-    setSelectedFiles([]);
-    setUploadingFiles([]);
-  };
-
-  const getFileIcon = (type: string, fileName?: string, isReference?: boolean) => {
-    const lowerType = type.toLowerCase();
-    const lowerFileName = fileName?.toLowerCase() || '';
-
-    if (lowerType.includes("url") || lowerType.includes("link") || lowerFileName.startsWith("http")) {
-      return <Link2 style={{ color: "#10b981" }} size={16} />;
-    }
-
-    const isReferenceFile = isReference === true || String(isReference).toLowerCase() === "true";
-    if (isReferenceFile || lowerType.includes("reference") || lowerFileName.includes("reference")) {
-      return <BookOpen style={{ color: "#8b5cf6" }} size={16} />;
-    }
-
-    const fileExtension = lowerFileName.split('.').pop();
-    if (fileExtension === 'pdf' || lowerType.includes("pdf")) {
-      return <FileText style={{ color: "#ef4444" }} size={16} />;
-    }
-    if (fileExtension === 'ppt' || fileExtension === 'pptx' ||
-      lowerType.includes("powerpoint") || lowerType.includes("presentation")) {
-      return <Presentation style={{ color: "#d97706" }} size={16} />;
-    }
-    const videoExtensions = ['mp4', 'avi', 'mov', 'mkv', 'webm', 'ogg', 'flv', 'wmv', 'm4v', '3gp', 'mpg', 'mpeg'];
-    if (videoExtensions.includes(fileExtension || '') || lowerType.includes("video")) {
-      return <Video style={{ color: "#8b5cf6" }} size={16} />;
-    }
-    const archiveExtensions = ['zip', 'rar', '7z', 'tar', 'gz'];
-    if (archiveExtensions.includes(fileExtension || '') || lowerType.includes("zip") || lowerType.includes("archive")) {
-      return <Archive style={{ color: "#f59e0b" }} size={16} />;
-    }
-    return <FileText style={{ color: "#6b7280" }} size={16} />;
-  };
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return "0 Bytes";
-    const k = 1024;
-    const sizes = ["Bytes", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
-  };
-
-const renderHierarchy = (nodes: CourseNode[]) => {
-  // Check sidebar width for collapsed state
-  const isCollapsed = sidebarWidth <= 100;
-  
-  if (isCollapsed) {
-    // Show only the selected node when sidebar is collapsed
-    if (selectedNode) {
-      // Get icon based on node type
-      const getNodeIcon = (type: string) => {
-        switch (type) {
-          case "module": return <Library size={18} />;
-          case "submodule": return <FolderOpen size={18} />;
-          case "topic": return <FileText size={18} />;
-          case "subtopic": return <FileIcon size={18} />;
-          default: return <FileIcon size={18} />;
-        }
-      };
-      
-      // Get colors based on node type
-      const getNodeColors = (type: string) => {
-        switch (type) {
-          case "module":
-            return { bg: "bg-blue-100", text: "text-blue-700", icon: "text-blue-600" };
-          case "submodule":
-            return { bg: "bg-indigo-100", text: "text-indigo-700", icon: "text-indigo-600" };
-          case "topic":
-            return { bg: "bg-emerald-100", text: "text-emerald-700", icon: "text-emerald-600" };
-          case "subtopic":
-            return { bg: "bg-amber-100", text: "text-amber-700", icon: "text-amber-600" };
-          default:
-            return { bg: "bg-gray-100", text: "text-gray-700", icon: "text-gray-600" };
-        }
-      };
-      
-      const colors = getNodeColors(selectedNode.type);
-      
-      return (
-        <div className="flex flex-col items-center p-3 text-center space-y-3">
-          {/* Selected Node Icon and Name */}
-          <div 
-            className="w-12 h-12 rounded-xl flex items-center justify-center mb-1 cursor-pointer hover:opacity-90 transition-opacity"
-            onClick={() => setSidebarWidth(280)} // Click to expand
-            style={{ backgroundColor: colors.bg.replace('bg-', '').split('-')[0] === 'bg' ? '' : colors.bg }}
-          >
-            <div className={`${colors.icon}`}>
-              {getNodeIcon(selectedNode.type)}
-            </div>
-          </div>
-          
-          {/* Selected Node Name */}
-          <div className="space-y-1">
-            <div className="text-xs font-semibold text-gray-700 truncate max-w-[80px]">
-              {selectedNode.name}
-            </div>
-            <div className="text-[10px] text-gray-500 capitalize">
-              {selectedNode.type}
-            </div>
-          </div>
-          
-          {/* Divider */}
-          <div className="w-full border-t border-gray-100 my-2"></div>
-          
-          {/* Expand Hint */}
-          <div className="text-[10px] text-gray-400 mt-2">
-            Click icon to expand
-          </div>
-        </div>
-      );
-    } else {
-      // No node selected - show default collapsed view
-      return (
-        <div className="flex flex-col items-center justify-center p-4 text-center space-y-2">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center shadow-sm">
-            <BookOpen size={16} className="text-blue-600" />
-          </div>
-          <div>
-            <p className="text-xs font-semibold text-gray-700">Course Tree</p>
-            <p className="text-[10px] text-gray-500 mt-0.5">
-              Select a node
-            </p>
-          </div>
-        </div>
-      );
-    }
-  }
-  if (searchQuery.trim()) {
-    return (
-      <div className="flex flex-col h-full">
-        <div className="px-3 py-2 border-b border-gray-100 bg-gray-50/50">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-gray-700">
-              Search Results
-            </span>
-            <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
-              {searchResults.length}
-            </span>
-          </div>
-        </div>
-        <div className="p-2 space-y-1">
-          {searchResults.length === 0 && !isSearching ? (
-            <div className="text-center py-6">
-              <Search size={20} className="mx-auto text-gray-300 mb-2" />
-              <p className="text-xs text-gray-500">No results found</p>
-            </div>
-          ) : (
-            searchResults.map((node) => (
-              <SearchResultNode
-                key={node.id}
-                node={node}
-                onSelect={selectNode}
-                isSelected={selectedNode?.id === node.id}
-                selectedNode={selectedNode}
-              />
-            ))
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  const renderNode = (node: CourseNode, depth = 0) => {
-    const hasChildren = node.children && node.children.length > 0;
-    const isExpanded = expandedNodes.has(node.id);
-    const isSelected = selectedNode?.id === node.id;
-    
-    // Calculate indentation with lines
-    const indentSize = 20; // pixels per level
-    const totalIndent = depth * indentSize;
-    
-    // Icons based on node type
-    const getNodeIcon = (type: string) => {
-      switch (type) {
-        case "module": return <Library size={14} />;
-        case "submodule": return <FolderOpen size={14} />;
-        case "topic": return <FileText size={14} />;
-        case "subtopic": return <FileIcon size={14} />;
-        default: return <FileIcon size={14} />;
-      }
-    };
-    
-    // Colors based on node type
-    const getNodeColors = (type: string) => {
-      switch (type) {
-        case "module":
-          return {
-            bg: isSelected ? "bg-blue-50" : "hover:bg-blue-50/50",
-            text: isSelected ? "text-blue-700" : "text-gray-700",
-            border: "border-l-2 border-blue-300",
-            iconBg: "bg-blue-100",
-            iconColor: "text-blue-600"
-          };
-        case "submodule":
-          return {
-            bg: isSelected ? "bg-indigo-50" : "hover:bg-indigo-50/50",
-            text: isSelected ? "text-indigo-700" : "text-gray-700",
-            border: "border-l-2 border-indigo-300",
-            iconBg: "bg-indigo-100",
-            iconColor: "text-indigo-600"
-          };
-        case "topic":
-          return {
-            bg: isSelected ? "bg-emerald-50" : "hover:bg-emerald-50/50",
-            text: isSelected ? "text-emerald-700" : "text-gray-700",
-            border: "border-l-2 border-emerald-300",
-            iconBg: "bg-emerald-100",
-            iconColor: "text-emerald-600"
-          };
-        case "subtopic":
-          return {
-            bg: isSelected ? "bg-amber-50" : "hover:bg-amber-50/50",
-            text: isSelected ? "text-amber-700" : "text-gray-700",
-            border: "border-l-2 border-amber-300",
-            iconBg: "bg-amber-100",
-            iconColor: "text-amber-600"
-          };
-        default:
-          return {
-            bg: isSelected ? "bg-gray-50" : "hover:bg-gray-50",
-            text: isSelected ? "text-gray-900" : "text-gray-700",
-            border: "border-l-2 border-gray-300",
-            iconBg: "bg-gray-100",
-            iconColor: "text-gray-600"
-          };
-      }
-    };
-    
-    const colors = getNodeColors(node.type);
-
-    return (
-      <div key={node.id} className="relative">
-        {/* Horizontal lines for hierarchy visualization */}
-        {depth > 0 && (
-          <div className="absolute left-0 top-0 bottom-0 flex">
-            {/* Vertical connecting lines */}
-            {Array.from({ length: depth }).map((_, level) => {
-              const levelIndent = (level + 1) * indentSize - indentSize / 2;
-              return (
-                <div
-                  key={level}
-                  className="absolute w-px bg-gray-200"
-                  style={{
-                    left: `${levelIndent}px`,
-                    top: "0",
-                    bottom: "0",
-                    height: "100%"
-                  }}
-                />
-              );
-            })}
-          </div>
-        )}
-        
-        <div
-          onClick={(e) => {
-            e.stopPropagation();
-            if (hasChildren) {
-              toggleNode(node.id);
-            } else {
-              selectNode(node);
-            }
-          }}
-          className={`
-            relative flex items-center gap-2 px-3 py-2 cursor-pointer transition-all duration-200
-            ${colors.bg} ${colors.border} ${colors.text}
-            hover:shadow-sm group
-          `}
-          style={{ 
-            paddingLeft: `${totalIndent + 32}px`,
-            marginLeft: `${depth > 0 ? indentSize / 2 : 0}px`
-          }}
-        >
-          {/* Expand/Collapse Chevron with line */}
-          {hasChildren && (
-            <div className="absolute left-0 flex items-center justify-center w-6 h-6">
-              <ChevronRight
-                size={12}
-                className={`
-                  text-gray-400 transition-transform duration-200
-                  ${isExpanded ? 'rotate-90' : ''}
-                `}
-                style={{ 
-                  left: `${totalIndent - 6}px`,
-                  backgroundColor: 'white',
-                  borderRadius: '4px',
-                  zIndex: 1
-                }}
-              />
-              {/* Horizontal line from chevron to content */}
-              <div 
-                className="absolute h-px bg-gray-200 top-1/2"
-                style={{
-                  left: `${totalIndent + 6}px`,
-                  right: "calc(100% - 24px)",
-                  transform: "translateY(-50%)"
-                }}
-              />
-            </div>
-          )}
-          
-          {/* Icon */}
-          <div className={`
-            flex-shrink-0 w-7 h-7 rounded-md flex items-center justify-center
-            ${colors.iconBg} ${colors.iconColor}
-            ring-2 ring-white
-          `}>
-            {getNodeIcon(node.type)}
-          </div>
-
-          {/* Node Name */}
-          <div className="flex-1 min-w-0">
-            <div className="text-xs font-medium truncate">
-              {node.name}
-            </div>
-            {node.type !== "course" && (
-              <div className="text-[10px] text-gray-500 mt-0.5 capitalize">
-                {node.type}
-              </div>
-            )}
-          </div>
-
-          {/* Selection Indicator */}
-          {isSelected && (
-            <div className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-          )}
-          
-          {/* Hover action indicator */}
-          <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-            <ChevronRight size={12} className="text-gray-400" />
-          </div>
-        </div>
-
-        {/* Children - with connecting lines */}
-        {hasChildren && isExpanded && (
-          <div className="relative">
-            {/* Vertical connecting line from parent to children */}
-            {node.children && node.children.length > 0 && (
-              <div 
-                className="absolute w-px bg-gray-200"
-                style={{
-                  left: `${totalIndent + indentSize / 2}px`,
-                  top: "0",
-                  bottom: "0",
-                  height: "100%"
-                }}
-              />
-            )}
-            
-            <div className="ml-0">
-              {node.children!.map((child) => renderNode(child, depth + 1))}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  return (
-    <div className="relative">
-     
-      {/* Course Structure Tree */}
-      <div className="py-2">
-        {courseData[0]?.children?.map((module) => renderNode(module, 0))}
-      </div>
-      
-      {courseData.length === 0 && (
-        <div className="px-3 py-8 text-center">
-          <div className="w-10 h-10 mx-auto mb-3 bg-gray-100 rounded-full flex items-center justify-center">
-            <BookOpen size={16} className="text-gray-400" />
-          </div>
-          <p className="text-xs text-gray-500">No course content</p>
-        </div>
-      )}
-    </div>
-  );
-};
-
-const SearchResultNode: React.FC<{
-  node: CourseNode;
-  onSelect: (node: CourseNode) => void;
-  isSelected: boolean;
-  selectedNode: CourseNode | null;
-}> = ({ node, onSelect, isSelected, selectedNode }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const hasChildren = node.children && node.children.length > 0;
-
-  const getNodeTypeLabel = (type: string) => {
-    switch (type) {
-      case "module": return "Module";
-      case "submodule": return "Submodule";
-      case "topic": return "Topic";
-      case "subtopic": return "Subtopic";
-      default: return type;
-    }
-  };
-
-  const getTypeColors = (type: string) => {
-    switch (type) {
-      case "module":
-        return {
-          bg: "bg-blue-100",
-          text: "text-blue-700",
-          border: "border-blue-200",
-          hover: "hover:bg-blue-50",
-          selected: "bg-blue-50 border-l-2 border-blue-300"
-        };
-      case "submodule":
-        return {
-          bg: "bg-indigo-100",
-          text: "text-indigo-700",
-          border: "border-indigo-200",
-          hover: "hover:bg-indigo-50",
-          selected: "bg-indigo-50 border-l-2 border-indigo-300"
-        };
-      case "topic":
-        return {
-          bg: "bg-emerald-100",
-          text: "text-emerald-700",
-          border: "border-emerald-200",
-          hover: "hover:bg-emerald-50",
-          selected: "bg-emerald-50 border-l-2 border-emerald-300"
-        };
-      case "subtopic":
-        return {
-          bg: "bg-amber-100",
-          text: "text-amber-700",
-          border: "border-amber-200",
-          hover: "hover:bg-amber-50",
-          selected: "bg-amber-50 border-l-2 border-amber-300"
-        };
-      default:
-        return {
-          bg: "bg-gray-100",
-          text: "text-gray-700",
-          border: "border-gray-200",
-          hover: "hover:bg-gray-50",
-          selected: "bg-gray-50 border-l-2 border-gray-300"
-        };
-    }
-  };
-
-  const getNodeIcon = (type: string) => {
-    switch (type) {
-      case "module": return Library;
-      case "submodule": return FolderOpen;
-      case "topic": return FileText;
-      case "subtopic": return FileIcon;
-      default: return FileIcon;
-    }
-  };
-
-  const Icon = getNodeIcon(node.type);
-  const colors = getTypeColors(node.type);
-
-  return (
-    <div className="mb-1">
-      <div
-        className={`flex items-center p-2 rounded-lg cursor-pointer transition-all duration-200 border-l-2
-        ${isSelected
-            ? colors.selected
-            : `bg-white border-gray-200 ${colors.hover}`
-          }`}
-        onClick={() => onSelect(node)}
-        style={{ marginLeft: `${node.level * 12}px` }}
-      >
-        {/* Left border line */}
-        <div 
-          className={`absolute left-0 top-0 bottom-0 w-0.5 ${colors.bg}`}
-          style={{ left: `${node.level * 12}px` }}
-        />
-        
-        <div className={`flex-shrink-0 w-6 h-6 rounded-md flex items-center justify-center mr-2 ${colors.bg}`}>
-          <Icon size={12} className={colors.text} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className={`text-xs font-medium truncate ${colors.text}`}>
-            {node.name}
-          </div>
-          <div className="text-[10px] text-gray-500 flex items-center gap-1">
-            <span className="px-1 py-0.5 bg-gray-100 rounded text-gray-600">
-              {getNodeTypeLabel(node.type)}
-            </span>
-            {node.originalData?.description && (
-              <span className="truncate flex-1">{node.originalData.description}</span>
-            )}
-          </div>
-        </div>
-        {hasChildren && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setIsExpanded(!isExpanded);
-            }}
-            className="p-1 hover:bg-gray-200 rounded transition-colors"
-          >
-            <ChevronDown
-              size={14}
-              className={`text-gray-500 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
-            />
-          </button>
-        )}
-      </div>
-      {hasChildren && isExpanded && (
-        <div className="relative ml-6 mt-1">
-          {/* Vertical line connecting parent to children */}
-          <div 
-            className="absolute left-3 top-0 bottom-0 w-px bg-gray-200"
-          />
-          <div className="space-y-1">
-            {node.children!.map((child) => (
-              <SearchResultNode
-                key={child.id}
-                node={child}
-                onSelect={onSelect}
-                isSelected={selectedNode?.id === child.id}
-                selectedNode={selectedNode}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
-
-  const toggleActionsDropdown = (id: string) => {
-    setOpenDropdown(openDropdown === id ? null : id);
-  };
-
-  const checkDropdownOpen = (id: string) => {
-    return openDropdown === id;
-  };
-
-  const closeAllDropdowns = () => {
-    setOpenDropdown(null);
-  };
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (!(event.target as Element).closest('.dropdown-container')) {
-        closeAllDropdowns();
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
-
-  const renderFileList = (
-    folders: FolderItem[],
-    files: UploadedFile[],
-    tabType: "I_Do" | "We_Do" | "You_Do" | null,
-    subcategory: string
-  ) => {
-    const handleFolderClick = (folderId: string, folderName: string) => {
-      navigateToFolder(folderId, folderName);
-    };
-
-    const handleDeleteClick = (type: "folder" | "file", item: FolderItem | UploadedFile, name: string) => {
-      setDeleteTarget({ type, item, name });
-      setShowDeleteConfirm(true);
-    };
-
-    const calculateDropdownPosition = (buttonElement: HTMLElement) => {
-      const buttonRect = buttonElement.getBoundingClientRect();
-      const viewportHeight = window.innerHeight;
-      const viewportWidth = window.innerWidth;
-      const dropdownHeight = 220;
-      const dropdownWidth = 192;
-      const position = { top: 0, left: 0 };
-
-      if (buttonRect.bottom + dropdownHeight <= viewportHeight - 10) {
-        position.top = buttonRect.bottom + 5;
-      } else {
-        position.top = buttonRect.top - dropdownHeight - 5;
-      }
-
-      if (buttonRect.left + dropdownWidth <= viewportWidth - 10) {
-        position.left = buttonRect.left;
-      } else {
-        position.left = buttonRect.right - dropdownWidth;
-      }
-      return position;
-    };
-
-    const handleToggleDropdown = (id: string, event: React.MouseEvent) => {
-      event.preventDefault();
-      event.stopPropagation();
-      toggleActionsDropdown(id);
-      setTimeout(() => {
-        const dropdownElement = document.querySelector(`[data-dropdown-id="${id}"]`) as HTMLElement;
-        const buttonElement = event.currentTarget as HTMLElement;
-        if (dropdownElement && buttonElement) {
-          const position = calculateDropdownPosition(buttonElement);
-          dropdownElement.style.top = `${position.top}px`;
-          dropdownElement.style.left = `${position.left}px`;
-        }
-      }, 0);
-    };
-
-    return (
-      <div className="bg-white  border border-slate-200 shadow-sm relative flex flex-col h-full overflow-hidden">
-        <div className="flex-none grid grid-cols-12 gap-4 px-4 py-3 border-b border-slate-200 bg-slate-50 text-xs font-bold text-slate-500 uppercase tracking-wider z-10">
-          <div className="col-span-6 flex items-center">Name</div>
-          <div className="col-span-2">Created</div>
-          <div className="col-span-2">Size</div>
-          <div className="col-span-2 text-center">Actions</div>
-        </div>
-        <div className="flex-1 overflow-y-auto thin-scrollbar">
-          {folders.map((folder) => (
-            <div
-              key={folder.id}
-              onClick={() => handleFolderClick(folder.id, folder.name)}
-              className="grid grid-cols-12 gap-4 px-4 py-3 border-b border-slate-100 hover:bg-blue-50/50 cursor-pointer transition-colors duration-200 items-center relative group"
-            >
-              <div className="col-span-6 flex items-center gap-3 min-w-0">
-                <img src="/active-images/folder.png" alt="Folder" className="w-6 h-6 flex-shrink-0 object-contain drop-shadow-sm" />
-                <div className="flex flex-col min-w-0 justify-center">
-                  <span className="text-[13px] font-semibold text-slate-700 truncate group-hover:text-blue-600 transition-colors">
-                    {folder.name}
-                  </span>
-                  {folder.tags && folder.tags.length > 0 && (
-                    <div className="flex items-center gap-1 mt-1">
-                      {folder.tags.map((tag, index) => (
-                        <div key={index} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border" style={{ borderColor: `${tag.tagColor}30`, backgroundColor: `${tag.tagColor}08`, color: tag.tagColor || '#64748b' }}>
-                          {tag.tagName}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="col-span-2 text-xs text-slate-500 font-medium">{new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
-              <div className="col-span-2 text-xs text-slate-500 font-medium">{getFolderItemCount(folder.id)} items</div>
-              <div className="col-span-2 flex items-center justify-center dropdown-container">
-                <button type="button" onClick={(e) => handleToggleDropdown(`folder-${folder.id}`, e)} className="p-1.5 rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors">
-                  <MoreVertical size={18} />
-                </button>
-                {checkDropdownOpen(`folder-${folder.id}`) && (
-                  <div data-dropdown-id={`folder-${folder.id}`} className="fixed w-48 bg-white rounded-lg shadow-xl ring-1 ring-black/5 z-[100] overflow-hidden py-1 border border-slate-100 animate-in fade-in zoom-in-95 duration-100">
-                    <button type="button" onClick={(e) => { e.stopPropagation(); editFolder(folder); closeAllDropdowns(); }} className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 hover:text-blue-600 transition-colors">
-                      <Edit2 size={14} /> Edit Folder
-                    </button>
-                    <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteClick("folder", folder, folder.name); closeAllDropdowns(); }} className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors">
-                      <Trash2 size={14} /> Delete
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
-          {files.map((file) => {
-            const isReferenceFile = file.isReference === true || String(file.isReference) === "true";
-            const isUrlFile = file.type?.includes("url") || file.type?.includes("link");
-            return (
-              <div key={file.id} className="grid grid-cols-12 gap-4 px-4 py-3 border-b border-slate-100 hover:bg-slate-50 transition-colors duration-200 items-center last:border-0 relative group">
-                <div className="col-span-6 flex items-center gap-3 min-w-0">
-                  <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-slate-100 rounded-lg text-slate-500 ring-1 ring-slate-900/5">
-                    {getFileIcon(file.type || '', file.name, isReferenceFile)}
-                  </div>
-                  <div className="flex flex-col min-w-0 justify-center">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="text-[13px]  text-slate-700 truncate group-hover:text-blue-600 transition-colors cursor-pointer hover:underline"
-                        title={file.name}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          handleFileClick(file, tabType, subcategory);
-                        }}
-                      >
-                        {file.name}
-                      </span>
-                      {isReferenceFile && <span className="flex-shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700 border border-purple-200">REF</span>}
-                    </div>
-                    {file.tags && file.tags.length > 0 && (
-                      <div className="flex items-center gap-1 mt-1">
-                        {file.tags.slice(0, 3).map((tag, index) => (
-                          <span key={index} className="text-[10px] font-medium flex items-center gap-1 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200" style={{ color: tag.tagColor || '#64748b' }}>
-                            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: tag.tagColor }}></span>
-                            {tag.tagName}
-                          </span>
-                        ))}
-                        {file.tags.length > 3 && <span className="text-[10px] text-slate-400 pl-1">+{file.tags.length - 3}</span>}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className="col-span-2 text-xs text-slate-500 font-medium">{file.uploadedAt ? new Date(file.uploadedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '-'}</div>
-                <div className="col-span-2 text-xs text-slate-500 font-medium">{file.size ? formatFileSize(file.size) : '-'}</div>
-                <div className="col-span-2 flex items-center justify-center dropdown-container">
-                  <button type="button" onClick={(e) => handleToggleDropdown(`file-${file.id}`, e)} className="p-1.5 rounded-md text-slate-400 hover:text-slate-900 hover:bg-slate-200 transition-colors">
-                    <MoreVertical size={18} />
-                  </button>
-                  {checkDropdownOpen(`file-${file.id}`) && (
-                    <div data-dropdown-id={`file-${file.id}`} className="fixed w-48 bg-white rounded-lg shadow-xl ring-1 ring-black/5 z-[100] overflow-hidden py-1 border border-slate-100 animate-in fade-in zoom-in-95 duration-100">
-                      <button type="button" onClick={(e) => { e.stopPropagation(); handleFileClick(file, tabType, subcategory); closeAllDropdowns(); }} className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-colors">
-                        {isUrlFile ? <ExternalLink size={14} /> : <Eye size={14} />}
-                        {isUrlFile ? "Open Link" : "Preview"}
-                      </button>
-                      {!isUrlFile && (
-                        <button type="button" onClick={(e) => {
-                          e.stopPropagation();
-                          const link = document.createElement("a");
-                          let url = '';
-                          if (typeof file.url === 'string') {
-                            url = file.url;
-                          } else if (file.url && typeof file.url === 'object' && 'base' in file.url) {
-                            url = (file.url as any).base;
-                          }
-                          link.href = url;
-                          link.download = file.name || 'download';
-                          document.body.appendChild(link);
-                          link.click();
-                          document.body.removeChild(link);
-                          closeAllDropdowns();
-                        }}
-                          className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 hover:text-green-600 transition-colors">
-                          <Download size={14} /> Download
-                        </button>
-                      )}
-                      <button type="button" onClick={(e) => { e.stopPropagation(); initiateFileUpdate(file, tabType || "I_Do", subcategory); closeAllDropdowns(); }} className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 hover:text-amber-600 transition-colors">
-                        <RefreshCw size={14} /> Update
-                      </button>
-                      <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteClick("file", file, file.name || 'Unknown file'); closeAllDropdowns(); }} className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors border-t border-slate-50 mt-1">
-                        <Trash2 size={14} /> Delete
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-          {folders.length === 0 && files.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-16 text-slate-400">
-              <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-3">
-                <FileText size={32} strokeWidth={1.5} className="text-slate-300" />
-              </div>
-              <p className="text-sm font-semibold text-slate-600">No content found</p>
-              <p className="text-xs mt-1">Upload files or create folders to get started</p>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  const handleMouseDown = (e: React.MouseEvent) => {
-    setIsResizing(true)
-    e.preventDefault()
-  }
-
-  const handleMouseMove = (e: MouseEvent) => {
-    if (!isResizing) return
-    const newWidth = e.clientX
-    if (newWidth >= 200 && newWidth <= 500) {
-      setSidebarWidth(newWidth)
-    }
-  }
-
-  const resetUploadModalStates = () => {
-    setShowUploadModal(false);
-    setSelectedFileType("");
-    setUploadingFiles([]);
-    setUpdateFileId(null);
-    setFileNames({});
-    setSelectedFiles([]);
-    setUploadDescription('');
-    setUploadTags([]);
-    setUploadCurrentTag('');
-    setUploadTagColor('#3B82F6');
-    setUploadAccessLevel('private');
-    setIsUploadDropdownOpen(false);
-    setFolderUrl('');
-    setUrlFileName('');
-    setUrlFileType('url/link');
-    setIsButtonLoading(false);
-    setText('');
-  };
-
-  const handleMouseUp = () => {
-    setIsResizing(false)
+    } catch { }
   }
 
   useEffect(() => {
-    if (selectedNode) {
-      const forceRefreshData = async () => {
-        await refreshContentData(selectedNode);
-      };
-      forceRefreshData();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedNode?.id]);
-
-  useEffect(() => {
-    if (isResizing) {
-      document.addEventListener("mousemove", handleMouseMove)
-      document.addEventListener("mouseup", handleMouseUp)
-      return () => {
-        document.removeEventListener("mousemove", handleMouseMove)
-        document.removeEventListener("mouseup", handleMouseUp)
-      }
-    }
-  }, [isResizing])
-
-  // --- Utility Helpers ---
-
-  const getParentNodeName = (node: CourseNode, targetType: string): string => {
-    if (!node || !courseData) return "";
-    const findParentNode = (nodes: CourseNode[], targetId: string, parent: CourseNode | null = null): CourseNode | null => {
-      for (const n of nodes) {
-        if (n.id === targetId) return parent;
-        if (n.children) {
-          const found = findParentNode(n.children, targetId, n);
-          if (found) return found;
-        }
-      }
-      return null;
-    };
-    const parentNode = findParentNode(courseData, node.id);
-    if (parentNode) {
-      if (parentNode.type === targetType) return parentNode.name;
-      else return getParentNodeName(parentNode, targetType);
-    }
-    return "";
-  };
-
-  const extractAllVideosFromNode = (node: CourseNode): VideoItem[] => {
-    const videos: VideoItem[] = [];
-    if (!node.originalData?.pedagogy) return videos;
-    const pedagogy = node.originalData.pedagogy;
-
-    const extractVideosFromSection = (sectionData: any) => {
-      if (!sectionData) return;
-      Object.entries(sectionData).forEach(([, subcategoryData]: [string, any]) => {
-        if (subcategoryData?.files) {
-          subcategoryData.files.forEach((file: any) => {
-            if (file.isVideo || file.fileType?.includes('video')) {
-              let fileUrl = '';
-              if (typeof file.fileUrl === 'string') fileUrl = file.fileUrl;
-              else if (file.fileUrl && typeof file.fileUrl === 'object' && file.fileUrl.base) fileUrl = file.fileUrl.base;
-
-              videos.push({
-                id: file._id || `${Date.now()}-${Math.random()}`,
-                title: file.fileName,
-                fileName: file.fileName,
-                fileUrl: fileUrl,
-                availableResolutions: file.availableResolutions || [],
-                isVideo: true
-              });
-            }
-          });
-        }
-        if (subcategoryData?.folders) {
-          const checkFolderForVideos = (folder: any) => {
-            if (folder.files) {
-              folder.files.forEach((file: any) => {
-                if (file.isVideo || file.fileType?.includes('video')) {
-                  let fileUrl = '';
-                  if (typeof file.fileUrl === 'string') fileUrl = file.fileUrl;
-                  else if (file.fileUrl && typeof file.fileUrl === 'object' && file.fileUrl.base) fileUrl = file.fileUrl.base;
-
-                  videos.push({
-                    id: file._id || `${Date.now()}-${Math.random()}`,
-                    title: file.fileName,
-                    fileName: file.fileName,
-                    fileUrl: fileUrl,
-                    availableResolutions: file.availableResolutions || [],
-                    isVideo: true
-                  });
-                }
-              });
-            }
-            if (folder.subfolders) {
-              folder.subfolders.forEach(checkFolderForVideos);
-            }
-          };
-          subcategoryData.folders.forEach(checkFolderForVideos);
-        }
-      });
-    };
-
-    extractVideosFromSection(pedagogy.I_Do);
-    extractVideosFromSection(pedagogy.We_Do);
-    extractVideosFromSection(pedagogy.You_Do);
-    return videos;
-  };
-
-  const handleVideoClick = (file: UploadedFile, tabType: "I_Do" | "We_Do" | "You_Do", subcategory: string) => {
-    if (!selectedNode) return;
-    let fileUrl = '';
-    if (typeof file.url === 'string') fileUrl = file.url;
-    else if (file.url && typeof file.url === 'object' && 'base' in file.url) fileUrl = (file.url as any).base;
-
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const allVideos = extractAllVideosFromNode(selectedNode);
-    const currentVideoIndex = allVideos.findIndex(video => video.id === file.id || video.fileName === file.name);
-
-    setCurrentVideoUrl(fileUrl);
-    setCurrentVideoName(file.name);
-    setCurrentVideoResolutions(file.availableResolutions || []);
-    setShowVideoViewer(true);
-    setVideoPlaylist(allVideos);
-    setCurrentVideoIndex(currentVideoIndex >= 0 ? currentVideoIndex : 0);
-  };
-
-  const searchCourseStructure = useCallback((query: string, nodes: CourseNode[]): CourseNode[] => {
-    if (!query.trim()) return []
-    const results: CourseNode[] = []
-    const lowerQuery = query.toLowerCase()
-    const searchNodes = (nodeList: CourseNode[]) => {
-      for (const node of nodeList) {
-        const nodeMatches = node.name.toLowerCase().includes(lowerQuery)
-        if (nodeMatches) {
-          results.push(node)
-          if (node.children && node.children.length > 0) {
-            node.children.forEach(child => {
-              if (!results.some(r => r.id === child.id)) results.push(child)
-            })
-          }
-        } else {
-          if (node.children && node.children.length > 0) searchNodes(node.children)
-        }
-      }
-    }
-    searchNodes(nodes)
-    return results
+    checkDummyStudentStatus()
+    const handleStorage = () => checkDummyStudentStatus()
+    window.addEventListener('storage', handleStorage)
+    return () => window.removeEventListener('storage', handleStorage)
   }, [])
 
   useEffect(() => {
-    if (searchQuery.trim()) {
-      setIsSearching(true)
-      const results = searchCourseStructure(searchQuery, courseData)
-      setSearchResults(results)
-      setIsSearching(false)
-    } else {
-      setSearchResults([])
+    const handleClickOutside = (e: MouseEvent) => {
+      if (userRef.current && !userRef.current.contains(e.target as Node)) setShowUserMenu(false)
     }
-  }, [searchQuery, courseData, searchCourseStructure])
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const getUserInitials = () => {
+    if (!user) return "SC"
+    return `${user.firstName?.charAt(0) || ''}${user.lastName?.charAt(0) || ''}`.toUpperCase()
+  }
+
+  const isActualStudent = () => {
+    if (!user) return false
+    return user.role?.roleName?.toLowerCase().includes('student') || user.role?.renameRole?.toLowerCase().includes('student')
+  }
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true)
+    try {
+      localStorage.clear()
+      toast.success("Logged out successfully")
+      router.push("/login")
+    } catch { toast.error("Logout failed") }
+    finally { setIsLoggingOut(false) }
+  }
+
+  const handleProfileClick = () => {
+    setShowUserMenu(false)
+    router.push("/lms/pages/studentdashboard/student/profile")
+  }
+
+  const handleSwitchToStudent = () => {
+    try {
+      const data = { isDummyStudent: true, originalRole: user?.role?.roleName || '', originalRenameRole: user?.role?.renameRole || '', switchTimestamp: Date.now() }
+      localStorage.setItem('smartcliff_roleSwitch', JSON.stringify(data))
+      localStorage.setItem('smartcliff_isDummyStudent', 'true')
+      setIsDummyStudent(true)
+      setOriginalRoleInfo({ roleName: user?.role?.roleName || '', renameRole: user?.role?.renameRole || '' })
+      setShowUserMenu(false)
+      toast.success("Switched to Student View")
+      router.push("/lms/pages/courses")
+      setTimeout(() => window.dispatchEvent(new Event('storage')), 100)
+    } catch { toast.error("Failed to switch role") }
+  }
+
+  const handleSwitchBackToOriginal = () => {
+    try {
+      localStorage.removeItem('smartcliff_roleSwitch')
+      localStorage.removeItem('smartcliff_isDummyStudent')
+      setIsDummyStudent(false)
+      setOriginalRoleInfo(null)
+      setShowUserMenu(false)
+      toast.success(`Switched back to ${originalRoleInfo?.renameRole || 'your original role'}`)
+      const role = originalRoleInfo?.renameRole?.toLowerCase() || ''
+      if (role.includes('poc')) router.push("/lms/pages/poc/dashboard")
+      else if (role.includes('admin')) router.push("/lms/pages/admin/dashboard")
+      else router.push("/lms/pages/dashboard")
+      setTimeout(() => window.dispatchEvent(new Event('storage')), 100)
+    } catch { toast.error("Failed to switch role") }
+  }
 
   if (!courseId) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-amber-500 text-4xl mb-4">⚠️</div>
-          <p className="text-amber-600 text-sm font-medium">No course ID provided</p>
-          <p className="text-slate-500 text-xs mt-2">Please select a course first</p>
-        </div>
-      </div>
-    )
-  }
-
-  const extractFileNameFromUrl = (url: string) => {
-    try {
-      const decoded = decodeURIComponent(url);
-      const fileName = decoded.split('/').pop()?.split('?')[0];
-      return fileName || "external_link";
-    } catch {
-      return "external_link";
-    }
-  };
-
-  const FilterSection = () => {
-    const getAvailableFileTypes = useMemo(() => {
-      if (!selectedNode || !activeTab) return [];
-      const currentTabData = contentData[selectedNode.id]?.[activeTab] || {};
-      const currentSubcategoryData = currentTabData[activeSubcategory] || [];
-
-      const extractFileTypesFromItems = (items: (FolderItem | UploadedFile)[]): string[] => {
-        const types: string[] = [];
-        items.forEach(item => {
-          if (isFolderItem(item)) {
-            types.push('folder');
-            if (item.subfolders?.length) types.push(...extractFileTypesFromItems(item.subfolders));
-            if (item.files?.length) types.push(...extractFileTypesFromItems(item.files));
-          } else if (isUploadedFile(item)) {
-            const file = item;
-            if (file.type?.includes("url") || file.type?.includes("link") || file.name?.includes("http")) types.push('url');
-            else if (file.isReference === true || String(file.isReference) === "true") types.push('reference');
-            else if (file.type?.includes("pdf") || file.name?.toLowerCase().endsWith(".pdf")) types.push('pdf');
-            else if (file.type?.includes("ppt") || file.name?.toLowerCase().endsWith(".ppt") || file.name?.toLowerCase().endsWith(".pptx")) types.push('ppt');
-            else if (file.type?.includes("video") || file.name?.match(/\.(mp4|avi|mov|mkv|webm|ogg|flv|wmv|m4v|3gp|mpg|mpeg)$/i)) types.push('video');
-            else if (file.type?.includes("zip") || file.name?.toLowerCase().endsWith(".zip")) types.push('zip');
-            else if (file.type) {
-              const matchedType = fileTypes.find(ft => file.type?.includes(ft.key) || ft.key === file.type);
-              if (matchedType) types.push(matchedType.key);
-            }
-          }
-        });
-        return types;
-      };
-
-      const { folders: currentFolders, files: currentFiles } = getCurrentFolderContents();
-      const allFileTypes = extractFileTypesFromItems([...currentFolders, ...currentFiles]);
-      const uniqueTypes = [...new Set(allFileTypes)];
-
-      const getIconForType = (type: string) => {
-        switch (type) {
-          case 'folder': return <Folder size={14} />;
-          case 'url': return <Link size={14} />;
-          case 'reference': return <Bookmark size={14} />;
-          case 'pdf': return <FileText size={14} />;
-          case 'ppt': return <MonitorPlay size={14} />;
-          case 'video': return <Video size={14} />;
-          case 'zip': return <FileArchive size={14} />;
-          default: return <File size={14} />;
-        }
-      };
-
-      const baseOptions = uniqueTypes.includes('folder') ? [{
-        value: 'folder', label: 'Folders', icon: <Folder size={14} />,
-      }] : [];
-
-      const dynamicOptions = uniqueTypes.filter(type => type !== 'folder').map(type => {
-        const fileTypeConfig = fileTypes.find(ft => ft.key === type);
-        const icon = fileTypeConfig
-          ? React.cloneElement(fileTypeConfig.icon, { size: 14 })
-          : getIconForType(type);
-
-        return {
-          value: type,
-          label: fileTypeConfig?.label || type.charAt(0).toUpperCase() + type.slice(1),
-          icon: icon,
-        };
-      });
-
-      return [...baseOptions, ...dynamicOptions];
-    }, [selectedNode, contentData, activeTab, activeSubcategory, fileTypes]);
-
-    const [searchInput, setSearchInput] = useState('');
-
-    const handleFileTypeToggle = (fileType: string) => {
-      setActiveFilters(prev => ({
-        ...prev,
-        fileTypes: prev.fileTypes.includes(fileType)
-          ? prev.fileTypes.filter(type => type !== fileType)
-          : [...prev.fileTypes, fileType]
-      }));
-    };
-
-    const handleSelectAll = () => setActiveFilters(prev => ({ ...prev, fileTypes: [] }));
-
-    const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      setSearchInput(e.target.value);
-    };
-
-    const handleSearchSubmit = (e: React.FormEvent) => {
-      e.preventDefault();
-      setActiveFilters(prev => ({ ...prev, searchFilter: searchInput }));
-    };
-
-    const handleClearSearch = () => {
-      setSearchInput('');
-      setActiveFilters(prev => ({ ...prev, searchFilter: '' }));
-    };
-
-    const isAllSelected = activeFilters.fileTypes.length === 0;
-
-    return (
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 w-full">
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar mask-linear-fade w-full sm:w-auto py-1">
-          <button
-            onClick={handleSelectAll}
-            className={`
-        flex-shrink-0 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 border select-none
-        ${isAllSelected
-                ? "bg-blue-50 text-blue-700 border-blue-200"
-                : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-              }
-      `}
-          >
-            All
-          </button>
-          {getAvailableFileTypes.map((option) => {
-            const isSelected = activeFilters.fileTypes.includes(option.value);
-            return (
-              <button
-                key={option.value}
-                onClick={() => handleFileTypeToggle(option.value)}
-                className={`
-            flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 border select-none
-            ${isSelected
-                    ? "bg-blue-50 text-blue-700 border-blue-200"
-                    : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                  }
-          `}
-              >
-                <span className={isSelected ? "text-blue-500" : "text-gray-400"}>
-                  {option.icon}
-                </span>
-                <span>{option.label}</span>
-              </button>
-            );
-          })}
-        </div>
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          <form onSubmit={handleSearchSubmit} className="relative flex-1 sm:w-64 group">
-            <Search
-              size={16}
-              strokeWidth={2}
-              className={`
-          absolute left-3 top-1/2 -translate-y-1/2 transition-colors duration-200
-          ${searchInput ? 'text-blue-500' : 'text-gray-400 group-focus-within:text-gray-600'}
-        `}
-            />
-            <input
-              type="text"
-              placeholder="Search..."
-              value={searchInput}
-              onChange={handleSearchChange}
-              className="
-          w-full pl-10 pr-9 py-2 rounded-lg text-sm
-          bg-gray-50 border border-transparent text-gray-900 placeholder:text-gray-400
-          focus:bg-white focus:border-blue-100 focus:ring-4 focus:ring-blue-50/50 focus:outline-none
-          transition-all duration-200
-        "
-            />
-            <div className={`
-        absolute right-2 top-1/2 -translate-y-1/2 transition-all duration-200
-        ${searchInput ? 'opacity-100 scale-100' : 'opacity-0 scale-90 pointer-events-none'}
-      `}>
-              <button
-                type="button"
-                onClick={handleClearSearch}
-                className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded-md transition-colors"
-              >
-                <X size={14} strokeWidth={2.5} />
-              </button>
-            </div>
-          </form>
-          <button
-            onClick={handleResourcesModalOpen}
-            className="
-        flex-shrink-0 flex items-center gap-2 px-5 py-2 rounded-lg
-        bg-blue-600 hover:bg-blue-700 active:bg-blue-800
-        text-white text-sm font-medium
-        transition-all duration-200 active:scale-[0.98]
-        border border-transparent
-      "
-          >
-            <Plus size={16} strokeWidth={2.5} />
-            <span className="hidden sm:inline">Add Resource</span>
-            <span className="sm:hidden">Add</span>
-          </button>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: T.pageBg, fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif" }}>
+        <div className="text-center p-8 rounded-2xl" style={{ background: T.bg, border: `1.5px solid ${T.border}`, boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
+          <div className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: T.orangeLight }}>
+            <BookOpen size={20} style={{ color: T.orange }} />
+          </div>
+          <p className="text-[14px] font-bold" style={{ color: T.textMain }}>No course ID provided</p>
+          <p className="text-[12px] mt-1" style={{ color: T.textMuted }}>Please select a course first</p>
         </div>
       </div>
     );
-  };
-  
-  const handleConfirmDelete = async () => {
-    if (!deleteTarget) return;
-
-    if (deleteTarget.type === "folder") {
-      await deleteFolder(deleteTarget.item as FolderItem);
-    } else {
-      const fileId = (deleteTarget.item as UploadedFile).id;
-      if (fileId) {
-        await deleteFile(fileId);
-      }
-    }
-
-    setShowDeleteConfirm(false);
-    setDeleteTarget(null);
-  };
-
-  // Validate Subcategory
-  const currentTabSubcategories = subcategories[activeTab as "I_Do" | "We_Do" | "You_Do"] || [];
-  const isValidSubcategory = currentTabSubcategories.some(sub => sub.key === activeSubcategory);
-
-  // Helper function to get icon for breadcrumb type
-  const getBreadcrumbIcon = (type: string) => {
-    switch (type) {
-      case "dashboard": return <Home size={12} />;
-      case "courses": return <BookOpen size={12} />;
-      case "course": return <BookOpen size={12} />;
-      case "module": return <Library size={12} />;
-      case "submodule": return <FolderOpen size={12} />;
-      case "topic": return <FileText size={12} />;
-      case "subtopic": return <FileIcon size={12} />;
-      default: return <FileText size={12} />;
-    }
-  };
+  }
+  function LMSMenuRow({ icon: Icon, label, sub, color, hoverBg, onClick }: {
+    icon: React.ElementType; label: string; sub: string
+    color: string; hoverBg: string; onClick: () => void
+  }) {
+    return (
+      <button
+        onClick={onClick}
+        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left transition-colors"
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = hoverBg }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent" }}
+      >
+        <Icon size={14} className="flex-shrink-0" style={{ color }} />
+        <div className="min-w-0">
+          <p className="text-[12px] font-medium" style={{ color: T.textMain }}>{label}</p>
+          {sub && <p className="text-[10px]" style={{ color: T.textMuted }}>{sub}</p>}
+        </div>
+      </button>
+    )
+  }
 
   return (
-
     <>
-            <StudentNavbar />
+      <style jsx global>{`
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap');
+        * { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif; }
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background-color: ${T.border}; border-radius: 20px; }
+        .dark .ql-toolbar { background-color: #1f2937; border-color: #374151; }
+        .dark .ql-container { background-color: #111827; border-color: #374151; color: #f3f4f6; }
+        .dark .ql-picker-label, .dark .ql-picker-item, .dark .ql-stroke { color: #9ca3af !important; stroke: #9ca3af !important; }
+        .dark .ql-fill { fill: #9ca3af !important; }
+        .dark .ql-picker-options { background-color: #1f2937; border-color: #374151; }
+        @keyframes animateIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-in { animation: animateIn 0.3s ease-out; }
+      `}</style>
 
-      <div className="h-screen flex flex-col "style={{paddingTop:"70px"}}>
-    
-        {/* Main Application Container */}
-        <div
-          className="h-screen flex flex-col overflow-hidden bg-white "
-          style={{ fontFamily: "Segoe UI, Tahoma, Arial, sans-serif" }}
-        >
-          {/* Global Styles */}
-          <style jsx global>{`
-            .animate-in {
-              animation: animateIn 0.3s ease-out;
-            }
-            
-            @keyframes animateIn {
-              from {
-                opacity: 0;
-                transform: translateY(-5px);
-              }
-              to {
-                opacity: 1;
-                transform: translateY(0);
-              }
-            }
-            
-            .slide-in-from-top-2 {
-              animation: slideInFromTop 0.2s ease-out;
-            }
-            
-            @keyframes slideInFromTop {
-              from {
-                transform: translateY(-10px);
-                opacity: 0;
-              }
-              to {
-                transform: translateY(0);
-                opacity: 1;
-              }
-            }
-            
-            .fade-in {
-              animation: fadeIn 0.3s ease-out;
-            }
-            
-            @keyframes fadeIn {
-              from { opacity: 0; }
-              to { opacity: 1; }
-            }
-            
-            .thin-scrollbar::-webkit-scrollbar {
-              width: 4px;
-              height: 4px;
-            }
-            
-            .thin-scrollbar::-webkit-scrollbar-track {
-              background: transparent;
-            }
-            
-            .thin-scrollbar::-webkit-scrollbar-thumb {
-              background: #d1d5db;
-              border-radius: 2px;
-            }
-            
-            .thin-scrollbar::-webkit-scrollbar-thumb:hover {
-              background: #9ca3af;
-            }
-          `}</style>
+      <div style={{ height: '100vh', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+        <div className="flex flex-col overflow-hidden" style={{ height: '100%', background: T.pageBg }}>
+          <div className="flex-1 flex overflow-hidden relative" style={{ overflow: 'visible' }}>
 
-          {/* Main Layout Flex Container */}
-<div className="flex-1 flex overflow-hidden relative">
-
-{/* --- SIDEBAR START --- */}
-<div
-  className="relative flex flex-col h-full bg-white border-r border-gray-100 transition-all duration-300"
-  style={{ width: `${sidebarWidth}px` }}
->
-  {/* Top section with toggle button */}
-  <div className="flex-shrink-0 p-3 border-b border-gray-100 bg-white">
-    <div className="flex items-center gap-2">
-      <div className="p-1.5 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg shadow-sm">
-        <BookOpen size={14} className="text-white" />
-      </div>
-      
-      {sidebarWidth > 100 && (
-        <div className="flex-1 min-w-0">
-          <h2 className="text-xs font-bold text-gray-900 truncate">
-            {courseStructureResponse?.data?.courseName || "Course"}
-          </h2>
-          <p className="text-[10px] text-gray-500 mt-0.5 truncate">
-            {courseData.length > 0 
-              ? `${courseData[0]?.children?.length || 0} modules` 
-              : "Loading..."
-            }
-          </p>
-        </div>
-      )}
-      
-      {/* Collapse/Expand Icon Button */}
-   {/* In the sidebar top section, replace the collapse button with this: */}
-<button
-  onClick={() => setSidebarWidth(sidebarWidth > 100 ? 80 : 280)}
-  className="ml-auto p-1.5 hover:bg-gray-100 rounded-lg transition-colors group"
-  title={sidebarWidth > 100 ? "Collapse sidebar" : "Expand sidebar"}
->
-  <div className="relative">
-    {sidebarWidth > 100 ? (
-      <ChevronLeft size={16} className="text-gray-600" />
-    ) : (
-      <ChevronRight size={16} className="text-gray-600" />
-    )}
-    {/* Tooltip for better UX */}
-    <div className="absolute right-full top-1/2 -translate-y-1/2 mr-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-      <div className="bg-gray-900 text-white text-xs py-1 px-2 rounded whitespace-nowrap">
-        {sidebarWidth > 100 ? "Collapse" : "Expand"}
-      </div>
-      <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2">
-        <div className="w-1.5 h-1.5 bg-gray-900 rotate-45"></div>
-      </div>
-    </div>
-  </div>
-</button>
-    </div>
-  </div>
-
-  {/* Search Bar - Only show when expanded */}
-  {sidebarWidth > 100 && (
-    <div className="p-3 border-b border-gray-100 bg-white">
-      <div className="relative">
-        <Search size={12} className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-gray-400" />
-        <input
-          type="text"
-          placeholder="Search nodes..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-8 pr-3 py-1.5 text-xs bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-        />
-        {searchQuery && (
-          <button
-            onClick={() => setSearchQuery("")}
-            className="absolute right-2 top-1/2 transform -translate-y-1/2"
-          >
-            <X size={10} className="text-gray-400 hover:text-gray-600" />
-          </button>
-        )}
-      </div>
-    </div>
-  )}
-
-  {/* Course Tree */}
-  <div className="flex-1 overflow-y-auto py-2 thin-scrollbar">
-    {renderHierarchy(courseData)}
-    
-    {courseData.length === 0 && sidebarWidth > 100 && (
-      <div className="px-3 py-8 text-center">
-        <div className="w-10 h-10 mx-auto mb-3 bg-gray-100 rounded-full flex items-center justify-center">
-          <BookOpen size={16} className="text-gray-400" />
-        </div>
-        <p className="text-xs text-gray-500">No course content</p>
-      </div>
-    )}
-  </div>
-
-  {/* Bottom section - Selected node info */}
-  {selectedNode && (
-    <div className="border-t border-gray-100 p-3 bg-white">
-      {sidebarWidth > 100 ? (
-        <div className="flex items-center justify-between">
-          <div className="flex-1 min-w-0">
-            <div className="text-[10px] text-gray-500 font-medium">Selected:</div>
-            <div className="text-xs font-semibold text-gray-900 truncate">
-              {selectedNode.name}
+            {/* ── Sidebar ────────────────────────────────────────────────────── */}
+            <div
+              className="relative flex flex-col h-full flex-shrink-0"
+              style={{ width: `${sidebarWidth}px`, background: T.bg, borderRight: `1.5px solid ${T.border}`, transition: isResizing ? 'none' : 'width 0.2s ease' }}
+            >
+              <CourseSidebar
+                courseData={courseData}
+                selectedNode={selectedNode}
+                expandedNodes={expandedNodes}
+                sidebarWidth={sidebarWidth}
+                searchQuery={searchQuery}
+                courseName={courseStructureResponse?.data?.courseName || "Course"}
+                moduleCount={courseData[0]?.children?.length || 0}
+                onNodeSelect={selectNode}
+                onToggleNode={toggleNode}
+                onSidebarWidthChange={setSidebarWidth}
+                onSearchChange={setSearchQuery}
+                onMouseDown={(e) => { setIsResizing(true); e.preventDefault(); }}
+              />
             </div>
-            <div className="text-[10px] text-gray-400 mt-0.5 capitalize">
-              {selectedNode.type}
+
+            {/* ── Main content ─────────────────────────────────────────────── */}
+            <div className="flex-1 flex flex-col overflow-hidden" style={{ background: T.bg, gap: 0, overflow: 'visible' }}>
+              {/* ── Breadcrumb + User Menu Row ─────────────────────── */}
+              <div
+                className="flex items-center justify-between flex-shrink-0"
+                style={{
+                  background: T.bg,
+                  borderBottom: `1px solid ${T.border}`,
+                }}
+              >
+                {/* Breadcrumb on the left */}
+                <div className="flex-1 min-w-0">
+                  <BreadcrumbBar
+                    breadcrumbs={breadcrumbs}
+                    activeTab={activeTab}
+                    activeSubcategory={activeSubcategory}
+                  />
+                </div>
+
+                {/* User menu on the right */}
+                <div className="flex-shrink-0 pr-4 py-2" ref={userRef}>
+                  {/* Pill trigger */}
+                  <button
+                    onClick={() => setShowUserMenu(!showUserMenu)}
+                    className="flex items-center gap-2.5 transition-all"
+                    style={{
+                      background: showUserMenu ? "#FFF4F1" : "#ffffff",
+                      borderRadius: "999px",
+                      border: `1.5px solid ${showUserMenu ? "#F2775755" : "#e8e4eb"}`,
+                      padding: "5px 12px 5px 6px",
+                      boxShadow: showUserMenu
+                        ? "0 2px 12px rgba(242,119,87,0.25)"
+                        : "0 2px 8px rgba(0,0,0,0.07), 0 1px 3px rgba(0,0,0,0.04)",
+                    }}
+                    onMouseEnter={e => {
+                      if (!showUserMenu) {
+                        (e.currentTarget as HTMLElement).style.background = "#f6f4f7"
+                          ; (e.currentTarget as HTMLElement).style.boxShadow = "0 3px 12px rgba(0,0,0,0.10)"
+                      }
+                    }}
+                    onMouseLeave={e => {
+                      if (!showUserMenu) {
+                        (e.currentTarget as HTMLElement).style.background = "#ffffff"
+                          ; (e.currentTarget as HTMLElement).style.boxShadow = "0 2px 8px rgba(0,0,0,0.07), 0 1px 3px rgba(0,0,0,0.04)"
+                      }
+                    }}
+                  >
+                    {userLoading ? (
+                      <div className="h-8 w-8 rounded-full animate-pulse" style={{ background: T.border }} />
+                    ) : (
+                      <div
+                        className="h-8 w-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0"
+                        style={{
+                          background: `linear-gradient(135deg, ${T.orange}, ${T.orangeDark})`,
+                          boxShadow: `0 2px 8px rgba(242,119,87,0.25)`,
+                        }}
+                      >
+                        {getUserInitials()}
+                      </div>
+                    )}
+                    <div className="hidden sm:block text-left">
+                      <p className="text-[12.5px] font-semibold leading-tight" style={{ color: T.textMain }}>
+                        {user?.firstName || "User"}
+                      </p>
+                      <p className="text-[10px] leading-tight mt-0.5" style={{ color: T.textMuted }}>
+                        {isDummyStudent ? "Student View" : user?.role?.renameRole || "Account"}
+                      </p>
+                    </div>
+                    <ChevronDown
+                      size={14}
+                      className="hidden sm:block ml-0.5"
+                      style={{
+                        color: "#bcbccc",
+                        transform: showUserMenu ? "rotate(180deg)" : "none",
+                        transition: "transform 0.2s",
+                      }}
+                    />
+                  </button>
+
+                  {/* Dropdown */}
+                  {showUserMenu && (
+                    <div
+                      className="absolute right-4 mt-2 w-64 overflow-hidden"
+                      style={{
+                        background: T.bg,
+                        borderRadius: "18px",
+                        border: `1px solid ${T.border}`,
+                        boxShadow: "0 16px 40px rgba(0,0,0,0.10), 0 4px 12px rgba(0,0,0,0.06)",
+                        animation: "scDrop .18s cubic-bezier(.16,1,.3,1) both",
+                        transformOrigin: "top right",
+                        zIndex: 9999,
+                      }}
+                    >
+                      {/* Header */}
+                      <div className="px-4 py-3" style={{ background: "#f6f4f7", borderBottom: `1px solid ${T.border}` }}>
+                        <div className="flex items-center gap-3">
+                          <div
+                            className="h-10 w-10 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
+                            style={{
+                              background: `linear-gradient(135deg, ${T.orange}, ${T.orangeDark})`,
+                              boxShadow: `0 4px 14px rgba(242,119,87,0.25)`,
+                            }}
+                          >
+                            {getUserInitials()}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[13px] font-bold truncate" style={{ color: T.textMain }}>
+                              {user?.firstName} {user?.lastName}
+                            </p>
+                            <p className="text-[11px] truncate" style={{ color: T.textMuted }}>{user?.email}</p>
+                            <span
+                              className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded-md mt-0.5"
+                              style={{ background: T.orangeLight, color: T.orange }}
+                            >
+                              {isDummyStudent ? "⚡ Student View" : user?.role?.renameRole || "Account"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Items */}
+                      <div className="p-1.5">
+                        {!isActualStudent() && !isDummyStudent && (
+                          <LMSMenuRow icon={UserCheck2} label="Switch to Student" sub="Preview student experience" color="#3b82f6" hoverBg="#eff6ff" onClick={handleSwitchToStudent} />
+                        )}
+                        {isDummyStudent && originalRoleInfo && (
+                          <LMSMenuRow icon={Zap} label={`Back to ${originalRoleInfo.renameRole}`} sub="Return to original role" color="#f59e0b" hoverBg="#fffbeb" onClick={handleSwitchBackToOriginal} />
+                        )}
+                        <div className="h-px my-1 mx-1" style={{ background: T.border }} />
+                        <LMSMenuRow icon={User} label="My Profile" sub="" color={T.textMuted} hoverBg="#f6f4f7" onClick={handleProfileClick} />
+                        <LMSMenuRow icon={Settings} label="Settings" sub="" color={T.textMuted} hoverBg="#f6f4f7" onClick={() => setShowUserMenu(false)} />
+                        <LMSMenuRow icon={HelpCircle} label="Help & Support" sub="" color={T.textMuted} hoverBg="#f6f4f7" onClick={() => setShowUserMenu(false)} />
+                      </div>
+
+                      {/* Sign out */}
+                      <div className="p-1.5" style={{ borderTop: `1px solid ${T.border}` }}>
+                        <button
+                          onClick={handleLogout}
+                          disabled={isLoggingOut}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl transition-colors"
+                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#fff5f5" }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent" }}
+                        >
+                          <LogOut size={14} style={{ color: "#e53e3e" }} />
+                          <span className="text-[12px] font-semibold" style={{ color: "#e53e3e" }}>
+                            {isLoggingOut ? "Signing out…" : "Sign Out"}
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* ── Course content — zero top gap ────────────────────────────── */}
+              <div className="flex-1 overflow-hidden" style={{ marginTop: 0, paddingTop: 0 }}>
+                <CourseContent
+                  selectedNode={selectedNode}
+                  activeTab={activeTab}
+                  activeSubcategory={activeSubcategory}
+                  subcategories={subcategories}
+                  contentData={contentData}
+                  breadcrumbs={[]}
+                  fileTypes={fileTypes}
+                  currentFolderContents={getCurrentFolderContents()}
+                  folderNavState={getCurrentNavState()}
+                  courseId={courseId}
+                  courseStructureName={courseStructureResponse?.data?.courseName || ""}
+               configuredLanguages={configuredLanguages}  
+
+                  onTabChange={(tab) => { setActiveTabPersistent(tab); setActiveSubcategoryPersistent(""); updateURL({ activeTab: tab, activeSubcategory: "" }); updateNavState({ currentFolderPath: [], currentFolderId: null }); }}
+                  onSubcategoryChange={(sub, comp) => { setActiveSubcategoryPersistent(sub); updateURL({ activeSubcategory: sub }); updateNavState({ currentFolderPath: [], currentFolderId: null }); }}
+                  onResourceModalOpen={() => setShowNotionModal(true)}
+                  onFileClick={handleFileClick}
+                  onNavigateToFolder={navigateToFolder}
+                  onNavigateUp={() => { const navState = getCurrentNavState(); const newPath = navState.currentFolderPath.slice(0, -1); updateNavState({ currentFolderPath: newPath, currentFolderId: newPath.length ? null : null }); }}
+onEditFolder={(folder) => { 
+  setEditingFolder(folder); 
+  setEditFolderName(folder.name); 
+  setFolderTags(folder.tags || []); // ← This is correct
+  setShowCreateFolderModal(true); 
+}}                  onDeleteFolder={(folder) => { setDeleteTarget({ type: "folder", item: folder, name: folder.name }); setShowDeleteConfirm(true); }}
+                  onDeleteFile={(id, name) => { setDeleteTarget({ type: "file", item: { id }, name }); setShowDeleteConfirm(true); }}
+                  onUpdateFile={initiateFileUpdate}
+                  getParentNodeName={getParentNodeName}
+                  getFolderItemCount={getFolderItemCount}
+                  pedagogy={selectedNode?.originalData?.pedagogy}
+                  onDeletePage={handleDeletePage}
+                  onBulkDelete={async (items) => {
+                    for (const item of items) {
+                      try {
+                        if (item.type === "page") {
+                          await doDeletePage(item.id, item.name);
+                        } else if (item.type === "folder" && item.folderItem) {
+                          await deleteFolder(item.folderItem);
+                        } else if (item.type === "file") {
+                          await deleteFile(item.id);
+                        }
+                      } catch {
+                        // continue deleting remaining items even if one fails
+                      }
+                    }
+                  }}
+                />
+              </div>
             </div>
           </div>
-          <div className="w-6 h-6 ml-2 rounded-md bg-blue-100 flex items-center justify-center flex-shrink-0">
-            {selectedNode.type === "module" && <Library size={12} className="text-blue-600" />}
-            {selectedNode.type === "submodule" && <Target size={12} className="text-blue-600" />}
-            {selectedNode.type === "topic" && <FileText size={12} className="text-blue-600" />}
-            {selectedNode.type === "subtopic" && <FileIcon size={12} className="text-blue-600" />}
+        </div>
+      </div>
+
+      {/* ── Notion Resource Modal ─────────────────────────────────────────────── */}
+      <NotionResourceModal
+        isOpen={showNotionModal}
+        onClose={() => setShowNotionModal(false)}
+  fileTypes={fileTypes}  // This already contains only Video (plus static folder, zip, reference)
+        selectedNode={selectedNode}
+        activeTab={activeTab}
+        activeSubcategory={activeSubcategory}
+        currentFolderPath={getCurrentNavState().currentFolderPath}
+        onSelectType={(key) => { setSelectedFileType(key); setShowUploadModal(true); }}
+        onCreateFolder={() => setShowCreateFolderModal(true)}
+        hierarchyInfo={buildFullHierarchyInfo()}
+        onPageCreated={async () => {
+          if (selectedNode) {
+            await fetchAndRefresh(selectedNode);
+            showSuccessToast("Page created!");
+          }
+        }}
+      />
+
+      {/* ── Upload Modal ──────────────────────────────────────────────────────── */}
+      {showUploadModal && (
+        <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50" style={{ background: 'rgba(0,0,0,0.5)' }}>
+          <div
+            className={`relative flex flex-col mx-4 overflow-hidden ${isButtonLoading ? 'opacity-60 pointer-events-none' : ''}`}
+            style={{ background: T.bg, borderRadius: '20px', border: `1.5px solid ${T.border}`, width: '100%', maxWidth: '640px', maxHeight: '90vh', minHeight: '500px', boxShadow: `0 24px 60px rgba(0,0,0,0.16)` }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {isButtonLoading && (
+              <div className="absolute inset-0 backdrop-blur-sm flex items-center justify-center z-10 rounded-2xl" style={{ background: 'rgba(255,255,255,0.85)' }}>
+                <div className="flex flex-col items-center gap-3">
+                  <div className="w-9 h-9 rounded-full animate-spin" style={{ border: `3px solid ${T.orangeLight}`, borderTopColor: T.orange }} />
+                  <span className="text-[12px] font-semibold" style={{ color: T.textSub }}>{selectedFileType === "url" ? "Adding URL…" : "Uploading…"}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Upload modal hero header */}
+            <div className="relative overflow-hidden flex-shrink-0" style={{ background: 'linear-gradient(135deg, #F27757 0%, #ED6445 52%, #E4573A 100%)', padding: '16px 18px 22px', borderRadius: '18px 18px 0 0' }}>
+              <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0 }} viewBox="0 0 640 80" fill="none">
+                <circle cx="610" cy="-8" r="65" stroke="rgba(255,255,255,0.18)" strokeWidth="1.2" />
+                <circle cx="610" cy="-8" r="115" stroke="rgba(255,255,255,0.10)" strokeWidth="1.2" />
+              </svg>
+              <div style={{ position: 'relative', zIndex: 1 }} className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.22)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.30)' }}>
+                    {React.cloneElement(fileTypes.find((t) => t.key === selectedFileType)?.icon as React.ReactElement || <FileLucide />, { size: 18, color: '#fff' })}
+                  </div>
+                  <div>
+                    <h3 className="text-[14px] font-bold text-white">{updateFileId ? "Update File" : "Upload Files"}</h3>
+                    <p className="text-[11px] mt-0.5" style={{ color: 'rgba(255,255,255,0.72)' }}>
+                      {getCurrentNavState().currentFolderPath.length > 0 ? `To "${getCurrentNavState().currentFolderPath.slice(-1)[0]}"` : "Add files with metadata"}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={resetUploadModalStates}
+                  className="p-1.5 rounded-xl transition-all"
+                  style={{ background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.25)', color: 'rgba(255,255,255,0.85)' }}
+                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.30)'}
+                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.18)'}
+                >
+                  <X size={15} />
+                </button>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-2.5">
+              {/* File Details */}
+             {/* File Details */}
+<div className="rounded-2xl overflow-hidden" style={{ border: `1.5px solid ${T.border}` }}>
+  <AccordionHeader icon={<FileText />} iconColor={T.orange} iconBg={T.orangeLight} title="File Details" subtitle="Add file details and upload" sectionKey="description" currentKey={expandedUploadSection} onToggle={setExpandedUploadSection} />
+  {expandedUploadSection === "description" && (
+    <div className="p-4 space-y-4" style={{ background: T.bg }}>
+      {selectedFileType === "url" ? (
+        // URL section remains the same
+        <div className="space-y-3">
+          <div>
+            <label className="block text-[11px] font-bold mb-2" style={{ color: T.textSub }}>{updateFileId ? "Update URL" : "Enter URL"}</label>
+            <input type="url" value={folderUrl} onChange={(e) => setFolderUrl(e.target.value)} placeholder="https://example.com" className="w-full px-3 py-2.5 text-[13px] outline-none transition-all" style={{ background: T.pageBg, border: `1.5px solid ${T.border}`, borderRadius: '10px', color: T.textMain }}
+              onFocus={e => { e.currentTarget.style.borderColor = T.orange; e.currentTarget.style.boxShadow = `0 0 0 3px ${T.orangeLight}`; }}
+              onBlur={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = 'none'; }}
+            />
+          </div>
+          <div>
+            <label className="block text-[11px] font-bold mb-2" style={{ color: T.textSub }}>Link Name <span style={{ color: T.textMuted, fontWeight: 400 }}>(display name)</span></label>
+            <input
+              type="text"
+              value={urlFileName}
+              onChange={(e) => setUrlFileName(e.target.value)}
+              placeholder={folderUrl ? extractFileNameFromUrl(folderUrl) : "e.g. React Docs"}
+              className="w-full px-3 py-2.5 text-[13px] outline-none transition-all"
+              style={{ background: T.pageBg, border: `1.5px solid ${T.border}`, borderRadius: '10px', color: T.textMain }}
+              onFocus={e => { e.currentTarget.style.borderColor = T.orange; e.currentTarget.style.boxShadow = `0 0 0 3px ${T.orangeLight}`; }}
+              onBlur={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = 'none'; }}
+            />
           </div>
         </div>
       ) : (
-        // Collapsed view - just show icon
-        <div className="flex flex-col items-center">
-          <div className="w-6 h-6 mb-1 rounded-md bg-blue-100 flex items-center justify-center">
-            {selectedNode.type === "module" && <Library size={12} className="text-blue-600" />}
-            {selectedNode.type === "submodule" && <Target size={12} className="text-blue-600" />}
-            {selectedNode.type === "topic" && <FileText size={12} className="text-blue-600" />}
-            {selectedNode.type === "subtopic" && <FileIcon size={12} className="text-blue-600" />}
-          </div>
-          <div className="text-[9px] text-gray-500 text-center capitalize">
-            {selectedNode.type}
-          </div>
-        </div>
+        <>
+   {/* File Name Input - Show existing file name when updating */}
+<div>
+  <label className="block text-[11px] font-bold mb-2" style={{ color: T.textSub }}>
+    {updateFileId ? "File Name" : "File Name(s)"}
+  </label>
+  
+  {/* For update mode - show the file name that will be used */}
+  {updateFileId && updateFileType !== "url" && (
+    <div className="mb-3">
+      <div className="flex items-center gap-2">
+        <input 
+          type="text" 
+          value={fileDisplayNames[updateFileId] || ""} 
+          onChange={(e) => {
+            setFileDisplayNames((prev) => ({ 
+              ...prev, 
+              [updateFileId]: e.target.value 
+            }));
+            // Also update the uploading files name if any
+            if (uploadingFiles.length > 0) {
+              setUploadingFiles((prev) => prev.map(f => ({
+                ...f,
+                name: e.target.value
+              })));
+            }
+          }}
+          className="flex-1 px-3 py-2 text-[12px] outline-none"
+          style={{ 
+            background: T.pageBg, 
+            border: `1.5px solid ${T.border}`, 
+            borderRadius: '10px', 
+            color: T.textMain,
+            fontFamily: "inherit"
+          }}
+          onFocus={e => { e.currentTarget.style.borderColor = T.orange; }}
+          onBlur={e => { e.currentTarget.style.borderColor = T.border; }}
+          placeholder="File name"
+        />
+        {/* Show status indicator */}
+        {uploadingFiles.length > 0 && (
+          <span className="text-[11px] text-amber-600">
+            (New file selected)
+          </span>
+        )}
+        {uploadingFiles.length === 0 && updateFileId && (
+          <span className="text-[11px]" style={{ color: T.textMuted }}>
+            (Current file name)
+          </span>
+        )}
+      </div>
+      
+      {/* Show warning only when a new file is selected */}
+      {uploadingFiles.length > 0 && (
+        <p className="text-[9px] text-amber-600 mt-1">
+          ⚠️ The file will be replaced with the new file you selected
+        </p>
       )}
     </div>
   )}
   
-  {/* Resize Handle - Only show when expanded */}
-  {sidebarWidth > 100 && (
-    <div
-      className="absolute -right-2 top-0 w-1 h-full cursor-col-resize hover:bg-blue-300 active:bg-blue-500 transition-colors group"
-      onMouseDown={handleMouseDown}
-      onDoubleClick={() => setSidebarWidth(sidebarWidth === 80 ? 280 : 80)}
-    >
-      <div className="absolute right-0 top-1/2 transform -translate-y-1/2 w-1.5 h-12 bg-gray-300 rounded-full group-hover:bg-blue-400 transition-colors" />
+  {/* For new files - show multiple file inputs */}
+  {!updateFileId && selectedFiles.length > 0 && (
+    <div>
+      {selectedFiles.map((file) => (
+        <div key={file.name} className="flex items-center gap-2 mb-2">
+          <input 
+            type="text" 
+            value={fileDisplayNames[file.name] || file.name} 
+            onChange={(e) => setFileDisplayNames((prev) => ({ ...prev, [file.name]: e.target.value }))} 
+            className="flex-1 px-3 py-2 text-[12px] outline-none" 
+            style={{ background: T.pageBg, border: `1.5px solid ${T.border}`, borderRadius: '10px', color: T.textMain }} 
+            onFocus={e => { e.currentTarget.style.borderColor = T.orange; }} 
+            onBlur={e => { e.currentTarget.style.borderColor = T.border; }} 
+          />
+          <span className="text-[11px]" style={{ color: T.textMuted }}>.{file.name.split(".").pop()}</span>
+        </div>
+      ))}
     </div>
   )}
 </div>
-{/* --- SIDEBAR END --- */}
+          
+         {/* File Upload Area */}
+<div>
+  <label className="block text-[11px] font-bold mb-2" style={{ color: T.textSub }}>
+    {updateFileId ? "Select New File (Optional)" : "File Upload"}
+  </label>
+  <div
+    className="p-5 text-center cursor-pointer transition-all rounded-2xl"
+    style={{ border: `1.5px dashed ${T.border}`, background: T.pageBg }}
+    onClick={() => fileInputRef.current?.click()}
+    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = T.orange; (e.currentTarget as HTMLElement).style.background = T.orangeLight; }}
+    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = T.border; (e.currentTarget as HTMLElement).style.background = T.pageBg; }}
+  >
+    <div className="mb-2" style={{ color: fileTypes.find((t) => t.key === selectedFileType)?.color || T.orange }}>
+      {React.cloneElement(fileTypes.find((t) => t.key === selectedFileType)?.icon as React.ReactElement || <Upload />, { size: 28 })}
+    </div>
+    <p className="text-[12px] font-bold mb-1" style={{ color: T.textMain }}>
+      {updateFileId ? "Click to choose a new file (optional)" : "Drop files here or click to browse"}
+    </p>
+    <p className="text-[10px]" style={{ color: T.textMuted }}>
+      {updateFileId ? "Leave empty to keep current file" : `Accepted: ${fileTypes.find((t) => t.key === selectedFileType)?.accept}`}
+    </p>
+    <input 
+      ref={fileInputRef} 
+      type="file" 
+      multiple={!updateFileId} 
+      accept={fileTypes.find((t) => t.key === selectedFileType)?.accept} 
+      className="hidden" 
+      onChange={(e) => handleFileSelection(e.target.files)} 
+    />
+  </div>
+  
+  {/* Show current file info ONLY when no new file is selected */}
+  {updateFileId && updateFileType !== "url" && uploadingFiles.length === 0 && (
+    <div className="mt-2 p-2 rounded-lg" style={{ background: T.orangeLight, border: `1px solid ${T.orange}30` }}>
+      <p className="text-[10px] font-medium" style={{ color: T.orange }}>
+        📄 Current file: {fileDisplayNames[updateFileId] || "Unknown"} (will be kept)
+      </p>
+    </div>
+  )}
+  
+  {/* Show selected new file progress bar and hide current file info */}
+ {/* Show selected new file progress bar with replacement info */}
+{uploadingFiles.map((f) => (
+  <div key={f.id} className="p-3 rounded-xl mt-2" style={{ background: T.pageBg, border: `1.5px solid ${T.border}` }}>
+    <div className="flex items-center mb-1.5">
+      <Upload size={11} className="mr-1.5" style={{ color: T.textMuted }} />
+      <span className="text-[11px] flex-1" style={{ color: T.textMain }}>
+        {f.name}
+      </span>
+      <span className="text-[10px]" style={{ color: T.textMuted }}>{f.progress}%</span>
+    </div>
+    <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: T.border }}>
+      <div className="h-full rounded-full transition-all duration-200" style={{ 
+        width: `${f.progress}%`, 
+        background: f.status === "error" ? '#ef4444' : 
+                   f.status === "completed" ? '#10b981' : 
+                   T.orange 
+      }} />
+    </div>
+    {f.status === "ready" && (
+      <div className="text-[10px] font-semibold mt-1" style={{ color: T.orange }}>
+        🔄 Ready to replace existing file
+      </div>
+    )}
+    {f.status === "uploading" && (
+      <div className="text-[10px] font-semibold mt-1" style={{ color: T.orange }}>
+        ⬆️ Uploading new file...
+      </div>
+    )}
+{updateFileId && uploadingFiles.length > 0 && (
+  <div className="mt-2">
+    <button
+      onClick={() => {
+        // Clear all file selection states
+        setSelectedFiles([]);
+        setUploadingFiles([]);
+        setFileDisplayNames({});
+        // Reset the file input
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      }}
+      className="text-[10px] text-red-500 hover:text-red-600 flex items-center gap-1"
+    >
+      <X size={12} />
+      Clear selection
+    </button>
+  </div>
+)}
+  </div>
+))}
+</div>
+          
+{/* Description field */}
+<div>
+  <label className="block text-[11px] font-bold mb-2" style={{ color: T.textSub }}>
+    File Description
+  </label>
+  <div className="rounded-xl overflow-hidden" style={{ border: `1.5px solid ${T.border}` }}>
+    <TipTapEditor
+      value={uploadDescription}
+      onChange={(value) => {
+        console.log("Editor changed:", value);
+        setUploadDescription(value);
+      }}
+      placeholder="Enter file description here..."
+      minHeight="160px"
+      maxHeight="200px"
+      showToolbar={true}
+      editable={true}
+    />
+  </div>
+</div>
+        </>
+      )}
+    </div>
+  )}
+</div>
 
-            {/* --- MAIN CONTENT AREA START --- */}
-<div className="flex-1 flex flex-col overflow-hidden bg-gray-50">
-              {/* Breadcrumbs - Updated with Full Hierarchy */}
-              <div className="transition-all duration-300">
-                <div className="bg-white border-b border-gray-100 px-4 py-3">
-                  <div className="flex items-center gap-2 text-xs font-medium tracking-wide overflow-x-auto thin-scrollbar">
-                    {breadcrumbs.map((crumb, index) => (
-                      <div key={`${crumb.id}-${index}`} className="flex items-center gap-2 flex-shrink-0">
-                        {index > 0 && <ChevronRight size={10} className="text-gray-300" />}
-                        {crumb.path ? (
-                          <a
-                            href={crumb.path}
-                            className="flex items-center gap-1.5 text-gray-400 hover:text-blue-600 transition-colors duration-200 px-2 py-1 rounded hover:bg-gray-50"
-                          >
-                            <span className="text-gray-400">
-                              {getBreadcrumbIcon(crumb.type)}
-                            </span>
-                            <span className="max-w-[120px] truncate">{crumb.label}</span>
-                          </a>
-                        ) : (
-                          <div className="flex items-center gap-1.5 text-gray-900 select-none px-2 py-1 rounded hover:bg-gray-50">
-                            <span className="text-gray-500">
-                              {getBreadcrumbIcon(crumb.type)}
-                            </span>
-                            <span className="max-w-[120px] truncate">{crumb.label}</span>
-                            {/* {crumb.type !== "dashboard" && crumb.type !== "courses" && (
-                              <span className="text-[10px] text-gray-400 px-1.5 py-0.5 bg-gray-100 rounded">
-                                {crumb.type}
-                              </span>
-                            )} */}
-                            {index === breadcrumbs.length - 1 && (
-                              <div className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse"></div>
-                            )}
+              {/* Tags */}
+              <div className="rounded-2xl overflow-hidden" style={{ border: `1.5px solid ${T.border}` }}>
+                <AccordionHeader icon={<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>} iconColor="#10b981" iconBg="rgba(16,185,129,0.08)" title="Tags" subtitle={uploadTags.length > 0 ? `${uploadTags.length} tag(s)` : "Add tags to organize"} sectionKey="tags" currentKey={expandedUploadSection} onToggle={setExpandedUploadSection} />
+                {expandedUploadSection === "tags" && (
+                  <div className="p-4 space-y-3" style={{ background: T.bg }}>
+                    <div className="flex items-end gap-2">
+                      <div className="flex-1"><label className="block text-[11px] font-bold mb-1.5" style={{ color: T.textSub }}>Tag Name</label><input type="text" value={uploadCurrentTag} onChange={(e) => setUploadCurrentTag(e.target.value)} placeholder="Tag name…" className="w-full px-3 py-2 text-[12px] outline-none" style={{ background: T.pageBg, border: `1.5px solid ${T.border}`, borderRadius: '10px', color: T.textMain }} onFocus={e => e.currentTarget.style.borderColor = T.orange} onBlur={e => e.currentTarget.style.borderColor = T.border} /></div>
+                      <div><label className="text-[11px] font-bold mb-1.5 block" style={{ color: T.textSub }}>Color</label><input type="color" value={uploadTagColor} onChange={(e) => setUploadTagColor(e.target.value)} className="w-8 h-8 rounded-lg cursor-pointer" style={{ border: `1.5px solid ${T.border}` }} /></div>
+                      <button onClick={() => addUploadTag(uploadCurrentTag.trim(), uploadTagColor)} disabled={!uploadCurrentTag.trim()} className="px-3 py-2 text-white text-[12px] font-bold rounded-xl transition-all" style={{ background: uploadCurrentTag.trim() ? T.orange : T.border }} onMouseEnter={e => { if (uploadCurrentTag.trim()) (e.currentTarget as HTMLElement).style.background = T.orangeDark; }} onMouseLeave={e => { if (uploadCurrentTag.trim()) (e.currentTarget as HTMLElement).style.background = T.orange; }}>Add</button>
+                    </div>
+                    {uploadTags.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {uploadTags.map((tag, i) => (
+                          <div key={i} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold" style={{ background: `${tag.tagColor}15`, color: tag.tagColor, border: `1.5px solid ${tag.tagColor}35` }}>
+                            {tag.tagName}<button onClick={() => removeUploadTag(i)} className="ml-1"><X size={10} /></button>
                           </div>
-                        )}
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Settings */}
+              <div className="rounded-2xl overflow-hidden" style={{ border: `1.5px solid ${T.border}` }}>
+                <AccordionHeader icon={<Settings />} iconColor={T.orange} iconBg={T.orangeLight} title="File Settings" subtitle="Configure file options" sectionKey="settings" currentKey={expandedUploadSection} onToggle={setExpandedUploadSection} />
+                {expandedUploadSection === "settings" && (
+                  <div className="p-4 space-y-2.5" style={{ background: T.bg }}>
+                    {[
+                      { key: "studentShow" as const, icon: <Eye size={15} />, label: "Show to students", desc: "Make visible to students" },
+                      { key: "downloadAllow" as const, icon: <Download size={15} />, label: "Allow download", desc: "Students can download" },
+                    ].map(({ key, icon, label, desc }) => (
+                      <div key={key} className="flex items-center justify-between p-3 rounded-xl" style={{ background: T.pageBg, border: `1.5px solid ${T.border}` }}>
+                        <div className="flex items-center gap-3">
+                          <div className="p-1.5 rounded-lg" style={{ background: T.bg, border: `1px solid ${T.border}`, color: T.textSub }}>{icon}</div>
+                          <div><p className="text-[12px] font-bold" style={{ color: T.textMain }}>{label}</p><p className="text-[10px] mt-0.5" style={{ color: T.textMuted }}>{desc}</p></div>
+                        </div>
+                        <OrangeToggle
+                          checked={documentSettings[updateFileId || "temp"]?.[key] ?? true}
+                          onChange={(checked) => { const id = updateFileId || "temp"; const cur = documentSettings[id] || { studentShow: true, downloadAllow: true }; const next = { ...cur, [key]: checked }; setDocumentSettings((prev) => ({ ...prev, [id]: next })); if (updateFileId && updateFileId !== "temp") handleUpdateFileSettings(updateFileId, next); }}
+                        />
                       </div>
                     ))}
                   </div>
-                </div>
-              </div>
-
-              {/* Main Content */}
-              <div className="flex-1 flex flex-col overflow-hidden bg-gray-50/50">
-                {selectedNode ? (
-                  <>
-                    {/* Header Section */}
-                    <div className="bg-white border-b border-gray-100 px-4 py-3 z-20">
-                      {/* Full Width Category Tabs Container */}
-                      <div className="w-full">
-                        {/* Container: Light Blue Background */}
-                        <div className="bg-blue-50/80 p-1.5 rounded-xl flex gap-1.5 items-center justify-between w-full">
-                          {["I_Do", "We_Do", "You_Do"].map((tabKey) => {
-                            const tabConfig = {
-                              "I_Do": { 
-                                label: "I Do", 
-                                color: "text-rose-600", 
-                                bgColor: "bg-rose-50",
-                                borderColor: "border-rose-100",
-                                icon: <Target size={16} strokeWidth={2.5} /> 
-                              },
-                              "We_Do": { 
-                                label: "We Do", 
-                                color: "text-indigo-600",
-                                bgColor: "bg-indigo-50",
-                                borderColor: "border-indigo-100",
-                                icon: <Users size={16} strokeWidth={2.5} /> 
-                              },
-                              "You_Do": { 
-                                label: "You Do", 
-                                color: "text-emerald-600",
-                                bgColor: "bg-emerald-50",
-                                borderColor: "border-emerald-100",
-                                icon: <BookOpen size={16} strokeWidth={2.5} /> 
-                              }
-                            }[tabKey] as { 
-                              label: string; 
-                              color: string; 
-                              bgColor: string;
-                              borderColor: string;
-                              icon: React.ReactNode 
-                            };
-
-                            const isSelected = activeTab === tabKey;
-                            const isHovered = hoveredCategory === tabKey;
-                            const hasSubItems = subcategories[tabKey as keyof typeof subcategories]?.length > 0;
-
-                            return (
-                              <div
-                                key={tabKey}
-                                className="relative flex-1 group"
-                                onMouseEnter={() => hasSubItems && setHoveredCategory(tabKey)}
-                                onMouseLeave={() => hoveredCategory === tabKey && setHoveredCategory("")}
-                              >
-                                <button
-                                  onClick={() => {
-                                    if (activeTab !== tabKey) {
-                                      setActiveTabPersistent(tabKey as "I_Do" | "We_Do" | "You_Do");
-                                      setActiveSubcategoryPersistent("");
-                                      updateURL({
-                                        activeTab: tabKey as "I_Do" | "We_Do" | "You_Do",
-                                        activeSubcategory: ''
-                                      });
-                                      updateNavigationState({ currentFolderPath: [], currentFolderId: null });
-                                      if (tabKey === "We_Do") {
-                                        setActiveComponent("Practical");
-                                      } else {
-                                        setActiveComponent(null);
-                                      }
-                                    }
-                                  }}
-                                  className={`
-                                    flex items-center justify-center gap-2 py-2 w-full rounded-lg text-xs font-semibold 
-                                    transition-all duration-200 ease-out relative z-10 cursor-pointer select-none border
-                                    ${isSelected
-                                      ? `${tabConfig.bgColor} ${tabConfig.borderColor} ${tabConfig.color}`
-                                      : 'border-transparent text-gray-500 hover:text-gray-900 hover:bg-white/60'
-                                    }
-                                  `}
-                                >
-                                  <span className={`transition-colors duration-200 ${isSelected ? tabConfig.color : "text-gray-400 group-hover:text-gray-500"}`}>
-                                    {tabConfig.icon}
-                                  </span>
-                                  <span>{tabConfig.label}</span>
-                                </button>
-
-                                {/* Dropdown Menu */}
-                                {hasSubItems && (
-                                  <div
-                                    className={`
-                                      absolute top-full left-0 right-0 pt-2 z-20
-                                      transition-all duration-200 ease-out origin-top
-                                      ${(isHovered || (isSelected && !activeSubcategory))
-                                        ? 'opacity-100 translate-y-0 scale-100'
-                                        : 'opacity-0 -translate-y-2 scale-95 pointer-events-none'
-                                      }
-                                    `}
-                                  >
-                                    <div className="bg-white rounded-xl shadow-lg shadow-blue-900/5 border border-blue-100 overflow-hidden p-1">
-                                      {subcategories[tabKey as keyof typeof subcategories]?.map((subcat: any) => (
-                                        <button
-                                          key={subcat.key}
-                                          onClick={() => {
-                                            if (!isSelected) {
-                                              setActiveTabPersistent(tabKey as "I_Do" | "We_Do" | "You_Do");
-                                              updateURL({ activeTab: tabKey as "I_Do" | "We_Do" | "You_Do" });
-                                            }
-
-                                            setActiveSubcategoryPersistent(subcat.key);
-                                            updateURL({ activeSubcategory: subcat.key });
-
-                                            updateNavigationState({ currentFolderPath: [], currentFolderId: null });
-
-                                            if (subcat.component) setActiveComponent(subcat.component);
-                                            else setActiveComponent(null);
-
-                                            setHoveredCategory("");
-                                          }}
-                                          className={`
-                                            w-full text-left px-3 py-2.5 text-xs font-medium rounded-lg
-                                            transition-all duration-150 flex items-center gap-2
-                                            ${activeSubcategory === subcat.key
-                                              ? `bg-blue-50 text-blue-700`
-                                              : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                                            }
-                                          `}
-                                        >
-                                          <span className={`flex-shrink-0 ${activeSubcategory === subcat.key ? 'text-blue-500' : 'text-gray-300'}`}>
-                                            {subcat.icon}
-                                          </span>
-                                          <span className="truncate">{subcat.label}</span>
-                                        </button>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                    {/* Content Area */}
-                    <div className="flex-1 overflow-hidden bg-slate-50/50">
-                      <div className="h-full bg-white ring-1 ring-slate-900/5 flex flex-col relative overflow-hidden">
-
-                        {selectedNode && !activeTab ? (
-                          /* 1. Empty State: No Tab Selected */
-                          <div className="flex flex-col items-center justify-center h-full text-center p-10 animate-in fade-in zoom-in-95 duration-500">
-                            <div className="group relative mb-6">
-                              <div className="absolute inset-0 bg-blue-50 rounded-full scale-0 group-hover:scale-110 transition-transform duration-500 ease-out" />
-                              <div className="relative w-24 h-24 bg-white rounded-full flex items-center justify-center border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] ">
-                                <Target size={32} className="text-slate-400 group-hover:text-blue-600 transition-colors duration-300" strokeWidth={1.5} />
-                              </div>
-                            </div>
-                            <h3 className="text-xl font-bold text-slate-900 mb-2 tracking-tight">Select a Pedagogy Type</h3>
-                            <p className="text-slate-500 max-w-sm leading-relaxed text-sm">
-                              Choose a pedagogy type (I Do, We Do, You Do) to start working with course resources.
-                            </p>
-                          </div>
-                        ) : selectedNode && activeTab && !activeSubcategory ? (
-                          /* 2. Empty State: Tab Selected but no Subcategory */
-                          <div className="flex flex-col items-center justify-center h-full text-center p-10 animate-in fade-in zoom-in-95 duration-500">
-                            <div className="group relative mb-6">
-                              <div className="absolute inset-0 bg-blue-50 rounded-full scale-0 group-hover:scale-110 transition-transform duration-500 ease-out" />
-                              <div className="relative w-24 h-24 bg-white rounded-full flex items-center justify-center border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] ">
-                                {activeTab === "I_Do" && <Target size={32} className="text-slate-400 group-hover:text-rose-600 transition-colors duration-300" strokeWidth={1.5} />}
-                                {activeTab === "We_Do" && <Users size={32} className="text-slate-400 group-hover:text-indigo-600 transition-colors duration-300" strokeWidth={1.5} />}
-                                {activeTab === "You_Do" && <BookOpen size={32} className="text-slate-400 group-hover:text-emerald-600 transition-colors duration-300" strokeWidth={1.5} />}
-                              </div>
-                            </div>
-                            <h3 className="text-xl font-bold text-slate-900 mb-2 tracking-tight">Select an Activity Type</h3>
-                            <p className="text-slate-500 max-w-sm leading-relaxed text-sm">
-                              Choose a specific activity type from the "
-                              <span className="font-semibold text-slate-900 mx-1 border-b-2 border-blue-100 px-1 pb-0.5">
-                                {activeTab.replace('_', ' ')}
-                              </span>
-                              " dropdown menu above.
-                            </p>
-                          </div>
-                        ) : (activeTab === "We_Do" || activeTab === "You_Do") && activeSubcategory && isValidSubcategory ? (
-                          /* 3. Problem Solving Component */
-                          <ProblemSolving
-                            key={`${activeTab}-${activeSubcategory}`}
-                            nodeId={selectedNode.id}
-                            nodeName={selectedNode.name}
-                            subcategory={activeSubcategory}
-                            subcategoryLabel={subcategories[activeTab].find(s => s.key === activeSubcategory)?.label || activeSubcategory}
-                            contentData={contentData[selectedNode.id]?.[activeTab]?.[activeSubcategory] || []}
-                            folderNavigationState={getCurrentNavigationState()}
-                            hierarchyData={{
-                              courseName: courseStructureResponse?.data?.courseName || "",
-                              moduleName: selectedNode.type === "module" ? selectedNode.name : getParentNodeName(selectedNode, "module") || "",
-                              submoduleName: selectedNode.type === "submodule" ? selectedNode.name : getParentNodeName(selectedNode, "submodule") || "",
-                              topicName: selectedNode.type === "topic" ? selectedNode.name : getParentNodeName(selectedNode, "topic") || "",
-                              subtopicName: selectedNode.type === "subtopic" ? selectedNode.name : getParentNodeName(selectedNode, "subtopic") || "",
-                              nodeType: selectedNode.type,
-                              level: selectedNode.level,
-                            }}
-                            nodeType={selectedNode.type}
-                            activeTab={activeTab}
-                            courseId={courseId || ""}
-                          />
-                        ) : (
-                          /* 4. I_Do Content or other content */
-                          (() => {
-                            const { folders: currentFolders, files: currentFiles } = getCurrentFolderContents();
-                            const { folders: filteredFolders, files: filteredFiles } = getFilteredItems(currentFolders, currentFiles);
-                            const hasContent = filteredFolders.length > 0 || filteredFiles.length > 0;
-                            const isFiltering = activeFilters.fileTypes.length > 0 || activeFilters.searchFilter;
-
-                            return hasContent ? (
-                              <div className="flex flex-col h-full bg-white overflow-hidden">
-                                {/* Toolbar - Fixed at top */}
-                                <div className="px-6 py-2 border-b border-slate-100 flex-shrink-0 bg-white">
-                                  <FilterSection />
-                                </div>
-
-                                {/* List Container */}
-                                <div className="flex-1 overflow-hidden px-2 sm:px-0">
-                                  {renderFileList(filteredFolders, filteredFiles, activeTab, activeSubcategory)}
-                                </div>
-                              </div>
-                            ) : (
-                              /* Empty State: No Content */
-                              <div className="flex flex-col items-center justify-center py-12 text-center h-full animate-in fade-in slide-in-from-bottom-4 duration-500">
-                                <div className="w-16 h-16 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-center mb-6 shadow-sm rotate-3 hover:rotate-6 transition-transform duration-300">
-                                  <FileText size={28} className="text-slate-400" strokeWidth={1.5} />
-                                </div>
-                                <h3 className="text-base font-bold text-slate-900 mb-2">
-                                  {isFiltering ? 'No matches found' : "It's quiet here"}
-                                </h3>
-                                <p className="text-slate-500 text-sm mb-8 max-w-[260px] leading-relaxed mx-auto">
-                                  {isFiltering
-                                    ? 'Try adjusting your filters to see more results.'
-                                    : 'Start by adding resources to organize your content.'
-                                  }
-                                </p>
-
-                                {activeTab === "I_Do" && (
-                                  <button
-                                    onClick={handleResourcesModalOpen}
-                                    className="group relative px-6 py-2.5 bg-slate-900 hover:bg-black text-white rounded-xl text-sm font-medium flex items-center gap-2 transition-all shadow-lg shadow-slate-200 hover:shadow-xl hover:-translate-y-0.5 active:scale-95"
-                                  >
-                                    <Plus size={18} className="text-slate-400 group-hover:text-white transition-colors" />
-                                    <span>Add Resource</span>
-                                  </button>
-                                )}
-                              </div>
-                            );
-                          })()
-                        )}
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  /* Global Empty State */
-                  <div className="flex-1 flex flex-col items-center justify-center p-8 bg-gray-50/50">
-                    <div className="text-center max-w-sm animate-in slide-in-from-bottom-5 duration-700 fade-in">
-                      <div className="relative w-20 h-20 mx-auto mb-6">
-                        <div className="absolute inset-0 bg-blue-100 rounded-full animate-pulse opacity-50"></div>
-                        <div className="relative bg-white rounded-full w-full h-full flex items-center justify-center shadow-lg border border-gray-100">
-                          <BookOpen size={32} className="text-blue-600" />
-                        </div>
-                      </div>
-                      <h3 className="text-xl font-bold text-gray-900 mb-2">No Content Selected</h3>
-                      <p className="text-gray-500 text-sm leading-relaxed mb-6">
-                        Select a course element from the sidebar to view, manage, and organize your learning resources.
-                      </p>
-                    </div>
-                  </div>
                 )}
               </div>
             </div>
-          </div>
 
-          {/* Modals */}
-          {showResourcesModal && (
-            <div
-              onClick={() => setShowResourcesModal(false)}
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 transition-all duration-200">
-              <div
-                className="bg-white rounded-2xl p-6 mx-4 shadow-2xl border border-gray-100 transform transition-transform duration-200 scale-100 w-[600px] max-h-[80vh] overflow-hidden flex flex-col"
-              >
-                <div
-                  className="flex items-center justify-between mb-4 border-b pb-2"
-                >
-                  <div className="flex items-center gap-2">
-                    <div className="p-2 bg-blue-50 rounded-xl">
-                      <BookPlus className="text-blue-600" size={22} />
-                    </div>
-                    <h3 className="text-xl font-semibold text-gray-800 tracking-tight">
-                      Add Resource
-                    </h3>
-                  </div>
-                  <button
-                    onClick={() => setShowResourcesModal(false)}
-                    className="p-2 hover:bg-gray-100 rounded-lg transition-all duration-150"
-                  >
-                    <X className="w-5 h-5 text-gray-500 hover:text-gray-700" />
-                  </button>
-                </div>
-                {fileTypes && fileTypes.length > 0 && (
-                  <p className="text-sm text-gray-600 mb-4">
-                    Select the type of resource you want to add to your course.
-                  </p>
-                )}
-                <div className="flex-1 ">
-                  {fileTypes && fileTypes.length > 0 ? (
-                    <div className="grid grid-cols-3 gap-4 mt-4">
-                      {fileTypes?.map((item, index) => (
-                        <div
-                          key={`${item.key}-${index}`}
-                          className="relative animate-in slide-in-from-bottom-4 duration-500"
-                          style={{ animationDelay: `${index * 100}ms` }}
-                        >
-                          <button
-                            className="flex flex-col cursor-pointer items-center justify-center gap-2 p-4 border border-gray-200 rounded-xl hover:bg-blue-50 hover:border-blue-300  hover:shadow-lg transition-all text-sm text-gray-700 font-medium w-full  group"
-                            onClick={() => {
-                              if (item.key.includes("folder")) {
-                                setShowCreateFolderModal(true);
-                              } else {
-                                setSelectedFileType(item.key);
-                                setShowUploadModal(true);
-                              }
-                            }}
-                          >
-                            <span className="text-2xl" style={{ color: item.color }}>
-                              {item.icon}
-                            </span>
-                            <span>{item.label}</span>
-                            <div className="absolute bottom-2 right-2">
-                              <svg
-                                className="w-4 h-4 text-gray-400 hover:text-blue-500 cursor-pointer info-icon"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                                onMouseEnter={(e) => {
-                                  const rect = e.currentTarget.getBoundingClientRect();
-                                  const tooltip = document.getElementById(`tooltip-${item.key}-${index}`);
-                                  if (tooltip) {
-                                    tooltip.style.display = 'block';
-                                    tooltip.style.position = 'fixed';
-                                    tooltip.style.top = `${rect.top - 40}px`;
-                                    tooltip.style.left = `${rect.left + rect.width / 2}px`;
-                                    tooltip.style.transform = 'translateX(-50%)';
-                                    tooltip.style.zIndex = '60';
-                                  }
-                                }}
-                                onMouseLeave={() => {
-                                  const tooltip = document.getElementById(`tooltip-${item.key}-${index}`);
-                                  if (tooltip) {
-                                    tooltip.style.display = 'none';
-                                  }
-                                }}
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                                />
-                              </svg>
-                            </div>
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center text-center gap-2 p-4">
-                      <AlertCircle className="w-12 h-12 text-gray-400" />
-                      <p className="text-gray-500 font-medium text-lg">
-                        No resources available
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="absolute pointer-events-none">
-                {fileTypes?.map((item, index) => (
-                  <div
-                    key={`tooltip-${item.key}-${index}`}
-                    id={`tooltip-${item.key}-${index}`}
-                    className="hidden bg-gray-900 text-white text-xs rounded py-1 px-2 whitespace-nowrap shadow-lg"
-                    style={{
-                      display: 'none',
-                      position: 'fixed',
-                      zIndex: 60,
-                      pointerEvents: 'none'
-                    }}
-                  >
-                    {item.tooltip}
-                    <div
-                      className="absolute top-full left-1/2 transform -translate-x-1/2"
-                      style={{
-                        width: 0,
-                        height: 0,
-                        borderLeft: '5px solid transparent',
-                        borderRight: '5px solid transparent',
-                        borderTop: '5px solid #111827'
-                      }}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+            {/* Footer */}
+          {/* Footer */}
+<div className="flex justify-end gap-3 p-4 flex-shrink-0" style={{ borderTop: `1px solid ${T.border}`, background: T.pageBg }}>
+  <button 
+    onClick={resetUploadModalStates} 
+    className="px-4 py-2 rounded-xl text-[12px] font-bold transition-all" 
+    style={{ background: T.bg, color: T.textSub, border: `1.5px solid ${T.border}` }} 
+    onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = T.orange} 
+    onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = T.border}
+  >
+    Cancel
+  </button>
+  
+  <button
+    onClick={async () => {
+      setIsButtonLoading(true);
+      
+      // Handle URL type
+      if (selectedFileType === "url") {
+        if (!folderUrl.trim()) { 
+          alert("Enter a valid URL"); 
+          setIsButtonLoading(false); 
+          return; 
+        }
+        if (!selectedNode) { 
+          setIsButtonLoading(false); 
+          return; 
+        }
+        
+        const navState = getCurrentNavState();
+        const formData = new FormData();
+        const fields: Record<string, string> = { 
+          fileUrl: folderUrl, 
+          fileName: urlFileName || extractFileNameFromUrl(folderUrl), 
+          fileType: urlFileType,  
+          fileDescription: uploadDescription || "",
+          tabType: toBackendTab(activeTab), 
+          subcategory: activeSubcategory, 
+          folderPath: navState.currentFolderPath.join("/"), 
+          courses: selectedNode.originalData?.courses || "", 
+          topicId: selectedNode.originalData?.topicId || "", 
+          index: String(selectedNode.originalData?.index || 0), 
+          isUpdate: updateFileId ? "true" : "false", 
+          showToStudents: String(documentSettings[updateFileId || "temp"]?.studentShow ?? true), 
+          allowDownload: String(documentSettings[updateFileId || "temp"]?.downloadAllow ?? true) 
+        };
+        
+        if (updateFileId) fields.updateFileId = updateFileId;
+        if (updateFileId) fields.updateFileName = urlFileName || extractFileNameFromUrl(folderUrl);
 
-          {/* Upload Modal */}
-          {showUploadModal && (
-            <div
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 transition-all duration-200"
-              onClick={(e) => {
-                e.preventDefault()
-              }}
-            >
-              <div
-                ref={uploadModalRef}
-                className={`bg-white rounded-xl p-4 mx-4 shadow-xl border border-gray-200 w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col relative ${isButtonLoading ? 'opacity-60 pointer-events-none' : ''
-                  }`}
-                onClick={(e) => e.stopPropagation()}
-                style={{ minHeight: '500px' }}
-              >
-                {isButtonLoading && (
-                  <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center z-10 rounded-xl">
-                    <div className="flex flex-col items-center gap-3">
-                      <svg
-                        className="w-8 h-8 text-green-500 animate-spin"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                      >
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                        ></circle>
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-                        ></path>
-                      </svg>
-                      <span className="text-sm text-gray-600 font-medium">
-                        {selectedFileType === 'url' ? 'Adding URL...' : 'Uploading Files...'}
-                      </span>
-                    </div>
-                  </div>
-                )}
-                {/* Compact Header */}
-                <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-200">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-blue-100 rounded-lg">
-                      {React.cloneElement(fileTypes.find((t) => t.key === selectedFileType)?.icon || <FileText />, {
-                        size: 20,
-                        className: "text-blue-600"
-                      })}
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-bold text-gray-900">
-                        <span className="text-2xl">{updateFileId ? "U" : "U"}</span>pload{" "}
-                        <span className="text-2xl">{updateFileId ? "F" : "F"}</span>ile
-                        {updateFileId ? "s" : "s"}
-                      </h3>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        {getCurrentNavigationState().currentFolderPath.length > 0
-                          ? `To "${getCurrentNavigationState().currentFolderPath[getCurrentNavigationState().currentFolderPath.length - 1]}"`
-                          : "Add files with metadata"}
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={resetUploadModalStates}
-                    className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer duration-150"
-                  >
-                    <X className="w-4 h-4 text-gray-500" />
-                  </button>
-                </div>
-                {/* Main Content - Compact Scrollable Area */}
-                <div className="flex-1 overflow-y-auto thin-scrollbar space-y-3 pr-2 -mr-2">
-                  {/* File Details Section */}
-                  <div className="border border-gray-200 bg-white">
-                    <button
-                      className="flex cursor-pointer items-center justify-between w-full p-3 text-left hover:bg-gray-200 bg-gray-100 transition-colors duration-150"
-                      onClick={() => setExpandedUploadSection(expandedUploadSection === 'description' ? '' : 'description')}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-purple-100 rounded-lg">
-                          <FileText className="w-4 h-4 text-purple-600" />
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-semibold text-gray-900">File Details</h4>
-                          <p className="text-xs text-gray-500 mt-0.5">Add file details and upload</p>
-                        </div>
-                      </div>
-                      <svg
-                        className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${expandedUploadSection === 'description' ? 'rotate-180' : ''
-                          }`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </button>
-                    {expandedUploadSection === 'description' && (
-                      <div className="px-3 pb-3 space-y-4">
-                        {selectedFileType === 'url' ? (
-                          <>
-                            <label className="block text-xs font-semibold text-gray-700 mb-2">
-                              {updateFileId ? 'Update URL' : 'Enter URL'}
-                            </label>
-                            <div className="space-y-3">
-                              <input
-                                type="url"
-                                value={folderUrl}
-                                onChange={(e) => setFolderUrl(e.target.value)}
-                                placeholder="https://example.com"
-                                className="w-full px-3 py-2.5 border-2 border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition-all duration-200 bg-white"
-                              />
-                              {updateFileId && (
-                                <p className="text-xs text-blue-600">
-                                  Editing existing URL. Update the URL above and click "Update URL".
-                                </p>
-                              )}
-                              <p className="text-xs text-gray-500">
-                                {updateFileId
-                                  ? "Update the URL to change the linked resource"
-                                  : "Enter a valid URL to link external resources"
-                                }
-                              </p>
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            {/* File Name Input Field - Updated for update mode */}
-                            {selectedFiles.length > 0 && (
-                              <div>
-                                <label className="block text-xs font-semibold text-gray-700 mb-2">
-                                  {updateFileId ? 'New File' : `File Name${selectedFiles.length > 1 ? 's' : ''}`}
-                                </label>
+        Object.entries(fields).forEach(([k, v]) => formData.append(k, v));
+        if (uploadTags.length) formData.append("tags", JSON.stringify(uploadTags));
 
-                                {updateFileId && (
-                                  <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                                    <p className="text-xs text-blue-700 font-medium">
-                                      Updating existing file: <span className="font-bold">{fileDisplayNames[updateFileId]}</span>
-                                    </p>
-                                    <p className="text-xs text-blue-600 mt-1">
-                                      Selected file will replace the current one
-                                    </p>
-                                  </div>
-                                )}
-
-                                <div className="space-y-2">
-                                  {selectedFiles.map((file) => (
-                                    <div key={updateFileId ? updateFileId : file.name} className="flex items-center gap-2">
-                                      <input
-                                        type="text"
-                                        value={fileDisplayNames[updateFileId || file.name] || file.name}
-                                        onChange={(e) => {
-                                          const newDisplayNames = { ...fileDisplayNames }
-                                          const key = updateFileId || file.name;
-                                          newDisplayNames[key] = e.target.value
-                                          setFileDisplayNames(newDisplayNames)
-
-                                          setUploadingFiles(prev => prev.map(uploadFile =>
-                                            uploadFile.id === (updateFileId || uploadFile.id)
-                                              ? { ...uploadFile, name: e.target.value }
-                                              : uploadFile
-                                          ))
-                                        }}
-                                        placeholder="Enter file name..."
-                                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition-all duration-200 bg-white"
-                                      />
-                                      <span className="text-xs text-gray-500 whitespace-nowrap">
-                                        .{file.name.split('.').pop()}
-                                      </span>
-                                    </div>
-                                  ))}
-                                </div>
-                                <p className="text-xs text-gray-500 mt-2">
-                                  {selectedFileType === "reference"
-                                    ? "This will be displayed as 'Reference Material' to students"
-                                    : updateFileId
-                                      ? "New file will replace the existing file"
-                                      : "You can customize the file name before uploading"
-                                  }
-                                </p>
-                              </div>
-                            )}
-
-                            {/* Show existing file info when no new file is selected for update */}
-                            {updateFileId && selectedFiles.length === 0 && (
-                              <div className="mb-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                                <p className="text-xs text-gray-700 font-medium">
-                                  Current file: <span className="font-bold">{fileDisplayNames[updateFileId]}</span>
-                                </p>
-                                <p className="text-xs text-gray-600 mt-1">
-                                  Select a new file to replace the existing one
-                                </p>
-                              </div>
-                            )}
-                            <div className="mt-2">
-                              <label className="block text-xs font-semibold text-gray-700 mb-2">
-                                {updateFileId ? 'Select New File' : 'File Upload'}
-                              </label>
-                              <div
-                                className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center bg-gray-50/50 cursor-pointer transition-all duration-300 hover:border-blue-400 hover:bg-blue-50/30"
-                                onClick={() => fileInputRef.current?.click()}
-                                onDragOver={(e) => {
-                                  e.preventDefault()
-                                  e.currentTarget.classList.add("border-green-500", "bg-green-50/50")
-                                }}
-                                onDragLeave={(e) => {
-                                  e.preventDefault()
-                                  e.currentTarget.classList.remove("border-green-500", "bg-green-50/50")
-                                }}
-                                onDrop={(e) => {
-                                  e.preventDefault()
-                                  e.currentTarget.classList.remove("border-green-500", "bg-green-50/50")
-                                  const files = e.dataTransfer.files
-                                  if (files.length > 0) {
-                                    handleFileSelection(files)
-                                  }
-                                }}
-                              >
-                                <div className="mb-2" style={{ color: fileTypes.find((t) => t.key === selectedFileType)?.color }}>
-                                  {React.cloneElement(fileTypes.find((t) => t.key === selectedFileType)?.icon || <FileText />, {
-                                    size: 32,
-                                  })}
-                                </div>
-                                <h4 className="text-sm font-semibold text-gray-800 mb-1">
-                                  {updateFileId
-                                    ? `Drop new file to replace "${fileDisplayNames[updateFileId]}"`
-                                    : `Drop ${fileTypes.find((t) => t.key === selectedFileType)?.label} files here`}
-                                </h4>
-                                <p className="text-xs text-gray-500 mb-2">or click to browse your computer</p>
-                                <p className="text-[10px] text-gray-400">
-                                  Accepted formats: {fileTypes.find((t) => t.key === selectedFileType)?.accept}
-                                </p>
-
-                                <input
-                                  ref={fileInputRef}
-                                  type="file"
-                                  multiple={!updateFileId}
-                                  accept={fileTypes.find((t) => t.key === selectedFileType)?.accept}
-                                  className="hidden"
-                                  onChange={(e) => {
-                                    const files = e.target.files
-                                    if (files && files.length > 0) {
-                                      handleFileSelection(files)
-                                    }
-                                  }}
-                                />
-                              </div>
-
-                              {uploadingFiles.length > 0 && (
-                                <div className="mt-3">
-                                  <h4 className="text-xs font-semibold text-gray-800 mb-2">
-                                    {updateFileId ? "Selected File:" : `Selected Files (${selectedFiles.length}):`}
-                                  </h4>
-                                  {uploadingFiles.map((file) => (
-                                    <div
-                                      key={file.id}
-                                      className="bg-white p-2.5 rounded-md mb-2 border border-gray-200 animate-slideIn"
-                                    >
-                                      <div className="flex items-center mb-1.5">
-                                        <Upload size={12} className="text-gray-500 mr-1.5" />
-                                        <span className="text-[11px] text-gray-800 flex-1">
-                                          {updateFileId ? `Replacement for: ${fileDisplayNames[updateFileId]}` : file.name}
-                                        </span>
-                                        <span className="text-[10px] text-gray-500">{file.progress}%</span>
-                                      </div>
-                                      <div className="w-full h-1 bg-gray-200 rounded overflow-hidden">
-                                        <div
-                                          className={`h-full transition-all duration-200 ${file.status === "error"
-                                            ? "bg-red-500"
-                                            : file.status === "completed"
-                                              ? "bg-green-500"
-                                              : file.status === "ready"
-                                                ? "bg-blue-500"
-                                                : file.status === "submitting"
-                                                  ? "bg-orange-500 animate-pulse"
-                                                  : "bg-blue-500"
-                                            }`}
-                                          style={{ width: `${file.progress}%` }}
-                                        />
-                                      </div>
-                                      {file.status === "ready" && (
-                                        <div className="text-[10px] text-blue-600 mt-1 font-medium">
-                                          ✓ Ready to submit - Click Update File button
-                                        </div>
-                                      )}
-                                      {file.status === "submitting" && (
-                                        <div className="text-[10px] text-orange-600 mt-1 font-medium animate-pulse">
-                                          Updating file...
-                                        </div>
-                                      )}
-                                      {file.status === "completed" && (
-                                        <div className="text-[10px] text-green-500 mt-1">
-                                          {updateFileId ? "Update completed" : "Upload completed"}
-                                        </div>
-                                      )}
-                                      {file.status === "error" && (
-                                        <div className="text-[10px] text-red-500 mt-1">
-                                          {updateFileId ? "Update failed" : "Upload failed"}
-                                        </div>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-
-                            <div>
-                              <label className="block text-xs font-semibold text-gray-700 mb-2">
-                                File Description
-                              </label>
-                              <div className="border border-gray-300 rounded-lg overflow-hidden">
-                                <Editor value={text} onTextChange={() => setText("")} style={{ height: '220px' }} />
-                              </div>
-                              <input type="hidden" name="uploadDescription" value={uploadDescription} />
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    )}
-
-                  </div>
-                  {/* Tags Section */}
-                  <div className="border border-gray-200 bg-white">
-                    <button
-                      className="flex items-center cursor-pointer justify-between w-full p-3 text-left hover:bg-gray-200 bg-gray-100 transition-colors duration-150"
-                      onClick={() => setExpandedUploadSection(expandedUploadSection === 'tags' ? null : 'tags')}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-green-100 rounded-lg">
-                          <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                          </svg>
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-semibold text-gray-900">Tags</h4>
-                          <p className="text-xs text-gray-500 mt-0.5">
-                            {uploadTags.length > 0 ? `${uploadTags.length} tag(s) added` : "Add tags to organize"}
-                          </p>
-                        </div>
-                      </div>
-                      <svg
-                        className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${expandedUploadSection === 'tags' ? 'rotate-180' : ''
-                          }`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </button>
-
-                    {expandedUploadSection === 'tags' && (
-                      <div className="px-3 pb-3 space-y-4">
-                        {/* Tag Input */}
-                        <div className="grid grid-cols-1 gap-3">
-                          <div className="grid grid-cols-12 gap-2 items-end mt-2">
-                            <div className="col-span-7">
-                              <label className="block text-xs font-semibold text-gray-700 mb-2">Tag Name</label>
-                              <input
-                                type="text"
-                                value={uploadCurrentTag}
-                                onChange={(e) => setUploadCurrentTag(e.target.value)}
-                                placeholder="Enter tag name..."
-                                className="w-full px-2 py-2 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none bg-white"
-                              />
-                            </div>
-                            <div className="col-span-4">
-                              <label className="text-xs font-semibold text-gray-700 mb-2">Tag Color</label>
-                              <div className="flex items-center gap-2">
-                                <input
-                                  type="color"
-                                  value={uploadTagColor}
-                                  onChange={(e) => setUploadTagColor(e.target.value)}
-                                  className="w-7 h-7 rounded-lg cursor-pointer border border-gray-300"
-                                />
-                                <input
-                                  type="text"
-                                  value={uploadTagColor}
-                                  onChange={(e) => setUploadTagColor(e.target.value)}
-                                  placeholder="#000000"
-                                  className="flex-1 px-2 py-2 rounded-lg border border-gray-300 text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none bg-white"
-                                />
-                              </div>
-                            </div>
-                            <div className="col-span-3 flex items-end">
-                              <button
-                                onClick={() => {
-                                  if (uploadCurrentTag.trim()) {
-                                    addTag(uploadCurrentTag.trim(), uploadTagColor);
-                                    setUploadCurrentTag('');
-                                    setUploadTagColor('#3B82F6');
-                                  }
-                                }}
-                                disabled={!uploadCurrentTag.trim()}
-                                className={`
-                                                                relative w-28 h-6 rounded-lg flex items-center border transition-all duration-300
-                                                                ${uploadCurrentTag.trim()
-                                    ? 'cursor-pointer border-green-500 bg-green-500 group hover:bg-green-600'
-                                    : 'cursor-not-allowed border-gray-300 bg-gray-300'}
-                                                              `}
-                              >
-                                <span className={`text-white font-semibold ml-4 transform transition-all duration-300 text-xs ${uploadCurrentTag.trim() ? 'group-hover:translate-x-20' : ''}`}>
-                                  Add Tag
-                                </span>
-                                <span className={`absolute right-0 h-full w-10 rounded-lg flex items-center justify-center transition-all duration-300 ${uploadCurrentTag.trim() ? 'bg-green-500 group-hover:w-full transform group-hover:translate-x-0' : 'bg-gray-400 w-10'}`}>
-                                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                                    <line x1="12" y1="5" x2="12" y2="19" />
-                                    <line x1="5" y1="12" x2="19" y2="12" />
-                                  </svg>
-                                </span>
-                              </button>
-                              <div className="flex items-center ml-2 justify-center">
-                                {loading && (
-                                  <svg
-                                    className="w-4 h-4 text-green-500 animate-spin"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                  >
-                                    <circle
-                                      className="opacity-25"
-                                      cx="12"
-                                      cy="12"
-                                      r="10"
-                                      stroke="currentColor"
-                                      strokeWidth="4"
-                                    ></circle>
-                                    <path
-                                      className="opacity-75"
-                                      fill="currentColor"
-                                      d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-                                    ></path>
-                                  </svg>
-                                )}
-                                {success && !loading && (
-                                  <svg
-                                    className="w-4 h-4 text-green-600 animate-scaleFade"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="2.5"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    viewBox="0 0 24 24"
-                                  >
-                                    <path d="M5 13l4 4L19 7" />
-                                  </svg>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        {/* Tags Display */}
-                        {uploadTags.length > 0 && (
-                          <div>
-                            <label className="block text-xs font-semibold text-gray-700 mb-2">
-                              Added Tags ({uploadTags.length})
-                            </label>
-                            <div className="flex flex-wrap gap-2">
-                              {uploadTags.map((tag, index) => (
-                                <div
-                                  key={index}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-200 hover:shadow-sm"
-                                  style={{
-                                    borderColor: tag.tagColor || '#3B82F6',
-                                    backgroundColor: `${tag.tagColor || '#3B82F6'}15`,
-                                    color: tag.tagColor || '#3B82F6'
-                                  }}
-                                >
-                                  <span>{tag.tagName}</span>
-                                  <button
-                                    onClick={() => removeUploadTag(index)}
-                                    className="p-0.5 hover:bg-black/10 rounded-full transition-colors"
-                                  >
-                                    <X className="w-3 h-3" />
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  {/* Access Restrictions Section */}
-                  <div className="border border-gray-200 bg-white">
-                    <button
-                      className="flex items-center cursor-pointer justify-between w-full p-3 text-left hover:bg-gray-200 bg-gray-100 transition-colors duration-150"
-                      onClick={() => setExpandedUploadSection(expandedUploadSection === 'access' ? null : 'access')}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-purple-100 rounded-lg">
-                          <LockKeyhole className="w-4 h-4 text-purple-600" />
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-semibold text-gray-900">Access Restrictions</h4>
-                          <p className="text-xs text-gray-500 mt-0.5">
-                            {uploadAccessLevel === 'private' && 'Only you can access'}
-                            {uploadAccessLevel === 'team' && 'Visible to your team'}
-                            {uploadAccessLevel === 'public' && 'Anyone with link'}
-                          </p>
-                        </div>
-                      </div>
-                      <svg
-                        className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${expandedUploadSection === 'access' ? 'rotate-180' : ''
-                          }`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </button>
-                    {expandedUploadSection === 'access' && (
-                      <div className="px-3 pb-3 mt-2">
-                        <div className="space-y-2">
-                          {[
-                            { value: 'private', icon: Lock, label: 'Private', description: 'Only you can access' },
-                            { value: 'team', icon: Users, label: 'Team', description: 'Visible to your team' },
-                            { value: 'public', icon: Globe, label: 'Public', description: 'Anyone with link' }
-                          ].map(({ value, icon: Icon, label, description }) => (
-                            <label
-                              key={value}
-                              className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors border ${uploadAccessLevel === value
-                                ? 'bg-purple-50 border-purple-200'
-                                : 'border-gray-200 hover:bg-gray-50'
-                                }`}
-                            >
-                              <input
-                                type="radio"
-                                name="uploadAccessLevel"
-                                value={value}
-                                checked={uploadAccessLevel === value}
-                                onChange={(e) => setUploadAccessLevel(e.target.value)}
-                                className="w-3 h-3 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500"
-                              />
-                              <Icon className="w-4 h-4 text-gray-600 flex-shrink-0" />
-                              <div className="flex-1 min-w-0">
-                                <div className="text-xs font-medium text-gray-900">{label}</div>
-                                <div className="text-[10px] text-gray-500 mt-0.5">{description}</div>
-                              </div>
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  {/* Settings Section */}
-                  <div className="border border-gray-200 bg-white">
-                    <button
-                      className="flex items-center cursor-pointer justify-between w-full p-3 text-left hover:bg-gray-200 bg-gray-100 transition-colors duration-150"
-                      onClick={() => setExpandedUploadSection(expandedUploadSection === 'settings' ? null : 'settings')}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-blue-100 rounded-lg">
-                          <Settings className="w-4 h-4 text-blue-600" />
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-semibold text-gray-900">File Settings</h4>
-                          <p className="text-xs text-gray-500 mt-0.5">Configure file options</p>
-                        </div>
-                      </div>
-                      <svg
-                        className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${expandedUploadSection === 'settings' ? 'rotate-180' : ''
-                          }`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </button>
-
-                    {expandedUploadSection === 'settings' && (
-                      <div className="px-3 pb-3 mt-2 space-y-3">
-                        {/* Show to Students Toggle */}
-                        <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
-                          <div className="flex items-center gap-3">
-                            <div className="p-1.5 bg-white rounded border border-gray-200">
-                              <Eye className="w-4 h-4 text-gray-600" />
-                            </div>
-                            <div>
-                              <p className="text-xs font-medium text-gray-900">Show to students</p>
-                              <p className="text-[10px] text-gray-500">Make document visible to students</p>
-                            </div>
-                          </div>
-                          <label className="relative inline-flex items-center cursor-pointer">
-                            <input
-                              type="checkbox"
-                              className="sr-only peer"
-                              checked={documentSettings[updateFileId || 'temp']?.studentShow ?? true}
-                              onChange={(e) => {
-                                const fileId = updateFileId || 'temp';
-                                const currentSettings = documentSettings[fileId] || {
-                                  studentShow: true,
-                                  downloadAllow: true
-                                };
-                                const newSettings = {
-                                  studentShow: e.target.checked,
-                                  downloadAllow: currentSettings.downloadAllow
-                                };
-
-                                setDocumentSettings(prev => ({
-                                  ...prev,
-                                  [fileId]: newSettings
-                                }));
-
-                                if (updateFileId && updateFileId !== 'temp') {
-                                  handleUpdateFileSettings(updateFileId, newSettings);
-                                }
-                              }}
-                            />
-                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                          </label>
-                        </div>
-
-                        {/* Allow Download Toggle */}
-                        <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
-                          <div className="flex items-center gap-3">
-                            <div className="p-1.5 bg-white rounded border border-gray-200">
-                              <Download className="w-4 h-4 text-gray-600" />
-                            </div>
-                            <div>
-                              <p className="text-xs font-medium text-gray-900">Allow download</p>
-                              <p className="text-[10px] text-gray-500">Students can download this file</p>
-                            </div>
-                          </div>
-                          <label className="relative inline-flex items-center cursor-pointer">
-                            <input
-                              type="checkbox"
-                              className="sr-only peer"
-                              checked={documentSettings[updateFileId || 'temp']?.downloadAllow ?? true}
-                              onChange={(e) => {
-                                const fileId = updateFileId || 'temp';
-                                const currentSettings = documentSettings[fileId] || {
-                                  studentShow: true,
-                                  downloadAllow: true
-                                };
-                                const newSettings = {
-                                  studentShow: currentSettings.studentShow,
-                                  downloadAllow: e.target.checked
-                                };
-
-                                setDocumentSettings(prev => ({
-                                  ...prev,
-                                  [fileId]: newSettings
-                                }));
-
-                                if (updateFileId && updateFileId !== 'temp') {
-                                  handleUpdateFileSettings(updateFileId, newSettings);
-                                }
-                              }}
-                              disabled={!documentSettings[updateFileId || 'temp']?.studentShow}
-                            />
-                            <div className={`
-                        w-11 h-6 rounded-full peer peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 
-                        peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] 
-                        after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 
-                        after:border after:rounded-full after:h-5 after:w-5 after:transition-all
-                        ${!documentSettings[updateFileId || 'temp']?.studentShow
-                                ? "bg-gray-100 cursor-not-allowed"
-                                : (documentSettings[updateFileId || 'temp']?.downloadAllow ?? true)
-                                  ? "bg-blue-600"
-                                  : "bg-gray-200"
-                              }
-                    `}></div>
-                          </label>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                {/* Action Buttons - Fixed at bottom */}
-                <div className="flex justify-end gap-3 pt-1">
-                  <button
-                    onClick={async () => {
-                      setIsButtonLoading(true);
-
-                      if (selectedFileType === 'url') {
-                        if (!folderUrl.trim()) {
-                          alert("Please enter a valid URL");
-                          setIsButtonLoading(false);
-                          return;
-                        }
-
-                        const urlData = {
-                          fileUrl: folderUrl,
-                          fileName: urlFileName || extractFileNameFromUrl(folderUrl),
-                          fileType: urlFileType,
-                          tabType: toBackendTab(activeTab),
-                          subcategory: activeSubcategory,
-                          folderPath: getCurrentNavigationState().currentFolderPath.join('/'),
-                          courses: selectedNode?.originalData?.courses || "",
-                          topicId: selectedNode?.originalData?.topicId || "",
-                          index: selectedNode?.originalData?.index || 0,
-                          title: selectedNode?.originalData?.title || "",
-                          description: selectedNode?.originalData?.description || "",
-                          duration: selectedNode?.originalData?.duration || "",
-                          level: selectedNode?.originalData?.level || "",
-                          isUpdate: updateFileId ? "true" : "false",
-                          ...(updateFileId && { updateFileId }),
-                          showToStudents: documentSettings[updateFileId || 'temp']?.studentShow ?? true,
-                          allowDownload: documentSettings[updateFileId || 'temp']?.downloadAllow ?? true,
-                        };
-
-                        try {
-                          if (!selectedNode) {
-                            alert("No node selected");
-                            return;
-                          }
-
-                          const uploadingFile: UploadedFile = {
-                            id: `url-${Date.now()}`,
-                            name: 'URL Resource',
-                            progress: 0,
-                            status: 'submitting',
-                            subcategory: activeSubcategory,
-                            folderId: getCurrentNavigationState().currentFolderId,
-                            type: 'url/link',
-                            size: 0,
-                            url: folderUrl,
-                            uploadedAt: new Date(),
-                            tags: [],
-                            folderPath: getCurrentNavigationState().currentFolderPath.join('/'),
-                            isReference: false,
-                            isVideo: false,
-                            originalFileName: 'URL Resource',
-                            description: '',
-                            accessLevel: 'private',
-                            availableResolutions: []
-                          };
-
-                          setUploadingFiles([uploadingFile]);
-
-                          const formData = new FormData();
-                          Object.entries(urlData).forEach(([key, value]) => {
-                            if (value !== undefined && value !== null) {
-                              formData.append(key, value.toString());
-                            }
-                          });
-
-                          const response = await entityApi.updateEntity(
-                            selectedNode.type as "module" | "submodule" | "topic" | "subtopic",
-                            selectedNode.id,
-                            formData
-                          );
-                          const completedFile: UploadedFile = {
-                            ...uploadingFile,
-                            progress: 100,
-                            status: 'completed'
-                          };
-
-                          setUploadingFiles([completedFile]);
-
-                          setContentData(prev => {
-                            const newData = { ...prev };
-                            delete newData[selectedNode.id];
-                            return newData;
-                          });
-
-                          await refreshContentData(selectedNode, response.data);
-
-                          setTimeout(() => {
-                            resetUploadModalStates();
-                            showSuccessToast("URL link added successfully!");
-                          }, 800);
-
-                        } catch (error) {
-                          console.error("Failed to add URL:", error);
-                          showErrorToast("Failed to add URL link");
-                          setUploadingFiles([]);
-                          setIsButtonLoading(false);
-                        } finally {
-                          setIsButtonLoading(false);
-                        }
-
-                      } else {
-                        const allReady = uploadingFiles.every(f => f.status === 'ready');
-                        if (!allReady) {
-                          alert("Please wait for files to be processed");
-                          setIsButtonLoading(false);
-                          return;
-                        }
-
-                        setUploadingFiles(prev =>
-                          prev.map(f => ({ ...f, status: 'submitting' }))
-                        );
-
-                        const renamedFiles = selectedFiles.map(file => {
-                          const displayName = fileDisplayNames[file.name] || file.name;
-                          const finalName = selectedFileType === "reference" ? "Reference Material" : displayName;
-                          const originalExtension = file.name.split('.').pop();
-                          const fileNameWithExtension = finalName.includes('.') ? finalName : `${finalName}.${originalExtension}`;
-
-                          return fileNameWithExtension !== file.name
-                            ? new window.File([file], fileNameWithExtension, { type: file.type })
-                            : file;
-                        });
-
-                        const dataTransfer = new DataTransfer();
-                        renamedFiles.forEach(file => dataTransfer.items.add(file));
-
-                        if (updateFileId) {
-                          await handleFileUpdate(dataTransfer.files);
-                        } else {
-                          await handleFileUpload(
-                            dataTransfer.files,
-                            activeTab,
-                            activeSubcategory
-                          );
-                        }
-                        setIsButtonLoading(false);
-                      }
-                    }}
-                    disabled={
-                      selectedFileType === 'url'
-                        ? !folderUrl.trim() || uploadingFiles.some(f => f.status === 'submitting')
-                        : uploadingFiles.length === 0 ||
-                        uploadingFiles.some(f => f.status !== 'ready') ||
-                        uploadingFiles.some(f => f.status === 'submitting')
-                    }
-                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-xs font-semibold rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors duration-200"
-                  >
-                    {uploadingFiles.some(f => f.status === 'submitting') ? (
-                      <>
-                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
-                        </svg>
-                        {updateFileId ? 'Updating...' : selectedFileType === 'url' ? 'Adding URL...' : 'Uploading...'}
-                      </>
-                    ) : (
-                      <>
-                        {selectedFileType === 'url' ? (
-                          <>
-                            <Link2 size={16} />
-                            {updateFileId ? 'Update URL' : 'Add URL'}
-                          </>
-                        ) : updateFileId ? (
-                          <>
-                            <RefreshCw size={16} />
-                            Update File
-                          </>
-                        ) : (
-                          <>
-                            <Upload size={16} />
-                            Upload Files
-                          </>
-                        )}
-                      </>
-                    )}
-                  </button>
-
-                </div>
-              </div>
-            </div>
-          )
+        try {
+          await entityApi.updateEntity(selectedNode.type as any, selectedNode.id, formData);
+          await fetchAndRefresh(selectedNode);
+          resetUploadModalStates();
+          showSuccessToast(updateFileId ? "URL updated!" : "URL added!");
+        } catch { 
+          showErrorToast(updateFileId ? "Failed to update URL" : "Failed to add URL"); 
+        } finally { 
+          setIsButtonLoading(false); 
+        }
+        return;
+      }
+      
+      // Handle file updates (regular files)
+      if (updateFileId) {
+        // Case 1: Update metadata only (no new file selected)
+        if (uploadingFiles.length === 0) {
+          await handleFileUpdate(null);
+        } 
+        // Case 2: Update file content (new file selected)
+        else {
+          const allReady = uploadingFiles.every((f) => f.status === "ready");
+          if (!allReady) { 
+            alert("Please wait for files to finish preparing"); 
+            setIsButtonLoading(false); 
+            return; 
           }
-          {showCreateFolderModal && (
-            <div
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 transition-all duration-200"
-              onClick={(e) => {
-                e.preventDefault()
+          
+          setUploadingFiles((prev) => prev.map((f) => ({ ...f, status: "submitting" as const })));
+          
+          // Create renamed files with custom display names
+          const renamed = selectedFiles.map((file) => { 
+            const display = fileDisplayNames[updateFileId] || fileDisplayNames[file.name] || file.name; 
+            const final = selectedFileType === "reference" ? "Reference Material" : display; 
+            const ext = file.name.split(".").pop(); 
+            const withExt = final.includes(".") ? final : `${final}.${ext}`; 
+            return withExt !== file.name ? new window.File([file], withExt, { type: file.type }) : file; 
+          });
+          
+          const dt = new DataTransfer(); 
+          renamed.forEach((f) => dt.items.add(f));
+          await handleFileUpdate(dt.files);
+        }
+      } 
+      // Handle new file upload
+      else {
+        const allReady = uploadingFiles.every((f) => f.status === "ready");
+        if (!allReady) { 
+          alert("Please wait for files to finish preparing"); 
+          setIsButtonLoading(false); 
+          return; 
+        }
+        
+        setUploadingFiles((prev) => prev.map((f) => ({ ...f, status: "submitting" as const })));
+        
+        // Create renamed files with custom display names
+        const renamed = selectedFiles.map((file) => { 
+          const display = fileDisplayNames[file.name] || file.name; 
+          const final = selectedFileType === "reference" ? "Reference Material" : display; 
+          const ext = file.name.split(".").pop(); 
+          const withExt = final.includes(".") ? final : `${final}.${ext}`; 
+          return withExt !== file.name ? new window.File([file], withExt, { type: file.type }) : file; 
+        });
+        
+        const dt = new DataTransfer(); 
+        renamed.forEach((f) => dt.items.add(f));
+        await handleFileUpload(dt.files, activeTab, activeSubcategory);
+      }
+      
+      setIsButtonLoading(false);
+    }}
+    disabled={
+      selectedFileType === "url" 
+        ? !folderUrl.trim() 
+        : updateFileId 
+          ? false  // Always enabled for updates (can update metadata only)
+          : uploadingFiles.length === 0 || !uploadingFiles.every((f) => f.status === "ready")
+    }
+    className="flex items-center gap-2 px-4 py-2 rounded-xl text-[12px] font-bold text-white transition-all"
+    style={{ background: T.orange, boxShadow: `0 4px 12px ${T.orangeGlow}` }}
+    onMouseEnter={e => { 
+      (e.currentTarget as HTMLElement).style.background = T.orangeDark; 
+      (e.currentTarget as HTMLElement).style.transform = 'translateY(-1px)'; 
+    }}
+    onMouseLeave={e => { 
+      (e.currentTarget as HTMLElement).style.background = T.orange; 
+      (e.currentTarget as HTMLElement).style.transform = 'none'; 
+    }}
+  >
+    {selectedFileType === "url" ? (
+      <><Link2 size={14} />{updateFileId ? "Update URL" : "Add URL"}</>
+    ) : updateFileId ? (
+      uploadingFiles.length > 0 ? (
+        <><RefreshCw size={14} />Update File & Metadata</>
+      ) : (
+        <><RefreshCw size={14} />Update Metadata Only</>
+      )
+    ) : (
+      <><Upload size={14} />Upload Files</>
+    )}
+  </button>
+</div>
+          </div>
+        </div>
+      )}
 
-              }}
-            >
-              <div
-                className={`bg-white rounded-xl p-4 mx-4 shadow-xl border border-gray-200 w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col relative ${isButtonLoading ? 'opacity-60 pointer-events-none' : ''
-                  }`} onClick={(e) => e.stopPropagation()}
-                style={{ minHeight: '500px' }} >
-                {isButtonLoading && (
-                  <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center z-10 rounded-xl">
-                    <div className="flex flex-col items-center gap-3">
-                      <svg
-                        className="w-8 h-8 text-green-500 animate-spin"
-                        fill="none"
-                        viewBox="0 0 24 24">
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"></circle>
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
-                      </svg>
-                      <span className="text-sm text-gray-600 font-medium">
-                        {selectedFileType === 'url' ? 'Adding URL...' : 'Uploading Files...'}
-                      </span>
-                    </div>
-                  </div>
-                )}
-                {/* Compact Header - Dynamic based on mode */}
-                <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-200">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-blue-100 rounded-lg">
-                      <img
-                        src="/active-images/folder.png"
-                        alt="Create Folder"
-                        className="w-7 h-7"
-                      />                                        </div>
-                    <div>
-                      <h3 className="text-lg font-bold text-gray-900">
-                        {editingFolder ? (
-                          <>
-                            <span className="text-2xl">E</span>dit{" "}
-                            <span className="text-2xl">F</span>older
-                          </>
-                        ) : (
-                          <>
-                            <span className="text-2xl">C</span>reate{" "}
-                            <span className="text-2xl">N</span>ew{" "}
-                            <span className="text-2xl">F</span>older
-                          </>
-                        )}
-                      </h3>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        {editingFolder ? "Update your folder details" : "Organize your files efficiently"}
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setShowCreateFolderModal(false);
-                      setEditingFolder(null);
-                      setEditFolderName("");
-                      setNewFolderName("");
-                      setFolderTags([]);
-                    }}
-                    className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer duration-150"
-                  >
-                    <X className="w-4 h-4 text-gray-500" />
-                  </button>
-                </div>
-
-                {/* Main Content - Compact Scrollable Area */}
-                <div className="flex-1 overflow-y-auto thin-scrollbar space-y-3 pr-2 -mr-2">
-                  {/* Folder Details Section */}
-                  <div className="border border-gray-200 bg-white">
-                    <button
-                      className="flex cursor-pointer items-center justify-between w-full p-3 text-left hover:bg-gray-200 bg-gray-100 transition-colors duration-150"
-                      onClick={() => setExpandedSection(expandedSection === 'folderName' ? null : 'folderName')} >
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-blue-100 rounded-lg">
-                          <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                          </svg>
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-semibold text-gray-900">Folder Details <span className="text-red-500">*</span></h4>
-                          <p className="text-xs text-gray-500 mt-0.5">Required information</p>
-                        </div>
-                      </div>
-                      <svg
-                        className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${expandedSection === 'folderName' ? 'rotate-180' : ''
-                          }`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </button>
-
-                    {expandedSection === 'folderName' && (
-                      <div className="px-3 pb-3 space-y-4 ">
-                        {/* Folder Name */}
-                        <div>
-                          <label className="block mt-2 text-xs font-semibold text-gray-700 mb-2">
-                            Folder Name
-                          </label>
-                          <input
-                            type="text"
-                            value={editingFolder ? editFolderName : newFolderName}
-                            onChange={(e) => editingFolder ? setEditFolderName(e.target.value) : setNewFolderName(e.target.value)}
-                            placeholder="Enter folder name..."
-                            className="w-full px-2 py-2 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition-all duration-200 bg-white"
-                            onKeyPress={(e) => e.key === 'Enter' && (editingFolder ? saveEditFolder() : createFolder())}
-                            autoFocus />
-                        </div>
-                        {/* Folder Description - Only show for create mode or if editing folder has description */}
-                        {!editingFolder && (
-                          <div>
-                            <label className="block text-xs font-semibold text-gray-700 mb-2">Folder Description</label>
-                            <div className="border border-gray-300 rounded-lg overflow-hidden">
-                              <Editor value={text} onTextChange={(e) => setText(e.htmlValue || "")} style={{ height: '220px' }} />
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  {/* Tags Section - Show for both create and edit */}
-                  <div className="border border-gray-200 bg-white">
-                    <button
-                      className="flex items-center cursor-pointer justify-between w-full p-3 text-left hover:bg-gray-200 bg-gray-100 transition-colors duration-150"
-                      onClick={() => setExpandedSection(expandedSection === 'tags' ? null : 'tags')} >
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-green-100 rounded-lg">
-                          <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                          </svg>
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-semibold text-gray-900">Tags</h4>
-                          <p className="text-xs text-gray-500 mt-0.5">
-                            {folderTags.length > 0 ? `${folderTags.length} tag(s) added` : "Add tags to organize"}
-                          </p>
-                        </div>
-                      </div>
-                      <svg
-                        className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${expandedSection === 'tags' ? 'rotate-180' : ''
-                          }`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </button>
-
-                    {expandedSection === 'tags' && (
-                      <div className="px-3 pb-3 space-y-4">
-                        {/* Tag Input */}
-                        <div className="grid grid-cols-1 gap-3">
-                          <div className="grid grid-cols-12 gap-2 items-end mt-2">
-                            <div className="col-span-7">
-                              <label className="block text-xs font-semibold text-gray-700 mb-2">Tag Name</label>
-                              <input
-                                type="text"
-                                value={currentTag}
-                                onChange={(e) => setCurrentTag(e.target.value)}
-                                placeholder="Enter tag name..."
-                                className="w-full px-2 py-2 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none bg-white" />
-                            </div>
-
-                            <div className="col-span-4">
-                              <label className="text-xs font-medium text-gray-700 mb-1.5 block">Tag Color :</label>
-                              <div className="flex items-center gap-2">
-                                <input
-                                  type="color"
-                                  value={tagColor}
-                                  onChange={(e) => setTagColor(e.target.value)}
-                                  className="w-7 h-7 rounded-lg cursor-pointer border border-gray-300" />
-                                <input
-                                  type="text"
-                                  value={tagColor}
-                                  onChange={(e) => setTagColor(e.target.value)}
-                                  placeholder="#000000"
-                                  className="flex-1 px-2 py-2 rounded-lg border border-gray-300 text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition-all duration-200 bg-white" />
-                              </div>
-                            </div>
-                            <div className="col-span-3 flex items-end">
-                              <button
-                                onClick={() => {
-                                  if (currentTag.trim()) {
-                                    addTag(currentTag.trim(), tagColor);
-                                    setCurrentTag('');
-                                    setTagColor('');
-                                  }
-                                }}
-                                disabled={!currentTag.trim()}
-                                className={`
-                        relative w-28 h-6 rounded-lg flex items-center border transition-all duration-300
-                        ${currentTag.trim()
-                                    ? 'cursor-pointer border-green-500 bg-green-500 group hover:bg-green-600'
-                                    : 'cursor-not-allowed border-gray-300 bg-gray-300'}
-                      `}>
-                                <span
-                                  className={`
-                          text-white font-semibold ml-4 transform transition-all duration-300 text-xs
-                          ${currentTag.trim() ? 'group-hover:translate-x-20' : ''}
-                        `} >
-                                  Add Tag
-                                </span>
-                                <span
-                                  className={`
-                          absolute right-0 h-full w-10 rounded-lg flex items-center justify-center transition-all duration-300
-                          ${currentTag.trim() ? 'bg-green-500 group-hover:w-full transform group-hover:translate-x-0' : 'bg-gray-400 w-10'}
-                        `} >
-                                  <svg
-                                    className="w-4 h-4 text-white"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="2"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    viewBox="0 0 24 24">
-                                    <line x1="12" y1="5" x2="12" y2="19" />
-                                    <line x1="5" y1="12" x2="19" y2="12" />
-                                  </svg>
-                                </span>
-                              </button>
-                              {/* Loading */}
-                              <div className="flex items-center ml-2 justify-center">
-                                {loading && (
-                                  <svg
-                                    className="w-4 h-4 text-green-500 animate-spin"
-                                    fill="none"
-                                    viewBox="0 0 24 24">
-                                    <circle
-                                      className="opacity-25"
-                                      cx="12"
-                                      cy="12"
-                                      r="10"
-                                      stroke="currentColor"
-                                      strokeWidth="4" ></circle>
-                                    <path
-                                      className="opacity-75"
-                                      fill="currentColor"
-                                      d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
-                                  </svg>
-                                )}
-
-                                {success && !loading && (
-                                  <svg
-                                    className="w-4 h-4 text-green-600 animate-scaleFade"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="2.5"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    viewBox="0 0 24 24" >
-                                    <path d="M5 13l4 4L19 7" />
-                                  </svg>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        {/* Tags Display */}
-                        {folderTags.length > 0 && (
-                          <div>
-                            <label className="block text-xs font-semibold text-gray-700 mb-2">
-                              Added Tags ({folderTags.length})
-                            </label>
-                            <div className="flex flex-wrap gap-2">
-                              {folderTags.map((tag, index) => (
-                                <div
-                                  key={index}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-200 hover:shadow-sm"
-                                  style={{
-                                    borderColor: tag.tagColor || '#3B82F6',
-                                    backgroundColor: `${tag.tagColor || '#3B82F6'}15`,
-                                    color: tag.tagColor || '#3B82F6'
-                                  }}>
-                                  <span>{tag.tagName}</span>
-                                  <button
-                                    onClick={() => removeTag(index)}
-                                    className="p-0.5 hover:bg-black/10 rounded-full transition-colors">
-                                    <X className="w-3 h-3" />
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Access Restrictions - Only show for create mode */}
-                  {!editingFolder && (
-                    <div className="border border-gray-200 bg-white">
-                      <button
-                        className="flex items-center cursor-pointer justify-between w-full p-3 text-left hover:bg-gray-200 bg-gray-100 transition-colors duration-150"
-                        onClick={() => setExpandedSection(expandedSection === 'access' ? null : 'access')}>
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-purple-100 rounded-lg">
-                            <LockKeyhole className="w-4 h-4 text-purple-600" />
-                          </div>
-                          <div>
-                            <h4 className="text-sm font-semibold text-gray-900">Access Restrictions</h4>
-                            <p className="text-xs text-gray-500 mt-0.5">
-                              {accessLevel === 'private' && 'Only you can access'}
-                              {accessLevel === 'team' && 'Visible to your team'}
-                              {accessLevel === 'public' && 'Anyone with link'}
-                            </p>
-                          </div>
-                        </div>
-                        <svg
-                          className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${expandedSection === 'access' ? 'rotate-180' : ''
-                            }`}
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24" >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </button>
-
-                      {expandedSection === 'access' && (
-                        <div className="px-3 pb-3 mt-2">
-                          <div className="space-y-2">
-                            {[
-                              { value: 'private', icon: Lock, label: 'Private', description: 'Only you can access' },
-                              { value: 'team', icon: Users, label: 'Team', description: 'Visible to your team' },
-                              { value: 'public', icon: Globe, label: 'Public', description: 'Anyone with link' }
-                            ].map(({ value, icon: Icon, label, description }) => (
-                              <label
-                                key={value}
-                                className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors border ${accessLevel === value
-                                  ? 'bg-purple-50 border-purple-200'
-                                  : 'border-gray-200 hover:bg-gray-50'
-                                  }`} >
-                                <input
-                                  type="radio"
-                                  name="accessLevel"
-                                  value={value}
-                                  checked={accessLevel === value}
-                                  onChange={(e) => setAccessLevel(e.target.value)}
-                                  className="w-3 h-3 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500" />
-                                <Icon className="w-4 h-4 text-gray-600 flex-shrink-0" />
-                                <div className="flex-1 min-w-0">
-                                  <div className="text-xs font-medium text-gray-900">{label}</div>
-                                  <div className="text-[10px] text-gray-500 mt-0.5">{description}</div>
-                                </div>
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Folder Settings */}
-                  <div className="border border-gray-200 bg-white">
-                    <button
-                      className="flex items-center cursor-pointer justify-between w-full p-3 text-left hover:bg-gray-200 bg-gray-100 transition-colors duration-150"
-                      onClick={() => setExpandedSection(expandedSection === 'settings' ? null : 'settings')}>
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-blue-100 rounded-lg">
-                          <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                          </svg>
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-semibold text-gray-900">Folder Settings</h4>
-                          <p className="text-xs text-gray-500 mt-0.5">Configure folder options</p>
-                        </div>
-                      </div>
-                      <svg
-                        className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${expandedSection === 'settings' ? 'rotate-180' : ''
-                          }`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </button>
-
-                    {expandedSection === 'settings' && (
-                      <div className="px-3 pb-3 mt-2">
-                        <label className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
-                          <div className="flex items-center gap-3">
-                            <div className="p-2 bg-gray-100 rounded-lg">
-                              <EyeOff className="w-4 h-4 text-gray-600" />
-                            </div>
-                            <div>
-                              <div className="text-xs font-medium text-gray-900">Hide from students</div>
-                              <div className="text-[10px] text-gray-500 mt-0.5">Students won't see this folder</div>
-                            </div>
-                          </div>
-                          <input
-                            type="checkbox"
-                            checked={hideStudentSettings[selectedFolderForSettings?.id || ""] || false}
-                            onChange={(e) => {
-                              const folderId = selectedFolderForSettings?.id || ""
-                              setHideStudentSettings((prev) => ({
-                                ...prev,
-                                [folderId]: e.target.checked,
-                              }))
-                            }}
-                            className="w-4 h-4 cursor-pointer text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
-                          />
-                        </label>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                {/* Action Buttons - Fixed at bottom */}
-                <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
-                  <button
-                    onClick={async () => {
-                      setIsButtonLoading(true);
-                      if (editingFolder) {
-                        await saveEditFolder();
-                      } else {
-                        await createFolder();
-                      }
-                      setIsButtonLoading(false);
-                    }}
-                    disabled={(editingFolder ? !editFolderName.trim() : !newFolderName.trim()) || isButtonLoading}
-                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-xs font-semibold rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors duration-200 justify-center"
-                  >
-                    {isButtonLoading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 text-green-500 animate-spin" />
-                        {editingFolder ? 'Updating...' : 'Creating...'}
-                      </>
-                    ) : (
-                      <>
-                        <Folder className="w-4 h-4" />
-                        {editingFolder ? 'Update Folder' : 'Create Folder'}
-                      </>
-                    )}
-                  </button>
-                </div>
+      {/* ── Create / Edit Folder Modal ─────────────────────────────────────────── */}
+      {showCreateFolderModal && (
+        <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50" style={{ background: 'rgba(0,0,0,0.5)' }}>
+          <div className={`relative flex flex-col mx-4 overflow-hidden ${isButtonLoading ? 'opacity-60 pointer-events-none' : ''}`} style={{ background: T.bg, borderRadius: '20px', border: `1.5px solid ${T.border}`, width: '100%', maxWidth: '560px', maxHeight: '85vh', minHeight: '380px', boxShadow: `0 24px 60px rgba(0,0,0,0.16)` }} onClick={e => e.stopPropagation()}>
+            {isButtonLoading && (
+              <div className="absolute inset-0 backdrop-blur-sm flex items-center justify-center z-10 rounded-2xl" style={{ background: 'rgba(255,255,255,0.85)' }}>
+                <div className="w-9 h-9 rounded-full animate-spin" style={{ border: `3px solid ${T.orangeLight}`, borderTopColor: T.orange }} />
               </div>
-            </div>
-          )}
-          {showUploadDropdown && <div className="fixed inset-0 z-40" onClick={() => setShowUploadDropdown(false)} />}
+            )}
 
-          {/* Delete Confirmation Modal */}
-          {showDeleteConfirm && deleteTarget && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-lg p-6 w-80 border border-gray-200 shadow-xl">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
-                    <Trash2 size={20} className="text-red-600" />
+            {/* Folder modal hero header */}
+            <div className="relative overflow-hidden flex-shrink-0" style={{ background: 'linear-gradient(135deg, #F27757 0%, #ED6445 52%, #E4573A 100%)', padding: '16px 18px 22px', borderRadius: '18px 18px 0 0' }}>
+              <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0 }} viewBox="0 0 560 80" fill="none"><circle cx="530" cy="-8" r="65" stroke="rgba(255,255,255,0.18)" strokeWidth="1.2" /><circle cx="530" cy="-8" r="115" stroke="rgba(255,255,255,0.10)" strokeWidth="1.2" /></svg>
+              <div style={{ position: 'relative', zIndex: 1 }} className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.22)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.30)' }}>
+                    <Folder size={18} color="#fff" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900">Delete {deleteTarget.type}</h3>
-                    <p className="text-sm text-gray-600">This action cannot be undone</p>
+                    <h3 className="text-[14px] font-bold text-white">{editingFolder ? "Edit Folder" : "Create New Folder"}</h3>
+                    <p className="text-[11px] mt-0.5" style={{ color: 'rgba(255,255,255,0.72)' }}>{editingFolder ? "Update folder details" : "Organize your files"}</p>
                   </div>
                 </div>
-                <p className="text-sm text-gray-700 mb-6">
-                  Are you sure you want to delete "{deleteTarget.name}"?
-                </p>
-                <div className="flex justify-end gap-3">
-                  <button
-                    onClick={() => setShowDeleteConfirm(false)}
-                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleConfirmDelete}
-                    className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
-                  >
-                    Delete
-                  </button>
-                </div>
+                <button onClick={() => { setShowCreateFolderModal(false); setEditingFolder(null); setEditFolderName(""); setNewFolderName(""); setFolderTags([]); }} className="p-1.5 rounded-xl transition-all" style={{ background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.25)', color: 'rgba(255,255,255,0.85)' }} onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.30)'} onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.18)'}><X size={15} /></button>
               </div>
             </div>
-          )}
 
-          {/* File Viewers */}
-          {showPDFViewer && (
-            <PDFViewer
-              fileUrl={currentPDFUrl}
-              fileName={currentPDFName}
-              onClose={() => {
-                setShowPDFViewer(false)
-                setCurrentPDFUrl("")
-                setCurrentPDFName("")
-              }}
-            />
-          )}
+            <div className="flex-1 overflow-y-auto p-4 space-y-2.5">
+              <div className="rounded-2xl overflow-hidden" style={{ border: `1.5px solid ${T.border}` }}>
+                <AccordionHeader icon={<Folder />} iconColor={T.orange} iconBg={T.orangeLight} title="Folder Details" subtitle={<span style={{ color: '#ef4444' }}>Required *</span>} sectionKey="folderName" currentKey={expandedSection} onToggle={setExpandedSection} />
+                {expandedSection === "folderName" && (
+                  <div className="p-4" style={{ background: T.bg }}>
+                    <label className="block text-[11px] font-bold mb-2" style={{ color: T.textSub }}>Folder Name</label>
+                    <input type="text" value={editingFolder ? editFolderName : newFolderName} onChange={(e) => editingFolder ? setEditFolderName(e.target.value) : setNewFolderName(e.target.value)} placeholder="Enter folder name…" autoFocus className="w-full px-3 py-2.5 text-[13px] outline-none transition-all" style={{ background: T.pageBg, border: `1.5px solid ${T.border}`, borderRadius: '10px', color: T.textMain }}
+                      onFocus={e => { e.currentTarget.style.borderColor = T.orange; e.currentTarget.style.boxShadow = `0 0 0 3px ${T.orangeLight}`; }}
+                      onBlur={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = 'none'; }}
+                      onKeyPress={(e) => e.key === "Enter" && (editingFolder ? saveEditFolder() : createFolder())}
+                    />
+                  </div>
+                )}
+              </div>
 
-          {showPPTViewer && (
-            <PPTViewer
-              isOpen={showPPTViewer}
-              onClose={() => {
-                setShowPPTViewer(false)
-                setCurrentPPTUrl("")
-                setCurrentPPTName("")
-              }}
-              pptUrl={currentPPTUrl}
-              title={currentPPTName}
-            />
-          )}
+              <div className="rounded-2xl overflow-hidden" style={{ border: `1.5px solid ${T.border}` }}>
+                <AccordionHeader icon={<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>} iconColor="#10b981" iconBg="rgba(16,185,129,0.08)" title="Tags" subtitle={folderTags.length > 0 ? `${folderTags.length} tag(s)` : "Add tags"} sectionKey="tags" currentKey={expandedSection} onToggle={setExpandedSection} />
+                {expandedSection === "tags" && (
+                  <div className="p-4 space-y-3" style={{ background: T.bg }}>
+                    <div className="flex items-end gap-2">
+                      <div className="flex-1"><label className="block text-[11px] font-bold mb-1.5" style={{ color: T.textSub }}>Tag Name</label><input type="text" value={currentTag} onChange={(e) => setCurrentTag(e.target.value)} placeholder="Tag name…" className="w-full px-3 py-2 text-[12px] outline-none" style={{ background: T.pageBg, border: `1.5px solid ${T.border}`, borderRadius: '10px', color: T.textMain }} onFocus={e => e.currentTarget.style.borderColor = T.orange} onBlur={e => e.currentTarget.style.borderColor = T.border} /></div>
+                      <div><label className="text-[11px] font-bold mb-1.5 block" style={{ color: T.textSub }}>Color</label><input type="color" value={tagColor} onChange={(e) => setTagColor(e.target.value)} className="w-8 h-8 rounded-lg cursor-pointer" style={{ border: `1.5px solid ${T.border}` }} /></div>
+                      <button onClick={() => { if (currentTag.trim()) addTag(currentTag.trim(), tagColor); }} disabled={!currentTag.trim()} className="px-3 py-2 text-white text-[12px] font-bold rounded-xl" style={{ background: currentTag.trim() ? T.orange : T.border }}>Add</button>
+                    </div>
+                    {folderTags.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {folderTags.map((tag, i) => (
+                          <div key={i} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold" style={{ background: `${tag.tagColor}15`, color: tag.tagColor, border: `1.5px solid ${tag.tagColor}35` }}>
+                            {tag.tagName}<button onClick={() => removeTag(i)} className="ml-1"><X size={10} /></button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
 
-          {showZipViewer && (
-            <ZipViewer
-              fileUrl={currentZipUrl}
-              fileName={currentZipName}
-              onClose={() => {
-                setShowZipViewer(false)
-                setCurrentZipUrl("")
-                setCurrentZipName("")
-              }}
-            />
-          )}
+              {!editingFolder && (
+                <div className="rounded-2xl overflow-hidden" style={{ border: `1.5px solid ${T.border}` }}>
+                  <AccordionHeader icon={<Lock />} iconColor={T.orange} iconBg={T.orangeLight} title="Access" subtitle={accessLevel === "private" ? "Only you" : accessLevel === "team" ? "Your team" : "Public"} sectionKey="access" currentKey={expandedSection} onToggle={setExpandedSection} />
+                  {expandedSection === "access" && (
+                    <div className="p-4 space-y-2" style={{ background: T.bg }}>
+                      {[{ value: "private", icon: Lock, label: "Private" }, { value: "team", icon: Users, label: "Team" }, { value: "public", icon: Globe, label: "Public" }].map(({ value, icon: Icon, label }) => (
+                        <label key={value} className="flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-all" style={{ background: accessLevel === value ? T.orangeLight : T.pageBg, border: `1.5px solid ${accessLevel === value ? T.orange : T.border}` }}>
+                          <input type="radio" name="accessLevel" value={value} checked={accessLevel === value} onChange={(e) => setAccessLevel(e.target.value)} className="w-3.5 h-3.5" style={{ accentColor: T.orange }} />
+                          <Icon size={14} style={{ color: accessLevel === value ? T.orange : T.textMuted }} />
+                          <span className="text-[12px] font-semibold" style={{ color: accessLevel === value ? T.orange : T.textMain }}>{label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
 
-          {showVideoViewer && (
-            <VideoViewer
-              fileUrl={currentVideoUrl}
-              fileName={currentVideoName}
-              availableResolutions={currentVideoResolutions}
-              isVideo={true}
-              allVideos={videoPlaylist}
-              currentVideoIndex={currentVideoIndex}
-              onVideoChange={(index) => {
-                setCurrentVideoIndex(index)
-                const video = videoPlaylist[index]
-                setCurrentVideoUrl(typeof video.fileUrl === 'string' ? video.fileUrl : '')
-                setCurrentVideoName(video.fileName)
-                setCurrentVideoResolutions(video.availableResolutions || [])
-              }}
-              onClose={() => {
-                setShowVideoViewer(false)
-                setCurrentVideoUrl("")
-                setCurrentVideoName("")
-                setCurrentVideoResolutions([])
-                setVideoPlaylist([])
-                setCurrentVideoIndex(0)
-              }}
-            />
-          )}
+            <div className="flex justify-end gap-3 p-4 flex-shrink-0" style={{ borderTop: `1px solid ${T.border}`, background: T.pageBg }}>
+              <button onClick={() => { setShowCreateFolderModal(false); setEditingFolder(null); setNewFolderName(""); setFolderTags([]); }} className="px-4 py-2 rounded-xl text-[12px] font-bold transition-all" style={{ background: T.bg, color: T.textSub, border: `1.5px solid ${T.border}` }}>Cancel</button>
+              <button onClick={async () => { setIsButtonLoading(true); editingFolder ? await saveEditFolder() : await createFolder(); setIsButtonLoading(false); }} disabled={(editingFolder ? !editFolderName.trim() : !newFolderName.trim()) || isButtonLoading}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-[12px] font-bold text-white transition-all"
+                style={{ background: T.orange, boxShadow: `0 4px 12px ${T.orangeGlow}` }}
+                onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = T.orangeDark}
+                onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = T.orange}
+              >
+                {isButtonLoading ? <><div className="w-3.5 h-3.5 rounded-full animate-spin" style={{ border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff' }} />{editingFolder ? "Updating…" : "Creating…"}</> : <><Folder size={14} />{editingFolder ? "Update Folder" : "Create Folder"}</>}
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
+      {/* ── Delete Confirm ──────────────────────────────────────────────────────── */}
+      {/* ── Delete Confirm ── */}
+      {showDeleteConfirm && deleteTarget && (
+        <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50"
+          style={{ background: 'rgba(0,0,0,0.5)' }}>
+          <div className="mx-4 p-6 rounded-2xl"
+            style={{ background: T.bg, border: `1.5px solid ${T.border}`, width: '100%', maxWidth: '340px', boxShadow: '0 20px 50px rgba(0,0,0,0.15)' }}>
+
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0"
+                style={{ background: 'rgba(239,68,68,0.1)' }}>
+                <Trash2 size={20} style={{ color: '#ef4444' }} />
+              </div>
+              <div>
+                <h3 className="text-[14px] font-bold" style={{ color: T.textMain }}>
+                  {/* Show correct type label */}
+                  Delete {deleteTarget.item?.isPage ? "page" : deleteTarget.type}
+                </h3>
+                <p className="text-[12px] mt-0.5" style={{ color: T.textMuted }}>
+                  This action cannot be undone
+                </p>
+              </div>
+            </div>
+
+            <p className="text-[13px] mb-5" style={{ color: T.textSub }}>
+              Are you sure you want to delete "
+              <span style={{ color: T.textMain, fontWeight: 700 }}>{deleteTarget.name}</span>"?
+            </p>
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => { setShowDeleteConfirm(false); setDeleteTarget(null); }}
+                className="px-4 py-2 rounded-xl text-[12px] font-bold transition-all"
+                style={{ background: T.pageBg, color: T.textSub, border: `1.5px solid ${T.border}` }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (deleteTarget.item?.isPage) {
+                    // Page delete — calls the pages API
+                    await doDeletePage(deleteTarget.item.id, deleteTarget.name);
+                  } else if (deleteTarget.type === "folder") {
+                    await deleteFolder(deleteTarget.item);
+                  } else {
+                    await deleteFile(deleteTarget.item.id);
+                  }
+                }}
+                disabled={isDeleting}
+                className="px-4 py-2 rounded-xl text-[12px] font-bold text-white transition-all flex items-center gap-1.5 disabled:opacity-70 disabled:cursor-not-allowed"
+                style={{ background: '#ef4444' }}
+                onMouseEnter={e => !isDeleting && ((e.currentTarget as HTMLElement).style.background = '#dc2626')}
+                onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = '#ef4444'}
+              >
+                {isDeleting ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Deleting…</> : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ── Viewers ──────────────────────────────────────────────────────────────── */}
+      {showZipViewer && <ZipViewer fileUrl={currentZipUrl} fileName={currentZipName} onClose={() => setShowZipViewer(false)} />}
+
+      {showPDFViewer && (
+        <PDFViewer fileUrl={currentPDFUrl} fileName={currentPDFName} fileId={currentPDFFileId} entityType={selectedNode?.type} institution={selectedNode?.originalData?.institution || ""} courses={selectedNode?.originalData?.courses || ""} entityId={selectedNode?.id} tabType={activeTab || ""} subcategory={activeSubcategory || ""} folderPath={getCurrentNavState().currentFolderPath} apiBaseUrl="https://lms-server-ym1q.onrender.com" onClose={() => { setShowPDFViewer(false); setCurrentPDFUrl(""); setCurrentPDFName(""); setCurrentPDFFileId(""); }} isTeacher={true} initialMcqs={[]} sampleLiveLink="https://example.com/live-mcq-sample" />
+      )}
+
+      {showPPTViewer && (
+        <PPTViewer isOpen={showPPTViewer} onClose={() => { setShowPPTViewer(false); setCurrentPPTUrl(""); setCurrentPPTName(""); setCurrentPPTFileId(""); }} pptUrl={currentPPTUrl} title={currentPPTName} fileId={currentPPTFileId} entityType={selectedNode?.type || ""} entityId={selectedNode?.id || ""} tabType={toBackendTab(activeTab)} subcategory={activeSubcategory} folderPath={getCurrentNavState().currentFolderPath} isTeacher={true} apiBaseUrl="https://lms-server-ym1q.onrender.com" />
+      )}
+
+{showVideoViewer && (
+  <VideoViewer
+    fileUrl={currentVideoUrl} 
+    fileName={currentVideoName} 
+    fileId={currentVideoFileId} 
+    entityType={selectedNode?.type} 
+    entityId={selectedNode?.id} 
+    tabType={activeTab} 
+    subcategory={activeSubcategory} 
+    folderPath={getCurrentNavState().currentFolderPath} 
+    availableResolutions={currentVideoResolutions} 
+    fileUrlMap={currentVideoFileUrlMap} 
+    isVideo={true} 
+    allVideos={videoPlaylist} 
+    currentVideoIndex={currentVideoIndex}
+    onVideoChange={(idx) => { 
+      setCurrentVideoIndex(idx); 
+      const v = videoPlaylist[idx]; 
+      setCurrentVideoUrl(v.fileUrl || ""); 
+      setCurrentVideoName(v.fileName); 
+      setCurrentVideoResolutions(v.availableResolutions || []); 
+      setCurrentVideoFileUrlMap(v.fileUrlMap || {}); 
+      setCurrentVideoFileId(v.id); 
+    }}
+    onClose={() => { 
+      setShowVideoViewer(false); 
+      setCurrentVideoUrl(""); 
+      setCurrentVideoName(""); 
+      setCurrentVideoResolutions([]); 
+      setCurrentVideoFileUrlMap({}); 
+      setVideoPlaylist([]); 
+      setCurrentVideoIndex(0); 
+      setCurrentVideoFileId(""); 
+    }}
+    apiBaseUrl="https://lms-server-ym1q.onrender.com" 
+    isTeacher={true} 
+  />
+)}
     </>
-  )
+  );
 }

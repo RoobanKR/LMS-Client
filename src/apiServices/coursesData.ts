@@ -1,4 +1,40 @@
 import axios from "axios";
+export interface PageBlock {
+  type: string;
+  content: string;
+  metadata?: Record<string, any>;
+}
+
+export interface PageData {
+  id: string;
+  title: string;
+  blocks: PageBlock[];
+}
+
+export interface PagePayloadItem {
+  id: string;
+  name: string;
+  html: string;
+  blocks: PageBlock[];
+}
+
+export interface PagesPayload {
+  pages: PagePayloadItem[];
+  combinedHtml: string;
+  hierarchyInfo?: {
+    courseId: string;
+    courseName: string;
+    moduleId?: string;
+    moduleName?: string;
+    topicId?: string;
+    topicName?: string;
+    tabType?: "I_Do" | "We_Do" | "You_Do";
+    subcategory?: string;
+    folderPath?: string[];
+    folderId?: string;
+    nodeType?: string;
+  };
+}
 
 const modelMap = {
   module: { path: "modules" },
@@ -7,7 +43,15 @@ const modelMap = {
   subtopic: { path: "subtopics" },
 };
 
-const BASE_URL = "http://localhost:5533";
+const BASE_URL = "https://lms-server-ym1q.onrender.com";
+
+// Helper function to get token
+const getToken = (): string | null => {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('smartcliff_token');
+  }
+  return null;
+};
 
 export const entityApi = {
   updateEntity: async (
@@ -15,12 +59,14 @@ export const entityApi = {
     entityId: string,
     formData: FormData
   ) => {
+    const token = getToken();
     const response = await axios.put(
       `${BASE_URL}/uploadResourses/${modelMap[entityType].path}/${entityId}`,
       formData,
       {
         headers: {
           "Content-Type": "multipart/form-data",
+          ...(token && { 'Authorization': `Bearer ${token}` })
         },
         timeout: 20000000,
       }
@@ -46,6 +92,7 @@ export const entityApi = {
       tags?: Array<{ tagName: string; tagColor: string }>;
     }
   ) => {
+    const token = getToken();
     const formData = new FormData();
 
     // Add basic entity data
@@ -75,6 +122,7 @@ export const entityApi = {
       {
         headers: {
           "Content-Type": "multipart/form-data",
+          ...(token && { 'Authorization': `Bearer ${token}` })
         },
       }
     );
@@ -82,59 +130,67 @@ export const entityApi = {
     return response.data;
   },
 
-  updateFolder: async (
-    entityType: "module" | "submodule" | "topic" | "subtopic",
-    entityId: string,
-    folderData: {
-      tabType: "I_Do" | "We_Do" | "You_Do";
-      subcategory: string;
-      folderName: string;
-      folderPath: string;
-      courses?: string;
-      topicId?: string;
-      index?: number;
-      title?: string;
-      description?: string;
-      duration?: string;
-      level?: string;
-      originalFolderName?: string;
+updateFolder: async (
+  entityType: "module" | "submodule" | "topic" | "subtopic",
+  entityId: string,
+  folderData: {
+    tabType: "I_Do" | "We_Do" | "You_Do";
+    subcategory: string;
+    folderName: string;
+    folderPath: string;
+    courses?: string;
+    topicId?: string;
+    index?: number;
+    title?: string;
+    description?: string;
+    duration?: string;
+    level?: string;
+    originalFolderName?: string;
+    tags?: Array<{ tagName: string; tagColor: string }>; // ← ADD THIS
+  }
+) => {
+  const token = getToken();
+  const formData = new FormData();
+
+  // Add basic entity data
+  if (folderData.courses) formData.append("courses", folderData.courses);
+  if (folderData.topicId) formData.append("topicId", folderData.topicId);
+  if (folderData.index !== undefined) formData.append("index", folderData.index.toString());
+  if (folderData.title) formData.append("title", folderData.title);
+  if (folderData.description) formData.append("description", folderData.description);
+  if (folderData.duration) formData.append("duration", folderData.duration);
+  if (folderData.level) formData.append("level", folderData.level);
+
+  // Add folder-specific data
+  formData.append("tabType", folderData.tabType);
+  formData.append("subcategory", folderData.subcategory);
+  formData.append("folderName", folderData.folderName);
+  formData.append("folderPath", folderData.folderPath);
+  formData.append("action", "updateFolder");
+
+  // ✅ ADD TAGS HERE
+  if (folderData.tags && folderData.tags.length > 0) {
+    formData.append("tags", JSON.stringify(folderData.tags));
+  }
+
+  // ✅ CRITICAL: Add the original folder name
+  if (folderData.originalFolderName) {
+    formData.append("originalFolderName", folderData.originalFolderName);
+  }
+
+  const response = await axios.put(
+    `${BASE_URL}/uploadResourses/${modelMap[entityType].path}/${entityId}`,
+    formData,
+    {
+      headers: {
+        "Content-Type": "multipart/form-data",
+        ...(token && { 'Authorization': `Bearer ${token}` })
+      },
     }
-  ) => {
-    const formData = new FormData();
+  );
 
-    // Add basic entity data
-    if (folderData.courses) formData.append("courses", folderData.courses);
-    if (folderData.topicId) formData.append("topicId", folderData.topicId);
-    if (folderData.index !== undefined) formData.append("index", folderData.index.toString());
-    if (folderData.title) formData.append("title", folderData.title);
-    if (folderData.description) formData.append("description", folderData.description);
-    if (folderData.duration) formData.append("duration", folderData.duration);
-    if (folderData.level) formData.append("level", folderData.level);
-
-    // Add folder-specific data
-    formData.append("tabType", folderData.tabType);
-    formData.append("subcategory", folderData.subcategory);
-    formData.append("folderName", folderData.folderName);
-    formData.append("folderPath", folderData.folderPath);
-    formData.append("action", "updateFolder");
-
-    // ✅ CRITICAL: Add the original folder name
-    if (folderData.originalFolderName) {
-      formData.append("originalFolderName", folderData.originalFolderName);
-    }
-
-    const response = await axios.put(
-      `${BASE_URL}/uploadResourses/${modelMap[entityType].path}/${entityId}`,
-      formData,
-      {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      }
-    );
-
-    return response.data;
-  },
+  return response.data;
+},
 
   deleteFolder: async (
     entityType: "module" | "submodule" | "topic" | "subtopic",
@@ -153,6 +209,7 @@ export const entityApi = {
       level?: string;
     }
   ) => {
+    const token = getToken();
     const formData = new FormData();
 
     // Add basic entity data
@@ -177,6 +234,7 @@ export const entityApi = {
       {
         headers: {
           "Content-Type": "multipart/form-data",
+          ...(token && { 'Authorization': `Bearer ${token}` })
         },
       }
     );
@@ -202,6 +260,7 @@ export const entityApi = {
       updateFileId: string;
     }
   ) => {
+    const token = getToken();
     const formData = new FormData();
 
     // Add basic entity data
@@ -226,10 +285,180 @@ export const entityApi = {
       {
         headers: {
           "Content-Type": "multipart/form-data",
+          ...(token && { 'Authorization': `Bearer ${token}` })
         },
       }
     );
 
+    return response.data;
+  },
+
+ createPage: async (
+    entityType: "module" | "submodule" | "topic" | "subtopic",
+    entityId: string,
+    payload: PagesPayload  // Changed from pageData to accept the full payload
+  ) => {
+    const token = getToken();
+
+    try {
+      console.log('Creating page with payload:', {
+        entityType,
+        entityId,
+        pageCount: payload.pages.length,
+        hasCombinedHtml: !!payload.combinedHtml,
+        hierarchyInfo: payload.hierarchyInfo
+      });
+
+      const response = await axios.post(
+        `${BASE_URL}/pages/${entityType}/${entityId}/pages`,
+        {
+          // Send the full PagesPayload structure
+          pages: payload.pages,
+          combinedCode: payload.combinedHtml, // Map combinedHtml to combinedCode for backend
+          hierarchyInfo: payload.hierarchyInfo,
+          // Also include individual fields for backward compatibility
+          title: payload.pages[0]?.name || 'Untitled',
+          blocks: payload.pages[0]?.blocks || [],
+          tabType: payload.hierarchyInfo?.tabType,
+          subcategory: payload.hierarchyInfo?.subcategory,
+          folderPath: payload.hierarchyInfo?.folderPath || []
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      return response.data;
+    } catch (error) {
+      console.error('Create page API error:', error);
+      if (axios.isAxiosError(error) && error.response) {
+        throw new Error(error.response.data?.message?.[0]?.value || 'Failed to create page');
+      }
+      throw error;
+    }
+  },
+
+  getPages: async (
+    entityType: "module" | "submodule" | "topic" | "subtopic",
+    entityId: string,
+    params: {
+      tabType: "I_Do" | "We_Do" | "You_Do";
+      subcategory: string;
+      folderPath?: string;
+    }
+  ) => {
+    const token = getToken();
+    const response = await axios.get(
+      `${BASE_URL}/pages/${entityType}/${entityId}/pages`,
+      { 
+        params,
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      }
+    );
+    return response.data;
+  },
+
+  getPageById: async (
+    entityType: "module" | "submodule" | "topic" | "subtopic",
+    entityId: string,
+    pageId: string,
+    params: {
+      tabType: "I_Do" | "We_Do" | "You_Do";
+      subcategory: string;
+      folderPath?: string;
+    }
+  ) => {
+    const token = getToken();
+    const response = await axios.get(
+      `${BASE_URL}/pages/${entityType}/${entityId}/pages/${pageId}`,
+      { 
+        params,
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      }
+    );
+    return response.data;
+  },
+updatePage: async (
+  entityType: "module" | "submodule" | "topic" | "subtopic",
+  entityId: string,
+  pageId: string,
+  pageData: {
+    title?: string;
+    blocks?: any[];
+    htmlContent?: string;
+    pages?: Array<{ id: string; name: string; html: string; blocks: any[] }>; // ← ADD
+    tabType: "I_Do" | "We_Do" | "You_Do";
+    subcategory: string;
+    folderPath?: string[];
+  }
+) => {
+  const token = getToken();
+  const response = await axios.put(
+    `${BASE_URL}/pages/${entityType}/${entityId}/pages/${pageId}`,
+    pageData,
+    {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    }
+  );
+  return response.data;
+},
+
+  deletePage: async (
+    entityType: "module" | "submodule" | "topic" | "subtopic",
+    entityId: string,
+    pageId: string,
+    data: {
+      tabType: "I_Do" | "We_Do" | "You_Do";
+      subcategory: string;
+      folderPath?: string;
+    }
+  ) => {
+    const token = getToken();
+    const response = await axios.delete(
+      `${BASE_URL}/pages/${entityType}/${entityId}/pages/${pageId}`,
+      { 
+        data,
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+    return response.data;
+  },
+
+  movePage: async (
+    entityType: "module" | "submodule" | "topic" | "subtopic",
+    entityId: string,
+    pageId: string,
+    data: {
+      tabType: "I_Do" | "We_Do" | "You_Do";
+      subcategory: string;
+      sourceFolderPath?: string;
+      destinationFolderPath: string;
+    }
+  ) => {
+    const token = getToken();
+    const response = await axios.post(
+      `${BASE_URL}/pages/${entityType}/${entityId}/pages/${pageId}/move`,
+      data,
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
     return response.data;
   },
 };
@@ -255,6 +484,7 @@ export const fileSettingsApi = {
       level?: string;
     }
   ) => {
+    const token = getToken();
     const formData = new FormData();
 
     // Add basic entity data if provided
@@ -279,11 +509,12 @@ export const fileSettingsApi = {
     }
 
     const response = await axios.put(
-      `${BASE_URL}/uploadResourses/${modelMap[entityType].path}/${entityId}`,
+      `${BASE_URL}/uploadResourses/${modelMap[entityType].path}/${entityId}/settings`,
       formData,
       {
         headers: {
           "Content-Type": "multipart/form-data",
+          ...(token && { 'Authorization': `Bearer ${token}` })
         },
       }
     );
@@ -314,6 +545,7 @@ export type Module = {
   topics: Topic[];
   subModules: SubModule[];
   pedagogy?: any;
+  testConfiguration?: { coreProgram: string[]; frontend: string[]; database: string[] };
 };
 
 export type SubModule = {
@@ -325,6 +557,7 @@ export type SubModule = {
   level: string;
   topics: Topic[];
   pedagogy?: any;
+  testConfiguration?: { coreProgram: string[]; frontend: string[]; database: string[] };
 };
 
 export type Topic = {
@@ -336,6 +569,7 @@ export type Topic = {
   level: string;
   subTopics: SubTopic[];
   pedagogy?: any;
+  testConfiguration?: { coreProgram: string[]; frontend: string[]; database: string[] };
 };
 
 export type SubTopic = {
@@ -346,13 +580,19 @@ export type SubTopic = {
   index: number;
   level: string;
   pedagogy?: any;
+  testConfiguration?: { coreProgram: string[]; frontend: string[]; database: string[] };
 };
 
 export const courseDataApi = {
   getById: (id: string) => ({
     queryKey: ["course", id],
     queryFn: async (): Promise<{ data: CourseStructureData }> => {
-      const response = await axios.get(`${BASE_URL}/getAll/courses-data/${id}`);
+      const token = getToken();
+      const response = await axios.get(`${BASE_URL}/getAll/courses-data/${id}`, {
+        headers: {
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        }
+      });
       return response.data;
     },
   }),
@@ -390,5 +630,3 @@ export const updateFileSettingsInComponent = async (
 
   return await fileSettingsApi.updateFileSettings(entityType, entityId, data);
 };
-
-

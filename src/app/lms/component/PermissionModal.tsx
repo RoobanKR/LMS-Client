@@ -3,7 +3,7 @@ import { useState, useEffect, Key } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Check, X, Save, Loader2,MarsStroke, ShieldCheck, Settings2, Users, BookOpen,Computer, FileText, Folder, BarChart, Settings, ChevronDown, ChevronRight, Palette, Image as ImageIcon, Edit, Bell, Home } from "lucide-react"
+import { Check, X, Save, Loader2, ShieldCheck, Settings2, Users, BookOpen, Computer, FileText, Folder, BarChart, Settings, ChevronDown, ChevronRight, Palette, Image as ImageIcon, Edit, Bell, Home, GraduationCap, MessageCircleQuestion } from "lucide-react"
 import { toast } from "react-toastify"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { iconMap, availableColors, colorClasses } from "../../../lib/iconMapping"
@@ -60,15 +60,17 @@ const permissionCategories = [
   }
 ]
 
-// Define default permissions with multiple categories
+// Define default permissions with unique IDs
 const defaultPermissionData: PermissionItem[] = [
+
+  // admin pages
   {
     id: "admindashboard",
     key: "admindashboard",
-    name: "Dashboard",
+    name: "Admin Dashboard",
     icon: "Home",
     color: "green",
-    categories: ["admin"], // Multiple categories
+    categories: ["admin"],
     description: "Admin Dashboard Management",
     functionalities: [
       { id: "view_users", label: "View Users", description: "View user list" },
@@ -77,43 +79,15 @@ const defaultPermissionData: PermissionItem[] = [
       { id: "delete_users", label: "Delete Users", description: "Remove accounts" },
     ]
   },
+
    {
-    id: "dashboard",
-    key: "dashboard",
-    name: "Dashboard",
-    icon: "Home",
-    color: "green",
-    categories: ["staff"], // Multiple categories
-    description: "Staff Dashboard Management",
-    functionalities: [
-      { id: "view_users", label: "View Users", description: "View user list" },
-      { id: "add_users", label: "Add Users", description: "Create new accounts" },
-      { id: "edit_users", label: "Edit Users", description: "Modify user info" },
-      { id: "delete_users", label: "Delete Users", description: "Remove accounts" },
-    ]
-  },
-  {
-    id: "s_dashboard",
-    key: "studentdashboard",
-    name: "Student Dashboard",
-    icon: "Home",
-    color: "green",
-    categories: ["student"], // Single category
-    description: "Student Dashboard Access",
-    functionalities: [
-      { id: "view_courses", label: "View Courses", description: "View enrolled courses" },
-      { id: "view_grades", label: "View Grades", description: "View grades and progress" },
-      { id: "submit_assignments", label: "Submit Assignments", description: "Submit course assignments" },
-    ]
-  },
-  {
-    id: "user-management",
+    id: "admin-usermanagement",
     key: "usermanagement",
     name: "User Management",
     icon: "Users",
     color: "blue",
-    categories: ["staff", "admin"], // Multiple categories
-    description: "Manage users and access",
+    categories: ["admin"],
+    description: "Admin - Manage users and access",
     functionalities: [
       { id: "Add User", label: "Add User", description: "Create new accounts" },
       { id: "View Full Details", label: "View Full Details", description: "View user full details" },
@@ -125,14 +99,15 @@ const defaultPermissionData: PermissionItem[] = [
       { id: "Toggle User Status", label: "Toggle User Status", description: "Toggle the user's active status" },
     ]
   },
-  {
-    id: "course-management",
+
+   {
+    id: "admin-coursemanagement",
     key: "coursestructure",
     name: "Course Management",
     icon: "BookOpen",
     color: "green",
-    categories: ["admin"], // Multiple categories
-    description: "Manage courses and materials",
+    categories: ["admin"],
+    description: "Admin - Manage courses and materials",
     functionalities: [
       { id: "Add Course Structure", label: "Add Course Structure", description: "Add Course Structure new courses" },
       { id: "View Full Details", label: "View Full Details", description: "View course catalog" },
@@ -144,14 +119,185 @@ const defaultPermissionData: PermissionItem[] = [
       { id: "Dublicate", label: "Dublicate", description: "Delete new courses" },
     ]
   },
+
+   {
+    id: "admin-notification",
+    key: "notifications",
+    name: "Notification",
+    icon: "Bell",
+    color: "gray",
+    categories: ["admin"],
+    description: "System notifications",
+    functionalities: [
+      { id: "view_notifications", label: "View Notifications", description: "View notifications" },
+      { id: "edit_notifications", label: "Edit Notifications", description: "Modify notifications" },
+    ]
+  },
+   {
+    id: "admin-dynamic-field-settings",
+    key: "dynamicfieldsettings",
+    name: "Dynamic Field Settings",
+    icon: "Settings2",
+    color: "gray",
+    categories: ["admin"],
+    description: "Dynamic Field Configuration",
+    functionalities: [
+      { id: "Service Modal", label: "Service Modal", description: "Service config" },
+      { id: "Course Category", label: "Course Category", description: "Course preferences" },
+      { id: "Pedagogy", label: "Pedagogy", description: "Pedagogy preferences" },
+      { id: "Client Modal", label: "Client Modal", description: "Client preferences" },
+      { id: "Question Bank", label: "Question Bank", description: "Question Bank preferences" },
+    ]
+  },
+   {
+    id: "admin-question-banks",
+    key: "questionbanks",
+    name: "Question Banks",
+    icon: "MessageCircleQuestion",
+    color: "gray",
+    categories: ["admin"],
+    description: "Admin Manage question banks",
+    functionalities: []
+  },
  
   {
-    id: "course",
+    id: "admin-grades",
+    key: "grades",
+    name: "Grades",
+    icon: "GraduationCap",
+    color: "green",
+    categories: ["admin"],
+    description: "Admin Grade Management",
+    functionalities: []
+  },
+ {
+    id: "admin-profile",
+    key: "profile",
+    name: "Profiles",
+    icon: "GraduationCap",
+    color: "green",
+    categories: ["admin"],
+    description: "Admin Profile Management",
+    functionalities: []
+  },
+
+  // Staff Pages
+  {
+    id: "staffdashboard",
+    key: "dashboard",
+    name: "Staff Dashboard",
+    icon: "Home",
+    color: "green",
+    categories: ["staff"],
+    description: "Staff Dashboard Management",
+    functionalities: [
+      { id: "view_users", label: "View Users", description: "View user list" },
+      { id: "add_users", label: "Add Users", description: "Create new accounts" },
+      { id: "edit_users", label: "Edit Users", description: "Modify user info" },
+      { id: "delete_users", label: "Delete Users", description: "Remove accounts" },
+    ]
+  },
+
+   {
+    id: "staff-usermanagement",
+    key: "usermanagement",
+    name: "User Management",
+    icon: "Users",
+    color: "blue",
+    categories: ["staff"],
+    description: "Staff - Manage users and access",
+    functionalities: [
+      { id: "Add User", label: "Add User", description: "Create new accounts" },
+      { id: "View Full Details", label: "View Full Details", description: "View user full details" },
+      { id: "Bulk Upload", label: "Bulk Upload", description: "Upload multiple users at once" },
+      { id: "Bulk Permission", label: "Bulk Permission", description: "Set permissions for multiple users" },
+      { id: "Edit", label: "Edit", description: "Modify user info" },
+      { id: "Permissions", label: "Permissions", description: "single User Permissions" },
+      { id: "Delete", label: "Delete", description: "Delete the user" },
+      { id: "Toggle User Status", label: "Toggle User Status", description: "Toggle the user's active status" },
+    ]
+  },
+
+   {
+    id: "staff-courses",
+    key: "courses",
+    name: "Course",
+    icon: "BookOpen",
+    color: "red",
+    categories: ["staff"],
+    description: "Staff Course Access",
+    functionalities: [
+      { id: "enroll_courses", label: "Enroll Courses", description: "Enroll in new courses" },
+      { id: "access_materials", label: "Access Materials", description: "Access course materials" },
+      { id: "view_schedule", label: "View Schedule", description: "View course schedule" },
+    ]
+  },
+   {
+    id: "staff-notification",
+    key: "notifications",
+    name: "Notifications",
+    icon: "Bell",
+    color: "gray",
+    categories: ["staff"],
+    description: "System notifications",
+    functionalities: [
+      { id: "view_notifications", label: "View Notifications", description: "View notifications" },
+      { id: "edit_notifications", label: "Edit Notifications", description: "Modify notifications" },
+    ]
+  },
+  {
+    id: "staff-question-banks",
+    key: "questionbanks",
+    name: "Question Banks",
+    icon: "MessageCircleQuestion",
+    color: "gray",
+    categories: ["staff"],
+    description: "Staff Manage question banks",
+    functionalities: []
+  },
+   {
+    id: "staff-grades",
+    key: "grades",
+    name: "Grades",
+    icon: "GraduationCap",
+    color: "green",
+    categories: ["staff"],
+    description: "Staff Grade Management",
+    functionalities: []
+  },
+   {
+    id: "staff-profile",
+    key: "profile",
+    name: "profile",
+    icon: "GraduationCap",
+    color: "green",
+    categories: ["staff"],
+    description: "Staff Profile Management",
+    functionalities: []
+  },
+// student pages
+  {
+    id: "studentdashboard",
+    key: "studentdashboard",
+    name: "Student Dashboard",
+    icon: "Home",
+    color: "green",
+    categories: ["student"],
+    description: "Student Dashboard Access",
+    functionalities: [
+      { id: "view_courses", label: "View Courses", description: "View enrolled courses" },
+      { id: "view_grades", label: "View Grades", description: "View grades and progress" },
+      { id: "submit_assignments", label: "Submit Assignments", description: "Submit course assignments" },
+    ]
+  },
+ 
+  {
+    id: "student-courses",
     key: "courses",
     name: "Courses",
     icon: "BookOpen",
     color: "red",
-    categories: ["student"], // Single category
+    categories: ["student"],
     description: "Student Course Access",
     functionalities: [
       { id: "enroll_courses", label: "Enroll Courses", description: "Enroll in new courses" },
@@ -159,51 +305,37 @@ const defaultPermissionData: PermissionItem[] = [
       { id: "view_schedule", label: "View Schedule", description: "View course schedule" },
     ]
   },
- 
-  {
-    id: "dynamicfieldsettings",
-    key: "dynamicfieldsettings",
-    name: "Dynamic Field Settings",
-    icon: "Settings2",
-    color: "gray",
-    categories: ["staff", "admin"], // Multiple categories
-    description: "Dynamic Field Configuration",
-    functionalities: [
-      { id: "Service Modal", label: "Service Modal", description: "Service config" },
-      { id: "Course Category", label: "Course Category", description: "Course preferences" },
-      { id: "Pedagogy", label: "Pedagogy", description: "Pedagogy preferences" },
-    ]
-  },
-  {
-    id: "notification",
+   {
+    id: "student-notification",
     key: "notifications",
-    name: "Notifications",
+    name: "notifications",
     icon: "Bell",
     color: "gray",
-    categories: ["student", "staff", "admin"], // All categories
+    categories: ["student"],
     description: "System notifications",
     functionalities: [
       { id: "view_notifications", label: "View Notifications", description: "View notifications" },
       { id: "edit_notifications", label: "Edit Notifications", description: "Modify notifications" },
     ]
   },
-    {
-    id: "grades",
-    key: "grades",
-    name: "Grades",
-    icon: "graduation-cap",
+  {
+    id: "student-profile",
+    key: "profile",
+    name: "My Profile",
+    icon: "GraduationCap",
     color: "green",
-    categories: ["staff", "admin"], // Multiple categories
-    description: "Staff Grade Management",
+    categories: ["student"],
+    description: "Student Profile Management",
     functionalities: []
   },
+ 
   {
-    id: "grade",
+    id: "student-grade",
     key: "grade",
     name: "Grade",
-    icon: "graduation-cap",
+    icon: "GraduationCap",
     color: "green",
-    categories: ["student"], // Multiple categories
+    categories: ["student"],
     description: "Student Grade Management",
     functionalities: []
   },
@@ -215,22 +347,24 @@ const iconComponents: Record<string, React.ComponentType<any>> = {
   ShieldCheck: ShieldCheck,
   Home: Home,
   BookOpen: BookOpen,
-  Computer:Computer,
+  Computer: Computer,
   FileText: FileText,
   Settings2: Settings2,
   Bell: Bell,
+  GraduationCap: GraduationCap,
+  MessageCircleQuestion: MessageCircleQuestion,
   // Add more icons as needed
-};
+}
 
 // Helper function to get icon component
 const getIconComponent = (iconName: string): React.ComponentType<any> => {
-  return iconComponents[iconName] || iconMap[iconName] || ShieldCheck;
-};
+  return iconComponents[iconName] || iconMap[iconName] || ShieldCheck
+}
 
 export function PermissionModal({ isOpen, onClose, userId, userName, userEmail }: PermissionModalProps) {
-  const [selectedPermissions, setSelectedPermissions] = useState<string[]>([])
+  const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]) // Now stores permission IDs
   const [selectedFunctionalities, setSelectedFunctionalities] = useState<Record<string, string[]>>({})
-  const [activePermission, setActivePermission] = useState<string | null>(null)
+  const [activePermission, setActivePermission] = useState<string | null>(null) // Now stores permission ID
   const [permissionData, setPermissionData] = useState<PermissionItem[]>(defaultPermissionData)
   const [editingPermission, setEditingPermission] = useState<PermissionItem | null>(null)
   const [isEditing, setIsEditing] = useState(false)
@@ -257,13 +391,13 @@ export function PermissionModal({ isOpen, onClose, userId, userName, userEmail }
   // Check if category has selected permissions
   const hasSelectedPermissionsInCategory = (categoryKey: string) => {
     const categoryPermissions = getPermissionsByCategory(categoryKey)
-    return categoryPermissions.some(permission => selectedPermissions.includes(permission.key))
+    return categoryPermissions.some(permission => selectedPermissions.includes(permission.id))
   }
 
   // Get selected count in category
   const getSelectedCountInCategory = (categoryKey: string) => {
     const categoryPermissions = getPermissionsByCategory(categoryKey)
-    return categoryPermissions.filter(permission => selectedPermissions.includes(permission.key)).length
+    return categoryPermissions.filter(permission => selectedPermissions.includes(permission.id)).length
   }
 
   // Get total permissions count in category
@@ -273,7 +407,7 @@ export function PermissionModal({ isOpen, onClose, userId, userName, userEmail }
 
   const updateMutation = useMutation({
     mutationFn: async (permissions: any[]) => {
-      const response = await fetch(`http://localhost:5533/user-permission/update/${userId}`, {
+      const response = await fetch(`https://lms-server-ym1q.onrender.com/user-permission/update/${userId}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -301,105 +435,130 @@ export function PermissionModal({ isOpen, onClose, userId, userName, userEmail }
     }
   })
 
-  useEffect(() => {
-    if (isOpen && userId) {
-      setSelectedPermissions([])
-      setSelectedFunctionalities({})
-      setExpandedCategories([]) // Reset expanded categories
-      
-      // Expand first category by default
-      if (permissionCategories.length > 0) {
-        setExpandedCategories([permissionCategories[0].key])
-      }
+useEffect(() => {
+  if (isOpen && userId) {
+    setSelectedPermissions([])
+    setSelectedFunctionalities({})
+    setExpandedCategories([])
+    
+    if (permissionCategories.length > 0) {
+      setExpandedCategories([permissionCategories[0].key])
+    }
 
-      fetch(`http://localhost:5533/user/get-permission/${userId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-        .then(res => res.ok ? res.json() : Promise.reject())
-        .then(data => {
-          if (data.data?.permissions) {
-            const selectedPermKeys: string[] = []
-            const funcs: Record<string, string[]> = {}
-            
-            const backendPermissions = data.data.permissions
-            let permissionsList = defaultPermissionData
-            
-            if (backendPermissions && backendPermissions.length > 0) {
-              const mergedPermissions = defaultPermissionData.map(defaultPerm => {
-                const backendPerm = backendPermissions.find((bp: any) => bp.permissionKey === defaultPerm.key)
-                if (backendPerm) {
-                  return {
-                    ...defaultPerm,
-                    icon: backendPerm.icon || defaultPerm.icon,
-                    color: backendPerm.color || defaultPerm.color,
-                    description: backendPerm.description || defaultPerm.description
-                  }
-                }
-                return defaultPerm
-              })
-              permissionsList = mergedPermissions
-            }
-            
-            setPermissionData(permissionsList)
-            
-            data.data.permissions.forEach((perm: any) => {
-              const permission = permissionsList.find(p => p.key === perm.permissionKey)
-              if (permission) {
-                selectedPermKeys.push(permission.key)
-                if (perm.permissionFunctionality?.length > 0) {
-                  funcs[permission.key] = perm.permissionFunctionality
+    fetch(`https://lms-server-ym1q.onrender.com/user/get-permission/${userId}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(res => res.ok ? res.json() : Promise.reject())
+      .then(data => {
+        if (data.data?.permissions) {
+          const selectedPermIds: string[] = []
+          const funcs: Record<string, string[]> = {}
+          
+          const backendPermissions = data.data.permissions
+          let permissionsList = defaultPermissionData
+          
+          if (backendPermissions && backendPermissions.length > 0) {
+            const mergedPermissions = defaultPermissionData.map(defaultPerm => {
+              // Try to find by ID first (if backend stores ID)
+              let backendPerm = backendPermissions.find((bp: any) => bp.id === defaultPerm.id)
+              
+              // If not found by ID, try matching by key and name (for backward compatibility)
+              if (!backendPerm) {
+                backendPerm = backendPermissions.find((bp: any) => 
+                  bp.permissionKey === defaultPerm.key && 
+                  bp.permissionName === defaultPerm.name
+                )
+              }
+              
+              if (backendPerm) {
+                return {
+                  ...defaultPerm,
+                  icon: backendPerm.icon || defaultPerm.icon,
+                  color: backendPerm.color || defaultPerm.color,
+                  description: backendPerm.description || defaultPerm.description
                 }
               }
+              return defaultPerm
             })
+            permissionsList = mergedPermissions
+          }
+          
+          setPermissionData(permissionsList)
+          
+          data.data.permissions.forEach((perm: any) => {
+            // First try to find by ID
+            let permission = permissionsList.find(p => p.id === perm.id)
             
-            setSelectedPermissions(selectedPermKeys)
-            setSelectedFunctionalities(funcs)
-            
-            if (selectedPermKeys.length > 0) {
-              setActivePermission(selectedPermKeys[0])
-            } else if (permissionsList.length > 0) {
-              setActivePermission(permissionsList[0].key)
+            // If not found by ID, try matching by key and name
+            if (!permission) {
+              permission = permissionsList.find(p => 
+                p.key === perm.permissionKey && 
+                p.name === perm.permissionName
+              )
             }
-          } else {
-            setPermissionData(defaultPermissionData)
-            setActivePermission(defaultPermissionData[0]?.key || null)
+            
+            if (permission) {
+              selectedPermIds.push(permission.id)
+              if (perm.permissionFunctionality?.length > 0) {
+                funcs[permission.id] = perm.permissionFunctionality
+              }
+            }
+          })
+          
+          setSelectedPermissions(selectedPermIds)
+          setSelectedFunctionalities(funcs)
+          
+          if (selectedPermIds.length > 0) {
+            setActivePermission(selectedPermIds[0])
+          } else if (permissionsList.length > 0) {
+            setActivePermission(permissionsList[0].id)
           }
-        })
-        .catch(() => {
-          toast.error("Failed to load permissions")
+        } else {
           setPermissionData(defaultPermissionData)
-          if (defaultPermissionData.length > 0) {
-            setActivePermission(defaultPermissionData[0].key)
-          }
-        })
-    }
-  }, [isOpen, userId, token])
+          setActivePermission(defaultPermissionData[0]?.id || null)
+        }
+      })
+      .catch(() => {
+        toast.error("Failed to load permissions")
+        setPermissionData(defaultPermissionData)
+        if (defaultPermissionData.length > 0) {
+          setActivePermission(defaultPermissionData[0].id)
+        }
+      })
+  }
+}, [isOpen, userId, token])
 
-  const handlePermissionToggle = (permissionKey: string) => {
+  const handlePermissionToggle = (permissionId: string) => {
     setSelectedPermissions(prev => {
-      const isCurrentlySelected = prev.includes(permissionKey)
+      const isCurrentlySelected = prev.includes(permissionId)
+      const permission = permissionData.find(p => p.id === permissionId)
       
       if (isCurrentlySelected) {
-        const newSelected = prev.filter(key => key !== permissionKey)
+        const newSelected = prev.filter(id => id !== permissionId)
         const newFuncs = { ...selectedFunctionalities }
-        delete newFuncs[permissionKey]
+        
+        // Remove functionalities for this permission
+        if (permission) {
+          delete newFuncs[permissionId]
+        }
+        
         setSelectedFunctionalities(newFuncs)
         
-        if (activePermission === permissionKey) {
+        // Update active permission if needed
+        if (activePermission === permissionId) {
           if (newSelected.length > 0) {
             setActivePermission(newSelected[0])
           } else if (permissionData.length > 0) {
-            setActivePermission(permissionData[0].key)
+            setActivePermission(permissionData[0].id)
           }
         }
         
         return newSelected
       } else {
-        const newSelected = [...prev, permissionKey]
-        setActivePermission(permissionKey)
+        const newSelected = [...prev, permissionId]
+        setActivePermission(permissionId)
         
         // Auto-expand the first category that contains this permission
-        const permission = permissionData.find(p => p.key === permissionKey)
         if (permission?.categories && permission.categories.length > 0) {
           const firstCategory = permission.categories[0]
           if (!expandedCategories.includes(firstCategory)) {
@@ -412,23 +571,23 @@ export function PermissionModal({ isOpen, onClose, userId, userName, userEmail }
     })
   }
 
-  const handleFunctionalityToggle = (permissionKey: string, functionalityId: string) => {
+  const handleFunctionalityToggle = (permissionId: string, functionalityId: string) => {
     setSelectedFunctionalities(prev => {
       const newFuncs = { ...prev }
       
-      if (!newFuncs[permissionKey]) {
-        newFuncs[permissionKey] = []
+      if (!newFuncs[permissionId]) {
+        newFuncs[permissionId] = []
       }
       
-      const index = newFuncs[permissionKey].indexOf(functionalityId)
+      const index = newFuncs[permissionId].indexOf(functionalityId)
       if (index > -1) {
-        newFuncs[permissionKey].splice(index, 1)
+        newFuncs[permissionId].splice(index, 1)
       } else {
-        newFuncs[permissionKey].push(functionalityId)
+        newFuncs[permissionId].push(functionalityId)
       }
       
-      if (newFuncs[permissionKey].length === 0) {
-        delete newFuncs[permissionKey]
+      if (newFuncs[permissionId].length === 0) {
+        delete newFuncs[permissionId]
       }
       
       return newFuncs
@@ -438,7 +597,7 @@ export function PermissionModal({ isOpen, onClose, userId, userName, userEmail }
   const handleSelectAllFunctionalities = () => {
     if (!activePermission) return
     
-    const permission = permissionData.find(p => p.key === activePermission)
+    const permission = permissionData.find(p => p.id === activePermission)
     if (!permission) return
     
     const allFuncs = permission.functionalities.map(f => f.id)
@@ -466,7 +625,7 @@ export function PermissionModal({ isOpen, onClose, userId, userName, userEmail }
     
     setPermissionData(prev => 
       prev.map(p => 
-        p.key === editingPermission.key ? editingPermission : p
+        p.id === editingPermission.id ? editingPermission : p
       )
     )
     setIsEditing(false)
@@ -512,51 +671,52 @@ export function PermissionModal({ isOpen, onClose, userId, userName, userEmail }
   }
 
   const getActivePermission = () => {
-    return permissionData.find(p => p.key === activePermission)
+    return permissionData.find(p => p.id === activePermission)
   }
 
   const getTotalSelectedFunctionalities = () => {
     return Object.values(selectedFunctionalities).reduce((total, funcs) => total + funcs.length, 0)
   }
 
-  const handleSave = () => {
-    if (selectedPermissions.length === 0) {
-      toast.error("Please select at least one permission")
-      return
-    }
-
-    const permissionsArray = selectedPermissions.map((permissionKey, index) => {
-      const permission = permissionData.find(p => p.key === permissionKey)
-      return {
-        permissionName: permission?.name || permissionKey,
-        permissionKey: permissionKey,
-        permissionFunctionality: selectedFunctionalities[permissionKey] || [],
-        icon: permission?.icon || "Shield",
-        color: permission?.color || "blue",
-        description: permission?.description || "",
-        isActive: true,
-        order: index
-      }
-    })
-
-    updateMutation.mutate(permissionsArray)
+const handleSave = () => {
+  if (selectedPermissions.length === 0) {
+    toast.error("Please select at least one permission")
+    return
   }
+
+  const permissionsArray = selectedPermissions.map((permissionId, index) => {
+    const permission = permissionData.find(p => p.id === permissionId)
+    return {
+      id: permission?.id, // Include the ID
+      permissionName: permission?.name || "",
+      permissionKey: permission?.key || "",
+      permissionFunctionality: selectedFunctionalities[permissionId] || [],
+      icon: permission?.icon || "Shield",
+      color: permission?.color || "blue",
+      description: permission?.description || "",
+      isActive: true,
+      order: index
+    }
+  })
+
+  updateMutation.mutate(permissionsArray)
+}
 
   const handleClearAll = () => {
     setSelectedPermissions([])
     setSelectedFunctionalities({})
     setExpandedCategories([])
     if (permissionData.length > 0) {
-      setActivePermission(permissionData[0].key)
+      setActivePermission(permissionData[0].id)
     }
   }
 
-  const isPermissionSelected = (permissionKey: string) => {
-    return selectedPermissions.includes(permissionKey)
+  const isPermissionSelected = (permissionId: string) => {
+    return selectedPermissions.includes(permissionId)
   }
 
-  const getPermissionFuncCount = (permissionKey: string) => {
-    return selectedFunctionalities[permissionKey]?.length || 0
+  const getPermissionFuncCount = (permissionId: string) => {
+    return selectedFunctionalities[permissionId]?.length || 0
   }
 
   return (
@@ -628,20 +788,20 @@ export function PermissionModal({ isOpen, onClose, userId, userName, userEmail }
                       <div className="pl-2 pr-1 py-1 space-y-1 border-t">
                         {categoryPermissions.map((permission) => {
                           const PermissionIcon = getIconComponent(permission.icon)
-                          const isSelected = isPermissionSelected(permission.key)
-                          const isActive = activePermission === permission.key
+                          const isSelected = isPermissionSelected(permission.id)
+                          const isActive = activePermission === permission.id
                           const color = colorClasses[permission.color] || colorClasses.blue
-                          const funcCount = getPermissionFuncCount(permission.key)
+                          const funcCount = getPermissionFuncCount(permission.id)
                           
                           return (
                             <div 
-                              key={`${category.key}-${permission.key}`}
+                              key={permission.id}
                               className={`relative rounded transition-all duration-150 ${isActive ? color.bg : ''}`}
                             >
                               {/* Checkbox */}
                               <div className="absolute left-2 top-1/2 transform -translate-y-1/2 z-10">
                                 <div 
-                                  onClick={() => handlePermissionToggle(permission.key)}
+                                  onClick={() => handlePermissionToggle(permission.id)}
                                   className={`h-4 w-4 rounded-sm border flex items-center justify-center cursor-pointer transition-all ${
                                     isSelected 
                                       ? 'bg-blue-500 border-blue-500' 
@@ -654,7 +814,7 @@ export function PermissionModal({ isOpen, onClose, userId, userName, userEmail }
                               
                               {/* Permission Item */}
                               <button
-                                onClick={() => setActivePermission(permission.key)}
+                                onClick={() => setActivePermission(permission.id)}
                                 className={`w-full text-left pl-8 pr-2 py-1.5 rounded transition-all ${
                                   isActive 
                                     ? `${color.bg} border ${color.border}` 

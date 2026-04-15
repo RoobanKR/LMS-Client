@@ -1,525 +1,883 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { X, Loader, Code, ListChecks, ChevronRight, Check, Info } from 'lucide-react';
-import { questionApi, QuestionData } from '@/apiServices/question';
-import { Question } from '../QuestionsView';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { X, Loader, Code, ListChecks, ChevronRight, Info, Plus, Database, Check, FileText } from 'lucide-react';
+import { questionApi } from '@/apiServices/question';
 import FrontendQuestionForm from './FrontendQuestionForm';
 import DatabaseQuestionForm from './DatabaseQuestionForm';
 import ProgrammingQuestionForm from './ProgrammingQuestionForm';
-import MCQQuestionForm from './MCQQuestionForm';
+import MCQQuestionForm from './mcq/MCQQuestionForm';
+import QuestionBankSelector from './mcq/QuestionBankSelector';
+import { toast } from 'react-toastify';
 
+// ─── Types ─────────────────────────────────────────────────────────────────────
 interface AddQuestionFormProps {
-  exerciseData: {
-    exerciseId: string;
-    exerciseName: string;
-    exerciseLevel: string;
-    selectedLanguages: string[];
-    nodeId: string;
-    nodeName: string;
-    subcategory: string;
-    nodeType: string;
-    fullExerciseData: {
-      exerciseInformation: any;
-      programmingSettings?: {
-        selectedLanguages: string[];
-        levelConfiguration: any;
-        selectedModule: string;
-      };
-      availabilityPeriod: any;
-      compilerSettings: any;
-      questionBehavior: any;
-      groupSettings: any;
-      scoreSettings?: {
-        scoreType: string;
-        separateMarks?: {
-          levelBased?: {
-            easy: number[];
-            medium: number[];
-            hard: number[];
-          };
-          general?: number[];
-        };
-        levelBasedMarks?: {
-          easy: number;
-          medium: number;
-          hard: number;
-        };
-        evenMarks?: number;
-        totalMarks?: number;
-      };
-      createdAt: string;
-      updatedAt: string;
-      exerciseType?: string;
-      configurationType?: {
-        mcqMode?: boolean;
-        programmingMode?: boolean;
-        combinedMode?: boolean;
-        _id?: string;
-      };
-    };
-  };
+  exerciseData: any;
+  breadcrumbs?: Array<{ name: string; type: string }>;
   tabType: string;
-  initialData?: Question;
+  initialData?: any;
   isEditing?: boolean;
+  initialQuestionId?: string;          // ← ADD THIS
+
   onClose: () => void;
-  onSave: (questionData: any) => void;
+  onSave: (data: any) => void;
+  onOpenQuestionBank?: (type: string) => void;
+  onOpenDocumentUpload?: () => void;
+  onMCQBankSelect?: (questions: any[]) => void;
+  showTypeSelector?: boolean;
+  onEditExercise?: () => void;
+  remainingQuestions?: number;
+  marksPerQuestion?: number;
+  shouldRefreshOnMount?: boolean;
 }
 
+// ─── Difficulty styles ─────────────────────────────────────────────────────────
+const DStyle: Record<string, any> = {
+  easy: { bg: 'bg-emerald-50', border: 'border-emerald-300', text: 'text-emerald-700', badge: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500', hoverBg: 'hover:bg-emerald-100', hoverBorder: 'hover:border-emerald-400' },
+  medium: { bg: 'bg-amber-50', border: 'border-amber-300', text: 'text-amber-700', badge: 'bg-amber-100 text-amber-700', dot: 'bg-amber-500', hoverBg: 'hover:bg-amber-100', hoverBorder: 'hover:border-amber-400' },
+  hard: { bg: 'bg-rose-50', border: 'border-rose-300', text: 'text-rose-700', badge: 'bg-rose-100 text-rose-700', dot: 'bg-rose-500', hoverBg: 'hover:bg-rose-100', hoverBorder: 'hover:border-rose-400' },
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPONENT
+// ─────────────────────────────────────────────────────────────────────────────
 const AddQuestionForm: React.FC<AddQuestionFormProps> = ({
-  breadcrumbs,
   exerciseData,
+  breadcrumbs,
   tabType,
   initialData,
   isEditing = false,
+  initialQuestionId,
   onClose,
-  onSave
+  onSave,
+  onOpenQuestionBank,
+  onOpenDocumentUpload,
+  onMCQBankSelect,
+  showTypeSelector,
+  onEditExercise,
+  shouldRefreshOnMount,
 }) => {
-  // State for combined exercise type selection
-  const [selectedQuestionType, setSelectedQuestionType] = useState<'mcq' | 'programming' | null>(null);
-  console.log(breadcrumbs)
-  // Debug: Log the exercise data
-  useEffect(() => {
-    console.log('📋 Exercise Data Received in AddQuestionForm:', exerciseData);
-    console.log('📋 Exercise ID:', exerciseData.exerciseId);
-    console.log('📋 Exercise Type:', exerciseData.fullExerciseData?.exerciseType);
-    console.log('📋 Configuration Type:', exerciseData.fullExerciseData?.configurationType);
-    console.log('📋 Selected Module:', exerciseData.fullExerciseData?.programmingSettings?.selectedModule);
-    console.log('📋 Selected Languages:', exerciseData.fullExerciseData?.programmingSettings?.selectedLanguages);
-  }, [exerciseData]);
+  // ── State ──────────────────────────────────────────────────────────────────
+  const [selectedType, setSelectedType] = useState<'mcq' | 'programming' | null>(null);
+  const [showMCQOpts, setShowMCQOpts] = useState(false);
+  const [showInlineQBank, setShowInlineQBank] = useState(false);
 
-  // Check if this is a combined exercise
-  const isCombinedExercise = exerciseData.fullExerciseData?.exerciseType?.toLowerCase() === 'combined' || 
-                             exerciseData.fullExerciseData?.configurationType?.combinedMode === true;
+  // Difficulty popup (level / selectionLevel only — NOT general)
+  const [showDiffPopup, setShowDiffPopup] = useState(false);
+  const [lockedDiff, setLockedDiff] = useState<'easy' | 'medium' | 'hard' | null>(null);
 
-  // Determine module type - handle all exercise types
-  const getModuleType = () => {
-    const exerciseType = exerciseData.fullExerciseData?.exerciseType?.toLowerCase();
-    const configurationType = exerciseData.fullExerciseData?.configurationType;
-    const selectedModule = exerciseData.fullExerciseData?.programmingSettings?.selectedModule?.toLowerCase();
-    
-    console.log('🔍 Determining module type:', { 
-      exerciseType, 
-      configurationType,
-      selectedModule 
-    });
-    
-    // If combined exercise and user has selected type
-    if (isCombinedExercise && selectedQuestionType) {
-      console.log('✅ Determined:', selectedQuestionType === 'mcq' ? 'MCQ' : 'Programming', '(from combined exercise selection)');
-      return selectedQuestionType;
-    }
-    
-    // First, check if it's MCQ (from exerciseType or configurationType)
-    if (exerciseType === 'mcq' || configurationType?.mcqMode === true) {
-      console.log('✅ Determined: MCQ (from exerciseType or configurationType)');
-      return 'mcq';
-    }
-    
-    // For programming/frontend/database exercises, prioritize selectedModule
-    // Priority 1: Check selectedModule (most specific)
-    if (selectedModule === 'frontend') {
-      console.log('✅ Determined: Frontend module (from selectedModule)');
-      return 'frontend';
-    } else if (['mysql', 'sqlite', 'postgresql', 'mongodb', 'database'].includes(selectedModule || '')) {
-      console.log('✅ Determined: Database module (from selectedModule)');
-      return 'database';
-    } else if (selectedModule) {
-      // Any other selectedModule value (Core Programming, Java, Python, etc.)
-      console.log('✅ Determined: Programming module (from selectedModule)');
-      return 'programming';
-    }
-    
-    // Priority 2: Check exerciseType if selectedModule is not available
-    if (exerciseType === 'frontend') {
-      console.log('✅ Determined: Frontend module (from exerciseType)');
-      return 'frontend';
-    } else if (exerciseType === 'database') {
-      console.log('✅ Determined: Database module (from exerciseType)');
-      return 'database';
-    } else if (exerciseType === 'programming') {
-      console.log('✅ Determined: Programming module (from exerciseType)');
-      return 'programming';
-    }
-    
-    // Default fallback
-    console.log('✅ Determined: Programming module (default)');
-    return 'programming';
-  };
+  // Combined limits
+  const [qCounts, setQCounts] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
 
-  const moduleType = getModuleType();
-  console.log('🎯 Final module type:', moduleType);
-  
-  const isFrontendModule = moduleType === 'frontend';
-  const isDatabaseModule = moduleType === 'database';
-  const isProgrammingModule = moduleType === 'programming';
-  const isMCQModule = moduleType === 'mcq';
-
-  const nodeType = exerciseData.nodeType;
-  const nodeId = exerciseData.nodeId;
-
-  // State for loading
-  const [loadingInitialData, setLoadingInitialData] = useState(false);
-  const [showGlobalLoading, setShowGlobalLoading] = useState(false);
+  // Save state
   const [isSaving, setIsSaving] = useState(false);
   const [saveProgress, setSaveProgress] = useState(0);
   const [saveMessage, setSaveMessage] = useState('');
+  const [showOverlay, setShowOverlay] = useState(false);
 
-  // Save timeout ref
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // ✅ Track whether we are mid Save-and-Next flow — use ref so it survives
+  // re-renders without causing them, and is NOT reset by state updates
+  const isInSaveAndContinueFlow = useRef(false);
 
-  // Cleanup on unmount
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (saveTimer.current) clearTimeout(saveTimer.current); }, []);
+
+  // ── Exercise config ────────────────────────────────────────────────────────
+  const fullEx = exerciseData.fullExerciseData;
+  const progCfg = fullEx?.questionConfiguration?.programmingQuestionConfiguration;
+  const cfgType = progCfg?.questionConfigType || 'general';
+  const isGeneral = cfgType === 'general';
+  const isLevelMode = cfgType === 'levelBased' || cfgType === 'selectionLevel';
+
+  const isCombined =
+    showTypeSelector === true ||
+    fullEx?.exerciseType?.toLowerCase() === 'combined' ||
+    fullEx?.configurationType?.combinedMode === true ||
+    exerciseData.exerciseType?.toLowerCase() === 'combined';
+
+  // ── Module type ────────────────────────────────────────────────────────────
+  // In AddQuestionForm.tsx, replace the getModuleType function:
+
+  const getModuleType = (): string | null => {
+    const fullEx = exerciseData?.fullExerciseData;
+
+    // For editing mode, check initialData thoroughly
+    if (isEditing && initialData) {
+      // Check 1: Explicit questionType field
+      if (initialData.questionType) {
+        if (initialData.questionType === 'mcq') return 'mcq';
+        if (initialData.questionType === 'frontend') return 'frontend';
+        if (initialData.questionType === 'database') return 'database';
+        if (initialData.questionType === 'programming') return 'programming';
+      }
+
+      // Check 2: MCQ-specific fields (most reliable for MCQ)
+      if (
+        initialData.mcqQuestionTitle !== undefined ||
+        initialData.mcqQuestionType !== undefined ||
+        initialData.mcqQuestionOptions !== undefined ||
+        initialData.mcqQuestionDifficulty !== undefined ||
+        initialData.mcqQuestionScore !== undefined ||
+        Array.isArray(initialData.mcqQuestionOptions)
+      ) {
+        return 'mcq';
+      }
+
+      // Check 3: Module type indicators
+      const moduleIndicator = (
+        initialData.moduleType ||
+        initialData.isFrontend ||
+        initialData.isDatabase ||
+        fullEx?.programmingSettings?.selectedModule ||
+        exerciseData.programmingSettings?.selectedModule ||
+        ''
+      ).toString().toLowerCase();
+
+      if (moduleIndicator.includes('frontend') || initialData.isFrontend === true) {
+        return 'frontend';
+      }
+
+      if (moduleIndicator.includes('database') ||
+        ['mysql', 'sqlite', 'postgresql', 'mongodb'].includes(moduleIndicator) ||
+        initialData.isDatabase === true) {
+        return 'database';
+      }
+
+      // Check 4: Programming-specific fields
+      if (
+        initialData.testCases !== undefined ||
+        initialData.sampleInput !== undefined ||
+        initialData.sampleOutput !== undefined ||
+        initialData.constraints !== undefined ||
+        initialData.solutions !== undefined
+      ) {
+        return 'programming';
+      }
+
+      // Default to programming if we can't determine
+      return 'programming';
+    }
+
+    // For combined exercises, use selectedType
+    if (isCombined) {
+      if (selectedType === 'mcq') return 'mcq';
+      if (selectedType === 'programming') {
+        const mod = (
+          fullEx?.programmingSettings?.selectedModule ||
+          exerciseData.programmingSettings?.selectedModule ||
+          ''
+        ).toLowerCase();
+        if (mod === 'frontend') return 'frontend';
+        if (mod === 'database' || ['mysql', 'sqlite', 'postgresql', 'mongodb'].includes(mod)) return 'database';
+        return 'programming';
+      }
+      return null;
+    }
+
+    // For non-combined exercises, determine by exercise type
+    if (fullEx?.exerciseType?.toLowerCase() === 'mcq' || fullEx?.configurationType?.mcqMode) {
+      return 'mcq';
+    }
+
+    const mod = (
+      fullEx?.programmingSettings?.selectedModule ||
+      exerciseData.programmingSettings?.selectedModule ||
+      fullEx?.selectedModule ||
+      ''
+    ).toLowerCase();
+
+    if (mod === 'frontend') return 'frontend';
+    if (mod === 'database' || ['mysql', 'sqlite', 'postgresql', 'mongodb'].includes(mod)) return 'database';
+
+    return 'programming';
+  };
+  const moduleType = getModuleType();
+  const isMCQ = moduleType === 'mcq';
+  const isFrontend = moduleType === 'frontend';
+  const isDatabase = moduleType === 'database';
+
+  // ── Entity type for API calls ──────────────────────────────────────────────
+  const entityType = (() => {
+    const m: Record<string, string> = {
+      module: 'modules', modules: 'modules',
+      submodule: 'submodules', submodules: 'submodules',
+      topic: 'topics', topics: 'topics',
+      subtopic: 'subtopics', subtopics: 'subtopics',
+    };
+    return (m[exerciseData.nodeType?.toLowerCase()?.trim()] || 'topics') as any;
+  })();
+
+  // ── Combined counts ────────────────────────────────────────────────────────
+  const calculateCombinedCounts = useCallback(async () => {
+    setLoading(true);
+    try {
+      let freshExercise: any = null;
+      try {
+        const exerciseId = exerciseData.exerciseId || exerciseData._id;
+        const freshResponse = await questionApi.getExerciseById(exerciseId);
+        if (freshResponse?.data?.exercise) {
+          freshExercise = freshResponse.data.exercise;
+        } else if (freshResponse?.data) {
+          freshExercise = freshResponse.data;
+        } else if (freshResponse?.exercise) {
+          freshExercise = freshResponse.exercise;
+        } else {
+          freshExercise = freshResponse;
+        }
+      } catch (fetchErr) {
+        console.warn('⚠️ API fetch failed, using cached data:', fetchErr);
+        freshExercise = exerciseData.fullExerciseData || exerciseData;
+      }
+
+      if (!freshExercise) {
+        toast.error('Could not load question counts');
+        setLoading(false);
+        return;
+      }
+
+      const questions = freshExercise?.questions ||
+        freshExercise?.data?.questions ||
+        exerciseData.fullExerciseData?.questions ||
+        [];
+
+      const mcqCfg = freshExercise?.questionConfiguration?.mcqQuestionConfiguration;
+
+      const freshProgCfg = freshExercise?.questionConfiguration?.programmingQuestionConfiguration ||
+        freshExercise?.questionConfiguration?.programmingConfig;
+
+      const freshCfgType = freshProgCfg?.questionConfigType || 'general';
+      const freshIsGeneral = freshCfgType === 'general';
+
+      // ── MCQ counts ──────────────────────────────────────────────────────────
+      const mcqQs = questions.filter((q: any) => q.questionType === 'mcq');
+      const mcqCount = mcqQs.length;
+      const mcqTotalScore = mcqQs.reduce((sum: number, q: any) => sum + (q.mcqQuestionScore || 0), 0);
+
+      let mcqCanAdd = true;
+      let mcqReason = '';
+
+      if (mcqCfg) {
+        if (mcqCount >= mcqCfg.totalMcqQuestions) {
+          mcqCanAdd = false;
+          mcqReason = `MCQ limit reached (${mcqCount}/${mcqCfg.totalMcqQuestions})`;
+        } else if (mcqTotalScore >= mcqCfg.mcqTotalMarks) {
+          mcqCanAdd = false;
+          mcqReason = `MCQ marks limit reached (${mcqTotalScore}/${mcqCfg.mcqTotalMarks})`;
+        }
+      }
+
+      // ── Programming counts ──────────────────────────────────────────────────
+      const progQs = questions.filter((q: any) => q.questionType === 'programming');
+      let anyProgOk = false;
+      let levelSlots: Record<string, any> = {};
+      let generalSlot: any = null;
+
+      if (freshIsGeneral) {
+        const maxQ = freshProgCfg?.generalQuestionCount || 0;
+        const cur = progQs.length;
+        const ok = cur < maxQ;
+        generalSlot = { count: cur, maxCount: maxQ, canAdd: ok };
+        anyProgOk = ok;
+      } else {
+        const counts =
+          freshCfgType === 'levelBased'
+            ? freshProgCfg?.levelBasedCounts
+            : freshProgCfg?.selectionLevelCounts;
+
+        (['easy', 'medium', 'hard'] as const).forEach(d => {
+          const max = counts?.[d] || 0;
+          if (!max) return;
+          const cur = progQs.filter((q: any) => q.difficulty === d).length;
+          const ok = cur < max;
+          if (ok) anyProgOk = true;
+          levelSlots[d] = { count: cur, maxCount: max, canAdd: ok };
+        });
+      }
+
+      setQCounts({
+        mcq: {
+          count: mcqCount,
+          totalScore: mcqTotalScore,
+          maxCount: mcqCfg?.totalMcqQuestions || 0,
+          maxMarks: mcqCfg?.mcqTotalMarks || 0,
+          canAdd: mcqCanAdd,
+          reason: mcqReason,
+        },
+        programming: {
+          isGeneral: freshIsGeneral,
+          levelSlots,
+          generalSlot,
+          anyCanAdd: anyProgOk,
+        },
+      });
+
+    } catch (err) {
+      console.error('calculateCombinedCounts error:', err);
+      toast.error('Failed to load question counts');
+    } finally {
+      setLoading(false);
+    }
+  }, [exerciseData.exerciseId, exerciseData._id, exerciseData.fullExerciseData]);
+
+  // ── Effects ────────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (isEditing) return;
+
+    if (isCombined) {
+      calculateCombinedCounts();
+      return;
+    }
+
+    if (['programming', 'frontend', 'database'].includes(moduleType || '') && isLevelMode) {
+      setShowDiffPopup(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (isEditing || !isCombined || selectedType !== 'programming') return;
+    if (isLevelMode && lockedDiff === null) {
+      setShowDiffPopup(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedType]);
+
   useEffect(() => {
     return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
+      isInSaveAndContinueFlow.current = false;
     };
   }, []);
 
-  // Component for selecting question type in combined exercises
-const QuestionTypeSelector: React.FC = () => {
-  return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full overflow-hidden animate-scale-in">
-        {/* Header */}
-        <div className="p-6 pb-4">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-xl font-bold text-gray-900">Select Question Type</h2>
-              <p className="text-gray-600 text-sm mt-1">Choose the type of question to create</p>
-            </div>
-            <button
-              onClick={onClose}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors group"
-              aria-label="Close"
-            >
-              <X className="h-5 w-5 text-gray-500 group-hover:text-gray-700 transition-colors" />
-            </button>
-          </div>
-        </div>
+  // ── Difficulty options for popup ───────────────────────────────────────────
+  const getDiffOptions = () => {
+    const progQs = (fullEx?.questions || []).filter((q: any) => q.questionType === 'programming');
+    const counts = cfgType === 'levelBased'
+      ? progCfg?.levelBasedCounts
+      : progCfg?.selectionLevelCounts;
 
-        {/* Question Type Options */}
-        <div className="px-6 pb-6">
-          <div className="space-y-3">
-            {/* MCQ Option */}
-            <button
-              onClick={() => setSelectedQuestionType('mcq')}
-              className="group relative p-4 border-2 border-gray-200 hover:border-blue-500 hover:shadow-md rounded-xl w-full text-left transition-all duration-200 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-500"
-              role="button"
-              aria-label="Select Multiple Choice Question"
-            >
-              <div className="flex items-start gap-3">
-                <div className="p-2.5 bg-blue-50 rounded-lg group-hover:bg-blue-100 transition-colors flex-shrink-0">
-                  <ListChecks className="h-6 w-6 text-blue-600" />
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-gray-900">Multiple Choice (MCQ)</h3>
-                    <ChevronRight className="h-5 w-5 text-gray-400 group-hover:text-blue-500 transition-colors opacity-0 group-hover:opacity-100" />
-                  </div>
-                  <p className="text-gray-600 text-sm mt-1">
-                    Create questions with multiple answer options
-                  </p>
-                  <div className="mt-3">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                      <Check className="h-3 w-3 mr-1" /> Knowledge Assessment
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </button>
-
-            {/* Programming Option */}
-            <button
-              onClick={() => setSelectedQuestionType('programming')}
-              className="group relative p-4 border-2 border-gray-200 hover:border-green-500 hover:shadow-md rounded-xl w-full text-left transition-all duration-200 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-green-300 focus:border-green-500"
-              role="button"
-              aria-label="Select Programming Question"
-            >
-              <div className="flex items-start gap-3">
-                <div className="p-2.5 bg-green-50 rounded-lg group-hover:bg-green-100 transition-colors flex-shrink-0">
-                  <Code className="h-6 w-6 text-green-600" />
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-gray-900">Programming Question</h3>
-                    <ChevronRight className="h-5 w-5 text-gray-400 group-hover:text-green-500 transition-colors opacity-0 group-hover:opacity-100" />
-                  </div>
-                  <p className="text-gray-600 text-sm mt-1">
-                    Create coding problems with test cases and execution
-                  </p>
-                  <div className="mt-3">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                      <Code className="h-3 w-3 mr-1" /> Practical Skills
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </button>
-          </div>
-
-          {/* Information Section */}
-          <div className="mt-6 pt-5 border-t border-gray-100">
-            <div className="text-sm">
-              <div className="flex items-center gap-2 text-gray-700 mb-3">
-                <Info className="h-4 w-4 text-gray-400" />
-                <p className="font-medium">Exercise Configuration</p>
-              </div>
-              
-              <p className="text-gray-600 mb-4 text-sm">
-                This exercise supports both question types. You can add multiple questions of each type.
-              </p>
-              
-              <div className="grid grid-cols-2 gap-2">
-                <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
-                  <div className="flex items-center gap-2">
-                    <div className="h-2 w-2 rounded-full bg-green-500"></div>
-                    <span className="font-medium text-sm">MCQ Mode</span>
-                  </div>
-                  <div className="flex items-center mt-1">
-                    <span className="text-xs text-green-600 font-medium">Enabled</span>
-                    <Check className="h-3 w-3 ml-1 text-green-500" />
-                  </div>
-                </div>
-                
-                <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
-                  <div className="flex items-center gap-2">
-                    <div className="h-2 w-2 rounded-full bg-green-500"></div>
-                    <span className="font-medium text-sm">Programming Mode</span>
-                  </div>
-                  <div className="flex items-center mt-1">
-                    <span className="text-xs text-green-600 font-medium">Enabled</span>
-                    <Check className="h-3 w-3 ml-1 text-green-500" />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-  // Loading state UI
-  if (loadingInitialData && isEditing) {
-    return (
-      <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center">
-        <div className="bg-white p-6 rounded-lg shadow-xl">
-          <div className="flex items-center gap-3">
-            <Loader className="h-5 w-5 animate-spin text-blue-600" />
-            <span>Loading question data...</span>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Show question type selector for combined exercises
-  if (isCombinedExercise && !selectedQuestionType && !isEditing) {
-    return <QuestionTypeSelector />;
-  }
-
-  // Helper functions
-  const getModuleTypeLabel = () => {
-    if (isFrontendModule) return 'Frontend';
-    if (isDatabaseModule) return 'Database';
-    if (isProgrammingModule) return 'Programming';
-    if (isMCQModule) return 'MCQ';
-    return 'General';
+    return (['easy', 'medium', 'hard'] as const)
+      .filter(d => (counts?.[d] || 0) > 0)
+      .map(d => {
+        const total = counts?.[d] || 0;
+        const created = progQs.filter((q: any) => q.difficulty === d).length;
+        const remaining = Math.max(0, total - created);
+        return { level: d, remaining, total, canAdd: remaining > 0 };
+      });
   };
 
-  // Handle form submission
-  const handleSubmit = async (questionData: any) => {
+  // ── handleSubmit ─────────────────────────────────────────────────────────────────────────
+  const handleSubmit = async (questionData: any): Promise<any> => {
+    const isFormData = typeof FormData !== 'undefined' && questionData instanceof FormData;
+
+    const isSaveAndNext = !isFormData && questionData.__saveAndNext === true;
+
+    const cleanData = isFormData
+      ? questionData
+      : (() => { const { __saveAndNext: _a, __editLocalId: _b, ...rest } = questionData; return rest; })();
+
+    if (isSaveAndNext) {
+      isInSaveAndContinueFlow.current = true;
+    }
+
+    const isMCQSave =
+      isFormData ||
+      cleanData.questionType === 'mcq' ||
+      questionData.questionType === 'mcq' ||
+      !!cleanData.mcqQuestionTitle ||
+      !!questionData.mcqQuestionTitle ||
+      getModuleType() === 'mcq';
+
+    const isServerEdit = !!(isEditing || initialData?._id || questionData._id || questionData.__questionId);
     setIsSaving(true);
-    setShowGlobalLoading(true);
-    setSaveMessage(isEditing ? 'Updating question...' : 'Saving question...');
-    setSaveProgress(0);
+    if (!isSaveAndNext) setShowOverlay(true);
+    setSaveMessage(isServerEdit ? 'Updating question…' : 'Saving question…');
+    setSaveProgress(20);
 
     try {
-      setSaveProgress(30);
-
-      // Get entity type
-      const getEntityType = (nodeType: string): 'modules' | 'submodules' | 'topics' | 'subtopics' => {
-        const normalized = nodeType.toLowerCase().trim();
-        const mapping: Record<string, 'modules' | 'submodules' | 'topics' | 'subtopics'> = {
-          'module': 'modules',
-          'submodule': 'submodules',
-          'topic': 'topics',
-          'subtopic': 'subtopics',
-          'modules': 'modules',
-          'submodules': 'submodules',
-          'topics': 'topics',
-          'subtopics': 'subtopics'
-        };
-        return mapping[normalized] || 'topics';
-      };
-
-      const entityType = getEntityType(nodeType);
       setSaveProgress(50);
+      let result: any;
+      const questionId = initialData?._id || questionData._id || questionData.__questionId;
 
-      let savedQuestion;
-      
-      if (isEditing && initialData?._id) {
-        // Update existing question
-        savedQuestion = await questionApi.updateQuestion(
+      if (isServerEdit && questionId) {
+        result = await questionApi.updateQuestion(
           entityType,
-          nodeId,
+          exerciseData.nodeId,
           exerciseData.exerciseId,
-          initialData._id,
-          questionData,
+          questionId,
+          cleanData,
           tabType,
           exerciseData.subcategory || 'Practical'
         );
         setSaveMessage('Question updated!');
-      } else {
-        // Add new question
-        savedQuestion = await questionApi.addQuestion(
+      } else if (isMCQSave) {
+        const mcqData = isFormData
+          ? cleanData
+          : { ...cleanData, questionType: 'mcq' };
+        result = await questionApi.addQuestion(
           entityType,
-          nodeId,
+          exerciseData.nodeId,
           exerciseData.exerciseId,
-          questionData,
+          mcqData,
           tabType,
           exerciseData.subcategory || 'Practical'
         );
-        setSaveMessage('Question created!');
+        setSaveMessage('Question saved!');
+      } else {
+        result = await questionApi.addQuestion(
+          entityType,
+          exerciseData.nodeId,
+          exerciseData.exerciseId,
+          cleanData,
+          tabType,
+          exerciseData.subcategory || 'Practical'
+        );
+        setSaveMessage('Question saved!');
       }
 
       setSaveProgress(90);
 
-      if (savedQuestion) {
-        const questionResult = savedQuestion.question ||
-          savedQuestion.data?.question ||
-          savedQuestion.data ||
-          savedQuestion;
+      const saved =
+        result?.question ??
+        result?.data?.question ??
+        result?.data?.addedQuestions?.[0]?.question ??
+        result?.data?.addedQuestions?.[0] ??
+        result?.data ??
+        result;
 
-        // Close after delay
-        saveTimeoutRef.current = setTimeout(() => {
-          onSave({
-            ...questionResult,
-            exerciseId: exerciseData.exerciseId,
-            exerciseName: exerciseData.exerciseName,
-            moduleType: getModuleTypeLabel(),
-            savedAt: new Date().toISOString()
-          });
-          onClose();
-        }, 1500);
-      }
+      const enriched = {
+        ...saved,
+        exerciseId: exerciseData.exerciseId,
+        savedAt: new Date().toISOString(),
+        _id: saved?._id || questionId,
+      };
 
       setSaveProgress(100);
-    } catch (error) {
-      console.error('❌ Failed to save/update question:', error);
-      setIsSaving(false);
-      setShowGlobalLoading(false);
-      alert(`Failed to ${isEditing ? 'update' : 'save'} question: ${error instanceof Error ? error.message : 'Please try again.'}`);
+
+      if (isSaveAndNext) {
+        // Notify parent (QuestionsView) — it just shows a toast, does NOT remount
+        onSave({
+          ...enriched,
+          __saveAndNext: true,
+          __isUpdate: isServerEdit,
+          __questionId: enriched._id,
+        });
+
+        // ✅ KEY FIX: return enriched so ProgrammingQuestionForm.handleSaveAndContinue
+        // can update its flowQuestions with the real DB _id.
+        // Without this, "Previous → re-save" would ADD a duplicate instead of UPDATE.
+        return enriched;
+
+      } else {
+        const preventClose = !isFormData && questionData.__preventClose === true;
+
+        saveTimer.current = setTimeout(() => {
+          // ✅ Only notify parent if we're actually closing
+          // When preventClose=true (plain Save button), skip onSave+onClose
+          // so QuestionsView doesn't remount this form
+          if (!preventClose) {
+            onSave(enriched);
+            onClose();
+            isInSaveAndContinueFlow.current = false;
+            setSelectedType(null);
+          }
+          // When preventClose=true, ProgrammingQuestionForm handles its own
+          // state update via the return value from executeSave
+        }, 700);
+
+        return enriched;
+      }
+    } catch (err: any) {
+      console.error('handleSubmit error:', err);
+      const msg =
+        err?.response?.data?.message?.[0]?.value ||
+        err?.message ||
+        'Please try again.';
+      alert(`Failed to ${isServerEdit ? 'update' : 'save'} question: ${msg}`);
+      isInSaveAndContinueFlow.current = false;
+      throw err; // re-throw so ProgrammingQuestionForm.handleSaveAndContinue catches it
     } finally {
-      setTimeout(() => {
-        if (isSaving) {
-          setIsSaving(false);
-          setShowGlobalLoading(false);
-        }
-      }, 1000);
+      setIsSaving(false);
+      if (!isSaveAndNext) {
+        setTimeout(() => setShowOverlay(false), 800);
+      }
     }
   };
 
-  // Render the appropriate form component based on module type
-  const renderFormComponent = () => {
-    if (isMCQModule) {
-      return (
-        <MCQQuestionForm
-          breadcrumbs={breadcrumbs}
-          exerciseData={exerciseData}
-          tabType={tabType}
-          initialData={initialData}
-          isEditing={isEditing}
-          onClose={onClose}
-          onSave={handleSubmit}
-          isSaving={isSaving}
-          saveProgress={saveProgress}
-          saveMessage={saveMessage}
-        />
-      );
-    } else if (isFrontendModule) {
-      return (
-        <FrontendQuestionForm
-          exerciseData={exerciseData}
-          tabType={tabType}
-          initialData={initialData}
-          isEditing={isEditing}
-          onClose={onClose}
-          onSave={handleSubmit}
-          isSaving={isSaving}
-          saveProgress={saveProgress}
-          saveMessage={saveMessage}
-        />
-      );
-    } else if (isDatabaseModule) {
-      return (
-        <DatabaseQuestionForm
-          exerciseData={exerciseData}
-          tabType={tabType}
-          initialData={initialData}
-          isEditing={isEditing}
-          onClose={onClose}
-          onSave={handleSubmit}
-          isSaving={isSaving}
-          saveProgress={saveProgress}
-          saveMessage={saveMessage}
-        />
-      );
-    } else {
-      return (
-        <ProgrammingQuestionForm
-          exerciseData={exerciseData}
-          tabType={tabType}
-          initialData={initialData}
-          isEditing={isEditing}
-          onClose={onClose}
-          onSave={handleSubmit}
-          isSaving={isSaving}
-          saveProgress={saveProgress}
-          saveMessage={saveMessage}
-        />
-      );
+  // ─── DIFFICULTY POPUP ──────────────────────────────────────────────────────
+  const DiffPopup = () => {
+    const opts = getDiffOptions();
+    return (
+      <div className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden border border-gray-100">
+          <div className="px-6 py-4 border-b border-gray-100">
+            <div className="flex items-center justify-between mb-1">
+              <h2 className="text-sm font-bold text-gray-900">Select Difficulty Level</h2>
+              <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg">
+                <X size={14} className="text-gray-500" />
+              </button>
+            </div>
+            <p className="text-xs text-gray-500">Each difficulty has its own slot quota. Choose which level to add for.</p>
+          </div>
+
+          <div className="p-4 space-y-2">
+            {opts.length === 0 && (
+              <p className="text-sm text-center text-gray-400 py-4">No difficulty levels configured.</p>
+            )}
+            {opts.map(({ level, remaining, total, canAdd }) => {
+              const s = DStyle[level];
+              return (
+                <button
+                  key={level}
+                  type="button"
+                  disabled={!canAdd}
+                  onClick={() => { setLockedDiff(level); setShowDiffPopup(false); }}
+                  className={`w-full flex items-center justify-between p-3.5 rounded-xl border-2 transition-all group
+                    ${!canAdd
+                      ? 'bg-gray-50 border-gray-200 cursor-not-allowed opacity-55'
+                      : `${s.bg} ${s.border} ${s.hoverBg} ${s.hoverBorder} cursor-pointer`
+                    }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-3 h-3 rounded-full ${!canAdd ? 'bg-gray-300' : s.dot}`} />
+                    <div className="text-left">
+                      <div className={`text-sm font-bold capitalize ${!canAdd ? 'text-gray-400' : s.text}`}>{level}</div>
+                      <div className="text-[10px] text-gray-500 mt-0.5">
+                        {!canAdd ? '✓ All slots filled' : `${remaining} of ${total} slots remaining`}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {!canAdd
+                      ? <span className="text-[10px] px-2 py-0.5 bg-gray-100 text-gray-400 rounded-full flex items-center gap-1"><Check size={8} /> Done</span>
+                      : <span className={`text-[10px] px-2.5 py-1 rounded-full font-semibold ${s.badge}`}>{remaining} left</span>
+                    }
+                    {canAdd && (
+                      <ChevronRight size={13} className={`${s.text} opacity-0 group-hover:opacity-100 transition-opacity`} />
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="px-6 py-3 bg-gray-50 border-t border-gray-100">
+            <div className="flex items-center gap-2 text-[11px] text-gray-500">
+              <Info size={11} className="text-gray-400 shrink-0" />
+              <span>Mode: {cfgType === 'levelBased' ? 'Level Based' : 'Selection Level'} — each difficulty has its own quota.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+  // Add this useEffect in AddQuestionForm for debugging (remove in production)
+  useEffect(() => {
+    if (isEditing && initialData) {
+      console.log('AddQuestionForm - Editing mode:', {
+        moduleType: moduleType,
+        initialDataKeys: Object.keys(initialData),
+        hasMCQFields: !!(initialData.mcqQuestionTitle || initialData.mcqQuestionOptions),
+        questionType: initialData.questionType,
+        isMCQ: isMCQ,
+        isFrontend: isFrontend,
+        isDatabase: isDatabase
+      });
     }
+  }, [isEditing, initialData, moduleType, isMCQ, isFrontend, isDatabase]);
+  // ─── COMBINED TYPE SELECTOR ────────────────────────────────────────────────
+  const CombinedSelector = () => {
+    if (loading) return (
+      <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-xl shadow-xl p-8 flex flex-col items-center gap-3">
+          <Loader className="h-6 w-6 animate-spin text-blue-600" />
+          <p className="text-sm text-gray-600">Checking question limits…</p>
+        </div>
+      </div>
+    );
+
+    const mcqOk = qCounts?.mcq?.canAdd ?? true;
+    const progOk = qCounts?.programming?.anyCanAdd ?? true;
+
+    return (
+      <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+          <div className="flex items-center justify-between p-4 border-b">
+            <h2 className="text-base font-semibold text-gray-900">Add Question</h2>
+            <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg">
+              <X className="h-4 w-4 text-gray-500" />
+            </button>
+          </div>
+
+          <div className="p-4 space-y-2">
+            {/* MCQ */}
+            <button
+              onClick={() => mcqOk && setShowMCQOpts(true)}
+              disabled={!mcqOk}
+              className={`w-full p-3 rounded-lg border text-left transition-all ${!mcqOk ? 'border-gray-200 bg-gray-50 opacity-50 cursor-not-allowed' : 'border-gray-200 hover:border-blue-500 hover:shadow-sm'}`}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-lg ${!mcqOk ? 'bg-gray-100' : 'bg-blue-50'}`}>
+                  <ListChecks className={`h-4 w-4 ${!mcqOk ? 'text-gray-400' : 'text-blue-600'}`} />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <span className={`text-sm font-medium ${!mcqOk ? 'text-gray-400' : 'text-gray-900'}`}>
+                      Multiple Choice (MCQ)
+                    </span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${!mcqOk ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'}`}>
+                      {!mcqOk ? 'Full' : `${qCounts?.mcq.count ?? 0}/${qCounts?.mcq.maxCount ?? '?'}`}
+                    </span>
+                  </div>
+                  {!mcqOk
+                    ? <p className="text-xs text-red-500 mt-0.5">{qCounts?.mcq.reason}</p>
+                    : <p className="text-xs text-gray-500 mt-0.5">{qCounts?.mcq.totalScore ?? 0}/{qCounts?.mcq.maxMarks ?? 0} marks used</p>
+                  }
+                </div>
+              </div>
+            </button>
+
+            {/* Programming */}
+            <button
+              onClick={() => progOk && setSelectedType('programming')}
+              disabled={!progOk}
+              className={`w-full p-3 rounded-lg border text-left transition-all ${!progOk ? 'border-gray-200 bg-gray-50 opacity-50 cursor-not-allowed' : 'border-gray-200 hover:border-green-500 hover:shadow-sm'}`}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-lg ${!progOk ? 'bg-gray-100' : 'bg-green-50'}`}>
+                  <Code className={`h-4 w-4 ${!progOk ? 'text-gray-400' : 'text-green-600'}`} />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <span className={`text-sm font-medium ${!progOk ? 'text-gray-400' : 'text-gray-900'}`}>
+                      Programming
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      {isGeneral && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-600">General</span>
+                      )}
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${!progOk ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
+                        {!progOk ? 'Full' : 'Available'}
+                      </span>
+                    </div>
+                  </div>
+                  {isGeneral && qCounts?.programming?.generalSlot && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      {qCounts.programming.generalSlot.count}/{qCounts.programming.generalSlot.maxCount} added
+                    </p>
+                  )}
+                  {!isGeneral && qCounts?.programming?.levelSlots && Object.keys(qCounts.programming.levelSlots).length > 0 && (
+                    <div className="mt-2 space-y-0.5">
+                      {Object.entries(qCounts.programming.levelSlots).map(([d, ls]: any) => (
+                        <div key={d} className="flex justify-between text-xs">
+                          <span className="capitalize text-gray-500">{d}:</span>
+                          <span className={ls.canAdd ? 'text-green-600 font-medium' : 'text-red-500'}>
+                            {ls.count}/{ls.maxCount}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {!progOk && <p className="text-xs text-red-500 mt-1">All programming slots are filled.</p>}
+                </div>
+              </div>
+            </button>
+          </div>
+
+          {/* MCQ sub-options modal */}
+          {showMCQOpts && (
+            <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
+                <div className="p-5 pb-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <h2 className="text-lg font-bold text-gray-900">Add MCQ Question</h2>
+                    <button onClick={() => setShowMCQOpts(false)} className="p-1.5 hover:bg-gray-100 rounded-lg">
+                      <X className="h-4 w-4 text-gray-500" />
+                    </button>
+                  </div>
+                  <p className="text-gray-400 text-sm">Choose how to add the MCQ</p>
+                </div>
+                <div className="px-5 pb-5 space-y-2">
+                  <button
+                    onClick={() => { setShowMCQOpts(false); setSelectedType('mcq'); }}
+                    className="group p-4 border-2 border-gray-200 hover:border-blue-500 hover:shadow-md rounded-xl w-full text-left transition-all"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 bg-blue-50 rounded-lg group-hover:bg-blue-100">
+                        <Plus className="h-5 w-5 text-blue-600" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-gray-900 text-sm">Create New</h3>
+                        <p className="text-gray-400 text-xs mt-0.5">Build an MCQ from scratch</p>
+                      </div>
+                      <ChevronRight className="h-5 w-5 text-gray-300 opacity-0 group-hover:opacity-100" />
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => { setShowMCQOpts(false); setShowInlineQBank(true); }}
+                    className="group p-4 border-2 border-gray-200 hover:border-purple-500 hover:shadow-md rounded-xl w-full text-left transition-all"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 bg-purple-50 rounded-lg group-hover:bg-purple-100">
+                        <Database className="h-5 w-5 text-purple-600" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-gray-900 text-sm">Question Bank</h3>
+                        <p className="text-gray-400 text-xs mt-0.5">Select existing questions</p>
+                      </div>
+                      <ChevronRight className="h-5 w-5 text-gray-300 opacity-0 group-hover:opacity-100" />
+                    </div>
+                  </button>
+                  {onOpenDocumentUpload && (
+                    <button
+                      onClick={() => { setShowMCQOpts(false); onOpenDocumentUpload(); }}
+                      className="group p-4 border-2 border-gray-200 hover:border-cyan-500 hover:shadow-md rounded-xl w-full text-left transition-all"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 bg-cyan-50 rounded-lg group-hover:bg-cyan-100">
+                          <FileText className="h-5 w-5 text-cyan-600" />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-gray-900 text-sm">Upload Document</h3>
+                          <p className="text-gray-400 text-xs mt-0.5">Bulk import from JSON · CSV · TXT</p>
+                        </div>
+                        <ChevronRight className="h-5 w-5 text-gray-300 opacity-0 group-hover:opacity-100" />
+                      </div>
+                    </button>
+                  )}
+                </div>
+                <div className="px-5 py-3 bg-gray-50 border-t">
+                  <button
+                    onClick={() => setShowMCQOpts(false)}
+                    className="w-full px-4 py-2 border-2 border-gray-200 bg-white text-gray-600 hover:bg-gray-50 rounded-xl text-xs font-semibold"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
   };
 
+  // ─── DECISION TREE ─────────────────────────────────────────────────────────
+
+  if (showDiffPopup && !isEditing && lockedDiff === null && !isInSaveAndContinueFlow.current) {
+    return <DiffPopup />;
+  }
+
+  if (showInlineQBank) {
+    const existingQs: any[] = exerciseData.fullExerciseData?.questions || [];
+    return (
+      <QuestionBankSelector
+        exerciseData={{
+          exerciseId: exerciseData.exerciseId || exerciseData._id,
+          exerciseName: exerciseData.exerciseName,
+          exerciseLevel: exerciseData.exerciseLevel || 'intermediate',
+          nodeId: exerciseData.nodeId,
+          nodeName: exerciseData.nodeName,
+          subcategory: exerciseData.subcategory || exerciseData.subcategoryLabel || '',
+          nodeType: exerciseData.nodeType,
+          fullExerciseData: exerciseData.fullExerciseData,
+          exerciseType: exerciseData.exerciseType || '',
+        }}
+        tabType={tabType}
+        onBack={() => { setShowInlineQBank(false); setShowMCQOpts(true); }}
+        onClose={() => { setShowInlineQBank(false); onClose(); }}
+        onSelect={(qs) => { setShowInlineQBank(false); onMCQBankSelect?.(qs); onClose(); }}
+        existingQuestionIds={existingQs.map((q: any) => q._id)}
+        existingQuestions={existingQs}
+      />
+    );
+  }
+
+  if (isCombined && !isEditing && !selectedType && !isInSaveAndContinueFlow.current) {
+    return <CombinedSelector />;
+  }
+
+  // ─── Delete question handler ───────────────────────────────────────────────
+  const handleDeleteProgrammingQuestion = async (questionId: string): Promise<any> => {
+    const exerciseId = exerciseData.exerciseId || exerciseData._id;
+    const subcategory = exerciseData.subcategory || exerciseData.subCategory || '';
+    return questionApi.deleteQuestion(
+      entityType,
+      exerciseData.nodeId,
+      exerciseId,
+      questionId,
+      tabType,
+      subcategory,
+    );
+  };
+
+  // ─── Build form props ──────────────────────────────────────────────────────
+  const formProps = {
+    exerciseData,
+    tabType,
+    initialData,
+    isEditing,
+    onClose,
+    // ✅ onSave is now typed as (data) => Promise<any> in ProgrammingQuestionForm
+    // handleSubmit returns Promise<any> to satisfy that contract
+    onSave: handleSubmit,
+    isSaving,
+    saveProgress,
+    saveMessage,
+  };
+
+  const renderForm = () => {
+    if (isMCQ) return (
+      <MCQQuestionForm
+        breadcrumbs={breadcrumbs}
+        initialQuestionId={initialQuestionId}   // ← ADD THIS
+        {...formProps}
+
+      />
+    );
+    if (isFrontend) return <FrontendQuestionForm {...formProps}
+      lockedDifficulty={isLevelMode ? (lockedDiff ?? undefined) : undefined}
+      onEditExercise={onEditExercise}
+    />;
+    if (isDatabase) return <DatabaseQuestionForm {...formProps}
+      onEditExercise={onEditExercise}
+        onDeleteQuestion={handleDeleteProgrammingQuestion}
+        lockedDifficulty={isLevelMode ? (lockedDiff ?? undefined) : undefined}
+    />;
+    return (
+      <ProgrammingQuestionForm
+        {...formProps}
+        onDeleteQuestion={handleDeleteProgrammingQuestion}
+        lockedDifficulty={isLevelMode ? (lockedDiff ?? undefined) : undefined}
+        onEditExercise={onEditExercise}
+      />
+    );
+  };
   return (
     <>
-      {/* Global loading overlay */}
-      {showGlobalLoading && (
+      {/* Save overlay — only shown for normal Save, not Save & Next */}
+      {showOverlay && (
         <div className="fixed inset-0 z-[100] bg-black/10 backdrop-blur-[1px] flex items-center justify-center">
-          <div className="bg-white/95 p-6 rounded-xl shadow-2xl border border-gray-200 max-w-sm mx-4">
+          <div className="bg-white/95 p-6 rounded-xl shadow-2xl border border-gray-200 max-w-xs mx-4">
             <div className="flex flex-col items-center gap-4">
               <div className="relative">
-                <div className="w-12 h-12 border-4 border-blue-200 rounded-full"></div>
-                <div className="absolute inset-0 w-12 h-12 border-4 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
+                <div className="w-12 h-12 border-4 border-blue-200 rounded-full" />
+                <div className="absolute inset-0 border-4 border-blue-600 rounded-full border-t-transparent animate-spin" />
               </div>
-              
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
                   className="bg-gradient-to-r from-blue-500 to-cyan-500 h-2 rounded-full transition-all duration-300"
                   style={{ width: `${saveProgress}%` }}
-                ></div>
+                />
               </div>
-              
               <div className="text-center">
-                <h3 className="font-semibold text-gray-900">Saving Question</h3>
-                <p className="text-sm text-gray-600 mt-1">{saveMessage}</p>
-                <p className="text-xs text-gray-500 mt-2">{saveProgress}% complete</p>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                <h3 className="font-semibold text-gray-900 text-sm">Saving Question</h3>
+                <p className="text-xs text-gray-500 mt-1">{saveMessage}</p>
               </div>
             </div>
           </div>
         </div>
       )}
-      
-      {/* Render the appropriate form */}
-      {renderFormComponent()}
+      {renderForm()}
     </>
   );
 };

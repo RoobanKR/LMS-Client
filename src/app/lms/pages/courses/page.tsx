@@ -1,935 +1,559 @@
 "use client";
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { BookOpen, Clock, Users, Play, ChevronRight, Search, Loader2, Target, DollarSign as Collaboration, Rocket, Sparkles, AlertCircle, Zap } from 'lucide-react';
+import {
+  BookOpen, Clock, Users, Search, Loader2,
+  Target, LayoutGrid, List, GraduationCap, ArrowRight,
+  Sparkles, X, Plus, ChevronDown,
+  FileText, CheckCircle, ClipboardCheck,
+} from 'lucide-react';
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from 'framer-motion';
-import { toast } from 'sonner';
-import { 
-  useCoursesInfiniteQuery, 
-  useFilteredCourses, 
+import { motion, AnimatePresence, cubicBezier } from 'framer-motion';
+import {
+  useCoursesInfiniteQuery,
+  useFilteredCourses,
   getAuthToken,
   getCurrentUserIdFromAuth,
   Course
 } from '../.../../../../../apiServices/studentcoursepage';
 import { StudentLayout } from '../../component/student/student-layout';
+import DashboardLayout from '../../component/layout';
+import { StaffLayout } from '../../component/stafflayout/staff-layout';
 import RichTextDisplay from '../../component/RichTextDisplay';
+
+// ─── Design tokens ────────────────────────────────────────────────────────────
+const T = {
+  orange: '#F27757', orangeDark: '#E0623F', orangeGlow: 'rgba(242,119,87,0.22)', orangeLight: 'rgba(242,119,87,0.08)',
+  textMain: '#1a1a2e', textSub: '#6b6b7e', textMuted: '#8b8b9e', textHint: '#bcbccc', border: '#ecedf1', bg: '#ffffff', pageBg: '#f8f8fa',
+  dark: { bg: '#1a1a2e', surface: '#222240', card: '#252545', border: '#2e2e4a', textMain: '#e8e8f0', textSub: '#a0a0b8', textMuted: '#6b6b88', textHint: '#4a4a66', pageBg: '#12121f' }
+};
 
 const defaultCategories = ["All", "Web Development", "Data Science", "Mobile Development", "Design", "Cloud Computing", "Marketing", "Security"];
 
-// Interface for user data
-interface Permission {
-  permissionName: string;
-  permissionKey: string;
-  permissionFunctionality: string[];
-  icon: string;
-  color: string;
-  description: string;
-  isActive: boolean;
-  order: number;
-  _id: string;
-  createdAt: string;
-  updatedAt: string;
-}
+// ─── Interfaces ───────────────────────────────────────────────────────────────
+interface UserData { _id: string; email: string; firstName: string; lastName: string; role: { _id: string; originalRole: string; renameRole: string; roleValue: string } | string; permissions?: any[]; [key: string]: any }
+interface RoleSwitchState { isDummyStudent: boolean; originalRole?: string; originalRenameRole?: string; switchTimestamp?: number }
 
-interface UserData {
-  _id: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  role: {
-    _id: string;
-    originalRole: string;
-    renameRole: string;
-    roleValue: string;
-  } | string;
-  permissions?: Permission[];
-  [key: string]: any;
-}
+// ─── Animations ───────────────────────────────────────────────────────────────
+const containerV = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.05 } } };
+const cardV = { hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0, transition: { duration: 0.28, ease: cubicBezier(0.22, 1, 0.36, 1) } } };
 
-interface RoleSwitchState {
-  isDummyStudent: boolean
-  originalRole?: string
-  originalRenameRole?: string
-  switchTimestamp?: number
-}
-
-// Animation variants
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.1,
-      delayChildren: 0.2
-    }
-  }
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const getUser = (): { valid: boolean; user: UserData | null } => { 
+  try { 
+    const s = localStorage.getItem("smartcliff_userData"); 
+    if (!s) return { valid: false, user: null }; 
+    return { valid: true, user: JSON.parse(s) } 
+  } catch { 
+    return { valid: false, user: null } 
+  } 
 };
 
-const cardVariants = {
-  hidden: { 
-    opacity: 0, 
-    y: 20,
-    scale: 0.95
-  },
-  visible: { 
-    opacity: 1, 
-    y: 0,
-    scale: 1,
-    transition: {
-      type: "spring" as const,
-      stiffness: 100,
-      damping: 15,
-      duration: 0.6
-    }
-  }
+const isStudentUser = (): boolean => { 
+  try { 
+    const { valid, user } = getUser(); 
+    if (!valid || !user) return false; 
+    let r = ''; 
+    if (typeof user.role === 'object' && user.role !== null) 
+      r = (user.role as any).roleValue || (user.role as any).originalRole || (user.role as any).renameRole || ''; 
+    else if (typeof user.role === 'string') 
+      r = user.role; 
+    const s = localStorage.getItem("smartcliff_roleValue") || localStorage.getItem("smartcliff_originalRole") || localStorage.getItem("smartcliff_role") || ''; 
+    return (r || s).toLowerCase().includes('student') 
+  } catch { 
+    return false 
+  } 
 };
 
-const headerVariants = {
-  hidden: { opacity: 0, y: -20 },
-  visible: { 
-    opacity: 1, 
-    y: 0,
-    transition: { 
-      type: "spring" as const,
-      stiffness: 120,
-      damping: 20
-    }
-  }
+const isDummyMode = (): boolean => { 
+  try { 
+    const s = localStorage.getItem('smartcliff_roleSwitch'); 
+    if (s) { 
+      const d: RoleSwitchState = JSON.parse(s); 
+      return d.isDummyStudent === true 
+    } 
+    return localStorage.getItem('smartcliff_isDummyStudent') === 'true' 
+  } catch { 
+    return false 
+  } 
 };
 
-const filterVariants = {
-  hidden: { opacity: 0, x: -20 },
-  visible: { 
-    opacity: 1, 
-    x: 0,
-    transition: { 
-      type: "spring" as const,
-      stiffness: 100,
-      damping: 20
-    }
-  }
-};
-
-// Helper function to get user data from localStorage
-const getCurrentUser = (): { valid: boolean; user: UserData | null } => {
+// Function to get the actual user role from localStorage
+const getUserRole = (): string | null => {
   try {
-    const userDataString = localStorage.getItem("smartcliff_userData");
-    if (!userDataString) {
-      return { valid: false, user: null };
-    }
+    // First try to get from smartcliff_roleValue
+    const roleValue = localStorage.getItem('smartcliff_roleValue');
+    if (roleValue) return roleValue.toLowerCase();
     
-    const userData: UserData = JSON.parse(userDataString);
-    return { valid: true, user: userData };
-  } catch (error) {
-    console.error("Error getting user data from localStorage:", error);
-    return { valid: false, user: null };
-  }
-};
-
-// Helper function to determine if user is a student
-const isStudentUser = (): boolean => {
-  try {
-    const userResult = getCurrentUser();
-    if (!userResult.valid || !userResult.user) return false;
-    
-    const user = userResult.user;
-    let userRole = '';
-    
-    // Get role value from user data
-    if (typeof user.role === 'object' && user.role !== null) {
-      userRole = (user.role as any).roleValue || 
-                 (user.role as any).originalRole || 
-                 (user.role as any).renameRole || '';
-    } else if (typeof user.role === 'string') {
-      userRole = user.role;
-    }
-    
-    // Also check localStorage for role value
-    const storedRoleValue = localStorage.getItem("smartcliff_roleValue") || 
-                           localStorage.getItem("smartcliff_originalRole") || 
-                           localStorage.getItem("smartcliff_role") || '';
-    
-    userRole = userRole || storedRoleValue;
-    
-    // Check if role contains 'student' (case-insensitive)
-    const isStudent = userRole.toLowerCase().includes('student');
-    console.log("User role check:", { 
-      roleFromUser: userRole, 
-      storedRoleValue, 
-      isStudent 
-    });
-    
-    return isStudent;
-  } catch (error) {
-    console.error("Error checking user role:", error);
-    return false;
-  }
-};
-
-// Helper function to check if user is in dummy student mode
-const isDummyStudentMode = (): boolean => {
-  try {
-    // Check localStorage for dummy student flag
-    const roleSwitchString = localStorage.getItem('smartcliff_roleSwitch');
-    if (roleSwitchString) {
-      const roleSwitchData: RoleSwitchState = JSON.parse(roleSwitchString);
-      return roleSwitchData.isDummyStudent === true;
-    }
-    
-    // Also check the simplified flag
-    const isDummyStudent = localStorage.getItem('smartcliff_isDummyStudent');
-    return isDummyStudent === 'true';
-  } catch (error) {
-    console.error("Error checking dummy student mode:", error);
-    return false;
-  }
-};
-
-// Get original role info
-const getOriginalRoleInfo = (): { roleName: string; renameRole: string } | null => {
-  try {
-    const roleSwitchString = localStorage.getItem('smartcliff_roleSwitch');
-    if (roleSwitchString) {
-      const roleSwitchData: RoleSwitchState = JSON.parse(roleSwitchString);
-      if (roleSwitchData.originalRole || roleSwitchData.originalRenameRole) {
-        return {
-          roleName: roleSwitchData.originalRole || '',
-          renameRole: roleSwitchData.originalRenameRole || ''
-        };
+    // If not, try from userData
+    const { valid, user } = getUser();
+    if (valid && user) {
+      if (typeof user.role === 'object' && user.role !== null) {
+        const role = (user.role as any).roleValue || (user.role as any).originalRole || (user.role as any).renameRole;
+        if (role) return role.toLowerCase();
+      } else if (typeof user.role === 'string') {
+        return user.role.toLowerCase();
       }
     }
+    
     return null;
-  } catch (error) {
-    console.error("Error getting original role info:", error);
+  } catch {
     return null;
   }
 };
 
-const Breadcrumbs = () => {
-  const router = useRouter();
-  
-  return (
-    <div className="flex items-center gap-1 text-xs mb-3 px-1 text-gray-800 dark:text-gray-200">
-      <div
-        className="flex items-center gap-1 px-2 py-1 text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-        onClick={() => router.push('/lms/pages/studentdashboard')}
-      >
-        <BookOpen className="w-3 h-3" />
-        <span className="text-xs">Dashboard</span>
-      </div>
-      <ChevronRight className="w-3 h-3 text-gray-400 dark:text-gray-600 mx-1" />
-      <div className="flex items-center gap-1 px-2 py-1 text-blue-600 dark:text-blue-400 font-medium bg-blue-50 dark:bg-blue-900/30 rounded transition-colors">
-        <BookOpen className="w-3 h-3" />
-        <span className="text-xs">Courses</span>
-      </div>
+const getLevelCfg = (l: string) => { 
+  switch (l) { 
+    case 'Beginner': return { bg: '#ecfdf5', text: '#059669', dot: '#10b981' }; 
+    case 'Intermediate': return { bg: '#fff7ed', text: '#ea580c', dot: '#f97316' }; 
+    default: return { bg: '#fff1f2', text: '#e11d48', dot: '#f43f5e' }; 
+  } 
+};
+
+// ─── Stat Card — compact ──────────────────────────────────────────────────────
+const StatCard = ({ icon: Icon, value, label, isDark }: { icon: React.ElementType; value: string | number; label: string; isDark: boolean }) => (
+  <div className="flex items-center gap-3 px-4 py-3.5 rounded-xl" style={{ background: isDark ? T.dark.card : T.bg, border: `1px solid ${isDark ? T.dark.border : T.border}` }}>
+    <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: isDark ? 'rgba(242,119,87,0.12)' : T.orangeLight }}>
+      <Icon className="w-4 h-4" style={{ color: T.orange }} strokeWidth={2} />
     </div>
+    <div>
+      <p className="text-[18px] font-extrabold leading-none tracking-tight" style={{ color: isDark ? T.dark.textMain : T.textMain }}>{value}</p>
+      <p className="text-[11px] font-medium mt-0.5" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>{label}</p>
+    </div>
+  </div>
+);
+
+// ─── Course Card ──────────────────────────────────────────────────────────────
+const CourseCard = ({ course, isStudent, onStart, viewMode, isDark }: { course: Course; isStudent: boolean; onStart: (id: string) => void; viewMode: 'grid' | 'list'; isDark: boolean }) => {
+  const lv = getLevelCfg(course.courseLevel);
+  const desc = course.courseDescription?.replace(/<[^>]+>/g, '') || 'No description available.';
+
+  // ── LIST view ───────────────────────────────────────────────────────────────
+  if (viewMode === 'list') {
+    return (
+      <motion.div layout variants={cardV}
+        className="group flex items-center gap-4 p-3.5 rounded-xl cursor-pointer transition-all"
+        style={{ background: isDark ? T.dark.card : T.bg, border: `1px solid ${isDark ? T.dark.border : T.border}` }}
+        onClick={() => onStart(course._id)}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = T.orange; (e.currentTarget as HTMLElement).style.boxShadow = `0 4px 16px ${T.orangeGlow}` }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = isDark ? T.dark.border : T.border; (e.currentTarget as HTMLElement).style.boxShadow = 'none' }}
+      >
+        {/* Thumbnail */}
+        <div className="relative h-16 w-24 rounded-lg overflow-hidden flex-shrink-0">
+          <img
+            src={course.courseImage || "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=200&h=150&fit=crop"}
+            alt={course.courseName}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            onError={e => { e.currentTarget.src = "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=200&h=150&fit=crop" }}
+          />
+        </div>
+
+        {/* Info */}
+        <div className="flex-1 min-w-0">
+          <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded mb-0.5" style={{ background: lv.bg, color: lv.text }}>
+            <span className="w-1.5 h-1.5 rounded-full" style={{ background: lv.dot }} />{course.courseLevel}
+          </span>
+          <h3 className="text-[14px] font-bold leading-snug truncate" style={{ color: isDark ? T.dark.textMain : T.textMain }}>{course.courseName}</h3>
+          <div className="flex items-center gap-3 mt-1">
+            <span className="flex items-center gap-1 text-[11px] font-medium" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>
+              <FileText className="w-3 h-3" style={{ color: T.orange }} />{course.courseDuration} Modules
+            </span>
+            <span style={{ color: isDark ? T.dark.border : T.border }}>|</span>
+            <span className="flex items-center gap-1 text-[11px] font-medium" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>
+              <Users className="w-3 h-3" style={{ color: T.orange }} />{course.clientName}
+            </span>
+          </div>
+        </div>
+
+        {/* Both buttons fully orange */}
+        <button
+          onClick={e => { e.stopPropagation(); onStart(course._id) }}
+          className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-lg text-[12px] font-semibold text-white transition-all"
+          style={{ background: T.orange, boxShadow: `0 3px 10px ${T.orangeGlow}` }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = T.orangeDark }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.orange }}
+        >
+          {isStudent ? 'Start' : 'Manage Resources'}<ArrowRight className="w-3 h-3" />
+        </button>
+      </motion.div>
+    );
+  }
+
+  // ── GRID view ───────────────────────────────────────────────────────────────
+  return (
+    <motion.div layout variants={cardV}
+      className="group flex flex-col rounded-xl overflow-hidden transition-all duration-200"
+      style={{ background: isDark ? T.dark.card : T.bg, border: `1px solid ${isDark ? T.dark.border : T.border}` }}
+      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.boxShadow = isDark ? '0 6px 24px rgba(0,0,0,0.28)' : '0 6px 24px rgba(0,0,0,0.07)'; (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)' }}
+      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.boxShadow = 'none'; (e.currentTarget as HTMLElement).style.transform = 'translateY(0)' }}
+    >
+      {/* Thumbnail — slightly shorter */}
+      <div className="relative h-36 overflow-hidden cursor-pointer" onClick={() => onStart(course._id)}>
+        <img
+          src={course.courseImage || "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=600&h=400&fit=crop"}
+          alt={course.courseName}
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          onError={e => { e.currentTarget.src = "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=600&h=400&fit=crop" }}
+        />
+        <div className="absolute top-2 left-2">
+          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md" style={{ background: lv.bg, color: lv.text }}>
+            <span className="w-1.5 h-1.5 rounded-full" style={{ background: lv.dot }} />{course.courseLevel}
+          </span>
+        </div>
+      </div>
+
+      {/* Body */}
+      <div className="flex flex-col flex-1 p-4">
+        <h3
+          className="text-[14px] font-bold leading-snug cursor-pointer mb-1 line-clamp-2 transition-colors"
+          style={{ color: isDark ? T.dark.textMain : T.textMain }}
+          onClick={() => onStart(course._id)}
+          onMouseEnter={e => (e.currentTarget.style.color = T.orange)}
+          onMouseLeave={e => (e.currentTarget.style.color = isDark ? T.dark.textMain : T.textMain)}
+        >
+          {course.courseName}
+        </h3>
+
+        <p className="text-[12px] leading-relaxed line-clamp-2 mb-3" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>{desc}</p>
+
+        <div className="flex items-center gap-3 mb-3">
+          <span className="flex items-center gap-1 text-[11px] font-medium" style={{ color: isDark ? T.dark.textSub : T.textSub }}>
+            <FileText className="w-3 h-3" style={{ color: T.orange }} />{course.courseDuration} Modules
+          </span>
+          <span style={{ color: isDark ? T.dark.border : T.border }}>|</span>
+          <span className="flex items-center gap-1 text-[11px] font-medium" style={{ color: isDark ? T.dark.textSub : T.textSub }}>
+            <Users className="w-3 h-3" style={{ color: T.orange }} />{course.clientName || '0'} Students
+          </span>
+        </div>
+
+        {/* Both buttons fully orange — solid fill for both student and staff */}
+        <div className="mt-auto">
+          <button
+            onClick={() => onStart(course._id)}
+            className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-[13px] font-bold text-white transition-all"
+            style={{ background: T.orange, boxShadow: `0 3px 10px ${T.orangeGlow}` }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = T.orangeDark }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.orange }}
+          >
+            {isStudent ? 'Start Course' : 'Manage Resources'}<ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+    </motion.div>
   );
 };
 
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
+const Skel = ({ isDark }: { isDark: boolean }) => (
+  <div className="rounded-xl overflow-hidden animate-pulse" style={{ background: isDark ? T.dark.card : T.bg, border: `1px solid ${isDark ? T.dark.border : T.border}` }}>
+    <div className="h-36" style={{ background: isDark ? T.dark.surface : '#f0f0f4' }} />
+    <div className="p-4 space-y-2">
+      <div className="h-3.5 rounded-full w-3/5" style={{ background: isDark ? T.dark.surface : '#f0f0f4' }} />
+      <div className="h-3 rounded-full w-full" style={{ background: isDark ? T.dark.surface : '#f0f0f4' }} />
+      <div className="h-9 rounded-lg mt-2" style={{ background: isDark ? T.dark.surface : '#f0f0f4' }} />
+    </div>
+  </div>
+);
+
+const Empty = ({ onClear, hasSearch, isDark }: { onClear: () => void; hasSearch: boolean; isDark: boolean }) => (
+  <motion.div key="empty" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+    className="flex flex-col items-center justify-center py-20 rounded-xl"
+    style={{ background: isDark ? T.dark.card : T.bg, border: `1.5px dashed ${isDark ? T.dark.border : T.border}` }}>
+    <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-3" style={{ background: T.orangeLight }}>
+      <GraduationCap className="w-6 h-6" style={{ color: T.orange }} />
+    </div>
+    <h3 className="text-[14px] font-bold mb-1" style={{ color: isDark ? T.dark.textMain : T.textMain }}>No courses found</h3>
+    <p className="text-[12px]" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>Try adjusting your search or category filter.</p>
+    {hasSearch && <button onClick={onClear} className="mt-3 text-[12px] font-bold" style={{ color: T.orange }}>Clear search ×</button>}
+  </motion.div>
+);
+
+const Err = ({ onRetry, isDark }: { onRetry: () => void; isDark: boolean }) => (
+  <motion.div key="error" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+    className="flex flex-col items-center justify-center py-20 rounded-xl"
+    style={{ background: isDark ? T.dark.card : T.bg, border: `1px solid ${isDark ? T.dark.border : T.border}` }}>
+    <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-3" style={{ background: '#fff1f2' }}>
+      <Target className="w-6 h-6" style={{ color: '#e11d48' }} />
+    </div>
+    <h3 className="text-[14px] font-bold mb-1" style={{ color: isDark ? T.dark.textMain : T.textMain }}>Failed to load courses</h3>
+    <p className="text-[12px] mb-4" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>Something went wrong.</p>
+    <button onClick={onRetry} className="px-4 py-2 rounded-lg text-[12px] font-semibold text-white" style={{ background: T.orange }}>Try Again</button>
+  </motion.div>
+);
+
+// ─── MAIN PAGE ────────────────────────────────────────────────────────────────
 export default function CoursesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [categories, setCategories] = useState<string[]>(defaultCategories);
-  const [currentTheme, setCurrentTheme] = useState<'light' | 'dark'>('light');
-  const [isStudent, setIsStudent] = useState<boolean>(false);
-  const [isDummyStudent, setIsDummyStudent] = useState<boolean>(false);
-  const [originalRoleInfo, setOriginalRoleInfo] = useState<{ roleName: string; renameRole: string } | null>(null);
+  const [isStudent, setIsStudent] = useState(false);
+  const [isDummyStudent, setIsDummyStudent] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [isDark, setIsDark] = useState(false);
+  const [showCatDrop, setShowCatDrop] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [userName, setUserName] = useState('');
+  const [isRoleLoading, setIsRoleLoading] = useState(true); // Add loading state for role
   const router = useRouter();
 
-  useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        const token = getAuthToken();
-        setAuthToken(token);
-        let currentUserId = getCurrentUserIdFromAuth();
-        setUserId(currentUserId);
-        const isDark = document.documentElement.classList.contains('dark');
-        setCurrentTheme(isDark ? 'dark' : 'light');
-        
-        // Check if user is a student
-        const studentCheck = isStudentUser();
-        
-        // Check if user is in dummy student mode
-        const dummyStudentCheck = isDummyStudentMode();
-        setIsDummyStudent(dummyStudentCheck);
-        
-        // Get original role info if in dummy student mode
-        if (dummyStudentCheck) {
-          const originalInfo = getOriginalRoleInfo();
-          setOriginalRoleInfo(originalInfo);
-        }
-        
-        // User is considered a "student" if they are either:
-        // 1. Actual student role, OR
-        // 2. In dummy student mode
-        const finalIsStudent = studentCheck || dummyStudentCheck;
-        setIsStudent(finalIsStudent);
-        
-        console.log("Role status:", {
-          actualStudent: studentCheck,
-          dummyStudent: dummyStudentCheck,
-          finalIsStudent: finalIsStudent,
-          originalRoleInfo: originalRoleInfo
-        });
-
-        // Listen for storage changes (role switch from navbar)
-        const handleStorageChange = () => {
-          const newDummyStudentCheck = isDummyStudentMode();
-          setIsDummyStudent(newDummyStudentCheck);
-          if (newDummyStudentCheck) {
-            const originalInfo = getOriginalRoleInfo();
-            setOriginalRoleInfo(originalInfo);
-          } else {
-            setOriginalRoleInfo(null);
-          }
-          setIsStudent(studentCheck || newDummyStudentCheck);
-        };
-
-        window.addEventListener('storage', handleStorageChange);
-
-        // Listen for theme changes
-        const observer = new MutationObserver((mutations) => {
-          mutations.forEach((mutation) => {
-            if (mutation.attributeName === 'class') {
-              const isDark = document.documentElement.classList.contains('dark');
-              setCurrentTheme(isDark ? 'dark' : 'light');
-            }
-          });
-        });
-
-        observer.observe(document.documentElement, { attributes: true });
-
-        return () => {
-          observer.disconnect();
-          window.removeEventListener('storage', handleStorageChange);
-        };
-      } catch (error) {
-        console.error('Error in fetchUserData:', error);
-      }
-    };
-
-    fetchUserData();
+  useEffect(() => { 
+    const c = () => setIsDark(document.documentElement.classList.contains('dark')); 
+    c(); 
+    const o = new MutationObserver(c); 
+    o.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] }); 
+    return () => o.disconnect() 
   }, []);
 
-  const filters = {
-    searchTerm,
-    selectedCategory,
-  };
-
-  const { 
-    data, 
-    isLoading, 
-    error, 
-    isError,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-    refetch 
-  } = useCoursesInfiniteQuery(authToken, userId, filters);
-
-  const allCourses = useMemo(() => 
-    data?.pages.flatMap(page => page.data) || [], 
-    [data]
-  );
-
-  const uniqueServiceTypes = useMemo(() => {
-    if (allCourses.length === 0) return [];
+  useEffect(() => {
+    const initializeRole = async () => {
+      try {
+        // Get user role from localStorage
+        const role = getUserRole();
+        console.log('User role from localStorage:', role);
+        
+        setUserRole(role);
+        
+        // Set isStudent based on role
+        const isStudentRole = role === 'student';
+        setIsStudent(isStudentRole);
+        
+        // Check dummy mode
+        const dummyMode = isDummyMode();
+        setIsDummyStudent(dummyMode);
+        
+        // If in dummy mode, override isStudent to true
+        if (dummyMode) {
+          setIsStudent(true);
+        }
+        
+        // Set auth token and user ID
+        setAuthToken(getAuthToken());
+        setUserId(getCurrentUserIdFromAuth());
+        
+        // Get user name
+        try {
+          const userData = localStorage.getItem('smartcliff_userData');
+          if (userData) {
+            const parsed = JSON.parse(userData);
+            setUserName(parsed.firstName || '');
+          }
+        } catch (e) {
+          console.error('Error parsing user data:', e);
+        }
+        
+        // Listen for role changes
+        const handleStorageChange = () => {
+          const newRole = getUserRole();
+          const newDummyMode = isDummyMode();
+          
+          setUserRole(newRole);
+          setIsStudent(newRole === 'student' || newDummyMode);
+          setIsDummyStudent(newDummyMode);
+        };
+        
+        window.addEventListener('storage', handleStorageChange);
+        return () => window.removeEventListener('storage', handleStorageChange);
+        
+      } catch (error) {
+        console.error('Error initializing role:', error);
+      } finally {
+        setIsRoleLoading(false);
+      }
+    };
     
-    const types = Array.from(
-      new Set(allCourses.map(course => course.serviceType).filter(Boolean))
-    );
-    return types;
-  }, [allCourses]);
+    initializeRole();
+  }, []);
 
-  useEffect(() => {
-    if (uniqueServiceTypes.length > 0) {
-      setCategories(["All", ...uniqueServiceTypes]);
-    } else {
-      setCategories(defaultCategories);
-    }
-  }, [uniqueServiceTypes]);
+  const filters = { searchTerm, selectedCategory };
+  const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage, refetch } = useCoursesInfiniteQuery(authToken, userId, filters);
+  const allCourses = useMemo(() => data?.pages.flatMap(p => p.data) || [], [data]);
+  const uniqueTypes = useMemo(() => allCourses.length ? Array.from(new Set(allCourses.map(c => c.serviceType).filter(Boolean))) : [], [allCourses]);
+  useEffect(() => { setCategories(uniqueTypes.length > 0 ? ["All", ...uniqueTypes] : defaultCategories) }, [uniqueTypes]);
+  const filtered = useFilteredCourses(allCourses, filters);
 
-  const filteredCourses = useFilteredCourses(allCourses, filters);
-
-  const handleScroll = useCallback(() => {
-    if (isFetchingNextPage || !hasNextPage || isLoading) return;
-
-    const scrollTop = window.scrollY || document.documentElement.scrollTop;
-    const scrollHeight = document.documentElement.scrollHeight;
-    const clientHeight = window.innerHeight;
-
-    if (scrollTop + clientHeight >= scrollHeight - 300) {
-      fetchNextPage();
-    }
+  const handleScroll = useCallback(() => { 
+    if (isFetchingNextPage || !hasNextPage || isLoading) return; 
+    if (window.scrollY + document.documentElement.clientHeight >= document.documentElement.scrollHeight - 300) 
+      fetchNextPage() 
   }, [isFetchingNextPage, hasNextPage, fetchNextPage, isLoading]);
-
-  useEffect(() => {
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+  
+  useEffect(() => { 
+    window.addEventListener('scroll', handleScroll); 
+    return () => window.removeEventListener('scroll', handleScroll) 
   }, [handleScroll]);
 
-  const handleStartCourse = (courseId: string) => {
-    console.log("Role-based navigation check:", {
-      isStudent,
-      isDummyStudent,
-      originalRole: originalRoleInfo?.renameRole
-    });
-    
-    if (isStudent) {
-      // For real students AND dummy students: navigate to course detailed view
-      console.log(`Student/dummy student navigating to detailed view for course: ${courseId}`);
-      router.push(`/lms/pages/courses/coursesdetailedview/${courseId}?theme=${currentTheme}`);
-    } else {
-      // For non-students (admin/staff/other roles): navigate to upload resources page
-      console.log(`Non-student navigating to upload resources for course: ${courseId}`);
-      const query = new URLSearchParams({
-        courseId: courseId,
-      }).toString();
-      router.push(`/lms/pages/courses/uploadcourseresources?${query}`);
-    }
+  const onStart = (id: string) => {
+    if (isStudent) 
+      router.push(`/lms/pages/courses/coursesdetailedview/${id}`);
+    else 
+      router.push(`/lms/pages/courses/uploadcourseresources?${new URLSearchParams({ courseId: id }).toString()}`);
   };
 
-  const handleRetry = () => {
-    refetch();
-  };
- 
+  const loading = isLoading && !data;
 
-  const showCourseLoading = isLoading && !data;
-
-  return (
-    <>
+  // ── Content ────────────────────────────────────────────────────────────────
+  const content = (
+    <div className="sc-courses-font">
       <style jsx global>{`
-        /* Keep all existing styles */
-        .custom-scrollbar {
-          scrollbar-width: thin;
-          scrollbar-color: rgba(59, 130, 246, 0.6) transparent;
-        }
-        
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 3px;
-          height: 3px;
-        }
-        
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
-          border-radius: 1px;
-        }
-        
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: linear-gradient(45deg, #3b82f6, #2563eb);
-          border-radius: 1px;
-          box-shadow: 0 0 4px rgba(59, 130, 246, 0.3);
-          transition: all 0.3s ease;
-        }
-        
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: linear-gradient(45deg, #2563eb, #1d4ed8);
-          box-shadow: 0 0 8px rgba(59, 130, 246, 0.6);
-          width: 4px;
-        }
-
-        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: linear-gradient(45deg, #60a5fa, #3b82f6);
-          box-shadow: 0 0 4px rgba(96, 165, 250, 0.4);
-        }
-        
-        .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: linear-gradient(45deg, #3b82f6, #2563eb);
-          box-shadow: 0 0 8px rgba(96, 165, 250, 0.6);
-        }
-
-        .custom-scrollbar {
-          scroll-behavior: smooth;
-        }
-
-        @keyframes scrollGlow {
-          0% { opacity: 0.6; }
-          50% { opacity: 1; }
-          100% { opacity: 0.6; }
-        }
-
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          animation: scrollGlow 2s ease-in-out infinite;
-        }
-
-        @keyframes shimmer {
-          0% {
-            background-position: -200px 0;
-          }
-          100% {
-            background-position: 200px 0;
-          }
-        }
-
-        .animate-shimmer {
-          background: linear-gradient(
-            90deg,
-            transparent 25%,
-            rgba(255, 255, 255, 0.4) 50%,
-            transparent 75%
-          );
-          background-size: 200px 100%;
-          animation: shimmer 1.5s infinite;
-        }
-
-        .dark .animate-shimmer {
-          background: linear-gradient(
-            90deg,
-            transparent 25%,
-            rgba(255, 255, 255, 0.1) 50%,
-            transparent 75%
-          );
-          background-size: 200px 100%;
-          animation: shimmer 1.5s infinite;
-        }
-
-        .course-card {
-          transform: translateZ(0);
-          backface-visibility: hidden;
-          perspective: 1000px;
-        }
-
-        * {
-          box-sizing: border-box;
-        }
-
-        .line-clamp-2 {
-          overflow: hidden;
-          display: -webkit-box;
-          -webkit-box-orient: vertical;
-          -webkit-line-clamp: 2;
-        }
-
-        .glass-header {
-          backdrop-filter: blur(8px);
-          -webkit-backdrop-filter: blur(8px);
-        }
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+        .sc-courses-font,.sc-courses-font *{font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,sans-serif!important}
+        .scrollbar-hide::-webkit-scrollbar{display:none}
+        .scrollbar-hide{-ms-overflow-style:none;scrollbar-width:none}
       `}</style>
 
-      <StudentLayout>
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
-          {/* Fixed Header with Breadcrumbs and Filters - Always visible */}
-          <motion.div 
-            className="flex-shrink-0 border-b bg-white/80 dark:bg-gray-900/80 glass-header sticky top-0 z-10 border-gray-200 dark:border-gray-800"
-            initial="hidden"
-            animate="visible"
-            variants={headerVariants}
-          >
-            <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3">
-              {/* Breadcrumbs */}
-              <motion.div 
-                className="mb-3"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.1 }}
-              >
-                <Breadcrumbs />
-              </motion.div>
-              
-              {/* Header with title and stats */}
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-                      {isStudent ? 'My Enrolled Courses' : 'Course Management'}
-                    </h1>
-                    {isDummyStudent && (
-                      <span className="text-xs font-bold text-yellow-600 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/30 px-2 py-0.5 rounded-full animate-pulse">
-                        STUDENT VIEW
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                    {isStudent ? 'Continue your learning journey' : 'Manage and organize course resources'}
-                    {isDummyStudent && originalRoleInfo && (
-                      <span className="ml-2 text-yellow-600 dark:text-yellow-400">
-                        (Temporary view - Switch back to {originalRoleInfo.renameRole})
-                      </span>
-                    )}
-                  </p>
-                </div>
-                
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-1 text-xs text-gray-700 dark:text-gray-300 bg-blue-50 dark:bg-blue-900/30 px-3 py-1.5 rounded-lg border border-blue-100 dark:border-blue-800/50">
-                    <BookOpen className="w-3 h-3" />
-                    <span>{allCourses.length} {isStudent ? 'enrolled courses' : 'courses assigned'}</span>
-                  </div>
-                  <div className="flex items-center gap-1 text-xs text-gray-700 dark:text-gray-300 bg-blue-50 dark:bg-blue-900/30 px-3 py-1.5 rounded-lg border border-blue-100 dark:border-blue-800/50">
-                    <Users className="w-3 h-3" />
-                    <span>
-                      {isDummyStudent ? 'Student (View Mode)' : isStudent ? 'Student' : originalRoleInfo?.renameRole || 'Staff/Admin'}
-                    </span>
-                  </div>
-                  
-                 
-                </div>
+      {/* ── Header row — compact ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+        <div>
+          <h1 className="text-[20px] font-extrabold tracking-tight" style={{ color: isDark ? T.dark.textMain : T.textMain, letterSpacing: '-0.03em' }}>
+            Welcome back, <span style={{ color: T.orange }}>{userName || 'User'}</span>!
+          </h1>
+          <p className="text-[12.5px] mt-0.5" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>
+            {isStudent ? 'Continue your progress where you left off.' : 'Manage your courses and resources efficiently.'}
+          </p>
+        </div>
+      </div>
+
+      {/* ── Stats — compact ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+        <StatCard icon={BookOpen}      value={filtered.length || 0} label="Total Courses"  isDark={isDark} />
+        <StatCard icon={Users}         value={45}                   label="Students"        isDark={isDark} />
+        <StatCard icon={ClipboardCheck} value={18}                  label="Assignments"     isDark={isDark} />
+        <StatCard icon={CheckCircle}   value="92%"                  label="Progress"        isDark={isDark} />
+      </div>
+
+      {/* ── Toolbar ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+        <h2 className="text-[16px] font-extrabold tracking-tight" style={{ color: isDark ? T.dark.textMain : T.textMain }}>
+          Course Management
+        </h2>
+        <div className="flex items-center gap-2">
+          {/* Category dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setShowCatDrop(!showCatDrop)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[12px] font-semibold"
+              style={{ background: isDark ? T.dark.card : T.bg, border: `1.5px solid ${isDark ? T.dark.border : T.border}`, color: T.orange }}
+            >
+              {selectedCategory}<ChevronDown className="w-3 h-3" style={{ color: T.orange }} />
+            </button>
+            {showCatDrop && (
+              <div className="absolute top-full right-0 mt-1 w-44 py-1 z-50 rounded-xl overflow-hidden"
+                style={{ background: isDark ? T.dark.card : T.bg, border: `1px solid ${isDark ? T.dark.border : T.border}`, boxShadow: isDark ? '0 8px 24px rgba(0,0,0,0.3)' : '0 8px 24px rgba(0,0,0,0.08)' }}>
+                {categories.map(c => (
+                  <button key={c} onClick={() => { setSelectedCategory(c); setShowCatDrop(false) }}
+                    className="w-full text-left px-3 py-1.5 text-[12px] transition-colors"
+                    style={{ fontWeight: selectedCategory === c ? 700 : 500, color: selectedCategory === c ? T.orange : isDark ? T.dark.textSub : T.textSub, background: selectedCategory === c ? (isDark ? 'rgba(242,119,87,0.08)' : T.orangeLight) : 'transparent' }}
+                    onMouseEnter={e => { if (selectedCategory !== c) (e.currentTarget as HTMLElement).style.background = isDark ? 'rgba(255,255,255,0.04)' : '#f7f7f9' }}
+                    onMouseLeave={e => { if (selectedCategory !== c) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                  >{c}</button>
+                ))}
               </div>
+            )}
+          </div>
 
-              {/* Filters Section - Modified for role-based display */}
-              <motion.div 
-                className="flex flex-col sm:flex-row gap-2 items-start sm:items-center justify-between"
-                variants={filterVariants}
-              >
-                {/* Search Bar - Always visible for all users */}
-                <motion.div 
-                  className="relative flex-1 max-w-md"
-                  initial={{ opacity: 0, x: -30 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.2 }}
-                >
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 w-3.5 h-3.5" />
-                  <input
-                    type="text"
-                    placeholder={isStudent ? "Search your enrolled courses..." : "Search courses by name..."}
-                    className="w-full text-xs pl-9 pr-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 focus:border-blue-500 dark:focus:border-blue-600 transition-all bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                </motion.div>
+          {/* Search toggle */}
+          <button onClick={() => setShowSearch(!showSearch)} className="p-2 rounded-lg"
+            style={{ background: isDark ? T.dark.card : T.bg, border: `1.5px solid ${isDark ? T.dark.border : T.border}`, color: showSearch ? T.orange : isDark ? T.dark.textMuted : T.textMuted }}>
+            <Search className="w-3.5 h-3.5" />
+          </button>
 
-                {/* Filter Controls - Only show for non-student users */}
-                {!isStudent && (
-                  <motion.div 
-                    className="flex flex-wrap gap-2 items-center"
-                    initial={{ opacity: 0, x: 30 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.3 }}
-                  >
-                    <select 
-                      className="text-xs px-2.5 py-1.5 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 focus:border-blue-500 dark:focus:border-blue-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white min-w-[130px]"
-                      value={selectedCategory}
-                      onChange={(e) => setSelectedCategory(e.target.value)}
-                    >
-                      {categories.map(category => (
-                        <option key={category} value={category}>{category}</option>
-                      ))}
-                    </select>
-                    
-                    <motion.div 
-                      className="text-xs text-gray-700 dark:text-gray-300 bg-blue-50 dark:bg-blue-900/30 px-2.5 py-1.5 rounded-lg border border-blue-100 dark:border-blue-800/50"
-                      key={filteredCourses.length}
-                      initial={{ scale: 0.8, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      transition={{ type: "spring", stiffness: 150 }}
-                    >
-                      {showCourseLoading ? 'Loading...' : `${filteredCourses.length} ${filteredCourses.length === 1 ? 'course' : 'courses'}`}
-                      {hasNextPage && !showCourseLoading && ' + more'}
-                    </motion.div>
-                  </motion.div>
-                )}
-                
-                {/* For student users, show the course count in a different position or adjust layout */}
-                {isStudent && (
-                  <motion.div 
-                    className="text-xs text-gray-700 dark:text-gray-300 bg-blue-50 dark:bg-blue-900/30 px-2.5 py-1.5 rounded-lg border border-blue-100 dark:border-blue-800/50 self-end sm:self-center"
-                    key={filteredCourses.length}
-                    initial={{ scale: 0.8, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={{ type: "spring", stiffness: 150 }}
-                  >
-                    {showCourseLoading ? 'Loading...' : `${filteredCourses.length} ${filteredCourses.length === 1 ? 'enrolled course' : 'enrolled courses'}`}
-                    {hasNextPage && !showCourseLoading && ' + more'}
-                  </motion.div>
-                )}
-              </motion.div>
-            </div>
-          </motion.div>
-
-          {/* Scrollable Course Grid */}
-          <div className="flex-1 overflow-y-auto custom-scrollbar">
-            <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4">
-              <AnimatePresence mode="wait">
-                {showCourseLoading ? (
-                  // Loading state
-                  <motion.div 
-                    className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3"
-                    variants={containerVariants}
-                    initial="hidden"
-                    animate="visible"
-                    key="loading"
-                  >
-                    {/* Loading skeleton cards */}
-                    {Array.from({ length: 8 }).map((_, index) => (
-                      <motion.div 
-                        key={index}
-                        className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden course-card"
-                        variants={cardVariants}
-                        transition={{ delay: index * 0.1 }}
-                      >
-                        {/* Skeleton Image */}
-                        <div className="relative h-28 overflow-hidden bg-gray-200 dark:bg-gray-700">
-                          <div className="absolute inset-0 animate-shimmer" />
-                        </div>
-
-                        {/* Skeleton Content */}
-                        <div className="p-3">
-                          <div className="flex justify-between items-start mb-2">
-                            <div className="h-4 w-16 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse"></div>
-                            <div className="h-3 w-10 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse"></div>
-                          </div>
-                          
-                          <div className="h-4 w-full bg-gray-200 dark:bg-gray-700 rounded mb-1.5 animate-pulse"></div>
-                          <div className="h-3 w-3/4 bg-gray-200 dark:bg-gray-700 rounded mb-2.5 animate-pulse"></div>
-                          
-                          <div className="flex items-center justify-between text-[10px] mb-2.5">
-                            <div className="flex items-center gap-0.5">
-                              <div className="h-3 w-8 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-                            </div>
-                            <div className="flex items-center gap-0.5">
-                              <div className="h-3 w-10 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-                            </div>
-                            <div className="flex items-center gap-0.5">
-                              <div className="h-3 w-12 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-                            </div>
-                          </div>
-                          
-                          <div className="h-8 w-full bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse"></div>
-                        </div>
-                      </motion.div>
-                    ))}
-                  </motion.div>
-                ) : isError ? (
-                  // Error state
-                  <motion.div 
-                    className="text-center py-8"
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
-                    key="error"
-                  >
-                    <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      transition={{ delay: 0.2, type: "spring", stiffness: 150 }}
-                    >
-                      <BookOpen className="mx-auto h-10 w-10 text-gray-400 dark:text-gray-500" />
-                    </motion.div>
-                    <h3 className="mt-3 text-base font-medium text-gray-900 dark:text-white">
-                      Error loading courses
-                    </h3>
-                    <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
-                      {error?.message || 'Something went wrong'}
-                    </p>
-                    <div className="flex gap-2 justify-center mt-3">
-                      <motion.button 
-                        onClick={handleRetry}
-                        className="text-xs bg-gradient-to-r from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 hover:from-blue-600 hover:to-blue-700 dark:hover:from-blue-700 dark:hover:to-blue-800 text-white px-3 py-1.5 rounded-lg transition-all duration-200 shadow-sm"
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                      >
-                        Try Again
-                      </motion.button>
-                    </div>
-                  </motion.div>
-                ) : filteredCourses.length === 0 && !userId ? (
-                  // No user ID found state
-                  <motion.div 
-                    className="text-center py-8"
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
-                    key="no-user"
-                  >
-                    <BookOpen className="mx-auto h-10 w-10 text-gray-400 dark:text-gray-500" />
-                    <h3 className="mt-3 text-base font-medium text-gray-900 dark:text-white">
-                      User not identified
-                    </h3>
-                    <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
-                      Please log in to view your enrolled courses
-                    </p>
-                    <motion.button 
-                      onClick={() => router.push('/login')}
-                      className="mt-3 text-xs bg-gradient-to-r from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 hover:from-blue-600 hover:to-blue-700 dark:hover:from-blue-700 dark:hover:to-blue-800 text-white px-3 py-1.5 rounded-lg transition-all duration-200 shadow-sm"
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                    >
-                      Go to Login
-                    </motion.button>
-                  </motion.div>
-                ) : filteredCourses.length === 0 ? (
-                  // No enrolled courses state
-                  <motion.div 
-                    className="text-center py-8"
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
-                    key="empty"
-                  >
-                    <BookOpen className="mx-auto h-10 w-10 text-gray-400 dark:text-gray-500" />
-                    <h3 className="mt-3 text-base font-medium text-gray-900 dark:text-white">
-                      No {isStudent ? 'enrolled' : 'assigned'} courses found
-                    </h3>
-                    <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
-                      {isStudent 
-                        ? 'You are not enrolled in any courses yet.'
-                        : 'You are not assigned to any courses yet.'
-                      }
-                    </p>
-                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-500">
-                      Please contact your administrator {isStudent ? 'for enrollment' : 'for course assignments'}.
-                    </p>
-                    <div className="flex gap-2 justify-center mt-3">
-                      <motion.button 
-                        onClick={() => router.push('/lms')}
-                        className="text-xs bg-gradient-to-r from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 hover:from-blue-600 hover:to-blue-700 dark:hover:from-blue-700 dark:hover:to-blue-800 text-white px-3 py-1.5 rounded-lg transition-all duration-200 shadow-sm"
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                      >
-                        Go to Dashboard
-                      </motion.button>
-                    </div>
-                  </motion.div>
-                ) : (
-                  // Course cards grid - UPDATED BUTTON TEXT BASED ON ROLE
-                  <>
-                    <motion.div 
-                      className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3"
-                      variants={containerVariants}
-                      initial="hidden"
-                      animate="visible"
-                      key="courses"
-                    >
-                      {filteredCourses.map((course: Course, index: number) => (
-                        <motion.div 
-                          key={course._id} 
-                          className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-600 hover:shadow-lg dark:hover:shadow-xl/30 transition-all duration-300 overflow-hidden group cursor-pointer course-card"
-                          variants={cardVariants}
-                          whileHover={{ 
-                            y: -4, 
-                            scale: 1.02,
-                            boxShadow: "0 8px 25px rgba(59, 130, 246, 0.15)",
-                            transition: { type: "spring", stiffness: 300, damping: 20 }
-                          }}
-                          whileTap={{ scale: 0.98 }}
-                          layoutId={`course-${course._id}`}
-                          onClick={() => handleStartCourse(course._id)}
-                        >
-                          {/* Course Image with blue overlay on hover */}
-                          <div className="relative h-28 overflow-hidden">
-                            <img
-                              src={course.courseImage || "https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=300&h=150&fit=crop&auto=format"}
-                              alt={course.courseName}
-                              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                              onError={(e) => {
-                                e.currentTarget.src = "https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=300&h=150&fit=crop&auto=format";
-                              }}
-                            />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                            <div className="absolute top-1.5 left-1.5">
-                              <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded-full ${
-                                course.courseLevel === 'Beginner' ? 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300 border border-green-200 dark:border-green-800' :
-                                course.courseLevel === 'Intermediate' ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-800' :
-                                'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-800'
-                              }`}>
-                                {course.courseLevel}
-                              </span>
-                            </div>
-                            <div className="absolute top-1.5 right-1.5">
-                              <span className="text-[10px] font-medium text-gray-700 dark:text-gray-300 bg-white/95 dark:bg-gray-900/95 px-1.5 py-0.5 rounded-full shadow-sm border border-gray-200 dark:border-gray-700">
-                                {course.courseDuration} {parseInt(course.courseDuration) === 1 ? 'week' : 'weeks'}
-                              </span>
-                            </div>
-                            {/* Blue gradient overlay on hover */}
-                            <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-blue-600/10 dark:from-blue-500/20 dark:to-blue-600/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                          </div>
-
-                          {/* Course Content */}
-                          <div className="p-3">
-                            <div className="flex justify-between items-start mb-2">
-                              <span className="text-[10px] font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/40 px-1.5 py-0.5 rounded-full border border-blue-100 dark:border-blue-800">
-                                {course.serviceType}
-                              </span>
-                              <span className="text-[10px] text-gray-500 dark:text-gray-400">
-                                {new Date(course.updatedAt).toLocaleDateString()}
-                              </span>
-                            </div>
-                            
-                            <h3 className="text-sm font-semibold text-gray-900 dark:text-white line-clamp-2 leading-tight mb-1.5 min-h-[2.25rem] group-hover:text-blue-700 dark:group-hover:text-blue-400 transition-colors duration-200">
-                              {course.courseName}
-                            </h3>
-                            
-                            {/* FIXED: Changed from <p> to <div> to avoid nesting block elements */}
-                            <div className="text-gray-600 dark:text-gray-300 text-xs line-clamp-2 mb-2.5 leading-relaxed">
-                              <RichTextDisplay
-                                content={course.courseDescription}
-                                className="min-h-0 text-xs leading-relaxed"
-                              />
-                            </div>
-                            
-                            <div className="flex items-center justify-between text-[10px] text-gray-500 dark:text-gray-400 mb-2.5">
-                              <div className="flex items-center gap-0.5">
-                                <Clock className="w-2.5 h-2.5" />
-                                <span>{course.courseDuration} {parseInt(course.courseDuration) === 1 ? 'week' : 'weeks'}</span>
-                              </div>
-                              <div className="flex items-center gap-0.5">
-                                <BookOpen className="w-2.5 h-2.5" />
-                                <span>{course.courseLevel}</span>
-                              </div>
-                              <div className="flex items-center gap-0.5">
-                                <Users className="w-2.5 h-2.5" />
-                                <span>{course.clientName}</span>
-                              </div>
-                            </div>
-                            
-                            <motion.button
-                              onClick={(e) => {
-                                e.stopPropagation(); // Prevent card click event
-                                handleStartCourse(course._id);
-                              }}
-                              className="w-full bg-gradient-to-r from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 hover:from-blue-600 hover:to-blue-700 dark:hover:from-blue-700 dark:hover:to-blue-800 text-white text-xs font-medium py-2 px-3 rounded-lg transition-all duration-200 flex items-center justify-center gap-1.5 group/btn shadow-sm hover:shadow-md"
-                              whileHover={{ 
-                                scale: 1.02,
-                                boxShadow: "0 4px 12px rgba(59, 130, 246, 0.4)"
-                              }}
-                              whileTap={{ scale: 0.98 }}
-                            >
-                              <Play className="w-3 h-3" />
-                              <span>{isStudent ? 'Start Course' : 'Manage Resources'}</span>
-                              <ChevronRight className="w-3 h-3 transition-transform group-hover/btn:translate-x-0.5" />
-                            </motion.button>
-                          </div>
-                        </motion.div>
-                      ))}
-                    </motion.div>
-
-                    {/* Loading indicator for infinite scroll */}
-                    {isFetchingNextPage && (
-                      <motion.div 
-                        className="flex justify-center py-6"
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                      >
-                        <div className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400">
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          Loading more courses...
-                        </div>
-                      </motion.div>
-                    )}
-
-                    {/* End of results message */}
-                    {!hasNextPage && filteredCourses.length > 0 && (
-                      <motion.div 
-                        className="text-center py-6"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                      >
-                        <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-900/40 rounded-lg border border-blue-100 dark:border-blue-800">
-                          <BookOpen className="w-4 h-4 text-blue-500 dark:text-blue-400" />
-                          <p className="text-xs text-blue-600 dark:text-blue-400">
-                            You've viewed all {isStudent ? 'your enrolled courses' : 'assigned courses'} ({filteredCourses.length})
-                          </p>
-                        </div>
-                      </motion.div>
-                    )}
-                  </>
-                )}
-              </AnimatePresence>
-            </div>
+          {/* View toggle */}
+          <div className="flex items-center p-0.5 rounded-lg" style={{ background: isDark ? T.dark.card : T.bg, border: `1.5px solid ${isDark ? T.dark.border : T.border}` }}>
+            {(['grid', 'list'] as const).map(m => { const a = viewMode === m; const I = m === 'grid' ? LayoutGrid : List; return (
+              <button key={m} onClick={() => setViewMode(m)} className="p-1.5 rounded-md transition-all"
+                style={{ background: a ? (isDark ? 'rgba(242,119,87,0.12)' : T.orangeLight) : 'transparent', color: a ? T.orange : isDark ? T.dark.textMuted : T.textMuted }}>
+                <I className="w-3.5 h-3.5" />
+              </button>
+            )})}
           </div>
         </div>
-      </StudentLayout>
-    </>
+      </div>
+
+      {/* Search bar */}
+      <AnimatePresence>
+        {showSearch && (
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="mb-4 overflow-hidden">
+            <div className="relative">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: isDark ? T.dark.textHint : T.textHint }} />
+              <input type="text" placeholder="Search courses…" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} autoFocus
+                className="w-full h-[40px] pl-10 pr-9 text-[13px] outline-none"
+                style={{ background: isDark ? T.dark.card : T.bg, border: `1.5px solid ${isDark ? T.dark.border : T.border}`, borderRadius: '10px', color: isDark ? T.dark.textMain : T.textMain, fontFamily: 'inherit' }}
+                onFocus={e => { e.currentTarget.style.borderColor = T.orange; e.currentTarget.style.boxShadow = `0 0 0 3px ${T.orangeLight}` }}
+                onBlur={e => { e.currentTarget.style.borderColor = isDark ? T.dark.border : T.border; e.currentTarget.style.boxShadow = 'none' }}
+              />
+              {searchTerm && <button onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}><X className="w-3.5 h-3.5" /></button>}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Cards ── */}
+      <AnimatePresence mode="wait">
+        {loading ? (
+          <motion.div key="load" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            className={viewMode === 'grid' ? "grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4" : "space-y-2.5"}>
+            {[...Array(6)].map((_, i) => viewMode === 'grid'
+              ? <Skel key={i} isDark={isDark} />
+              : <div key={i} className="h-20 rounded-xl animate-pulse" style={{ background: isDark ? T.dark.card : T.bg, border: `1px solid ${isDark ? T.dark.border : T.border}` }} />
+            )}
+          </motion.div>
+        ) : isError ? (
+          <Err onRetry={() => refetch()} isDark={isDark} />
+        ) : filtered.length === 0 ? (
+          <Empty onClear={() => setSearchTerm('')} hasSearch={!!searchTerm} isDark={isDark} />
+        ) : (
+          <motion.div key={`${viewMode}-g`} variants={containerV} initial="hidden" animate="visible"
+            className={viewMode === 'grid' ? "grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4" : "space-y-2.5"}>
+            {filtered.map(c => <CourseCard key={c._id} course={c} isStudent={isStudent} onStart={onStart} viewMode={viewMode} isDark={isDark} />)}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Load more indicator */}
+      {isFetchingNextPage && (
+        <div className="flex justify-center mt-6">
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full" style={{ background: isDark ? T.dark.card : T.bg, border: `1px solid ${isDark ? T.dark.border : T.border}` }}>
+            <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: T.orange }} />
+            <span className="text-[11px] font-semibold" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>Loading more…</span>
+          </div>
+        </div>
+      )}
+
+      {/* End of list */}
+      {!hasNextPage && filtered.length > 0 && !loading && (
+        <div className="flex items-center justify-center gap-3 mt-10 mb-3">
+          <div className="h-px flex-1 max-w-12" style={{ background: isDark ? T.dark.border : T.border }} />
+          <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest" style={{ color: isDark ? T.dark.textHint : T.textHint }}>
+            <Sparkles className="w-2.5 h-2.5" style={{ color: T.orange }} />All caught up
+          </span>
+          <div className="h-px flex-1 max-w-12" style={{ background: isDark ? T.dark.border : T.border }} />
+        </div>
+      )}
+    </div>
   );
+
+  // Show loading state while role is being determined
+  if (isRoleLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: isDark ? T.dark.pageBg : T.pageBg }}>
+        <div className="w-8 h-8 rounded-full animate-spin" style={{ border: `3px solid ${T.orangeLight}`, borderTopColor: T.orange }} />
+      </div>
+    );
+  }
+
+  // Role-based layout rendering
+  // Admin role → DashboardLayout
+  if (userRole === 'admin') {
+    return <DashboardLayout>{content}</DashboardLayout>;
+  }
+  
+  // Student role → StudentLayout
+  if (userRole === 'student' || isStudent) {
+    return <StudentLayout>{content}</StudentLayout>;
+  }
+  
+  // Any other role (staff, instructor, etc.) → StaffLayout
+  return <StaffLayout>{content}</StaffLayout>;
 }

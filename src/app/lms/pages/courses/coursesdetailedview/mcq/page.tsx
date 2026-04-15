@@ -3,7 +3,8 @@
 import React, { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import MCQ from '@/app/lms/component/student/mcq';
-import { Loader2, ArrowLeft } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
+import { toast } from 'react-toastify';
 
 const MCQPageContent = () => {
   const router = useRouter();
@@ -13,56 +14,111 @@ const MCQPageContent = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [courseId, setCourseId] = useState<string>("");
+  const [courseName, setCourseName] = useState<string>("Course");
+  const [hierarchy, setHierarchy] = useState<string[]>([]);
 
-  // Extract parameters
+  // Extract all parameters
   const subcategory = searchParams.get('subcategory') || "Assessment";
   const category = searchParams.get('category') || "Course Work";
   const exerciseName = searchParams.get('exerciseName');
   const urlCourseId = searchParams.get('courseId') || "";
+  const urlCourseName = searchParams.get('courseName') || "";
   const exerciseId = searchParams.get('exerciseId');
   const nodeId = searchParams.get('nodeId');
+  const nodeName = searchParams.get('nodeName');
+  const nodeType = searchParams.get('nodeType');
+  const hierarchyParam = searchParams.get('hierarchy') || "";
 
-  // Load exercise data
   useEffect(() => {
-    const loadData = () => {
+    const fetchExerciseData = async () => {
       setIsLoading(true);
       setError(null);
       
       try {
-        const storedData = localStorage.getItem('currentMCQExercise');
+        // Get token from localStorage
+        const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
         
-        if (!storedData) {
-          throw new Error('No assessment data available');
+        if (!token) {
+          throw new Error('Authentication token not found');
         }
+
+        // Use exerciseId from URL params
+        const finalExerciseId = exerciseId;
         
-        const parsedData = JSON.parse(storedData);
-        
-        if (!parsedData || !Array.isArray(parsedData.questions) || parsedData.questions.length === 0) {
-          throw new Error('Invalid assessment data');
+        if (!finalExerciseId) {
+          throw new Error('Exercise ID is required');
         }
-        
-        setExerciseData(parsedData);
-        
-        const extractedCourseId = urlCourseId || 
-                                 parsedData.courseId || 
-                                 parsedData.context?.courseId || 
-                                 "";
-        setCourseId(extractedCourseId);
+
+        console.log("Fetching exercise data for ID:", finalExerciseId);
+
+        // Fetch exercise data from API
+        const response = await fetch(`https://lms-server-ym1q.onrender.com/exercise/${finalExerciseId}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log("API Response:", data);
+
+        // Check if the response contains exercise data
+        if (data.message?.[0]?.key === 'success' && data.data?.exercise) {
+          const fetchedExercise = data.data.exercise;
+          setExerciseData(fetchedExercise);
+          
+          // Set course ID from URL or from exercise data
+          const extractedCourseId = urlCourseId || 
+                                   fetchedExercise.courseId || 
+                                   fetchedExercise.context?.courseId || 
+                                   "";
+          setCourseId(extractedCourseId);
+          
+          // Set course name from URL or from exercise data
+          const extractedCourseName = urlCourseName || 
+                                     fetchedExercise.courseName || 
+                                     "Course";
+          setCourseName(extractedCourseName);
+          
+          // Parse hierarchy
+          if (hierarchyParam) {
+            const hierarchyArray = hierarchyParam
+              .split(',')
+              .map(item => item.trim())
+              .filter(item => item !== '');
+            
+            setHierarchy(hierarchyArray);
+            console.log("Dynamic hierarchy loaded:", hierarchyArray);
+          } else if (fetchedExercise.context?.hierarchy) {
+            setHierarchy(fetchedExercise.context.hierarchy);
+          }
+        } else {
+          throw new Error('Invalid exercise data received from API');
+        }
         
       } catch (error: any) {
         console.error("Error loading assessment:", error);
         setError(error.message || 'Failed to load assessment');
+        toast.error(error.message || 'Failed to load assessment');
       } finally {
         setIsLoading(false);
       }
     };
     
-    loadData();
-  }, [urlCourseId]);
+    if (exerciseId) {
+      fetchExerciseData();
+    } else {
+      setError('No exercise ID provided');
+      setIsLoading(false);
+    }
+  }, [exerciseId, urlCourseId, urlCourseName, hierarchyParam]);
 
-  // Handle exercise close
   const handleCloseExercise = () => {
-    localStorage.removeItem('currentMCQExercise');
     if (courseId) {
       router.push(`/lms/pages/courses/coursesdetailedview/${courseId}?refresh=true`);
     } else {
@@ -70,7 +126,6 @@ const MCQPageContent = () => {
     }
   };
 
-  // Get student ID
   const getStudentId = () => {
     if (typeof window !== 'undefined') {
       try {
@@ -86,19 +141,17 @@ const MCQPageContent = () => {
     return 'unknown_student';
   };
 
-  // Show loading state
   if (isLoading) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-12 h-12 text-gray-900 animate-spin mx-auto mb-4" />
-          <p className="text-gray-600">Preparing assessment...</p>
+          <p className="text-gray-600">Loading assessment from server...</p>
         </div>
       </div>
     );
   }
 
-  // Show error state
   if (error) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center p-4">
@@ -121,7 +174,22 @@ const MCQPageContent = () => {
     );
   }
 
-  // Prepare exercise data object
+  if (!exerciseData) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center p-4">
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-gray-900 mb-2">No Data Available</h2>
+          <button
+            onClick={() => router.back()}
+            className="bg-gray-900 text-white px-6 py-3 rounded-lg font-medium hover:bg-gray-800 transition-colors"
+          >
+            Go Back
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const exerciseInfo = exerciseData.exerciseInformation || exerciseData;
   const questionConfig = exerciseData.questionConfiguration?.mcqQuestionConfiguration || {};
   
@@ -133,22 +201,25 @@ const MCQPageContent = () => {
     totalPoints: questionConfig.mcqTotalMarks || exerciseData.questions?.length || 0,
     estimatedTime: exerciseInfo.totalDuration || 30,
     questions: exerciseData.questions || [],
-    questionConfiguration: exerciseData.questionConfiguration // pass full config
+    questionConfiguration: exerciseData.questionConfiguration
   };
 
   const studentId = getStudentId();
 
   return (
     <div className="min-h-screen bg-white">
-       {/* Removed the fixed Back button here because Breadcrumbs inside MCQ now handle navigation context visually */}
       <MCQ
         exercise={formattedExercise}
         courseId={courseId}
-        nodeId={nodeId || exerciseData.nodeId || ''}
+        courseName={courseName}
+        nodeId={nodeId || exerciseData?.nodeId || ''}
+        nodeName={nodeName || ''}
+        nodeType={nodeType || ''}
         onCloseExercise={handleCloseExercise}
         studentId={studentId}
         category={category}
         subcategory={subcategory}
+        hierarchy={hierarchy}
       />
     </div>
   );

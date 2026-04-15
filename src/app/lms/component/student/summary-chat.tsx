@@ -76,10 +76,16 @@ interface NavigationStep {
 
 type SummaryLevel = "module" | "submodule" | "topic" | "subtopic" | "auto"
 
+
+const GEMINI_API_KEY = "AIzaSyCL0ui5QXP3OEsxf7l4Wv4wjq7L_MA4Hlg";
+const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
+const GEMINI_API_URL_FALLBACK = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+
+
 // Gemini API configuration
-const GEMINI_API_KEY = "AIzaSyDZ9horfrJ0KvOkx_aHhTpIIvqjBoSPpJg"
+// const GEMINI_API_KEY = "AIzaSyDZ9horfrJ0KvOkx_aHhTpIIvqjBoSPpJg"
 // Change this from the regular generateContent to streamGenerateContent
-const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:streamGenerateContent?key=${GEMINI_API_KEY}&alt=sse`
+// const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:streamGenerateContent?key=${GEMINI_API_KEY}&alt=sse`
 // Helper function to identify welcome/instruction messages
 const isWelcomeMessage = (content: string): boolean => {
     const welcomePatterns = [
@@ -1267,7 +1273,7 @@ Format with clear headings and bullet points.`;
             const fetchCourseData = async () => {
                 try {
                     const courseId = window.location.pathname.split('/').pop(); // Get course ID from URL
-                    const response = await fetch(`http://localhost:5533/getAll/courses-data/${courseId}`);
+                    const response = await fetch(`https://lms-server-ym1q.onrender.com/getAll/courses-data/${courseId}`);
                     const data = await response.json();
                     setCourseData(data.data || data);
 
@@ -1326,174 +1332,114 @@ Format with clear headings and bullet points.`;
     // Function to call Gemini API for summary generation
     // Function to call Gemini API for summary generation
     // Replace the existing callGeminiSummaryAPI function with this streaming version
-    const callGeminiSummaryAPI = async (prompt: string, messageId?: string): Promise<string> => {
-        try {
-            const response = await fetch(GEMINI_API_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
+  const callGeminiSummaryAPI = async (prompt: string, messageId?: string): Promise<string> => {
+    const targetMessageId = messageId || generateUniqueId();
+
+    // Add placeholder streaming message
+    setMessages(prev => [...prev, {
+        id: targetMessageId,
+        content: "",
+        role: "assistant",
+        timestamp: new Date(),
+        isStreaming: true
+    }]);
+
+    try {
+        const response = await fetch(GEMINI_API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                generationConfig: {
+                    temperature: 0.3,
+                    topK: 40,
+                    topP: 0.95,
+                    maxOutputTokens: 2048,
                 },
+                safetySettings: [
+                    { category: 'HARM_CATEGORY_HARASSMENT',        threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+                    { category: 'HARM_CATEGORY_HATE_SPEECH',       threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+                    { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+                    { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+                ],
+            })
+        });
+
+        if (!response.ok) {
+            // Try fallback model
+            const fallbackResponse = await fetch(GEMINI_API_URL_FALLBACK, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }],
+                    contents: [{ role: 'user', parts: [{ text: prompt }] }],
                     generationConfig: {
                         temperature: 0.3,
                         topK: 40,
                         topP: 0.95,
                         maxOutputTokens: 2048,
-                    }
+                    },
                 })
             });
 
-            if (!response.ok) {
-                throw new Error(`API request failed with status ${response.status}`);
+            if (!fallbackResponse.ok) {
+                throw new Error(`API request failed: ${response.status}`);
             }
 
-            const reader = response.body?.getReader();
-            const decoder = new TextDecoder();
-            let fullResponse = '';
+            const fallbackData = await fallbackResponse.json();
+            const fallbackText = fallbackData.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (!fallbackText) throw new Error('No response from fallback API');
 
-            if (!reader) {
-                throw new Error('No response body reader available');
-            }
-
-            // 创建或获取消息ID
-            const targetMessageId = messageId || generateUniqueId();
-
-            // 如果是新消息，先添加一个空的消息占位符
-            if (!messageId) {
-                const streamingMessage: Message = {
-                    id: targetMessageId,
-                    content: "", // 初始为空
-                    role: "assistant",
-                    timestamp: new Date(),
-                    isStreaming: true
-                };
-                setMessages(prev => [...prev, streamingMessage]);
-            }
-
-            try {
-                let buffer = '';
-
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-
-                    // 解码并添加到缓冲区
-                    buffer += decoder.decode(value, { stream: true });
-
-                    // 按行分割并处理SSE格式
-                    const lines = buffer.split('\n');
-                    buffer = lines.pop() || ''; // 保留不完整的行
-
-                    for (const line of lines) {
-                        if (line.startsWith('data: ')) {
-                            const data = line.slice(6);
-
-                            // 跳过空行和结束标记
-                            if (data.trim() === '' || data.trim() === '[DONE]') {
-                                continue;
-                            }
-
-                            try {
-                                const parsed = JSON.parse(data);
-                                if (parsed.candidates?.[0]?.content?.parts?.[0]?.text) {
-                                    const textChunk = parsed.candidates[0].content.parts[0].text;
-                                    fullResponse += textChunk;
-
-                                    // ✅ 实时更新消息内容（真正的流式更新）
-                                    setMessages(prev => {
-                                        return prev.map(msg => {
-                                            if (msg.id === targetMessageId) {
-                                                return {
-                                                    ...msg,
-                                                    content: fullResponse,
-                                                    isStreaming: true
-                                                };
-                                            }
-                                            return msg;
-                                        });
-                                    });
-                                }
-                            } catch (e) {
-                                // 忽略JSON解析错误
-                                console.debug('Failed to parse SSE chunk:', e);
-                            }
-                        }
-                    }
-                }
-
-                // 处理缓冲区中剩余的数据
-                if (buffer.trim()) {
-                    const lines = buffer.split('\n');
-                    for (const line of lines) {
-                        if (line.startsWith('data: ')) {
-                            const data = line.slice(6);
-                            if (data.trim() && data.trim() !== '[DONE]') {
-                                try {
-                                    const parsed = JSON.parse(data);
-                                    if (parsed.candidates?.[0]?.content?.parts?.[0]?.text) {
-                                        const textChunk = parsed.candidates[0].content.parts[0].text;
-                                        fullResponse += textChunk;
-                                    }
-                                } catch (e) {
-                                    console.debug('Failed to parse final chunk:', e);
-                                }
-                            }
-                        }
-                    }
-                }
-
-            } finally {
-                reader.releaseLock();
-            }
-
-            // 清理格式
-            fullResponse = fullResponse
+            const cleaned = fallbackText
                 .replace(/\*\*\*/g, '')
                 .replace(/\n{3,}/g, '\n\n')
                 .replace(/^\*+$/gm, '')
                 .replace(/\*\*(.*?)\*\*/g, '$1')
                 .trim();
 
-            // ✅ 流式结束后更新消息状态
-            setMessages(prev => {
-                return prev.map(msg => {
-                    if (msg.id === targetMessageId) {
-                        return {
-                            ...msg,
-                            content: fullResponse,
-                            isStreaming: false,
-                            timestamp: new Date()
-                        };
-                    }
-                    return msg;
-                });
-            });
+            setMessages(prev => prev.map(msg =>
+                msg.id === targetMessageId
+                    ? { ...msg, content: cleaned, isStreaming: false, timestamp: new Date() }
+                    : msg
+            ));
 
-            return fullResponse;
-        } catch (error) {
-            console.error('Error calling Gemini API:', error);
-
-            // 如果出错，显示错误消息
-            const errorMessage: Message = {
-                id: messageId || generateUniqueId(),
-                content: "I apologize, but I encountered an error while generating the summary. Please try again later.",
-                role: "assistant",
-                timestamp: new Date(),
-                isStreaming: false
-            };
-
-            setMessages(prev => {
-                // 移除正在流式处理的消息（如果存在）
-                const filtered = prev.filter(msg =>
-                    !(msg.id === messageId && msg.isStreaming)
-                );
-                return [...filtered, errorMessage];
-            });
-
-            return `I apologize, but I encountered an error while generating the summary. Please try again later.`;
+            return cleaned;
         }
-    };
+
+        const data = await response.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+        if (!text) throw new Error('No response generated from AI');
+
+        const cleaned = text
+            .replace(/\*\*\*/g, '')
+            .replace(/\n{3,}/g, '\n\n')
+            .replace(/^\*+$/gm, '')
+            .replace(/\*\*(.*?)\*\*/g, '$1')
+            .trim();
+
+        // Update the placeholder with real content
+        setMessages(prev => prev.map(msg =>
+            msg.id === targetMessageId
+                ? { ...msg, content: cleaned, isStreaming: false, timestamp: new Date() }
+                : msg
+        ));
+
+        return cleaned;
+
+    } catch (error) {
+        console.error('Error calling Gemini API:', error);
+
+        const errorText = "I apologize, but I encountered an error while generating the summary. Please try again later.";
+
+        setMessages(prev => prev.map(msg =>
+            msg.id === targetMessageId
+                ? { ...msg, content: errorText, isStreaming: false }
+                : msg
+        ));
+
+        return errorText;
+    }
+};
 
     // Add this useEffect after your existing useEffects
     useEffect(() => {
@@ -1596,7 +1542,7 @@ Format with clear headings and bullet points.`;
     // Enhanced function to extract content from PDF, PPT, and Video files
   const extractFileContent = async (fileUrl: string, fileType: string, title: string): Promise<string> => {
     try {
-        const BACKEND_API_URL = "http://localhost:5533";
+        const BACKEND_API_URL = "https://lms-server-ym1q.onrender.com";
 
         console.log(`Extracting ${fileType} content from: ${fileUrl}`);
 
@@ -2318,7 +2264,7 @@ Provide helpful educational guidance with:
         const formData = new FormData();
         formData.append('file', file);
 
-        const BACKEND_API_URL = "http://localhost:5533";
+        const BACKEND_API_URL = "https://lms-server-ym1q.onrender.com";
 
         const uploadResponse = await fetch(`${BACKEND_API_URL}/api/extract-doc/upload-file`, {
             method: 'POST',

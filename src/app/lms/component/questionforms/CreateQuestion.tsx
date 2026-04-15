@@ -1,7 +1,7 @@
 // components/question/CreateQuestion.tsx
 import React, { useState } from 'react';
 import AddQuestionForm from './AddQuestionForm';
-import MCQQuestionForm from './MCQQuestionForm';
+import MCQQuestionForm from './mcq/MCQQuestionForm';
 import QuestionTypeSelector from './QuestionTypeSelector';
 import { AlertCircle } from 'lucide-react';
 

@@ -90,7 +90,7 @@ const inter = Inter({ subsets: ['latin'] });
 const montserrat = Montserrat({ subsets: ['latin'] });
 
 // API CONFIG
-const BACKEND_API_URL = "http://localhost:5533";
+const BACKEND_API_URL = "https://lms-server-ym1q.onrender.com";
 const PISTON_API_URL = "https://emkc.org/api/v2/piston/execute";
 
 // --- INTERFACES ---
@@ -249,6 +249,7 @@ interface CourseModule {
           project_development?: Exercise[];
           assessments?: Exercise[];
           assesments?: Exercise[];
+          assignments?: Exercise[];
         };
         You_Do?: {
           practical?: Exercise[];
@@ -382,14 +383,9 @@ export default function EnhancedSubmissionReview() {
   const [difficultyFilter, setDifficultyFilter] = useState<string>('all');
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
-  // --- STATE ---
-
-
-  // Add these for video modal
   const [showVideoModal, setShowVideoModal] = useState(false);
   const [assessmentVideoUrl, setAssessmentVideoUrl] = useState<string | null>(null);
   const [isLoadingVideo, setIsLoadingVideo] = useState(false);
-  // --- EXECUTION & TERMINAL STATE ---
   const [showTerminal, setShowTerminal] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
   const [terminalLogs, setTerminalLogs] = useState<LogEntry[]>([]);
@@ -432,9 +428,9 @@ export default function EnhancedSubmissionReview() {
       // Try multiple matching strategies
       const exercise = exercises.find(ex =>
         ex._id === exerciseId ||
-        ex.exerciseInformation.exerciseId === exerciseId ||
+        ex.exerciseInformation?.exerciseId === exerciseId ||
         (ex._id && ex._id.includes(exerciseId)) ||
-        (ex.exerciseInformation.exerciseId && ex.exerciseInformation.exerciseId.includes(exerciseId))
+        (ex.exerciseInformation?.exerciseId && ex.exerciseInformation.exerciseId.includes(exerciseId))
       );
 
       console.log("Found exercise:", exercise);
@@ -554,17 +550,38 @@ export default function EnhancedSubmissionReview() {
       subModuleId?: string,
       topicId?: string
     ) => {
-      if (!list) return;
+      if (!list || !Array.isArray(list)) return;
 
-      list.forEach(ex => {
-        // Add metadata for breadcrumb and identification
-        const exerciseWithMeta = {
-          ...ex,
+      list.forEach((ex: any) => {
+        // Prepare the exercise with all required fields
+        const exerciseWithMeta: Exercise = {
+          _id: ex._id || Math.random().toString(),
+          exerciseInformation: {
+            exerciseId: ex.exerciseInformation?.exerciseId || ex._id || "EX_UNKNOWN",
+            exerciseName: ex.exerciseInformation?.exerciseName || "Unnamed Exercise",
+            description: ex.exerciseInformation?.description || ex.description || "",
+            exerciseLevel: ex.exerciseInformation?.exerciseLevel || 'intermediate',
+            totalPoints: ex.exerciseInformation?.totalPoints || ex.totalPoints || 0,
+            totalQuestions: ex.questions?.length || 0,
+            estimatedTime: ex.exerciseInformation?.estimatedTime || ex.totalDuration || 60
+          },
+          programmingSettings: ex.programmingSettings || {
+            selectedModule: 'Core Programming',
+            selectedLanguages: ['Python'],
+            levelConfiguration: {
+              levelType: 'general',
+              general: 0
+            }
+          },
+          scoreSettings: ex.scoreSettings || ex.questionConfiguration?.programmingQuestionConfiguration?.scoreSettings,
+          questions: ex.questions || [],
+          nodeType: ex.nodeType || 'exercise',
+          createdAt: ex.createdAt || new Date().toISOString(),
           _category: cat,
           _subcategory: sub,
-          _moduleId: moduleId || ex._moduleId,
-          _subModuleId: subModuleId || ex._subModuleId,
-          _topicId: topicId || ex._topicId
+          _moduleId: moduleId,
+          _subModuleId: subModuleId,
+          _topicId: topicId
         };
         allExercises.push(exerciseWithMeta);
       });
@@ -572,68 +589,21 @@ export default function EnhancedSubmissionReview() {
 
     // Traverse through course structure
     courseData.modules.forEach((module: any) => {
-      // Module-level exercises
-      if (module.pedagogy) {
-        // We_Do at module level
-        collect(module.pedagogy.We_Do?.practical, 'We_Do', 'practical', module._id);
-        collect(module.pedagogy.We_Do?.project_development, 'We_Do', 'project_development', module._id);
-        collect(module.pedagogy.We_Do?.assessments, 'We_Do', 'assessments', module._id);
-        collect(module.pedagogy.We_Do?.assesments, 'We_Do', 'assesments', module._id);
-
-        // You_Do at module level
-        collect(module.pedagogy.You_Do?.practical, 'You_Do', 'practical', module._id);
-        collect(module.pedagogy.You_Do?.project_development, 'You_Do', 'project_development', module._id);
-        collect(module.pedagogy.You_Do?.assessments, 'You_Do', 'assessments', module._id);
-        collect(module.pedagogy.You_Do?.assesments, 'You_Do', 'assesments', module._id);
-      }
-
-      // Sub-module level
-      module.subModules?.forEach((subModule: any) => {
-        if (subModule.pedagogy) {
-          // We_Do at sub-module level
-          collect(subModule.pedagogy.We_Do?.practical, 'We_Do', 'practical', module._id, subModule._id);
-          collect(subModule.pedagogy.We_Do?.project_development, 'We_Do', 'project_development', module._id, subModule._id);
-          collect(subModule.pedagogy.We_Do?.assessments, 'We_Do', 'assessments', module._id, subModule._id);
-          collect(subModule.pedagogy.We_Do?.assesments, 'We_Do', 'assesments', module._id, subModule._id);
-
-          // You_Do at sub-module level
-          collect(subModule.pedagogy.You_Do?.practical, 'You_Do', 'practical', module._id, subModule._id);
-          collect(subModule.pedagogy.You_Do?.project_development, 'You_Do', 'project_development', module._id, subModule._id);
-          collect(subModule.pedagogy.You_Do?.assessments, 'You_Do', 'assessments', module._id, subModule._id);
-          collect(subModule.pedagogy.You_Do?.assesments, 'You_Do', 'assesments', module._id, subModule._id);
-        }
-
-        // Topic level
-        subModule.topics?.forEach((topic: any) => {
-          const p = topic.pedagogy;
-          if (!p) return;
-
-          // We_Do at topic level
-          collect(p.We_Do?.practical, 'We_Do', 'practical', module._id, subModule._id, topic._id);
-          collect(p.We_Do?.project_development, 'We_Do', 'project_development', module._id, subModule._id, topic._id);
-          collect(p.We_Do?.assessments, 'We_Do', 'assessments', module._id, subModule._id, topic._id);
-          collect(p.We_Do?.assesments, 'We_Do', 'assesments', module._id, subModule._id, topic._id);
-
-          // You_Do at topic level
-          collect(p.You_Do?.practical, 'You_Do', 'practical', module._id, subModule._id, topic._id);
-          collect(p.You_Do?.project_development, 'You_Do', 'project_development', module._id, subModule._id, topic._id);
-          collect(p.You_Do?.assessments, 'You_Do', 'assessments', module._id, subModule._id, topic._id);
-          collect(p.You_Do?.assesments, 'You_Do', 'assesments', module._id, subModule._id, topic._id);
-        });
-      });
-
-      // Direct topics in module (without sub-module)
+      // Topic level
       module.topics?.forEach((topic: any) => {
         const p = topic.pedagogy;
         if (!p) return;
 
-        // We_Do in direct topics
+        // We_Do at topic level - Check for assignments (from your data structure)
+        collect(p.We_Do?.assignments, 'We_Do', 'assignments', module._id, undefined, topic._id);
+        
+        // Also check for other subcategories
         collect(p.We_Do?.practical, 'We_Do', 'practical', module._id, undefined, topic._id);
         collect(p.We_Do?.project_development, 'We_Do', 'project_development', module._id, undefined, topic._id);
         collect(p.We_Do?.assessments, 'We_Do', 'assessments', module._id, undefined, topic._id);
         collect(p.We_Do?.assesments, 'We_Do', 'assesments', module._id, undefined, topic._id);
 
-        // You_Do in direct topics
+        // You_Do at topic level
         collect(p.You_Do?.practical, 'You_Do', 'practical', module._id, undefined, topic._id);
         collect(p.You_Do?.project_development, 'You_Do', 'project_development', module._id, undefined, topic._id);
         collect(p.You_Do?.assessments, 'You_Do', 'assessments', module._id, undefined, topic._id);
@@ -642,6 +612,15 @@ export default function EnhancedSubmissionReview() {
     });
 
     console.log(`Collected ${allExercises.length} exercises with metadata`);
+    console.log("Exercises found:", allExercises.map(ex => ({
+      id: ex._id,
+      exerciseId: ex.exerciseInformation?.exerciseId,
+      name: ex.exerciseInformation?.exerciseName,
+      category: ex._category,
+      subcategory: ex._subcategory,
+      questions: ex.questions?.length
+    })));
+    
     return allExercises;
   };
 
@@ -765,7 +744,7 @@ export default function EnhancedSubmissionReview() {
       setLoading(false);
     }
   };
-  // --- UNLOCK EXERCISE API HANDLER ---
+
   const handleUnlockExercise = async (participantId: string, targetExerciseId: string) => {
     if (!selectedExercise || !courseId) {
       toast.error("Missing course or exercise data");
@@ -774,7 +753,7 @@ export default function EnhancedSubmissionReview() {
 
     // Get category/subcategory from exercise metadata
     const targetCategory = selectedExercise._category || 'We_Do';
-    const targetSubcategory = selectedExercise._subcategory || 'practical';
+    const targetSubcategory = selectedExercise._subcategory || 'assignments';
 
     console.log(`Attempting unlock for: ${targetCategory} / ${targetSubcategory}`);
 
@@ -821,8 +800,7 @@ export default function EnhancedSubmissionReview() {
       toast.error(error.message || "Error unlocking exercise");
     }
   };
-  // Add this helper function that accepts exercise as parameter
-  // Add this helper function
+
   const getExerciseAnswersForExercise = (participant: Participant, exercise: Exercise | undefined): ExerciseAnswer[] => {
     if (!exercise) return [];
 
@@ -843,8 +821,6 @@ export default function EnhancedSubmissionReview() {
     });
   };
 
-
-  // Add this function near your other helper functions
   const fetchAssessmentVideo = async (participantId: string, exerciseId: string) => {
     if (!selectedExercise || !courseId) {
       toast.error("Missing course or exercise data");
@@ -853,7 +829,7 @@ export default function EnhancedSubmissionReview() {
 
     // Get category/subcategory from exercise metadata
     const targetCategory = selectedExercise._category || 'We_Do';
-    const targetSubcategory = selectedExercise._subcategory || 'practical';
+    const targetSubcategory = selectedExercise._subcategory || 'assignments';
 
     try {
       setIsLoadingVideo(true);
@@ -885,7 +861,6 @@ export default function EnhancedSubmissionReview() {
             setAssessmentVideoUrl(screenRecording);
           } else {
             // If it's a base64 string or file path, construct the URL
-            // Adjust this based on how your backend stores videos
             setAssessmentVideoUrl(`${BACKEND_API_URL}/${screenRecording}`);
           }
         } else {
@@ -905,7 +880,6 @@ export default function EnhancedSubmissionReview() {
     }
   };
 
-  // Handler function for opening video modal
   const handleViewAssessmentVideo = async (participantId: string, exerciseId: string) => {
     setAssessmentVideoUrl(null);
     setShowVideoModal(true);
@@ -913,7 +887,6 @@ export default function EnhancedSubmissionReview() {
     // Fetch the video data
     await fetchAssessmentVideo(participantId, exerciseId);
   };
-  // Then update the sorting in fetchCourseData:
 
   const calculateGradingStats = () => {
     if (!selectedExercise) return;
@@ -972,15 +945,14 @@ export default function EnhancedSubmissionReview() {
     ];
 
     // Try to find exercise location in course structure
-    if (exercise._moduleId && exercise._subModuleId && exercise._topicId) {
+    if (exercise._moduleId && exercise._topicId) {
       const module = courseData.modules.find(m => m._id === exercise._moduleId);
-      const subModule = module?.subModules.find(sm => sm._id === exercise._subModuleId);
-      const topic = subModule?.topics.find(t => t._id === exercise._topicId);
+      const topic = module?.topics.find(t => t._id === exercise._topicId);
 
-      if (module && subModule && topic) {
+      if (module && topic) {
         breadcrumbItems.push(
           { title: module.title, icon: <Layers className="h-3.5 w-3.5" />, type: 'module' },
-          { title: subModule.title, icon: <Folder className="h-3.5 w-3.5" />, type: 'submodule' }
+          { title: topic.title, icon: <Folder className="h-3.5 w-3.5" />, type: 'topic' }
         );
       }
     }
@@ -1026,8 +998,24 @@ export default function EnhancedSubmissionReview() {
 
     const extractAll = (catObj: any): ExerciseAnswer[] => {
       if (!catObj) return [];
-      // This retrieves answers stored under any key (practical, assessments, assesments, etc.)
-      return Object.values(catObj).flat() as ExerciseAnswer[];
+      
+      // Handle different subcategory structures
+      const answers: ExerciseAnswer[] = [];
+      
+      // Check for assignments (from your data structure)
+      if (catObj.assignments && Array.isArray(catObj.assignments)) {
+        answers.push(...catObj.assignments);
+      }
+      
+      // Check for other subcategories
+      const otherCategories = ['practical', 'project_development', 'assessments', 'assesments'];
+      otherCategories.forEach(cat => {
+        if (catObj[cat] && Array.isArray(catObj[cat])) {
+          answers.push(...catObj[cat]);
+        }
+      });
+      
+      return answers;
     };
 
     const weDoAnswers = extractAll(course.answers.We_Do);
@@ -1201,7 +1189,7 @@ export default function EnhancedSubmissionReview() {
 
       // Use dynamic category/subcategory from exercise metadata
       const categoryToSend = selectedExercise._category || 'We_Do';
-      const subcategoryToSend = selectedExercise._subcategory || 'practical';
+      const subcategoryToSend = selectedExercise._subcategory || 'assignments';
 
       const payload = {
         courseId,
@@ -1538,6 +1526,19 @@ export default function EnhancedSubmissionReview() {
             >
               <RefreshCw className={`h-3.5 w-3.5 mr-2 ${loading ? 'animate-spin' : ''}`} />
               Sync Data
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                console.log("Selected Exercise:", selectedExercise);
+                console.log("All Exercises:", exercises);
+                console.log("Course Data:", courseData);
+                console.log("Participants:", participants);
+              }}
+              className="h-9 px-4 text-xs font-bold"
+            >
+              Debug
             </Button>
           </div>
         </div>
@@ -2272,16 +2273,13 @@ export default function EnhancedSubmissionReview() {
       </Dialog>
 
       {/* ASSESSMENT VIDEO MODAL */}
-      {/* ASSESSMENT VIDEO MODAL */}
       <Dialog open={showVideoModal} onOpenChange={setShowVideoModal}>
         <DialogContent
           className={`max-w-4xl rounded-xl border-none shadow-2xl p-0 overflow-hidden bg-black ${inter.className}`}
           onCloseAutoFocus={(e) => {
-            // Prevent auto focus on close
             e.preventDefault();
           }}
           onOpenAutoFocus={(e) => {
-            // Prevent auto focus on open
             e.preventDefault();
           }}
         >
@@ -2327,7 +2325,6 @@ export default function EnhancedSubmissionReview() {
                     className="w-full h-auto max-h-[70vh]"
                     controlsList="nodownload"
                     onEnded={() => {
-                      // Reset video when it ends
                       const video = document.querySelector('video');
                       if (video) {
                         video.currentTime = 0;

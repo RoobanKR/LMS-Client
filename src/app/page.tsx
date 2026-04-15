@@ -1,41 +1,75 @@
 'use client'
 
 import { useEffect } from 'react'
-import { redirect } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 
 export default function HomePage() {
+  const router = useRouter()
+
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const permissionsStr = localStorage.getItem('smartcliff_permissions')
-      
-      if (!permissionsStr) {
-        redirect('/login')
+    if (typeof window === 'undefined') return
+
+    const token = localStorage.getItem('smartcliff_token')
+    const permissionsStr = localStorage.getItem('smartcliff_permissions')
+
+    // Not logged in — send to login, preserving any ?redirect= param that may
+    // already be in the current URL (unlikely on the home route, but safe to
+    // forward it just in case).
+    if (!token) {
+      const searchParams = new URLSearchParams(window.location.search)
+      const redirectTo = searchParams.get('redirect')
+      const loginUrl = redirectTo
+        ? `/lms/pages/login?redirect=${encodeURIComponent(redirectTo)}`
+        : '/lms/pages/login'
+      router.replace(loginUrl)
+      return
+    }
+
+    // Logged in — figure out where to send the user
+    try {
+      // Priority 1: stored first permission key (fastest path)
+      const firstPermissionKey = localStorage.getItem('smartcliff_firstPermissionKey')
+      if (firstPermissionKey) {
+        router.replace(`/lms/pages/${firstPermissionKey}`)
         return
       }
 
-      try {
+      // Priority 2: derive from full permissions array
+      if (permissionsStr) {
         const permissions = JSON.parse(permissionsStr)
-        
-        if (!Array.isArray(permissions) || permissions.length === 0) {
-          redirect('/login')
-          return
-        }
 
-        const firstPermission = permissions[0]
-        const permissionKey = firstPermission?.permissionKey
-        
-        if (!permissionKey) {
-          redirect('/login')
-          return
-        }
+        if (Array.isArray(permissions) && permissions.length > 0) {
+          // Sort by order, pick first active one
+          const sorted = [...permissions]
+            .filter((p) => p.isActive)
+            .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
 
-        redirect(`/lms/pages/${permissionKey}`)
-      } catch (error) {
-        console.error('Error parsing permissions:', error)
-        redirect('/login')
+          const first = sorted[0] ?? permissions[0]
+          const permissionKey = first?.permissionKey
+
+          if (permissionKey) {
+            // Cache it for next time
+            localStorage.setItem('smartcliff_firstPermissionKey', permissionKey)
+            router.replace(`/lms/pages/${permissionKey}`)
+            return
+          }
+        }
       }
-    }
-  }, [])
 
-  return null 
+      // Priority 3: role-based fallback
+      const originalRole = localStorage.getItem('smartcliff_originalRole') || ''
+      const roleValue = localStorage.getItem('smartcliff_roleValue') || ''
+      const isStudent =
+        originalRole.toLowerCase().includes('student') ||
+        roleValue.toLowerCase().includes('student')
+
+      router.replace(isStudent ? '/lms/pages/studentdashboard' : '/lms/pages/admindashboard')
+    } catch (error) {
+      console.error('Error determining redirect:', error)
+      router.replace('/lms/pages/login')
+    }
+  }, [router])
+
+  // Blank screen while redirecting
+  return null
 }

@@ -81,7 +81,7 @@ const showWarningToast = (message: string) => {
 const fetchCourseParticipants = async (courseId: string, institutionId: string, token: string) => {
   try {
     const response = await fetch(
-      `http://localhost:5533/getAll/courses-data/${courseId}`,
+      `https://lms-server-ym1q.onrender.com/getAll/courses-data/${courseId}`,
       {
         headers: {
           'Authorization': `Bearer ${token}`,

@@ -1,10 +1,10 @@
 import { ExercisePayload } from '@/app/lms/component/ExerciseSettings';
 import axios from 'axios';
-
-const BASE_URL = 'http://localhost:5533';
-
+ 
+const BASE_URL = 'https://lms-server-ym1q.onrender.com';
+ 
 export type EntityType = 'modules' | 'submodules' | 'topics' | 'subtopics';
-
+ 
 export interface HierarchyData {
   courseName: string;
   moduleName: string;
@@ -14,20 +14,20 @@ export interface HierarchyData {
   nodeType: EntityType;
   level: number;
 }
-
+ 
 export interface LevelCounts {
   easy: number;
   medium: number;
   hard: number;
 }
-
+ 
 // ============ SCORE SETTINGS INTERFACES ============
 export interface MCQScoreSettings {
   totalMcqQuestions: number;
   marksPerQuestion: number
   mcqTotalMarks: number;
 }
-
+ 
 export interface ProgrammingScoreSettings {
   scoreType: 'evenMarks' | 'separateMarks' | 'levelBasedMarks';
   evenMarks: number;
@@ -46,7 +46,7 @@ export interface ProgrammingScoreSettings {
   };
   totalMarks: number;
 }
-
+ 
 // ============ CONFIGURATION INTERFACES ============
 export interface MCQConfig {
   questionConfigType: 'general';
@@ -55,7 +55,7 @@ export interface MCQConfig {
   attemptLimitEnabled: boolean;
   submissionAttempts: number;
 }
-
+ 
 export interface ProgrammingConfig {
   questionConfigType: 'general' | 'levelBased' | 'selectionLevel';
   generalQuestionCount?: number;
@@ -66,12 +66,12 @@ export interface ProgrammingConfig {
   attemptLimitEnabled: boolean;
   submissionAttempts: number;
 }
-
+ 
 export interface QuestionConfiguration {
   mcqConfig?: MCQConfig;
   programmingConfig?: ProgrammingConfig;
 }
-
+ 
 // ============ OTHER INTERFACES ============
 export interface AvailabilityPeriod {
   startDate: string;
@@ -79,21 +79,21 @@ export interface AvailabilityPeriod {
   gracePeriodEnabled: boolean;
   gracePeriodDate?: string;
 }
-
+ 
 export interface NotificationSettings {
   notifyUsers: boolean;
   notifyGmail: boolean;
   notifyWhatsApp: boolean;
   gradeSheet: boolean;
 }
-
+ 
 export interface NotificationGradeSettings {
   notifyUsers: boolean;
   notifyGmail: boolean;
   notifyWhatsApp: boolean;
   gradeSheet: boolean;
 }
-
+ 
 export interface ExerciseInformation {
   exerciseId: string;
   exerciseName: string;
@@ -101,12 +101,12 @@ export interface ExerciseInformation {
   exerciseLevel: 'beginner' | 'intermediate' | 'expert';
   totalDuration: number;
 }
-
+ 
 export interface ProgrammingSettings {
   selectedModule: string;
   selectedLanguages: string[];
 }
-
+ 
 // ============ BACKEND PAYLOAD INTERFACE ============
 // This is what the backend expects
 export interface APIExercisePayload {
@@ -134,7 +134,7 @@ export interface APIExercisePayload {
   notificationGradeSettings: NotificationGradeSettings;
   // No separate scoreSettings at top level - all score settings are inside questionConfiguration
 }
-
+ 
 // ============ UI PAYLOAD INTERFACE ============
 // This is what the UI sends (matches ExerciseSettings component)
 export interface UIExercisePayload {
@@ -148,7 +148,7 @@ export interface UIExercisePayload {
   availabilityPeriod: AvailabilityPeriod;
   notificationSettings: NotificationSettings; // UI sends notificationSettings
 }
-
+ 
 export interface ExerciseResponse {
   message: Array<{ key: string; value: string }>;
   data: {
@@ -160,15 +160,15 @@ export interface ExerciseResponse {
     totalExercises: number;
   };
 }
-
-
+ 
+ 
 export const modelMap: Record<EntityType, { path: string }> = {
   modules: { path: 'modules' },
   submodules: { path: 'submodules' },
   topics: { path: 'topics' },
   subtopics: { path: 'subtopics' }
 };
-
+ 
 const getEntityPath = (entityType: EntityType): string => {
   const entity = modelMap[entityType];
   if (!entity) {
@@ -177,201 +177,483 @@ const getEntityPath = (entityType: EntityType): string => {
   }
   return entity.path;
 };
-
+ 
 export const exerciseApi = {
-
+ 
   // 1. ADD EXERCISE (Already updated)
-addExercise: async (
-  entityType: EntityType,
-  entityId: string,
-  exerciseData: ExercisePayload
-): Promise<ExerciseResponse> => {
-  try {
-    console.log('📥 Received exercise data from UI:', exerciseData);
-
-    // Build the payload according to backend expectations
-    const payload: any = {
-      tabType: exerciseData.tabType,
-      subcategory: exerciseData.subcategory,
-      exerciseType: exerciseData.exerciseType,
-      configurationType: {
-        mcqMode: exerciseData.exerciseType === 'MCQ',
-        programmingMode: exerciseData.exerciseType === 'Programming',
-        combinedMode: exerciseData.exerciseType === 'Combined'
-      },
-      exerciseInformation: exerciseData.exerciseInformation,
-      availabilityPeriod: exerciseData.availabilityPeriod,
-      notificationSettings: {
-        notifyUsers: exerciseData.notificationSettings?.notifyUsers || false,
-        notifyGmail: exerciseData.notificationSettings?.notifyGmail || false,
-        notifyWhatsApp: exerciseData.notificationSettings?.notifyWhatsApp || false,
-        gradeSheet: exerciseData.notificationSettings?.gradeSheet || true
-      },
-      questions: []
-    };
-
-    // Add programming settings if applicable
-    if (exerciseData.exerciseType === 'Programming' || exerciseData.exerciseType === 'Combined') {
-      payload.programmingSettings = exerciseData.programmingSettings;
-    }
-
-    // Handle question configuration based on exercise type
-    if (exerciseData.questionConfiguration) {
-      console.log('🔧 Processing questionConfiguration:', exerciseData.questionConfiguration);
-      
-      // Initialize questionConfiguration object
+ 
+  addExercise: async (
+    entityType: EntityType,
+    entityId: string,
+    exerciseData: ExercisePayload
+  ): Promise<ExerciseResponse> => {
+    try {
+      console.log('📥 Received exercise data from UI:', exerciseData);
+ 
+      // Build the payload according to backend expectations
+      const payload: any = {
+        tabType: exerciseData.tabType,
+        subcategory: exerciseData.subcategory,
+        exerciseType: exerciseData.exerciseType,
+        configurationType: {
+          mcqMode: exerciseData.exerciseType === 'MCQ',
+          programmingMode: exerciseData.exerciseType === 'Programming',
+          combinedMode: exerciseData.exerciseType === 'Combined'
+        },
+        exerciseInformation: {
+          exerciseId: exerciseData.exerciseInformation.exerciseId || `EX${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
+          exerciseName: exerciseData.exerciseInformation.exerciseName,
+          description: exerciseData.exerciseInformation.description || '',
+          exerciseLevel: exerciseData.exerciseInformation.exerciseLevel || 'beginner',
+          totalDuration: exerciseData.exerciseInformation.totalDuration || 60,
+          totalMarks: exerciseData.exerciseInformation.totalMarks,
+        },
+availabilityPeriod: {
+  startDate: exerciseData.availabilityPeriod.startDate,
+  endDate: exerciseData.availabilityPeriod.endDate,  // ← Always include endDate
+  dueDate: exerciseData.availabilityPeriod.endDate,  // ← Keep dueDate for backward compatibility
+  dueDateEnabled: true,
+  cutoffEnabled: !!(exerciseData.availabilityPeriod as any).cutoffEnabled,
+  cutOffDate: (exerciseData.availabilityPeriod as any).cutoffEnabled
+    ? ((exerciseData.availabilityPeriod as any).cutOffDate || null)
+    : null,
+  remindGradeByEnabled: !!(exerciseData.availabilityPeriod as any).remindGradeByEnabled,
+  remindGradeBy: (exerciseData.availabilityPeriod as any).remindGradeByEnabled
+    ? ((exerciseData.availabilityPeriod as any).remindGradeBy || null)
+    : null,
+  gracePeriodEnabled: exerciseData.availabilityPeriod.gracePeriodEnabled || false,
+  gracePeriodAllowed: exerciseData.availabilityPeriod.gracePeriodEnabled || false,
+  gracePeriodDate: exerciseData.availabilityPeriod.gracePeriodDate || null,
+  extendedDays: (exerciseData.availabilityPeriod as any).extendedDays || 0,
+},        notificationSettings: {
+          notifyUsers: exerciseData.notificationSettings?.notifyUsers || false,
+          notifyGmail: exerciseData.notificationSettings?.notifyGmail || false,
+          notifyWhatsApp: exerciseData.notificationSettings?.notifyWhatsApp || false,
+          gradeSheet: exerciseData.notificationSettings?.gradeSheet || true
+        },
+        questions: []
+      };
+ 
+      // Add programming settings if applicable
+      if (exerciseData.exerciseType === 'Programming' || exerciseData.exerciseType === 'Combined') {
+        payload.programmingSettings = {
+          selectedModule: exerciseData.programmingSettings?.selectedModule || '',
+          selectedLanguages: exerciseData.programmingSettings?.selectedLanguages || []
+        };
+      }
+ 
+      // Initialize questionConfiguration
       payload.questionConfiguration = {};
-
-      if (exerciseData.exerciseType === 'MCQ' && exerciseData.questionConfiguration.mcqConfig) {
+ 
+      // ============ HANDLE MCQ CONFIGURATION ============
+      if (exerciseData.exerciseType === 'MCQ' && exerciseData.questionConfiguration?.mcqConfig) {
         const mcqConfig = exerciseData.questionConfiguration.mcqConfig;
-        
-        // Backend expects mcqConfig object (not mcqQuestionConfiguration)
+        const scoreType = mcqConfig.scoreSettings?.scoreType || 'equalDistribution';
+        let marksPerQuestion = 0;
+        let mcqTotalMarks = 0;
+ 
+        if (scoreType === 'equalDistribution') {
+          marksPerQuestion = mcqConfig.scoreSettings?.equalDistribution || 0;
+          mcqTotalMarks = (mcqConfig.generalQuestionCount || 0) * marksPerQuestion;
+        } else {
+          // Question Specific mode - use the totalMarks from frontend
+          marksPerQuestion = 0;
+          mcqTotalMarks = mcqConfig.scoreSettings?.totalMarks || 0;
+        }
+ 
         payload.questionConfiguration.mcqConfig = {
           questionConfigType: 'general',
           generalQuestionCount: mcqConfig.generalQuestionCount || 0,
           scoreSettings: {
-            scoreType: 'evenMarks',
-            evenMarks: mcqConfig.scoreSettings?.evenMarks || 0,
-            totalMarks: mcqConfig.scoreSettings?.totalMarks || 0
+            scoreType: scoreType,
+            equalDistribution: marksPerQuestion,
+            totalMarks: mcqTotalMarks
           },
+          mcqTotalMarks: mcqTotalMarks,
+          marksPerQuestion: marksPerQuestion,
+          totalMcqQuestions: mcqConfig.generalQuestionCount || 0,
           attemptLimitEnabled: mcqConfig.attemptLimitEnabled || false,
-          submissionAttempts: mcqConfig.submissionAttempts || 1
+          submissionAttempts: mcqConfig.submissionAttempts || 1,
+          scoringType: scoreType,
+          shuffleQuestions: true
         };
-      } 
-      else if (exerciseData.exerciseType === 'Programming' && exerciseData.questionConfiguration.programmingConfig) {
+ 
+        // ✅ Set total marks for MCQ mode
+      }
+ 
+      // ============ HANDLE PROGRAMMING CONFIGURATION ============
+      else if (exerciseData.exerciseType === 'Programming' && exerciseData.questionConfiguration?.programmingConfig) {
         const progConfig = exerciseData.questionConfiguration.programmingConfig;
-        
+ 
+        // Map frontend terminology to backend terminology
+        let backendQuestionConfigType;
+        switch (progConfig.questionConfigType) {
+          case 'levelBased':
+            backendQuestionConfigType = 'levelBased';
+            break;
+          case 'selectionLevel':
+            backendQuestionConfigType = 'selectionLevel';
+            break;
+          default:
+            backendQuestionConfigType = progConfig.questionConfigType;
+        }
+ 
+        // Calculate total marks for Programming mode
+        let progTotalMarks = 0;
+ 
+        if (progConfig.questionConfigType === 'general') {
+          if (progConfig.scoreSettings?.scoreType === 'equalDistribution') {
+            progTotalMarks = (progConfig.generalQuestionCount || 0) * (progConfig.scoreSettings.equalDistribution || 0);
+          }
+        } else if (progConfig.questionConfigType === 'levelBased' || progConfig.questionConfigType === 'selectionLevel') {
+          const counts = progConfig.questionConfigType === 'selectionLevel'
+            ? progConfig.selectionLevelCounts
+            : progConfig.levelBasedCounts;
+ 
+          const levelScoring = progConfig.scoreSettings?.levelScoringConfiguration;
+ 
+          (['easy', 'medium', 'hard']).forEach(level => {
+            const count = counts[level] || 0;
+            if (count === 0) return;
+ 
+            const scoring = levelScoring[level];
+            if (scoring) {
+              if (scoring.type === 'level_specific' && scoring.marksPerQuestion) {
+                progTotalMarks += count * scoring.marksPerQuestion;
+              } else if (scoring.type === 'question_specific' && scoring.totalMarks) {
+                progTotalMarks += scoring.totalMarks;
+              }
+            }
+          });
+        }
+ 
+        // Process level scoring configuration if present
+        const levelScoringConfig = progConfig.scoreSettings?.levelScoringConfiguration;
+ 
+        // Map frontend score type to backend score type
+        let backendScoreType;
+        if (progConfig.questionConfigType === 'levelBased' || progConfig.questionConfigType === 'selectionLevel') {
+          backendScoreType = 'levelBasedMarks';
+        } else {
+          switch (progConfig.scoreSettings?.scoreType) {
+            case 'equalDistribution':
+              backendScoreType = 'evenMarks';
+              break;
+            case 'questionSpecific':
+              backendScoreType = 'separateMarks';
+              break;
+            case 'levelSpecific':
+              backendScoreType = 'levelBasedMarks';
+              break;
+            default:
+              backendScoreType = progConfig.scoreSettings?.scoreType;
+          }
+        }
+ 
+        // Process scoring based on approach
+        let levelBasedMarks = { easy: 0, medium: 0, hard: 0 };
+        let separateMarks = {
+          general: [],
+          levelBased: { easy: [], medium: [], hard: [] }
+        };
+        let evenMarks = 0;
+ 
+        if (progConfig.questionConfigType === 'general') {
+          // General configuration
+          if (progConfig.scoreSettings?.scoreType === 'equalDistribution') {
+            evenMarks = progConfig.scoreSettings.equalDistribution || 0;
+          } else if (progConfig.scoreSettings?.scoreType === 'questionSpecific') {
+            separateMarks.general = progConfig.scoreSettings.questionSpecific.general || [];
+          }
+        } else if (progConfig.questionConfigType === 'levelBased' || progConfig.questionConfigType === 'selectionLevel') {
+          // Level-based configuration with new scoring approach
+          const counts = progConfig.questionConfigType === 'selectionLevel'
+            ? progConfig.selectionLevelCounts
+            : progConfig.levelBasedCounts;
+ 
+          if (levelScoringConfig) {
+            // Calculate based on new scoring configuration
+            (['easy', 'medium', 'hard']).forEach(level => {
+              const count = counts[level] || 0;
+              const scoring = levelScoringConfig[level];
+ 
+              if (scoring?.type === 'level_specific' && scoring.marksPerQuestion) {
+                levelBasedMarks[level] = scoring.marksPerQuestion;
+                // Calculate totalMarks for each level
+                const levelTotal = count * scoring.marksPerQuestion;
+                levelScoringConfig[level].totalMarks = levelTotal;
+              } else if (scoring?.type === 'question_specific' && scoring.totalMarks) {
+                // For question-specific, totalMarks is already provided
+                levelBasedMarks[level] = count > 0 ? scoring.totalMarks / count : 0;
+              }
+            });
+          } else {
+            // Fallback to old levelBasedMarks calculation
+            levelBasedMarks = progConfig.scoreSettings?.levelBasedMarks || { easy: 0, medium: 0, hard: 0 };
+          }
+        }
+ 
         // Backend expects programmingConfig object
         const programmingConfig: any = {
-          questionConfigType: progConfig.questionConfigType || 'general',
-          scoreSettings: progConfig.scoreSettings || {
-            scoreType: 'evenMarks',
-            evenMarks: 0,
-            separateMarks: {
-              general: [],
-              levelBased: { easy: [], medium: [], hard: [] }
-            },
-            levelBasedMarks: { easy: 0, medium: 0, hard: 0 },
-            totalMarks: 0
+          questionConfigType: backendQuestionConfigType || 'general',
+          scoreSettings: {
+            scoreType: backendScoreType || 'evenMarks',
+            evenMarks: evenMarks,
+            separateMarks: separateMarks,
+            levelBasedMarks: levelBasedMarks,
+            levelScoringConfiguration: levelScoringConfig,
+            totalMarks: progTotalMarks
           },
           questionFlow: progConfig.questionFlow || 'freeFlow',
           attemptLimitEnabled: progConfig.attemptLimitEnabled || false,
-          submissionAttempts: progConfig.submissionAttempts || 1
+          submissionAttempts: progConfig.submissionAttempts || 1,
+          allowCodeExecution: true,
+          enableTestCases: true,
+          showSampleCases: true
         };
-
+ 
         // Add counts based on configuration type
         if (progConfig.questionConfigType === 'general') {
           programmingConfig.generalQuestionCount = progConfig.generalQuestionCount || 0;
+          programmingConfig.generalMarksPerQuestion = progConfig.scoreSettings?.equalDistribution || 0;
         } else if (progConfig.questionConfigType === 'levelBased') {
           programmingConfig.levelBasedCounts = progConfig.levelBasedCounts || { easy: 0, medium: 0, hard: 0 };
         } else if (progConfig.questionConfigType === 'selectionLevel') {
           programmingConfig.selectionLevelCounts = progConfig.selectionLevelCounts || { easy: 0, medium: 0, hard: 0 };
         }
-
+ 
         payload.questionConfiguration.programmingConfig = programmingConfig;
-      } 
+ 
+        // ✅ Set total marks for Programming mode
+      }
+ 
+      // ============ HANDLE COMBINED CONFIGURATION ============
       else if (exerciseData.exerciseType === 'Combined' && exerciseData.questionConfiguration) {
         const combinedConfig = exerciseData.questionConfiguration;
-        
+ 
+        // Calculate MCQ total marks
+        let mcqTotalMarks = 0;
         if (combinedConfig.mcqConfig) {
           const mcqConfig = combinedConfig.mcqConfig;
+          const scoreType = mcqConfig.scoreSettings?.scoreType || 'equalDistribution';
+          let marksPerQuestion = 0;
+ 
+          if (scoreType === 'equalDistribution') {
+            marksPerQuestion = mcqConfig.scoreSettings?.equalDistribution || 0;
+            mcqTotalMarks = (mcqConfig.generalQuestionCount || 0) * marksPerQuestion;
+          } else {
+            marksPerQuestion = 0;
+            mcqTotalMarks = mcqConfig.scoreSettings?.totalMarks || 0;
+          }
+ 
           payload.questionConfiguration.mcqConfig = {
             questionConfigType: 'general',
             generalQuestionCount: mcqConfig.generalQuestionCount || 0,
             scoreSettings: {
-              scoreType: 'evenMarks',
-              evenMarks: mcqConfig.scoreSettings?.evenMarks || 0,
-              totalMarks: mcqConfig.scoreSettings?.totalMarks || 0
+              scoreType: scoreType,
+              equalDistribution: mcqConfig.scoreSettings?.equalDistribution || 0,
+              totalMarks: mcqTotalMarks
             },
+            mcqTotalMarks: mcqTotalMarks,
+            marksPerQuestion: marksPerQuestion,
+            totalMcqQuestions: mcqConfig.generalQuestionCount || 0,
             attemptLimitEnabled: mcqConfig.attemptLimitEnabled || false,
-            submissionAttempts: mcqConfig.submissionAttempts || 1
+            submissionAttempts: mcqConfig.submissionAttempts || 1,
+            scoringType: scoreType,
+            shuffleQuestions: true
           };
         }
-
+ 
+        // Calculate Programming total marks
+        let progTotalMarks = 0;
         if (combinedConfig.programmingConfig) {
           const progConfig = combinedConfig.programmingConfig;
-          
+ 
+          // Map frontend terminology to backend terminology
+          let backendQuestionConfigType;
+          switch (progConfig.questionConfigType) {
+            case 'levelBased':
+              backendQuestionConfigType = 'levelBased';
+              break;
+            case 'selectionLevel':
+              backendQuestionConfigType = 'selectionLevel';
+              break;
+            default:
+              backendQuestionConfigType = progConfig.questionConfigType;
+          }
+ 
+          // Calculate total marks
+          if (progConfig.questionConfigType === 'general') {
+            if (progConfig.scoreSettings?.scoreType === 'equalDistribution') {
+              progTotalMarks = (progConfig.generalQuestionCount || 0) * (progConfig.scoreSettings.equalDistribution || 0);
+            }
+          } else if (progConfig.questionConfigType === 'levelBased' || progConfig.questionConfigType === 'selectionLevel') {
+            const counts = progConfig.questionConfigType === 'selectionLevel'
+              ? progConfig.selectionLevelCounts
+              : progConfig.levelBasedCounts;
+ 
+            const levelScoring = progConfig.scoreSettings?.levelScoringConfiguration;
+ 
+            (['easy', 'medium', 'hard']).forEach(level => {
+              const count = counts[level] || 0;
+              if (count === 0) return;
+ 
+              const scoring = levelScoring[level];
+              if (scoring) {
+                if (scoring.type === 'level_specific' && scoring.marksPerQuestion) {
+                  progTotalMarks += count * scoring.marksPerQuestion;
+                } else if (scoring.type === 'question_specific' && scoring.totalMarks) {
+                  progTotalMarks += scoring.totalMarks;
+                }
+              }
+            });
+          }
+ 
+          // Process level scoring configuration
+          const levelScoringConfig = progConfig.scoreSettings?.levelScoringConfiguration;
+ 
+          // Map score type
+          let backendScoreType;
+          if (progConfig.questionConfigType === 'levelBased' || progConfig.questionConfigType === 'selectionLevel') {
+            backendScoreType = 'levelBasedMarks';
+          } else {
+            switch (progConfig.scoreSettings?.scoreType) {
+              case 'equalDistribution':
+                backendScoreType = 'evenMarks';
+                break;
+              case 'questionSpecific':
+                backendScoreType = 'separateMarks';
+                break;
+              case 'levelSpecific':
+                backendScoreType = 'levelBasedMarks';
+                break;
+              default:
+                backendScoreType = progConfig.scoreSettings?.scoreType;
+            }
+          }
+ 
+          let levelBasedMarks = { easy: 0, medium: 0, hard: 0 };
+          let separateMarks = {
+            general: [],
+            levelBased: { easy: [], medium: [], hard: [] }
+          };
+          let evenMarks = 0;
+ 
+          if (progConfig.questionConfigType === 'general') {
+            if (progConfig.scoreSettings?.scoreType === 'equalDistribution') {
+              evenMarks = progConfig.scoreSettings.equalDistribution || 0;
+            } else if (progConfig.scoreSettings?.scoreType === 'questionSpecific') {
+              separateMarks.general = progConfig.scoreSettings.questionSpecific.general || [];
+            }
+          } else if (progConfig.questionConfigType === 'levelBased' || progConfig.questionConfigType === 'selectionLevel') {
+            const counts = progConfig.questionConfigType === 'selectionLevel'
+              ? progConfig.selectionLevelCounts
+              : progConfig.levelBasedCounts;
+ 
+            if (levelScoringConfig) {
+              (['easy', 'medium', 'hard']).forEach(level => {
+                const count = counts[level] || 0;
+                const scoring = levelScoringConfig[level];
+ 
+                if (scoring?.type === 'level_specific' && scoring.marksPerQuestion) {
+                  levelBasedMarks[level] = scoring.marksPerQuestion;
+                  const levelTotal = count * scoring.marksPerQuestion;
+                  levelScoringConfig[level].totalMarks = levelTotal;
+                } else if (scoring?.type === 'question_specific' && scoring.totalMarks) {
+                  levelBasedMarks[level] = count > 0 ? scoring.totalMarks / count : 0;
+                }
+              });
+            } else {
+              levelBasedMarks = progConfig.scoreSettings?.levelBasedMarks || { easy: 0, medium: 0, hard: 0 };
+            }
+          }
+ 
           const programmingConfig: any = {
-            questionConfigType: progConfig.questionConfigType || 'general',
-            scoreSettings: progConfig.scoreSettings || {
-              scoreType: 'evenMarks',
-              evenMarks: 0,
-              separateMarks: {
-                general: [],
-                levelBased: { easy: [], medium: [], hard: [] }
-              },
-              levelBasedMarks: { easy: 0, medium: 0, hard: 0 },
-              totalMarks: 0
+            questionConfigType: backendQuestionConfigType || 'general',
+            scoreSettings: {
+              scoreType: backendScoreType || 'evenMarks',
+              evenMarks: evenMarks,
+              separateMarks: separateMarks,
+              levelBasedMarks: levelBasedMarks,
+              levelScoringConfiguration: levelScoringConfig,
+              totalMarks: progTotalMarks
             },
             questionFlow: progConfig.questionFlow || 'freeFlow',
             attemptLimitEnabled: progConfig.attemptLimitEnabled || false,
-            submissionAttempts: progConfig.submissionAttempts || 1
+            submissionAttempts: progConfig.submissionAttempts || 1,
+            allowCodeExecution: true,
+            enableTestCases: true,
+            showSampleCases: true
           };
-
+ 
           if (progConfig.questionConfigType === 'general') {
             programmingConfig.generalQuestionCount = progConfig.generalQuestionCount || 0;
+            programmingConfig.generalMarksPerQuestion = progConfig.scoreSettings?.equalDistribution || 0;
           } else if (progConfig.questionConfigType === 'levelBased') {
             programmingConfig.levelBasedCounts = progConfig.levelBasedCounts || { easy: 0, medium: 0, hard: 0 };
           } else if (progConfig.questionConfigType === 'selectionLevel') {
             programmingConfig.selectionLevelCounts = progConfig.selectionLevelCounts || { easy: 0, medium: 0, hard: 0 };
           }
-
+ 
           payload.questionConfiguration.programmingConfig = programmingConfig;
         }
+ 
+        // ✅ Set total marks for Combined mode (MCQ + Programming)
       }
-    }
-
-    console.log('🌐 Transformed payload for backend:', JSON.stringify(payload, null, 2));
-
-    const entityPath = getEntityPath(entityType);
-    const url = `${BASE_URL}/exercise/add/${entityPath}/${entityId}`;
-    const token = localStorage.getItem("smartcliff_token");
-
-    if (!token) {
-      throw new Error('No authentication token found. Please log in again.');
-    }
-
-    const response = await axios.put(
-      url,
-      payload,
-      {
-        headers: {
-          "Content-Type": "application/json",
-          'Authorization': `Bearer ${token}`
-        },
-        timeout: 30000,
+ 
+      // Debug log to verify payload structure
+      console.log('🔍 Programming config in payload:', payload.questionConfiguration?.programmingConfig);
+      console.log('🌐 Transformed payload for backend:', JSON.stringify(payload, null, 2));
+      console.log('✅ Total Marks being sent:', payload.exerciseInformation.totalMarks);
+ 
+      const entityPath = getEntityPath(entityType);
+      const url = `${BASE_URL}/exercise/add/${entityPath}/${entityId}`;
+      const token = localStorage.getItem("smartcliff_token");
+ 
+      if (!token) {
+        throw new Error('No authentication token found. Please log in again.');
       }
-    );
-
-    console.log('✅ Exercise added successfully:', response.data);
-    return response.data;
-
-  } catch (error: any) {
-    console.error('❌ Error adding exercise:', error);
-
-    if (error.response) {
-      console.error('❌ Server response:', error.response.data);
-      console.error('❌ Server status:', error.response.status);
-      
-      // More detailed error logging
-      if (error.response.data?.message) {
-        console.error('❌ Error messages:', error.response.data.message);
-      }
-      
-      throw new Error(
-        `Server error (${error.response.status}): ${typeof error.response.data === 'object'
-          ? JSON.stringify(error.response.data)
-          : error.response.data
-        }`
+ 
+      const response = await axios.put(
+        url,
+        payload,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            'Authorization': `Bearer ${token}`
+          },
+          timeout: 30000,
+        }
       );
-    } else if (error.request) {
-      throw new Error('No response received from server. Please check your connection.');
-    } else {
-      throw error;
+ 
+      console.log('✅ Exercise added successfully:', response.data);
+      return response.data;
+ 
+    } catch (error: any) {
+      console.error('❌ Error adding exercise:', error);
+ 
+      if (error.response) {
+        console.error('❌ Server response:', error.response.data);
+        console.error('❌ Server status:', error.response.status);
+ 
+        if (error.response.data?.message) {
+          console.error('❌ Error messages:', error.response.data.message);
+        }
+ 
+        throw new Error(
+          `Server error (${error.response.status}): ${typeof error.response.data === 'object'
+            ? JSON.stringify(error.response.data)
+            : error.response.data
+          }`
+        );
+      } else if (error.request) {
+        throw new Error('No response received from server. Please check your connection.');
+      } else {
+        throw error;
+      }
     }
-  }
-},
-
+  },
+ 
   // 2. GET EXERCISES (Updated)
   getExercises: async (
     entityType: EntityType,
@@ -383,10 +665,10 @@ addExercise: async (
       const params = new URLSearchParams();
       params.append('section', section);
       if (subcategory) params.append('subcategory', subcategory);
-
+ 
       const entityPath = getEntityPath(entityType);
       const url = `${BASE_URL}/exercise/get/${entityPath}/${entityId}?${params.toString()}`;
-
+ 
       console.log('🔗 Fetching exercises:', {
         url,
         entityType,
@@ -394,12 +676,12 @@ addExercise: async (
         section,
         subcategory
       });
-
+ 
       const token = localStorage.getItem("smartcliff_token");
       if (!token) {
         throw new Error('No authentication token found. Please log in again.');
       }
-
+ 
       const response = await axios.get(
         url,
         {
@@ -410,12 +692,12 @@ addExercise: async (
           timeout: 30000,
         }
       );
-
+ 
       console.log('✅ Exercises fetched successfully:', {
         totalExercises: response.data?.data?.totalExercises || 0,
         exercisesCount: response.data?.data?.exercises?.length || 0
       });
-
+ 
       return response.data;
     } catch (error: any) {
       console.error('❌ Error fetching exercises:', {
@@ -427,11 +709,11 @@ addExercise: async (
         response: error.response?.data,
         status: error.response?.status
       });
-
+ 
       if (error.response) {
         const status = error.response.status;
         const data = error.response.data;
-
+ 
         switch (status) {
           case 401:
             throw new Error('Authentication failed. Please log in again.');
@@ -452,22 +734,22 @@ addExercise: async (
       }
     }
   },
-
+ 
   // 3. GET EXERCISE BY ID (New)
   getExerciseById: async (exerciseId: string): Promise<any> => {
     try {
-      const url = `${BASE_URL}/exercise/get-by-id/${exerciseId}`;
-
+      const url = `${BASE_URL}/exercise/${exerciseId}`;
+ 
       console.log('🔍 Fetching exercise by ID:', {
         exerciseId,
         url
       });
-
+ 
       const token = localStorage.getItem("smartcliff_token");
       if (!token) {
         throw new Error('No authentication token found. Please log in again.');
       }
-
+ 
       const response = await axios.get(url, {
         headers: {
           "Content-Type": "application/json",
@@ -475,180 +757,351 @@ addExercise: async (
         },
         timeout: 30000,
       });
-
+ 
       console.log('✅ Exercise fetched by ID:', {
         exerciseId: response.data?.data?.exercise?.exerciseId,
         name: response.data?.data?.exercise?.exerciseName
       });
-
+ 
       return response.data;
     } catch (error: any) {
       console.error('❌ Error fetching exercise by ID:', error);
-
+ 
       if (error.response?.status === 404) {
         throw new Error(`Exercise with ID ${exerciseId} not found`);
       }
       throw error;
     }
   },
+ 
+// 4. UPDATE EXERCISE (Fixed to match backend expectations)
+updateExercise: async (
+  entityType: EntityType,
+  entityId: string,
+  exerciseId: string,
+  exerciseData: ExercisePayload
+): Promise<any> => {
+  try {
+    console.log('🔄 Updating exercise:', {
+      entityType,
+      entityId,
+      exerciseId,
+      data: exerciseData
+    });
+ 
+  // FIXED - includes gradeSettings, notificationSettings, additionalOptions
+const payload: any = {
+  tabType: exerciseData.tabType,
+  subcategory: exerciseData.subcategory,
+  exerciseType: exerciseData.exerciseType,
+  configurationType: {
+    mcqMode: exerciseData.exerciseType === 'MCQ' || exerciseData.exerciseType === 'Combined',
+    programmingMode: exerciseData.exerciseType === 'Programming' || exerciseData.exerciseType === 'Combined',
+    combinedMode: exerciseData.exerciseType === 'Combined',
+  },
+  exerciseInformation: {
+    exerciseId:            exerciseData.exerciseInformation.exerciseId,
+    exerciseName:          exerciseData.exerciseInformation.exerciseName,
+    description:           exerciseData.exerciseInformation.description || '',
+    exerciseLevel:         exerciseData.exerciseInformation.exerciseLevel || 'intermediate',
+    totalDuration:         exerciseData.exerciseInformation.totalDuration || 60,
+    totalMarksMCQ:         exerciseData.exerciseType === 'MCQ' || exerciseData.exerciseType === 'Combined'
+                             ? (exerciseData.exerciseType === 'Combined'
+                                 ? exerciseData.totalMarksMCQ
+                                 : exerciseData.exerciseInformation.totalMarks)
+                             : 0,
+    totalMarksProgramming: exerciseData.exerciseType === 'Programming' || exerciseData.exerciseType === 'Combined'
+                             ? (exerciseData.exerciseType === 'Combined'
+                                 ? exerciseData.totalMarksProgramming
+                                 : exerciseData.exerciseInformation.totalMarks)
+                             : 0,
+    totalMarks:            exerciseData.exerciseInformation.totalMarks,
+  },
+availabilityPeriod: {
+  startDate: exerciseData.availabilityPeriod.startDate,
+  endDate: exerciseData.availabilityPeriod.endDate,  // ← Always include endDate
+  dueDateEnabled: true,
+  cutoffEnabled: !!(exerciseData.availabilityPeriod as any).cutoffEnabled,
+  remindGradeByEnabled: !!(exerciseData.availabilityPeriod as any).remindGradeByEnabled,
+  remindGradeBy: (exerciseData.availabilityPeriod as any).remindGradeByEnabled
+    ? ((exerciseData.availabilityPeriod as any).remindGradeBy || null)
+    : null,
+  gracePeriodAllowed: (exerciseData.availabilityPeriod as any).gracePeriodAllowed
+    ?? exerciseData.availabilityPeriod.gracePeriodEnabled
+    ?? false,
+  gracePeriodEnabled: (exerciseData.availabilityPeriod as any).gracePeriodAllowed
+    ?? exerciseData.availabilityPeriod.gracePeriodEnabled
+    ?? false,
+  gracePeriodDate: exerciseData.availabilityPeriod.gracePeriodDate || null,
+  extendedDays: (exerciseData.availabilityPeriod as any).extendedDays || 0,
+},
 
-  // 4. UPDATE EXERCISE (Updated)
-  updateExercise: async (
-    entityType: EntityType,
-    entityId: string,
-    exerciseId: string,
-    exerciseData: ExercisePayload
-  ): Promise<any> => {
-    try {
-      console.log('🔄 Updating exercise:', {
-        entityType,
-        entityId,
-        exerciseId,
-        data: exerciseData
-      });
+  // ── ADD THESE THREE MISSING BLOCKS ──────────────────────────────────────
 
-      // Transform to backend format (similar to addExercise)
-      const payload: APIExercisePayload = {
-        configurationType: exerciseData.configurationType,
-        tabType: exerciseData.tabType,
-        subcategory: exerciseData.subcategory,
-        exerciseType: exerciseData.exerciseType,
-        exerciseInformation: exerciseData.exerciseInformation,
-        availabilityPeriod: exerciseData.availabilityPeriod,
-        notificationGradeSettings: {
-          notifyUsers: exerciseData.notificationSettings?.notifyUsers || false,
-          notifyGmail: exerciseData.notificationSettings?.notifyGmail || false,
-          notifyWhatsApp: exerciseData.notificationSettings?.notifyWhatsApp || false,
-          gradeSheet: exerciseData.notificationSettings?.gradeSheet || true
-        }
-      };
-
-      if (exerciseData.programmingSettings) {
-        payload.programmingSettings = exerciseData.programmingSettings;
-      }
-
-      if (exerciseData.questionConfiguration) {
-        console.log('🔧 Processing questionConfiguration for update:', exerciseData.questionConfiguration);
-
-        if (exerciseData.exerciseType === 'MCQ' && exerciseData.questionConfiguration.mcqConfig) {
-          const mcqConfig = exerciseData.questionConfiguration.mcqConfig;
-          payload.questionConfiguration = {
-            levelType: 'general',
-            general: mcqConfig.generalQuestionCount,
-            questionFlow: 'freeFlow',
-            attemptLimitEnabled: mcqConfig.attemptLimitEnabled,
-            submissionAttempts: mcqConfig.submissionAttempts,
-            mcqScoreSettings: {
-              scoreType: 'evenMarks',
-              evenMarks: mcqConfig.scoreSettings.evenMarks,
-              totalMarks: mcqConfig.scoreSettings.totalMarks
-            }
-          };
-        } else if (exerciseData.exerciseType === 'Programming' && exerciseData.questionConfiguration.programmingConfig) {
-          const progConfig = exerciseData.questionConfiguration.programmingConfig;
-          const levelType = progConfig.questionConfigType === 'general' ? 'general' : 'levelBased';
-
-          const questionConfig: any = {
-            levelType: levelType,
-            questionFlow: progConfig.questionFlow,
-            attemptLimitEnabled: progConfig.attemptLimitEnabled,
-            submissionAttempts: progConfig.submissionAttempts,
-            programmingScoreSettings: progConfig.scoreSettings
-          };
-
-          if (progConfig.questionConfigType === 'general' && progConfig.generalQuestionCount !== undefined) {
-            questionConfig.general = progConfig.generalQuestionCount;
-          } else if (progConfig.levelBasedCounts) {
-            questionConfig.levelBased = progConfig.levelBasedCounts;
-          } else if (progConfig.selectionLevelCounts) {
-            questionConfig.levelBased = progConfig.selectionLevelCounts;
-          }
-
-          payload.questionConfiguration = questionConfig;
-        } else if (exerciseData.exerciseType === 'Combined' && exerciseData.questionConfiguration) {
-          const combinedConfig = exerciseData.questionConfiguration;
-
-          if (combinedConfig.mcqConfig && combinedConfig.programmingConfig) {
-            const mcqConfig = combinedConfig.mcqConfig;
-            const progConfig = combinedConfig.programmingConfig;
-            const levelType = progConfig.questionConfigType === 'general' ? 'general' : 'levelBased';
-
-            const questionConfig: any = {
-              levelType: levelType,
-              questionFlow: progConfig.questionFlow,
-              attemptLimitEnabled: progConfig.attemptLimitEnabled,
-              submissionAttempts: progConfig.submissionAttempts,
-              mcqCount: mcqConfig.generalQuestionCount,
-              mcqAttemptLimitEnabled: mcqConfig.attemptLimitEnabled,
-              mcqSubmissionAttempts: mcqConfig.submissionAttempts,
-              mcqScoreSettings: {
-                scoreType: 'evenMarks',
-                evenMarks: mcqConfig.scoreSettings.evenMarks,
-                totalMarks: mcqConfig.scoreSettings.totalMarks
-              },
-              programmingScoreSettings: progConfig.scoreSettings
-            };
-
-            if (progConfig.questionConfigType === 'general' && progConfig.generalQuestionCount !== undefined) {
-              questionConfig.general = progConfig.generalQuestionCount;
-            } else if (progConfig.levelBasedCounts) {
-              questionConfig.levelBased = progConfig.levelBasedCounts;
-            } else if (progConfig.selectionLevelCounts) {
-              questionConfig.levelBased = progConfig.selectionLevelCounts;
-            }
-
-            payload.questionConfiguration = questionConfig;
-          }
-        }
-      }
-
-      console.log('🌐 Transformed update payload:', JSON.stringify(payload, null, 2));
-
-      const entityPath = getEntityPath(entityType);
-      const url = `${BASE_URL}/exercise/update/${entityPath}/${entityId}/${exerciseId}`;
-      const token = localStorage.getItem("smartcliff_token");
-
-      if (!token) {
-        throw new Error('No authentication token found. Please log in again.');
-      }
-
-      const response = await axios.put(
-        url,
-        payload,
-        {
-          headers: {
-            "Content-Type": "application/json",
-            'Authorization': `Bearer ${token}`
-          },
-          timeout: 30000,
-        }
-      );
-
-      console.log('✅ Exercise updated successfully:', response.data);
-      return response.data;
-
-    } catch (error: any) {
-      console.error('❌ Error updating exercise:', {
-        entityType,
-        entityId,
-        exerciseId,
-        error: error.message,
-        response: error.response?.data,
-        status: error.response?.status
-      });
-
-      if (error.response) {
-        throw new Error(
-          `Server error (${error.response.status}): ${JSON.stringify(error.response.data)}`
-        );
-      } else if (error.request) {
-        throw new Error('No response received from server. Please check your connection.');
-      } else {
-        throw error;
-      }
-    }
+  notificationSettings: {
+    notifyUsers:                  (exerciseData as any).notificationSettings?.notifyUsers                  ?? false,
+    notifyGmail:                  (exerciseData as any).notificationSettings?.notifyGmail                  ?? false,
+    notifyWhatsApp:               (exerciseData as any).notificationSettings?.notifyWhatsApp               ?? false,
+    gradeSheet:                   (exerciseData as any).notificationSettings?.gradeSheet                   ?? true,
+    notifyGradersSubmissions:     (exerciseData as any).notificationSettings?.notifyGradersSubmissions     ?? false,
+    notifyGradersLateSubmissions: (exerciseData as any).notificationSettings?.notifyGradersLateSubmissions ?? false,
+    notifyStudent:                (exerciseData as any).notificationSettings?.notifyStudent                ?? true,
   },
 
+  gradeSettings: {
+    mcqGrade:               (exerciseData as any).gradeSettings?.mcqGrade               || null,
+    mcqGradeToPass:         (exerciseData as any).gradeSettings?.mcqGradeToPass
+                              ? Number((exerciseData as any).gradeSettings.mcqGradeToPass)
+                              : null,
+    programmingGrade:       (exerciseData as any).gradeSettings?.programmingGrade       || null,
+    programmingGradeToPass: (exerciseData as any).gradeSettings?.programmingGradeToPass
+                              ? Number((exerciseData as any).gradeSettings.programmingGradeToPass)
+                              : null,
+    combinedGrade:          (exerciseData as any).gradeSettings?.combinedGrade          || null,
+    combinedGradeToPass:    (exerciseData as any).gradeSettings?.combinedGradeToPass
+                              ? Number((exerciseData as any).gradeSettings.combinedGradeToPass)
+                              : null,
+    separateMarks:          (exerciseData as any).gradeSettings?.separateMarks          ?? false,
+  },
+
+  additionalOptions: {
+    anonymousSubmissions: (exerciseData as any).additionalOptions?.anonymousSubmissions ?? false,
+    hideGraderIdentity:   (exerciseData as any).additionalOptions?.hideGraderIdentity   ?? false,
+  },
+
+  // ── END MISSING BLOCKS ───────────────────────────────────────────────────
+
+  questionConfiguration: {},
+};
+ 
+    // Add programming settings if applicable
+    if ((exerciseData.exerciseType === 'Programming' || exerciseData.exerciseType === 'Combined') && exerciseData.programmingSettings) {
+      payload.programmingSettings = {
+        selectedModule: exerciseData.programmingSettings.selectedModule || '',
+        selectedLanguages: exerciseData.programmingSettings.selectedLanguages || []
+      };
+    }
+ 
+    // ============ HANDLE MCQ CONFIGURATION ============
+    if ((exerciseData.exerciseType === 'MCQ' || exerciseData.exerciseType === 'Combined') && exerciseData.questionConfiguration?.mcqConfig) {
+      const mcqConfig = exerciseData.questionConfiguration.mcqConfig;
+      const scoreType = mcqConfig.scoreSettings?.scoreType || 'equalDistribution';
+      let marksPerQuestion = 0;
+      let mcqTotalMarks = 0;
+ 
+      if (scoreType === 'equalDistribution') {
+        marksPerQuestion = mcqConfig.scoreSettings?.equalDistribution || 0;
+        mcqTotalMarks = (mcqConfig.generalQuestionCount || 0) * marksPerQuestion;
+      } else {
+        marksPerQuestion = 0;
+        mcqTotalMarks = mcqConfig.scoreSettings?.totalMarks || 0;
+      }
+ 
+      payload.questionConfiguration.mcqConfig = {
+        questionConfigType: 'general',
+        generalQuestionCount: mcqConfig.generalQuestionCount || 0,
+        scoreSettings: {
+          scoreType: scoreType,
+          equalDistribution: marksPerQuestion,
+          totalMarks: mcqTotalMarks
+        },
+        attemptLimitEnabled: mcqConfig.attemptLimitEnabled || false,
+        submissionAttempts: mcqConfig.submissionAttempts || 1,
+        // Additional fields for backend
+        mcqTotalMarks: mcqTotalMarks,
+        marksPerQuestion: marksPerQuestion,
+        totalMcqQuestions: mcqConfig.generalQuestionCount || 0,
+        scoringType: scoreType,
+        shuffleQuestions: true
+      };
+    }
+ 
+    // ============ HANDLE PROGRAMMING CONFIGURATION ============
+    if ((exerciseData.exerciseType === 'Programming' || exerciseData.exerciseType === 'Combined') && exerciseData.questionConfiguration?.programmingConfig) {
+      const progConfig = exerciseData.questionConfiguration.programmingConfig;
+ 
+      // Map frontend terminology to backend terminology
+      let backendQuestionConfigType;
+      switch (progConfig.questionConfigType) {
+        case 'levelBased':
+          backendQuestionConfigType = 'levelBased';
+          break;
+        case 'selectionLevel':
+          backendQuestionConfigType = 'selectionLevel';
+          break;
+        default:
+          backendQuestionConfigType = progConfig.questionConfigType;
+      }
+ 
+      // Calculate total marks for Programming mode
+      let progTotalMarks = 0;
+ 
+      if (progConfig.questionConfigType === 'general') {
+        if (progConfig.scoreSettings?.scoreType === 'equalDistribution') {
+          progTotalMarks = (progConfig.generalQuestionCount || 0) * (progConfig.scoreSettings.equalDistribution || 0);
+        }
+      } else if (progConfig.questionConfigType === 'levelBased' || progConfig.questionConfigType === 'selectionLevel') {
+        const counts = progConfig.questionConfigType === 'selectionLevel'
+          ? progConfig.selectionLevelCounts
+          : progConfig.levelBasedCounts;
+ 
+        const levelScoring = progConfig.scoreSettings?.levelScoringConfiguration;
+ 
+        if (levelScoring) {
+          (['easy', 'medium', 'hard']).forEach(level => {
+            const count = counts[level] || 0;
+            if (count === 0) return;
+ 
+            const scoring = levelScoring[level];
+            if (scoring) {
+              if (scoring.type === 'level_specific' && scoring.marksPerQuestion) {
+                progTotalMarks += count * scoring.marksPerQuestion;
+              } else if (scoring.type === 'question_specific' && scoring.totalMarks) {
+                progTotalMarks += scoring.totalMarks;
+              }
+            }
+          });
+        }
+      }
+ 
+      // Map frontend score type to backend score type
+      let backendScoreType;
+      if (progConfig.questionConfigType === 'levelBased' || progConfig.questionConfigType === 'selectionLevel') {
+        backendScoreType = 'levelBasedMarks';
+      } else {
+        switch (progConfig.scoreSettings?.scoreType) {
+          case 'equalDistribution':
+            backendScoreType = 'evenMarks';
+            break;
+          case 'questionSpecific':
+            backendScoreType = 'separateMarks';
+            break;
+          case 'levelSpecific':
+            backendScoreType = 'levelBasedMarks';
+            break;
+          default:
+            backendScoreType = progConfig.scoreSettings?.scoreType;
+        }
+      }
+ 
+      // Process level scoring configuration
+      const levelScoringConfig = progConfig.scoreSettings?.levelScoringConfiguration;
+ 
+      // Process scoring based on approach
+      let levelBasedMarks = { easy: 0, medium: 0, hard: 0 };
+      let separateMarks = {
+        general: [],
+        levelBased: { easy: [], medium: [], hard: [] }
+      };
+      let evenMarks = 0;
+ 
+      if (progConfig.questionConfigType === 'general') {
+        if (progConfig.scoreSettings?.scoreType === 'equalDistribution') {
+          evenMarks = progConfig.scoreSettings.equalDistribution || 0;
+        } else if (progConfig.scoreSettings?.scoreType === 'questionSpecific') {
+          separateMarks.general = progConfig.scoreSettings.questionSpecific?.general || [];
+        }
+      } else if (progConfig.questionConfigType === 'levelBased' || progConfig.questionConfigType === 'selectionLevel') {
+        const counts = progConfig.questionConfigType === 'selectionLevel'
+          ? progConfig.selectionLevelCounts
+          : progConfig.levelBasedCounts;
+ 
+        if (levelScoringConfig) {
+          // Calculate based on new scoring configuration
+          (['easy', 'medium', 'hard']).forEach(level => {
+            const count = counts[level] || 0;
+            const scoring = levelScoringConfig[level];
+ 
+            if (scoring?.type === 'level_specific' && scoring.marksPerQuestion) {
+              levelBasedMarks[level] = scoring.marksPerQuestion;
+            } else if (scoring?.type === 'question_specific' && scoring.totalMarks) {
+              levelBasedMarks[level] = count > 0 ? scoring.totalMarks / count : 0;
+            }
+          });
+        } else {
+          levelBasedMarks = progConfig.scoreSettings?.levelBasedMarks || { easy: 0, medium: 0, hard: 0 };
+        }
+      }
+ 
+      // Build programming config object
+      const programmingConfig: any = {
+        questionConfigType: backendQuestionConfigType || 'general',
+        attemptLimitEnabled: progConfig.attemptLimitEnabled || false,
+        submissionAttempts: progConfig.submissionAttempts || 1,
+        questionFlow: progConfig.questionFlow || 'freeFlow',
+        allowCodeExecution: true,
+        enableTestCases: true,
+        showSampleCases: true,
+        scoreSettings: {
+          scoreType: backendScoreType || 'evenMarks',
+          evenMarks: evenMarks,
+          separateMarks: separateMarks,
+          levelBasedMarks: levelBasedMarks,
+          levelScoringConfiguration: levelScoringConfig,
+          totalMarks: progTotalMarks
+        }
+      };
+ 
+      // Add counts based on configuration type
+      if (progConfig.questionConfigType === 'general') {
+        programmingConfig.generalQuestionCount = progConfig.generalQuestionCount || 0;
+        programmingConfig.generalMarksPerQuestion = progConfig.scoreSettings?.equalDistribution || 0;
+      } else if (progConfig.questionConfigType === 'levelBased') {
+        programmingConfig.levelBasedCounts = progConfig.levelBasedCounts || { easy: 0, medium: 0, hard: 0 };
+      } else if (progConfig.questionConfigType === 'selectionLevel') {
+        programmingConfig.selectionLevelCounts = progConfig.selectionLevelCounts || { easy: 0, medium: 0, hard: 0 };
+      }
+ 
+      payload.questionConfiguration.programmingConfig = programmingConfig;
+    }
+ 
+    console.log('🌐 Transformed update payload:', JSON.stringify(payload, null, 2));
+ 
+    const entityPath = getEntityPath(entityType);
+    const url = `${BASE_URL}/exercise/update/${entityPath}/${entityId}/${exerciseId}`;
+    const token = localStorage.getItem("smartcliff_token");
+ 
+    if (!token) {
+      throw new Error('No authentication token found. Please log in again.');
+    }
+ 
+    const response = await axios.put(
+      url,
+      payload,
+      {
+        headers: {
+          "Content-Type": "application/json",
+          'Authorization': `Bearer ${token}`
+        },
+        timeout: 30000,
+      }
+    );
+ 
+    console.log('✅ Exercise updated successfully:', response.data);
+    return response.data;
+ 
+  } catch (error: any) {
+    console.error('❌ Error updating exercise:', {
+      entityType,
+      entityId,
+      exerciseId,
+      error: error.message,
+      response: error.response?.data,
+      status: error.response?.status
+    });
+ 
+    if (error.response) {
+      throw new Error(
+        `Server error (${error.response.status}): ${JSON.stringify(error.response.data)}`
+      );
+    } else if (error.request) {
+      throw new Error('No response received from server. Please check your connection.');
+    } else {
+      throw error;
+    }
+  }
+},
+ 
   // 5. DELETE EXERCISE (Updated)
   deleteExercise: async (
     entityType: EntityType,
@@ -659,12 +1112,12 @@ addExercise: async (
   ): Promise<any> => {
     try {
       const params = new URLSearchParams();
-      params.append('section', section);
+      params.append('tabType', section);
       if (subcategory) params.append('subcategory', subcategory);
-
+ 
       const entityPath = getEntityPath(entityType);
       const url = `${BASE_URL}/exercise/delete/${entityPath}/${entityId}/${exerciseId}?${params.toString()}`;
-
+ 
       console.log('🗑️ Deleting exercise:', {
         url,
         entityType,
@@ -673,12 +1126,12 @@ addExercise: async (
         section,
         subcategory
       });
-
+ 
       const token = localStorage.getItem("smartcliff_token");
       if (!token) {
         throw new Error('No authentication token found. Please log in again.');
       }
-
+ 
       const response = await axios.delete(
         url,
         {
@@ -689,7 +1142,7 @@ addExercise: async (
           timeout: 15000,
         }
       );
-
+ 
       console.log('✅ Exercise deleted successfully:', response.data);
       return response.data;
     } catch (error: any) {
@@ -701,7 +1154,7 @@ addExercise: async (
         response: error.response?.data,
         status: error.response?.status
       });
-
+ 
       if (error.response) {
         throw new Error(
           `Server error (${error.response.status}): ${JSON.stringify(error.response.data)}`
@@ -713,7 +1166,7 @@ addExercise: async (
       }
     }
   },
-
+ 
   // 6. GET SUBCATEGORIES (Updated)
   getSubcategories: async (
     entityType: EntityType,
@@ -723,22 +1176,22 @@ addExercise: async (
     try {
       const params = new URLSearchParams();
       params.append('section', section);
-
+ 
       const entityPath = getEntityPath(entityType);
       const url = `${BASE_URL}/exercise/subcategories/${entityPath}/${entityId}?${params.toString()}`;
-
+ 
       console.log('📋 Fetching subcategories:', {
         url,
         entityType,
         entityId,
         section
       });
-
+ 
       const token = localStorage.getItem("smartcliff_token");
       if (!token) {
         throw new Error('No authentication token found. Please log in again.');
       }
-
+ 
       const response = await axios.get(
         url,
         {
@@ -749,18 +1202,18 @@ addExercise: async (
           timeout: 15000,
         }
       );
-
+ 
       console.log('✅ Subcategories fetched successfully:', {
         count: response.data?.data?.subcategories?.length || 0
       });
-
+ 
       return response.data;
     } catch (error: any) {
       console.error('❌ Error fetching subcategories:', error);
       throw error;
     }
   },
-
+ 
   // 7. GET EXERCISE STATISTICS (New)
   getExerciseStatistics: async (
     entityType: EntityType,
@@ -769,23 +1222,23 @@ addExercise: async (
   ): Promise<any> => {
     try {
       let url = `${BASE_URL}/exercise/statistics/${getEntityPath(entityType)}/${entityId}`;
-
+ 
       if (section) {
         url += `?section=${section}`;
       }
-
+ 
       console.log('📊 Fetching exercise statistics:', {
         url,
         entityType,
         entityId,
         section
       });
-
+ 
       const token = localStorage.getItem("smartcliff_token");
       if (!token) {
         throw new Error('No authentication token found. Please log in again.');
       }
-
+ 
       const response = await axios.get(url, {
         headers: {
           'Content-Type': 'application/json',
@@ -793,7 +1246,7 @@ addExercise: async (
         },
         timeout: 30000,
       });
-
+ 
       console.log('✅ Exercise statistics fetched:', response.data);
       return response.data;
     } catch (error: any) {
@@ -809,6 +1262,8 @@ addExercise: async (
       };
     }
   }
-
+ 
 };
-
+ 
+ 
+ 

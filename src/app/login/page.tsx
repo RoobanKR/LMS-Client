@@ -1,15 +1,7 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useMutation } from "@tanstack/react-query";
-import {
-  Eye,
-  EyeOff,
-  Brain,
-  CheckCircle,
-  ArrowRight,
-  Sparkles,
-  ExternalLink,
-} from "lucide-react";
+import { Eye, EyeOff, GraduationCap } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast, ToastContainer } from "react-toastify";
 import { showErrorToast } from "@/components/ui/toastUtils";
@@ -58,64 +50,85 @@ interface FormErrors {
   password: string;
 }
 
+const CAROUSEL_IMAGES = [
+  {
+    src: "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=800&h=1000&fit=crop&crop=faces",
+    alt: "Students collaborating on a project",
+  },
+  {
+    src: "https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=800&h=1000&fit=crop&crop=faces",
+    alt: "Student studying with laptop",
+  },
+  {
+    src: "https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=800&h=1000&fit=crop&crop=faces",
+    alt: "Group learning session",
+  },
+];
+
 const SmartCliffLogin = () => {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-  });
-  const [errors, setErrors] = useState<FormErrors>({
-    email: "",
-    password: "",
-  });
+  const [formData, setFormData] = useState({ email: "", password: "" });
+  const [errors, setErrors] = useState<FormErrors>({ email: "", password: "" });
 
-  // Helper function to clear all auth data
+  const [activeSlide, setActiveSlide] = useState(0);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+
+  const goToSlide = useCallback(
+    (index: number) => {
+      if (isTransitioning || index === activeSlide) return;
+      setIsTransitioning(true);
+      setActiveSlide(index);
+      setTimeout(() => setIsTransitioning(false), 600);
+    },
+    [activeSlide, isTransitioning]
+  );
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setActiveSlide((prev) => (prev + 1) % CAROUSEL_IMAGES.length);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const getRedirectParam = (): string => {
+    if (typeof window === "undefined") return "";
+    const params = new URLSearchParams(window.location.search);
+    return params.get("redirect") || "";
+  };
+
   const clearAuthData = () => {
-    localStorage.removeItem("smartcliff_token");
-    localStorage.removeItem("smartcliff_institution");
-    localStorage.removeItem("smartcliff_institutionname");
-    localStorage.removeItem("smartcliff_basedOn");
-    localStorage.removeItem("smartcliff_userId");
-    localStorage.removeItem("smartcliff_userData");
-    localStorage.removeItem("smartcliff_role");
-    localStorage.removeItem("smartcliff_roleId");
-    localStorage.removeItem("smartcliff_roleValue");
-    localStorage.removeItem("smartcliff_originalRole");
-    localStorage.removeItem("smartcliff_renameRole");
-    localStorage.removeItem("smartcliff_firstPermissionKey");
-    localStorage.removeItem("smartcliff_permissions");
+    const keys = [
+      "smartcliff_token", "smartcliff_institution", "smartcliff_institutionname",
+      "smartcliff_basedOn", "smartcliff_userId", "smartcliff_userData",
+      "smartcliff_role", "smartcliff_roleId", "smartcliff_roleValue",
+      "smartcliff_originalRole", "smartcliff_renameRole",
+      "smartcliff_firstPermissionKey", "smartcliff_permissions",
+    ];
+    keys.forEach((k) => localStorage.removeItem(k));
   };
 
   useEffect(() => {
     setMounted(true);
-    
-    // Check for all required authentication data
     const existingToken = localStorage.getItem("smartcliff_token");
     const existingInstitution = localStorage.getItem("smartcliff_institution");
     const existingBasedOn = localStorage.getItem("smartcliff_basedOn");
-    const existingRole = localStorage.getItem("smartcliff_role");
-    const existingRoleValue = localStorage.getItem("smartcliff_roleValue");
-    const originalRole = localStorage.getItem("smartcliff_originalRole");
-    const firstPermissionKey = localStorage.getItem("smartcliff_firstPermissionKey");
 
     if (existingToken && existingInstitution && existingBasedOn) {
-      // Determine redirect based on first permission key if available
-      let redirectPath = "/lms/pages/admindashboard"; // Default fallback
-      
+      const redirectTo = getRedirectParam();
+      if (redirectTo) { toast.info("Welcome back!"); window.location.href = redirectTo; return; }
+      let redirectPath = "/lms/pages/admindashboard";
+      const firstPermissionKey = localStorage.getItem("smartcliff_firstPermissionKey");
+      const existingRole = localStorage.getItem("smartcliff_role");
+      const existingRoleValue = localStorage.getItem("smartcliff_roleValue");
+      const originalRole = localStorage.getItem("smartcliff_originalRole");
       if (firstPermissionKey) {
         redirectPath = `/lms/pages/${firstPermissionKey}`;
       } else if (existingRole && existingRoleValue) {
-        // Fallback to role-based redirect
-        let userRole = originalRole?.toLowerCase() || existingRoleValue?.toLowerCase() || existingRole?.toLowerCase() || '';
-        
-        if (userRole === 'student' || userRole.includes('student')) {
-          redirectPath = "/lms/pages/studentdashboard";
-        }
+        const userRole = originalRole?.toLowerCase() || existingRoleValue?.toLowerCase() || existingRole?.toLowerCase() || "";
+        if (userRole === "student" || userRole.includes("student")) redirectPath = "/lms/pages/studentdashboard";
       }
-      
-      console.log(`Auto-redirecting to: ${redirectPath}`);
       toast.info("Welcome back!");
       router.push(redirectPath);
     }
@@ -123,87 +136,45 @@ const SmartCliffLogin = () => {
 
   const loginMutation = useMutation({
     mutationFn: async (credentials: { email: string; password: string }) => {
-      const response = await fetch("http://localhost:5533/user/login", {
+      const response = await fetch("https://lms-server-ym1q.onrender.com/user/login", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(credentials),
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message?.[0]?.value || "Login failed");
-      }
-
+      if (!response.ok) { const errorData = await response.json(); throw new Error(errorData.message?.[0]?.value || "Login failed"); }
       return response.json();
     },
     onSuccess: async (data: LoginResponse) => {
       try {
+        const redirectTo = new URLSearchParams(window.location.search).get("redirect");
         const { user, token, institution, institutionName, userId, basedOn } = data;
-
-        if (!token || !institution || !institutionName || !userId || !basedOn) {
-          throw new Error("No token received");
-        }
-
-        // Store all authentication data
         localStorage.setItem("smartcliff_token", token);
         localStorage.setItem("smartcliff_institution", institution);
         localStorage.setItem("smartcliff_institutionname", institutionName);
         localStorage.setItem("smartcliff_basedOn", basedOn);
         localStorage.setItem("smartcliff_userId", userId);
-        
-        // Store user data
         localStorage.setItem("smartcliff_userData", JSON.stringify(user));
-        
-        // Store permissions if available
         if (user.permissions && Array.isArray(user.permissions)) {
           localStorage.setItem("smartcliff_permissions", JSON.stringify(user.permissions));
-          
-          // Sort permissions by order and get the first active permission
-          const sortedPermissions = [...user.permissions]
-            .filter(permission => permission.isActive)
-            .sort((a, b) => a.order - b.order);
-          
-          if (sortedPermissions.length > 0) {
-            const firstPermission = sortedPermissions[0];
-            localStorage.setItem("smartcliff_firstPermissionKey", firstPermission.permissionKey);
-            console.log("First permission key:", firstPermission.permissionKey);
-          }
+          const sorted = [...user.permissions].filter((p) => p.isActive).sort((a, b) => a.order - b.order);
+          if (sorted.length > 0) localStorage.setItem("smartcliff_firstPermissionKey", sorted[0].permissionKey);
         }
-        
-        // Store role information and determine user role
-        let userRoleValue = 'User'; // Default role
-        let originalRoleValue = ''; // Store original role separately
-        
+        let userRoleValue = "User";
+        let originalRoleValue = "";
         if (user.role) {
-          if (typeof user.role === 'object' && user.role !== null) {
-            // Handle role as object (with _id, roleValue, etc.)
-            const roleId = user.role._id || user.role.$oid || '';
-            const originalRole = user.role.originalRole || '';
-            const renameRole = user.role.renameRole || '';
-            const roleValue = user.role.roleValue || renameRole || originalRole || 'User';
-            
+          if (typeof user.role === "object" && user.role !== null) {
+            const roleId = user.role._id || user.role.$oid || "";
+            const originalRole = user.role.originalRole || "";
+            const renameRole = user.role.renameRole || "";
+            const roleValue = user.role.roleValue || renameRole || originalRole || "User";
             userRoleValue = roleValue.toLowerCase();
             originalRoleValue = originalRole.toLowerCase();
-            
-            console.log("User role details:", { 
-              originalRole, 
-              renameRole, 
-              roleValue, 
-              userRoleValue,
-              originalRoleValue 
-            });
-            
             localStorage.setItem("smartcliff_roleId", roleId);
             localStorage.setItem("smartcliff_roleValue", roleValue);
             localStorage.setItem("smartcliff_originalRole", originalRole);
             localStorage.setItem("smartcliff_renameRole", renameRole);
-            
-            // Store the entire role object if needed
             localStorage.setItem("smartcliff_role", JSON.stringify(user.role));
           } else {
-            // If role is just a string or ID
             const roleString = String(user.role);
             userRoleValue = roleString.toLowerCase();
             originalRoleValue = roleString.toLowerCase();
@@ -213,95 +184,37 @@ const SmartCliffLogin = () => {
             localStorage.setItem("smartcliff_originalRole", roleString);
           }
         } else {
-          // Default role if none provided
-          userRoleValue = 'user';
-          originalRoleValue = 'user';
+          userRoleValue = "user"; originalRoleValue = "user";
           localStorage.setItem("smartcliff_role", "User");
           localStorage.setItem("smartcliff_roleValue", "User");
           localStorage.setItem("smartcliff_roleId", "");
           localStorage.setItem("smartcliff_originalRole", "User");
         }
-
-        // Verify token
-        const verifyResponse = await fetch(
-          "http://localhost:5533/user/verify-token",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-
-        if (!verifyResponse.ok) {
-          clearAuthData();
-          throw new Error("Token verification failed");
-        }
-
-        // Determine redirect path based on permissions first, then role
-        let redirectPath = "";
+        const verifyResponse = await fetch("https://lms-server-ym1q.onrender.com/user/verify-token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        });
+        if (!verifyResponse.ok) { clearAuthData(); throw new Error("Token verification failed"); }
+        if (!user.firstTimeLoginDone) localStorage.setItem("showWelcomeToast", "true");
+        if (redirectTo) { window.location.href = redirectTo; return; }
         const firstPermissionKey = localStorage.getItem("smartcliff_firstPermissionKey");
-        
-        // Priority 1: Use first permission key if available
-        if (firstPermissionKey) {
-          redirectPath = `/lms/pages/${firstPermissionKey}`;
-          console.log(`Redirecting based on permission key: ${firstPermissionKey} to: ${redirectPath}`);
-        } else {
-          // Priority 2: Fallback to role-based redirect
-          const roleForRedirect = originalRoleValue || userRoleValue;
-          const isStudent = roleForRedirect.includes('student');
-          
-          console.log(`No permission found, falling back to role: ${roleForRedirect}, isStudent: ${isStudent}`);
-
-          if (isStudent) {
-            redirectPath = "/lms/pages/studentdashboard";
-          } else {
-            redirectPath = "/lms/pages/admindashboard";
-          }
-        }
-
-        // Store showWelcomeToast flag if first time login
-        if (!user.firstTimeLoginDone) {
-          localStorage.setItem("showWelcomeToast", "true");
-        }
-
-        console.log(`Final redirect path: ${redirectPath}`);
-        
-        // Force a hard redirect to prevent any caching issues
-        window.location.href = redirectPath;
-        
+        if (firstPermissionKey) { window.location.href = `/lms/pages/${firstPermissionKey}`; return; }
+        const roleForRedirect = originalRoleValue || userRoleValue;
+        window.location.href = roleForRedirect.includes("student") ? "/lms/pages/studentdashboard" : "/lms/pages/admindashboard";
       } catch (error) {
         clearAuthData();
-        if (error instanceof Error) {
-          toast.error(error.message);
-        } else {
-          toast.error("An unexpected error occurred");
-        }
+        toast.error(error instanceof Error ? error.message : "An unexpected error occurred");
       }
     },
-    onError: (error: Error) => {
-      showErrorToast(error.message);
-    },
+    onError: (error: Error) => { showErrorToast(error.message); },
   });
 
   const validateForm = (): boolean => {
     let valid = true;
     const newErrors: FormErrors = { email: "", password: "" };
-
-    if (!formData.email) {
-      newErrors.email = "Email is required";
-      valid = false;
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = "Email is invalid";
-      valid = false;
-    }
-
-    if (!formData.password) {
-      newErrors.password = "Password is required";
-      valid = false;
-    }
-
+    if (!formData.email) { newErrors.email = "Email is required"; valid = false; }
+    else if (!/\S+@\S+\.\S+/.test(formData.email)) { newErrors.email = "Please enter a valid email"; valid = false; }
+    if (!formData.password) { newErrors.password = "Password is required"; valid = false; }
     setErrors(newErrors);
     return valid;
   };
@@ -314,367 +227,717 @@ const SmartCliffLogin = () => {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-    if (errors[name as keyof FormErrors]) {
-      setErrors((prev) => ({
-        ...prev,
-        [name]: "",
-      }));
-    }
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    if (errors[name as keyof FormErrors]) setErrors((prev) => ({ ...prev, [name]: "" }));
   };
-
-  const floatingElements = Array.from({ length: 6 }, (_, i) => (
-    <div
-      key={i}
-      className={`absolute w-2 h-2 bg-gradient-to-r from-blue-400 to-purple-400 rounded-full animate-float-${i + 1
-        }`}
-      style={{
-        left: `${(i * 17) % 100}%`,
-        top: `${(i * 23) % 100}%`,
-        animationDelay: `${i * 0.8}s`,
-      }}
-    />
-  ));
 
   if (!mounted) {
     return (
-      <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 flex items-center justify-center">
-        <div className="text-white">Loading...</div>
+      <div className="sc-loader">
+        <div className="sc-loader__spin" />
       </div>
     );
   }
 
   return (
     <>
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 relative overflow-hidden">
-        {/* Simplified Background Elements for Tablets */}
-        <div className="absolute inset-0 overflow-hidden">
-          {/* Floating particles */}
-          {floatingElements}
+      <ToastContainer position="top-right" autoClose={3000} />
+      <div className="sc-page">
+        <div className="sc-split">
 
-          {/* Reduced gradient orbs */}
-          <div className="absolute -top-20 -right-20 w-48 h-48 rounded-full bg-gradient-to-br from-blue-500/30 to-purple-500/30 animate-pulse-slow blur-2xl"></div>
-          <div
-            className="absolute -bottom-20 -left-20 w-48 h-48 rounded-full bg-gradient-to-br from-cyan-500/30 to-blue-500/30 animate-pulse-slow blur-2xl"
-            style={{ animationDelay: "2s" }}
-          ></div>
-          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-32 h-32 rounded-full bg-gradient-to-br from-indigo-500/20 to-purple-500/20 animate-spin-slow blur-xl"></div>
+          {/* ═══ Left: Orange Carousel Panel ═══ */}
+          <div className="sc-left">
+            <svg className="sc-arcs" viewBox="0 0 600 900" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
+              <circle cx="520" cy="160" r="110" stroke="rgba(255,255,255,0.2)" strokeWidth="1.2" />
+              <circle cx="520" cy="160" r="190" stroke="rgba(255,255,255,0.13)" strokeWidth="1.2" />
+              <circle cx="520" cy="160" r="280" stroke="rgba(255,255,255,0.07)" strokeWidth="1.2" />
+              <circle cx="70" cy="760" r="100" stroke="rgba(255,255,255,0.16)" strokeWidth="1.2" />
+              <circle cx="70" cy="760" r="180" stroke="rgba(255,255,255,0.08)" strokeWidth="1.2" />
+            </svg>
 
-          {/* Simplified grid pattern */}
-          <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'0.03\'%3E%3Ccircle cx=\'30\' cy=\'30\' r=\'1\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] animate-drift"></div>
-        </div>
+            <div className="sc-carousel">
+              {CAROUSEL_IMAGES.map((img, idx) => (
+                <div
+                  key={idx}
+                  className={`sc-carousel__slide ${idx === activeSlide ? "sc-carousel__slide--active" : ""}`}
+                >
+                  <img src={img.src} alt={img.alt} />
+                </div>
+              ))}
+            </div>
 
-        <div className="relative z-10 flex flex-col lg:flex-row items-center justify-center p-4 min-h-screen">
-          {/* Left side - Compact branding for tablets */}
-          <div
-            className={`w-full max-w-lg mx-auto space-y-6 order-1 lg:order-1 ${mounted ? "animate-slide-in-left" : "opacity-0"}`}
-          >
-            <div className="space-y-6">
-              <div className="space-y-4">
-                <div className="flex items-center space-x-3 group">
-                  <div className="relative">
-                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center transform group-hover:rotate-12 transition-all duration-500 shadow-xl">
-                      <Brain className="w-6 h-6 text-white animate-pulse" />
-                      <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-purple-500 rounded-xl blur-lg opacity-50 group-hover:opacity-75 transition-opacity duration-500"></div>
-                    </div>
-                    <Sparkles className="absolute -top-1 -right-1 w-4 h-4 text-yellow-400 animate-sparkle" />
-                  </div>
-                  <div>
-                    <h1 className="text-3xl font-bold bg-gradient-to-r from-white via-blue-100 to-purple-100 bg-clip-text text-transparent animate-gradient">
-                      SmartCliff
-                    </h1>
-                    <p className="text-blue-200 font-medium text-sm">
-                      Enterprise Learning Excellence
-                    </p>
+            <div className="sc-dots">
+              {CAROUSEL_IMAGES.map((_, idx) => (
+                <button
+                  key={idx}
+                  className={`sc-dot ${idx === activeSlide ? "sc-dot--active" : ""}`}
+                  onClick={() => goToSlide(idx)}
+                  aria-label={`Go to slide ${idx + 1}`}
+                />
+              ))}
+            </div>
+          </div>
 
-                    {/* 🌐 External Link */}
-                    <a
-                      href="https://smartcliff.in/"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center text-sm text-blue-300 hover:text-white font-medium mt-1 transition-all"
-                    >
-                      Go to SmartCliff main site
-                      <ExternalLink className="w-4 h-4 ml-2" />
-                    </a>
-                  </div>
+          {/* ═══ Right: Login Form ═══ */}
+          <div className="sc-right">
+            <div className="sc-right__inner">
+
+              {/* Logo */}
+              <div className="sc-logo">
+                <div className="sc-logo__mark">
+                  <GraduationCap size={20} strokeWidth={2.2} />
+                </div>
+                <span className="sc-logo__name">SmartCliff</span>
+              </div>
+
+              {/* Heading */}
+              <h1 className="sc-title">Login</h1>
+              <p className="sc-subtitle">Enter your credentials to login to your account</p>
+
+              {/* Form */}
+              <form onSubmit={handleSubmit} className="sc-form">
+                <div className="sc-field">
+                  <label htmlFor="email">Email</label>
+                  <input
+                    id="email" name="email" type="email" required
+                    value={formData.email} onChange={handleInputChange}
+                    placeholder="example.smartcliff@gmail.com"
+                    className={errors.email ? "has-error" : ""}
+                  />
+                  {errors.email && <span className="sc-err">{errors.email}</span>}
                 </div>
 
-                <div className="space-y-3">
-                  <h2 className="text-xl font-semibold text-white leading-relaxed">
-                    Elevate Your Team's Potential with
-                    <span className="text-transparent bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text">
-                      {" "}AI-Powered Learning
+                <div className="sc-field">
+                  <label htmlFor="password">Password</label>
+                  <div className="sc-pw-wrap">
+                    <input
+                      id="password" name="password"
+                      type={showPassword ? "text" : "password"} required
+                      value={formData.password} onChange={handleInputChange}
+                      placeholder="••••••••••••••"
+                      className={errors.password ? "has-error" : ""}
+                    />
+                    <button type="button" className="sc-pw-toggle"
+                      onClick={() => setShowPassword(!showPassword)}
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                  {errors.password && <span className="sc-err">{errors.password}</span>}
+                </div>
+
+                <div className="sc-meta">
+                  <label className="sc-remember">
+                    <input type="checkbox" />
+                    <span>Remember me</span>
+                  </label>
+                  <a href="/login/forgotPassword" className="sc-forgot">Forgot Password?</a>
+                </div>
+
+                <button type="submit" disabled={loginMutation.isPending} className="sc-submit">
+                  {loginMutation.isPending ? (
+                    <span className="sc-submit__loading">
+                      <span className="sc-spin-icon" />
+                      Signing in...
                     </span>
-                  </h2>
-                  <p className="text-blue-100 text-base leading-relaxed">
-                    Transform your organization with our comprehensive B2B learning platform.
-                  </p>
-                </div>
-              </div>
+                  ) : "Sign In"}
+                </button>
 
-              {/* Compact Stats */}
-              <div className="grid grid-cols-3 gap-3 py-4">
-                {[
-                  { number: "500+", label: "Companies", delay: "0s" },
-                  { number: "50K+", label: "Users", delay: "0.2s" },
-                  { number: "95%", label: "Success", delay: "0.4s" },
-                ].map((stat, index) => (
-                  <div
-                    key={stat.label}
-                    className="text-center p-3 rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 transition-all duration-300 animate-fade-in-up"
-                    style={{ animationDelay: stat.delay }}
-                  >
-                    <div className="text-lg font-bold text-white animate-count-up">
-                      {stat.number}
-                    </div>
-                    <div className="text-blue-200 text-xs">{stat.label}</div>
-                  </div>
-                ))}
-              </div>
+                <button type="button" className="sc-google">
+                  <svg width="17" height="17" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                  </svg>
+                  Sign in with Google
+                </button>
 
-              {/* Compact Trust indicators */}
-              <div className="flex flex-col space-y-2 pt-4">
-                <div className="flex items-center space-x-2">
-                  <CheckCircle className="w-4 h-4 text-green-400" />
-                  <span className="text-blue-100 text-sm">ISO 27001 Certified</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <CheckCircle className="w-4 h-4 text-green-400" />
-                  <span className="text-blue-100 text-sm">GDPR Compliant</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <CheckCircle className="w-4 h-4 text-green-400" />
-                  <span className="text-blue-100 text-sm">24/7 Support</span>
-                </div>
-              </div>
+                <p className="sc-signup-link">
+                  Don&apos;t have an account?{" "}
+                  <a href="#">Sign Up</a>
+                </p>
+              </form>
             </div>
+
+            {/* Footer */}
+            <footer className="sc-footer">
+              <p>&copy; {new Date().getFullYear()} All rights reserved <span>SmartCliff</span></p>
+              <div className="sc-socials">
+                <a href="#" aria-label="Facebook">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                </a>
+                <a href="#" aria-label="YouTube">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+                </a>
+                <a href="#" aria-label="TikTok">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/></svg>
+                </a>
+              </div>
+            </footer>
           </div>
 
-          {/* Right side - Compact Login Form */}
-          <div
-            className={`w-full max-w-sm mx-auto order-2 lg:order-2 ${mounted ? "animate-slide-in-right" : "opacity-0"}`}
-          >
-            <div className="relative">
-              {/* Compact glowing border */}
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-500 via-purple-500 to-cyan-500 rounded-2xl blur-lg opacity-50 animate-pulse-glow"></div>
-
-              <div className="relative bg-white/95 backdrop-blur-xl rounded-2xl shadow-xl border border-white/30 p-6 transform hover:scale-105 transition-all duration-500">
-                <div className="space-y-5">
-                  <div className="text-center space-y-2">
-                    <h2 className="text-2xl font-bold text-gray-800 animate-fade-in">
-                      Welcome Back
-                    </h2>
-                    <p className="text-gray-600 text-sm">
-                      Access your learning dashboard
-                    </p>
-                  </div>
-
-                  <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="space-y-4">
-                      <div className="space-y-2 group">
-                        <label
-                          htmlFor="email"
-                          className="text-xs font-semibold text-gray-700 group-focus-within:text-blue-600 transition-colors"
-                        >
-                          Work Email
-                        </label>
-                        <input
-                          id="email"
-                          name="email"
-                          type="email"
-                          required
-                          value={formData.email}
-                          onChange={handleInputChange}
-                          className="w-full px-3 py-2.5 text-sm border-2 border-gray-200 rounded-lg focus:border-blue-500 transition-all duration-300 bg-white hover:shadow-md"
-                          placeholder="Enter your work email"
-                        />
-                      </div>
-
-                      <div className="space-y-2 group">
-                        <label
-                          htmlFor="password"
-                          className="text-xs font-semibold text-gray-700 group-focus-within:text-blue-600 transition-colors"
-                        >
-                          Password
-                        </label>
-                        <div className="relative">
-                          <input
-                            id="password"
-                            name="password"
-                            type={showPassword ? "text" : "password"}
-                            required
-                            value={formData.password}
-                            onChange={handleInputChange}
-                            className="w-full px-3 py-2.5 pr-10 text-sm border-2 border-gray-200 rounded-lg focus:border-blue-500 transition-all duration-300 bg-white hover:shadow-md"
-                            placeholder="Enter your password"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-blue-600 transition-colors"
-                          >
-                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between text-sm">
-                      <label className="flex items-center space-x-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                        />
-                        <span className="text-gray-600">Remember me</span>
-                      </label>
-                      <a
-                        href="/login/forgotPassword"
-                        className="text-blue-600 hover:text-blue-700 font-semibold hover:underline"
-                      >
-                        Forgot password?
-                      </a>
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={loginMutation.isPending}
-                      className="w-full bg-gradient-to-r from-blue-600 via-purple-600 to-cyan-600 text-white py-3 px-4 text-sm rounded-lg font-semibold hover:from-blue-700 hover:via-purple-700 hover:to-cyan-700 focus:ring-4 focus:ring-blue-500/50 transform hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg group"
-                    >
-                      {loginMutation.isPending ? (
-                        <div className="flex items-center justify-center space-x-2">
-                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                          <span>Accessing...</span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-center space-x-2">
-                          <span>Access Dashboard</span>
-                          <ArrowRight className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" />
-                        </div>
-                      )}
-                    </button>
-                  </form>
-
-                  <div className="relative">
-                    <div className="absolute inset-0 flex items-center">
-                      <div className="w-full border-t border-gray-300"></div>
-                    </div>
-                    <div className="relative flex justify-center text-sm">
-                      <span className="px-3 bg-white text-gray-500">Or continue with</span>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      className="flex items-center justify-center px-3 py-2.5 border-2 border-gray-200 rounded-lg hover:bg-gray-50 transition-all duration-300 transform hover:scale-105 group"
-                    >
-                      <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
-                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                      </svg>
-                      <span className="text-xs font-medium text-gray-700">Google</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="flex items-center justify-center px-3 py-2.5 border-2 border-gray-200 rounded-lg hover:bg-gray-50 transition-all duration-300 transform hover:scale-105 group"
-                    >
-                      <svg className="w-4 h-4 mr-2" fill="#0078d4" viewBox="0 0 24 24">
-                        <path d="M11.4 24H0V12.6h11.4V24zM24 24H12.6V12.6H24V24zM11.4 11.4H0V0h11.4v11.4zM24 11.4H12.6V0H24v11.4z" />
-                      </svg>
-                      <span className="text-xs font-medium text-gray-700">Microsoft</span>
-                    </button>
-                  </div>
-
-                  <p className="text-center text-xs text-gray-600">
-                    Need enterprise access?{" "}
-                    <a href="#" className="text-blue-600 hover:text-blue-700 font-semibold hover:underline">
-                      Contact Sales
-                    </a>
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
-
-        <style jsx>{`
-          @keyframes slide-in-left {
-            from { opacity: 0; transform: translateX(-30px); }
-            to { opacity: 1; transform: translateX(0); }
-          }
-          
-          @keyframes slide-in-right {
-            from { opacity: 0; transform: translateX(30px); }
-            to { opacity: 1; transform: translateX(0); }
-          }
-          
-          @keyframes fade-in-up {
-            from { opacity: 0; transform: translateY(15px); }
-            to { opacity: 1; transform: translateY(0); }
-          }
-          
-          @keyframes pulse-slow {
-            0%, 100% { opacity: 0.3; transform: scale(1); }
-            50% { opacity: 0.6; transform: scale(1.03); }
-          }
-          
-          @keyframes spin-slow {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-          }
-          
-          @keyframes pulse-glow {
-            0%, 100% { opacity: 0.5; transform: scale(1); }
-            50% { opacity: 0.7; transform: scale(1.01); }
-          }
-          
-          @keyframes drift {
-            0% { transform: translateX(0) translateY(0); }
-            33% { transform: translateX(5px) translateY(-5px); }
-            66% { transform: translateX(-5px) translateY(5px); }
-            100% { transform: translateX(0) translateY(0); }
-          }
-          
-          @keyframes sparkle {
-            0%, 100% { opacity: 0; transform: scale(0.5) rotate(0deg); }
-            50% { opacity: 1; transform: scale(1) rotate(180deg); }
-          }
-          
-          @keyframes gradient {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
-          }
-          
-          ${Array.from({ length: 4 }, (_, i) => `
-            @keyframes float-${i + 1} {
-              0%, 100% { transform: translateY(0px) translateX(0px); opacity: 0.3; }
-              33% { transform: translateY(-${8 + i * 3}px) translateX(${4 + i * 2}px); opacity: 0.7; }
-              66% { transform: translateY(${4 + i * 2}px) translateX(-${8 + i * 3}px); opacity: 0.5; }
-            }
-            .animate-float-${i + 1} {
-              animation: float-${i + 1} ${2.5 + i * 0.3}s ease-in-out infinite;
-            }
-          `).join('')}
-          
-          .animate-slide-in-left { animation: slide-in-left 0.6s ease-out; }
-          .animate-slide-in-right { animation: slide-in-right 0.6s ease-out; }
-          .animate-fade-in-up { animation: fade-in-up 0.5s ease-out; }
-          .animate-pulse-slow { animation: pulse-slow 3s ease-in-out infinite; }
-          .animate-spin-slow { animation: spin-slow 15s linear infinite; }
-          .animate-pulse-glow { animation: pulse-glow 2.5s ease-in-out infinite; }
-          .animate-drift { animation: drift 8s ease-in-out infinite; }
-          .animate-sparkle { animation: sparkle 1.8s ease-in-out infinite; }
-          .animate-gradient { background-size: 200% 200%; animation: gradient 2.5s ease infinite; }
-          .animate-count-up { animation: fade-in-up 0.6s ease-out; }
-        `}</style>
       </div>
+
+      <style jsx>{`
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap');
+
+        /* ═══ Reset & Tokens ═══ */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        .sc-page {
+          --orange:       #F27757;
+          --orange-dark:  #e0623f;
+          --orange-glow:  rgba(242,119,87,0.30);
+          --orange-light: rgba(242,119,87,0.08);
+          --text-main:    #1a1a2e;
+          --text-secondary:#6b6b7e;
+          --text-muted:   #8b8b9e;
+          --text-hint:    #bcbccc;
+          --border:       #e4e4ed;
+          --border-hover: #d0d0de;
+          --bg-white:     #ffffff;
+          --danger:       #e53e3e;
+
+          /* ── Fixed, full-screen, NO scroll ── */
+          position: fixed;
+          inset: 0;
+          width: 100vw;
+          height: 100vh;
+          overflow: hidden;
+          font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+          color: var(--text-main);
+          background: var(--bg-white);
+        }
+
+        /* ═══ Full-screen split ═══ */
+        .sc-split {
+          display: flex;
+          width: 100%;
+          height: 100%;
+          overflow: hidden;
+        }
+
+        /* ═══ Left panel ═══ */
+        .sc-left {
+          flex: 0 0 46%;
+          position: relative;
+          overflow: hidden;
+          background: linear-gradient(155deg, #F27757 0%, #ED6445 55%, #E4573A 100%);
+          animation: fadeSlideRight 0.55s ease-out both;
+        }
+
+        .sc-arcs {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          z-index: 1;
+          pointer-events: none;
+        }
+
+        .sc-carousel {
+          position: absolute;
+          bottom: 0;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 72%;
+          max-width: 400px;
+          height: 82%;
+          z-index: 2;
+        }
+
+        .sc-carousel__slide {
+          position: absolute;
+          inset: 0;
+          opacity: 0;
+          transform: scale(1.04);
+          transition: opacity 0.6s ease, transform 0.6s ease;
+          will-change: opacity, transform;
+        }
+
+        .sc-carousel__slide--active {
+          opacity: 1;
+          transform: scale(1);
+        }
+
+        .sc-carousel__slide img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          object-position: top center;
+          display: block;
+          border-radius: 18px 18px 0 0;
+          filter: drop-shadow(0 -6px 20px rgba(0,0,0,0.18));
+        }
+
+        .sc-dots {
+          position: absolute;
+          bottom: 20px;
+          left: 50%;
+          transform: translateX(-50%);
+          display: flex;
+          gap: 9px;
+          z-index: 3;
+        }
+
+        .sc-dot {
+          width: 9px; height: 9px;
+          border-radius: 50%;
+          border: 2px solid rgba(255,255,255,0.7);
+          background: transparent;
+          cursor: pointer;
+          padding: 0;
+          transition: all 0.3s ease;
+        }
+
+        .sc-dot--active {
+          background: #fff;
+          border-color: #fff;
+          transform: scale(1.2);
+          box-shadow: 0 0 8px rgba(255,255,255,0.5);
+        }
+
+        .sc-dot:hover:not(.sc-dot--active) {
+          background: rgba(255,255,255,0.4);
+        }
+
+        /* ═══ Right panel — flex column, FIXED height, NO scroll ═══ */
+        .sc-right {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          height: 100%;
+          overflow: hidden;          /* ← key: kill all overflow */
+          animation: fadeSlideLeft 0.55s ease-out both;
+        }
+
+        /* The inner content area grows to fill space between top and footer */
+        .sc-right__inner {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          overflow: hidden;          /* ← no scroll here either */
+          padding: clamp(16px, 3vh, 32px) clamp(24px, 5vw, 56px);
+          max-width: 460px;
+          width: 100%;
+          margin: 0 auto;
+        }
+
+        /* Logo */
+        .sc-logo {
+          display: flex;
+          align-items: center;
+          gap: 9px;
+          margin-bottom: clamp(14px, 2.4vh, 28px);
+        }
+
+        .sc-logo__mark {
+          width: 38px; height: 38px;
+          background: var(--orange);
+          border-radius: 10px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #fff;
+          flex-shrink: 0;
+          box-shadow: 0 4px 12px var(--orange-glow);
+        }
+
+        .sc-logo__name {
+          font-size: clamp(17px, 2vw, 21px);
+          font-weight: 700;
+          color: var(--text-main);
+          letter-spacing: -0.025em;
+        }
+
+        /* Title */
+        .sc-title {
+          font-size: clamp(22px, 3vw, 30px);
+          font-weight: 700;
+          color: var(--text-main);
+          margin: 0 0 4px;
+          letter-spacing: -0.02em;
+        }
+
+        .sc-subtitle {
+          font-size: clamp(12px, 1.4vw, 14px);
+          color: var(--text-muted);
+          margin: 0 0 clamp(12px, 2vh, 24px);
+          line-height: 1.5;
+        }
+
+        /* Form */
+        .sc-form {
+          display: flex;
+          flex-direction: column;
+          gap: clamp(10px, 1.6vh, 16px);
+        }
+
+        .sc-field {
+          display: flex;
+          flex-direction: column;
+          gap: 5px;
+        }
+
+        .sc-field label {
+          font-size: clamp(12px, 1.2vw, 13.5px);
+          font-weight: 600;
+          color: #2d2d3d;
+        }
+
+        .sc-field input[type="email"],
+        .sc-field input[type="password"],
+        .sc-field input[type="text"] {
+          width: 100%;
+          height: clamp(40px, 5.5vh, 48px);
+          padding: 0 14px;
+          font-size: clamp(13px, 1.3vw, 14px);
+          font-family: inherit;
+          color: var(--text-main);
+          background: var(--bg-white);
+          border: 1.5px solid var(--border);
+          border-radius: 10px;
+          outline: none;
+          transition: border-color 0.2s, box-shadow 0.2s;
+          box-sizing: border-box;
+        }
+
+        .sc-field input::placeholder {
+          color: var(--text-hint);
+          font-weight: 400;
+        }
+
+        .sc-field input:hover  { border-color: var(--border-hover); }
+        .sc-field input:focus  { border-color: var(--orange); box-shadow: 0 0 0 3px var(--orange-light); }
+        .sc-field input.has-error { border-color: var(--danger); background: #fffafa; }
+
+        .sc-err {
+          font-size: 11px;
+          color: var(--danger);
+          font-weight: 500;
+        }
+
+        /* Password */
+        .sc-pw-wrap { position: relative; }
+        .sc-pw-wrap input { padding-right: 44px; }
+
+        .sc-pw-toggle {
+          position: absolute;
+          right: 12px;
+          top: 50%;
+          transform: translateY(-50%);
+          background: none;
+          border: none;
+          color: var(--text-hint);
+          cursor: pointer;
+          padding: 0;
+          display: flex;
+          transition: color 0.15s;
+        }
+
+        .sc-pw-toggle:hover { color: var(--orange); }
+
+        /* Meta */
+        .sc-meta {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+
+        .sc-remember {
+          display: flex;
+          align-items: center;
+          gap: 7px;
+          cursor: pointer;
+          font-size: clamp(12px, 1.2vw, 13.5px);
+          color: var(--text-secondary);
+          user-select: none;
+        }
+
+        .sc-remember input[type="checkbox"] {
+          width: 15px; height: 15px;
+          accent-color: var(--orange);
+          cursor: pointer;
+          margin: 0;
+        }
+
+        .sc-forgot {
+          font-size: clamp(12px, 1.2vw, 13.5px);
+          font-weight: 600;
+          color: var(--orange);
+          text-decoration: none;
+        }
+
+        .sc-forgot:hover { text-decoration: underline; color: var(--orange-dark); }
+
+        /* Submit */
+        .sc-submit {
+          width: 100%;
+          height: clamp(42px, 5.8vh, 50px);
+          background: var(--orange);
+          color: #fff;
+          font-family: inherit;
+          font-size: clamp(14px, 1.4vw, 15.5px);
+          font-weight: 600;
+          border: none;
+          border-radius: 10px;
+          cursor: pointer;
+          transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
+          box-shadow: 0 4px 14px var(--orange-glow);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .sc-submit:hover:not(:disabled) {
+          background: var(--orange-dark);
+          box-shadow: 0 6px 20px rgba(242,119,87,0.4);
+          transform: translateY(-1px);
+        }
+
+        .sc-submit:active:not(:disabled) {
+          transform: translateY(0);
+          box-shadow: 0 2px 8px var(--orange-glow);
+        }
+
+        .sc-submit:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        .sc-submit__loading { display: flex; align-items: center; gap: 9px; }
+
+        .sc-spin-icon {
+          width: 16px; height: 16px;
+          border: 2px solid rgba(255,255,255,0.35);
+          border-top-color: #fff;
+          border-radius: 50%;
+          animation: sc-spin 0.6s linear infinite;
+        }
+
+        /* Google */
+        .sc-google {
+          width: 100%;
+          height: clamp(40px, 5.2vh, 46px);
+          background: var(--bg-white);
+          color: var(--text-secondary);
+          font-family: inherit;
+          font-size: clamp(13px, 1.3vw, 14px);
+          font-weight: 500;
+          border: 1.5px solid var(--border);
+          border-radius: 10px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 9px;
+          transition: border-color 0.2s, background 0.15s, box-shadow 0.2s;
+        }
+
+        .sc-google:hover {
+          border-color: var(--border-hover);
+          background: #fafafa;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        }
+
+        /* Signup */
+        .sc-signup-link {
+          text-align: center;
+          font-size: clamp(12px, 1.2vw, 13.5px);
+          color: var(--text-muted);
+          margin: 0;
+        }
+
+        .sc-signup-link a {
+          color: var(--orange);
+          font-weight: 700;
+          text-decoration: none;
+        }
+
+        .sc-signup-link a:hover { text-decoration: underline; color: var(--orange-dark); }
+
+        /* ═══ Footer — pinned to bottom of right panel ═══ */
+        .sc-footer {
+          flex-shrink: 0;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 12px clamp(24px, 5vw, 56px);
+          border-top: 1px solid #f2f2f6;
+          max-width: 460px;
+          width: 100%;
+          margin: 0 auto;
+          align-self: stretch;
+        }
+
+        /* override the max-width centering for full-width border */
+        .sc-right > .sc-footer {
+          max-width: 100%;
+          padding: 12px clamp(24px, 5vw, 56px);
+        }
+
+        .sc-footer p {
+          font-size: 12px;
+          color: #a0a0b0;
+          margin: 0;
+        }
+
+        .sc-footer p span { color: var(--orange); font-weight: 600; }
+
+        .sc-socials { display: flex; gap: 8px; }
+
+        .sc-socials a {
+          width: 30px; height: 30px;
+          display: flex; align-items: center; justify-content: center;
+          color: #a0a0b0;
+          border: 1px solid #e8e8ee;
+          border-radius: 50%;
+          text-decoration: none;
+          transition: all 0.2s;
+        }
+
+        .sc-socials a:hover {
+          color: var(--orange);
+          border-color: var(--orange);
+          background: var(--orange-light);
+        }
+
+        /* ═══ Loader ═══ */
+        .sc-loader {
+          width: 100vw; height: 100vh;
+          display: flex; align-items: center; justify-content: center;
+          background: #fff;
+        }
+
+        .sc-loader__spin {
+          width: 28px; height: 28px;
+          border: 3px solid #f0f0f5;
+          border-top-color: var(--orange, #F27757);
+          border-radius: 50%;
+          animation: sc-spin 0.7s linear infinite;
+        }
+
+        /* ═══ Keyframes ═══ */
+        @keyframes sc-spin       { to { transform: rotate(360deg); } }
+        @keyframes fadeSlideRight { from { opacity:0; transform:translateX(-24px); } to { opacity:1; transform:translateX(0); } }
+        @keyframes fadeSlideLeft  { from { opacity:0; transform:translateX(24px);  } to { opacity:1; transform:translateX(0); } }
+
+        /* ═══════════════════════════════════
+           RESPONSIVE  (all non-scroll)
+           ═══════════════════════════════════ */
+
+        /* ── Wide desktop tweak ── */
+        @media (min-width: 1400px) {
+          .sc-right__inner { max-width: 500px; }
+          .sc-footer        { max-width: 100%; }
+        }
+
+        /* ── Narrow desktop ── */
+        @media (max-width: 1100px) {
+          .sc-left { flex: 0 0 42%; }
+        }
+
+        /* ── Tablet: vertical stack ──
+           On tablet we allow the PAGE to scroll because
+           there is genuinely not enough vertical space.
+           The split panels become full-width blocks.     */
+        @media (max-width: 900px) {
+          .sc-page {
+            position: relative;      /* allow natural height */
+            height: auto;
+            min-height: 100vh;
+            overflow-y: auto;        /* page-level scroll only on small screens */
+          }
+
+          .sc-split {
+            flex-direction: column;
+            height: auto;
+            overflow: visible;
+          }
+
+          .sc-left {
+            flex: none;
+            width: 100%;
+            height: 280px;
+          }
+
+          .sc-carousel {
+            width: 50%;
+            max-width: 280px;
+            height: 84%;
+          }
+
+          .sc-right {
+            flex: 1;
+            height: auto;
+            overflow: visible;
+          }
+
+          .sc-right__inner {
+            flex: none;
+            justify-content: flex-start;
+            padding: 28px 40px;
+          }
+
+          .sc-footer {
+            padding: 14px 40px;
+          }
+        }
+
+        @media (max-width: 680px) {
+          .sc-left { height: 220px; }
+
+          .sc-carousel {
+            width: 46%;
+            max-width: 220px;
+          }
+
+          .sc-right__inner { padding: 24px 24px; }
+          .sc-footer        { padding: 12px 24px; }
+        }
+
+        @media (max-width: 480px) {
+          .sc-left { height: 190px; }
+
+          .sc-carousel {
+            width: 44%;
+            max-width: 180px;
+          }
+
+          .sc-carousel__slide img { border-radius: 10px 10px 0 0; }
+          .sc-dots  { bottom: 10px; gap: 7px; }
+          .sc-dot   { width: 7px; height: 7px; }
+
+          .sc-right__inner { padding: 20px 18px; }
+          .sc-logo          { margin-bottom: 16px; }
+          .sc-logo__mark    { width: 34px; height: 34px; }
+
+          .sc-footer {
+            flex-direction: column;
+            gap: 8px;
+            text-align: center;
+            padding: 10px 16px;
+          }
+        }
+
+        @media (max-width: 360px) {
+          .sc-left { height: 160px; }
+          .sc-right__inner { padding: 16px 14px; }
+        }
+
+        /* ── Short landscape on desktop (e.g. 768×500) ──
+           Stay fixed/no-scroll, just compress further     */
+        @media (max-height: 640px) and (min-width: 901px) {
+          .sc-right__inner {
+            padding-top: clamp(8px, 1.5vh, 16px);
+            padding-bottom: clamp(8px, 1.5vh, 16px);
+          }
+          .sc-logo          { margin-bottom: clamp(8px, 1.2vh, 14px); }
+          .sc-subtitle      { margin-bottom: clamp(8px, 1.2vh, 14px); }
+          .sc-form          { gap: clamp(7px, 1.1vh, 12px); }
+        }
+      `}</style>
     </>
   );
 };

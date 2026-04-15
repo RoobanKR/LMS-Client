@@ -23,8 +23,20 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body>
         <Providers>
-          <Toaster position="top-right" />
-          <ToastContainer />
+         <Toaster
+    position="top-right"
+    toastOptions={{
+      duration: 3000,
+      style: {
+        fontFamily: "'Plus Jakarta Sans', sans-serif",
+        fontSize: '13px',
+      },
+      
+    }}
+    containerStyle={{
+    zIndex: 99999,
+  }}
+  />
           {children}
         </Providers>
 

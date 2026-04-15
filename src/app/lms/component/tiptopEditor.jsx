@@ -164,9 +164,9 @@ const TipTapToolbar = ({ editor }) => {
     const currentHeadingLevel = getCurrentHeadingLevel();
 
     return (
-        <div className="flex flex-wrap items-center gap-1 p-3 border-b border-slate-200 bg-slate-50 rounded-t-lg">
+        <div className="flex flex-wrap items-center gap-1 p-3 border-b border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-800 rounded-t-lg">
             {/* Font Family */}
-            <div className="flex items-center gap-1 border-r border-slate-300 pr-2">
+            <div className="flex items-center gap-1 border-r border-slate-300 dark:border-gray-600 pr-2">
                 <select
                     value={editor.getAttributes('textStyle').fontFamily || ''}
                     onChange={(e) => {
@@ -177,7 +177,7 @@ const TipTapToolbar = ({ editor }) => {
                             editor.chain().focus().unsetFontFamily().run();
                         }
                     }}
-                    className="px-2 py-1 text-xs border border-slate-300 rounded bg-white text-slate-800 cursor-pointer min-w-[100px]"
+                    className="px-2 py-1 text-xs border border-slate-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-slate-800 dark:text-gray-200 cursor-pointer min-w-[100px]"
                     title="Font Family"
                     style={{ 
                         fontFamily: editor.getAttributes('textStyle').fontFamily || 'inherit'
@@ -196,12 +196,12 @@ const TipTapToolbar = ({ editor }) => {
             </div>
 
             {/* Font Size Controls */}
-            <div className="flex items-center gap-1 border-r border-slate-300 pr-2">
+            <div className="flex items-center gap-1 border-r border-slate-300 dark:border-gray-600 pr-2">
                 {/* Decrease Font Size */}
                 <button
                     type="button"
                     onClick={decreaseFontSize}
-                    className="p-2 rounded hover:bg-white transition-all duration-200 border border-transparent text-slate-600 hover:border-slate-300"
+                    className="p-2 rounded hover:bg-white dark:hover:bg-gray-700 transition-all duration-200 border border-transparent text-slate-600 dark:text-gray-400 hover:border-slate-300 dark:hover:border-gray-600"
                     title="Decrease Font Size"
                 >
                     <Minus className="h-4 w-4" />
@@ -211,7 +211,7 @@ const TipTapToolbar = ({ editor }) => {
                 <select
                     value={getCurrentFontSize()}
                     onChange={(e) => setFontSize(e.target.value)}
-                    className="px-2 py-1 text-xs border border-slate-300 rounded bg-white text-slate-800 cursor-pointer min-w-[80px]"
+                    className="px-2 py-1 text-xs border border-slate-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-slate-800 dark:text-gray-200 cursor-pointer min-w-[80px]"
                     title="Font Size"
                 >
                     {fontSizes.map((size) => (
@@ -225,7 +225,7 @@ const TipTapToolbar = ({ editor }) => {
                 <button
                     type="button"
                     onClick={increaseFontSize}
-                    className="p-2 rounded hover:bg-white transition-all duration-200 border border-transparent text-slate-600 hover:border-slate-300"
+                    className="p-2 rounded hover:bg-white dark:hover:bg-gray-700 transition-all duration-200 border border-transparent text-slate-600 dark:text-gray-400 hover:border-slate-300 dark:hover:border-gray-600"
                     title="Increase Font Size"
                 >
                     <Plus className="h-4 w-4" />
@@ -233,14 +233,14 @@ const TipTapToolbar = ({ editor }) => {
             </div>
 
             {/* Text Formatting */}
-            <div className="flex items-center gap-1 border-r border-slate-300 pr-2">
+            <div className="flex items-center gap-1 border-r border-slate-300 dark:border-gray-600 pr-2">
                 <button
                     type="button"
                     onClick={() => editor.chain().focus().toggleBold().run()}
-                    className={`p-2 rounded hover:bg-white transition-all duration-200 border ${
+                    className={`p-2 rounded hover:bg-white dark:hover:bg-gray-700 transition-all duration-200 border ${
                         editor.isActive('bold') 
-                            ? 'bg-white border-slate-300 text-slate-900 shadow-sm' 
-                            : 'border-transparent text-slate-600 hover:border-slate-300'
+                            ? 'bg-white dark:bg-gray-700 border-slate-300 dark:border-gray-600 text-slate-900 dark:text-white shadow-sm' 
+                            : 'border-transparent text-slate-600 dark:text-gray-400 hover:border-slate-300 dark:hover:border-gray-600'
                     }`}
                     title="Bold (Ctrl+B)"
                 >
@@ -249,10 +249,10 @@ const TipTapToolbar = ({ editor }) => {
                 <button
                     type="button"
                     onClick={() => editor.chain().focus().toggleItalic().run()}
-                    className={`p-2 rounded hover:bg-white transition-all duration-200 border ${
+                    className={`p-2 rounded hover:bg-white dark:hover:bg-gray-700 transition-all duration-200 border ${
                         editor.isActive('italic') 
-                            ? 'bg-white border-slate-300 text-slate-900 shadow-sm' 
-                            : 'border-transparent text-slate-600 hover:border-slate-300'
+                            ? 'bg-white dark:bg-gray-700 border-slate-300 dark:border-gray-600 text-slate-900 dark:text-white shadow-sm' 
+                            : 'border-transparent text-slate-600 dark:text-gray-400 hover:border-slate-300 dark:hover:border-gray-600'
                     }`}
                     title="Italic (Ctrl+I)"
                 >
@@ -261,10 +261,10 @@ const TipTapToolbar = ({ editor }) => {
                 <button
                     type="button"
                     onClick={() => editor.chain().focus().toggleUnderline().run()}
-                    className={`p-2 rounded hover:bg-white transition-all duration-200 border ${
+                    className={`p-2 rounded hover:bg-white dark:hover:bg-gray-700 transition-all duration-200 border ${
                         editor.isActive('underline') 
-                            ? 'bg-white border-slate-300 text-slate-900 shadow-sm' 
-                            : 'border-transparent text-slate-600 hover:border-slate-300'
+                            ? 'bg-white dark:bg-gray-700 border-slate-300 dark:border-gray-600 text-slate-900 dark:text-white shadow-sm' 
+                            : 'border-transparent text-slate-600 dark:text-gray-400 hover:border-slate-300 dark:hover:border-gray-600'
                     }`}
                     title="Underline (Ctrl+U)"
                 >
@@ -273,10 +273,10 @@ const TipTapToolbar = ({ editor }) => {
                 <button
                     type="button"
                     onClick={() => editor.chain().focus().toggleStrike().run()}
-                    className={`p-2 rounded hover:bg-white transition-all duration-200 border ${
+                    className={`p-2 rounded hover:bg-white dark:hover:bg-gray-700 transition-all duration-200 border ${
                         editor.isActive('strike') 
-                            ? 'bg-white border-slate-300 text-slate-900 shadow-sm' 
-                            : 'border-transparent text-slate-600 hover:border-slate-300'
+                            ? 'bg-white dark:bg-gray-700 border-slate-300 dark:border-gray-600 text-slate-900 dark:text-white shadow-sm' 
+                            : 'border-transparent text-slate-600 dark:text-gray-400 hover:border-slate-300 dark:hover:border-gray-600'
                     }`}
                     title="Strikethrough"
                 >
@@ -284,16 +284,15 @@ const TipTapToolbar = ({ editor }) => {
                 </button>
             </div>
 
-           
             {/* Lists */}
-            <div className="flex items-center gap-1 border-r border-slate-300 pr-2">
+            <div className="flex items-center gap-1 border-r border-slate-300 dark:border-gray-600 pr-2">
                 <button
                     type="button"
                     onClick={() => editor.chain().focus().toggleBulletList().run()}
-                    className={`p-2 rounded hover:bg-white transition-all duration-200 border ${
+                    className={`p-2 rounded hover:bg-white dark:hover:bg-gray-700 transition-all duration-200 border ${
                         editor.isActive('bulletList') 
-                            ? 'bg-white border-slate-300 text-slate-900 shadow-sm' 
-                            : 'border-transparent text-slate-600 hover:border-slate-300'
+                            ? 'bg-white dark:bg-gray-700 border-slate-300 dark:border-gray-600 text-slate-900 dark:text-white shadow-sm' 
+                            : 'border-transparent text-slate-600 dark:text-gray-400 hover:border-slate-300 dark:hover:border-gray-600'
                     }`}
                     title="Bullet List"
                 >
@@ -302,10 +301,10 @@ const TipTapToolbar = ({ editor }) => {
                 <button
                     type="button"
                     onClick={() => editor.chain().focus().toggleOrderedList().run()}
-                    className={`p-2 rounded hover:bg-white transition-all duration-200 border ${
+                    className={`p-2 rounded hover:bg-white dark:hover:bg-gray-700 transition-all duration-200 border ${
                         editor.isActive('orderedList') 
-                            ? 'bg-white border-slate-300 text-slate-900 shadow-sm' 
-                            : 'border-transparent text-slate-600 hover:border-slate-300'
+                            ? 'bg-white dark:bg-gray-700 border-slate-300 dark:border-gray-600 text-slate-900 dark:text-white shadow-sm' 
+                            : 'border-transparent text-slate-600 dark:text-gray-400 hover:border-slate-300 dark:hover:border-gray-600'
                     }`}
                     title="Numbered List"
                 >
@@ -314,14 +313,14 @@ const TipTapToolbar = ({ editor }) => {
             </div>
 
             {/* Alignment */}
-            <div className="flex items-center gap-1 border-r border-slate-300 pr-2">
+            <div className="flex items-center gap-1 border-r border-slate-300 dark:border-gray-600 pr-2">
                 <button
                     type="button"
                     onClick={() => editor.chain().focus().setTextAlign('left').run()}
-                    className={`p-2 rounded hover:bg-white transition-all duration-200 border ${
+                    className={`p-2 rounded hover:bg-white dark:hover:bg-gray-700 transition-all duration-200 border ${
                         editor.isActive({ textAlign: 'left' }) 
-                            ? 'bg-white border-slate-300 text-slate-900 shadow-sm' 
-                            : 'border-transparent text-slate-600 hover:border-slate-300'
+                            ? 'bg-white dark:bg-gray-700 border-slate-300 dark:border-gray-600 text-slate-900 dark:text-white shadow-sm' 
+                            : 'border-transparent text-slate-600 dark:text-gray-400 hover:border-slate-300 dark:hover:border-gray-600'
                     }`}
                     title="Align Left"
                 >
@@ -330,10 +329,10 @@ const TipTapToolbar = ({ editor }) => {
                 <button
                     type="button"
                     onClick={() => editor.chain().focus().setTextAlign('center').run()}
-                    className={`p-2 rounded hover:bg-white transition-all duration-200 border ${
+                    className={`p-2 rounded hover:bg-white dark:hover:bg-gray-700 transition-all duration-200 border ${
                         editor.isActive({ textAlign: 'center' }) 
-                            ? 'bg-white border-slate-300 text-slate-900 shadow-sm' 
-                            : 'border-transparent text-slate-600 hover:border-slate-300'
+                            ? 'bg-white dark:bg-gray-700 border-slate-300 dark:border-gray-600 text-slate-900 dark:text-white shadow-sm' 
+                            : 'border-transparent text-slate-600 dark:text-gray-400 hover:border-slate-300 dark:hover:border-gray-600'
                     }`}
                     title="Align Center"
                 >
@@ -342,10 +341,10 @@ const TipTapToolbar = ({ editor }) => {
                 <button
                     type="button"
                     onClick={() => editor.chain().focus().setTextAlign('right').run()}
-                    className={`p-2 rounded hover:bg-white transition-all duration-200 border ${
+                    className={`p-2 rounded hover:bg-white dark:hover:bg-gray-700 transition-all duration-200 border ${
                         editor.isActive({ textAlign: 'right' }) 
-                            ? 'bg-white border-slate-300 text-slate-900 shadow-sm' 
-                            : 'border-transparent text-slate-600 hover:border-slate-300'
+                            ? 'bg-white dark:bg-gray-700 border-slate-300 dark:border-gray-600 text-slate-900 dark:text-white shadow-sm' 
+                            : 'border-transparent text-slate-600 dark:text-gray-400 hover:border-slate-300 dark:hover:border-gray-600'
                     }`}
                     title="Align Right"
                 >
@@ -354,20 +353,20 @@ const TipTapToolbar = ({ editor }) => {
             </div>
 
             {/* Text Color */}
-            <div className="flex items-center gap-1 border-r border-slate-300 pr-2">
+            <div className="flex items-center gap-1 border-r border-slate-300 dark:border-gray-600 pr-2">
                 <input
                     type="color"
                     onInput={(event) => editor.chain().focus().setColor(event.currentTarget.value).run()}
                     value={editor.getAttributes('textStyle').color || '#000000'}
                     title="Text Color"
-                    className="w-8 h-8 p-1 rounded hover:bg-white transition-all duration-200 border border-transparent hover:border-slate-300 cursor-pointer"
+                    className="w-8 h-8 p-1 rounded hover:bg-white dark:hover:bg-gray-700 transition-all duration-200 border border-transparent hover:border-slate-300 dark:hover:border-gray-600 cursor-pointer bg-transparent"
                     style={{ padding: '2px' }}
                 />
             </div>
 
             {/* Image Upload */}
-            <div className="flex items-center gap-1 border-r border-slate-300 pr-2">
-                <label className="p-2 rounded hover:bg-white transition-all duration-200 border border-transparent text-slate-600 hover:border-slate-300 cursor-pointer" title="Insert Image">
+            <div className="flex items-center gap-1 border-r border-slate-300 dark:border-gray-600 pr-2">
+                <label className="p-2 rounded hover:bg-white dark:hover:bg-gray-700 transition-all duration-200 border border-transparent text-slate-600 dark:text-gray-400 hover:border-slate-300 dark:hover:border-gray-600 cursor-pointer" title="Insert Image">
                     <ImageIcon className="h-4 w-4" />
                     <input
                         type="file"
@@ -378,14 +377,13 @@ const TipTapToolbar = ({ editor }) => {
                 </label>
             </div>
 
-           
             {/* History */}
-            <div className="flex items-center gap-1 border-r border-slate-300 pr-2">
+            <div className="flex items-center gap-1 pr-2">
                 <button
                     type="button"
                     onClick={() => editor.chain().focus().undo().run()}
                     disabled={!editor.can().undo()}
-                    className="p-2 rounded hover:bg-white transition-all duration-200 border border-transparent text-slate-600 hover:border-slate-300 disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="p-2 rounded hover:bg-white dark:hover:bg-gray-700 transition-all duration-200 border border-transparent text-slate-600 dark:text-gray-400 hover:border-slate-300 dark:hover:border-gray-600 disabled:opacity-40 disabled:cursor-not-allowed"
                     title="Undo (Ctrl+Z)"
                 >
                     <Undo className="h-4 w-4" />
@@ -394,14 +392,12 @@ const TipTapToolbar = ({ editor }) => {
                     type="button"
                     onClick={() => editor.chain().focus().redo().run()}
                     disabled={!editor.can().redo()}
-                    className="p-2 rounded hover:bg-white transition-all duration-200 border border-transparent text-slate-600 hover:border-slate-300 disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="p-2 rounded hover:bg-white dark:hover:bg-gray-700 transition-all duration-200 border border-transparent text-slate-600 dark:text-gray-400 hover:border-slate-300 dark:hover:border-gray-600 disabled:opacity-40 disabled:cursor-not-allowed"
                     title="Redo (Ctrl+Y)"
                 >
                     <Redo className="h-4 w-4" />
                 </button>
             </div>
-
-         
         </div>
     );
 };
@@ -456,10 +452,10 @@ const TipTapEditor = ({
             FontFamily.configure({
                 types: ['textStyle'],
             }),
-            FontSize, // Add the custom FontSize extension
+            FontSize,
             Image.configure({
                 HTMLAttributes: {
-                    class: 'rich-text-image',
+                    class: 'rich-text-image dark:border-gray-700',
                 },
                 allowBase64: true,
             }),
@@ -474,12 +470,12 @@ const TipTapEditor = ({
         },
         editorProps: {
             attributes: {
-                class: 'prose prose-sm max-w-none focus:outline-none p-4 text-slate-700 leading-relaxed min-h-full',
+                class: 'prose prose-sm max-w-none focus:outline-none p-4 text-slate-700 dark:text-gray-300 leading-relaxed min-h-full dark:prose-invert',
                 style: `
-                    h1 { font-size: 1.875rem; font-weight: 700; margin: 0.5rem 0; line-height: 1.2; }
-                    h2 { font-size: 1.5rem; font-weight: 600; margin: 0.5rem 0; line-height: 1.3; }
-                    h3 { font-size: 1.25rem; font-weight: 600; margin: 0.5rem 0; line-height: 1.4; }
-                    p { margin: 0.5rem 0; line-height: 1.6; font-size: 1rem; }
+                    h1 { font-size: 1.875rem; font-weight: 700; margin: 0.5rem 0; line-height: 1.2; color: inherit; }
+                    h2 { font-size: 1.5rem; font-weight: 600; margin: 0.5rem 0; line-height: 1.3; color: inherit; }
+                    h3 { font-size: 1.25rem; font-weight: 600; margin: 0.5rem 0; line-height: 1.4; color: inherit; }
+                    p { margin: 0.5rem 0; line-height: 1.6; font-size: 1rem; color: inherit; }
                     
                     /* Enhanced list styles */
                     .custom-bullet-list { 
@@ -499,9 +495,15 @@ const TipTapEditor = ({
                     .custom-bullet-list .custom-list-item::marker {
                         color: #4f46e5;
                     }
+                    .dark .custom-bullet-list .custom-list-item::marker {
+                        color: #818cf8;
+                    }
                     .custom-ordered-list .custom-list-item::marker {
                         color: #059669;
                         font-weight: 600;
+                    }
+                    .dark .custom-ordered-list .custom-list-item::marker {
+                        color: #34d399;
                     }
                     
                     .rich-text-image { max-width: 100%; height: auto; margin: 0.5rem 0; border-radius: 0.375rem; }
@@ -585,21 +587,21 @@ const TipTapEditor = ({
 
     if (!isMounted) {
         return (
-            <div className="border border-slate-300 rounded-lg overflow-hidden bg-white font-sans shadow-sm">
+            <div className="border border-slate-300 dark:border-gray-700 rounded-lg overflow-hidden bg-white dark:bg-gray-800 font-sans shadow-sm">
                 {showToolbar && (
-                    <div className="flex flex-wrap items-center gap-1 p-3 border-b border-slate-200 bg-slate-50 rounded-t-lg">
+                    <div className="flex flex-wrap items-center gap-1 p-3 border-b border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-800 rounded-t-lg">
                         <div className="animate-pulse flex gap-1">
                             {[...Array(12)].map((_, i) => (
-                                <div key={i} className="w-8 h-8 bg-slate-200 rounded-lg"></div>
+                                <div key={i} className="w-8 h-8 bg-slate-200 dark:bg-gray-700 rounded-lg"></div>
                             ))}
                         </div>
                     </div>
                 )}
-                <div style={{ minHeight, maxHeight }} className="p-4 bg-white">
+                <div style={{ minHeight, maxHeight }} className="p-4 bg-white dark:bg-gray-800">
                     <div className="animate-pulse">
-                        <div className="h-4 bg-slate-200 rounded mb-2"></div>
-                        <div className="h-4 bg-slate-200 rounded mb-2"></div>
-                        <div className="h-4 bg-slate-200 rounded w-3/4"></div>
+                        <div className="h-4 bg-slate-200 dark:bg-gray-700 rounded mb-2"></div>
+                        <div className="h-4 bg-slate-200 dark:bg-gray-700 rounded mb-2"></div>
+                        <div className="h-4 bg-slate-200 dark:bg-gray-700 rounded w-3/4"></div>
                     </div>
                 </div>
             </div>
@@ -607,11 +609,11 @@ const TipTapEditor = ({
     }
 
     return (
-        <div className="border border-slate-300 rounded-lg overflow-hidden bg-white font-sans shadow-sm hover:shadow-md transition-shadow duration-200">
+        <div className="border border-slate-300 dark:border-gray-700 rounded-lg overflow-hidden bg-white dark:bg-gray-800 font-sans shadow-sm hover:shadow-md transition-shadow duration-200">
             {showToolbar && editable && <TipTapToolbar editor={editor} />}
             <div 
                 style={{ minHeight, maxHeight }} 
-                className="overflow-y-auto bg-white custom-tiptap-styles"
+                className="overflow-y-auto bg-white dark:bg-gray-800 custom-tiptap-styles"
             >
                 <EditorContent editor={editor} />
             </div>

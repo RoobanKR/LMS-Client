@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import {
   X,
   Play,
@@ -14,14 +14,15 @@ import {
   Sparkles,
   RotateCcw,
   RotateCw,
-  ListVideo,
   Menu,
   MessageCircle,
+  Settings2,
+  ChevronDown,
 } from "lucide-react"
-import AIPanel from "./ai-panel"
 import NotesPanel from "./notes-panel"
 import SummaryChat from "./summary-chat"
 import AIChat from "./ai-chat"
+import MCQDisplayOverlay from "./MCQDisplayOverlay"
 
 interface VideoPlayerProps {
   isOpen: boolean
@@ -42,8 +43,21 @@ interface VideoPlayerProps {
   showNotesPanel?: boolean
   onNotesStateChange?: (isOpen: boolean) => void
 
+  // Props for resolution handling
+  availableResolutions?: string[]
+  fileUrlMap?: Record<string, string>
+  onResolutionChange?: (resolution: string, url: string) => void
 
-  // ADD THESE:
+  // AI feature flags from resourcesType
+  aiChatEnabled?: boolean
+  aiSummaryEnabled?: boolean
+  
+  // Notes feature flag from resourcesType
+  notesEnabled?: boolean
+
+  // MCQ props
+  mcqQuestions?: any[]
+
   hierarchy?: string[]
   currentItemTitle?: string
 }
@@ -64,12 +78,9 @@ const getYouTubeEmbedUrl = (url: string): string => {
   const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
   const match = url.match(regExp);
   const videoId = (match && match[7].length === 11) ? match[7] : null;
-
   if (videoId) {
     return `https://www.youtube.com/embed/${videoId}?autoplay=1`;
   }
-
-  // If not a standard YouTube URL, try to use as is
   return url;
 };
 
@@ -78,12 +89,31 @@ const getVimeoEmbedUrl = (url: string): string => {
   const regExp = /(?:vimeo\.com\/)(?:channels\/|groups\/[^\/]*\/videos\/|album\/\d+\/video\/|)(\d+)(?:$|\/|\?)/;
   const match = url.match(regExp);
   const videoId = match ? match[1] : null;
-
   if (videoId) {
     return `https://player.vimeo.com/video/${videoId}?autoplay=1`;
   }
-
   return url;
+};
+
+// Resolution priority order (highest quality first)
+const RESOLUTION_PRIORITY: Record<string, number> = {
+  '1080p': 5,
+  '720p': 4,
+  '480p': 3,
+  '360p': 2,
+  '240p': 1,
+  'base': 0,
+};
+
+// Format resolution for display
+const formatResolution = (res: string): string => {
+  if (res === 'base') return 'Auto';
+  if (res === '1080p') return '1080p';
+  if (res === '720p') return '720p';
+  if (res === '480p') return '480p';
+  if (res === '360p') return '360p';
+  if (res === '240p') return '240p';
+  return res;
 };
 
 export default function VideoPlayer({
@@ -99,7 +129,13 @@ export default function VideoPlayer({
   onNotesClick,
   showNotesPanel = false,
   onNotesStateChange,
-
+  availableResolutions = [],
+  fileUrlMap = {},
+  onResolutionChange,
+  aiChatEnabled = false,
+  aiSummaryEnabled = false,
+  notesEnabled = false,
+  mcqQuestions: mcqQuestionsProp = [],
   hierarchy = [],
   currentItemTitle = "",
 }: VideoPlayerProps) {
@@ -113,23 +149,213 @@ export default function VideoPlayer({
   const [showControls, setShowControls] = useState(true)
   const [isStreaming, setIsStreaming] = useState(false)
   const [embedUrl, setEmbedUrl] = useState("")
+  
+  // Resolution state
+  const [currentResolution, setCurrentResolution] = useState<string>("base")
+  const [currentVideoSource, setCurrentVideoSource] = useState(videoUrl)
+  const [showResolutionMenu, setShowResolutionMenu] = useState(false)
 
-
-  // Add these state variables to video-player.tsx
+  // Panel states
   const [showAISubmenu, setShowAISubmenu] = useState(false)
   const [summaryOpen, setSummaryOpen] = useState(false)
-  // Split screen states like PDF/PPT viewers
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [notesOpen, setNotesOpen] = useState(false)
   const [aiOpen, setAiOpen] = useState(false)
   const [splitPosition, setSplitPosition] = useState(60)
   const isResizingRef = useRef(false)
 
+  // Determine which AI features are enabled
+  const showAIButton = aiChatEnabled || aiSummaryEnabled
+  const showAIChatOption = aiChatEnabled
+  const showAISummaryOption = aiSummaryEnabled
+  const showNotesButton = notesEnabled
+
+  // Debug: Log feature flags
+  useEffect(() => {
+    console.log("VideoPlayer - Feature Flags:", {
+      aiChatEnabled,
+      aiSummaryEnabled,
+      notesEnabled,
+      showAIButton,
+      showAIChatOption,
+      showAISummaryOption,
+      showNotesButton
+    });
+  }, [aiChatEnabled, aiSummaryEnabled, notesEnabled]);
+
+  // Debug: Log available resolutions
+  useEffect(() => {
+    console.log("VideoPlayer - availableResolutions:", availableResolutions);
+    console.log("VideoPlayer - fileUrlMap keys:", Object.keys(fileUrlMap));
+    console.log("VideoPlayer - videoUrl:", videoUrl);
+  }, [availableResolutions, fileUrlMap, videoUrl]);
+
+  // Sort resolutions by quality (highest first)
+  const sortedResolutions = useMemo(() => {
+    // First check if we have resolutions from availableResolutions prop
+    let resolutions = [...availableResolutions];
+    
+    // If no resolutions in availableResolutions but fileUrlMap has keys, use those
+    if (resolutions.length === 0 && Object.keys(fileUrlMap).length > 0) {
+      resolutions = Object.keys(fileUrlMap);
+      console.log("Using fileUrlMap keys as resolutions:", resolutions);
+    }
+    
+    // Filter out any resolutions that don't have URLs
+    resolutions = resolutions.filter(res => {
+      if (res === 'base') return true;
+      return fileUrlMap[res] !== undefined;
+    });
+    
+    // Sort by priority
+    return resolutions.sort((a, b) => 
+      (RESOLUTION_PRIORITY[b] || 0) - (RESOLUTION_PRIORITY[a] || 0)
+    );
+  }, [availableResolutions, fileUrlMap]);
+
+  // ─── MCQ State ──────────────────────────────────────────────────────────────
+  const normalizeOptions = (options: any[]): any[] => {
+    if (!options) return [];
+    return options.map(opt => {
+      if (opt.text !== undefined) return opt;
+      const chars = Object.entries(opt)
+        .filter(([k]) => !isNaN(Number(k)))
+        .sort(([a], [b]) => Number(a) - Number(b))
+        .map(([, v]) => v)
+        .join('');
+      return { ...opt, text: chars };
+    });
+  };
+
+  const [mcqQuestions] = useState<any[]>(() => {
+    const normalized = (mcqQuestionsProp || []).map(q => ({
+      ...q,
+      mcqQuestion: q.mcqQuestion
+        ? { ...q.mcqQuestion, options: normalizeOptions(q.mcqQuestion.options || []) }
+        : q.mcqQuestion
+    }));
+    return normalized;
+  });
+
+  const [activeMcqGroup, setActiveMcqGroup] = useState<{ timestamp: number; questions: any[] } | null>(null)
+  const triggeredTimestamps = useRef<Set<number>>(new Set())
+
   const videoRef = useRef<HTMLVideoElement>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const playerRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const controlsTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
+
+  // ─── Resolution Change Handler ─────────────────────────────────────────────
+  const handleResolutionChange = (resolution: string) => {
+    console.log(`Changing resolution to: ${resolution}`);
+    
+    let newUrl: string | undefined;
+    
+    if (resolution === 'base') {
+      // Use the original video URL for base resolution
+      newUrl = videoUrl;
+    } else {
+      // Get the URL from fileUrlMap for the selected resolution
+      newUrl = fileUrlMap[resolution];
+    }
+    
+    if (!newUrl) {
+      console.error(`No URL found for resolution: ${resolution}`);
+      // Try to use videoUrl as fallback
+      newUrl = videoUrl;
+    }
+    
+    const wasPlaying = isPlaying;
+    const currentTimeToSave = videoRef.current?.currentTime || 0;
+    
+    setCurrentResolution(resolution);
+    setCurrentVideoSource(newUrl);
+    setShowResolutionMenu(false);
+    
+    if (onResolutionChange) {
+      onResolutionChange(resolution, newUrl);
+    }
+    
+    // Restore playback position and state
+    setTimeout(() => {
+      if (videoRef.current) {
+        videoRef.current.currentTime = currentTimeToSave;
+        if (wasPlaying) {
+          videoRef.current.play().catch(err => console.log("Playback error:", err));
+        }
+      }
+    }, 100);
+  };
+
+  // ─── Find ALL MCQ questions at a matching timestamp ────────────────────────
+  const getMcqAtTime = useCallback((time: number) => {
+    if (!mcqQuestions.length) return null;
+
+    for (const q of mcqQuestions) {
+      if (!q.isActive) continue;
+      const ts = q.videoTimestamp ?? q.timestamp;
+      if (ts === undefined || ts === null) continue;
+
+      if (Math.abs(time - ts) < 0.1 && !triggeredTimestamps.current.has(ts)) {
+        const groupQuestions = mcqQuestions.filter(mq => {
+          if (!mq.isActive) return false;
+          const mqTs = mq.videoTimestamp ?? mq.timestamp;
+          return Math.abs(mqTs - ts) < 0.05;
+        });
+
+        return { timestamp: ts, questions: groupQuestions };
+      }
+    }
+    return null;
+  }, [mcqQuestions]);
+
+  // ─── MCQ-aware time update handler ─────────────────────────────────────────
+  const handleTimeUpdate = () => {
+    if (isStreaming || !videoRef.current) return;
+    const time = videoRef.current.currentTime;
+    setCurrentTime(time);
+
+    if (activeMcqGroup) return;
+
+    const match = getMcqAtTime(time);
+    if (match) {
+      videoRef.current.pause();
+      setIsPlaying(false);
+      setActiveMcqGroup(match);
+    }
+  };
+
+  // ─── Resume after MCQ completion ───────────────────────────────────────────
+  const handleMcqResume = () => {
+    if (!activeMcqGroup || !videoRef.current) return;
+    triggeredTimestamps.current.add(activeMcqGroup.timestamp);
+    setActiveMcqGroup(null);
+    videoRef.current.currentTime = activeMcqGroup.timestamp + 0.6;
+    videoRef.current.play();
+    setIsPlaying(true);
+  };
+
+  // ─── Dismiss/skip MCQ ──────────────────────────────────────────────────────
+  const handleMcqDismiss = () => {
+    if (!activeMcqGroup || !videoRef.current) return;
+    triggeredTimestamps.current.add(activeMcqGroup.timestamp);
+    setActiveMcqGroup(null);
+    videoRef.current.currentTime = activeMcqGroup.timestamp + 0.6;
+    videoRef.current.play();
+    setIsPlaying(true);
+  };
+
+  // ─── Reset triggered timestamps on seek backward ───────────────────────────
+  const handleSeeked = () => {
+    if (!videoRef.current) return;
+    const seekTime = videoRef.current.currentTime;
+    const toRemove: number[] = [];
+    triggeredTimestamps.current.forEach(ts => {
+      if (ts >= seekTime - 0.1) toRemove.push(ts);
+    });
+    toRemove.forEach(ts => triggeredTimestamps.current.delete(ts));
+  };
 
   // Sync with parent state when showNotesPanel prop changes
   useEffect(() => {
@@ -152,11 +378,17 @@ export default function VideoPlayer({
     }
   }, [videoUrl])
 
+  // Update video source when props change
+  useEffect(() => {
+    setCurrentVideoSource(videoUrl);
+    setCurrentResolution('base');
+    setShowResolutionMenu(false);
+  }, [videoUrl]);
+
   // Resize handlers for split screen
   const handleResizeStart = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-
     isResizingRef.current = true;
     document.addEventListener('mousemove', handleResize);
     document.addEventListener('mouseup', handleResizeEnd);
@@ -166,11 +398,8 @@ export default function VideoPlayer({
 
   const handleResize = (e: MouseEvent) => {
     if (!isResizingRef.current || !containerRef.current) return;
-
     const containerRect = containerRef.current.getBoundingClientRect();
     const newPosition = ((e.clientX - containerRect.left) / containerRect.width) * 100;
-
-    // Apply constraints
     const clampedPosition = Math.max(30, Math.min(70, newPosition));
     setSplitPosition(clampedPosition);
   };
@@ -183,74 +412,45 @@ export default function VideoPlayer({
     document.body.style.userSelect = '';
   };
 
-  // Quick split position presets
   const handleSplitPreset = (position: number) => {
     setSplitPosition(position);
   };
 
-
-// Update handleNotesClick to only notify parent:
-const handleNotesClick = () => {
-  const newNotesOpenState = !notesOpen;
-  
-  // Clean up other states locally
-  setAiOpen(false);
-  setSidebarOpen(false);
-  setSummaryOpen(false);
-  setShowAISubmenu(false);
-
-  // Let parent handle the notes state
-  onNotesClick?.();
-  onNotesStateChange?.(newNotesOpenState);
-}
-
-// Update handleNotesPanelClose:
-const handleNotesPanelClose = () => {
-  // Only notify parent, don't set local state
-  onNotesStateChange?.(false);
-};
-
-// Update handleClose to properly clean up:
-const handleClose = () => {
-  // Clean up all local states
-  setSidebarOpen(false);
-  setAiOpen(false);
-  setSummaryOpen(false);
-  setShowAISubmenu(false);
-  
-  // Notify parent that notes should be closed
-  onNotesStateChange?.(false);
-  
-  // Call the original onClose
-  onClose();
-};
-
-
-  const handleAIClick = () => {
-    setAiOpen(!aiOpen)
-    setNotesOpen(false)
-    setSidebarOpen(false)
-    onNotesStateChange?.(false)
+  const handleNotesClick = () => {
+    const newNotesOpenState = !notesOpen;
+    setAiOpen(false);
+    setSidebarOpen(false);
+    setSummaryOpen(false);
+    setShowAISubmenu(false);
+    onNotesClick?.();
+    onNotesStateChange?.(newNotesOpenState);
   }
 
+  const handleNotesPanelClose = () => {
+    onNotesStateChange?.(false);
+  };
 
+  const handleClose = () => {
+    setSidebarOpen(false);
+    setAiOpen(false);
+    setSummaryOpen(false);
+    setShowAISubmenu(false);
+    onNotesStateChange?.(false);
+    onClose();
+  };
 
-  // Format time helper
   const formatTime = (seconds: number) => {
     const hrs = Math.floor(seconds / 3600)
     const mins = Math.floor((seconds % 3600) / 60)
     const secs = Math.floor(seconds % 60)
-
     if (hrs > 0) {
       return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
     }
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 
-  // Video event handlers - only for direct video files
   const handlePlayPause = () => {
-    if (isStreaming) return; // Cannot control streaming videos
-
+    if (isStreaming) return;
     if (videoRef.current) {
       if (isPlaying) {
         videoRef.current.pause()
@@ -262,8 +462,7 @@ const handleClose = () => {
   }
 
   const handleSeek = (time: number) => {
-    if (isStreaming) return; // Cannot control streaming videos
-
+    if (isStreaming) return;
     if (videoRef.current) {
       videoRef.current.currentTime = time
       setCurrentTime(time)
@@ -271,8 +470,7 @@ const handleClose = () => {
   }
 
   const handleVolumeChange = (value: number) => {
-    if (isStreaming) return; // Cannot control streaming videos
-
+    if (isStreaming) return;
     if (videoRef.current) {
       videoRef.current.volume = value
       setVolume(value)
@@ -281,8 +479,7 @@ const handleClose = () => {
   }
 
   const handleToggleMute = () => {
-    if (isStreaming) return; // Cannot control streaming videos
-
+    if (isStreaming) return;
     if (videoRef.current) {
       videoRef.current.muted = !isMuted
       setIsMuted(!isMuted)
@@ -290,8 +487,7 @@ const handleClose = () => {
   }
 
   const handlePlaybackRateChange = (rate: number) => {
-    if (isStreaming) return; // Cannot control streaming videos
-
+    if (isStreaming) return;
     if (videoRef.current) {
       videoRef.current.playbackRate = rate
       setPlaybackRate(rate)
@@ -300,7 +496,6 @@ const handleClose = () => {
 
   const handleFullscreen = async () => {
     if (!playerRef.current) return
-
     try {
       if (!isFullscreen) {
         await playerRef.current.requestFullscreen()
@@ -313,40 +508,27 @@ const handleClose = () => {
     }
   }
 
-  const handleTimeUpdate = () => {
-    if (isStreaming) return; // Cannot get time updates from streaming
-
-    if (videoRef.current) {
-      setCurrentTime(videoRef.current.currentTime)
-    }
-  }
-
   const handleLoadedMetadata = () => {
-    if (isStreaming) return; // Cannot get metadata from streaming
-
+    if (isStreaming) return;
     if (videoRef.current) {
       setDuration(videoRef.current.duration)
     }
   }
 
   const handleEnded = () => {
-    if (isStreaming) return; // Cannot detect end from streaming
-
+    if (isStreaming) return;
     setIsPlaying(false)
     if (hasNext) {
       onNext()
     }
   }
 
-
-  // Add these handlers after other handler functions
   const handleAISubmenuClick = (type: 'summary' | 'chat') => {
     if (type === 'summary') {
       setSummaryOpen(true)
       setAiOpen(false)
     } else {
       setAiOpen(true)
-      // setSummaryOpen(false)
     }
     setShowAISubmenu(false)
     setNotesOpen(false)
@@ -361,7 +543,6 @@ const handleClose = () => {
     setSummaryOpen(false);
   }
 
-  // Update menu handler to close all panels
   const handleMenuClick = () => {
     setSidebarOpen(prev => !prev);
     setNotesOpen(false);
@@ -371,7 +552,6 @@ const handleClose = () => {
     onNotesStateChange?.(false);
   };
 
-  // Controls visibility
   const showControlsTemporarily = () => {
     setShowControls(true)
     if (controlsTimeoutRef.current) {
@@ -386,6 +566,7 @@ const handleClose = () => {
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
       if (!isOpen) return
+      if (activeMcqGroup) return
 
       switch (e.key) {
         case ' ':
@@ -435,27 +616,26 @@ const handleClose = () => {
 
     document.addEventListener('keydown', handleKeyPress)
     return () => document.removeEventListener('keydown', handleKeyPress)
-  }, [isOpen, isPlaying, currentTime, duration, sidebarOpen, notesOpen, aiOpen, isFullscreen, isStreaming])
+  }, [isOpen, isPlaying, currentTime, duration, sidebarOpen, notesOpen, aiOpen, isFullscreen, isStreaming, activeMcqGroup])
 
-  // Fullscreen change listener
   useEffect(() => {
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement)
     }
-
     document.addEventListener('fullscreenchange', handleFullscreenChange)
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
   }, [])
 
-  // Reset when video changes
+  // Reset panels and MCQ state when video changes
   useEffect(() => {
     setSidebarOpen(false)
     setNotesOpen(false)
     setAiOpen(false)
+    setActiveMcqGroup(null)
+    triggeredTimestamps.current = new Set()
     onNotesStateChange?.(false);
   }, [videoUrl])
 
-  // Cleanup event listeners on unmount
   useEffect(() => {
     return () => {
       document.removeEventListener('mousemove', handleResize);
@@ -469,130 +649,121 @@ const handleClose = () => {
   if (!isOpen) return null
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0
+  const showResolutionSelector = sortedResolutions.length > 0 && !isStreaming
 
   return (
     <div
       ref={containerRef}
       className="fixed inset-0 z-50 bg-gray-900 flex flex-col"
     >
-  {/* Top Navigation Bar - Same as PDF/PPT viewers */}
-<div
-  className="w-full flex items-center justify-between bg-white/95 backdrop-blur-lg shadow-sm border-b border-gray-200/80 px-4 py-3"
-  style={{ height: '60px', zIndex: 60 }}
->
-  {/* Left section with Back button and Title */}
-  <div className="flex items-center gap-3 truncate">
-    {/* Back/Close Button - Left arrow icon */}
-    <button
-      onClick={handleClose}
-      className="flex items-center justify-center w-8 h-8 rounded-lg bg-white border border-gray-300 shadow-sm hover:bg-gray-50 hover:text-gray-700 transition-all cursor-pointer flex-shrink-0"
-      title="Back"
-    >
-      {/* Left arrow icon */}
-      <svg 
-        className="w-4 h-4" 
-        fill="none" 
-        stroke="currentColor" 
-        viewBox="0 0 24 24" 
-        xmlns="http://www.w3.org/2000/svg"
+      {/* Top Navigation Bar */}
+      <div
+        className="w-full flex items-center justify-between bg-white/95 backdrop-blur-lg shadow-sm border-b border-gray-200/80 px-4 py-3"
+        style={{ height: '60px', zIndex: 60 }}
       >
-        <path 
-          strokeLinecap="round" 
-          strokeLinejoin="round" 
-          strokeWidth={2} 
-          d="M15 19l-7-7 7-7" 
-        />
-      </svg>
-    </button>
-
-    {/* Title with document icon */}
-    <div className="flex items-center gap-2 text-gray-800 font-semibold truncate">
-      <FileText className="w-4 h-4 text-blue-500 flex-shrink-0" />
-      <span className="text-sm truncate">{title}</span>
-    </div>
-  </div>
-
-  {/* Right section with action buttons */}
-  <div className="flex items-center gap-2">
-    {/* Notes Button */}
-    <button
-      onClick={handleNotesClick}
-      className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg font-medium transition-all duration-300 cursor-pointer whitespace-nowrap border
-        ${notesOpen
-          ? 'bg-blue-500 text-white shadow-md border-blue-600'
-          : 'bg-white text-gray-700 hover:bg-blue-50 hover:text-blue-700 border-gray-300 shadow-sm'
-        }`}
-    >
-      <FileText className="w-4 h-4 sm:w-5 sm:h-5" />
-      <span className="text-xs sm:text-sm truncate">Notes</span>
-    </button>
-
-    {/* AI Assistant with Submenu - LIKE PDF VIEWER */}
-    <div
-      className="relative"
-      onMouseEnter={() => setShowAISubmenu(true)}
-      onMouseLeave={() => setShowAISubmenu(false)}
-    >
-      <button
-        className={`h-10 px-3 rounded-lg transition-all duration-200 flex items-center gap-2 relative border
-          ${(aiOpen || summaryOpen)
-            ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-md border-purple-600'
-            : 'bg-white text-gray-700 hover:bg-purple-50 hover:text-purple-700 border-gray-300 shadow-sm hover:border-purple-300'
-          }`}
-        title="AI Assistant"
-      >
-        <Sparkles className="w-4 h-4" />
-        <span className="text-sm font-medium">
-          AI
-        </span>
-        <span className="absolute -top-1 -right-1 min-w-[18px] h-4 px-1 rounded-full flex items-center justify-center text-[9px] font-bold bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-sm border-2 border-white">
-          New
-        </span>
-      </button>
-
-      {/* AI Submenu - Centered below AI button */}
-      {showAISubmenu && (
-        <div
-          className="absolute top-full left-1/2 transform -translate-x-1/2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50"
-          onMouseEnter={() => setShowAISubmenu(true)}
-          onMouseLeave={() => setShowAISubmenu(false)}
-        >
+        {/* Left section */}
+        <div className="flex items-center gap-3 truncate">
           <button
-            onClick={() => handleAISubmenuClick('summary')}
-            className="w-full justify-start h-9 px-3 rounded-none transition-all duration-200 hover:bg-purple-50 text-gray-700 hover:text-purple-700 flex items-center gap-2"
-            title="AI Summary"
+            onClick={handleClose}
+            className="flex items-center justify-center w-8 h-8 rounded-lg bg-white border border-gray-300 shadow-sm hover:bg-gray-50 hover:text-gray-700 transition-all cursor-pointer flex-shrink-0"
+            title="Back"
           >
-            <FileText className="w-4 h-4" />
-            <span className="text-sm font-medium">Summary</span>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
           </button>
+
+          <div className="flex items-center gap-2 text-gray-800 font-semibold truncate">
+            <FileText className="w-4 h-4 text-blue-500 flex-shrink-0" />
+            <span className="text-sm truncate">{title}</span>
+          </div>
+        </div>
+
+        {/* Right section */}
+        <div className="flex items-center gap-2">
+          {/* Notes Button - Only show if notesEnabled is true */}
+          {showNotesButton && (
+            <button
+              onClick={handleNotesClick}
+              className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg font-medium transition-all duration-300 cursor-pointer whitespace-nowrap border
+                ${notesOpen
+                  ? 'bg-blue-500 text-white shadow-md border-blue-600'
+                  : 'bg-white text-gray-700 hover:bg-blue-50 hover:text-blue-700 border-gray-300 shadow-sm'
+                }`}
+            >
+              <FileText className="w-4 h-4 sm:w-5 sm:h-5" />
+              <span className="text-xs sm:text-sm truncate">Notes</span>
+            </button>
+          )}
+
+          {/* AI Assistant with Submenu - Only show if any AI feature is enabled */}
+          {showAIButton && (
+            <div
+              className="relative"
+              onMouseEnter={() => setShowAISubmenu(true)}
+              onMouseLeave={() => setShowAISubmenu(false)}
+            >
+              <button
+                className={`h-10 px-3 rounded-lg transition-all duration-200 flex items-center gap-2 relative border
+                  ${(aiOpen || summaryOpen)
+                    ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-md border-purple-600'
+                    : 'bg-white text-gray-700 hover:bg-purple-50 hover:text-purple-700 border-gray-300 shadow-sm hover:border-purple-300'
+                  }`}
+                title="AI Assistant"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span className="text-sm font-medium">AI</span>
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-4 px-1 rounded-full flex items-center justify-center text-[9px] font-bold bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-sm border-2 border-white">
+                  New
+                </span>
+              </button>
+
+              {showAISubmenu && (
+                <div
+                  className="absolute top-full left-1/2 transform -translate-x-1/2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50"
+                  onMouseEnter={() => setShowAISubmenu(true)}
+                  onMouseLeave={() => setShowAISubmenu(false)}
+                >
+                  {/* Only show Summary option if enabled */}
+                  {showAISummaryOption && (
+                    <button
+                      onClick={() => handleAISubmenuClick('summary')}
+                      className="w-full justify-start h-9 px-3 rounded-none transition-all duration-200 hover:bg-purple-50 text-gray-700 hover:text-purple-700 flex items-center gap-2"
+                    >
+                      <FileText className="w-4 h-4" />
+                      <span className="text-sm font-medium">Summary</span>
+                    </button>
+                  )}
+                  
+                  {/* Only show Chat option if enabled */}
+                  {showAIChatOption && (
+                    <button
+                      onClick={() => handleAISubmenuClick('chat')}
+                      className="w-full justify-start h-9 px-3 rounded-none transition-all duration-200 hover:bg-purple-50 text-gray-700 hover:text-purple-700 flex items-center gap-2"
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                      <span className="text-sm font-medium">Chat</span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Menu Button */}
           <button
-            onClick={() => handleAISubmenuClick('chat')}
-            className="w-full justify-start h-9 px-3 rounded-none transition-all duration-200 hover:bg-purple-50 text-gray-700 hover:text-purple-700 flex items-center gap-2"
-            title="AI Chat"
+            onClick={handleMenuClick}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg font-medium bg-white text-gray-700 hover:bg-gray-50 transition-all cursor-pointer border border-gray-300 shadow-sm"
           >
-            <MessageCircle className="w-4 h-4" />
-            <span className="text-sm font-medium">Chat</span>
+            <Menu className="w-4 h-4" />
+            <span className="text-sm">Menu</span>
           </button>
         </div>
-      )}
-    </div>
+      </div>
 
-    {/* Menu Button */}
-    <button
-      onClick={handleMenuClick}
-      className="flex items-center gap-2 px-3 py-2 rounded-lg font-medium bg-white text-gray-700 hover:bg-gray-50 transition-all cursor-pointer border border-gray-300 shadow-sm"
-    >
-      <Menu className="w-4 h-4" />
-      <span className="text-sm">Menu</span>
-    </button>
-    
-    {/* Removed the X close button from right side */}
-  </div>
-</div>
-
-      {/* Main Content Area with Split Screen - Same as PDF/PPT viewers */}
+      {/* Main Content Area */}
       <div className="flex-1 flex bg-white" style={{ height: 'calc(100vh - 60px)' }}>
-        {/* Video Player Area - Adjusts based on notes visibility */}
+        {/* Video Player Area */}
         <div
           className="flex items-center justify-center bg-black transition-all duration-200 relative"
           style={{
@@ -605,7 +776,7 @@ const handleClose = () => {
             className="w-full h-full relative"
             onClick={showControlsTemporarily}
           >
-            {/* Streaming Video (YouTube, Vimeo, etc.) */}
+            {/* Streaming Video */}
             {isStreaming ? (
               <iframe
                 ref={iframeRef}
@@ -619,21 +790,23 @@ const handleClose = () => {
             ) : (
               /* Direct Video File */
               <video
+                key={currentVideoSource}
                 ref={videoRef}
-                src={videoUrl}
+                src={currentVideoSource}
                 className="w-full h-full object-contain"
                 onTimeUpdate={handleTimeUpdate}
                 onLoadedMetadata={handleLoadedMetadata}
                 onEnded={handleEnded}
+                onSeeked={handleSeeked}
                 onClick={(e) => {
                   e.stopPropagation()
-                  if (!isStreaming) handlePlayPause()
+                  if (!isStreaming && !activeMcqGroup) handlePlayPause()
                 }}
               />
             )}
 
-            {/* Controls Overlay - Only show for direct video files */}
-            {showControls && !isStreaming && (
+            {/* Controls Overlay */}
+            {showControls && !isStreaming && !activeMcqGroup && (
               <div
                 className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"
                 onClick={(e) => e.stopPropagation()}
@@ -654,7 +827,7 @@ const handleClose = () => {
                 <div className="absolute bottom-0 left-0 right-0 p-4 space-y-3">
                   {/* Progress Bar */}
                   <div className="relative group">
-                    <div className="h-1 bg-gray-600 rounded-full cursor-pointer">
+                    <div className="h-1 bg-gray-600 rounded-full cursor-pointer relative">
                       <div
                         className="h-full bg-red-600 rounded-full relative"
                         style={{ width: `${progress}%` }}
@@ -721,6 +894,39 @@ const handleClose = () => {
                     </div>
 
                     <div className="flex items-center gap-4">
+                      {/* Resolution Selector */}
+                      {showResolutionSelector && (
+                        <div className="relative">
+                          <button
+                            onClick={() => setShowResolutionMenu(!showResolutionMenu)}
+                            className="flex items-center gap-1 text-white hover:bg-white/20 px-2 py-1.5 rounded transition-colors text-xs"
+                            title="Change quality"
+                          >
+                            <Settings2 className="w-4 h-4" />
+                            <span>{formatResolution(currentResolution)}</span>
+                            <ChevronDown className="w-3 h-3" />
+                          </button>
+                          
+                          {showResolutionMenu && (
+                            <div className="absolute bottom-full right-0 mb-2 w-40 bg-black/90 backdrop-blur-sm rounded-lg shadow-lg border border-gray-700 py-1 z-50">
+                              {sortedResolutions.map((res) => (
+                                <button
+                                  key={res}
+                                  onClick={() => handleResolutionChange(res)}
+                                  className={`w-full text-left px-3 py-2 text-xs transition-colors ${
+                                    currentResolution === res
+                                      ? 'bg-blue-600 text-white'
+                                      : 'text-gray-300 hover:bg-white/10'
+                                  }`}
+                                >
+                                  {formatResolution(res)}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       <select
                         value={playbackRate}
                         onChange={(e) => handlePlaybackRateChange(parseFloat(e.target.value))}
@@ -750,17 +956,25 @@ const handleClose = () => {
                 </div>
               </div>
             )}
+
+            {/* MCQ Overlay */}
+            {activeMcqGroup && (
+              <MCQDisplayOverlay
+                questions={activeMcqGroup.questions}
+                timestamp={activeMcqGroup.timestamp}
+                onResume={handleMcqResume}
+                onDismiss={handleMcqDismiss}
+              />
+            )}
           </div>
         </div>
 
-        {/* Resize Handle - Only show when notes are open */}
+        {/* Resize Handle */}
         {notesOpen && (
           <div
             className="w-2 bg-gray-300 hover:bg-blue-500 active:bg-blue-600 cursor-col-resize transition-colors duration-200 flex items-center justify-center relative"
             onMouseDown={handleResizeStart}
-            style={{
-              zIndex: 40
-            }}
+            style={{ zIndex: 40 }}
           >
             <div className="flex flex-col gap-1">
               <div className="w-1 h-3 bg-gray-500 rounded" />
@@ -770,26 +984,23 @@ const handleClose = () => {
           </div>
         )}
 
-        {/* Notes Panel Area - Only show when notes are open */}
-       {notesOpen && (
-  <div
-    className="bg-white transition-all duration-200 overflow-hidden"
-    style={{
-      width: `${100 - splitPosition}%`,
-    }}
-  >
-    <NotesPanel
-      isOpen={true}
-      onClose={handleNotesPanelClose}
-      isDraggable={false}
-      // Pass initial note data like PDF viewer
-      initialNoteData={localStorage.getItem('lastCreatedNote')}
-    />
-  </div>
-)}
+        {/* Notes Panel */}
+        {notesOpen && (
+          <div
+            className="bg-white transition-all duration-200 overflow-hidden"
+            style={{ width: `${100 - splitPosition}%` }}
+          >
+            <NotesPanel
+              isOpen={true}
+              onClose={handleNotesPanelClose}
+              isDraggable={false}
+              initialNoteData={localStorage.getItem('lastCreatedNote')}
+            />
+          </div>
+        )}
       </div>
 
-      {/* Sidebar Menu - Same as PDF/PPT viewers */}
+      {/* Sidebar Menu */}
       {sidebarOpen && (
         <div
           className="fixed top-0 right-0 h-full w-80 bg-white/95 backdrop-blur-lg shadow-2xl z-50 p-6 border-l border-gray-200"
@@ -805,22 +1016,16 @@ const handleClose = () => {
           <div className="mt-3 mb-6 text-center">
             <div className="flex items-center justify-center gap-2">
               <Settings className="w-5 h-5 text-gray-700" />
-              <h2 className="text-base font-semibold text-gray-800">
-                Video Control
-              </h2>
+              <h2 className="text-base font-semibold text-gray-800">Video Control</h2>
             </div>
-            <p className="text-xs text-gray-500 mt-1">
-              Adjust playback, speed & layout options
-            </p>
+            <p className="text-xs text-gray-500 mt-1">Adjust playback, speed & layout options</p>
           </div>
 
           <div className="mt-8 w-full">
             <h3 className="font-semibold mb-3 text-sm uppercase text-gray-600 border-b border-gray-300 pb-1">
               Playback Control
             </h3>
-
             <div className="space-y-4">
-              {/* Playback Speed */}
               <div className="space-y-2">
                 <label className="text-sm text-gray-700">Playback Speed</label>
                 <select
@@ -838,16 +1043,10 @@ const handleClose = () => {
                   <option value={2}>2x</option>
                 </select>
               </div>
-
-              {/* Volume Control */}
               <div className="space-y-2">
                 <label className="text-sm text-gray-700">Volume</label>
                 <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.1"
-                  value={volume}
+                  type="range" min="0" max="1" step="0.1" value={volume}
                   onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
                   className="w-full accent-blue-500"
                   disabled={isStreaming}
@@ -856,11 +1055,40 @@ const handleClose = () => {
             </div>
           </div>
 
-          <div className="mt-6 w-full">
-            <h3 className="font-semibold mb-3 text-sm uppercase text-gray-600 border-b border-gray-300 pb-1">
-              Layout
-            </h3>
+          {/* Resolution Section in Sidebar */}
+          {showResolutionSelector && (
+            <div className="mt-6 w-full">
+              <h3 className="font-semibold mb-3 text-sm uppercase text-gray-600 border-b border-gray-300 pb-1">
+                Video Quality
+              </h3>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-700">Current Quality</span>
+                  <span className="text-sm font-semibold text-blue-600">
+                    {formatResolution(currentResolution)}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {sortedResolutions.map((res) => (
+                    <button
+                      key={res}
+                      onClick={() => handleResolutionChange(res)}
+                      className={`px-3 py-2 text-xs rounded-lg transition-all ${
+                        currentResolution === res
+                          ? 'bg-blue-500 text-white shadow-md'
+                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      }`}
+                    >
+                      {formatResolution(res)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
 
+          <div className="mt-6 w-full">
+            <h3 className="font-semibold mb-3 text-sm uppercase text-gray-600 border-b border-gray-300 pb-1">Layout</h3>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-700">Video/Notes Split</span>
@@ -868,59 +1096,33 @@ const handleClose = () => {
                   {Math.round(splitPosition)}/{Math.round(100 - splitPosition)}
                 </span>
               </div>
-
               <div className="flex items-center gap-2 bg-white/60 rounded-xl p-2">
-                <button
-                  onClick={() => handleSplitPreset(70)}
-                  className={`flex-1 px-3 py-2 text-sm rounded-lg transition-all cursor-pointer ${splitPosition === 70
-                    ? 'bg-blue-500 text-white shadow-md'
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                    }`}
-                >
-                  70/30
-                </button>
-                <button
-                  onClick={() => handleSplitPreset(60)}
-                  className={`flex-1 px-3 py-2 text-sm rounded-lg transition-all cursor-pointer ${splitPosition === 60
-                    ? 'bg-blue-500 text-white shadow-md'
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                    }`}
-                >
-                  60/40
-                </button>
-                <button
-                  onClick={() => handleSplitPreset(50)}
-                  className={`flex-1 px-3 py-2 text-sm rounded-lg transition-all cursor-pointer ${splitPosition === 50
-                    ? 'bg-blue-500 text-white shadow-md'
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                    }`}
-                >
-                  50/50
-                </button>
+                {[70, 60, 50].map(preset => (
+                  <button
+                    key={preset}
+                    onClick={() => handleSplitPreset(preset)}
+                    className={`flex-1 px-3 py-2 text-sm rounded-lg transition-all cursor-pointer ${splitPosition === preset
+                      ? 'bg-blue-500 text-white shadow-md'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      }`}
+                  >
+                    {preset}/{100 - preset}
+                  </button>
+                ))}
               </div>
             </div>
           </div>
 
           <div className="mt-10 w-full">
-            <h3 className="font-semibold mb-3 text-sm uppercase text-gray-600 border-b border-gray-300 pb-1">
-              Navigation
-            </h3>
-
+            <h3 className="font-semibold mb-3 text-sm uppercase text-gray-600 border-b border-gray-300 pb-1">Navigation</h3>
             <div className="flex items-center justify-between bg-white/60 rounded-2xl p-3 shadow-inner">
-              <button
-                onClick={onPrev}
-                disabled={!hasPrev}
-                className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all disabled:opacity-30 cursor-pointer"
-              >
+              <button onClick={onPrev} disabled={!hasPrev}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all disabled:opacity-30 cursor-pointer">
                 <RotateCcw className="w-4 h-4" />
                 <span className="text-sm">Previous</span>
               </button>
-
-              <button
-                onClick={onNext}
-                disabled={!hasNext}
-                className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all disabled:opacity-30 cursor-pointer"
-              >
+              <button onClick={onNext} disabled={!hasNext}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all disabled:opacity-30 cursor-pointer">
                 <span className="text-sm">Next</span>
                 <RotateCw className="w-4 h-4" />
               </button>
@@ -928,15 +1130,10 @@ const handleClose = () => {
           </div>
 
           <div className="mt-6 w-full">
-            <h3 className="font-semibold mb-3 text-sm uppercase text-gray-600 border-b border-gray-300 pb-1">
-              Display
-            </h3>
-
+            <h3 className="font-semibold mb-3 text-sm uppercase text-gray-600 border-b border-gray-300 pb-1">Display</h3>
             <div className="flex items-center justify-center bg-white/60 rounded-2xl p-3 shadow-inner">
-              <button
-                onClick={handleFullscreen}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all cursor-pointer"
-              >
+              <button onClick={handleFullscreen}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all cursor-pointer">
                 {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
                 <span className="text-sm">{isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}</span>
               </button>
@@ -944,34 +1141,40 @@ const handleClose = () => {
           </div>
         </div>
       )}
-<AIChat
-  isOpen={aiOpen}
-  onClose={handleAIClose}
-  context={{
-    topicTitle: currentItemTitle || title,
-    fileName: title,
-    fileType: "video",
-    isDocumentView: true,
-    hierarchy: hierarchy.length > 0 ? hierarchy : [title],
-    fileUrl: videoUrl,
-    isPDF: false,
-  }}
-/>
 
-      {/* Summary Chat Panel */}
-      <SummaryChat
-        isOpen={summaryOpen}
-        onClose={handleSummaryClose}
-        context={{
-          topicTitle: currentItemTitle || title, // ✅ Use currentItemTitle if available
-          fileName: title,
-          fileType: "video",
-          isDocumentView: true,
-          hierarchy: hierarchy.length > 0 ? hierarchy : [title], // ✅ Use actual hierarchy
-          pdfUrl: videoUrl,
-          isPDF: false,
-        }}
-      />
+      {/* Only render AI Chat if enabled */}
+      {showAIChatOption && (
+        <AIChat
+          isOpen={aiOpen}
+          onClose={handleAIClose}
+          context={{
+            topicTitle: currentItemTitle || title,
+            fileName: title,
+            fileType: "video",
+            isDocumentView: true,
+            hierarchy: hierarchy.length > 0 ? hierarchy : [title],
+            fileUrl: videoUrl,
+            isPDF: false,
+          }}
+        />
+      )}
+
+      {/* Only render Summary Chat if enabled */}
+      {showAISummaryOption && (
+        <SummaryChat
+          isOpen={summaryOpen}
+          onClose={handleSummaryClose}
+          context={{
+            topicTitle: currentItemTitle || title,
+            fileName: title,
+            fileType: "video",
+            isDocumentView: true,
+            hierarchy: hierarchy.length > 0 ? hierarchy : [title],
+            pdfUrl: videoUrl,
+            isPDF: false,
+          }}
+        />
+      )}
     </div>
   )
 }
