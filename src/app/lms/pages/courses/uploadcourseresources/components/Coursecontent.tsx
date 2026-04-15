@@ -1609,21 +1609,6 @@ export const CourseContent: React.FC<CourseContentProps> = ({
 
           {!selectedNode ? (
             <div className="flex flex-col items-center justify-center h-full text-center p-10" style={{ animation: "ccFadeIn 0.4s ease-out both" }}>
-              <div className="relative overflow-hidden w-full max-w-md mb-7 rounded-2xl"
-                style={{ background: `linear-gradient(140deg,${T.orange} 0%,#E86440 50%,${T.orangeDeep} 100%)`, padding: "32px 28px", boxShadow: `0 12px 40px ${T.orangeGlow}` }}>
-                <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }} viewBox="0 0 480 130" fill="none">
-                  <circle cx="450" cy="-5" r="90" stroke="rgba(255,255,255,0.18)" strokeWidth="1.2" />
-                  <circle cx="450" cy="-5" r="145" stroke="rgba(255,255,255,0.08)" strokeWidth="1.2" />
-                  <circle cx="30" cy="140" r="70" stroke="rgba(255,255,255,0.10)" strokeWidth="1.2" />
-                </svg>
-                <div style={{ position: "relative", zIndex: 1 }}>
-                  <div className="w-11 h-11 rounded-xl flex items-center justify-center mb-4 mx-auto" style={{ background: "rgba(255,255,255,0.20)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.30)" }}>
-                    <BookOpen size={20} className="text-white" />
-                  </div>
-                  <h3 className="text-[20px] font-extrabold text-white mb-1.5 tracking-tight">Welcome to Your Course</h3>
-                  <p className="text-[11.5px] font-medium leading-relaxed" style={{ color: "rgba(255,255,255,0.80)" }}>Select a module, topic, or subtopic from the sidebar to start managing resources.</p>
-                </div>
-              </div>
               <div className="grid grid-cols-3 gap-3 max-w-md w-full">
                 {([
                   { icon: <Target size={20} />, color: TAB_META.I_Do.color, bg: TAB_META.I_Do.bg, title: "I Do", desc: "Teacher-led instruction" },

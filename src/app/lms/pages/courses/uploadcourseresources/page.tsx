@@ -11,7 +11,8 @@ import {
   GraduationCap, LayoutDashboard, BookMarked, Layers,
   User, LogOut, UserCheck2, Zap,
   ChevronDown,
-  FilePlus2
+  FilePlus2,
+  Target
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { getCurrentUser } from "@/apiServices/tokenVerify"
@@ -772,6 +773,8 @@ const hasInitialized = useRef(false);
 const isFetchingRef = useRef<string | null>(null);
 const lastFetchedDataRef = useRef<string>("");
 const initialDataLoadedRef = useRef(false);
+const [isInitialLoad, setIsInitialLoad] = useState(true);
+const [isNodeSelected, setIsNodeSelected] = useState(false);
 
 // Add these state variables with your other state declarations
 const [isContentLoading, setIsContentLoading] = useState(false);
@@ -985,7 +988,6 @@ const refreshContentData = useCallback(async (node: CourseNode, backendData?: an
   const cacheKey = `${node.id}-${JSON.stringify(data.pedagogy)}`;
   if (lastFetchedDataRef.current === cacheKey) return;
   lastFetchedDataRef.current = cacheKey;
-  
   const processPedagogy = (backendTab: "I_Do" | "We_Do" | "You_Do", frontendTab: "I_Do" | "We_Do" | "You_Do"): SubcategoryData => {
     const section = data.pedagogy[backendTab];
     if (!section) return {};
@@ -1190,6 +1192,8 @@ const refreshContentData = useCallback(async (node: CourseNode, backendData?: an
   });
   
   setFolders(allFolders);
+    setInitialLoadComplete(true);
+  setIsInitialLoad(false);
 }, []);
 
 
@@ -1288,8 +1292,16 @@ const fetchAndRefresh = useCallback(async (node: CourseNode) => {
     return n;
   });
   
-  setSelectedNodePersistent(node);
+setIsNodeSelected(true);
+  setIsContentLoading(true);
   
+  setContentData((prev) => {
+    const n = { ...prev };
+    delete n[node.id];
+    return n;
+  });
+  
+  setSelectedNodePersistent(node);  
   const findModuleId = (n: CourseNode, nodes: CourseNode[]): string | null => {
     if (n.type === "module") return n.id;
     const findInPath = (ns: CourseNode[], tid: string, path: CourseNode[] = []): CourseNode | null => {
@@ -1334,11 +1346,16 @@ const fetchAndRefresh = useCallback(async (node: CourseNode) => {
   setBreadcrumbs(generateBreadcrumbs(node));
   
   // Only fetch if needed
- if (!contentData[node.id] && !isContentLoading) {
+  if (!contentData[node.id] && !isContentLoading) {
     await fetchAndRefresh(node);
   }
+  
+  setIsContentLoading(false);
 }, [courseData, selectedNode, activeTab, activeSubcategory, subcategories, findPathToNode, generateBreadcrumbs, fetchAndRefresh, contentData, isContentLoading]);
-  const getParentNodeName = useCallback((node: CourseNode, targetType: string): string => {
+
+
+
+const getParentNodeName = useCallback((node: CourseNode, targetType: string): string => {
     const findParent = (nodes: CourseNode[], id: string, parent: CourseNode | null = null): CourseNode | null => { for (const n of nodes) { if (n.id === id) return parent; const found = findParent(n.children || [], id, n); if (found) return found; } return null; };
     const parent = findParent(courseData, node.id);
     if (!parent) return ""; if (parent.type === targetType) return parent.name; return getParentNodeName(parent, targetType);
@@ -1878,7 +1895,6 @@ const [editorKey, setEditorKey] = useState(Date.now());
     setDeleteTarget({ type: "file", item: { id: pageId, isPage: true }, name });
     setShowDeleteConfirm(true);
   };
-
 useEffect(() => {
   if (courseStructureResponse?.data && !hasInitialized.current) {
     hasInitialized.current = true;
@@ -1897,18 +1913,10 @@ useEffect(() => {
       }
     }
     
-    // Auto-select first module if available - but don't call selectNode here
-    // as it will trigger another fetch. Instead, just set selectedNode
-    if (transformed[0]?.children?.length > 0 && !selectedNode) {
-      const firstModule = transformed[0].children[0];
-      setSelectedNode(firstModule);
-      // Set initial active tab and subcategory
-      setActiveTabPersistent("I_Do");
-      const firstSub = subcategories.I_Do[0]?.key || "";
-      setActiveSubcategoryPersistent(firstSub);
-    }
+    // REMOVE auto-selection - let user choose from sidebar
+    // Don't automatically select first module
   }
-}, [courseStructureResponse?.data]); // Only depends on data
+}, [courseStructureResponse?.data]);
 
   useEffect(() => { setBreadcrumbs(generateBreadcrumbs(selectedNode)); }, [selectedNode, courseData, generateBreadcrumbs]);
 useEffect(() => {
@@ -2348,8 +2356,42 @@ const LoadingStyles = () => (
               </div>
 
               {/* ── Course content — zero top gap ────────────────────────────── */}
-             <div className="flex-1 overflow-hidden" style={{ marginTop: 0, paddingTop: 0 }}>
-  {isContentLoading || !initialLoadComplete ? (
+<div className="flex-1 overflow-hidden" style={{ marginTop: 0, paddingTop: 0 }}>
+  {!isNodeSelected ? (
+    // Show welcome screen when no node is selected
+<div className="flex flex-col items-center justify-center h-full text-center p-10" style={{ animation: "ccFadeIn 0.4s ease-out both" }}>      <div className="relative overflow-hidden w-full max-w-md mb-7 rounded-2xl"
+                     style={{ background: `linear-gradient(140deg,${T.orange} 0%,#E86440 50%,${T.orangeDark} 100%)`, padding: "32px 28px", boxShadow: `0 12px 40px ${T.orangeGlow}` }}>
+                     <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }} viewBox="0 0 480 130" fill="none">
+                       <circle cx="450" cy="-5" r="90" stroke="rgba(255,255,255,0.18)" strokeWidth="1.2" />
+                       <circle cx="450" cy="-5" r="145" stroke="rgba(255,255,255,0.08)" strokeWidth="1.2" />
+                       <circle cx="30" cy="140" r="70" stroke="rgba(255,255,255,0.10)" strokeWidth="1.2" />
+                     </svg>
+                     <div style={{ position: "relative", zIndex: 1 }}>
+                       <div className="w-11 h-11 rounded-xl flex items-center justify-center mb-4 mx-auto" style={{ background: "rgba(255,255,255,0.20)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.30)" }}>
+                         <BookOpen size={20} className="text-white" />
+                       </div>
+                       <h3 className="text-[20px] font-extrabold text-white mb-1.5 tracking-tight">Welcome to Your Course</h3>
+                       <p className="text-[11.5px] font-medium leading-relaxed" style={{ color: "rgba(255,255,255,0.80)" }}>Select a module, topic, or subtopic from the sidebar to start managing resources.</p>
+                     </div>
+                   </div>
+      <div className="grid grid-cols-3 gap-3 max-w-md w-full">
+        {([
+          { icon: <Target size={20} />, color: "#dc2626", bg: "rgba(220,38,38,0.09)", title: "I Do", desc: "Teacher-led instruction" },
+          { icon: <Users size={20} />, color: "#ea580c", bg: "rgba(234,88,12,0.09)", title: "We Do", desc: "Guided practice" },
+          { icon: <BookOpen size={20} />, color: "#059669", bg: "rgba(5,150,105,0.09)", title: "You Do", desc: "Independent work" },
+        ] as any[]).map(item => (
+          <div key={item.title} className="p-4 rounded-2xl text-center"
+            style={{ background: item.bg, border: `1.5px solid ${item.color}18`, transition: "all 0.22s" }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = "translateY(-2px)"; (e.currentTarget as HTMLElement).style.boxShadow = `0 8px 20px ${item.color}18`; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = "none"; (e.currentTarget as HTMLElement).style.boxShadow = "none"; }}>
+            <div className="w-10 h-10 mx-auto mb-3 rounded-xl flex items-center justify-center" style={{ background: `${item.color}14`, color: item.color }}>{item.icon}</div>
+            <h4 className="text-[12px] font-bold tracking-tight" style={{ color: T.textMain }}>{item.title}</h4>
+            <p className="text-[10.5px] mt-1 font-medium leading-relaxed" style={{ color: T.textMuted }}>{item.desc}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  ) : isContentLoading || !initialLoadComplete ? (
     <LoadingSpinner />
   ) : (
     <CourseContent
