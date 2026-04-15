@@ -775,6 +775,7 @@ const lastFetchedDataRef = useRef<string>("");
 const initialDataLoadedRef = useRef(false);
 const [isInitialLoad, setIsInitialLoad] = useState(true);
 const [isNodeSelected, setIsNodeSelected] = useState(false);
+const [isSidebarLoading, setIsSidebarLoading] = useState(true);
 
 // Add these state variables with your other state declarations
 const [isContentLoading, setIsContentLoading] = useState(false);
@@ -1912,7 +1913,8 @@ useEffect(() => {
         setExpandedNodes(new Set([courseStructureResponse.data._id]));
       }
     }
-    
+        setIsSidebarLoading(false);
+
     // REMOVE auto-selection - let user choose from sidebar
     // Don't automatically select first module
   }
@@ -2197,6 +2199,8 @@ const LoadingStyles = () => (
                 onToggleNode={toggleNode}
                 onSidebarWidthChange={setSidebarWidth}
                 onSearchChange={setSearchQuery}
+  isLoading={isSidebarLoading}  // Use the state variable
+
                 onMouseDown={(e) => { setIsResizing(true); e.preventDefault(); }}
               />
             </div>

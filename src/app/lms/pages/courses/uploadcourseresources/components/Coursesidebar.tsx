@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   ChevronRight, ChevronLeft,
   BookOpen, Library, FolderOpen, FileText,
-  File as FileIcon, Search, X, Layers, ArrowLeft
+  File as FileIcon, Search, X, Layers, ArrowLeft, Loader2
 } from "lucide-react";
 import type { CourseNode } from "./Types";
 import { useRouter } from "next/navigation";
@@ -21,6 +21,7 @@ const FontImport = () => (
     @keyframes sbSlide { from { opacity:0; transform:translateY(-3px) } to { opacity:1; transform:translateY(0) } }
     @keyframes sbFade  { from { opacity:0 } to { opacity:1 } }
     @keyframes sbPulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+    @keyframes sbSpin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
     .sb-row {
       transition: background .12s ease, border-left-color .12s ease;
@@ -127,9 +128,67 @@ const NodeIcon = ({ type, size }: { type: string; size: number }) => {
 
 const typeDepth: Record<string, number> = { module: 0, submodule: 1, topic: 2, subtopic: 3 };
 
-const OPEN_W   = 300; /* narrower */
-const PAD_BASE = 10;  /* reduced left padding */
-const STEP     = 14;  /* less indent per level */
+const OPEN_W   = 300;
+const PAD_BASE = 10;
+const STEP     = 14;
+
+/* ─── Loading Component ─────────────────────────────────────────────────── */
+const LoadingSidebar: React.FC<{ width: number }> = ({ width }) => (
+  <div className="sb" style={{ 
+    display: 'flex', 
+    flexDirection: 'column', 
+    height: '100%', 
+    background: T.bg, 
+    borderRight: `1px solid ${T.line}`, 
+    width: width,
+    position: 'relative'
+  }}>
+    <FontImport />
+    
+    {/* Header skeleton */}
+    <div style={{
+      flexShrink: 0,
+      background: `linear-gradient(145deg, #F27757 0%, #E55A3A 100%)`,
+      padding: '14px 14px',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(255,255,255,.18)' }} />
+        <div style={{ flex: 1 }}>
+          <div style={{ width: '50px', height: '8px', background: 'rgba(255,255,255,.4)', borderRadius: '4px', marginBottom: '8px' }} />
+          <div style={{ width: '120px', height: '13px', background: 'rgba(255,255,255,.3)', borderRadius: '4px' }} />
+        </div>
+      </div>
+    </div>
+
+    {/* Search skeleton */}
+    <div style={{ flexShrink: 0, padding: '8px 10px', background: T.bg }}>
+      <div style={{ width: '100%', height: '29px', background: T.surface, borderRadius: '8px', border: `1px solid ${T.line}` }} />
+    </div>
+
+    {/* Loading spinner */}
+    <div style={{ 
+      flex: 1, 
+      display: 'flex', 
+      alignItems: 'center', 
+      justifyContent: 'center',
+      flexDirection: 'column',
+      gap: '12px'
+    }}>
+      <Loader2 size={28} style={{ 
+        color: T.orange, 
+        animation: 'sbSpin 0.8s linear infinite' 
+      }} />
+      <p className="sbH" style={{ 
+        fontSize: '12px', 
+        color: T.inkMuted, 
+        margin: 0,
+        fontWeight: 500
+      }}>
+        Loading course content...
+      </p>
+    </div>
+  </div>
+);
 
 /* ─── Props ─────────────────────────────────────────────────────────────────── */
 interface CourseSidebarProps {
@@ -145,6 +204,7 @@ interface CourseSidebarProps {
   onSidebarWidthChange: (w: number) => void;
   onSearchChange:       (q: string) => void;
   onMouseDown:          (e: React.MouseEvent) => void;
+  isLoading?:           boolean;  // Add loading prop
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -334,6 +394,7 @@ export const CourseSidebar: React.FC<CourseSidebarProps> = ({
   courseData, selectedNode, expandedNodes, sidebarWidth, searchQuery,
   courseName, moduleCount, onNodeSelect, onToggleNode,
   onSidebarWidthChange, onSearchChange, onMouseDown,
+  isLoading = false,  // Default to false
 }) => {
   const router = useRouter();
   const isCollapsed = sidebarWidth <= 70;
@@ -341,6 +402,11 @@ export const CourseSidebar: React.FC<CourseSidebarProps> = ({
   const handleBackToCourses = () => {
     router.push('/lms/pages/courses');
   };
+
+  // Show loading state
+  if (isLoading) {
+    return <LoadingSidebar width={sidebarWidth} />;
+  }
 
   /* ── Collapsed rail ──────────────────────────────────────────────────────── */
   if (isCollapsed) return (
