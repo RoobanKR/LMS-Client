@@ -2745,68 +2745,68 @@ export default function PedagogyManagement() {
             setPedagogyFormData(null);
         }
     };
-const resetAllFormStates = () => {
-    // Reset form data
-      setModuleFormData({ title: '', description: '', level: 'Easy', duration: 0, index: 0 });
-    setSubModuleFormData({ title: '', description: '', level: 'Easy', duration: 0 });
-    setTopicFormData({ title: '', description: '', level: 'Easy', duration: 0 });
-    setSubTopicFormData({ title: '', description: '', level: 'Easy', duration: 0 });
-    // Only reset skill set configuration if NOT in edit mode
-    if (!editMode) {
-        setModuleTestConfig({ coreProgram: [], frontend: [], database: [] });
-    }
+    const resetAllFormStates = () => {
+        // Reset form data
+        setModuleFormData({ title: '', description: '', level: 'Easy', duration: 0, index: 0 });
+        setSubModuleFormData({ title: '', description: '', level: 'Easy', duration: 0 });
+        setTopicFormData({ title: '', description: '', level: 'Easy', duration: 0 });
+        setSubTopicFormData({ title: '', description: '', level: 'Easy', duration: 0 });
+        // Only reset skill set configuration if NOT in edit mode
+        if (!editMode) {
+            setModuleTestConfig({ coreProgram: [], frontend: [], database: [] });
+        }
 
-    setAddOnlyPedagogyLevel(false);
-    // Reset level and pedagogy sections
-    setShowLevelSection(false);
-    setShowPedagogySection(false);
-    setShowMergeLevelSection(false);
-    setShowMergePedagogySection({
-        iDo: false,
-        weDo: false,
-        youDo: false
-    });
-    setSelectedLevelModulesForMerge(new Set());
-    setSelectedLevelSubModulesForMerge(new Set());
-    setSelectedLevelTopicsForMerge(new Set());
-    setSelectedLevelSubTopicsForMerge(new Set());
+        setAddOnlyPedagogyLevel(false);
+        // Reset level and pedagogy sections
+        setShowLevelSection(false);
+        setShowPedagogySection(false);
+        setShowMergeLevelSection(false);
+        setShowMergePedagogySection({
+            iDo: false,
+            weDo: false,
+            youDo: false
+        });
+        setSelectedLevelModulesForMerge(new Set());
+        setSelectedLevelSubModulesForMerge(new Set());
+        setSelectedLevelTopicsForMerge(new Set());
+        setSelectedLevelSubTopicsForMerge(new Set());
 
-    setSelectedPedagogyModulesForMerge({});
-    setSelectedPedagogySubModulesForMerge({});
-    setSelectedPedagogyTopicsForMerge({});
-    setSelectedPedagogySubTopicsForMerge({});
-    // Reset pedagogy activities and hours
-    setSelectedPedagogyActivities({
-        iDo: [],
-        weDo: [],
-        youDo: []
-    });
-    setPedagogyHours({
-        iDo: {},
-        weDo: {},
-        youDo: {}
-    });
+        setSelectedPedagogyModulesForMerge({});
+        setSelectedPedagogySubModulesForMerge({});
+        setSelectedPedagogyTopicsForMerge({});
+        setSelectedPedagogySubTopicsForMerge({});
+        // Reset pedagogy activities and hours
+        setSelectedPedagogyActivities({
+            iDo: [],
+            weDo: [],
+            youDo: []
+        });
+        setPedagogyHours({
+            iDo: {},
+            weDo: {},
+            youDo: {}
+        });
 
-    // Reset saved merge selections
-    setSavedLevelMergeSelections(null);
-    setSavedPedagogyMergeSelections({
-        iDo: {},
-        weDo: {},
-        youDo: {}
-    });
+        // Reset saved merge selections
+        setSavedLevelMergeSelections(null);
+        setSavedPedagogyMergeSelections({
+            iDo: {},
+            weDo: {},
+            youDo: {}
+        });
 
-    // Reset expanded states
-    setExpandedModules(new Set());
-    setExpandedSubModules(new Set());
-    setExpandedTopics(new Set());
+        // Reset expanded states
+        setExpandedModules(new Set());
+        setExpandedSubModules(new Set());
+        setExpandedTopics(new Set());
 
-    // Reset selected level
-    setSelectedLevel('');
-    setDisableAddonlyMode(false);
-    // Reset dialog and edit mode
-    setDialogType(null);
-    // Don't reset editMode here if we're in the middle of editing
-};
+        // Reset selected level
+        setSelectedLevel('');
+        setDisableAddonlyMode(false);
+        // Reset dialog and edit mode
+        setDialogType(null);
+        // Don't reset editMode here if we're in the middle of editing
+    };
 
     const isFirstChild = (dialogType: string | null, editMode: any) => {
         if (!dialogType || editMode) return false;
@@ -4653,11 +4653,11 @@ const resetAllFormStates = () => {
     }, []);
 
     // Skill set handler for last hierarchy dialog
-  // Skill set handler
-const handleSkillSetChange = useCallback((config: { coreProgram: string[]; frontend: string[]; database: string[] }) => {
-    console.log('Skill set changed:', config);
-    setModuleTestConfig(config);
-}, []);
+    // Skill set handler
+    const handleSkillSetChange = useCallback((config: { coreProgram: string[]; frontend: string[]; database: string[] }) => {
+        console.log('Skill set changed:', config);
+        setModuleTestConfig(config);
+    }, []);
 
     const handleSubModuleFormChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
@@ -4702,7 +4702,7 @@ const handleSkillSetChange = useCallback((config: { coreProgram: string[]; front
                         data: {
                             ...moduleFormData,
                             courses: selectedCourse._id,
-                            testConfiguration: moduleTestConfig    
+                            testConfiguration: moduleTestConfig
                         }
                     });
                 } else {
@@ -4716,7 +4716,7 @@ const handleSkillSetChange = useCallback((config: { coreProgram: string[]; front
                         index: nextIndex,
                         courses: selectedCourse._id,
                         institution: "",
-                        testConfiguration: moduleTestConfig 
+                        testConfiguration: moduleTestConfig
                     });
 
 
@@ -8468,122 +8468,122 @@ const handleSkillSetChange = useCallback((config: { coreProgram: string[]; front
             setIsLevelUnmergeConfirm(false);
         }
     };
-const handleEdit = useCallback(async (type: 'module' | 'submodule' | 'topic' | 'subtopic', data: any) => {
-    setEditMode({ type, data });
+    const handleEdit = useCallback(async (type: 'module' | 'submodule' | 'topic' | 'subtopic', data: any) => {
+        setEditMode({ type, data });
 
-    const existingLevelData = preserveLevelDataForEditing(type, data._id);
-    setEditingExistingLevelData(existingLevelData);
+        const existingLevelData = preserveLevelDataForEditing(type, data._id);
+        setEditingExistingLevelData(existingLevelData);
 
-    // Reset form data first
-    if (type === 'module') {
-        setModuleFormData({
-            title: data.title,
-            description: data.description || '',
-            level: data.level || 'Easy',
-            duration: data.duration || 0,
-            index: data.index || 0
-        });
-        
-        // CRITICAL: Set test configuration with a new object reference
-        const testConfig = {
-            coreProgram: data.testConfiguration?.coreProgram ? [...data.testConfiguration.coreProgram] : [],
-            frontend: data.testConfiguration?.frontend ? [...data.testConfiguration.frontend] : [],
-            database: data.testConfiguration?.database ? [...data.testConfiguration.database] : []
-        };
-        console.log('Setting test config for edit:', testConfig);
-        setModuleTestConfig(testConfig);
-        
-        setDialogType('module');
-    } else if (type === 'submodule') {
-        setSubModuleFormData({
-            title: data.title,
-            description: data.description || '',
-            level: data.level || 'Easy',
-            duration: data.duration || 0
-        });
-        
-        const testConfig = {
-            coreProgram: data.testConfiguration?.coreProgram ? [...data.testConfiguration.coreProgram] : [],
-            frontend: data.testConfiguration?.frontend ? [...data.testConfiguration.frontend] : [],
-            database: data.testConfiguration?.database ? [...data.testConfiguration.database] : []
-        };
-        setModuleTestConfig(testConfig);
-
-        const parentModule = modules.find(m => m._id === data.moduleId);
-        if (parentModule) {
-            setSelectedModuleForSubModule({
-                id: parentModule._id,
-                name: parentModule.title
+        // Reset form data first
+        if (type === 'module') {
+            setModuleFormData({
+                title: data.title,
+                description: data.description || '',
+                level: data.level || 'Easy',
+                duration: data.duration || 0,
+                index: data.index || 0
             });
-        }
-        setDialogType('submodule');
-    } else if (type === 'topic') {
-        setTopicFormData({
-            title: data.title,
-            description: data.description || '',
-            level: data.level || 'Easy',
-            duration: data.duration || 0
-        });
-        
-        const testConfig = {
-            coreProgram: data.testConfiguration?.coreProgram ? [...data.testConfiguration.coreProgram] : [],
-            frontend: data.testConfiguration?.frontend ? [...data.testConfiguration.frontend] : [],
-            database: data.testConfiguration?.database ? [...data.testConfiguration.database] : []
-        };
-        setModuleTestConfig(testConfig);
 
-        const parentModule = modules.find(m => m._id === data.moduleId);
-        const hierarchyLevels = selectedCourse?.courseHierarchy.map(level => level.toLowerCase()) || [];
-        if (hierarchyLevels.includes('sub module')) {
-            const parentSubModule = subModules.find(sm => sm._id === data.subModuleId);
-            if (parentSubModule) {
-                setSelectedSubModuleForTopic({
-                    id: parentSubModule._id,
-                    moduleId: parentSubModule.moduleId,
-                    name: parentSubModule.title
-                });
-            }
-        } else {
+            // CRITICAL: Set test configuration with a new object reference
+            const testConfig = {
+                coreProgram: data.testConfiguration?.coreProgram ? [...data.testConfiguration.coreProgram] : [],
+                frontend: data.testConfiguration?.frontend ? [...data.testConfiguration.frontend] : [],
+                database: data.testConfiguration?.database ? [...data.testConfiguration.database] : []
+            };
+            console.log('Setting test config for edit:', testConfig);
+            setModuleTestConfig(testConfig);
+
+            setDialogType('module');
+        } else if (type === 'submodule') {
+            setSubModuleFormData({
+                title: data.title,
+                description: data.description || '',
+                level: data.level || 'Easy',
+                duration: data.duration || 0
+            });
+
+            const testConfig = {
+                coreProgram: data.testConfiguration?.coreProgram ? [...data.testConfiguration.coreProgram] : [],
+                frontend: data.testConfiguration?.frontend ? [...data.testConfiguration.frontend] : [],
+                database: data.testConfiguration?.database ? [...data.testConfiguration.database] : []
+            };
+            setModuleTestConfig(testConfig);
+
+            const parentModule = modules.find(m => m._id === data.moduleId);
             if (parentModule) {
-                setSelectedSubModuleForTopic({
+                setSelectedModuleForSubModule({
                     id: parentModule._id,
-                    moduleId: parentModule._id,
                     name: parentModule.title
                 });
             }
-        }
-        setDialogType('topic');
-    } else if (type === 'subtopic') {
-        setSubTopicFormData({
-            title: data.title,
-            description: data.description || '',
-            level: data.level || 'Easy',
-            duration: data.duration || 0
-        });
-        
-        const testConfig = {
-            coreProgram: data.testConfiguration?.coreProgram ? [...data.testConfiguration.coreProgram] : [],
-            frontend: data.testConfiguration?.frontend ? [...data.testConfiguration.frontend] : [],
-            database: data.testConfiguration?.database ? [...data.testConfiguration.database] : []
-        };
-        setModuleTestConfig(testConfig);
-        
-        const parentTopic = topics.find(t => t._id === data.topicId);
-        if (parentTopic) {
-            setSelectedTopicForSubTopic({
-                id: parentTopic._id,
-                moduleId: parentTopic.moduleId,
-                subModuleId: parentTopic.subModuleId,
-                name: parentTopic.title
+            setDialogType('submodule');
+        } else if (type === 'topic') {
+            setTopicFormData({
+                title: data.title,
+                description: data.description || '',
+                level: data.level || 'Easy',
+                duration: data.duration || 0
             });
+
+            const testConfig = {
+                coreProgram: data.testConfiguration?.coreProgram ? [...data.testConfiguration.coreProgram] : [],
+                frontend: data.testConfiguration?.frontend ? [...data.testConfiguration.frontend] : [],
+                database: data.testConfiguration?.database ? [...data.testConfiguration.database] : []
+            };
+            setModuleTestConfig(testConfig);
+
+            const parentModule = modules.find(m => m._id === data.moduleId);
+            const hierarchyLevels = selectedCourse?.courseHierarchy.map(level => level.toLowerCase()) || [];
+            if (hierarchyLevels.includes('sub module')) {
+                const parentSubModule = subModules.find(sm => sm._id === data.subModuleId);
+                if (parentSubModule) {
+                    setSelectedSubModuleForTopic({
+                        id: parentSubModule._id,
+                        moduleId: parentSubModule.moduleId,
+                        name: parentSubModule.title
+                    });
+                }
+            } else {
+                if (parentModule) {
+                    setSelectedSubModuleForTopic({
+                        id: parentModule._id,
+                        moduleId: parentModule._id,
+                        name: parentModule.title
+                    });
+                }
+            }
+            setDialogType('topic');
+        } else if (type === 'subtopic') {
+            setSubTopicFormData({
+                title: data.title,
+                description: data.description || '',
+                level: data.level || 'Easy',
+                duration: data.duration || 0
+            });
+
+            const testConfig = {
+                coreProgram: data.testConfiguration?.coreProgram ? [...data.testConfiguration.coreProgram] : [],
+                frontend: data.testConfiguration?.frontend ? [...data.testConfiguration.frontend] : [],
+                database: data.testConfiguration?.database ? [...data.testConfiguration.database] : []
+            };
+            setModuleTestConfig(testConfig);
+
+            const parentTopic = topics.find(t => t._id === data.topicId);
+            if (parentTopic) {
+                setSelectedTopicForSubTopic({
+                    id: parentTopic._id,
+                    moduleId: parentTopic.moduleId,
+                    subModuleId: parentTopic.subModuleId,
+                    name: parentTopic.title
+                });
+            }
+            setDialogType('subtopic');
         }
-        setDialogType('subtopic');
-    }
-    
-    await fetchAndSetLevelData(type, data._id);
-    await fetchAndSetPedagogyData(type, data._id);
-    setShowDialog(true);
-}, [modules, subModules, topics, selectedCourse]);
+
+        await fetchAndSetLevelData(type, data._id);
+        await fetchAndSetPedagogyData(type, data._id);
+        setShowDialog(true);
+    }, [modules, subModules, topics, selectedCourse]);
 
     const fetchAndSetLevelData = async (type: string, id: string) => {
         if (!levelViews || !selectedCourse) return;
@@ -15907,32 +15907,52 @@ const handleEdit = useCallback(async (type: 'module' | 'submodule' | 'topic' | '
                                                                             </TableCell>
                                                                         )}
                                                                         {/* Languages Cell - renders every row for correct column alignment */}
-                                                                        {isFirstSubtopicInModule && (() => {
-                                                                            const moduleObj = modules.find(m => m._id === row.moduleId);
-                                                                            const coreProgram = (moduleObj as any)?.testConfiguration?.coreProgram || [];
-                                                                            const frontend = (moduleObj as any)?.testConfiguration?.frontend || [];
-                                                                            const database = (moduleObj as any)?.testConfiguration?.database || [];
+                                                                        {/* Languages Cell - reads from last hierarchy level */}
+                                                                        {(() => {
+                                                                            const hierarchyLevels = selectedCourse.courseHierarchy;
 
+                                                                            // Walk down from deepest to shallowest to find the last hierarchy object
+                                                                            let testConfig: { coreProgram: string[]; frontend: string[]; database: string[] } = {
+                                                                                coreProgram: [],
+                                                                                frontend: [],
+                                                                                database: [],
+                                                                            };
+
+                                                                            if (hierarchyLevels.includes('Sub Topic') && !isDefaultItem(row.subtopicName)) {
+                                                                                const obj = subTopics.find(st => st._id === row.subtopicId);
+                                                                                const config = (obj as any)?.testConfiguration;
+                                                                                const hasAny = config && (config.coreProgram?.length > 0 || config.frontend?.length > 0 || config.database?.length > 0);
+                                                                                if (hasAny) testConfig = config;
+                                                                            } else if (hierarchyLevels.includes('Topic') && !isDefaultItem(row.topicName)) {
+                                                                                const obj = topics.find(t => t._id === row.topicId);
+                                                                                const config = (obj as any)?.testConfiguration;
+                                                                                const hasAny = config && (config.coreProgram?.length > 0 || config.frontend?.length > 0 || config.database?.length > 0);
+                                                                                if (hasAny) testConfig = config;
+                                                                            } else if (hierarchyLevels.includes('Sub Module') && !isDefaultItem(row.subModuleName)) {
+                                                                                const obj = subModules.find(sm => sm._id === row.subModuleId);
+                                                                                const config = (obj as any)?.testConfiguration;
+                                                                                const hasAny = config && (config.coreProgram?.length > 0 || config.frontend?.length > 0 || config.database?.length > 0);
+                                                                                if (hasAny) testConfig = config;
+                                                                            }
+
+                                                                            // Always fall back to module if nothing found above
+                                                                            if (testConfig.coreProgram.length === 0 && testConfig.frontend.length === 0 && testConfig.database.length === 0) {
+                                                                                const moduleObj = modules.find(m => m._id === row.moduleId);
+                                                                                testConfig = (moduleObj as any)?.testConfiguration ?? testConfig;
+                                                                            }
+                                                                            const { coreProgram, frontend, database } = testConfig;
                                                                             const hasAny = coreProgram.length > 0 || frontend.length > 0 || database.length > 0;
 
                                                                             return (
-                                                                                <TableCell
-                                                                                    rowSpan={moduleSpans[row.moduleId]}
-                                                                                    className="border border-gray-400 text-gray-700 p-2 bg-purple-50 align-middle min-w-[120px] max-w-[150px]"
-                                                                                >
+                                                                                <TableCell className="border border-gray-400 text-gray-700 p-2 bg-purple-50 align-middle min-w-[120px] max-w-[150px]">
                                                                                     {hasAny ? (
                                                                                         <div className="flex flex-col gap-2 items-center w-full">
                                                                                             {coreProgram.length > 0 && (
                                                                                                 <div className="flex flex-col items-center w-full">
-                                                                                                    <span className="font-bold text-purple-700 text-[11px] uppercase tracking-wide mb-1">
-                                                                                                        Core
-                                                                                                    </span>
+                                                                                                    <span className="font-bold text-purple-700 text-[11px] uppercase tracking-wide mb-1">Core</span>
                                                                                                     <div className="flex flex-wrap gap-1 justify-center">
                                                                                                         {coreProgram.map((lang: string) => (
-                                                                                                            <span
-                                                                                                                key={lang}
-                                                                                                                className="bg-purple-100 text-purple-800 rounded-md px-1.5 py-0.5 text-[13px] font-medium text-center"
-                                                                                                            >
+                                                                                                            <span key={lang} className="bg-purple-100 text-purple-800 rounded-md px-1.5 py-0.5 text-[13px] font-medium text-center">
                                                                                                                 {lang}
                                                                                                             </span>
                                                                                                         ))}
@@ -15941,15 +15961,10 @@ const handleEdit = useCallback(async (type: 'module' | 'submodule' | 'topic' | '
                                                                                             )}
                                                                                             {frontend.length > 0 && (
                                                                                                 <div className="flex flex-col items-center w-full">
-                                                                                                    <span className="font-bold text-blue-700 text-[11px] uppercase tracking-wide mb-1">
-                                                                                                        Frontend
-                                                                                                    </span>
+                                                                                                    <span className="font-bold text-blue-700 text-[11px] uppercase tracking-wide mb-1">Frontend</span>
                                                                                                     <div className="flex flex-wrap gap-1 justify-center">
                                                                                                         {frontend.map((lang: string) => (
-                                                                                                            <span
-                                                                                                                key={lang}
-                                                                                                                className="bg-blue-100 text-blue-800 rounded-md px-1.5 py-0.5 text-[13px] font-medium text-center"
-                                                                                                            >
+                                                                                                            <span key={lang} className="bg-blue-100 text-blue-800 rounded-md px-1.5 py-0.5 text-[13px] font-medium text-center">
                                                                                                                 {lang}
                                                                                                             </span>
                                                                                                         ))}
@@ -15958,15 +15973,10 @@ const handleEdit = useCallback(async (type: 'module' | 'submodule' | 'topic' | '
                                                                                             )}
                                                                                             {database.length > 0 && (
                                                                                                 <div className="flex flex-col items-center w-full">
-                                                                                                    <span className="font-bold text-green-700 text-[11px] uppercase tracking-wide mb-1">
-                                                                                                        Database
-                                                                                                    </span>
+                                                                                                    <span className="font-bold text-green-700 text-[11px] uppercase tracking-wide mb-1">Database</span>
                                                                                                     <div className="flex flex-wrap gap-1 justify-center">
                                                                                                         {database.map((lang: string) => (
-                                                                                                            <span
-                                                                                                                key={lang}
-                                                                                                                className="bg-green-100 text-green-800 rounded-md px-1.5 py-0.5 text-[13px] font-medium text-center"
-                                                                                                            >
+                                                                                                            <span key={lang} className="bg-green-100 text-green-800 rounded-md px-1.5 py-0.5 text-[13px] font-medium text-center">
                                                                                                                 {lang}
                                                                                                             </span>
                                                                                                         ))}
@@ -16472,34 +16482,34 @@ const handleEdit = useCallback(async (type: 'module' | 'submodule' | 'topic' | '
                                                     placeholder="Brief description ..."
                                                 />
                                             </div>
-{(() => {
-    const skillSet = getCourseSkillSet();
-    const hasAny = skillSet.coreProgram.length > 0 || skillSet.frontend.length > 0 || skillSet.database.length > 0;
-    
-    if (!hasAny) return null;
-    
-    // Use moduleTestConfig directly - it already contains the edited values
-    const currentTestConfig = moduleTestConfig;
-    
-    // Create a unique key that changes when editMode changes
-    const componentKey = editMode ? `${editMode.type}-${editMode.data._id}-${Date.now()}` : 'new';
-    
-    return (
-        <div className="space-y-2 mt-2" key={componentKey}>
-            <h3 className="text-xs font-semibold text-slate-700 border-b pb-1 flex items-center">
-                <svg className="w-3.5 h-3.5 mr-1.5 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1h4v1a2 2 0 11-4 0zM12 14c.015-.34.208-.646.5-.8l1.5-.75a.5.5 0 00.5-.4V10.5a.5.5 0 00-.5-.5h-5a.5.5 0 00-.5.5v1.55c0 .2.12.39.3.5l1.5.75c.292.154.485.46.5.8h1z" />
-                </svg>
-                Skill Set Configuration
-            </h3>
-            <TestConfigurationSection
-                testConfiguration={currentTestConfig}
-                onChange={handleSkillSetChange}
-                availableLanguages={skillSet}
-            />
-        </div>
-    );
-})()}
+                                            {(() => {
+                                                const skillSet = getCourseSkillSet();
+                                                const hasAny = skillSet.coreProgram.length > 0 || skillSet.frontend.length > 0 || skillSet.database.length > 0;
+
+                                                if (!hasAny) return null;
+
+                                                // Use moduleTestConfig directly - it already contains the edited values
+                                                const currentTestConfig = moduleTestConfig;
+
+                                                // Create a unique key that changes when editMode changes
+                                                const componentKey = editMode ? `${editMode.type}-${editMode.data._id}-${Date.now()}` : 'new';
+
+                                                return (
+                                                    <div className="space-y-2 mt-2" key={componentKey}>
+                                                        <h3 className="text-xs font-semibold text-slate-700 border-b pb-1 flex items-center">
+                                                            <svg className="w-3.5 h-3.5 mr-1.5 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
+                                                                <path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1h4v1a2 2 0 11-4 0zM12 14c.015-.34.208-.646.5-.8l1.5-.75a.5.5 0 00.5-.4V10.5a.5.5 0 00-.5-.5h-5a.5.5 0 00-.5.5v1.55c0 .2.12.39.3.5l1.5.75c.292.154.485.46.5.8h1z" />
+                                                            </svg>
+                                                            Skill Set Configuration
+                                                        </h3>
+                                                        <TestConfigurationSection
+                                                            testConfiguration={currentTestConfig}
+                                                            onChange={handleSkillSetChange}
+                                                            availableLanguages={skillSet}
+                                                        />
+                                                    </div>
+                                                );
+                                            })()}
                                         </div>
                                     )}
 

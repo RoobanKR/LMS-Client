@@ -86,7 +86,7 @@ interface CourseContentProps {
   folderNavState: FolderNavState;
   courseId: string;
   courseStructureName: string;
-    configuredLanguages?: { coreProgram?: string[]; frontend?: string[]; database?: string[] };
+  configuredLanguages?: { coreProgram?: string[]; frontend?: string[]; database?: string[] };
   pedagogy?: Record<string, any>;
   onTabChange: (tab: "I_Do" | "We_Do" | "You_Do") => void;
   onSubcategoryChange: (sub: string, component: string | null) => void;
@@ -129,7 +129,6 @@ const FolderBreadcrumbBar: React.FC<{
         borderRadius: '8px',
       }}
     >
-      {/* Back button */}
       <button
         onClick={onNavigateUp}
         className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all"
@@ -153,15 +152,10 @@ const FolderBreadcrumbBar: React.FC<{
         Back
       </button>
 
-      {/* Separator */}
       <div className="w-px h-5" style={{ background: T.border }} />
-
-      {/* Folder icon */}
       <Folder size={14} style={{ color: T.orange }} />
 
-      {/* Breadcrumb path */}
       <div className="flex items-center gap-1 overflow-x-auto flex-1" style={{ scrollbarWidth: "none" }}>
-        {/* Root button */}
         <button
           onClick={() => onNavigateToRoot?.()}
           className="flex-shrink-0 text-[10.5px] font-semibold px-1.5 py-0.5 rounded transition-all cursor-pointer"
@@ -181,7 +175,6 @@ const FolderBreadcrumbBar: React.FC<{
           Root
         </button>
 
-        {/* Breadcrumb segments */}
         {folderPath.map((segment, idx) => {
           const isLast = idx === folderPath.length - 1;
           return (
@@ -216,7 +209,6 @@ const FolderBreadcrumbBar: React.FC<{
         })}
       </div>
 
-      {/* Item count badge */}
       <div className="flex-shrink-0 ml-auto">
         <span
           className="text-[10px] font-bold px-2 py-1 rounded-full"
@@ -842,8 +834,19 @@ const FileList: React.FC<{
     const normal = files.filter(f => (f.type || "").toLowerCase() !== "page");
     const empty = folders.length === 0 && files.length === 0;
 
+    // DEDUPLICATE PAGES BY ID TO PREVENT DUPLICATE KEYS
+    const uniquePages = useMemo(() => {
+      const pageMap = new Map();
+      pages.forEach(page => {
+        if (!pageMap.has(page.id)) {
+          pageMap.set(page.id, page);
+        }
+      });
+      return Array.from(pageMap.values());
+    }, [pages]);
+
     const allIds = [
-      ...pages.map(f => `page-${f.id}`),
+      ...uniquePages.map(f => `page-${f.id}`),
       ...folders.map(f => `folder-${f.id}`),
       ...normal.map(f => `file-${f.id}`),
     ];
@@ -864,7 +867,7 @@ const FileList: React.FC<{
       const items = [...selected].map(id => {
         if (id.startsWith("page-")) {
           const realId = id.replace("page-", "");
-          const file = pages.find(f => f.id === realId);
+          const file = uniquePages.find(f => f.id === realId);
           return file ? { type: "page" as const, id: realId, name: file.name } : null;
         } else if (id.startsWith("folder-")) {
           const realId = id.replace("folder-", "");
@@ -955,7 +958,8 @@ const FileList: React.FC<{
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: `${T.border} transparent`, paddingBottom: "50px" }}>
-          {pages.map(file => {
+          {/* USE DEDUPLICATED uniquePages INSTEAD OF pages */}
+          {uniquePages.map(file => {
             const combinedCode = (file as any)._combinedCode || "";
             const pageCount = (file as any)._pageCount ?? 1;
             const hasCode = combinedCode.includes("playground-wrapper") || combinedCode.includes("allow-scripts");
@@ -1382,7 +1386,7 @@ export const CourseContent: React.FC<CourseContentProps> = ({
   courseId, courseStructureName, pedagogy,
   onTabChange, onSubcategoryChange, onResourceModalOpen, onFileClick,
   onNavigateToFolder, onNavigateUp, onNavigateToRoot, onNavigateToFolderLevel,
-  onEditFolder, onDeleteFolder, onDeleteFile,configuredLanguages,
+  onEditFolder, onDeleteFolder, onDeleteFile, configuredLanguages,
   onDeletePage = (pageId: string, name: string) => {
     console.warn("onDeletePage not implemented by parent. pageId:", pageId, "name:", name)
   },
@@ -1445,37 +1449,85 @@ export const CourseContent: React.FC<CourseContentProps> = ({
     const pages: PageEntry[] = sec[raw]?.pages;
     if (!Array.isArray(pages) || pages.length === 0) return [];
     if (folderNavState.currentFolderId !== null) return [];
-    return pages
-      .filter(p => p?._id && p?.title && p?.combinedCode)
-      .map(p => {
-        const override = localPageOverrides[p._id];
-        return {
-          id: p._id,
-          name: override?.title ?? p.title,
-          type: "page",
-          url: "",
-          size: 0,
-          uploadedAt: p.createdAt || new Date().toISOString(),
-          tags: [],
-          subcategory: activeSubcategory,
-          folderId: null,
-          _combinedCode: override?.combinedCode ?? p.combinedCode,
-          _pageCount: override?.pageCount ?? p.pageCount ?? 1,
-          _blocks: override?.blocks?.length
-            ? override.blocks
-            : (p as any).blocks?.length
-              ? (p as any).blocks
-              : (p as any).pagesData?.[0]?.blocks ?? [],
-        } as any;
-      });
+    
+    // Deduplicate pages by _id
+    const pagesMap = new Map();
+    pages.forEach(p => {
+      if (p?._id && !pagesMap.has(p._id)) {
+        pagesMap.set(p._id, p);
+      }
+    });
+    
+    return Array.from(pagesMap.values()).map(p => {
+      const override = localPageOverrides[p._id];
+      return {
+        id: p._id,
+        name: override?.title ?? p.title,
+        type: "page",
+        url: "",
+        size: 0,
+        uploadedAt: p.createdAt || new Date().toISOString(),
+        tags: [],
+        subcategory: activeSubcategory,
+        folderId: null,
+        _combinedCode: override?.combinedCode ?? p.combinedCode,
+        _pageCount: override?.pageCount ?? p.pageCount ?? 1,
+        _blocks: override?.blocks?.length
+          ? override.blocks
+          : (p as any).blocks?.length
+            ? (p as any).blocks
+            : (p as any).pagesData?.[0]?.blocks ?? [],
+      } as any;
+    });
   }, [pedagogy, activeTab, activeSubcategory, localPageOverrides, folderNavState.currentFolderId]);
 
-  const allFiles = useMemo(() => [...pageFiles, ...currentFolderContents.files], [pageFiles, currentFolderContents.files]);
+  const allFiles = useMemo(() => {
+    // Combine both sources but ensure they're processed together
+    const combined = [...currentFolderContents.files];
+    
+    // Add pages if they exist in pedagogy
+    if (activeTab && activeSubcategory && pedagogy) {
+      const sec = pedagogy[activeTab];
+      if (sec) {
+        const raw = Object.keys(sec).find(k => normKey(k) === activeSubcategory);
+        if (raw && sec[raw]?.pages) {
+          const pagesMap = new Map();
+          sec[raw].pages.forEach((p: any) => {
+            if (p?._id && !pagesMap.has(p._id)) {
+              pagesMap.set(p._id, {
+                id: p._id,
+                name: p.title || "Untitled Page",
+                type: "page",
+                size: 0,
+                url: "",
+                uploadedAt: p.createdAt || new Date().toISOString(),
+                tags: [],
+                subcategory: activeSubcategory,
+                folderId: null,
+                _combinedCode: p.combinedCode || "",
+                _pageCount: p.pageCount || 1,
+              });
+            }
+          });
+          combined.push(...Array.from(pagesMap.values()));
+        }
+      }
+    }
+    
+    return combined;
+  }, [currentFolderContents.files, pedagogy, activeTab, activeSubcategory]);
 
-  const getFiltered = () => {
-    let folders = currentFolderContents.folders, files = allFiles;
+  // FIXED: Use useMemo instead of a function that calls setTimeout
+  const filteredContent = useMemo(() => {
+    let folders = currentFolderContents.folders;
+    let files = allFiles;
     const q = activeFilters.searchFilter.toLowerCase();
-    if (q) { folders = folders.filter(f => f.name.toLowerCase().includes(q)); files = files.filter(f => (f.name || "").toLowerCase().includes(q)); }
+    
+    if (q) { 
+      folders = folders.filter(f => f.name.toLowerCase().includes(q)); 
+      files = files.filter(f => (f.name || "").toLowerCase().includes(q)); 
+    }
+    
     if (activeFilters.fileTypes.length > 0) {
       const match = (f: UploadedFile) => {
         const lt = (f.type || "").toLowerCase(), ln = (f.name || "").toLowerCase();
@@ -1496,10 +1548,11 @@ export const CourseContent: React.FC<CourseContentProps> = ({
       if (!activeFilters.fileTypes.includes("folder")) folders = [];
       files = files.filter(match);
     }
+    
     return { folders, files };
-  };
+  }, [currentFolderContents.folders, allFiles, activeFilters.fileTypes, activeFilters.searchFilter]);
 
-  const { folders: ff, files: ft } = getFiltered();
+  const { folders: ff, files: ft } = filteredContent;
   const hasContent = ff.length > 0 || ft.length > 0;
 
   return (
@@ -1611,28 +1664,28 @@ export const CourseContent: React.FC<CourseContentProps> = ({
             </div>
 
           ) : activeTab === "We_Do" && activeSubcategory && isValidSub ? (
-       <ProblemSolving
-    key={`${activeTab}-${activeSubcategory}`}
-    nodeId={selectedNode!.id}
-    nodeName={selectedNode!.name}
-    subcategory={activeSubcategory}
-    subcategoryLabel={subcategories[activeTab].find(s => s.key === activeSubcategory)?.label || activeSubcategory}
-    contentData={contentData[selectedNode!.id]?.[activeTab]?.[activeSubcategory] || []}
-    folderNavigationState={folderNavState}
-    hierarchyData={{
-      courseName: courseStructureName || "",
-      moduleName: selectedNode!.type === "module" ? selectedNode!.name : getParentNodeName(selectedNode!, "module"),
-      submoduleName: selectedNode!.type === "submodule" ? selectedNode!.name : getParentNodeName(selectedNode!, "submodule"),
-      topicName: selectedNode!.type === "topic" ? selectedNode!.name : getParentNodeName(selectedNode!, "topic"),
-      subtopicName: selectedNode!.type === "subtopic" ? selectedNode!.name : getParentNodeName(selectedNode!, "subtopic"),
-      nodeType: selectedNode!.type,
-      level: selectedNode!.level,
-    }}
-    nodeType={selectedNode!.type}
-    activeTab={activeTab}
-    courseId={courseId}
-    configuredLanguages={configuredLanguages}  // ← ADD THIS LINE
-  />
+            <ProblemSolving
+              key={`${activeTab}-${activeSubcategory}`}
+              nodeId={selectedNode!.id}
+              nodeName={selectedNode!.name}
+              subcategory={activeSubcategory}
+              subcategoryLabel={subcategories[activeTab].find(s => s.key === activeSubcategory)?.label || activeSubcategory}
+              contentData={contentData[selectedNode!.id]?.[activeTab]?.[activeSubcategory] || []}
+              folderNavigationState={folderNavState}
+              hierarchyData={{
+                courseName: courseStructureName || "",
+                moduleName: selectedNode!.type === "module" ? selectedNode!.name : getParentNodeName(selectedNode!, "module"),
+                submoduleName: selectedNode!.type === "submodule" ? selectedNode!.name : getParentNodeName(selectedNode!, "submodule"),
+                topicName: selectedNode!.type === "topic" ? selectedNode!.name : getParentNodeName(selectedNode!, "topic"),
+                subtopicName: selectedNode!.type === "subtopic" ? selectedNode!.name : getParentNodeName(selectedNode!, "subtopic"),
+                nodeType: selectedNode!.type,
+                level: selectedNode!.level,
+              }}
+              nodeType={selectedNode!.type}
+              activeTab={activeTab}
+              courseId={courseId}
+              configuredLanguages={configuredLanguages}
+            />
 
           ) : activeTab === "You_Do" && activeSubcategory && isValidSub ? (
             (() => {
