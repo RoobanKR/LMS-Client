@@ -679,6 +679,7 @@ const FolderBreadcrumbBar = ({
     </div>
   );
 };
+
 // ─── Main Component ────────────────────────────────────────────────────────────
 export default function DynamicLMSCoordinator() {
   const { isDark, toggleDark } = useDarkMode();
@@ -776,6 +777,8 @@ const initialDataLoadedRef = useRef(false);
 const [isInitialLoad, setIsInitialLoad] = useState(true);
 const [isNodeSelected, setIsNodeSelected] = useState(false);
 const [isSidebarLoading, setIsSidebarLoading] = useState(true);
+const [cachedContentData, setCachedContentData] = useState<Record<string, ContentData>>({});
+const [loadingNodes, setLoadingNodes] = useState<Set<string>>(new Set());
 
 // Add these state variables with your other state declarations
 const [isContentLoading, setIsContentLoading] = useState(false);
@@ -980,15 +983,10 @@ useEffect(() => {
     const roots = (tabData[activeSubcategory] || []).filter((i): i is FolderItem => isFolderItem(i) && !i.parentId);
     return count(roots, folderId);
   }, [selectedNode, activeTab, activeSubcategory, contentData]);
-
-const refreshContentData = useCallback(async (node: CourseNode, backendData?: any) => {
-  const data = backendData || node.originalData;
-  if (!data?.pedagogy) return;
+  const processNodeContent = useCallback(async (node: CourseNode): Promise<ContentData> => {
+  const data = node.originalData;
+  if (!data?.pedagogy) return { I_Do: {}, We_Do: {}, You_Do: {} };
   
-  // Create a cache key to prevent redundant processing
-  const cacheKey = `${node.id}-${JSON.stringify(data.pedagogy)}`;
-  if (lastFetchedDataRef.current === cacheKey) return;
-  lastFetchedDataRef.current = cacheKey;
   const processPedagogy = (backendTab: "I_Do" | "We_Do" | "You_Do", frontendTab: "I_Do" | "We_Do" | "You_Do"): SubcategoryData => {
     const section = data.pedagogy[backendTab];
     if (!section) return {};
@@ -1002,9 +1000,7 @@ const refreshContentData = useCallback(async (node: CourseNode, backendData?: an
       const frontendKey = subcatKey.toLowerCase().replace(/\s+/g, "_");
       const items: (FolderItem | UploadedFile)[] = [];
       
-      // Process ALL items together - folders, files, and pages
-      
-      // 1. Process folders and their files
+      // Process folders
       if (subcatData.folders && Array.isArray(subcatData.folders)) {
         const processFolders = (foldersArr: any[], parentId: string | null = null, pathArr: string[] = []): FolderItem[] => {
           const foldersOut: FolderItem[] = [];
@@ -1017,10 +1013,8 @@ const refreshContentData = useCallback(async (node: CourseNode, backendData?: an
             
             const folderPath = [...pathArr, folder.name];
             
-            // Process files inside this folder
             const folderFiles: UploadedFile[] = (folder.files || []).map((file: any) => {
               if (!file) return null;
-              
               const fileId = file._id;
               if (!fileId) return null;
               
@@ -1054,7 +1048,6 @@ const refreshContentData = useCallback(async (node: CourseNode, backendData?: an
               };
             }).filter(Boolean) as UploadedFile[];
             
-            // Process subfolders recursively
             const subfolders = processFolders(folder.subfolders || [], fid, folderPath);
             
             const folderItem: FolderItem = {
@@ -1081,11 +1074,10 @@ const refreshContentData = useCallback(async (node: CourseNode, backendData?: an
         processFolders(subcatData.folders || []);
       }
       
-      // 2. Process root-level files
+      // Process root-level files
       if (subcatData.files && Array.isArray(subcatData.files)) {
         const rootFiles: UploadedFile[] = subcatData.files.map((file: any) => {
           if (!file) return null;
-          
           const fileId = file._id;
           if (!fileId) return null;
           
@@ -1129,7 +1121,7 @@ const refreshContentData = useCallback(async (node: CourseNode, backendData?: an
         items.push(...rootFiles);
       }
       
-      // 3. Process pages - ADD THEM TO THE SAME ITEMS ARRAY IMMEDIATELY
+      // Process pages
       if (subcatData.pages && Array.isArray(subcatData.pages)) {
         const pagesMap = new Map();
         
@@ -1155,7 +1147,6 @@ const refreshContentData = useCallback(async (node: CourseNode, backendData?: an
           _blocks: page.blocks || [],
         }));
         
-        // Add pages to the same items array - they will render immediately with other content
         items.push(...pagesAsFiles);
       }
       
@@ -1165,18 +1156,24 @@ const refreshContentData = useCallback(async (node: CourseNode, backendData?: an
     return result;
   };
   
-  const updated: ContentData = {
+  return {
     I_Do: processPedagogy("I_Do", "I_Do"),
     We_Do: processPedagogy("We_Do", "We_Do"),
     You_Do: processPedagogy("You_Do", "You_Do")
   };
+}, []);
+
+const refreshContentData = useCallback(async (node: CourseNode, backendData?: any) => {
+  const data = backendData || node.originalData;
+  if (!data?.pedagogy) return;
   
-  // Update contentData in one batch
-  setContentData((prev) => ({ ...prev, [node.id]: updated }));
-    if (!initialDataLoadedRef.current) {
-    initialDataLoadedRef.current = true;
-    setInitialLoadComplete(true);
-  }
+  // Process and cache the content
+  const processedContent = await processNodeContent(node);
+  
+  // Update both caches
+  setCachedContentData((prev) => ({ ...prev, [node.id]: processedContent }));
+  setContentData((prev) => ({ ...prev, [node.id]: processedContent }));
+  
   // Collect all folders for navigation
   const allFolders: FolderItem[] = [];
   const collectFolders = (items: (FolderItem | UploadedFile)[]) => {
@@ -1188,14 +1185,14 @@ const refreshContentData = useCallback(async (node: CourseNode, backendData?: an
     });
   };
   
-  Object.values(updated).forEach((tabData) => {
+  Object.values(processedContent).forEach((tabData) => {
     Object.values(tabData).forEach(collectFolders);
   });
   
   setFolders(allFolders);
-    setInitialLoadComplete(true);
+  setInitialLoadComplete(true);
   setIsInitialLoad(false);
-}, []);
+}, [processNodeContent]);
 
 
 const fetchAndRefresh = useCallback(async (node: CourseNode) => {
@@ -1207,7 +1204,7 @@ const fetchAndRefresh = useCallback(async (node: CourseNode) => {
   setIsContentLoading(true);
   
   try {
-    const BASE_URL = "https://lms-server-ym1q.onrender.com";
+    const BASE_URL = "http://localhost:5533";
     const token = typeof window !== "undefined" ? localStorage.getItem("smartcliff_token") : null;
     
     const courseRes = await fetch(`${BASE_URL}/getAll/courses-data/${courseId}`, {
@@ -1283,56 +1280,113 @@ const fetchAndRefresh = useCallback(async (node: CourseNode) => {
     return [...base, { label: courseStructureResponse?.data?.courseName || "Course", type: "course", id: nodePath.find((n) => n.type === "course")?.id || courseId || "" }, ...nodePath.filter((n) => n.type !== "course").map((n) => ({ label: n.name, type: n.type, id: n.id }))];
   }, [courseData, courseStructureResponse, courseId]);
 
-  const selectNode = useCallback(async (node: CourseNode) => {
-  // Prevent duplicate selections
-  if (selectedNode?.id === node.id) return;
+
+
+const fetchAndCacheNodeData = useCallback(async (node: CourseNode) => {
+  const nodeId = node.id;
   
-  setContentData((prev) => {
-    const n = { ...prev };
-    delete n[node.id];
-    return n;
-  });
+  // Prevent multiple simultaneous fetches for the same node
+  if (loadingNodes.has(nodeId)) return;
   
-setIsNodeSelected(true);
+  setLoadingNodes(prev => new Set(prev).add(nodeId));
   setIsContentLoading(true);
   
-  setContentData((prev) => {
-    const n = { ...prev };
-    delete n[node.id];
-    return n;
-  });
-  
-  setSelectedNodePersistent(node);  
-  const findModuleId = (n: CourseNode, nodes: CourseNode[]): string | null => {
-    if (n.type === "module") return n.id;
-    const findInPath = (ns: CourseNode[], tid: string, path: CourseNode[] = []): CourseNode | null => {
-      for (const x of ns) {
-        if (x.id === tid) return path.find((p) => p.type === "module") || null;
-        const found = findInPath(x.children || [], tid, [...path, x]);
-        if (found) return found;
+  try {
+    const BASE_URL = "http://localhost:5533";
+    const token = typeof window !== "undefined" ? localStorage.getItem("smartcliff_token") : null;
+    
+    const courseRes = await fetch(`${BASE_URL}/getAll/courses-data/${courseId}`, {
+      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    });
+    
+    if (!courseRes.ok) {
+      await refreshContentData(node);
+      return;
+    }
+    
+    const courseJson = await courseRes.json();
+    if (!courseJson?.data) {
+      await refreshContentData(node);
+      return;
+    }
+    
+    // Find the updated node data in the fresh response
+    const findInFresh = (modules: any[]): any | null => {
+      for (const mod of modules) {
+        if (mod._id === node.id) return mod;
+        for (const topic of mod.topics || []) {
+          if (topic._id === node.id) return topic;
+          for (const st of topic.subTopics || []) {
+            if (st._id === node.id) return st;
+          }
+        }
+        for (const sm of mod.subModules || []) {
+          if (sm._id === node.id) return sm;
+          for (const topic of sm.topics || []) {
+            if (topic._id === node.id) return topic;
+            for (const st of topic.subTopics || []) {
+              if (st._id === node.id) return st;
+            }
+          }
+        }
       }
       return null;
     };
-    return findInPath(nodes, n.id)?.id || null;
-  };
-  
-  const prevModuleId = selectedNode ? findModuleId(selectedNode, courseData) : null;
-  const newModuleId = findModuleId(node, courseData);
-  const isSameModule = prevModuleId === newModuleId && prevModuleId !== null;
-  
-  if (node.type === "topic" || node.type === "subtopic") {
-    if (isSameModule && activeTab && activeSubcategory) {
-      updateURL({ nodeId: node.id, activeTab, activeSubcategory });
+    
+    const freshNodeData = findInFresh(courseJson.data.modules || []);
+    if (freshNodeData) {
+      const freshNode: CourseNode = { ...node, originalData: freshNodeData };
+      
+      // Check if node structure changed
+      const nodeChanged = JSON.stringify(node.originalData) !== JSON.stringify(freshNodeData);
+      
+      if (nodeChanged) {
+        const transformed = transformToCourseNodes(courseJson.data);
+        setCourseData(transformed);
+        setSelectedNode(freshNode);
+      }
+      
+      // Process and cache the content data
+      const processedContent = await processNodeContent(freshNode);
+      
+      // Store in both caches
+      setCachedContentData(prev => ({ ...prev, [node.id]: processedContent }));
+      setContentData(prev => ({ ...prev, [node.id]: processedContent }));
+      
     } else {
-      setActiveTabPersistent("I_Do");
-      const firstSub = subcategories.I_Do[0]?.key || "";
-      setActiveSubcategoryPersistent(firstSub);
-      updateURL({ nodeId: node.id, activeTab: "I_Do", activeSubcategory: firstSub });
+      await refreshContentData(node);
     }
-  } else {
-    updateURL({ nodeId: node.id, activeTab, activeSubcategory });
+    
+    setInitialLoadComplete(true);
+  } catch (err) {
+    console.error("fetchAndCacheNodeData error:", err);
+    await refreshContentData(node);
+  } finally {
+    setIsContentLoading(false);
+    setLoadingNodes(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(nodeId);
+      return newSet;
+    });
+  }
+}, [courseId, loadingNodes]);
+
+ const selectNode = useCallback(async (node: CourseNode) => {
+  // Prevent duplicate selections
+  if (selectedNode?.id === node.id) return;
+  
+  // Check if we have cached data for this node
+  const hasCachedData = cachedContentData[node.id] !== undefined;
+  
+  setIsNodeSelected(true);
+  
+  if (!hasCachedData) {
+    setIsContentLoading(true);
   }
   
+  setSelectedNodePersistent(node);
+  
+  // Expand path in sidebar
   const path = findPathToNode(courseData, node.id);
   if (path?.length) {
     setExpandedNodes((prev) => {
@@ -1346,14 +1400,24 @@ setIsNodeSelected(true);
   updateNavState({ currentFolderPath: [], currentFolderId: null });
   setBreadcrumbs(generateBreadcrumbs(node));
   
-  // Only fetch if needed
-  if (!contentData[node.id] && !isContentLoading) {
-    await fetchAndRefresh(node);
+  // Use cached data if available
+  if (hasCachedData) {
+    // Use cached data immediately
+    setContentData((prev) => ({
+      ...prev,
+      [node.id]: cachedContentData[node.id]
+    }));
+    setIsContentLoading(false);
+  } else {
+    // Fetch fresh data
+    await fetchAndCacheNodeData(node);
   }
   
-  setIsContentLoading(false);
-}, [courseData, selectedNode, activeTab, activeSubcategory, subcategories, findPathToNode, generateBreadcrumbs, fetchAndRefresh, contentData, isContentLoading]);
-
+  // Update URL params
+  if (node.type === "topic" || node.type === "subtopic") {
+    updateURL({ nodeId: node.id, activeTab, activeSubcategory });
+  }
+}, [courseData, selectedNode, activeTab, activeSubcategory, subcategories, findPathToNode, generateBreadcrumbs, cachedContentData]);
 
 
 const getParentNodeName = useCallback((node: CourseNode, targetType: string): string => {
@@ -3122,11 +3186,11 @@ onEditFolder={(folder) => {
       {showZipViewer && <ZipViewer fileUrl={currentZipUrl} fileName={currentZipName} onClose={() => setShowZipViewer(false)} />}
 
       {showPDFViewer && (
-        <PDFViewer fileUrl={currentPDFUrl} fileName={currentPDFName} fileId={currentPDFFileId} entityType={selectedNode?.type} institution={selectedNode?.originalData?.institution || ""} courses={selectedNode?.originalData?.courses || ""} entityId={selectedNode?.id} tabType={activeTab || ""} subcategory={activeSubcategory || ""} folderPath={getCurrentNavState().currentFolderPath} apiBaseUrl="https://lms-server-ym1q.onrender.com" onClose={() => { setShowPDFViewer(false); setCurrentPDFUrl(""); setCurrentPDFName(""); setCurrentPDFFileId(""); }} isTeacher={true} initialMcqs={[]} sampleLiveLink="https://example.com/live-mcq-sample" />
+        <PDFViewer fileUrl={currentPDFUrl} fileName={currentPDFName} fileId={currentPDFFileId} entityType={selectedNode?.type} institution={selectedNode?.originalData?.institution || ""} courses={selectedNode?.originalData?.courses || ""} entityId={selectedNode?.id} tabType={activeTab || ""} subcategory={activeSubcategory || ""} folderPath={getCurrentNavState().currentFolderPath} apiBaseUrl="http://localhost:5533" onClose={() => { setShowPDFViewer(false); setCurrentPDFUrl(""); setCurrentPDFName(""); setCurrentPDFFileId(""); }} isTeacher={true} initialMcqs={[]} sampleLiveLink="https://example.com/live-mcq-sample" />
       )}
 
       {showPPTViewer && (
-        <PPTViewer isOpen={showPPTViewer} onClose={() => { setShowPPTViewer(false); setCurrentPPTUrl(""); setCurrentPPTName(""); setCurrentPPTFileId(""); }} pptUrl={currentPPTUrl} title={currentPPTName} fileId={currentPPTFileId} entityType={selectedNode?.type || ""} entityId={selectedNode?.id || ""} tabType={toBackendTab(activeTab)} subcategory={activeSubcategory} folderPath={getCurrentNavState().currentFolderPath} isTeacher={true} apiBaseUrl="https://lms-server-ym1q.onrender.com" />
+        <PPTViewer isOpen={showPPTViewer} onClose={() => { setShowPPTViewer(false); setCurrentPPTUrl(""); setCurrentPPTName(""); setCurrentPPTFileId(""); }} pptUrl={currentPPTUrl} title={currentPPTName} fileId={currentPPTFileId} entityType={selectedNode?.type || ""} entityId={selectedNode?.id || ""} tabType={toBackendTab(activeTab)} subcategory={activeSubcategory} folderPath={getCurrentNavState().currentFolderPath} isTeacher={true} apiBaseUrl="http://localhost:5533" />
       )}
 
 {showVideoViewer && (
@@ -3163,7 +3227,7 @@ onEditFolder={(folder) => {
       setCurrentVideoIndex(0); 
       setCurrentVideoFileId(""); 
     }}
-    apiBaseUrl="https://lms-server-ym1q.onrender.com" 
+    apiBaseUrl="http://localhost:5533" 
     isTeacher={true} 
   />
 )}
