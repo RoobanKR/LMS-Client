@@ -1203,7 +1203,7 @@ const fetchAndRefresh = useCallback(async (node: CourseNode) => {
   setIsContentLoading(true);
   
   try {
-    const BASE_URL = "http://localhost:5533";
+    const BASE_URL = "https://lms-server-ym1q.onrender.com";
     const token = typeof window !== "undefined" ? localStorage.getItem("smartcliff_token") : null;
     
     const courseRes = await fetch(`${BASE_URL}/getAll/courses-data/${courseId}`, {
@@ -1291,7 +1291,7 @@ const fetchAndCacheNodeData = useCallback(async (node: CourseNode) => {
   setIsContentLoading(true);
   
   try {
-    const BASE_URL = "http://localhost:5533";
+    const BASE_URL = "https://lms-server-ym1q.onrender.com";
     const token = typeof window !== "undefined" ? localStorage.getItem("smartcliff_token") : null;
     
     const courseRes = await fetch(`${BASE_URL}/getAll/courses-data/${courseId}`, {
@@ -3185,11 +3185,11 @@ onEditFolder={(folder) => {
       {showZipViewer && <ZipViewer fileUrl={currentZipUrl} fileName={currentZipName} onClose={() => setShowZipViewer(false)} />}
 
       {showPDFViewer && (
-        <PDFViewer fileUrl={currentPDFUrl} fileName={currentPDFName} fileId={currentPDFFileId} entityType={selectedNode?.type} institution={selectedNode?.originalData?.institution || ""} courses={selectedNode?.originalData?.courses || ""} entityId={selectedNode?.id} tabType={activeTab || ""} subcategory={activeSubcategory || ""} folderPath={getCurrentNavState().currentFolderPath} apiBaseUrl="http://localhost:5533" onClose={() => { setShowPDFViewer(false); setCurrentPDFUrl(""); setCurrentPDFName(""); setCurrentPDFFileId(""); }} isTeacher={true} initialMcqs={[]} sampleLiveLink="https://example.com/live-mcq-sample" />
+        <PDFViewer fileUrl={currentPDFUrl} fileName={currentPDFName} fileId={currentPDFFileId} entityType={selectedNode?.type} institution={selectedNode?.originalData?.institution || ""} courses={selectedNode?.originalData?.courses || ""} entityId={selectedNode?.id} tabType={activeTab || ""} subcategory={activeSubcategory || ""} folderPath={getCurrentNavState().currentFolderPath} apiBaseUrl="https://lms-server-ym1q.onrender.com" onClose={() => { setShowPDFViewer(false); setCurrentPDFUrl(""); setCurrentPDFName(""); setCurrentPDFFileId(""); }} isTeacher={true} initialMcqs={[]} sampleLiveLink="https://example.com/live-mcq-sample" />
       )}
 
       {showPPTViewer && (
-        <PPTViewer isOpen={showPPTViewer} onClose={() => { setShowPPTViewer(false); setCurrentPPTUrl(""); setCurrentPPTName(""); setCurrentPPTFileId(""); }} pptUrl={currentPPTUrl} title={currentPPTName} fileId={currentPPTFileId} entityType={selectedNode?.type || ""} entityId={selectedNode?.id || ""} tabType={toBackendTab(activeTab)} subcategory={activeSubcategory} folderPath={getCurrentNavState().currentFolderPath} isTeacher={true} apiBaseUrl="http://localhost:5533" />
+        <PPTViewer isOpen={showPPTViewer} onClose={() => { setShowPPTViewer(false); setCurrentPPTUrl(""); setCurrentPPTName(""); setCurrentPPTFileId(""); }} pptUrl={currentPPTUrl} title={currentPPTName} fileId={currentPPTFileId} entityType={selectedNode?.type || ""} entityId={selectedNode?.id || ""} tabType={toBackendTab(activeTab)} subcategory={activeSubcategory} folderPath={getCurrentNavState().currentFolderPath} isTeacher={true} apiBaseUrl="https://lms-server-ym1q.onrender.com" />
       )}
 
 {showVideoViewer && (
@@ -3226,7 +3226,7 @@ onEditFolder={(folder) => {
       setCurrentVideoIndex(0); 
       setCurrentVideoFileId(""); 
     }}
-    apiBaseUrl="http://localhost:5533" 
+    apiBaseUrl="https://lms-server-ym1q.onrender.com" 
     isTeacher={true} 
   />
 )}
