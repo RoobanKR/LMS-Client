@@ -107,123 +107,6 @@ interface CourseContentProps {
   onBulkDelete: (items: Array<{ type: "file" | "folder" | "page"; id: string; name: string; folderItem?: FolderItem }>) => Promise<void>;
 }
 
-// ─── Folder Breadcrumb Component ───────────────────────────────────────────────
-const FolderBreadcrumbBar: React.FC<{
-  folderNavState: FolderNavState;
-  onNavigateUp: () => void;
-  onNavigateToRoot?: () => void;
-  onNavigateToFolderLevel?: (folderName: string, index: number) => void;
-}> = ({ folderNavState, onNavigateUp, onNavigateToRoot, onNavigateToFolderLevel }) => {
-  const isInsideFolder = folderNavState.currentFolderId !== null;
-  const folderPath = folderNavState.currentFolderPath || [];
-
-  if (!isInsideFolder && folderPath.length === 0) return null;
-
-  return (
-    <div
-      className="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 mb-3"
-      style={{
-        background: T.warm,
-        borderBottom: `1px solid ${T.border}`,
-        borderLeft: `3px solid ${T.orange}`,
-        borderRadius: '8px',
-      }}
-    >
-      <button
-        onClick={onNavigateUp}
-        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all"
-        style={{
-          background: T.bg,
-          color: T.textSub,
-          border: `1px solid ${T.border}`,
-        }}
-        onMouseEnter={(e) => {
-          (e.currentTarget as HTMLElement).style.borderColor = T.orange;
-          (e.currentTarget as HTMLElement).style.color = T.orange;
-          (e.currentTarget as HTMLElement).style.background = T.orangeLight;
-        }}
-        onMouseLeave={(e) => {
-          (e.currentTarget as HTMLElement).style.borderColor = T.border;
-          (e.currentTarget as HTMLElement).style.color = T.textSub;
-          (e.currentTarget as HTMLElement).style.background = T.bg;
-        }}
-      >
-        <ArrowLeft size={12} strokeWidth={2.5} />
-        Back
-      </button>
-
-      <div className="w-px h-5" style={{ background: T.border }} />
-      <Folder size={14} style={{ color: T.orange }} />
-
-      <div className="flex items-center gap-1 overflow-x-auto flex-1" style={{ scrollbarWidth: "none" }}>
-        <button
-          onClick={() => onNavigateToRoot?.()}
-          className="flex-shrink-0 text-[10.5px] font-semibold px-1.5 py-0.5 rounded transition-all cursor-pointer"
-          style={{
-            color: folderPath.length === 0 ? T.orange : T.textHint,
-            background: folderPath.length === 0 ? T.orangeLight : 'transparent',
-          }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLElement).style.color = T.orange;
-            (e.currentTarget as HTMLElement).style.background = T.orangeLight;
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLElement).style.color = folderPath.length === 0 ? T.orange : T.textHint;
-            (e.currentTarget as HTMLElement).style.background = folderPath.length === 0 ? T.orangeLight : 'transparent';
-          }}
-        >
-          Root
-        </button>
-
-        {folderPath.map((segment, idx) => {
-          const isLast = idx === folderPath.length - 1;
-          return (
-            <div key={idx} className="flex items-center gap-1 flex-shrink-0">
-              <ChevronRight size={9} style={{ color: T.textHint }} />
-              <button
-                onClick={() => !isLast && onNavigateToFolderLevel?.(segment, idx)}
-                className="text-[10.5px] font-semibold px-1.5 py-0.5 rounded max-w-[120px] truncate transition-all"
-                style={{
-                  color: isLast ? T.orange : T.textSub,
-                  background: isLast ? T.orangeLight : "transparent",
-                  border: isLast ? `1px solid ${T.orange}20` : "1px solid transparent",
-                  cursor: isLast ? 'default' : 'pointer',
-                }}
-                onMouseEnter={(e) => {
-                  if (!isLast) {
-                    (e.currentTarget as HTMLElement).style.color = T.orange;
-                    (e.currentTarget as HTMLElement).style.background = T.orangeLight;
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!isLast) {
-                    (e.currentTarget as HTMLElement).style.color = T.textSub;
-                    (e.currentTarget as HTMLElement).style.background = "transparent";
-                  }
-                }}
-              >
-                {segment}
-              </button>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="flex-shrink-0 ml-auto">
-        <span
-          className="text-[10px] font-bold px-2 py-1 rounded-full"
-          style={{
-            background: T.orangeLight,
-            color: T.orange,
-          }}
-        >
-          {folderPath.length > 0 ? 'Folder' : 'Root'}
-        </span>
-      </div>
-    </div>
-  );
-};
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function openPageInNewTab(code: string) {
   const t = window.open("", "_blank");
@@ -244,7 +127,7 @@ const getFileMeta = (type: string, name?: string, isRef?: boolean) => {
   if (lt.includes("url") || lt.includes("link")) return { icon: <Link size={13} />, color: "#10b981", bg: "rgba(16,185,129,0.10)" };
   if (isRef === true || String(isRef) === "true") return { icon: <Bookmark size={13} />, color: "#8b5cf6", bg: "rgba(139,92,246,0.10)" };
   if (lt.includes("pdf") || ext === "pdf") return { icon: <FileText size={13} />, color: "#ef4444", bg: "rgba(239,68,68,0.10)" };
-  if (lt.includes("ppt") || ["ppt", "pptx"].includes(ext || "")) return { icon: <MonitorPlay size={13} />, color: "#f97316", bg: "rgba(249,115,22,0.10)" };
+  if (lt.includes("ppt") || ["ppt", "pptx","ptx"].includes(ext || "")) return { icon: <MonitorPlay size={13} />, color: "#f97316", bg: "rgba(249,115,22,0.10)" };
   if (lt.includes("video") || ["mp4", "avi", "mov", "mkv", "webm"].includes(ext || "")) return { icon: <Video size={13} />, color: "#8b5cf6", bg: "rgba(139,92,246,0.10)" };
   if (lt.includes("zip") || ["zip", "rar", "7z", "tar", "gz"].includes(ext || "")) return { icon: <FileArchive size={13} />, color: "#f59e0b", bg: "rgba(245,158,11,0.10)" };
   return { icon: <File size={13} />, color: T.textMuted, bg: T.pageBg };
@@ -668,7 +551,7 @@ const DropItem: React.FC<{
   </button>
 );
 
-// ─── FilterSection ────────────────────────────────────────────────────────────
+// ─── FilterSection Component (Updated - Only show existing file types) ────────
 const FilterSection: React.FC<{
   fileTypes: FileTypeConfig[];
   allFiles: UploadedFile[];
@@ -684,96 +567,177 @@ const FilterSection: React.FC<{
     return () => clearTimeout(t);
   }, [search]);
 
-  const avail = useMemo(() => {
-    const s = new Set<string>();
-    if (currentFolders.length > 0) s.add("folder");
-    allFiles.forEach(f => {
-      const lt = (f.type || "").toLowerCase(), ln = (f.name || "").toLowerCase();
-      if (lt === "page") { s.add("page"); return; }
-      if (lt.includes("url") || lt.includes("link")) { s.add("url"); return; }
-      if (f.isReference === true || String(f.isReference) === "true") { s.add("reference"); return; }
-      if (lt.includes("pdf") || ln.endsWith(".pdf")) { s.add("pdf"); return; }
-      if (lt.includes("ppt") || ln.match(/\.pptx?$/i)) { s.add("ppt"); return; }
-      if (lt.includes("video") || ln.match(/\.(mp4|avi|mov|mkv|webm)$/i)) { s.add("video"); return; }
-      if (lt.includes("zip") || ln.match(/\.(zip|rar|7z|tar|gz)$/i)) { s.add("zip"); return; }
+  // Get available file types from actual data (only show what exists)
+  const availableTypes = useMemo(() => {
+    const types = new Set<string>();
+    
+    // Check folders
+    if (currentFolders.length > 0) {
+      types.add("folder");
+    }
+    
+    // Check files
+    allFiles.forEach(file => {
+      const lt = (file.type || "").toLowerCase();
+      const ln = (file.name || "").toLowerCase();
+      const isRef = file.isReference === true || String(file.isReference) === "true";
+      const isUrl = lt.includes("url") || lt.includes("link");
+      const isPage = lt === "page";
+      
+      if (isPage) types.add("page");
+      else if (isUrl) types.add("url");
+      else if (isRef) types.add("reference");
+      else if (lt.includes("pdf") || ln.endsWith(".pdf")) types.add("pdf");
+else if (lt.includes("ppt") || ln.match(/\.pptx?$/i) || ln.match(/\.ptx$/i)) types.add("ppt");      else if (lt.includes("video") || ln.match(/\.(mp4|avi|mov|mkv|webm)$/i)) types.add("video");
+      else if (lt.includes("zip") || ln.match(/\.(zip|rar|7z|tar|gz)$/i)) types.add("zip");
     });
-    return [...s];
+    
+    return Array.from(types);
   }, [allFiles, currentFolders]);
 
-  const FM: Record<string, { icon: React.ReactNode; color: string }> = {
-    page: { icon: <Layout size={10} />, color: "#6366f1" },
-    folder: { icon: <Folder size={10} />, color: T.orange },
-    url: { icon: <Link size={10} />, color: "#10b981" },
-    reference: { icon: <Bookmark size={10} />, color: "#8b5cf6" },
-    pdf: { icon: <FileText size={10} />, color: "#ef4444" },
-    video: { icon: <Video size={10} />, color: "#8b5cf6" },
-    zip: { icon: <FileArchive size={10} />, color: "#f59e0b" },
-    ppt: { icon: <MonitorPlay size={10} />, color: "#f97316" },
+  const FM: Record<string, { icon: React.ReactNode; color: string; label: string }> = {
+    page: { icon: <Layout size={10} />, color: "#6366f1", label: "Pages" },
+    folder: { icon: <Folder size={10} />, color: T.orange, label: "Folders" },
+    url: { icon: <Link size={10} />, color: "#10b981", label: "URLs" },
+    reference: { icon: <Bookmark size={10} />, color: "#8b5cf6", label: "References" },
+    pdf: { icon: <FileText size={10} />, color: "#ef4444", label: "PDFs" },
+    video: { icon: <Video size={10} />, color: "#8b5cf6", label: "Videos" },
+    zip: { icon: <FileArchive size={10} />, color: "#f59e0b", label: "ZIPs" },
+    ppt: { icon: <MonitorPlay size={10} />, color: "#f97316", label: "Presentations" },
   };
-  const lbl = (t: string) => {
-    const c = fileTypes.find(f => f.key === t);
-    return t === "page" ? "Pages" : c?.label || (t.charAt(0).toUpperCase() + t.slice(1));
-  };
-  const tog = (t: string) =>
+
+  const toggleFilter = (t: string) => {
     onFilterChange({
       ...activeFilters,
       fileTypes: activeFilters.fileTypes.includes(t)
         ? activeFilters.fileTypes.filter(x => x !== t)
         : [...activeFilters.fileTypes, t],
     });
+  };
+
+  const hasActiveFilters = activeFilters.fileTypes.length > 0;
+
+  // Don't show filter section if no data
+  if (availableTypes.length === 0 && allFiles.length === 0 && currentFolders.length === 0) {
+    return (
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 w-full">
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={onResourceModalOpen}
+            className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold text-white"
+            style={{ background: T.orange, boxShadow: `0 3px 10px ${T.orangeGlow}`, transition: "all 0.18s" }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = T.orangeDark; (e.currentTarget as HTMLElement).style.transform = "translateY(-1px)"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.orange; (e.currentTarget as HTMLElement).style.transform = "none"; }}
+          >
+            <Plus size={12} strokeWidth={2.5} />
+            <span className="hidden sm:inline">Add Resource</span>
+            <span className="sm:hidden">Add</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 w-full">
       <div className="flex items-center gap-1.5 overflow-x-auto flex-wrap" style={{ scrollbarWidth: "none" }}>
-        <button
-          onClick={() => onFilterChange({ ...activeFilters, fileTypes: [] })}
-          className="flex-shrink-0 px-2.5 py-1 rounded-lg text-[10.5px] font-bold transition-all"
-          style={activeFilters.fileTypes.length === 0
-            ? { background: T.orange, color: "#fff", border: `1.5px solid ${T.orange}`, boxShadow: `0 2px 8px ${T.orangeGlow}` }
-            : { background: T.bg, color: T.textSub, border: `1px solid ${T.border}` }}
-          onMouseEnter={e => { if (activeFilters.fileTypes.length !== 0) { (e.currentTarget as HTMLElement).style.borderColor = T.orange; (e.currentTarget as HTMLElement).style.color = T.orange; } }}
-          onMouseLeave={e => { if (activeFilters.fileTypes.length !== 0) { (e.currentTarget as HTMLElement).style.borderColor = T.border; (e.currentTarget as HTMLElement).style.color = T.textSub; } }}
-        >All</button>
-        {avail.map(t => {
-          const on = activeFilters.fileTypes.includes(t);
-          const m = FM[t] || { icon: <File size={10} />, color: T.textMuted };
+        {/* All button - only show if there are filters */}
+        {availableTypes.length > 0 && (
+          <button
+            onClick={() => onFilterChange({ ...activeFilters, fileTypes: [] })}
+            className="flex-shrink-0 px-2.5 py-1 rounded-lg text-[10.5px] font-bold transition-all"
+            style={
+              !hasActiveFilters
+                ? { background: T.orange, color: "#fff", border: `1.5px solid ${T.orange}`, boxShadow: `0 2px 8px ${T.orangeGlow}` }
+                : { background: T.bg, color: T.textSub, border: `1px solid ${T.border}` }
+            }
+            onMouseEnter={e => {
+              if (hasActiveFilters) {
+                (e.currentTarget as HTMLElement).style.borderColor = T.orange;
+                (e.currentTarget as HTMLElement).style.color = T.orange;
+              }
+            }}
+            onMouseLeave={e => {
+              if (hasActiveFilters) {
+                (e.currentTarget as HTMLElement).style.borderColor = T.border;
+                (e.currentTarget as HTMLElement).style.color = T.textSub;
+              }
+            }}
+          >
+            All
+          </button>
+        )}
+        
+        {/* Filter buttons - only show types that exist in data */}
+        {availableTypes.map(t => {
+          const isActive = activeFilters.fileTypes.includes(t);
+          const m = FM[t] || { icon: <File size={10} />, color: T.textMuted, label: t.charAt(0).toUpperCase() + t.slice(1) };
           return (
-            <button key={t} onClick={() => tog(t)}
+            <button
+              key={t}
+              onClick={() => toggleFilter(t)}
               className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10.5px] font-bold transition-all"
-              style={on
-                ? { background: `${m.color}12`, color: m.color, border: `1.5px solid ${m.color}45` }
-                : { background: T.bg, color: T.textSub, border: `1px solid ${T.border}` }}
-              onMouseEnter={e => { if (!on) { (e.currentTarget as HTMLElement).style.borderColor = m.color; (e.currentTarget as HTMLElement).style.color = m.color; } }}
-              onMouseLeave={e => { if (!on) { (e.currentTarget as HTMLElement).style.borderColor = T.border; (e.currentTarget as HTMLElement).style.color = T.textSub; } }}
+              style={
+                isActive
+                  ? { background: `${m.color}15`, color: m.color, border: `1.5px solid ${m.color}60` }
+                  : { background: T.bg, color: T.textSub, border: `1px solid ${T.border}` }
+              }
+              onMouseEnter={e => {
+                if (!isActive) {
+                  (e.currentTarget as HTMLElement).style.borderColor = m.color;
+                  (e.currentTarget as HTMLElement).style.color = m.color;
+                }
+              }}
+              onMouseLeave={e => {
+                if (!isActive) {
+                  (e.currentTarget as HTMLElement).style.borderColor = T.border;
+                  (e.currentTarget as HTMLElement).style.color = T.textSub;
+                }
+              }}
             >
-              <span style={{ color: on ? m.color : T.textHint }}>{m.icon}</span>{lbl(t)}
+              <span style={{ color: isActive ? m.color : T.textHint }}>{m.icon}</span>
+              {m.label}
+              {isActive && (
+                <span className="ml-0.5 w-1.5 h-1.5 rounded-full" style={{ background: m.color }} />
+              )}
             </button>
           );
         })}
       </div>
+      
       <div className="flex items-center gap-2 w-full sm:w-auto flex-shrink-0">
         <div className="relative flex-1 sm:w-52">
           <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: search ? T.orange : T.textHint }} />
-          <input type="text" placeholder="Search files…" value={search} onChange={e => setSearch(e.target.value)}
+          <input
+            type="text"
+            placeholder="Search files…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
             className="w-full pl-7 pr-6 py-1.5 text-[11px] font-medium outline-none"
             style={{ background: T.pageBg, border: `1px solid ${T.border}`, borderRadius: 9, color: T.textMain, fontFamily: "inherit" }}
             onFocus={e => { e.currentTarget.style.borderColor = T.orange; e.currentTarget.style.boxShadow = `0 0 0 3px ${T.orangeLight}`; e.currentTarget.style.background = T.bg; }}
             onBlur={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.background = T.pageBg; }}
           />
           {search && (
-            <button type="button" onClick={() => { setSearch(""); onFilterChange({ ...activeFilters, searchFilter: "" }); }}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded" style={{ color: T.textHint }}
+            <button
+              type="button"
+              onClick={() => { setSearch(""); onFilterChange({ ...activeFilters, searchFilter: "" }); }}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded"
+              style={{ color: T.textHint }}
               onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = T.orange}
-              onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = T.textHint}>
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = T.textHint}
+            >
               <X size={10} />
             </button>
           )}
         </div>
-        <button onClick={onResourceModalOpen}
+        <button
+          onClick={onResourceModalOpen}
           className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold text-white"
           style={{ background: T.orange, boxShadow: `0 3px 10px ${T.orangeGlow}`, transition: "all 0.18s" }}
           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = T.orangeDark; (e.currentTarget as HTMLElement).style.transform = "translateY(-1px)"; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.orange; (e.currentTarget as HTMLElement).style.transform = "none"; }}>
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.orange; (e.currentTarget as HTMLElement).style.transform = "none"; }}
+        >
           <Plus size={12} strokeWidth={2.5} />
           <span className="hidden sm:inline">Add Resource</span>
           <span className="sm:hidden">Add</span>
@@ -783,7 +747,7 @@ const FilterSection: React.FC<{
   );
 };
 
-// ─── FileList Component ────────────────────────────────────────────────────────
+// ─── FileList Component (Updated - Filter hides non-matching items) ───────────
 const FileList: React.FC<{
   folders: FolderItem[]; files: UploadedFile[];
   activeTab: "I_Do" | "We_Do" | "You_Do" | null; activeSubcategory: string;
@@ -799,6 +763,7 @@ const FileList: React.FC<{
   onEditPage: (data: { id: string; title: string; blocks: PageBlock[]; code: string }) => void;
   onPageClick: (page: ViewingPage) => void;
   onBulkDelete: (items: Array<{ type: "file" | "folder" | "page"; id: string; name: string; folderItem?: FolderItem }>) => Promise<void>;
+  activeFileTypes?: string[];
 }> = ({
   folders, files, activeTab, activeSubcategory, getFolderItemCount,
   onFolderClick, onFileClick, onEditFolder, onDeleteFolder, onDeleteFile, onUpdateFile,
@@ -808,13 +773,12 @@ const FileList: React.FC<{
   onEditPage,
   onPageClick,
   onBulkDelete,
+  activeFileTypes = [],
 }) => {
     const [openDrop, setOpenDrop] = useState<string | null>(null);
     const [dropUpward, setDropUpward] = useState(false);
     const [selected, setSelected] = useState<Set<string>>(new Set());
     const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
-    const isInsideFolder = folderNavState.currentFolderId !== null;
-    const folderPath = folderNavState.currentFolderPath || [];
     
     useEffect(() => {
       const h = (e: MouseEvent) => { if (!(e.target as Element).closest(".dd-w")) setOpenDrop(null); };
@@ -830,25 +794,62 @@ const FileList: React.FC<{
       setOpenDrop(id);
     };
 
-    const pages = files.filter(f => (f.type || "").toLowerCase() === "page");
-    const normal = files.filter(f => (f.type || "").toLowerCase() !== "page");
-    const empty = folders.length === 0 && files.length === 0;
-
-    // DEDUPLICATE PAGES BY ID TO PREVENT DUPLICATE KEYS
-    const uniquePages = useMemo(() => {
-      const pageMap = new Map();
-      pages.forEach(page => {
-        if (!pageMap.has(page.id)) {
-          pageMap.set(page.id, page);
+    // Helper function to check if a file matches active filters
+    const isFileTypeActive = (file: UploadedFile): boolean => {
+      if (activeFileTypes.length === 0) return true;
+      
+      const lt = (file.type || "").toLowerCase();
+      const ln = (file.name || "").toLowerCase();
+      const isPage = lt === "page";
+      const isRef = file.isReference === true || String(file.isReference) === "true";
+      const isUrl = lt.includes("url") || lt.includes("link");
+      
+      return activeFileTypes.some(t => {
+        switch (t) {
+          case "page": return isPage;
+          case "url": return isUrl;
+          case "reference": return isRef;
+          case "pdf": return lt.includes("pdf") || ln.endsWith(".pdf");
+            case "ppt": return lt.includes("ppt") || !!ln.match(/\.pptx?$/i) || !!ln.match(/\.ptx$/i);
+          case "video": return lt.includes("video") || !!ln.match(/\.(mp4|avi|mov|mkv|webm)$/i);
+          case "zip": return lt.includes("zip") || !!ln.match(/\.(zip|rar|7z|tar|gz)$/i);
+          default: return lt.includes(t);
         }
       });
-      return Array.from(pageMap.values());
-    }, [pages]);
+    };
+
+    const isFolderTypeActive = (): boolean => {
+      if (activeFileTypes.length === 0) return true;
+      return activeFileTypes.includes("folder");
+    };
+
+    // Filter files and folders based on active filters - HIDE non-matching items
+    const filteredFolders = useMemo(() => {
+      if (activeFileTypes.length === 0) return folders;
+      const isFolderActive = activeFileTypes.includes("folder");
+      return isFolderActive ? folders : [];
+    }, [folders, activeFileTypes]);
+
+    const filteredFiles = useMemo(() => {
+      if (activeFileTypes.length === 0) return files;
+      return files.filter(file => isFileTypeActive(file));
+    }, [files, activeFileTypes]);
+
+    const empty = filteredFolders.length === 0 && filteredFiles.length === 0;
+
+    const uniqueFiles = useMemo(() => {
+      const fileMap = new Map();
+      filteredFiles.forEach(file => {
+        if (!fileMap.has(file.id)) {
+          fileMap.set(file.id, file);
+        }
+      });
+      return Array.from(fileMap.values());
+    }, [filteredFiles]);
 
     const allIds = [
-      ...uniquePages.map(f => `page-${f.id}`),
-      ...folders.map(f => `folder-${f.id}`),
-      ...normal.map(f => `file-${f.id}`),
+      ...uniqueFiles.map(f => `file-${f.id}`),
+      ...filteredFolders.map(f => `folder-${f.id}`),
     ];
     const allSelected = allIds.length > 0 && allIds.every(id => selected.has(id));
     const someSelected = allIds.some(id => selected.has(id));
@@ -865,19 +866,24 @@ const FileList: React.FC<{
     const handleBulkDelete = async () => {
       setConfirmBulkDelete(false);
       const items = [...selected].map(id => {
-        if (id.startsWith("page-")) {
-          const realId = id.replace("page-", "");
-          const file = uniquePages.find(f => f.id === realId);
-          return file ? { type: "page" as const, id: realId, name: file.name } : null;
+        if (id.startsWith("file-")) {
+          const realId = id.replace("file-", "");
+          const file = uniqueFiles.find(f => f.id === realId);
+          if (file) {
+            const isPage = (file.type || "").toLowerCase() === "page";
+            return { 
+              type: isPage ? "page" as const : "file" as const, 
+              id: realId, 
+              name: file.name 
+            };
+          }
+          return null;
         } else if (id.startsWith("folder-")) {
           const realId = id.replace("folder-", "");
-          const folder = folders.find(f => f.id === realId);
+          const folder = filteredFolders.find(f => f.id === realId);
           return folder ? { type: "folder" as const, id: realId, name: folder.name, folderItem: folder } : null;
-        } else {
-          const realId = id.replace("file-", "");
-          const file = normal.find(f => f.id === realId);
-          return file ? { type: "file" as const, id: realId, name: file.name } : null;
         }
+        return null;
       }).filter(Boolean) as Array<{ type: "file" | "folder" | "page"; id: string; name: string; folderItem?: FolderItem }>;
       await onBulkDelete(items);
       setSelected(new Set());
@@ -958,192 +964,162 @@ const FileList: React.FC<{
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: `${T.border} transparent`, paddingBottom: "50px" }}>
-          {/* USE DEDUPLICATED uniquePages INSTEAD OF pages */}
-          {uniquePages.map(file => {
-            const combinedCode = (file as any)._combinedCode || "";
-            const pageCount = (file as any)._pageCount ?? 1;
-            const hasCode = combinedCode.includes("playground-wrapper") || combinedCode.includes("allow-scripts");
-
-            return (
-              <div
-                key={file.id}
-                onClick={() => onPageClick({ code: combinedCode, title: file.name, pageCount })}
-                className="group/page cursor-pointer"
-                style={rowBase}
-                onMouseEnter={e => {
-                  (e.currentTarget as HTMLElement).style.background = "rgba(99,102,241,0.04)";
-                  (e.currentTarget as HTMLElement).style.borderLeftColor = "#6366f1";
-                }}
-                onMouseLeave={e => {
-                  (e.currentTarget as HTMLElement).style.background = T.bg;
-                  (e.currentTarget as HTMLElement).style.borderLeftColor = "transparent";
-                }}
-              >
-                <div className="flex items-center justify-center" onClick={e => toggleSelect(`page-${file.id}`, e)}>
-                  <div className="w-4 h-4 rounded flex items-center justify-center cursor-pointer flex-shrink-0"
-                    style={{ background: selected.has(`page-${file.id}`) ? "#6366f1" : "transparent", border: `1.5px solid ${selected.has(`page-${file.id}`) ? "#6366f1" : T.border}`, transition: "all 0.15s" }}>
-                    {selected.has(`page-${file.id}`) && <svg width="9" height="7" viewBox="0 0 9 7" fill="none"><path d="M1 3.5L3.5 6L8 1" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div
-                    className="flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center"
-                    style={{ background: "rgba(99,102,241,0.10)", border: "1px solid rgba(99,102,241,0.18)" }}
-                  >
-                    <Layout size={13} style={{ color: "#6366f1" }} />
-                  </div>
-                  <div className="flex flex-col min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-[12px] font-bold truncate" style={{ color: T.textMain }}>{file.name}</span>
-                      <span
-                        className="flex-shrink-0 text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-widest"
-                        style={{ background: "rgba(99,102,241,0.10)", color: "#6366f1", border: "1px solid rgba(99,102,241,0.18)" }}
-                      >PAGE</span>
-                      {hasCode && (
-                        <span
-                          className="flex-shrink-0 flex items-center gap-0.5 text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-widest"
-                          style={{ background: "rgba(16,185,129,0.09)", color: "#059669", border: "1px solid rgba(16,185,129,0.20)" }}
-                        >
-                          <Code2 size={7} />
-                          Code
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-[9.5px] mt-0.5 font-medium" style={{ color: T.textHint }}>
-                      Click to view inline
-                      {pageCount > 1 && ` · ${pageCount} pages`}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="text-[10.5px] font-medium" style={{ color: T.textMuted }}>
-                  {(file as any).uploadedAt
-                    ? new Date((file as any).uploadedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })
-                    : "—"}
-                </div>
-
-                <div className="text-[10.5px] font-medium" style={{ color: T.textMuted }}>
-                  {pageCount > 1 ? `${pageCount}p` : "1p"}
-                </div>
-
-                <div className="flex items-center justify-center gap-1 relative dd-w">
-                  <button
-                    type="button"
-                    onClick={e => { e.stopPropagation(); onPageClick({ code: combinedCode, title: file.name, pageCount }); }}
-                    title="View inline"
-                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold"
-                    style={{ background: "rgba(99,102,241,0.09)", color: "#6366f1", border: "1px solid rgba(99,102,241,0.20)", transition: "all 0.13s" }}
-                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "rgba(99,102,241,0.18)"}
-                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = "rgba(99,102,241,0.09)"}
-                  >
-                    <Eye size={11} />View
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={e => tog(`page-${file.id}`, e)}
-                    className="p-1.5 rounded-lg"
-                    style={{ color: T.textHint, transition: "all 0.13s" }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = T.pageBg; (e.currentTarget as HTMLElement).style.color = T.textMain; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = T.textHint; }}
-                  >
-                    <MoreVertical size={13} />
-                  </button>
-                  {openDrop === `page-${file.id}` && (
-                    <DropMenu upward={dropUpward}>
-                      <DropItem
-                        icon={<Eye size={12} />}
-                        label="View Inline"
-                        onClick={() => { onPageClick({ code: combinedCode, title: file.name, pageCount }); setOpenDrop(null); }}
-                      />
-                      <DropItem
-                        icon={<Edit2 size={12} />}
-                        label="Edit Page"
-                        onClick={() => {
-                          onEditPage({
-                            id: file.id,
-                            title: file.name,
-                            blocks: (file as any)._blocks ?? [],
-                            code: combinedCode,
-                          });
-                          setOpenDrop(null);
-                        }}
-                      />
-                      <DropItem
-                        icon={<ExternalLink size={12} />}
-                        label="Open in New Tab"
-                        onClick={() => { openPageInNewTab(combinedCode); setOpenDrop(null); }}
-                      />
-                      <DropItem
-                        icon={<Trash2 size={12} />}
-                        label="Delete"
-                        color="#ef4444"
-                        divider
-                        onClick={() => {
-                          onDeletePage?.(file.id, file.name);
-                          setOpenDrop(null);
-                        }}
-                      />
-                    </DropMenu>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-
-          {folders.map(folder => (
-            <div key={folder.id} onClick={() => onFolderClick(folder.id, folder.name)}
-              className="group/row cursor-pointer" style={rowBase}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = T.warm; (e.currentTarget as HTMLElement).style.borderLeftColor = T.orange; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.bg; (e.currentTarget as HTMLElement).style.borderLeftColor = "transparent"; }}>
-              <div className="flex items-center justify-center" onClick={e => toggleSelect(`folder-${folder.id}`, e)}>
-                <div className="w-4 h-4 rounded flex items-center justify-center cursor-pointer flex-shrink-0"
-                  style={{ background: selected.has(`folder-${folder.id}`) ? T.orange : "transparent", border: `1.5px solid ${selected.has(`folder-${folder.id}`) ? T.orange : T.border}`, transition: "all 0.15s" }}>
-                  {selected.has(`folder-${folder.id}`) && <svg width="9" height="7" viewBox="0 0 9 7" fill="none"><path d="M1 3.5L3.5 6L8 1" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-                </div>
-              </div>
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: T.orangeLight, border: `1px solid ${T.orange}20` }}>
-                  <Folder size={14} style={{ color: T.orange }} />
-                </div>
-                <div className="flex flex-col min-w-0">
-                  <span className="text-[12px] truncate" style={{ color: T.textMain }}>{folder.name}</span>
-                  {folder.tags?.length > 0 && (
-                    <div className="flex items-center gap-1 mt-0.5">
-                      {folder.tags.map((tag, i) => (
-                        <span key={i} className="text-[8.5px] font-bold px-1.5 py-0.5 rounded" style={{ background: `${tag.tagColor}12`, color: tag.tagColor, border: `1px solid ${tag.tagColor}25` }}>{tag.tagName}</span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="text-[10.5px] font-medium" style={{ color: T.textMuted }}>{new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })}</div>
-              <div><span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9.5px] font-bold" style={{ background: T.pageBg, color: T.textSub, border: `1px solid ${T.border}` }}>{getFolderItemCount(folder.id)} items</span></div>
-              <div className="flex items-center justify-center relative dd-w">
-                <button type="button" onClick={e => tog(`folder-${folder.id}`, e)} className="p-1.5 rounded-lg" style={{ color: T.textHint, transition: "all 0.13s" }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = T.orangeLight; (e.currentTarget as HTMLElement).style.color = T.orange; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = T.textHint; }}>
-                  <MoreVertical size={13} />
-                </button>
-                {openDrop === `folder-${folder.id}` && (
-                  <DropMenu upward={dropUpward}>
-                    <DropItem icon={<Edit2 size={12} />} label="Edit Folder" onClick={() => { onEditFolder(folder); setOpenDrop(null); }} />
-                    <DropItem icon={<Trash2 size={12} />} label="Delete" color="#ef4444" divider onClick={() => { onDeleteFolder(folder); setOpenDrop(null); }} />
-                  </DropMenu>
-                )}
-              </div>
-            </div>
-          ))}
-
-          {normal.map(file => {
+          {/* Render filtered files - pages and regular files */}
+          {uniqueFiles.map(file => {
+            const isPage = (file.type || "").toLowerCase() === "page";
             const isRef = file.isReference === true || String(file.isReference) === "true";
             const isUrl = (file.type || "").includes("url") || (file.type || "").includes("link");
             const furl = typeof file.url === "string" ? file.url : (file.url as any)?.base || "";
+            
+            const combinedCode = isPage ? ((file as any)._combinedCode || "") : "";
+            const pageCount = isPage ? ((file as any)._pageCount ?? 1) : 0;
+            const hasCode = isPage && (combinedCode.includes("playground-wrapper") || combinedCode.includes("allow-scripts"));
+            
             const { icon, color, bg } = getFileMeta(file.type || "", file.name, isRef);
+            
+            if (isPage) {
+              return (
+                <div
+                  key={file.id}
+                  onClick={() => onPageClick({ code: combinedCode, title: file.name, pageCount })}
+                  className="group/page cursor-pointer"
+                  style={rowBase}
+                  onMouseEnter={e => {
+                    (e.currentTarget as HTMLElement).style.background = "rgba(99,102,241,0.04)";
+                    (e.currentTarget as HTMLElement).style.borderLeftColor = "#6366f1";
+                  }}
+                  onMouseLeave={e => {
+                    (e.currentTarget as HTMLElement).style.background = T.bg;
+                    (e.currentTarget as HTMLElement).style.borderLeftColor = "transparent";
+                  }}
+                >
+                  <div className="flex items-center justify-center" onClick={e => toggleSelect(`file-${file.id}`, e)}>
+                    <div className="w-4 h-4 rounded flex items-center justify-center cursor-pointer flex-shrink-0"
+                      style={{ background: selected.has(`file-${file.id}`) ? "#6366f1" : "transparent", border: `1.5px solid ${selected.has(`file-${file.id}`) ? "#6366f1" : T.border}`, transition: "all 0.15s" }}>
+                      {selected.has(`file-${file.id}`) && <svg width="9" height="7" viewBox="0 0 9 7" fill="none"><path d="M1 3.5L3.5 6L8 1" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div
+                      className="flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center"
+                      style={{ background: "rgba(99,102,241,0.10)", border: "1px solid rgba(99,102,241,0.18)" }}
+                    >
+                      <Layout size={13} style={{ color: "#6366f1" }} />
+                    </div>
+                    <div className="flex flex-col min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[12px] font-bold truncate" style={{ color: T.textMain }}>{file.name}</span>
+                        <span
+                          className="flex-shrink-0 text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-widest"
+                          style={{ background: "rgba(99,102,241,0.10)", color: "#6366f1", border: "1px solid rgba(99,102,241,0.18)" }}
+                        >PAGE</span>
+                        {hasCode && (
+                          <span
+                            className="flex-shrink-0 flex items-center gap-0.5 text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-widest"
+                            style={{ background: "rgba(16,185,129,0.09)", color: "#059669", border: "1px solid rgba(16,185,129,0.20)" }}
+                          >
+                            <Code2 size={7} />
+                            Code
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[9.5px] mt-0.5 font-medium" style={{ color: T.textHint }}>
+                        Click to view inline
+                        {pageCount > 1 && ` · ${pageCount} pages`}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="text-[10.5px] font-medium" style={{ color: T.textMuted }}>
+                    {file.uploadedAt
+                      ? new Date(file.uploadedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+                      : "—"}
+                  </div>
+
+                  <div className="text-[10.5px] font-medium" style={{ color: T.textMuted }}>
+                    {pageCount > 1 ? `${pageCount}p` : "1p"}
+                  </div>
+
+                  <div className="flex items-center justify-center gap-1 relative dd-w">
+                    <button
+                      type="button"
+                      onClick={e => { e.stopPropagation(); onPageClick({ code: combinedCode, title: file.name, pageCount }); }}
+                      title="View inline"
+                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold"
+                      style={{ background: "rgba(99,102,241,0.09)", color: "#6366f1", border: "1px solid rgba(99,102,241,0.20)", transition: "all 0.13s" }}
+                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "rgba(99,102,241,0.18)"}
+                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = "rgba(99,102,241,0.09)"}
+                    >
+                      <Eye size={11} />View
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={e => tog(`file-${file.id}`, e)}
+                      className="p-1.5 rounded-lg"
+                      style={{ color: T.textHint, transition: "all 0.13s" }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = T.pageBg; (e.currentTarget as HTMLElement).style.color = T.textMain; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = T.textHint; }}
+                    >
+                      <MoreVertical size={13} />
+                    </button>
+                    {openDrop === `file-${file.id}` && (
+                      <DropMenu upward={dropUpward}>
+                        <DropItem
+                          icon={<Eye size={12} />}
+                          label="View Inline"
+                          onClick={() => { onPageClick({ code: combinedCode, title: file.name, pageCount }); setOpenDrop(null); }}
+                        />
+                        <DropItem
+                          icon={<Edit2 size={12} />}
+                          label="Edit Page"
+                          onClick={() => {
+                            onEditPage({
+                              id: file.id,
+                              title: file.name,
+                              blocks: (file as any)._blocks ?? [],
+                              code: combinedCode,
+                            });
+                            setOpenDrop(null);
+                          }}
+                        />
+                        <DropItem
+                          icon={<ExternalLink size={12} />}
+                          label="Open in New Tab"
+                          onClick={() => { openPageInNewTab(combinedCode); setOpenDrop(null); }}
+                        />
+                        <DropItem
+                          icon={<Trash2 size={12} />}
+                          label="Delete"
+                          color="#ef4444"
+                          divider
+                          onClick={() => {
+                            onDeletePage?.(file.id, file.name);
+                            setOpenDrop(null);
+                          }}
+                        />
+                      </DropMenu>
+                    )}
+                  </div>
+                </div>
+              );
+            }
+            
+            // Regular file rendering (non-page)
             return (
-              <div key={file.id} className="group/file" style={rowBase}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = T.pageBg; (e.currentTarget as HTMLElement).style.borderLeftColor = `${color}45`; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.bg; (e.currentTarget as HTMLElement).style.borderLeftColor = "transparent"; }}>
+              <div 
+                key={file.id} 
+                className="group/file"
+                style={rowBase}
+                onMouseEnter={e => { 
+                  (e.currentTarget as HTMLElement).style.background = T.pageBg; 
+                  (e.currentTarget as HTMLElement).style.borderLeftColor = `${color}45`;
+                }}
+                onMouseLeave={e => { 
+                  (e.currentTarget as HTMLElement).style.background = T.bg; 
+                  (e.currentTarget as HTMLElement).style.borderLeftColor = "transparent";
+                }}
+              >
                 <div className="flex items-center justify-center" onClick={e => toggleSelect(`file-${file.id}`, e)}>
                   <div className="w-4 h-4 rounded flex items-center justify-center cursor-pointer flex-shrink-0"
                     style={{ background: selected.has(`file-${file.id}`) ? color : "transparent", border: `1.5px solid ${selected.has(`file-${file.id}`) ? color : T.border}`, transition: "all 0.15s" }}>
@@ -1154,10 +1130,13 @@ const FileList: React.FC<{
                   <div className="flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: bg, border: `1px solid ${color}20`, color }}>{icon}</div>
                   <div className="flex flex-col min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[12px] truncate cursor-pointer" style={{ color: T.textMain, transition: "color 0.13s" }}
+                      <span 
+                        className="text-[12px] truncate cursor-pointer" 
+                        style={{ color: T.textMain, transition: "color 0.13s" }}
                         onClick={e => { e.preventDefault(); e.stopPropagation(); onFileClick(file, activeTab, activeSubcategory); }}
                         onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = color}
-                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = T.textMain}>
+                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = T.textMain}
+                      >
                         {file.name}
                       </span>
                       {isRef && <span className="flex-shrink-0 text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-widest" style={{ background: "rgba(139,92,246,0.09)", color: "#8b5cf6", border: "1px solid rgba(139,92,246,0.18)" }}>REF</span>}
@@ -1177,9 +1156,14 @@ const FileList: React.FC<{
                 <div className="text-[10.5px] font-medium" style={{ color: T.textMuted }}>{file.uploadedAt ? new Date(file.uploadedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}</div>
                 <div className="text-[10.5px] font-medium" style={{ color: T.textMuted }}>{fmtSize(file.size || 0)}</div>
                 <div className="flex items-center justify-center relative dd-w">
-                  <button type="button" onClick={e => tog(`file-${file.id}`, e)} className="p-1.5 rounded-lg" style={{ color: T.textHint, transition: "all 0.13s" }}
+                  <button 
+                    type="button" 
+                    onClick={e => tog(`file-${file.id}`, e)} 
+                    className="p-1.5 rounded-lg" 
+                    style={{ color: T.textHint, transition: "all 0.13s" }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = T.pageBg; (e.currentTarget as HTMLElement).style.color = T.textMain; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = T.textHint; }}>
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = T.textHint; }}
+                  >
                     <MoreVertical size={13} />
                   </button>
                   {openDrop === `file-${file.id}` && (
@@ -1188,6 +1172,68 @@ const FileList: React.FC<{
                       {!isUrl && <DropItem icon={<Download size={12} />} label="Download" onClick={() => { const a = document.createElement("a"); a.href = furl; a.download = file.name || "download"; document.body.appendChild(a); a.click(); document.body.removeChild(a); setOpenDrop(null); }} />}
                       <DropItem icon={<RefreshCw size={12} />} label="Update" color="#f97316" onClick={() => { onUpdateFile(file, activeTab || "I_Do", activeSubcategory); setOpenDrop(null); }} />
                       <DropItem icon={<Trash2 size={12} />} label="Delete" color="#ef4444" divider onClick={() => { onDeleteFile(file.id, file.name); setOpenDrop(null); }} />
+                    </DropMenu>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Render filtered folders */}
+          {filteredFolders.map(folder => {
+            return (
+              <div 
+                key={folder.id} 
+                onClick={() => onFolderClick(folder.id, folder.name)}
+                className="group/row cursor-pointer"
+                style={rowBase}
+                onMouseEnter={e => { 
+                  (e.currentTarget as HTMLElement).style.background = T.warm; 
+                  (e.currentTarget as HTMLElement).style.borderLeftColor = T.orange;
+                }}
+                onMouseLeave={e => { 
+                  (e.currentTarget as HTMLElement).style.background = T.bg; 
+                  (e.currentTarget as HTMLElement).style.borderLeftColor = "transparent";
+                }}
+              >
+                <div className="flex items-center justify-center" onClick={e => toggleSelect(`folder-${folder.id}`, e)}>
+                  <div className="w-4 h-4 rounded flex items-center justify-center cursor-pointer flex-shrink-0"
+                    style={{ background: selected.has(`folder-${folder.id}`) ? T.orange : "transparent", border: `1.5px solid ${selected.has(`folder-${folder.id}`) ? T.orange : T.border}`, transition: "all 0.15s" }}>
+                    {selected.has(`folder-${folder.id}`) && <svg width="9" height="7" viewBox="0 0 9 7" fill="none"><path d="M1 3.5L3.5 6L8 1" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: T.orangeLight, border: `1px solid ${T.orange}20` }}>
+                    <Folder size={14} style={{ color: T.orange }} />
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[12px] truncate" style={{ color: T.textMain }}>{folder.name}</span>
+                    {folder.tags?.length > 0 && (
+                      <div className="flex items-center gap-1 mt-0.5">
+                        {folder.tags.map((tag, i) => (
+                          <span key={i} className="text-[8.5px] font-bold px-1.5 py-0.5 rounded" style={{ background: `${tag.tagColor}12`, color: tag.tagColor, border: `1px solid ${tag.tagColor}25` }}>{tag.tagName}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="text-[10.5px] font-medium" style={{ color: T.textMuted }}>{new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })}</div>
+                <div><span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9.5px] font-bold" style={{ background: T.pageBg, color: T.textSub, border: `1px solid ${T.border}` }}>{getFolderItemCount(folder.id)} items</span></div>
+                <div className="flex items-center justify-center relative dd-w">
+                  <button 
+                    type="button" 
+                    onClick={e => tog(`folder-${folder.id}`, e)} 
+                    className="p-1.5 rounded-lg" 
+                    style={{ color: T.textHint, transition: "all 0.13s" }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = T.orangeLight; (e.currentTarget as HTMLElement).style.color = T.orange; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = T.textHint; }}
+                  >
+                    <MoreVertical size={13} />
+                  </button>
+                  {openDrop === `folder-${folder.id}` && (
+                    <DropMenu upward={dropUpward}>
+                      <DropItem icon={<Edit2 size={12} />} label="Edit Folder" onClick={() => { onEditFolder(folder); setOpenDrop(null); }} />
+                      <DropItem icon={<Trash2 size={12} />} label="Delete" color="#ef4444" divider onClick={() => { onDeleteFolder(folder); setOpenDrop(null); }} />
                     </DropMenu>
                   )}
                 </div>
@@ -1440,52 +1486,11 @@ export const CourseContent: React.FC<CourseContentProps> = ({
 
   const isValidSub = subcategories[activeTab as "I_Do" | "We_Do" | "You_Do"]?.some(s => s.key === activeSubcategory);
 
-  const pageFiles: UploadedFile[] = useMemo(() => {
-    if (!activeTab || !activeSubcategory || !pedagogy) return [];
-    const sec = pedagogy[activeTab];
-    if (!sec) return [];
-    const raw = Object.keys(sec).find(k => normKey(k) === activeSubcategory);
-    if (!raw) return [];
-    const pages: PageEntry[] = sec[raw]?.pages;
-    if (!Array.isArray(pages) || pages.length === 0) return [];
-    if (folderNavState.currentFolderId !== null) return [];
-    
-    // Deduplicate pages by _id
-    const pagesMap = new Map();
-    pages.forEach(p => {
-      if (p?._id && !pagesMap.has(p._id)) {
-        pagesMap.set(p._id, p);
-      }
-    });
-    
-    return Array.from(pagesMap.values()).map(p => {
-      const override = localPageOverrides[p._id];
-      return {
-        id: p._id,
-        name: override?.title ?? p.title,
-        type: "page",
-        url: "",
-        size: 0,
-        uploadedAt: p.createdAt || new Date().toISOString(),
-        tags: [],
-        subcategory: activeSubcategory,
-        folderId: null,
-        _combinedCode: override?.combinedCode ?? p.combinedCode,
-        _pageCount: override?.pageCount ?? p.pageCount ?? 1,
-        _blocks: override?.blocks?.length
-          ? override.blocks
-          : (p as any).blocks?.length
-            ? (p as any).blocks
-            : (p as any).pagesData?.[0]?.blocks ?? [],
-      } as any;
-    });
-  }, [pedagogy, activeTab, activeSubcategory, localPageOverrides, folderNavState.currentFolderId]);
-
+  // Get all files including pages from pedagogy
   const allFiles = useMemo(() => {
-    // Combine both sources but ensure they're processed together
     const combined = [...currentFolderContents.files];
     
-    // Add pages if they exist in pedagogy
+    // Add pages if they exist in pedagogy (for root level)
     if (activeTab && activeSubcategory && pedagogy) {
       const sec = pedagogy[activeTab];
       if (sec) {
@@ -1494,19 +1499,27 @@ export const CourseContent: React.FC<CourseContentProps> = ({
           const pagesMap = new Map();
           sec[raw].pages.forEach((p: any) => {
             if (p?._id && !pagesMap.has(p._id)) {
-              pagesMap.set(p._id, {
-                id: p._id,
-                name: p.title || "Untitled Page",
-                type: "page",
-                size: 0,
-                url: "",
-                uploadedAt: p.createdAt || new Date().toISOString(),
-                tags: [],
-                subcategory: activeSubcategory,
-                folderId: null,
-                _combinedCode: p.combinedCode || "",
-                _pageCount: p.pageCount || 1,
-              });
+              // Check if page belongs to current folder or root
+              const pageFolderId = p.folderId || null;
+              const currentFolderId = folderNavState.currentFolderId;
+              
+              // Only add page if it matches current folder context
+              if (pageFolderId === currentFolderId || (pageFolderId === null && currentFolderId === null)) {
+                pagesMap.set(p._id, {
+                  id: p._id,
+                  name: p.title || "Untitled Page",
+                  type: "page",
+                  size: 0,
+                  url: "",
+                  uploadedAt: p.createdAt || new Date().toISOString(),
+                  tags: [],
+                  subcategory: activeSubcategory,
+                  folderId: pageFolderId,
+                  _combinedCode: p.combinedCode || "",
+                  _pageCount: p.pageCount || 1,
+                  _blocks: p.blocks || [],
+                });
+              }
             }
           });
           combined.push(...Array.from(pagesMap.values()));
@@ -1515,42 +1528,23 @@ export const CourseContent: React.FC<CourseContentProps> = ({
     }
     
     return combined;
-  }, [currentFolderContents.files, pedagogy, activeTab, activeSubcategory]);
+  }, [currentFolderContents.files, pedagogy, activeTab, activeSubcategory, folderNavState.currentFolderId]);
 
-  // FIXED: Use useMemo instead of a function that calls setTimeout
+  // Filter content based on search ONLY (no file type hiding)
   const filteredContent = useMemo(() => {
     let folders = currentFolderContents.folders;
     let files = allFiles;
     const q = activeFilters.searchFilter.toLowerCase();
     
+    // Only apply search filter to hide items
     if (q) { 
       folders = folders.filter(f => f.name.toLowerCase().includes(q)); 
       files = files.filter(f => (f.name || "").toLowerCase().includes(q)); 
     }
     
-    if (activeFilters.fileTypes.length > 0) {
-      const match = (f: UploadedFile) => {
-        const lt = (f.type || "").toLowerCase(), ln = (f.name || "").toLowerCase();
-        return activeFilters.fileTypes.some(t => {
-          switch (t) {
-            case "page": return lt === "page";
-            case "folder": return false;
-            case "url": return lt.includes("url") || lt.includes("link");
-            case "reference": return f.isReference === true || String(f.isReference) === "true";
-            case "pdf": return lt.includes("pdf") || ln.endsWith(".pdf");
-            case "ppt": return lt.includes("ppt") || !!ln.match(/\.pptx?$/i);
-            case "video": return lt.includes("video") || !!ln.match(/\.(mp4|avi|mov|mkv|webm)$/i);
-            case "zip": return lt.includes("zip") || !!ln.match(/\.(zip|rar|7z|tar|gz)$/i);
-            default: return lt.includes(t);
-          }
-        });
-      };
-      if (!activeFilters.fileTypes.includes("folder")) folders = [];
-      files = files.filter(match);
-    }
-    
+    // Don't filter by file type - we'll use highlighting instead
     return { folders, files };
-  }, [currentFolderContents.folders, allFiles, activeFilters.fileTypes, activeFilters.searchFilter]);
+  }, [currentFolderContents.folders, allFiles, activeFilters.searchFilter]);
 
   const { folders: ff, files: ft } = filteredContent;
   const hasContent = ff.length > 0 || ft.length > 0;
@@ -1593,7 +1587,7 @@ export const CourseContent: React.FC<CourseContentProps> = ({
         onSubcategoryChange={(s, c) => { setViewingPage(null); onSubcategoryChange(s, c); }}
       />
 
-      {/* ── Folder Breadcrumb (NEW) ── */}
+      {/* ── Folder Breadcrumb ── */}
       {(folderNavState.currentFolderId !== null || folderNavState.currentFolderPath.length > 0) && (
         <FolderBreadcrumbBar
           folderNavState={folderNavState}
@@ -1709,15 +1703,28 @@ export const CourseContent: React.FC<CourseContentProps> = ({
             <div className="flex flex-col h-full overflow-hidden">
               <div className="flex-shrink-0 px-4 py-2.5"
                 style={{ borderBottom: `1px solid ${T.border}`, background: T.bg, borderLeft: `2.5px solid ${T.orange}` }}>
-                <FilterSection fileTypes={fileTypes} allFiles={allFiles} currentFolders={currentFolderContents.folders}
-                  activeFilters={activeFilters} onFilterChange={setActiveFilters} onResourceModalOpen={onResourceModalOpen} />
+                <FilterSection 
+                  fileTypes={fileTypes} 
+                  allFiles={ft} 
+                  currentFolders={ff}
+                  activeFilters={activeFilters} 
+                  onFilterChange={setActiveFilters} 
+                  onResourceModalOpen={onResourceModalOpen} 
+                />
               </div>
               <div className="flex-1 min-h-0 overflow-hidden">
                 <FileList
-                  folders={ff} files={ft} activeTab={activeTab} activeSubcategory={activeSubcategory}
-                  getFolderItemCount={getFolderItemCount} onFolderClick={onNavigateToFolder}
-                  onFileClick={onFileClick} onEditFolder={onEditFolder} onDeleteFolder={onDeleteFolder}
-                  onDeleteFile={onDeleteFile} onUpdateFile={onUpdateFile}
+                  folders={ff} 
+                  files={ft} 
+                  activeTab={activeTab} 
+                  activeSubcategory={activeSubcategory}
+                  getFolderItemCount={getFolderItemCount} 
+                  onFolderClick={onNavigateToFolder}
+                  onFileClick={onFileClick} 
+                  onEditFolder={onEditFolder} 
+                  onDeleteFolder={onDeleteFolder}
+                  onDeleteFile={onDeleteFile} 
+                  onUpdateFile={onUpdateFile}
                   onNavigateUp={onNavigateUp}
                   folderNavState={folderNavState}
                   onPageClick={setViewingPage}
@@ -1735,6 +1742,7 @@ export const CourseContent: React.FC<CourseContentProps> = ({
                     }
                   }}
                   onBulkDelete={onBulkDelete}
+                  activeFileTypes={activeFilters.fileTypes}
                 />
               </div>
             </div>
@@ -1898,6 +1906,120 @@ export const CourseContent: React.FC<CourseContentProps> = ({
           to   { width: 0%;   }
         }
       `}</style>
+    </div>
+  );
+};
+
+// FolderBreadcrumbBar component
+const FolderBreadcrumbBar: React.FC<{
+  folderNavState: FolderNavState;
+  onNavigateUp: () => void;
+  onNavigateToRoot?: () => void;
+  onNavigateToFolderLevel?: (folderName: string, index: number) => void;
+}> = ({ folderNavState, onNavigateUp, onNavigateToRoot, onNavigateToFolderLevel }) => {
+  const folderPath = folderNavState.currentFolderPath || [];
+
+  return (
+    <div
+      className="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 mb-3"
+      style={{
+        background: T.warm,
+        borderBottom: `1px solid ${T.border}`,
+        borderLeft: `3px solid ${T.orange}`,
+        borderRadius: '8px',
+      }}
+    >
+      <button
+        onClick={onNavigateUp}
+        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all"
+        style={{
+          background: T.bg,
+          color: T.textSub,
+          border: `1px solid ${T.border}`,
+        }}
+        onMouseEnter={(e) => {
+          (e.currentTarget as HTMLElement).style.borderColor = T.orange;
+          (e.currentTarget as HTMLElement).style.color = T.orange;
+          (e.currentTarget as HTMLElement).style.background = T.orangeLight;
+        }}
+        onMouseLeave={(e) => {
+          (e.currentTarget as HTMLElement).style.borderColor = T.border;
+          (e.currentTarget as HTMLElement).style.color = T.textSub;
+          (e.currentTarget as HTMLElement).style.background = T.bg;
+        }}
+      >
+        <ArrowLeft size={12} strokeWidth={2.5} />
+        Back
+      </button>
+
+      <div className="w-px h-5" style={{ background: T.border }} />
+      <Folder size={14} style={{ color: T.orange }} />
+
+      <div className="flex items-center gap-1 overflow-x-auto flex-1" style={{ scrollbarWidth: "none" }}>
+        <button
+          onClick={() => onNavigateToRoot?.()}
+          className="flex-shrink-0 text-[10.5px] font-semibold px-1.5 py-0.5 rounded transition-all cursor-pointer"
+          style={{
+            color: folderPath.length === 0 ? T.orange : T.textHint,
+            background: folderPath.length === 0 ? T.orangeLight : 'transparent',
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLElement).style.color = T.orange;
+            (e.currentTarget as HTMLElement).style.background = T.orangeLight;
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.color = folderPath.length === 0 ? T.orange : T.textHint;
+            (e.currentTarget as HTMLElement).style.background = folderPath.length === 0 ? T.orangeLight : 'transparent';
+          }}
+        >
+          Root
+        </button>
+
+        {folderPath.map((segment, idx) => {
+          const isLast = idx === folderPath.length - 1;
+          return (
+            <div key={idx} className="flex items-center gap-1 flex-shrink-0">
+              <ChevronRight size={9} style={{ color: T.textHint }} />
+              <button
+                onClick={() => !isLast && onNavigateToFolderLevel?.(segment, idx)}
+                className="text-[10.5px] font-semibold px-1.5 py-0.5 rounded max-w-[120px] truncate transition-all"
+                style={{
+                  color: isLast ? T.orange : T.textSub,
+                  background: isLast ? T.orangeLight : "transparent",
+                  border: isLast ? `1px solid ${T.orange}20` : "1px solid transparent",
+                  cursor: isLast ? 'default' : 'pointer',
+                }}
+                onMouseEnter={(e) => {
+                  if (!isLast) {
+                    (e.currentTarget as HTMLElement).style.color = T.orange;
+                    (e.currentTarget as HTMLElement).style.background = T.orangeLight;
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isLast) {
+                    (e.currentTarget as HTMLElement).style.color = T.textSub;
+                    (e.currentTarget as HTMLElement).style.background = "transparent";
+                  }
+                }}
+              >
+                {segment}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="flex-shrink-0 ml-auto">
+        <span
+          className="text-[10px] font-bold px-2 py-1 rounded-full"
+          style={{
+            background: T.orangeLight,
+            color: T.orange,
+          }}
+        >
+          {folderPath.length > 0 ? 'Folder' : 'Root'}
+        </span>
+      </div>
     </div>
   );
 };

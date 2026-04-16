@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { getCurrentUser } from "@/apiServices/tokenVerify"
-import "react-quill/dist/quill.snow.css";
+// import "react-quill/dist/quill.snow.css";
 import { useQuery } from "@tanstack/react-query";
 import {
   courseDataApi, entityApi,
@@ -46,7 +46,6 @@ import TipTapEditor from "@/app/lms/component/tiptopEditor";
 
 const Editor = dynamic(() => import("primereact/editor").then((m) => m.Editor), { ssr: false });
 
-// ─── Design tokens ────────────────────────────────────────────────────────────
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const T = {
   orange: '#F27757',
@@ -805,9 +804,9 @@ const fileTypes: FileTypeConfig[] = useMemo(() => {
   // Dynamic file types based on resourcesType.iDo configuration
   const dynamicFileTypes: FileTypeConfig[] = [];
   
-  // Check if resourcesType and iDo exist
-  if (courseStructureResponse?.data?.resourcesType?.iDo) {
-    const iDoResources = courseStructureResponse.data.resourcesType.iDo;
+  // Check if resourcesType exists and is an object with iDo property
+  if (courseStructureResponse?.data?.resourcesType && typeof courseStructureResponse.data.resourcesType === 'object' && !Array.isArray(courseStructureResponse.data.resourcesType) && 'iDo' in courseStructureResponse.data.resourcesType) {
+    const iDoResources = (courseStructureResponse.data.resourcesType as any).iDo;
     
     // Video resource
     if (iDoResources.video?.enabled === true) {
@@ -1204,7 +1203,7 @@ const fetchAndRefresh = useCallback(async (node: CourseNode) => {
   setIsContentLoading(true);
   
   try {
-    const BASE_URL = "https://lms-server-ym1q.onrender.com";
+    const BASE_URL = "http://localhost:5533";
     const token = typeof window !== "undefined" ? localStorage.getItem("smartcliff_token") : null;
     
     const courseRes = await fetch(`${BASE_URL}/getAll/courses-data/${courseId}`, {
@@ -1292,7 +1291,7 @@ const fetchAndCacheNodeData = useCallback(async (node: CourseNode) => {
   setIsContentLoading(true);
   
   try {
-    const BASE_URL = "https://lms-server-ym1q.onrender.com";
+    const BASE_URL = "http://localhost:5533";
     const token = typeof window !== "undefined" ? localStorage.getItem("smartcliff_token") : null;
     
     const courseRes = await fetch(`${BASE_URL}/getAll/courses-data/${courseId}`, {
@@ -1415,7 +1414,8 @@ const fetchAndCacheNodeData = useCallback(async (node: CourseNode) => {
   
   // Update URL params
   if (node.type === "topic" || node.type === "subtopic") {
-    updateURL({ nodeId: node.id, activeTab, activeSubcategory });
+    const normalizedTab = activeTab === "You_Do" ? "youDo" : activeTab;
+    updateURL({ nodeId: node.id, activeTab: normalizedTab, activeSubcategory });
   }
 }, [courseData, selectedNode, activeTab, activeSubcategory, subcategories, findPathToNode, generateBreadcrumbs, cachedContentData]);
 
@@ -3186,11 +3186,11 @@ onEditFolder={(folder) => {
       {showZipViewer && <ZipViewer fileUrl={currentZipUrl} fileName={currentZipName} onClose={() => setShowZipViewer(false)} />}
 
       {showPDFViewer && (
-        <PDFViewer fileUrl={currentPDFUrl} fileName={currentPDFName} fileId={currentPDFFileId} entityType={selectedNode?.type} institution={selectedNode?.originalData?.institution || ""} courses={selectedNode?.originalData?.courses || ""} entityId={selectedNode?.id} tabType={activeTab || ""} subcategory={activeSubcategory || ""} folderPath={getCurrentNavState().currentFolderPath} apiBaseUrl="https://lms-server-ym1q.onrender.com" onClose={() => { setShowPDFViewer(false); setCurrentPDFUrl(""); setCurrentPDFName(""); setCurrentPDFFileId(""); }} isTeacher={true} initialMcqs={[]} sampleLiveLink="https://example.com/live-mcq-sample" />
+        <PDFViewer fileUrl={currentPDFUrl} fileName={currentPDFName} fileId={currentPDFFileId} entityType={selectedNode?.type} institution={selectedNode?.originalData?.institution || ""} courses={selectedNode?.originalData?.courses || ""} entityId={selectedNode?.id} tabType={activeTab || ""} subcategory={activeSubcategory || ""} folderPath={getCurrentNavState().currentFolderPath} apiBaseUrl="http://localhost:5533" onClose={() => { setShowPDFViewer(false); setCurrentPDFUrl(""); setCurrentPDFName(""); setCurrentPDFFileId(""); }} isTeacher={true} initialMcqs={[]} sampleLiveLink="https://example.com/live-mcq-sample" />
       )}
 
       {showPPTViewer && (
-        <PPTViewer isOpen={showPPTViewer} onClose={() => { setShowPPTViewer(false); setCurrentPPTUrl(""); setCurrentPPTName(""); setCurrentPPTFileId(""); }} pptUrl={currentPPTUrl} title={currentPPTName} fileId={currentPPTFileId} entityType={selectedNode?.type || ""} entityId={selectedNode?.id || ""} tabType={toBackendTab(activeTab)} subcategory={activeSubcategory} folderPath={getCurrentNavState().currentFolderPath} isTeacher={true} apiBaseUrl="https://lms-server-ym1q.onrender.com" />
+        <PPTViewer isOpen={showPPTViewer} onClose={() => { setShowPPTViewer(false); setCurrentPPTUrl(""); setCurrentPPTName(""); setCurrentPPTFileId(""); }} pptUrl={currentPPTUrl} title={currentPPTName} fileId={currentPPTFileId} entityType={selectedNode?.type || ""} entityId={selectedNode?.id || ""} tabType={toBackendTab(activeTab)} subcategory={activeSubcategory} folderPath={getCurrentNavState().currentFolderPath} isTeacher={true} apiBaseUrl="http://localhost:5533" />
       )}
 
 {showVideoViewer && (
@@ -3227,7 +3227,7 @@ onEditFolder={(folder) => {
       setCurrentVideoIndex(0); 
       setCurrentVideoFileId(""); 
     }}
-    apiBaseUrl="https://lms-server-ym1q.onrender.com" 
+    apiBaseUrl="http://localhost:5533" 
     isTeacher={true} 
   />
 )}
