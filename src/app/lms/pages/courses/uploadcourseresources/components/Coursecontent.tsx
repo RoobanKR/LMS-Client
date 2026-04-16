@@ -764,6 +764,7 @@ const FileList: React.FC<{
   onPageClick: (page: ViewingPage) => void;
   onBulkDelete: (items: Array<{ type: "file" | "folder" | "page"; id: string; name: string; folderItem?: FolderItem }>) => Promise<void>;
   activeFileTypes?: string[];
+  onClearFilters?: () => void; // Add this prop
 }> = ({
   folders, files, activeTab, activeSubcategory, getFolderItemCount,
   onFolderClick, onFileClick, onEditFolder, onDeleteFolder, onDeleteFile, onUpdateFile,
@@ -774,12 +775,25 @@ const FileList: React.FC<{
   onPageClick,
   onBulkDelete,
   activeFileTypes = [],
+  onClearFilters, // Add this
 }) => {
     const [openDrop, setOpenDrop] = useState<string | null>(null);
     const [dropUpward, setDropUpward] = useState(false);
     const [selected, setSelected] = useState<Set<string>>(new Set());
     const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  useEffect(() => {
+      setSelected(new Set());
+    }, [folderNavState.currentFolderId]);
     
+    // Clear filters when entering a folder
+    const handleFolderClick = (id: string, name: string) => {
+      // Clear filters before navigating into folder
+      if (onClearFilters) {
+        onClearFilters();
+      }
+      onFolderClick(id, name);
+    };
+
     useEffect(() => {
       const h = (e: MouseEvent) => { if (!(e.target as Element).closest(".dd-w")) setOpenDrop(null); };
       document.addEventListener("mousedown", h);
@@ -899,10 +913,32 @@ const FileList: React.FC<{
       <div className="flex flex-col h-full" style={{ background: T.bg }}>
         {someSelected && (
           <div className="flex-shrink-0 flex items-center justify-between px-4 py-2" style={{ background: "rgba(239,68,68,0.06)", borderBottom: `1px solid rgba(239,68,68,0.18)`, borderLeft: "2.5px solid #ef4444" }}>
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold" style={{ color: "#ef4444" }}>{selected.size} item{selected.size > 1 ? "s" : ""} selected</span>
-              <button type="button" onClick={() => setSelected(new Set())} className="text-[10px] font-semibold px-2 py-0.5 rounded" style={{ color: T.textHint, background: T.pageBg, border: `1px solid ${T.border}` }}>Clear</button>
-            </div>
+           <div className="flex items-center gap-2">
+  <span className="text-[11px] font-bold" style={{ color: "#ef4444" }}>{selected.size} item{selected.size > 1 ? "s" : ""} selected</span>
+  <button 
+    type="button" 
+    onClick={() => setSelected(new Set())} 
+    className="text-[10px] font-semibold px-2 py-0.5 rounded transition-all"
+    style={{ 
+      color: T.textSub, 
+      background: T.pageBg, 
+      border: `1px solid ${T.border}`,
+      cursor: 'pointer'
+    }}
+    onMouseEnter={e => {
+      (e.currentTarget as HTMLElement).style.background = T.orangeLight;
+      (e.currentTarget as HTMLElement).style.color = T.orange;
+      (e.currentTarget as HTMLElement).style.borderColor = T.orange;
+    }}
+    onMouseLeave={e => {
+      (e.currentTarget as HTMLElement).style.background = T.pageBg;
+      (e.currentTarget as HTMLElement).style.color = T.textSub;
+      (e.currentTarget as HTMLElement).style.borderColor = T.border;
+    }}
+  >
+    Clear
+  </button>
+</div>
             <button
               type="button"
               onClick={() => setConfirmBulkDelete(true)}
@@ -1465,6 +1501,25 @@ export const CourseContent: React.FC<CourseContentProps> = ({
     setTimeout(() => setToast(null), 3000);
   }, []);
 
+  // Add this function to clear filters
+  const clearFilters = useCallback(() => {
+    setActiveFilters({ fileTypes: [], searchFilter: "" });
+  }, []);
+
+  // Clear filters when folder navigation state changes (entering a folder)
+  useEffect(() => {
+    // Clear filters when entering a folder
+    if (folderNavState.currentFolderId !== null) {
+      clearFilters();
+    }
+  }, [folderNavState.currentFolderId, clearFilters]);
+
+  // Also clear filters when navigating up from a folder
+  const handleNavigateUp = useCallback(() => {
+    clearFilters();
+    onNavigateUp();
+  }, [clearFilters, onNavigateUp]);
+
   useEffect(() => {
     setLocalPageOverrides({});
   }, [activeTab, activeSubcategory, selectedNode?.id]);
@@ -1594,14 +1649,23 @@ export const CourseContent: React.FC<CourseContentProps> = ({
       />
 
       {/* ── Folder Breadcrumb ── */}
-      {(folderNavState.currentFolderId !== null || folderNavState.currentFolderPath.length > 0) && (
-        <FolderBreadcrumbBar
-          folderNavState={folderNavState}
-          onNavigateUp={onNavigateUp}
-          onNavigateToRoot={onNavigateToRoot}
-          onNavigateToFolderLevel={onNavigateToFolderLevel}
-        />
-      )}
+{(folderNavState.currentFolderId !== null || folderNavState.currentFolderPath.length > 0) && (
+  <FolderBreadcrumbBar
+    folderNavState={folderNavState}
+    onNavigateUp={() => {
+      clearFilters();
+      onNavigateUp();
+    }}
+    onNavigateToRoot={() => {
+      clearFilters();
+      onNavigateToRoot?.();
+    }}
+    onNavigateToFolderLevel={(folderName, index) => {
+      clearFilters();
+      onNavigateToFolderLevel?.(folderName, index);
+    }}
+  />
+)}
 
       {/* ── Body ── */}
       <div className="flex-1 min-h-0 overflow-hidden" style={{ background: T.pageBg }}>
@@ -1705,7 +1769,7 @@ export const CourseContent: React.FC<CourseContentProps> = ({
               onNewTab={() => openPageInNewTab(viewingPage.code)}
             />
 
-          ) : hasContent ? (
+   ) : hasContent ? (
             <div className="flex flex-col h-full overflow-hidden">
               <div className="flex-shrink-0 px-4 py-2.5"
                 style={{ borderBottom: `1px solid ${T.border}`, background: T.bg, borderLeft: `2.5px solid ${T.orange}` }}>
@@ -1725,13 +1789,16 @@ export const CourseContent: React.FC<CourseContentProps> = ({
                   activeTab={activeTab} 
                   activeSubcategory={activeSubcategory}
                   getFolderItemCount={getFolderItemCount} 
-                  onFolderClick={onNavigateToFolder}
+                  onFolderClick={(id, name) => {
+                    clearFilters(); // Clear filters before navigating into folder
+                    onNavigateToFolder(id, name);
+                  }}
                   onFileClick={onFileClick} 
                   onEditFolder={onEditFolder} 
                   onDeleteFolder={onDeleteFolder}
                   onDeleteFile={onDeleteFile} 
                   onUpdateFile={onUpdateFile}
-                  onNavigateUp={onNavigateUp}
+                  onNavigateUp={handleNavigateUp}
                   folderNavState={folderNavState}
                   onPageClick={setViewingPage}
                   onEditPage={(data) => {
@@ -1749,6 +1816,7 @@ export const CourseContent: React.FC<CourseContentProps> = ({
                   }}
                   onBulkDelete={onBulkDelete}
                   activeFileTypes={activeFilters.fileTypes}
+                  onClearFilters={clearFilters} // Pass clear function
                 />
               </div>
             </div>
