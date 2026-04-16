@@ -233,7 +233,7 @@ export default function LiveMCQPage() {
     if (!token) {
       // Redirect to login with the current URL as the redirect param
       const encoded = encodeURIComponent(window.location.href);
-      router.replace(`/lms/pages/login?redirect=${encoded}`);
+      router.replace(`/login?redirect=${encoded}`);
       return;
     }
     fetchQuiz();

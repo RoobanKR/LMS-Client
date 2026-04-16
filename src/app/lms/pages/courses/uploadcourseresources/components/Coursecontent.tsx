@@ -963,8 +963,14 @@ const FileList: React.FC<{
           ))}
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: `${T.border} transparent`, paddingBottom: "50px" }}>
-          {/* Render filtered files - pages and regular files */}
+<div className="flex-1 min-h-0 overflow-y-auto" style={{ 
+  scrollbarWidth: "thin", 
+  scrollbarColor: `${T.border} transparent`,
+  paddingBottom: "50px",
+  maxHeight: "calc(100vh - 200px)", // Adjust based on your layout
+  overflowY: "auto",
+  overflowX: "hidden"
+}}>          {/* Render filtered files - pages and regular files */}
           {uniqueFiles.map(file => {
             const isPage = (file.type || "").toLowerCase() === "page";
             const isRef = file.isReference === true || String(file.isReference) === "true";

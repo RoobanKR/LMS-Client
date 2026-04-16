@@ -1414,8 +1414,7 @@ const fetchAndCacheNodeData = useCallback(async (node: CourseNode) => {
   
   // Update URL params
   if (node.type === "topic" || node.type === "subtopic") {
-    const normalizedTab = activeTab === "You_Do" ? "youDo" : activeTab;
-    updateURL({ nodeId: node.id, activeTab: normalizedTab, activeSubcategory });
+    updateURL({ nodeId: node.id, activeTab, activeSubcategory });
   }
 }, [courseData, selectedNode, activeTab, activeSubcategory, subcategories, findPathToNode, generateBreadcrumbs, cachedContentData]);
 

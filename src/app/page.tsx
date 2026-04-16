@@ -19,8 +19,8 @@ export default function HomePage() {
       const searchParams = new URLSearchParams(window.location.search)
       const redirectTo = searchParams.get('redirect')
       const loginUrl = redirectTo
-        ? `/lms/pages/login?redirect=${encodeURIComponent(redirectTo)}`
-        : '/lms/pages/login'
+        ? `/login?redirect=${encodeURIComponent(redirectTo)}`
+        : '/login'
       router.replace(loginUrl)
       return
     }
@@ -66,7 +66,7 @@ export default function HomePage() {
       router.replace(isStudent ? '/lms/pages/studentdashboard' : '/lms/pages/admindashboard')
     } catch (error) {
       console.error('Error determining redirect:', error)
-      router.replace('/lms/pages/login')
+      router.replace('/login')
     }
   }, [router])
 

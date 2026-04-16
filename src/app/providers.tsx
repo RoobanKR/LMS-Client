@@ -163,7 +163,7 @@ const checkPermissionForPath = (path: string, permissionKey: string): boolean =>
 }
 
 const hasPermissionForRoute = (pathname: string): { hasAccess: boolean; requiredPermission?: string } => {
-  const publicRoutes = ['/login', '/lms/pages/login', '/register', '/forgot-password', '/']
+  const publicRoutes = ['/login', '/login', '/register', '/forgot-password', '/']
   if (publicRoutes.includes(pathname)) return { hasAccess: true }
 
   const userRole = localStorage.getItem("smartcliff_originalRole") || ''
@@ -264,7 +264,7 @@ function AuthWrapper({ children }: { children: ReactNode }) {
       }
     }
 
-    const publicRoutes = ['/login', '/lms/pages/login', '/register', '/forgot-password', '/']
+    const publicRoutes = ['/login', '/login', '/register', '/forgot-password', '/']
     if (!publicRoutes.includes(pathname)) {
       refreshPermissions()
     }
@@ -275,7 +275,7 @@ function AuthWrapper({ children }: { children: ReactNode }) {
       setAccessDenied(false)
 
       try {
-        const publicRoutes = ['/login', '/lms/pages/login', '/register', '/forgot-password', '/']
+        const publicRoutes = ['/login', '/login', '/register', '/forgot-password', '/']
         if (publicRoutes.includes(pathname)) {
           setIsLoading(false)
           return
@@ -359,7 +359,7 @@ function AuthWrapper({ children }: { children: ReactNode }) {
     return <AccessRestricted />
   }
 
-  if (!['/login', '/lms/pages/login', '/register', '/forgot-password', '/'].includes(pathname) && !isAuthenticated) {
+  if (!['/login', '/login', '/register', '/forgot-password', '/'].includes(pathname) && !isAuthenticated) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
