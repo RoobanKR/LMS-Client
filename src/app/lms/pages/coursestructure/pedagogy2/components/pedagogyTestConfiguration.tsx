@@ -1,20 +1,19 @@
-// components/TestConfigurationSection.tsx
 import React, { useState, useEffect } from 'react';
 import { Label } from "@/components/ui/label";
 import { Monitor, Layout, Database } from "lucide-react";
- 
+
 export interface TestConfiguration {
   coreProgram: string[];
   frontend: string[];
   database: string[];
 }
- 
+
 interface TestConfigurationSectionProps {
   testConfiguration: TestConfiguration;
   onChange: (config: TestConfiguration) => void;
   availableLanguages?: TestConfiguration;
 }
- 
+
 const languageOptions = {
   coreProgram: [
     { value: 'c', label: 'C', icon: '🔵' },
@@ -34,8 +33,8 @@ const languageOptions = {
     { value: 'mysql', label: 'MySQL', icon: '🐬' }
   ]
 };
- 
-const TestConfigurationSection: React.FC<TestConfigurationSectionProps> = ({
+
+const PedagogyTestConfigurationSection: React.FC<TestConfigurationSectionProps> = ({
   testConfiguration,
   onChange,
   availableLanguages
@@ -45,9 +44,8 @@ const TestConfigurationSection: React.FC<TestConfigurationSectionProps> = ({
     frontend: [],
     database: []
   });
- 
+
   useEffect(() => {
-    console.log('TestConfigurationSection received new config:', testConfiguration);
     const newConfig = {
       coreProgram: testConfiguration?.coreProgram ? [...testConfiguration.coreProgram] : [],
       frontend: testConfiguration?.frontend ? [...testConfiguration.frontend] : [],
@@ -55,91 +53,95 @@ const TestConfigurationSection: React.FC<TestConfigurationSectionProps> = ({
     };
     setLocalConfig(newConfig);
   }, [testConfiguration]);
- 
+
   const handleLanguageChange = (category: 'coreProgram' | 'frontend' | 'database', value: string) => {
     const current = [...localConfig[category]];
     const updated = current.includes(value)
       ? current.filter(lang => lang !== value)
       : [...current, value];
- 
+
     const newConfig = { ...localConfig, [category]: updated };
     setLocalConfig(newConfig);
     onChange(newConfig);
   };
- 
-  // ✅ NEW: Handle Select All / Deselect All for a category
+
   const handleSelectAll = (category: 'coreProgram' | 'frontend' | 'database') => {
     const allValues = visibleOptions[category].map(l => l.value);
     const currentValues = localConfig[category];
     const allSelected = allValues.every(v => currentValues.includes(v));
- 
-    // If all are selected → deselect all; otherwise → select all
+
     const updated = allSelected ? [] : allValues;
     const newConfig = { ...localConfig, [category]: updated };
     setLocalConfig(newConfig);
     onChange(newConfig);
   };
- 
+
   const isSelected = (category: 'coreProgram' | 'frontend' | 'database', value: string): boolean => {
     return localConfig[category]?.includes(value) || false;
   };
- 
-  // ✅ NEW: Check if all options in a category are selected (for indeterminate state)
+
   const isAllSelected = (category: 'coreProgram' | 'frontend' | 'database'): boolean => {
     const allValues = visibleOptions[category].map(l => l.value);
     return allValues.length > 0 && allValues.every(v => localConfig[category].includes(v));
   };
- 
+
   const isIndeterminate = (category: 'coreProgram' | 'frontend' | 'database'): boolean => {
     const allValues = visibleOptions[category].map(l => l.value);
     const selectedCount = allValues.filter(v => localConfig[category].includes(v)).length;
     return selectedCount > 0 && selectedCount < allValues.length;
   };
- 
+
+  // Filter visible options based on availableLanguages
+  // BUT if availableLanguages is not provided OR the array is empty, show NO options
   const visibleOptions = {
     coreProgram: availableLanguages?.coreProgram && availableLanguages.coreProgram.length > 0
       ? languageOptions.coreProgram.filter(l => availableLanguages.coreProgram?.includes(l.value))
-      : languageOptions.coreProgram,
+      : (testConfiguration?.coreProgram && testConfiguration.coreProgram.length > 0
+          ? languageOptions.coreProgram.filter(l => testConfiguration.coreProgram?.includes(l.value))
+          : []), // Empty array if no coreProgram data
     frontend: availableLanguages?.frontend && availableLanguages.frontend.length > 0
       ? languageOptions.frontend.filter(l => availableLanguages.frontend?.includes(l.value))
-      : languageOptions.frontend,
+      : (testConfiguration?.frontend && testConfiguration.frontend.length > 0
+          ? languageOptions.frontend.filter(l => testConfiguration.frontend?.includes(l.value))
+          : []), // Empty array if no frontend data
     database: availableLanguages?.database && availableLanguages.database.length > 0
       ? languageOptions.database.filter(l => availableLanguages.database?.includes(l.value))
-      : languageOptions.database,
+      : (testConfiguration?.database && testConfiguration.database.length > 0
+          ? languageOptions.database.filter(l => testConfiguration.database?.includes(l.value))
+          : []), // Empty array if no database data
   };
- 
-  // ✅ NEW: Reusable Select All checkbox component
+
   const SelectAllCheckbox = ({ category, accentColor }: {
-  category: 'coreProgram' | 'frontend' | 'database';
-  accentColor: string;
-}) => {
-  const allSelected = isAllSelected(category);
- 
-  return (
-    <label
-      className={`flex items-center gap-1.5 text-xs font-medium cursor-pointer ml-auto select-none ${
-        allSelected ? `text-${accentColor}-600` : 'text-slate-500 dark:text-gray-400'
-      }`}
-    >
-      <input
-        type="checkbox"
-        checked={allSelected}
-        onChange={() => handleSelectAll(category)}
-        className={`w-3.5 h-3.5 rounded cursor-pointer accent-${accentColor}-600`}
-      />
-      {allSelected ? 'Deselect All' : 'Select All'}
-    </label>
-  );
-};
- 
+    category: 'coreProgram' | 'frontend' | 'database';
+    accentColor: string;
+  }) => {
+    const allSelected = isAllSelected(category);
+
+    return (
+      <label
+        className={`flex items-center gap-1.5 text-xs font-medium cursor-pointer ml-auto select-none ${
+          allSelected ? `text-${accentColor}-600` : 'text-slate-500 dark:text-gray-400'
+        }`}
+      >
+        <input
+          type="checkbox"
+          checked={allSelected}
+          onChange={() => handleSelectAll(category)}
+          className={`w-3.5 h-3.5 rounded cursor-pointer accent-${accentColor}-600`}
+        />
+        {allSelected ? 'Deselect All' : 'Select All'}
+      </label>
+    );
+  };
+
   return (
     <div className="bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-xl p-4 shadow-sm">
       <h3 className="text-base font-bold text-slate-900 dark:text-white font-sans mb-4">
         Skill Set
       </h3>
- 
+
       <div className="space-y-5">
-        {/* Core Programming Languages */}
+        {/* Core Programming Languages - Only show if there are options */}
         {visibleOptions.coreProgram.length > 0 && (
           <div className="space-y-2 border-b border-slate-200 dark:border-gray-700 pb-4">
             <div className="flex items-center gap-2 mb-2">
@@ -147,7 +149,6 @@ const TestConfigurationSection: React.FC<TestConfigurationSectionProps> = ({
               <Label className="text-sm font-semibold text-slate-700 dark:text-gray-300 font-sans">
                 Core Programming Languages
               </Label>
-              {/* ✅ Select All for Core Programming */}
               <SelectAllCheckbox category="coreProgram" accentColor="purple" />
             </div>
             <div className="flex flex-wrap gap-2 pl-6">
@@ -176,8 +177,8 @@ const TestConfigurationSection: React.FC<TestConfigurationSectionProps> = ({
             </div>
           </div>
         )}
- 
-        {/* Frontend Technologies */}
+
+        {/* Frontend Technologies - Only show if there are options */}
         {visibleOptions.frontend.length > 0 && (
           <div className="space-y-2 border-b border-slate-200 dark:border-gray-700 pb-4">
             <div className="flex items-center gap-2 mb-2">
@@ -185,7 +186,6 @@ const TestConfigurationSection: React.FC<TestConfigurationSectionProps> = ({
               <Label className="text-sm font-semibold text-slate-700 dark:text-gray-300 font-sans">
                 Frontend Technologies
               </Label>
-              {/* ✅ Select All for Frontend */}
               <SelectAllCheckbox category="frontend" accentColor="blue" />
             </div>
             <div className="flex flex-wrap gap-2 pl-6">
@@ -214,8 +214,8 @@ const TestConfigurationSection: React.FC<TestConfigurationSectionProps> = ({
             </div>
           </div>
         )}
- 
-        {/* Database Technologies */}
+
+        {/* Database Technologies - Only show if there are options */}
         {visibleOptions.database.length > 0 && (
           <div className="space-y-2">
             <div className="flex items-center gap-2 mb-2">
@@ -223,7 +223,6 @@ const TestConfigurationSection: React.FC<TestConfigurationSectionProps> = ({
               <Label className="text-sm font-semibold text-slate-700 dark:text-gray-300 font-sans">
                 Database Technologies
               </Label>
-              {/* ✅ Select All for Database */}
               <SelectAllCheckbox category="database" accentColor="orange" />
             </div>
             <div className="flex flex-wrap gap-2 pl-6">
@@ -252,10 +251,18 @@ const TestConfigurationSection: React.FC<TestConfigurationSectionProps> = ({
             </div>
           </div>
         )}
+
+        {/* Optional: Show message when all sections are empty */}
+        {visibleOptions.coreProgram.length === 0 && 
+         visibleOptions.frontend.length === 0 && 
+         visibleOptions.database.length === 0 && (
+          <div className="text-center py-4 text-gray-500 text-sm">
+            No skill sets configured for this course
+          </div>
+        )}
       </div>
     </div>
   );
 };
- 
-export default TestConfigurationSection;
- 
+
+export default PedagogyTestConfigurationSection;

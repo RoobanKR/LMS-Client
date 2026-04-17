@@ -63,7 +63,6 @@ import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { subModuleApi } from "@/apiServices/pedagogyAndModuleAdd/addsubmodule"
 import { topicApi } from "@/apiServices/pedagogyAndModuleAdd/addtopic"
-import TestConfigurationSection from "@/app/lms/component/Addcoursestructure/TestConfigurationSection"
 import { subTopicApi } from "@/apiServices/pedagogyAndModuleAdd/addsubtopic"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { pedagogyViewApi } from "@/apiServices/pedagogyAndModuleAdd/pedagogy"
@@ -74,6 +73,7 @@ import DropdownSection from "@/components/ui/dropdownSection";
 import { toast, Toaster } from 'sonner';
 import { createPortal } from "react-dom";
 import DashboardLayout from "@/app/lms/component/layout";
+import PedagogyTestConfigurationSection from "./components/pedagogyTestConfiguration";
 
 interface Modules {
     _id: string
@@ -16502,7 +16502,7 @@ export default function PedagogyManagement() {
                                                             </svg>
                                                             Skill Set Configuration
                                                         </h3>
-                                                        <TestConfigurationSection
+                                                        <PedagogyTestConfigurationSection
                                                             testConfiguration={currentTestConfig}
                                                             onChange={handleSkillSetChange}
                                                             availableLanguages={skillSet}

@@ -39,7 +39,7 @@ const JKT: React.CSSProperties = {
 
 
 const isProgrammingType = (q: Question) =>
-  q.questionType === 'programming' || q.questionType === 'database';
+  q.questionType === 'programming' || q.questionType === 'database' || q.questionType === 'others';
 // ─────────────────────────────────────────────────────────────────────────────
 // Interfaces
 // ─────────────────────────────────────────────────────────────────────────────
@@ -274,11 +274,10 @@ const hasReachedMaxMarks = (ex: Exercise): boolean => {
     const { canAddMCQ, canAddProgramming } = canAddAnyQuestionInCombined(ex);
     return !canAddMCQ && !canAddProgramming;
   }
-  if (ex.exerciseType === 'Programming') {
+  if (ex.exerciseType === 'Programming' || ex.exerciseType === 'Other') {
     const progCfg = ex.questionConfiguration?.programmingQuestionConfiguration;
     if (progCfg?.questionConfigType === 'general' && progCfg.generalQuestionCount != null) {
       const curCnt = (ex.questions ?? []).filter(isProgrammingType).length;
-
       return curCnt >= progCfg.generalQuestionCount;
     }
     if (progCfg?.questionConfigType === 'levelBased' || progCfg?.questionConfigType === 'selectionLevel') {
@@ -398,6 +397,7 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
   const [showQuestions, setShowQuestions] = useState(false);
 
   const [selectedExerciseForAdd, setSelectedExerciseForAdd] = useState<Exercise | null>(null);
+  const [fullExerciseForAdd, setFullExerciseForAdd] = useState<any>(null);
   const [exerciseToDelete, setExerciseToDelete] = useState<Exercise | null>(null);
   const [editingExercise, setEditingExercise] = useState<Exercise | null>(null);
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
@@ -608,22 +608,33 @@ const fetchExercises = async (): Promise<Exercise[]> => {
   };
 
   // ── Handlers ───────────────────────────────────────────────────────────────
-  const handleAddQuestion = (ex: Exercise) => {
-    if (ex.exerciseType === 'Combined') {
-      const { canAddMCQ, canAddProgramming } = canAddAnyQuestionInCombined(ex);
+  const handleAddQuestion = async (ex: Exercise) => {
+    // Fetch full exercise data (with questionConfiguration / scoring) before opening the form
+    let freshEx: any = ex;
+    try {
+      const res = await exerciseApi.getExerciseById(ex._id);
+      const fetched = res?.data?.exercise || res?.data || res?.exercise;
+      if (fetched) freshEx = { ...ex, ...fetched };
+    } catch { /* fall back to the list exercise */ }
+
+    if (freshEx.exerciseType === 'Combined') {
+      const { canAddMCQ, canAddProgramming } = canAddAnyQuestionInCombined(freshEx);
       if (!canAddMCQ && !canAddProgramming) { toast.warning('Cannot add more questions. All limits reached.'); return; }
-      setSelectedExerciseForAdd(ex); setShowAddQuestionModal(true);
-    } else if (ex.exerciseType === 'MCQ') {
-      if (hasReachedMaxMarks(ex)) { toast.warning(`Cannot add more questions. Total marks (${ex.exerciseInformation.totalMarks}) already achieved.`); return; }
-      setSelectedExerciseForAdd(ex); setShowAddQuestionOptions(true);
+      setSelectedExerciseForAdd(freshEx); setFullExerciseForAdd(freshEx); setShowAddQuestionModal(true);
+    } else if (freshEx.exerciseType === 'MCQ') {
+      if (hasReachedMaxMarks(freshEx)) { toast.warning(`Cannot add more questions. Total marks (${freshEx.exerciseInformation.totalMarks}) already achieved.`); return; }
+      setSelectedExerciseForAdd(freshEx); setFullExerciseForAdd(freshEx); setShowAddQuestionOptions(true);
     } else {
-      if (hasReachedMaxMarks(ex)) {
-        const progCfg = ex.questionConfiguration?.programmingQuestionConfiguration;
+      if (hasReachedMaxMarks(freshEx)) {
+        const progCfg = freshEx.questionConfiguration?.programmingQuestionConfiguration;
         const isGeneral = progCfg?.questionConfigType === 'general';
-        toast.warning(isGeneral ? `Cannot add more questions. Programming question limit (${progCfg?.generalQuestionCount}) reached.` : 'Cannot add more questions. All difficulty slots are filled.');
+        const typeLabel = freshEx.exerciseType === 'Other' ? 'Other' : 'Programming';
+        toast.warning(isGeneral
+          ? `Cannot add more questions. ${typeLabel} question limit (${progCfg?.generalQuestionCount}) reached.`
+          : 'Cannot add more questions. All difficulty slots are filled.');
         return;
       }
-      setSelectedExerciseForAdd(ex); setShowAddQuestionModal(true);
+      setSelectedExerciseForAdd(freshEx); setFullExerciseForAdd(freshEx); setShowAddQuestionModal(true);
     }
   };
 
@@ -1815,12 +1826,17 @@ const ActionMenu = ({ exercise }: { exercise: Exercise }) => {
             evaluationSettings: getEvaluationSettings(selectedExerciseForAdd),
             nodeId, nodeName, subcategory, nodeType,
             exerciseType: selectedExerciseForAdd.exerciseType,
-            fullExerciseData: { ...selectedExerciseForAdd, exerciseType: selectedExerciseForAdd.exerciseType, hierarchyData },
+            fullExerciseData: {
+              ...selectedExerciseForAdd,
+              ...(fullExerciseForAdd || {}),
+              exerciseType: selectedExerciseForAdd.exerciseType,
+              hierarchyData,
+            },
             programmingSettings: selectedExerciseForAdd.programmingSettings,
           }}
           breadcrumbs={getBreadcrumbs()}
           tabType={activeTab}
-          onClose={async () => { setShowAddQuestionModal(false); setSelectedExerciseForAdd(null); await fetchExercises(); }}
+          onClose={async () => { setShowAddQuestionModal(false); setSelectedExerciseForAdd(null); setFullExerciseForAdd(null); await fetchExercises(); }}
           onSave={handleQuestionSaved}
           onOpenQuestionBank={() => { setShowAddQuestionModal(false); setShowQuestionBank(true); }}
           onOpenDocumentUpload={() => { setShowAddQuestionModal(false); setShowDocumentUpload(true); }}

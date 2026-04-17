@@ -67,7 +67,7 @@ export interface ExercisePayload {
   configurationType: 'manual';
   tabType: "I_Do" | "We_Do" | "You_Do";
   subcategory: string;
-  exerciseType: 'MCQ' | 'Programming' | 'Combined';
+  exerciseType: 'MCQ' | 'Programming' | 'Combined' | 'Other';
   programmingSettings?: { selectedModule: string; selectedLanguages: string[] };
   exerciseInformation: {
     exerciseId: string; exerciseName: string; description: string;
@@ -1067,7 +1067,7 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
   }, []);
 
   const [formData, setFormData] = useState({
-    exerciseType: '' as 'MCQ' | 'Programming' | 'Combined' | '',
+    exerciseType: '' as 'MCQ' | 'Programming' | 'Combined' | 'Other' | '',
     selectedModule: '', selectedLanguages: [] as string[],
     exerciseId: `EX${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
     exerciseName: '', description: '',
@@ -1095,6 +1095,16 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
         totalMarks: 0,
       },
       questionFlow: 'freeFlow' as 'freeFlow' | 'controlled', attemptLimitEnabled: false, submissionAttempts: 1,
+    },
+    othersConfig: {
+      totalQuestions: 0,
+      scoringType: 'equalDistribution' as 'equalDistribution' | 'questionSpecific' | 'levelBased',
+      marksPerQuestion: 0,
+      totalMarks: 0,
+      levelBasedCounts: { easy: 0, medium: 0, hard: 0 },
+      levelBasedMarks: { easy: 0, medium: 0, hard: 0 },
+      attemptLimitEnabled: false,
+      submissionAttempts: 1,
     },
     schedule: {
       allowSubmissions: true,
@@ -1136,7 +1146,7 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
     const progSettings = ex.programmingSettings ?? {};
     const qc = ex.questionConfiguration ?? {};
     const mcqCfg = qc.mcqQuestionConfiguration ?? {};
-    const progCfg = qc.programmingQuestionConfiguration ?? {};
+    const progCfg = qc.programmingQuestionConfiguration ?? qc.programmingConfig ?? {};
     const avail = ex.availabilityPeriod ?? {};
     const notif = ex.notificatonandGradeSettings ?? ex.notificationSettings ?? {};
 
@@ -1162,8 +1172,8 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
     setFormData(prev => ({
       ...prev,
       exerciseType: (ex.exerciseType as any) || '',
-      selectedModule: progSettings.selectedModule ?? prev.selectedModule,
-      selectedLanguages: Array.isArray(progSettings.selectedLanguages) ? progSettings.selectedLanguages : prev.selectedLanguages,
+     selectedModule: progSettings.selectedModule ?? prev.selectedModule,
+selectedLanguages: Array.isArray(progSettings.selectedLanguages) ? progSettings.selectedLanguages : prev.selectedLanguages,
       exerciseId: info.exerciseId ?? prev.exerciseId,
       exerciseName: info.exerciseName ?? '',
       description: typeof info.description === 'string' ? info.description : (info.description?.text ?? ''),
@@ -1187,6 +1197,24 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
         },
         questionFlow: (progCfg.questionFlow as any) ?? 'freeFlow', attemptLimitEnabled: progCfg.attemptLimitEnabled ?? false, submissionAttempts: progCfg.submissionAttempts ?? 1,
       },
+      othersConfig: {
+        totalQuestions: qc.othersQuestionConfiguration?.totalQuestions ?? 0,
+        scoringType: (qc.othersQuestionConfiguration?.scoringType as any) ?? 'equalDistribution',
+        marksPerQuestion: qc.othersQuestionConfiguration?.marksPerQuestion ?? 0,
+        totalMarks: qc.othersQuestionConfiguration?.totalMarks ?? 0,
+        levelBasedCounts: {
+          easy: qc.othersQuestionConfiguration?.levelBasedCounts?.easy ?? 0,
+          medium: qc.othersQuestionConfiguration?.levelBasedCounts?.medium ?? 0,
+          hard: qc.othersQuestionConfiguration?.levelBasedCounts?.hard ?? 0,
+        },
+        levelBasedMarks: {
+          easy: qc.othersQuestionConfiguration?.levelBasedMarks?.easy ?? 0,
+          medium: qc.othersQuestionConfiguration?.levelBasedMarks?.medium ?? 0,
+          hard: qc.othersQuestionConfiguration?.levelBasedMarks?.hard ?? 0,
+        },
+        attemptLimitEnabled: qc.othersQuestionConfiguration?.attemptLimitEnabled ?? false,
+        submissionAttempts: qc.othersQuestionConfiguration?.submissionAttempts ?? 1,
+      },
       schedule: { allowSubmissions: true, startDate: parseDate(avail.startDate, dS), endDate: parseDate(avail.endDate || avail.dueDate, dE), cutOffEnabled: avail.cutOffEnabled ?? avail.cutoffEnabled ?? false, cutOffDate: parseDate(avail.cutOffDate, dE), remindGradeByEnabled: avail.remindGradeByEnabled ?? !!avail.remindGradeBy, remindGradeBy: parseDate(avail.remindGradeBy, dG), gracePeriodEnabled: avail.gracePeriodAllowed ?? false, gracePeriodDate: parseDate(avail.gracePeriodDate, dG) },
       notifyUsers: notif.notifyUsers ?? true, notifyGmail: notif.notifyGmail ?? false, notifyWhatsApp: notif.notifyWhatsApp ?? false, gradeSheet: notif.gradeSheet ?? true,
       notifications: { notifyGradersSubmissions: notif.notifyGradersSubmissions ?? false, notifyGradersLateSubmissions: notif.notifyGradersLateSubmissions ?? false, notifyStudent: notif.notifyStudent ?? true },
@@ -1208,7 +1236,7 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
     const progSettings = ex.programmingSettings ?? {};
     const qc = ex.questionConfiguration ?? {};
     const mcqCfg = qc.mcqQuestionConfiguration ?? {};
-    const progCfg = qc.programmingQuestionConfiguration ?? {};
+    const progCfg = qc.programmingQuestionConfiguration ?? qc.programmingConfig ?? {};
     const avail = ex.availabilityPeriod ?? {};
     const notif = ex.notificatonandGradeSettings ?? ex.notificationSettings ?? {};
 
@@ -1281,6 +1309,24 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
         attemptLimitEnabled: progCfg.attemptLimitEnabled ?? false,
         submissionAttempts: progCfg.submissionAttempts ?? 1,
       },
+      othersConfig: {
+        totalQuestions: qc.othersQuestionConfiguration?.totalQuestions ?? 0,
+        scoringType: (qc.othersQuestionConfiguration?.scoringType as any) ?? 'equalDistribution',
+        marksPerQuestion: qc.othersQuestionConfiguration?.marksPerQuestion ?? 0,
+        totalMarks: qc.othersQuestionConfiguration?.totalMarks ?? 0,
+        levelBasedCounts: {
+          easy: qc.othersQuestionConfiguration?.levelBasedCounts?.easy ?? 0,
+          medium: qc.othersQuestionConfiguration?.levelBasedCounts?.medium ?? 0,
+          hard: qc.othersQuestionConfiguration?.levelBasedCounts?.hard ?? 0,
+        },
+        levelBasedMarks: {
+          easy: qc.othersQuestionConfiguration?.levelBasedMarks?.easy ?? 0,
+          medium: qc.othersQuestionConfiguration?.levelBasedMarks?.medium ?? 0,
+          hard: qc.othersQuestionConfiguration?.levelBasedMarks?.hard ?? 0,
+        },
+        attemptLimitEnabled: qc.othersQuestionConfiguration?.attemptLimitEnabled ?? false,
+        submissionAttempts: qc.othersQuestionConfiguration?.submissionAttempts ?? 1,
+      },
       schedule: {
         allowSubmissions: true,
         startDate: startDate || { day: 0, month: 0, year: 0, hour: 0, minute: 0 },
@@ -1334,6 +1380,12 @@ useEffect(() => {
           || cfg.selectionLevelCounts.easy > 0 || cfg.selectionLevelCounts.medium > 0 || cfg.selectionLevelCounts.hard > 0;
         if (formData.exerciseType === 'MCQ') filled = mcqOk;
         else if (formData.exerciseType === 'Programming') filled = progOk;
+        else if (formData.exerciseType === 'Other') {
+          const lbc = formData.othersConfig.levelBasedCounts || { easy: 0, medium: 0, hard: 0 };
+          filled = formData.othersConfig.scoringType === 'levelBased'
+            ? (lbc.easy + lbc.medium + lbc.hard) > 0
+            : formData.othersConfig.totalQuestions > 0;
+        }
         else if (formData.exerciseType === 'Combined') filled = mcqOk && progOk;
         break;
       }
@@ -1351,7 +1403,7 @@ useEffect(() => {
       case 'Grade Settings':
         if (formData.exerciseType === 'MCQ')
           filled = (formData.grades.mcqGradeToPass ?? 0) > 0;
-        else if (formData.exerciseType === 'Programming')
+        else if (formData.exerciseType === 'Programming' || formData.exerciseType === 'Other')
           filled = (formData.grades.programmingGrade ?? 0) > 0 && (formData.grades.programmingGradeToPass ?? 0) > 0;
         else if (formData.exerciseType === 'Combined')
           filled = (formData.grades.combinedGradeToPass ?? 0) > 0;
@@ -1383,19 +1435,30 @@ const flatLanguages = useMemo(() => {
 const hasPreConfiguredLanguages = flatLanguages.length > 0;
 
   // Auto-select all configured languages when configuredLanguages is provided
-  useEffect(() => {
-    if (hasPreConfiguredLanguages && flatLanguages.length > 0) {
-      setFormData(prev => ({
-        ...prev,
-        selectedLanguages: flatLanguages,
-        selectedModule: configuredLanguages?.coreProgram?.length
-          ? 'Core Programming'
-          : configuredLanguages?.frontend?.length
-          ? 'Frontend'
-          : 'Database',
-      }));
-    }
-  }, [hasPreConfiguredLanguages, flatLanguages.join(',')]);
+// Replace the existing useEffect that auto-selects configured languages (around line 780-795)
+useEffect(() => {
+  if (hasPreConfiguredLanguages && flatLanguages.length > 0) {
+    // Determine module category based on where the first language comes from
+    let detectedModule = '';
+    if (configuredLanguages?.coreProgram?.length) detectedModule = 'Core Programming';
+    else if (configuredLanguages?.frontend?.length) detectedModule = 'Frontend';
+    else if (configuredLanguages?.database?.length) detectedModule = 'Database';
+    
+    setFormData(prev => ({
+      ...prev,
+      selectedLanguages: flatLanguages,
+      selectedModule: detectedModule || prev.selectedModule,
+    }));
+    
+    // Clear validation errors for these fields
+    setValidationErrors(prev => {
+      const e = { ...prev };
+      delete e.selectedModule;
+      delete e.selectedLanguages;
+      return e;
+    });
+  }
+}, [hasPreConfiguredLanguages, flatLanguages.join(',')]);
 
     const moduleLanguages: Record<string, { name: string; icon: string }[]> = {
     'Core Programming': [
@@ -1442,20 +1505,20 @@ const hasPreConfiguredLanguages = flatLanguages.length > 0;
   ], []);
 
   // ── Steps ──────────────────────────────────────────────────────────────────
-  const getSteps = (): Step[] => {
-    const steps: Step[] = [];
-    let next = 1;
-    const did = next;
-    steps.push({ id: did, title: 'Exercise Details', subtitle: 'Type, Info & Time', completed: currentStep > did, active: currentStep === did, icon: <FileText size={12} /> }); next = did + 1;
-    // All exercise types get ONE "Question Configuration" step (Combined uses tabs internally)
-    if (formData.exerciseType === 'MCQ' || formData.exerciseType === 'Programming' || formData.exerciseType === 'Combined') {
-      const qid = next; steps.push({ id: qid, title: 'Question Configuration', subtitle: 'Configure Questions', completed: currentStep > qid, active: currentStep === qid, icon: <List size={12} /> }); next = qid + 1;
-    }
-    const sid = next; steps.push({ id: sid, title: 'Schedule', subtitle: 'Dates & Times', completed: currentStep > sid, active: currentStep === sid, icon: <Calendar size={12} /> }); next = sid + 1;
-    const nid = next; steps.push({ id: nid, title: 'Notifications', subtitle: 'Alerts & Notify', completed: currentStep > nid, active: currentStep === nid, icon: <Bell size={12} /> }); next = nid + 1;
-    const gid = next; steps.push({ id: gid, title: 'Grade Settings', subtitle: 'Marks & Grading', completed: currentStep > gid, active: currentStep === gid, icon: <Award size={12} /> });
-    return steps;
-  };
+ const getSteps = (): Step[] => {
+  const steps: Step[] = [];
+  let next = 1;
+  const did = next;
+  steps.push({ id: did, title: 'Exercise Details', subtitle: 'Type, Info & Time', completed: currentStep > did, active: currentStep === did, icon: <FileText size={12} /> }); next = did + 1;
+  // All exercise types get ONE "Question Configuration" step (Combined uses tabs internally)
+  if (formData.exerciseType === 'MCQ' || formData.exerciseType === 'Programming' || formData.exerciseType === 'Combined' || formData.exerciseType === 'Other') {
+    const qid = next; steps.push({ id: qid, title: 'Question Configuration', subtitle: 'Configure Questions', completed: currentStep > qid, active: currentStep === qid, icon: <List size={12} /> }); next = qid + 1;
+  }
+  const sid = next; steps.push({ id: sid, title: 'Schedule', subtitle: 'Dates & Times', completed: currentStep > sid, active: currentStep === sid, icon: <Calendar size={12} /> }); next = sid + 1;
+  const nid = next; steps.push({ id: nid, title: 'Notifications', subtitle: 'Alerts & Notify', completed: currentStep > nid, active: currentStep === nid, icon: <Bell size={12} /> }); next = nid + 1;
+  const gid = next; steps.push({ id: gid, title: 'Grade Settings', subtitle: 'Marks & Grading', completed: currentStep > gid, active: currentStep === gid, icon: <Award size={12} /> });
+  return steps;
+};
 
   const steps = useMemo(() => getSteps(), [formData.exerciseType, currentStep]);
 
@@ -1545,7 +1608,7 @@ const hasPreConfiguredLanguages = flatLanguages.length > 0;
   }, [formData.mcqConfig]);
 
   const programmingLevelMismatch = useMemo((): string | null => {
-    if (formData.exerciseType !== 'Programming' && formData.exerciseType !== 'Combined') return null;
+    if (formData.exerciseType !== 'Programming' && formData.exerciseType !== 'Combined' && formData.exerciseType !== 'Other') return null;
     const ct = formData.programmingConfig.questionConfigType;
     if (ct === 'general') return null;
     const total = formData.exerciseType === 'Combined' ? (formData.totalMarksProgramming ?? 0) : (formData.totalMarks ?? 0);
@@ -1620,7 +1683,7 @@ const hasPreConfiguredLanguages = flatLanguages.length > 0;
   // RESTORED: calculateAllocatedMarks
   const calculateAllocatedMarks = useCallback((): number => {
     if (formData.exerciseType === 'MCQ') return mcqAllocatedMarks;
-    if (formData.exerciseType === 'Programming') return programmingAllocatedMarks;
+    if (formData.exerciseType === 'Programming' || formData.exerciseType === 'Other') return programmingAllocatedMarks;
     if (formData.exerciseType === 'Combined') return mcqAllocatedMarks + programmingAllocatedMarks;
     return 0;
   }, [formData.exerciseType, mcqAllocatedMarks, programmingAllocatedMarks]);
@@ -1628,7 +1691,7 @@ const hasPreConfiguredLanguages = flatLanguages.length > 0;
   const validateTotalMarks = useCallback(() => {
     if (formData.exerciseType === 'Combined') return (mcqAllocatedMarks + programmingAllocatedMarks) === formData.totalMarks;
     if (formData.exerciseType === 'MCQ') { if (formData.mcqConfig.scoreSettings.scoreType === 'equalDistribution') return isApproximatelyEqual(mcqAllocatedMarks, formData.totalMarks); return true; }
-    if (formData.exerciseType === 'Programming') return isApproximatelyEqual(programmingAllocatedMarks, formData.totalMarks);
+    if (formData.exerciseType === 'Programming' || formData.exerciseType === 'Other') return isApproximatelyEqual(programmingAllocatedMarks, formData.totalMarks);
     return false;
   }, [formData.exerciseType, mcqAllocatedMarks, programmingAllocatedMarks, formData.totalMarks, formData.mcqConfig.scoreSettings.scoreType]);
 
@@ -1638,7 +1701,7 @@ const hasPreConfiguredLanguages = flatLanguages.length > 0;
     if (et === 'MCQ') {
       const mcqGrade = formData.totalMarks || null;
       setFormData(prev => ({ ...prev, grades: { ...prev.grades, mcqGrade } }));
-    } else if (et === 'Programming') {
+    } else if (et === 'Programming' || et === 'Other') {
       const programmingGrade = programmingAllocatedMarks || null;
       setFormData(prev => ({ ...prev, grades: { ...prev.grades, programmingGrade } }));
     } else if (et === 'Combined') {
@@ -1658,17 +1721,23 @@ const hasPreConfiguredLanguages = flatLanguages.length > 0;
     return e;
   }, [formData.selectedModule, formData.selectedLanguages]);
 
-  const validateExerciseDetails = useCallback((): ValidationErrors => {
-    const e: ValidationErrors = {};
-    if (!formData.exerciseName.trim()) e.exerciseName = 'Exercise name is required';
-    if (formData.totalDuration <= 0) e.totalDuration = 'Duration must be greater than 0';
+const validateExerciseDetails = useCallback((): ValidationErrors => {
+  const e: ValidationErrors = {};
+  if (!formData.exerciseName.trim()) e.exerciseName = 'Exercise name is required';
+  if (formData.totalDuration <= 0) e.totalDuration = 'Duration must be greater than 0';
+  
+  // For "Other" type, totalMarks is required but no module/language validation
+  if (formData.exerciseType === 'Combined') {
+    if (formData.totalMarksMCQ <= 0) e.totalMarksMCQ = 'MCQ total marks must be greater than 0';
+    if (formData.totalMarksProgramming <= 0) e.totalMarksProgramming = 'Programming total marks must be greater than 0';
+  } else if (formData.exerciseType === 'Other') {
     if (formData.totalMarks <= 0) e.totalMarks = 'Total marks must be greater than 0';
-    if (formData.exerciseType === 'Combined') {
-      if (formData.totalMarksMCQ <= 0) e.totalMarksMCQ = 'MCQ total marks must be greater than 0';
-      if (formData.totalMarksProgramming <= 0) e.totalMarksProgramming = 'Programming total marks must be greater than 0';
-    }
-    return e;
-  }, [formData.exerciseName, formData.totalDuration, formData.totalMarks, formData.exerciseType, formData.totalMarksMCQ, formData.totalMarksProgramming]);
+  } else if (formData.totalMarks <= 0) {
+    e.totalMarks = 'Total marks must be greater than 0';
+  }
+  
+  return e;
+}, [formData.exerciseName, formData.totalDuration, formData.totalMarks, formData.exerciseType, formData.totalMarksMCQ, formData.totalMarksProgramming]);
 
   const validateMCQConfiguration = useCallback((): ValidationErrors => {
     const e: ValidationErrors = {};
@@ -1867,7 +1936,7 @@ const hasPreConfiguredLanguages = flatLanguages.length > 0;
       else if (autoGrade > 0 && g.mcqGradeToPass > autoGrade)
         e.mcqGradeToPass = `Cannot exceed Grade (${autoGrade})`;
     }
-    if (et === 'Programming') {
+    if (et === 'Programming' || et === 'Other') {
       if (!g.programmingGrade || g.programmingGrade <= 0) e.programmingGrade = 'Grade is required';
       if (!g.programmingGradeToPass || g.programmingGradeToPass <= 0) e.programmingGradeToPass = 'Grade to Pass is required';
       else if (g.programmingGrade && g.programmingGradeToPass > g.programmingGrade)
@@ -1896,58 +1965,63 @@ const hasPreConfiguredLanguages = flatLanguages.length > 0;
   }, [formData.grades, formData.exerciseType, formData.totalMarks, formData.totalMarksMCQ, formData.totalMarksProgramming]);
 
   // ── Step completion tracking ───────────────────────────────────────────────
-  const isStepCompleted = useCallback((stepId: number): boolean => {
-    const step = steps.find(s => s.id === stepId);
-    if (!step) return false;
-    switch (step.title) {
-      case 'Exercise Details': {
-        if (!formData.exerciseType) return false;
-        if ((formData.exerciseType === 'Programming' || formData.exerciseType === 'Combined') &&
-          (!formData.selectedModule || formData.selectedLanguages.length === 0)) return false;
-        if (!formData.exerciseName?.trim()) return false;
-        if (formData.totalDuration <= 0) return false;
-        if (formData.exerciseType === 'Combined') {
-          if (formData.totalMarksMCQ <= 0 || formData.totalMarksProgramming <= 0) return false;
-        } else if (formData.totalMarks <= 0) return false;
-        return completedSteps.has(stepId);
+const isStepCompleted = useCallback((stepId: number): boolean => {
+  const step = steps.find(s => s.id === stepId);
+  if (!step) return false;
+  switch (step.title) {
+    case 'Exercise Details': {
+      if (!formData.exerciseType) return false;
+      // Programming and Combined require module/languages
+      if ((formData.exerciseType === 'Programming' || formData.exerciseType === 'Combined') &&
+        (!formData.selectedModule || formData.selectedLanguages.length === 0)) return false;
+      const base = !!(formData.exerciseName?.trim() && formData.totalDuration > 0);
+      if (formData.exerciseType === 'Combined') {
+        return base && formData.totalMarksMCQ > 0 && formData.totalMarksProgramming > 0;
       }
-      case 'Question Configuration': {
-        if (!completedSteps.has(stepId)) return false;
-        if (formData.exerciseType === 'MCQ') return formData.mcqConfig.generalQuestionCount > 0;
-        if (formData.exerciseType === 'Programming') {
-          const e = validateProgrammingConfiguration();
-          return Object.keys(e).length === 0 && !programmingLevelMismatch;
-        }
-        if (formData.exerciseType === 'Combined') {
-          const mcqOk = formData.mcqConfig.generalQuestionCount > 0;
-          const e = validateProgrammingConfiguration();
-          const progOk = Object.keys(e).length === 0 && !programmingLevelMismatch;
-          return mcqOk && progOk;
-        }
-        return false;
-      }
-      case 'Schedule': {
-        const sd = formData.schedule.startDate;
-        if (!(sd.day > 0 && sd.month > 0 && sd.year > 0)) return false;
-        // End date (submission deadline) is always required
-        const ed = (formData.schedule as any).endDate;
-        if (!(ed && ed.day > 0 && ed.month > 0 && ed.year > 0)) return false;
-        // Cut-off date only required when its toggle is on
-        if ((formData.schedule as any).cutOffEnabled) {
-          const cd = (formData.schedule as any).cutOffDate;
-          if (!(cd && cd.day > 0 && cd.month > 0 && cd.year > 0)) return false;
-        }
-        return completedSteps.has(stepId);  // must also be saved
-      }
-      case 'Notification':
-      case 'Notifications':
-        return completedSteps.has(stepId);
-      case 'Grade Settings':
-        return Object.keys(validateGradeSettings()).length === 0 && completedSteps.has(stepId);
-      default:
-        return false;
+      return base && formData.totalMarks > 0;
     }
-  }, [steps, formData, validateMCQConfiguration, validateProgrammingConfiguration, programmingLevelMismatch, validateGradeSettings, completedSteps]);
+    case 'Question Configuration': {
+      if (!completedSteps.has(stepId)) return false;
+      if (formData.exerciseType === 'MCQ') return formData.mcqConfig.generalQuestionCount > 0;
+      if (formData.exerciseType === 'Programming') {
+        const e = validateProgrammingConfiguration();
+        return Object.keys(e).length === 0 && !programmingLevelMismatch;
+      }
+      if (formData.exerciseType === 'Other') {
+        const lbc = formData.othersConfig.levelBasedCounts || { easy: 0, medium: 0, hard: 0 };
+        if (formData.othersConfig.scoringType === 'levelBased') {
+          return (lbc.easy + lbc.medium + lbc.hard) > 0;
+        }
+        return formData.othersConfig.totalQuestions > 0 && formData.totalMarks > 0;
+      }
+      if (formData.exerciseType === 'Combined') {
+        const mcqOk = formData.mcqConfig.generalQuestionCount > 0;
+        const e = validateProgrammingConfiguration();
+        const progOk = Object.keys(e).length === 0 && !programmingLevelMismatch;
+        return mcqOk && progOk;
+      }
+      return false;
+    }
+    case 'Schedule': {
+      const sd = formData.schedule.startDate;
+      if (!(sd.day > 0 && sd.month > 0 && sd.year > 0)) return false;
+      const ed = (formData.schedule as any).endDate;
+      if (!(ed && ed.day > 0 && ed.month > 0 && ed.year > 0)) return false;
+      if ((formData.schedule as any).cutOffEnabled) {
+        const cd = (formData.schedule as any).cutOffDate;
+        if (!(cd && cd.day > 0 && cd.month > 0 && cd.year > 0)) return false;
+      }
+      return completedSteps.has(stepId);
+    }
+    case 'Notification':
+    case 'Notifications':
+      return completedSteps.has(stepId);
+    case 'Grade Settings':
+      return Object.keys(validateGradeSettings()).length === 0 && completedSteps.has(stepId);
+    default:
+      return false;
+  }
+}, [steps, formData, validateMCQConfiguration, validateProgrammingConfiguration, programmingLevelMismatch, validateGradeSettings, completedSteps]);
 
   const progressPercent = useMemo(() => {
     if (isLocked) return 100;
@@ -1962,47 +2036,71 @@ const hasPreConfiguredLanguages = flatLanguages.length > 0;
   const markTouched = useCallback((f: string) => setTouchedFields(prev => new Set(prev).add(f)), []);
   const markAllTouched = useCallback((fields: string[]) => setTouchedFields(prev => { const n = new Set(prev); fields.forEach(f => n.add(f)); return n; }), []);
 
-  const validateCurrentStep = useCallback((): boolean => {
-    const step = steps.find(s => s.id === currentStep);
-    if (!step) return true;
-    let errors: ValidationErrors = {};
-    let fields: string[] = [];
+ const validateCurrentStep = useCallback((): boolean => {
+  const step = steps.find(s => s.id === currentStep);
+  if (!step) return true;
+  let errors: ValidationErrors = {};
+  let fields: string[] = [];
 
-    switch (step.title) {
-      case 'Exercise Details': {
-        if (!formData.exerciseType) { errors.exerciseType = 'Please select an exercise type'; fields.push('exerciseType'); }
-        if (formData.exerciseType === 'Programming' || formData.exerciseType === 'Combined') {
-          if (!formData.selectedModule) { errors.selectedModule = 'Please select a module'; fields.push('selectedModule'); }
-          if (formData.selectedLanguages.length === 0) { errors.selectedLanguages = 'Please select at least one language'; fields.push('selectedLanguages'); }
-        }
-        errors = { ...errors, ...validateExerciseDetails() };
-        fields.push('exerciseName', 'totalDuration', 'totalMarks');
-        if (formData.exerciseType === 'Combined') fields.push('totalMarksMCQ', 'totalMarksProgramming');
-        break;
+  switch (step.title) {
+    case 'Exercise Details': {
+      if (!formData.exerciseType) { 
+        errors.exerciseType = 'Please select an exercise type'; 
+        fields.push('exerciseType'); 
       }
-      case 'Question Configuration': {
-        if (formData.exerciseType === 'MCQ' || formData.exerciseType === 'Combined') {
-          errors = { ...errors, ...validateMCQConfiguration() };
-          fields.push('mcqGeneralQuestionCount', 'mcqMarksPerQuestion', 'mcqTotalMarks');
+      
+      // Validate module/languages for Programming and Combined
+      if (formData.exerciseType === 'Programming' || formData.exerciseType === 'Combined') {
+        if (!formData.selectedModule) {
+          errors.selectedModule = 'Please select a module';
+          fields.push('selectedModule');
         }
-        if (formData.exerciseType === 'Programming' || formData.exerciseType === 'Combined') {
-          errors = { ...errors, ...validateProgrammingConfiguration() };
-          if (programmingLevelMismatch) errors.programmingTotalMarks = programmingLevelMismatch;
-          fields.push('programmingGeneralQuestionCount', 'programmingMarksPerQuestion',
-            'programmingLevelCounts', 'programmingLevelCounts_Easy',
-            'programmingLevelCounts_Medium', 'programmingLevelCounts_Hard', 'programmingTotalMarks');
+        if (formData.selectedLanguages.length === 0) {
+          errors.selectedLanguages = 'Please select at least one language';
+          fields.push('selectedLanguages');
         }
-        break;
       }
-      // Schedule, Notification — free, no validation
-      default:
-        return true;
+
+      errors = { ...errors, ...validateExerciseDetails() };
+      fields.push('exerciseName', 'totalDuration', 'totalMarks');
+      if (formData.exerciseType === 'Combined') fields.push('totalMarksMCQ', 'totalMarksProgramming');
+      break;
     }
+    case 'Question Configuration': {
+      if (formData.exerciseType === 'MCQ' || formData.exerciseType === 'Combined') {
+        errors = { ...errors, ...validateMCQConfiguration() };
+        fields.push('mcqGeneralQuestionCount', 'mcqMarksPerQuestion', 'mcqTotalMarks');
+      }
+      if (formData.exerciseType === 'Programming' || formData.exerciseType === 'Combined') {
+        errors = { ...errors, ...validateProgrammingConfiguration() };
+        if (programmingLevelMismatch) errors.programmingTotalMarks = programmingLevelMismatch;
+        fields.push('programmingGeneralQuestionCount', 'programmingMarksPerQuestion',
+          'programmingLevelCounts', 'programmingLevelCounts_Easy',
+          'programmingLevelCounts_Medium', 'programmingLevelCounts_Hard', 'programmingTotalMarks');
+      }
+      if (formData.exerciseType === 'Other') {
+        const lbc = formData.othersConfig.levelBasedCounts || { easy: 0, medium: 0, hard: 0 };
+        if (formData.othersConfig.scoringType === 'levelBased') {
+          if ((lbc.easy + lbc.medium + lbc.hard) <= 0) {
+            errors.othersTotalQuestions = 'At least one difficulty level must have questions';
+            fields.push('othersTotalQuestions');
+          }
+        } else if (formData.othersConfig.totalQuestions <= 0) {
+          errors.othersTotalQuestions = 'Number of questions must be greater than 0';
+          fields.push('othersTotalQuestions');
+        }
+      }
+      break;
+    }
+    // Schedule, Notification — free, no validation
+    default:
+      return true;
+  }
 
-    setValidationErrors(prev => ({ ...prev, ...errors }));
-    markAllTouched(fields);
-    return Object.keys(errors).length === 0;
-  }, [currentStep, steps, formData.exerciseType, formData.selectedModule, formData.selectedLanguages,
+  setValidationErrors(prev => ({ ...prev, ...errors }));
+  markAllTouched(fields);
+  return Object.keys(errors).length === 0;
+}, [currentStep, steps, formData.exerciseType, formData.selectedModule, formData.selectedLanguages,
     validateExerciseDetails, validateMCQConfiguration, validateProgrammingConfiguration, markAllTouched,
     formData.exerciseType, programmingLevelMismatch]);
 
@@ -2051,6 +2149,7 @@ const hasPreConfiguredLanguages = flatLanguages.length > 0;
         mcqMode: formData.exerciseType === 'MCQ' || formData.exerciseType === 'Combined',
         programmingMode: formData.exerciseType === 'Programming' || formData.exerciseType === 'Combined',
         combinedMode: formData.exerciseType === 'Combined',
+        otherMode: formData.exerciseType === 'Other',
       },
       exerciseInformation: {
         exerciseId: formData.exerciseId || `EX${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
@@ -2110,13 +2209,12 @@ const hasPreConfiguredLanguages = flatLanguages.length > 0;
       questions: [],
     };
 
-    if (formData.exerciseType === 'Programming' || formData.exerciseType === 'Combined') {
-      payload.programmingSettings = {
-        selectedModule: formData.selectedModule || '',
-        selectedLanguages: formData.selectedLanguages || [],
-      };
-    }
-
+ if (formData.exerciseType === 'Programming' || formData.exerciseType === 'Combined') {
+  payload.programmingSettings = {
+    selectedModule: formData.selectedModule || '',
+    selectedLanguages: formData.selectedLanguages || [],
+  };
+}
     const buildProgConfig = (pc: typeof formData.programmingConfig, sTotal: number) => {
       let bst = 'evenMarks';
       if (pc.questionConfigType === 'levelBased' || pc.questionConfigType === 'selectionLevel') bst = 'levelBasedMarks';
@@ -2160,6 +2258,30 @@ const hasPreConfiguredLanguages = flatLanguages.length > 0;
       };
     } else if (formData.exerciseType === 'Programming') {
       payload.questionConfiguration = { programmingConfig: buildProgConfig(formData.programmingConfig, progTotalMarks) };
+    } else if (formData.exerciseType === 'Other') {
+      const othScoringType = formData.othersConfig.scoringType || 'equalDistribution';
+      const othLbc = formData.othersConfig.levelBasedCounts || { easy: 0, medium: 0, hard: 0 };
+      const othLbm = formData.othersConfig.levelBasedMarks || { easy: 0, medium: 0, hard: 0 };
+      const othTotalQ = othScoringType === 'levelBased'
+        ? (othLbc.easy + othLbc.medium + othLbc.hard)
+        : (formData.othersConfig.totalQuestions || 0);
+      const othTotalMarks = othScoringType === 'levelBased'
+        ? (othLbc.easy * othLbm.easy + othLbc.medium * othLbm.medium + othLbc.hard * othLbm.hard)
+        : formData.totalMarks;
+      payload.questionConfiguration = {
+        othersConfig: {
+          totalQuestions: othTotalQ,
+          scoringType: othScoringType,
+          marksPerQuestion: othScoringType === 'equalDistribution' && othTotalQ > 0
+            ? (formData.totalMarks / othTotalQ)
+            : formData.othersConfig.marksPerQuestion,
+          totalMarks: othScoringType === 'levelBased' ? othTotalMarks : formData.totalMarks,
+          levelBasedCounts: othScoringType === 'levelBased' ? othLbc : undefined,
+          levelBasedMarks: othScoringType === 'levelBased' ? othLbm : undefined,
+          attemptLimitEnabled: formData.othersConfig.attemptLimitEnabled || false,
+          submissionAttempts: formData.othersConfig.submissionAttempts || 1,
+        },
+      };
     } else if (formData.exerciseType === 'Combined') {
       payload.questionConfiguration = {
         mcqConfig: {
@@ -2364,42 +2486,51 @@ const hasPreConfiguredLanguages = flatLanguages.length > 0;
 
   // ── Field-only completeness check (no saved-state dependency) ────────────────
   // Returns true if the step's required fields are filled (used for guidance navigation)
-  const hasStepRequiredFieldsFilled = useCallback((stepId: number): boolean => {
-    const step = steps.find(s => s.id === stepId);
-    if (!step) return true;
-    switch (step.title) {
-      case 'Exercise Details': {
-        if (!formData.exerciseType) return false;
-        if ((formData.exerciseType === 'Programming' || formData.exerciseType === 'Combined') &&
-          (!formData.selectedModule || formData.selectedLanguages.length === 0)) return false;
-        const base = !!(formData.exerciseName?.trim() && formData.totalDuration > 0);
-        if (formData.exerciseType === 'Combined')
-          return base && formData.totalMarksMCQ > 0 && formData.totalMarksProgramming > 0;
-        return base && formData.totalMarks > 0;
-      }
-      case 'Question Configuration': {
-        const cfg = formData.programmingConfig;
-        const progFilled = cfg.questionConfigType === 'general'
-          ? cfg.generalQuestionCount > 0
-          : (() => { const counts = cfg.questionConfigType === 'selectionLevel' ? cfg.selectionLevelCounts : cfg.levelBasedCounts; return counts.easy > 0 || counts.medium > 0 || counts.hard > 0; })();
-        if (formData.exerciseType === 'MCQ') return formData.mcqConfig.generalQuestionCount > 0;
-        if (formData.exerciseType === 'Programming') return progFilled;
-        if (formData.exerciseType === 'Combined') return formData.mcqConfig.generalQuestionCount > 0 && progFilled;
-        return true;
-      }
-      case 'Schedule': {
-        const sched = formData.schedule as any;
-        return !!(sched.startDate?.year > 0 && sched.endDate?.year > 0);
-      }
-      case 'Notifications':
-      case 'Notification':
-        return true;
-      case 'Grade Settings':
-        return Object.keys(validateGradeSettings()).length === 0;
-      default:
-        return true;
+const hasStepRequiredFieldsFilled = useCallback((stepId: number): boolean => {
+  const step = steps.find(s => s.id === stepId);
+  if (!step) return true;
+  switch (step.title) {
+    case 'Exercise Details': {
+      if (!formData.exerciseType) return false;
+      
+      // Programming and Combined require module/languages
+      if ((formData.exerciseType === 'Programming' || formData.exerciseType === 'Combined') &&
+        (!formData.selectedModule || formData.selectedLanguages.length === 0)) return false;
+
+      const base = !!(formData.exerciseName?.trim() && formData.totalDuration > 0);
+      if (formData.exerciseType === 'Combined')
+        return base && formData.totalMarksMCQ > 0 && formData.totalMarksProgramming > 0;
+      return base && formData.totalMarks > 0;
     }
-  }, [steps, formData, validateGradeSettings]);
+    case 'Question Configuration': {
+      const cfg = formData.programmingConfig;
+      const progFilled = cfg.questionConfigType === 'general'
+        ? cfg.generalQuestionCount > 0
+        : (() => { const counts = cfg.questionConfigType === 'selectionLevel' ? cfg.selectionLevelCounts : cfg.levelBasedCounts; return counts.easy > 0 || counts.medium > 0 || counts.hard > 0; })();
+      if (formData.exerciseType === 'MCQ') return formData.mcqConfig.generalQuestionCount > 0;
+      if (formData.exerciseType === 'Programming') return progFilled;
+      if (formData.exerciseType === 'Other') {
+        const lbc2 = formData.othersConfig.levelBasedCounts || { easy: 0, medium: 0, hard: 0 };
+        return formData.othersConfig.scoringType === 'levelBased'
+          ? (lbc2.easy + lbc2.medium + lbc2.hard) > 0
+          : formData.othersConfig.totalQuestions > 0;
+      }
+      if (formData.exerciseType === 'Combined') return formData.mcqConfig.generalQuestionCount > 0 && progFilled;
+      return true;
+    }
+    case 'Schedule': {
+      const sched = formData.schedule as any;
+      return !!(sched.startDate?.year > 0 && sched.endDate?.year > 0);
+    }
+    case 'Notifications':
+    case 'Notification':
+      return true;
+    case 'Grade Settings':
+      return Object.keys(validateGradeSettings()).length === 0;
+    default:
+      return true;
+  }
+}, [steps, formData, validateGradeSettings]);
 
   // ── Shared save logic ────────────────────────────────────────────────────────
   const performSave = useCallback(async (afterSave?: () => void) => {
@@ -2469,6 +2600,8 @@ const hasPreConfiguredLanguages = flatLanguages.length > 0;
         toast(`Please also complete: ${firstIncompletePrev.title}`, {
           position: 'top-right', duration: 3000, icon: 'ℹ️', id: 'prev-step-incomplete',
         });
+        // Still call afterSave so success toast shows even when redirecting to an earlier step
+        afterSave?.();
       } else {
         afterSave?.();
       }
@@ -2531,6 +2664,18 @@ const hasPreConfiguredLanguages = flatLanguages.length > 0;
           'programmingLevelCounts', 'programmingLevelCounts_Easy',
           'programmingLevelCounts_Medium', 'programmingLevelCounts_Hard', 'programmingTotalMarks');
       }
+      if (formData.exerciseType === 'Other') {
+        const lbc = formData.othersConfig.levelBasedCounts || { easy: 0, medium: 0, hard: 0 };
+        if (formData.othersConfig.scoringType === 'levelBased') {
+          if ((lbc.easy + lbc.medium + lbc.hard) <= 0) {
+            errors.othersTotalQuestions = 'At least one difficulty level must have questions';
+            fields.push('othersTotalQuestions');
+          }
+        } else if (formData.othersConfig.totalQuestions <= 0) {
+          errors.othersTotalQuestions = 'Number of questions must be greater than 0';
+          fields.push('othersTotalQuestions');
+        }
+      }
     }
 
     if (currentTitle === 'Schedule') {
@@ -2576,66 +2721,79 @@ const hasPreConfiguredLanguages = flatLanguages.length > 0;
   }, [currentStep, steps, savedSteps]);
 
   // FIXED: handleSelectExerciseType - restored programming config reset from old version
-  const handleSelectExerciseType = useCallback((type: 'MCQ' | 'Programming' | 'Combined') => {
-    setFormData(prev => ({
-      ...prev,
-      exerciseType: type,
-      // Reset module and languages for MCQ
-      ...(type === 'MCQ' && {
-        selectedModule: '',
-        selectedLanguages: []
-      }),
-      // Initialize programming config with defaults
-      ...(type === 'Programming' && {
-        programmingConfig: {
-          ...prev.programmingConfig,
-          questionConfigType: 'general',
-          generalQuestionCount: 0,
-          selectionLevelCounts: { easy: 0, medium: 0, hard: 0 },
-          levelBasedCounts: { easy: 0, medium: 0, hard: 0 },
-          scoreSettings: {
-            ...prev.programmingConfig.scoreSettings,
-            equalDistribution: prev.totalMarksProgramming > 0 ? prev.totalMarksProgramming / 1 : 0
-          }
+const handleSelectExerciseType = useCallback((type: 'MCQ' | 'Programming' | 'Combined' | 'Other') => {
+  setFormData(prev => ({
+    ...prev,
+    exerciseType: type,
+    // Reset module and languages for MCQ only
+    ...((type === 'MCQ') && {
+      selectedModule: '',
+      selectedLanguages: []
+    }),
+    // Initialize programming config with defaults for Other (same as Programming)
+    ...((type === 'Other') && {
+      programmingConfig: {
+        ...prev.programmingConfig,
+        questionConfigType: 'general',
+        generalQuestionCount: 0,
+        selectionLevelCounts: { easy: 0, medium: 0, hard: 0 },
+        levelBasedCounts: { easy: 0, medium: 0, hard: 0 },
+        scoreSettings: {
+          ...prev.programmingConfig.scoreSettings,
+          equalDistribution: 0
         }
-      }),
-      // Initialize combined mode with both sections configured
-      ...(type === 'Combined' && {
-        // Ensure programming config has valid values
-        programmingConfig: {
-          ...prev.programmingConfig,
-          questionConfigType: 'general',
-          generalQuestionCount: prev.programmingConfig.generalQuestionCount || 0,
-          scoreSettings: {
-            ...prev.programmingConfig.scoreSettings,
-            equalDistribution: prev.totalMarksProgramming > 0 && prev.programmingConfig.generalQuestionCount > 0
-              ? prev.totalMarksProgramming / prev.programmingConfig.generalQuestionCount
-              : 0
-          }
-        },
-        // Ensure MCQ config has valid values if totalMarksMCQ is set
-        mcqConfig: {
-          ...prev.mcqConfig,
-          generalQuestionCount: prev.mcqConfig.generalQuestionCount || 0,
-          scoreSettings: {
-            ...prev.mcqConfig.scoreSettings,
-            equalDistribution: prev.totalMarksMCQ > 0 && prev.mcqConfig.generalQuestionCount > 0
-              ? prev.totalMarksMCQ / prev.mcqConfig.generalQuestionCount
-              : prev.mcqConfig.scoreSettings.equalDistribution || 0
-          }
+      }
+    }),
+    // Initialize programming config with defaults
+    ...((type === 'Programming') && {
+      programmingConfig: {
+        ...prev.programmingConfig,
+        questionConfigType: 'general',
+        generalQuestionCount: 0,
+        selectionLevelCounts: { easy: 0, medium: 0, hard: 0 },
+        levelBasedCounts: { easy: 0, medium: 0, hard: 0 },
+        scoreSettings: {
+          ...prev.programmingConfig.scoreSettings,
+          equalDistribution: 0
         }
-      }),
-    }));
+      }
+    }),
+    // Initialize combined mode with both sections configured
+    ...(type === 'Combined' && {
+      programmingConfig: {
+        ...prev.programmingConfig,
+        questionConfigType: 'general',
+        generalQuestionCount: prev.programmingConfig.generalQuestionCount || 0,
+        scoreSettings: {
+          ...prev.programmingConfig.scoreSettings,
+          equalDistribution: prev.totalMarksProgramming > 0 && prev.programmingConfig.generalQuestionCount > 0
+            ? prev.totalMarksProgramming / prev.programmingConfig.generalQuestionCount
+            : 0
+        }
+      },
+      mcqConfig: {
+        ...prev.mcqConfig,
+        generalQuestionCount: prev.mcqConfig.generalQuestionCount || 0,
+        scoreSettings: {
+          ...prev.mcqConfig.scoreSettings,
+          equalDistribution: prev.totalMarksMCQ > 0 && prev.mcqConfig.generalQuestionCount > 0
+            ? prev.totalMarksMCQ / prev.mcqConfig.generalQuestionCount
+            : prev.mcqConfig.scoreSettings.equalDistribution || 0
+        }
+      }
+    }),
+  }));
 
-    setValidationErrors(prev => {
-      const e = { ...prev };
-      delete e.exerciseType;
-      return e;
-    });
+  setValidationErrors(prev => {
+    const e = { ...prev };
+    delete e.exerciseType;
+    delete e.selectedModule;
+    delete e.selectedLanguages;
+    return e;
+  });
 
-    setCurrentStep(1);
-  }, []);
-
+  setCurrentStep(1);
+}, []);
   // FIXED: removed isEditing guard on language toggles (matching old behavior)
   const toggleLanguage = useCallback((lang: string) => {
     setFormData(prev => ({ ...prev, selectedLanguages: prev.selectedLanguages.includes(lang) ? prev.selectedLanguages.filter(l => l !== lang) : [...prev.selectedLanguages, lang] }));
@@ -2732,6 +2890,7 @@ const hasPreConfiguredLanguages = flatLanguages.length > 0;
       { value: 'MCQ', label: 'MCQ', sub: 'Multiple Choice Questions', icon: <List size={22} />, desc: 'Single or multi-select questions with automated grading', color: D.blue, badge: 'Auto-graded' },
       { value: 'Programming', label: 'Programming', sub: 'Code Challenges', icon: <Terminal size={22} />, desc: 'Real coding problems with test cases and language support', color: D.orange, badge: 'Code editor' },
       { value: 'Combined', label: 'Combined', sub: 'MCQ + Programming', icon: <Layers size={22} />, desc: 'Mix of multiple choice and programming questions', color: D.purple, badge: 'Hybrid' },
+      { value: 'Other', label: 'Other', sub: 'Other Exercise Type', icon: <FolderOpen size={22} />, desc: 'Custom exercises with module & language configuration — same provisioning as Programming', color: '#16a34a', badge: 'Manual grading' },
     ];
     return (
       <div className="px-4 py-3">
@@ -2739,7 +2898,7 @@ const hasPreConfiguredLanguages = flatLanguages.length > 0;
           <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: D.orangeLight, color: D.orange }}><Settings2 size={13} /></div>
           <h3 className="text-sm font-bold" style={{ color: D.textMain, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Select Exercise Type</h3>
         </div>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-4 gap-3">
           {types.map(t => {
             const sel = formData.exerciseType === t.value;
             return (
@@ -3023,6 +3182,7 @@ const renderExerciseDetails = useCallback(() => {
     { value: 'MCQ', label: 'MCQ — Multiple Choice Questions (auto-graded)' },
     { value: 'Programming', label: 'Programming — Code challenges with test cases' },
     { value: 'Combined', label: 'Combined — MCQ + Programming (hybrid)' },
+    { value: 'Other', label: 'Other — Custom exercise with module & language config' },
   ];
 
   const difficultyOptions = [
@@ -3145,151 +3305,159 @@ const renderExerciseDetails = useCallback(() => {
           </div>
         </div>
 
-        {/* Row: Skill Set / Module (Programming / Combined only) */}
-        {isProgramming && (
+        {/* ================================================================ */}
+        {/* PUT THE MODULE/LANGUAGE CODE HERE - RIGHT AFTER EXERCISE TYPE ROW */}
+        {/* ================================================================ */}
+        
+        {/* Row: Skill Set / Module (Programming and Combined) */}
+        {(formData.exerciseType === 'Programming' || formData.exerciseType === 'Combined') && (
           <div className="grid grid-cols-[140px_1fr] items-start gap-3">
             {labelCell(
-              configuredLanguages ? 'Skill Set' : 'Module',
+              hasPreConfiguredLanguages ? 'Skill Set' : 'Module',
               true,
-              configuredLanguages
+              hasPreConfiguredLanguages
                 ? 'Skill set configured for this topic'
                 : 'Select the programming module this exercise belongs to'
             )}
             <div className="space-y-2">
-            {configuredLanguages ? (
-  (() => {
-    const allLangs = buildConfiguredLangList();
-    return (
-      <div className="flex flex-wrap gap-1.5">
-        {allLangs.map(lang => (
-          <span
-            key={lang.name}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-semibold"
-            style={{ borderColor: D.orange, background: D.orangeLight, color: D.orange }}
-          >
-            {lang.icon && (
-              <img
-                src={lang.icon}
-                alt={lang.name}
-                className="w-3.5 h-3.5 object-contain"
-                onError={e => { (e.target as any).style.display = 'none'; }}
-              />
+            {hasPreConfiguredLanguages ? (
+          (() => {
+            const allLangs = buildConfiguredLangList();
+            return (
+              <div className="flex flex-wrap gap-1.5">
+                {allLangs.map(lang => (
+                  <span
+                    key={lang.name}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-semibold"
+                    style={{ borderColor: D.orange, background: D.orangeLight, color: D.orange }}
+                  >
+                    {lang.icon && (
+                      <img
+                        src={lang.icon}
+                        alt={lang.name}
+                        className="w-3.5 h-3.5 object-contain"
+                        onError={e => { (e.target as any).style.display = 'none'; }}
+                      />
+                    )}
+                    {lang.name}
+                  </span>
+                ))}
+              </div>
+            );
+          })()
+        ) : (
+          // Default section
+          <>
+            <div className="flex gap-2">
+              {(['Core Programming', 'Frontend', 'Database'] as const).map(mod => {
+                const sel = formData.selectedModule === mod;
+                const colors: Record<string, string> = {
+                  'Core Programming': D.blue,
+                  'Frontend': D.orange,
+                  'Database': D.emerald,
+                };
+                const icons: Record<string, React.ReactNode> = {
+                  'Core Programming': <Terminal size={11} />,
+                  'Frontend': <Code size={11} />,
+                  'Database': <Database size={11} />,
+                };
+                return (
+                  <button
+                    key={mod}
+                    type="button"
+                    onClick={() => {
+                      setFormData(prev => ({ ...prev, selectedModule: mod, selectedLanguages: [] }));
+                      setValidationErrors(prev => { const n = { ...prev }; delete n.selectedModule; return n; });
+                    }}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border-2 text-xs font-bold transition-all"
+                    style={{
+                      borderColor: sel ? colors[mod] : D.border,
+                      background: sel ? colors[mod] + '10' : D.bg,
+                      color: sel ? colors[mod] : D.textMuted,
+                      cursor: 'pointer',
+                    }}>
+                    {icons[mod]}{mod}
+                  </button>
+                );
+              })}
+            </div>
+            {validationErrors.selectedModule && touchedFields.has('selectedModule') && (
+              <p className="text-xs flex items-center gap-1" style={{ color: D.red }}>
+                <AlertCircle size={11} />{validationErrors.selectedModule}
+              </p>
             )}
-            {lang.name}
-          </span>
-        ))}
-      </div>
-    );
-  })()
-) : (
-  // Default section
-  <>
-    <div className="flex gap-2">
-      {(['Core Programming', 'Frontend', 'Database'] as const).map(mod => {
-        const sel = formData.selectedModule === mod;
-        const colors: Record<string, string> = {
-          'Core Programming': D.blue,
-          'Frontend': D.orange,
-          'Database': D.emerald,
-        };
-        const icons: Record<string, React.ReactNode> = {
-          'Core Programming': <Terminal size={11} />,
-          'Frontend': <Code size={11} />,
-          'Database': <Database size={11} />,
-        };
-        return (
-          <button
-            key={mod}
-            type="button"
-            onClick={() => {
-              setFormData(prev => ({ ...prev, selectedModule: mod, selectedLanguages: [] }));
-              setValidationErrors(prev => { const n = { ...prev }; delete n.selectedModule; return n; });
-            }}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border-2 text-xs font-bold transition-all"
-            style={{
-              borderColor: sel ? colors[mod] : D.border,
-              background: sel ? colors[mod] + '10' : D.bg,
-              color: sel ? colors[mod] : D.textMuted,
-              cursor: 'pointer',
-            }}>
-            {icons[mod]}{mod}
-          </button>
-        );
-      })}
-    </div>
-    {validationErrors.selectedModule && touchedFields.has('selectedModule') && (
-      <p className="text-xs flex items-center gap-1" style={{ color: D.red }}>
-        <AlertCircle size={11} />{validationErrors.selectedModule}
-      </p>
-    )}
-    {formData.selectedModule && (() => {
-      const langs = getFilteredLanguages(formData.selectedModule);
-      const allSel = langs.length > 0 && langs.every(l => formData.selectedLanguages.includes(l.name));
-      return (
-        <div>
-          <div className="flex flex-wrap gap-1.5 items-center">
-            {/* Language checkboxes */}
-            {langs.map(lang => {
-              const sel = formData.selectedLanguages.includes(lang.name);
+            {formData.selectedModule && (() => {
+              const langs = getFilteredLanguages(formData.selectedModule);
+              const allSel = langs.length > 0 && langs.every(l => formData.selectedLanguages.includes(l.name));
               return (
-                <label
-                  key={lang.name}
-                  className="flex items-center gap-1.5 px-2 py-1 rounded-lg border cursor-pointer select-none text-xs font-semibold transition-all"
-                  style={{
-                    borderColor: sel ? D.orange : D.border,
-                    background: sel ? D.orangeLight : D.bg,
-                    color: sel ? D.orange : D.textSub,
-                  }}>
-                  <div className="relative flex items-center justify-center">
-                    <input
-                      type="checkbox"
-                      className="w-3.5 h-3.5 cursor-pointer opacity-0 absolute"
-                      checked={sel}
-                      onChange={() => toggleLanguage(lang.name)}
-                    />
-                    <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-all ${sel ? 'border-orange-500 bg-orange-500' : 'border-gray-300 bg-white'}`}>
-                      {sel && <Check size={10} className="text-white" strokeWidth={2.5} />}
-                    </div>
+                <div>
+                  <div className="flex flex-wrap gap-1.5 items-center">
+                    {/* Language checkboxes */}
+                    {langs.map(lang => {
+                      const sel = formData.selectedLanguages.includes(lang.name);
+                      return (
+                        <label
+                          key={lang.name}
+                          className="flex items-center gap-1.5 px-2 py-1 rounded-lg border cursor-pointer select-none text-xs font-semibold transition-all"
+                          style={{
+                            borderColor: sel ? D.orange : D.border,
+                            background: sel ? D.orangeLight : D.bg,
+                            color: sel ? D.orange : D.textSub,
+                          }}>
+                          <div className="relative flex items-center justify-center">
+                            <input
+                              type="checkbox"
+                              className="w-3.5 h-3.5 cursor-pointer opacity-0 absolute"
+                              checked={sel}
+                              onChange={() => toggleLanguage(lang.name)}
+                            />
+                            <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-all ${sel ? 'border-orange-500 bg-orange-500' : 'border-gray-300 bg-white'}`}>
+                              {sel && <Check size={10} className="text-white" strokeWidth={2.5} />}
+                            </div>
+                          </div>
+                          {lang.icon && (
+                            <img
+                              src={lang.icon}
+                              alt={lang.name}
+                              className="w-3.5 h-3.5 object-contain"
+                              onError={e => { (e.target as any).style.display = 'none'; }}
+                            />
+                          )}
+                          {lang.name}
+                        </label>
+                      );
+                    })}
+                    
+                    {/* Select All button - right after checkboxes, not corner */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const all = langs.map(l => l.name);
+                        setFormData(prev => ({ ...prev, selectedLanguages: allSel ? [] : all }));
+                      }}
+                      className="text-xs font-semibold px-2 py-1 rounded transition-all hover:opacity-70 whitespace-nowrap"
+                      style={{ color: D.orange }}>
+                      {allSel ? 'Deselect All' : 'Select All'}
+                    </button>
                   </div>
-                  {lang.icon && (
-                    <img
-                      src={lang.icon}
-                      alt={lang.name}
-                      className="w-3.5 h-3.5 object-contain"
-                      onError={e => { (e.target as any).style.display = 'none'; }}
-                    />
+                  
+                  {validationErrors.selectedLanguages && touchedFields.has('selectedLanguages') && (
+                    <p className="mt-1 text-xs flex items-center gap-1" style={{ color: D.red }}>
+                      <AlertCircle size={11} />{validationErrors.selectedLanguages}
+                    </p>
                   )}
-                  {lang.name}
-                </label>
+                </div>
               );
-            })}
-            
-            {/* Select All button - right after checkboxes, not corner */}
-            <button
-              type="button"
-              onClick={() => {
-                const all = langs.map(l => l.name);
-                setFormData(prev => ({ ...prev, selectedLanguages: allSel ? [] : all }));
-              }}
-              className="text-xs font-semibold px-2 py-1 rounded transition-all hover:opacity-70 whitespace-nowrap"
-              style={{ color: D.orange }}>
-              {allSel ? 'Deselect All' : 'Select All'}
-            </button>
-          </div>
-          
-          {validationErrors.selectedLanguages && touchedFields.has('selectedLanguages') && (
-            <p className="mt-1 text-xs flex items-center gap-1" style={{ color: D.red }}>
-              <AlertCircle size={11} />{validationErrors.selectedLanguages}
-            </p>
-          )}
-        </div>
-      );
-    })()}
-  </>
-)}
+            })()}
+          </>
+        )}
             </div>
           </div>
         )}
+
+        {/* ================================================================ */}
+        {/* CONTINUE WITH THE REST OF THE FORM */}
+        {/* ================================================================ */}
 
         <div style={{ borderTop: `1px solid ${D.border}` }} />
 
@@ -3408,6 +3576,7 @@ const renderExerciseDetails = useCallback(() => {
   handleSelectExerciseType,
   toggleLanguage,
   configuredLanguages,
+  hasPreConfiguredLanguages,
 ]);
   // ==========================================================================
   // RENDER: MCQ Configuration (RESTORED: question specific mode info)
@@ -3512,6 +3681,240 @@ const renderExerciseDetails = useCallback(() => {
       </div>
     );
   }, [formData.mcqConfig, formData.totalMarks, formData.totalMarksMCQ, formData.exerciseType, mcqScoringOptions, validationErrors, touchedFields, markTouched]);
+
+  // ==========================================================================
+  // RENDER: Others Configuration
+  // ==========================================================================
+  const renderOthersConfiguration = useCallback(() => {
+    const isEqual = formData.othersConfig.scoringType === 'equalDistribution';
+    const isLevelBased = formData.othersConfig.scoringType === 'levelBased';
+    const totalMarks = formData.totalMarks;
+    const lbc = formData.othersConfig.levelBasedCounts || { easy: 0, medium: 0, hard: 0 };
+    const lbm = formData.othersConfig.levelBasedMarks || { easy: 0, medium: 0, hard: 0 };
+    const marksPerQ = isEqual && formData.othersConfig.totalQuestions > 0
+      ? totalMarks / formData.othersConfig.totalQuestions
+      : formData.othersConfig.marksPerQuestion;
+    const allocated = isEqual
+      ? formData.othersConfig.totalQuestions * marksPerQ
+      : isLevelBased
+        ? lbc.easy * lbm.easy + lbc.medium * lbm.medium + lbc.hard * lbm.hard
+        : 0;
+    const isMatch = isEqual ? isApproximatelyEqual(allocated, totalMarks)
+      : isLevelBased ? true
+      : true;
+
+    const levelColors: Record<string, string> = { easy: '#16a34a', medium: '#d97706', hard: '#dc2626' };
+    const levelLabels: Record<string, string> = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
+
+    return (
+      <div className="px-4 py-3">
+        <div className="mb-3 p-2.5 rounded-xl flex items-center justify-between" style={{ background: '#16a34a08', border: '1px solid #16a34a20' }}>
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: '#16a34a20', color: '#16a34a' }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            </div>
+            <div>
+              <h3 className="text-xs font-bold" style={{ color: '#1a1a2e', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Others Configuration</h3>
+              <p className="text-[10px]" style={{ color: '#16a34a' }}>Configure questions for file upload, Notion, and custom tasks</p>
+            </div>
+          </div>
+          {(isEqual && formData.othersConfig.totalQuestions > 0) && (
+            <div className="text-right">
+              <div className="text-[10px] font-semibold" style={{ color: isMatch ? '#16a34a' : '#d97706' }}>Allocated</div>
+              <div className="text-sm font-bold" style={{ color: isMatch ? '#16a34a' : '#d97706', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                {formatDecimal(allocated)}<span className="text-xs font-normal" style={{ color: '#8b8b9e' }}>/{totalMarks}</span>
+              </div>
+            </div>
+          )}
+          {isLevelBased && (lbc.easy + lbc.medium + lbc.hard) > 0 && (
+            <div className="text-right">
+              <div className="text-[10px] font-semibold" style={{ color: '#16a34a' }}>Total</div>
+              <div className="text-sm font-bold" style={{ color: '#16a34a', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                {lbc.easy + lbc.medium + lbc.hard} Q / {formatDecimal(allocated)} marks
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-2.5">
+          {/* Scoring Type */}
+          <div>
+            <SectionLabel info="Equal Distribution splits marks evenly; Question Specific lets you set per-question marks; Level Based splits by difficulty level">Scoring Type</SectionLabel>
+            <ODropdown
+              value={formData.othersConfig.scoringType}
+              options={[
+                { label: 'Equal Distribution', value: 'equalDistribution' },
+                { label: 'Question Specific', value: 'questionSpecific' },
+                { label: 'Level Based', value: 'levelBased' },
+              ]}
+              onChange={v => setFormData(prev => ({
+                ...prev,
+                othersConfig: {
+                  ...prev.othersConfig,
+                  scoringType: v as any,
+                  levelBasedCounts: { easy: 0, medium: 0, hard: 0 },
+                  levelBasedMarks: { easy: 0, medium: 0, hard: 0 },
+                  totalQuestions: 0,
+                }
+              }))}
+            />
+          </div>
+
+          {/* LEVEL BASED UI */}
+          {isLevelBased && (
+            <div className="space-y-2">
+              <SectionLabel info="Set question count and marks per question for each difficulty level">Level Configuration</SectionLabel>
+              <div className="grid grid-cols-3 gap-2">
+                {(['easy', 'medium', 'hard'] as const).map(level => {
+                  const count = lbc[level];
+                  const mpq = lbm[level];
+                  const levelTotal = count * mpq;
+                  return (
+                    <div key={level} className="p-2.5 rounded-lg border flex flex-col gap-1.5"
+                      style={{ background: levelColors[level] + '08', borderColor: levelColors[level] + '30' }}>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold" style={{ color: levelColors[level], fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{levelLabels[level]}</span>
+                        {count > 0 && (
+                          <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: levelColors[level] + '20', color: levelColors[level] }}>{count} Q</span>
+                        )}
+                      </div>
+                      <div>
+                        <div className="text-[9px] font-semibold mb-1" style={{ color: '#8b8b9e' }}>QUESTIONS</div>
+                        <ONumberInput
+                          value={count === 0 ? ('' as any) : count}
+                          onChange={v => setFormData(prev => ({
+                            ...prev,
+                            othersConfig: {
+                              ...prev.othersConfig,
+                              levelBasedCounts: { ...prev.othersConfig.levelBasedCounts, [level]: v },
+                            }
+                          }))}
+                          min={0} placeholder="Count"
+                        />
+                      </div>
+                      <div>
+                        <div className="text-[9px] font-semibold mb-1" style={{ color: '#8b8b9e' }}>MARKS/Q</div>
+                        <ONumberInput
+                          value={mpq === 0 ? ('' as any) : mpq}
+                          onChange={v => setFormData(prev => ({
+                            ...prev,
+                            othersConfig: {
+                              ...prev.othersConfig,
+                              levelBasedMarks: { ...prev.othersConfig.levelBasedMarks, [level]: v },
+                            }
+                          }))}
+                          min={0} placeholder="Marks"
+                        />
+                      </div>
+                      <div className="text-[10px] text-center font-semibold pt-1 border-t" style={{ borderColor: levelColors[level] + '30', color: levelColors[level] }}>
+                        = {levelTotal} marks
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {validationErrors.othersTotalQuestions && touchedFields.has('othersTotalQuestions') && (
+                <p className="text-[10px]" style={{ color: '#dc2626' }}>{validationErrors.othersTotalQuestions}</p>
+              )}
+            </div>
+          )}
+
+          {/* EQUAL DISTRIBUTION: Total Questions + Marks Per Question */}
+          {isEqual && (
+            <>
+              <div>
+                <SectionLabel required info="Total number of questions for this exercise">Total Questions</SectionLabel>
+                <ONumberInput
+                  value={formData.othersConfig.totalQuestions}
+                  onChange={v => {
+                    setFormData(prev => ({
+                      ...prev,
+                      othersConfig: {
+                        ...prev.othersConfig,
+                        totalQuestions: v,
+                        marksPerQuestion: prev.othersConfig.scoringType === 'equalDistribution' && v > 0 ? totalMarks / v : prev.othersConfig.marksPerQuestion,
+                      }
+                    }));
+                    if (v > 0) setValidationErrors(prev => { const e = { ...prev }; delete e.othersTotalQuestions; return e; });
+                  }}
+                  onBlur={() => markTouched('othersTotalQuestions')}
+                  min={0}
+                  placeholder="e.g. 5"
+                  error={validationErrors.othersTotalQuestions}
+                  touched={touchedFields.has('othersTotalQuestions')}
+                />
+              </div>
+              <div>
+                <SectionLabel info="Auto-calculated from total marks ÷ total questions">Marks Per Question</SectionLabel>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={formData.othersConfig.totalQuestions > 0 ? formatDecimal(marksPerQ) : '—'}
+                    disabled readOnly
+                    className="w-full px-3 py-2 text-sm rounded-lg border"
+                    style={{ borderColor: '#ecedf1', background: '#fafafa', color: '#9b9bae', fontFamily: 'Plus Jakarta Sans, sans-serif' }}
+                  />
+                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold" style={{ color: '#F27757' }}>Auto</span>
+                </div>
+                {formData.othersConfig.totalQuestions > 0 && totalMarks > 0 && (
+                  <p className="mt-1 text-[11px]" style={{ color: '#8b8b9e' }}>
+                    {totalMarks} ÷ {formData.othersConfig.totalQuestions} = <strong style={{ color: '#6b6b7e' }}>{formatDecimal(marksPerQ)}</strong>
+                  </p>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* QUESTION SPECIFIC: info note */}
+          {!isEqual && !isLevelBased && (
+            <div>
+              <SectionLabel required info="Total number of questions for this exercise">Total Questions</SectionLabel>
+              <ONumberInput
+                value={formData.othersConfig.totalQuestions}
+                onChange={v => {
+                  setFormData(prev => ({ ...prev, othersConfig: { ...prev.othersConfig, totalQuestions: v } }));
+                  if (v > 0) setValidationErrors(prev => { const e = { ...prev }; delete e.othersTotalQuestions; return e; });
+                }}
+                onBlur={() => markTouched('othersTotalQuestions')}
+                min={0}
+                placeholder="e.g. 5"
+                error={validationErrors.othersTotalQuestions}
+                touched={touchedFields.has('othersTotalQuestions')}
+              />
+              <div className="mt-2 p-2.5 rounded-lg" style={{ background: '#2563eb08', border: '1px solid #2563eb20' }}>
+                <p className="text-xs font-semibold mb-1" style={{ color: '#2563eb' }}>Question Specific Mode</p>
+                <p className="text-[11px]" style={{ color: '#6b6b7e' }}>
+                  Assign individual marks per question when creating them. Sum must equal <strong>{totalMarks}</strong>.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Attempt Limit */}
+          <div className="pt-2 border-t" style={{ borderColor: '#ecedf1' }}>
+            <OToggle
+              enabled={formData.othersConfig.attemptLimitEnabled}
+              onChange={v => setFormData(prev => ({ ...prev, othersConfig: { ...prev.othersConfig, attemptLimitEnabled: v, submissionAttempts: v ? prev.othersConfig.submissionAttempts : 1 } }))}
+              label="Attempt Limit"
+              description="Restrict the number of submission attempts"
+            />
+            {formData.othersConfig.attemptLimitEnabled && (
+              <div className="mt-2">
+                <SectionLabel info="Maximum number of submission attempts allowed (1–10)">Attempts Allowed</SectionLabel>
+                <div className="w-28">
+                  <ONumberInput
+                    value={formData.othersConfig.submissionAttempts}
+                    onChange={v => setFormData(prev => ({ ...prev, othersConfig: { ...prev.othersConfig, submissionAttempts: Math.max(1, Math.min(10, v)) } }))}
+                    min={1} max={10}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }, [formData.othersConfig, formData.totalMarks, validationErrors, touchedFields, markTouched]);
 
   // ==========================================================================
   // RENDER: Programming Configuration
@@ -4586,9 +4989,9 @@ const renderExerciseDetails = useCallback(() => {
                 error={ve.mcqGradeToPass} errorTouched={tf.has('mcqGradeToPass')} />
             </>)}
 
-            {/* Programming */}
-            {et === 'Programming' && (<>
-              <GradeRow icon={<Terminal size={13} />} color={D.orange} label="Grade" info="Total marks for the programming exercise"
+            {/* Programming / Other — identical behaviour */}
+            {(et === 'Programming' || et === 'Other') && (<>
+              <GradeRow icon={<Terminal size={13} />} color={D.orange} label="Grade" info="Total marks for the exercise"
                 fieldKey="programmingGrade" value={g.programmingGrade} onChange={v => setFormData(prev => ({ ...prev, grades: { ...prev.grades, programmingGrade: v } }))}
                 error={ve.programmingGrade} errorTouched={tf.has('programmingGrade')} />
               <GradeRow icon={<Award size={13} />} color={D.orange} label="Grade to Pass" info="Minimum marks required to pass — cannot exceed Grade"
@@ -4723,22 +5126,23 @@ const renderExerciseDetails = useCallback(() => {
   // ==========================================================================
   // RENDER: Current Step
   // ==========================================================================
-  const renderCurrentStep = useCallback(() => {
-    const step = steps.find(s => s.id === currentStep);
-    if (!step) return null;
-    switch (step.title) {
-      case 'Exercise Details': return renderExerciseDetails();
-      case 'Question Configuration':
-        if (formData.exerciseType === 'MCQ') return renderMCQConfiguration();
-        if (formData.exerciseType === 'Programming') return renderProgrammingConfiguration();
-        if (formData.exerciseType === 'Combined') return renderCombinedConfiguration();
-        return null;
-      case 'Schedule': return renderScheduleConfiguration();
-      case 'Notifications': return renderNotifications();
-      case 'Grade Settings': return renderGradeSettings();
-      default: return null;
-    }
-  }, [steps, currentStep, formData.exerciseType, renderExerciseDetails, renderMCQConfiguration, renderProgrammingConfiguration, renderCombinedConfiguration, renderScheduleConfiguration, renderNotifications, renderGradeSettings]);
+const renderCurrentStep = useCallback(() => {
+  const step = steps.find(s => s.id === currentStep);
+  if (!step) return null;
+  switch (step.title) {
+    case 'Exercise Details': return renderExerciseDetails();
+    case 'Question Configuration':
+      if (formData.exerciseType === 'MCQ') return renderMCQConfiguration();
+      if (formData.exerciseType === 'Programming') return renderProgrammingConfiguration();
+      if (formData.exerciseType === 'Combined') return renderCombinedConfiguration();
+      if (formData.exerciseType === 'Other') return renderOthersConfiguration();
+      return null;
+    case 'Schedule': return renderScheduleConfiguration();
+    case 'Notifications': return renderNotifications();
+    case 'Grade Settings': return renderGradeSettings();
+    default: return null;
+  }
+}, [steps, currentStep, formData.exerciseType, renderExerciseDetails, renderMCQConfiguration, renderProgrammingConfiguration, renderOthersConfiguration, renderCombinedConfiguration, renderScheduleConfiguration, renderNotifications, renderGradeSettings]);
 
   // ==========================================================================
   // MAIN RENDER

@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import AddQuestionForm from './questionforms/AddQuestionForm';
 import { questionApi } from '@/apiServices/question';
+import { exerciseApi } from '@/apiServices/exercise';
 import { Toaster } from 'react-hot-toast';
 import toast from 'react-hot-toast';
 import AddQuestionViaDocument from './AddQuestionViaDocument';
@@ -38,7 +39,7 @@ const JKT: React.CSSProperties = {
 
 interface Exercise {
   _id: string;
-  exerciseType: 'MCQ' | 'Programming' | 'Combined';
+  exerciseType: 'MCQ' | 'Programming' | 'Combined' | 'Other';
   configurationType: { mcqMode: boolean; programmingMode: boolean; combinedMode: boolean };
   exerciseInformation: {
     exerciseName: string; exerciseId: string; description?: string;
@@ -131,6 +132,8 @@ const [showDocumentUpload, setShowDocumentUpload] = useState(false);
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const [autoItemsPerPage, setAutoItemsPerPage] = useState(10);
   const [showSlotInfo, setShowSlotInfo]         = useState(false);
+  // Full exercise data fetched from API — ensures questionConfiguration is always fresh
+  const [fullExData, setFullExData]             = useState<any>(null);
 
   // ── Dynamic rows ──────────────────────────────────────────────────────────
 
@@ -157,6 +160,22 @@ useEffect(() => {
   useEffect(() => {
     setEditingQuestion(null); setShowEditQuestionModal(false);
     setQuestionToDelete(null); setShowDeleteQuestionModal(false);
+  }, [exercise._id]);
+
+  // Fetch full exercise data (with questionConfiguration / scoring) on mount and when exercise changes
+  useEffect(() => {
+    let cancelled = false;
+    const fetchFull = async () => {
+      try {
+        const res = await exerciseApi.getExerciseById(exercise._id);
+        const ex = res?.data?.exercise || res?.data || res?.exercise || null;
+        if (ex && !cancelled) setFullExData(ex);
+      } catch {
+        // fall back to the prop — no error shown
+      }
+    };
+    fetchFull();
+    return () => { cancelled = true; };
   }, [exercise._id]);
 
   // ── Helpers ────────────────────────────────────────────────────────────────
@@ -440,6 +459,15 @@ const handleAction = async (type: string, q: Question) => {
     }
   };
 
+  // Refresh full exercise data (e.g. after edit-exercise settings are changed from inside the form)
+  const refreshFullExData = useCallback(async () => {
+    try {
+      const res = await exerciseApi.getExerciseById(exercise._id);
+      const ex = res?.data?.exercise || res?.data || res?.exercise || null;
+      if (ex) setFullExData(ex);
+    } catch { /* ignore */ }
+  }, [exercise._id]);
+
   const handleQuestionSaved = async (saved: any) => {
     const isSaveAndNext = saved?.__saveAndNext === true;
     const isUpdate = saved?.__isUpdate === true;
@@ -578,7 +606,7 @@ const handleAction = async (type: string, q: Question) => {
   // ── Exercise type ─────────────────────────────────────────────────────────
   const isCombined = exercise.exerciseType?.toLowerCase() === 'combined' || exercise.configurationType?.combinedMode === true;
   const isPureMCQ  = !isCombined && (exercise.exerciseType?.toLowerCase() === 'mcq' || (exercise.configurationType?.mcqMode === true && !exercise.configurationType?.programmingMode));
-  const isPureProg = !isCombined && (exercise.exerciseType?.toLowerCase() === 'programming' || (exercise.configurationType?.programmingMode === true && !exercise.configurationType?.mcqMode));
+  const isPureProg = !isCombined && (exercise.exerciseType?.toLowerCase() === 'programming' || exercise.exerciseType?.toLowerCase() === 'other' || (exercise.configurationType?.programmingMode === true && !exercise.configurationType?.mcqMode));
 
   const progGenFull = isProgGeneralFull();
   const mcqDisabled = isMcqAddDisabled();
@@ -839,9 +867,9 @@ const handleAction = async (type: string, q: Question) => {
         <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#8b8b9e', letterSpacing: '0.06em' }}>Exercise name</span>
         <span className="inline-flex items-center text-[10px] font-medium px-1.5 py-0 rounded-full"
           style={{
-            background: exercise.exerciseType === 'MCQ' ? 'rgba(168,85,247,0.08)' : exercise.exerciseType === 'Combined' ? 'rgba(8,145,178,0.08)' : 'rgba(59,130,246,0.08)',
-            color: exercise.exerciseType === 'MCQ' ? '#9333ea' : exercise.exerciseType === 'Combined' ? '#0891b2' : '#3b82f6',
-            border: `1px solid ${exercise.exerciseType === 'MCQ' ? 'rgba(168,85,247,0.15)' : exercise.exerciseType === 'Combined' ? 'rgba(8,145,178,0.15)' : 'rgba(59,130,246,0.15)'}`,
+            background: exercise.exerciseType === 'MCQ' ? 'rgba(168,85,247,0.08)' : exercise.exerciseType === 'Combined' ? 'rgba(8,145,178,0.08)' : exercise.exerciseType === 'Other' ? 'rgba(22,163,74,0.08)' : 'rgba(59,130,246,0.08)',
+            color: exercise.exerciseType === 'MCQ' ? '#9333ea' : exercise.exerciseType === 'Combined' ? '#0891b2' : exercise.exerciseType === 'Other' ? '#16a34a' : '#3b82f6',
+            border: `1px solid ${exercise.exerciseType === 'MCQ' ? 'rgba(168,85,247,0.15)' : exercise.exerciseType === 'Combined' ? 'rgba(8,145,178,0.15)' : exercise.exerciseType === 'Other' ? 'rgba(22,163,74,0.15)' : 'rgba(59,130,246,0.15)'}`,
           }}>
           {exercise.exerciseType || 'Programming'}
         </span>
@@ -1399,7 +1427,8 @@ const handleAction = async (type: string, q: Question) => {
             exerciseId: exercise._id, _id: exercise._id, exerciseName: exercise.exerciseInformation.exerciseName,
             exerciseLevel: exercise.exerciseInformation.exerciseLevel || 'intermediate',
             selectedLanguages: exercise.programmingSettings?.selectedLanguages || [], evaluationSettings: getEvalSettings(),
-            nodeId, nodeName, subcategory, nodeType, fullExerciseData: { ...exercise, questions, hierarchyData },
+            nodeId, nodeName, subcategory, nodeType,
+            fullExerciseData: { ...exercise, ...(fullExData || {}), questions, hierarchyData },
             exerciseType: exercise.exerciseType, programmingSettings: exercise.programmingSettings, subcategoryLabel: subcategory,
           }}
           breadcrumbs={breadcrumbs} tabType={tabType}
@@ -1408,7 +1437,7 @@ const handleAction = async (type: string, q: Question) => {
           onOpenDocumentUpload={() => { setShowAddQuestion(false); setShowDocumentUpload(true); }}
           onMCQBankSelect={async (qs) => { setShowAddQuestion(false); await handleBankSelect(qs); }}
           showTypeSelector={isCombined} remainingQuestions={calcRemaining()} marksPerQuestion={calcMarksPerQ()}
-          onEditExercise={() => { setShowAddQuestion(false); if (onEditExercise) onEditExercise(exercise); }}
+          onEditExercise={async () => { await refreshFullExData(); setShowAddQuestion(false); if (onEditExercise) onEditExercise(exercise); }}
           shouldRefreshOnMount={true} />
       )}
 
@@ -1422,7 +1451,7 @@ const handleAction = async (type: string, q: Question) => {
       selectedLanguages: exercise.programmingSettings?.selectedLanguages || [],
       evaluationSettings: getEvalSettings(),
       nodeId, nodeName, subcategory, nodeType,
-      fullExerciseData: { ...exercise, questions, hierarchyData }, // ← pass live `questions` state
+      fullExerciseData: { ...exercise, ...(fullExData || {}), questions, hierarchyData },
       exerciseType: exercise.exerciseType,
       programmingSettings: exercise.programmingSettings,
       subcategoryLabel: subcategory,
@@ -1454,7 +1483,8 @@ const handleAction = async (type: string, q: Question) => {
             exerciseId: exercise._id, exerciseName: exercise.exerciseInformation.exerciseName,
             exerciseLevel: exercise.exerciseInformation.exerciseLevel || 'intermediate',
             selectedLanguages: exercise.programmingSettings?.selectedLanguages || [], evaluationSettings: getEvalSettings(),
-            nodeId, nodeName, subcategory, nodeType, fullExerciseData: exercise,
+            nodeId, nodeName, subcategory, nodeType,
+            fullExerciseData: { ...exercise, ...(fullExData || {}), hierarchyData },
             exerciseType: exercise.exerciseType, programmingSettings: exercise.programmingSettings,
           }}
           breadcrumbs={breadcrumbs} tabType={tabType}

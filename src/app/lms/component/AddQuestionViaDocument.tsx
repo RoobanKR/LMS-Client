@@ -28,7 +28,7 @@ import {
   Sheet,
   AlignLeft,
 } from "lucide-react";
-import { bulkUploadApi } from "@/apiServices/bulkUploadApi";
+import { bulkUploadApi } from "../../../apiServices/Bulkuploadapi";
 
 // ─── Design tokens (match ProblemSolving / MCQQuestionForm) ───────────────────
 const JKT: React.CSSProperties = {

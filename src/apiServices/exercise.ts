@@ -198,7 +198,8 @@ export const exerciseApi = {
         configurationType: {
           mcqMode: exerciseData.exerciseType === 'MCQ',
           programmingMode: exerciseData.exerciseType === 'Programming',
-          combinedMode: exerciseData.exerciseType === 'Combined'
+          combinedMode: exerciseData.exerciseType === 'Combined',
+          otherMode: exerciseData.exerciseType === 'Other',
         },
         exerciseInformation: {
           exerciseId: exerciseData.exerciseInformation.exerciseId || `EX${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
@@ -600,7 +601,33 @@ availabilityPeriod: {
  
         // ✅ Set total marks for Combined mode (MCQ + Programming)
       }
- 
+
+      // ============ HANDLE OTHERS CONFIGURATION ============
+      else if (exerciseData.exerciseType === 'Other') {
+        const othersConfig = (exerciseData.questionConfiguration as any)?.othersConfig;
+        if (othersConfig) {
+          const scoringType = othersConfig.scoringType || 'equalDistribution';
+          const totalMarks = (exerciseData.exerciseInformation as any).totalMarks || 0;
+          const built: any = {
+            totalQuestions: othersConfig.totalQuestions || 0,
+            scoringType,
+            marksPerQuestion: scoringType === 'equalDistribution' && (othersConfig.totalQuestions || 0) > 0
+              ? totalMarks / othersConfig.totalQuestions
+              : (othersConfig.marksPerQuestion || 0),
+            totalMarks: scoringType === 'levelBased'
+              ? (othersConfig.totalMarks || 0)
+              : totalMarks,
+            attemptLimitEnabled: othersConfig.attemptLimitEnabled || false,
+            submissionAttempts: othersConfig.submissionAttempts || 1,
+          };
+          if (scoringType === 'levelBased') {
+            built.levelBasedCounts = othersConfig.levelBasedCounts || { easy: 0, medium: 0, hard: 0 };
+            built.levelBasedMarks  = othersConfig.levelBasedMarks  || { easy: 0, medium: 0, hard: 0 };
+          }
+          payload.questionConfiguration.othersConfig = built;
+        }
+      }
+
       // Debug log to verify payload structure
       console.log('🔍 Programming config in payload:', payload.questionConfiguration?.programmingConfig);
       console.log('🌐 Transformed payload for backend:', JSON.stringify(payload, null, 2));
@@ -798,6 +825,7 @@ const payload: any = {
     mcqMode: exerciseData.exerciseType === 'MCQ' || exerciseData.exerciseType === 'Combined',
     programmingMode: exerciseData.exerciseType === 'Programming' || exerciseData.exerciseType === 'Combined',
     combinedMode: exerciseData.exerciseType === 'Combined',
+    otherMode: exerciseData.exerciseType === 'Other',
   },
   exerciseInformation: {
     exerciseId:            exerciseData.exerciseInformation.exerciseId,
@@ -810,7 +838,7 @@ const payload: any = {
                                  ? exerciseData.totalMarksMCQ
                                  : exerciseData.exerciseInformation.totalMarks)
                              : 0,
-    totalMarksProgramming: exerciseData.exerciseType === 'Programming' || exerciseData.exerciseType === 'Combined'
+    totalMarksProgramming: exerciseData.exerciseType === 'Programming' || exerciseData.exerciseType === 'Combined' || exerciseData.exerciseType === 'Other'
                              ? (exerciseData.exerciseType === 'Combined'
                                  ? exerciseData.totalMarksProgramming
                                  : exerciseData.exerciseInformation.totalMarks)
@@ -1054,7 +1082,33 @@ availabilityPeriod: {
  
       payload.questionConfiguration.programmingConfig = programmingConfig;
     }
- 
+
+    // ============ HANDLE OTHERS CONFIGURATION ============
+    if (exerciseData.exerciseType === 'Other') {
+      const othersConfig = (exerciseData.questionConfiguration as any)?.othersConfig;
+      if (othersConfig) {
+        const scoringType = othersConfig.scoringType || 'equalDistribution';
+        const totalMarks = exerciseData.exerciseInformation.totalMarks || 0;
+        const built: any = {
+          totalQuestions: othersConfig.totalQuestions || 0,
+          scoringType,
+          marksPerQuestion: scoringType === 'equalDistribution' && (othersConfig.totalQuestions || 0) > 0
+            ? totalMarks / othersConfig.totalQuestions
+            : (othersConfig.marksPerQuestion || 0),
+          totalMarks: scoringType === 'levelBased'
+            ? (othersConfig.totalMarks || 0)
+            : totalMarks,
+          attemptLimitEnabled: othersConfig.attemptLimitEnabled || false,
+          submissionAttempts: othersConfig.submissionAttempts || 1,
+        };
+        if (scoringType === 'levelBased') {
+          built.levelBasedCounts = othersConfig.levelBasedCounts || { easy: 0, medium: 0, hard: 0 };
+          built.levelBasedMarks  = othersConfig.levelBasedMarks  || { easy: 0, medium: 0, hard: 0 };
+        }
+        payload.questionConfiguration.othersConfig = built;
+      }
+    }
+
     console.log('🌐 Transformed update payload:', JSON.stringify(payload, null, 2));
  
     const entityPath = getEntityPath(entityType);

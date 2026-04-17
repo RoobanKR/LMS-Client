@@ -6,6 +6,7 @@ import DatabaseQuestionForm from './DatabaseQuestionForm';
 import ProgrammingQuestionForm from './ProgrammingQuestionForm';
 import MCQQuestionForm from './mcq/MCQQuestionForm';
 import QuestionBankSelector from './mcq/QuestionBankSelector';
+import OthersAddQuestionForm from './others/OthersAddQuestionForm';
 import { toast } from 'react-toastify';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -174,7 +175,11 @@ const AddQuestionForm: React.FC<AddQuestionFormProps> = ({
     }
 
     // For non-combined exercises, determine by exercise type
-    if (fullEx?.exerciseType?.toLowerCase() === 'mcq' || fullEx?.configurationType?.mcqMode) {
+    const exType = (fullEx?.exerciseType || exerciseData?.exerciseType || '').toLowerCase();
+
+    if (exType === 'other') return 'others';
+
+    if (exType === 'mcq' || fullEx?.configurationType?.mcqMode) {
       return 'mcq';
     }
 
@@ -194,6 +199,7 @@ const AddQuestionForm: React.FC<AddQuestionFormProps> = ({
   const isMCQ = moduleType === 'mcq';
   const isFrontend = moduleType === 'frontend';
   const isDatabase = moduleType === 'database';
+  const isOthers = moduleType === 'others';
 
   // ── Entity type for API calls ──────────────────────────────────────────────
   const entityType = (() => {
@@ -829,9 +835,15 @@ const AddQuestionForm: React.FC<AddQuestionFormProps> = ({
     if (isMCQ) return (
       <MCQQuestionForm
         breadcrumbs={breadcrumbs}
-        initialQuestionId={initialQuestionId}   // ← ADD THIS
+        initialQuestionId={initialQuestionId}
         {...formProps}
-
+      />
+    );
+    if (isOthers) return (
+      <OthersAddQuestionForm
+        breadcrumbs={breadcrumbs}
+        initialQuestionId={initialQuestionId}
+        {...formProps}
       />
     );
     if (isFrontend) return <FrontendQuestionForm {...formProps}
@@ -840,8 +852,8 @@ const AddQuestionForm: React.FC<AddQuestionFormProps> = ({
     />;
     if (isDatabase) return <DatabaseQuestionForm {...formProps}
       onEditExercise={onEditExercise}
-        onDeleteQuestion={handleDeleteProgrammingQuestion}
-        lockedDifficulty={isLevelMode ? (lockedDiff ?? undefined) : undefined}
+      onDeleteQuestion={handleDeleteProgrammingQuestion}
+      lockedDifficulty={isLevelMode ? (lockedDiff ?? undefined) : undefined}
     />;
     return (
       <ProgrammingQuestionForm

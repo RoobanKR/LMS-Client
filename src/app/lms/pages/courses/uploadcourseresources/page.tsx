@@ -333,7 +333,7 @@ function UMRow({ icon: Icon, label, sub, color, hoverBg, onClick }: {
     </button>
   )
 }
-// ─── Enhanced Breadcrumb Bar ──────────────────────────────────────────────────
+// ─── Clean Breadcrumb Bar with Proper Clickable States ──────────────────────
 const BreadcrumbBar = ({
   breadcrumbs,
   activeTab,
@@ -353,26 +353,15 @@ const BreadcrumbBar = ({
     You_Do: "You Do",
   };
 
-  // Separate dashboard and courses from the rest
-  const dashboardCourses = breadcrumbs.filter(
-    crumb => crumb.type === "dashboard" || crumb.type === "courses"
-  );
-  
-  const hierarchyBreadcrumbs = breadcrumbs.filter(
-    crumb => crumb.type !== "dashboard" && crumb.type !== "courses"
-  );
-
   const allCrumbs = [
-    ...hierarchyBreadcrumbs,
+    ...breadcrumbs,
     ...(activeTab ? [{ label: tabLabel[activeTab] ?? activeTab, type: "tab", id: activeTab }] : []),
     ...(activeSubcategory
       ? [{ label: activeSubcategory.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()), type: "subcategory", id: activeSubcategory }]
       : []),
   ];
 
-  const handleCrumbClick = (crumb: BreadcrumbItem, isLast: boolean) => {
-    if (isLast) return;
-    
+  const handleCrumbClick = (crumb: BreadcrumbItem) => {
     if (crumb.type === "dashboard") {
       router.push("/lms/pages/dashboard");
       return;
@@ -383,154 +372,133 @@ const BreadcrumbBar = ({
       return;
     }
     
-    if (crumb.onClick) {
+    if (crumb.type === "course" && crumb.onClick) {
       crumb.onClick();
+    }
+  };
+
+  const getCrumbIcon = (type: string, isActive: boolean = false) => {
+    const iconColor = isActive ? T.orange : "#94A3B8";
+    const iconSize = 13;
+    
+    switch (type) {
+      case "dashboard": return <LayoutDashboard size={iconSize} style={{ color: iconColor }} strokeWidth={1.8} />;
+      case "courses": return <BookMarked size={iconSize} style={{ color: iconColor }} strokeWidth={1.8} />;
+      case "course": return <GraduationCap size={iconSize} style={{ color: iconColor }} strokeWidth={1.8} />;
+      default: return null;
+    }
+  };
+
+  // Only Dashboard, Courses, and Course are clickable
+  const isClickable = (type: string, isLast: boolean): boolean => {
+    if (isLast) return false;
+    return type === "dashboard" || type === "courses" || type === "course";
+  };
+
+  // Get text style based on crumb type
+  const getTextStyle = (type: string, isLast: boolean) => {
+    if (isLast) {
+      return {
+        color: "#0F172A",
+        fontWeight: 700,
+        fontSize: '15px',
+      };
+    }
+    
+    switch (type) {
+      case "course":
+        return {
+          color: T.orange,
+          fontWeight: 600,
+          fontSize: '14px',
+        };
+      case "dashboard":
+      case "courses":
+        return {
+          color: "#64748B",
+          fontWeight: 500,
+          fontSize: '13px',
+        };
+      default:
+        return {
+          color: "#CBD5E1",
+          fontWeight: 450,
+          fontSize: '12px',
+        };
     }
   };
 
   return (
     <div
-      className="flex-shrink-0 flex flex-col"
+      className="flex-shrink-0"
       style={{
         background: T.bg,
-        padding: '8px 20px',
-        marginBottom: 0,
-        gap: '4px',
+        padding: '16px 24px',
+        borderBottom: `1px solid ${T.border}`,
       }}
     >
-      {/* First Row - Dashboard and Courses */}
-      {dashboardCourses.length > 0 && (
-        <div className="flex items-center" style={{ gap: 0 }}>
-          {dashboardCourses.map((crumb, index) => {
-            const isLast = index === dashboardCourses.length - 1;
-            const icon = CRUMB_ICON[crumb.type] ?? null;
-            const textColor = T.blue;
-
-            return (
-              <React.Fragment key={crumb.id}>
-                <div
-                  className="flex items-center gap-1 flex-shrink-0 select-none"
-                  style={{ cursor: 'pointer' }}
-                  onMouseEnter={e => {
-                    const textEl = e.currentTarget.querySelector('.crumb-text') as HTMLElement;
-                    if (textEl) textEl.style.color = T.orange;
+      <nav className="flex items-center gap-2 flex-wrap">
+        {allCrumbs.map((crumb, index) => {
+          const isLast = index === allCrumbs.length - 1;
+          const clickable = isClickable(crumb.type, isLast);
+          const textStyle = getTextStyle(crumb.type, isLast);
+          const icon = getCrumbIcon(crumb.type, crumb.type === "course");
+          
+          return (
+            <div key={crumb.id} className="flex items-center">
+              {clickable ? (
+                <button
+                  onClick={() => handleCrumbClick(crumb)}
+                  className="flex items-center gap-2 transition-all duration-200 group"
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    padding: '4px 0',
+                    cursor: 'pointer',
                   }}
-                  onMouseLeave={e => {
-                    const textEl = e.currentTarget.querySelector('.crumb-text') as HTMLElement;
-                    if (textEl) textEl.style.color = T.blue;
-                  }}
-                  onClick={() => handleCrumbClick(crumb, isLast)}
                 >
-                  {icon && (
-                    <span style={{ display: 'flex', alignItems: 'center', color: textColor }}>
-                      {icon}
-                    </span>
-                  )}
+                  {icon}
                   <span
-                    className="crumb-text"
                     style={{
-                      fontSize: '13px',
-                      fontWeight: 600,
-                      color: textColor,
-                      whiteSpace: 'nowrap',
-                      lineHeight: 1.4,
-                      fontFamily: "'Plus Jakarta Sans', sans-serif",
-                      transition: 'color 0.15s ease',
+                      ...textStyle,
+                      fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+                      letterSpacing: '-0.01em',
+                      transition: 'color 0.2s ease',
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.color = T.orange;
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.color = textStyle.color;
+                    }}
+                  >
+                    {crumb.label}
+                  </span>
+                </button>
+              ) : (
+                <div className="flex items-center gap-2">
+                  {icon}
+                  <span
+                    style={{
+                      ...textStyle,
+                      fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+                      letterSpacing: '-0.01em',
                     }}
                   >
                     {crumb.label}
                   </span>
                 </div>
-
-                {!isLast && (
-                  <span style={{ margin: '0 4px', color: T.textHint }}>
-                    <ChevronRight size={12} strokeWidth={2.5} />
-                  </span>
-                )}
-              </React.Fragment>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Second Row - Course hierarchy and tabs */}
-      {(allCrumbs.length > 0 || activeTab || activeSubcategory) && (
-        <div 
-          className="flex items-center overflow-x-auto"
-          style={{ 
-            gap: 0,
-            overflowX: 'auto',
-            whiteSpace: 'nowrap',
-            paddingBottom: '2px',
-          }}
-        >
-          {allCrumbs.map((crumb, index) => {
-            const isLast = index === allCrumbs.length - 1;
-            const isCourse = crumb.type === "course";
-            const icon = CRUMB_ICON[crumb.type] ?? null;
-
-            let textColor = T.textDark;
-            if (isCourse && !isLast) {
-              textColor = T.orange;
-            }
-
-            return (
-              <React.Fragment key={crumb.id}>
-                <div
-                  className="flex items-center gap-1 flex-shrink-0 select-none"
-                  style={{ cursor: !isLast ? 'pointer' : 'default' }}
-                  onMouseEnter={e => {
-                    if (!isLast) {
-                      const textEl = e.currentTarget.querySelector('.crumb-text') as HTMLElement;
-                      if (textEl) textEl.style.color = T.orange;
-                    }
-                  }}
-                  onMouseLeave={e => {
-                    if (!isLast) {
-                      const textEl = e.currentTarget.querySelector('.crumb-text') as HTMLElement;
-                      if (textEl) {
-                        if (isCourse) {
-                          textEl.style.color = T.orange;
-                        } else {
-                          textEl.style.color = T.textDark;
-                        }
-                      }
-                    }
-                  }}
-                  onClick={() => handleCrumbClick(crumb, isLast)}
-                >
-                  {icon && (
-                    <span style={{ display: 'flex', alignItems: 'center', color: textColor }}>
-                      {icon}
-                    </span>
-                  )}
-                  <span
-                    className="crumb-text"
-                    style={{
-                      fontSize: isLast ? '14px' : '13px',
-                      fontWeight: isLast ? 700 : 600,
-                      color: textColor,
-                      whiteSpace: 'nowrap',
-                      lineHeight: 1.4,
-                      fontFamily: "'Plus Jakarta Sans', sans-serif",
-                      transition: 'color 0.15s ease',
-                      textTransform: (crumb.type === 'tab' || crumb.type === 'subcategory') ? 'capitalize' : 'none',
-                    }}
-                  >
-                    {crumb.label}
-                  </span>
-                </div>
-
-                {!isLast && (
-                  <span style={{ margin: '0 4px', color: T.textHint }}>
-                    <ChevronRight size={12} strokeWidth={2.5} />
-                  </span>
-                )}
-              </React.Fragment>
-            );
-          })}
-        </div>
-      )}
+              )}
+              
+              {!isLast && (
+                <span style={{ margin: '0 10px', color: '#CBD5E1' }}>
+                  <ChevronRight size={13} strokeWidth={2.5} />
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </nav>
     </div>
   );
 };
