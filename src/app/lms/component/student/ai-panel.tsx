@@ -17,10 +17,10 @@ interface AIPanelProps {
   title: string
   fileType: 'pdf' | 'ppt' | 'video'
 }
-
+// alert("Note: This AI panel is a prototype demonstrating integration with the Gemini API and Deepgram for video transcription. It may not work perfectly with all files and is intended for testing and demonstration purposes only.")
 // Gemini API configuration
-const GEMINI_API_KEY = "AIzaSyChL74hhlL1sind_pMZor-0Y-wp5m9GF-o"
-const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`
+const GEMINI_API_KEY = "AIzaSyDXTexkHW8M62kXYXGuNgwV_n1pBwsWANs"
+const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
 // Backend API URL - adjust based on your environment
 const BACKEND_API_URL = "https://lms-server-ym1q.onrender.com"

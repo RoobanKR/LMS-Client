@@ -14,6 +14,7 @@ import {
   Play, Undo2, Redo2, Columns, RefreshCw
 } from "lucide-react"
 import { entityApi } from "@/apiServices/coursesData"
+import { PlainBreadcrumb } from "./PlainBreadcrumb"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export type BlockType =
@@ -74,6 +75,11 @@ export interface HierarchyInfo {
   tabType?: "I_Do" | "We_Do" | "You_Do"
   subcategory?: string; folderPath?: string[]; folderId?: string
   nodeType?: "course" | "module" | "submodule" | "topic" | "subtopic"
+  // Group context — when the resource picker was opened from a group's
+  // "Add" action, these carry the group's identity so the page lands inside
+  // that group instead of the activity root.
+  groupId?: string
+  groupName?: string
 }
 
 export interface PagesPayload {
@@ -89,6 +95,12 @@ interface PageCreationModalProps {
   initialTitle?: string
   hierarchyInfo?: HierarchyInfo
   isEditing?: boolean
+  /**
+   * Plain non-clickable breadcrumb of where this page will be saved:
+   * Course > Module > ... > Group > Folder > Subfolder. Display-only;
+   * parent builds the labels.
+   */
+  pathCrumbs?: Array<{ label: string }>
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -2222,7 +2234,7 @@ const PreviewRenderer: React.FC<{
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export const PageCreationModal: React.FC<PageCreationModalProps> = ({
-  onBack, onConfirm, initialBlocks = [], initialTitle = "Untitled", hierarchyInfo, isEditing = false,
+  onBack, onConfirm, initialBlocks = [], initialTitle = "Untitled", hierarchyInfo, isEditing = false, pathCrumbs,
 }) => {
   const firstId = generateId()
   const draftKey = hierarchyInfo?.topicId || hierarchyInfo?.moduleId || hierarchyInfo?.courseId || "draft"
@@ -2455,7 +2467,16 @@ export const PageCreationModal: React.FC<PageCreationModalProps> = ({
         payload
       );
       clearDraft();
-      onConfirm({ ...payload, ...response.data } as PagesPayload);
+      // `entityApi.createPage` already unwraps `axiosResponse.data`, so the
+      // backend body is in `response` itself. Some backends nest it again
+      // under `.data` — spread both (outer last wins) so the new page id
+      // surfaces in `onConfirm` regardless of shape.
+      const respAny = response as any;
+      onConfirm({
+        ...payload,
+        ...(respAny || {}),
+        ...((respAny && respAny.data) || {}),
+      } as PagesPayload);
     } catch (error) {
       console.error("Failed to create/update pages:", error);
       alert(error instanceof Error ? error.message : "Failed to save pages");
@@ -2485,54 +2506,61 @@ export const PageCreationModal: React.FC<PageCreationModalProps> = ({
       <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={onBack} />
       <div className={`relative flex flex-col ${modalSize} overflow-hidden shadow-2xl border border-white/10`} style={{ background: isDark ? "#0f1117" : "#ffffff" }} onClick={e => e.stopPropagation()}>
 
-        {/* ── Top Bar ── */}
-        <div className={`flex-shrink-0 flex items-center justify-between px-5 py-3 border-b ${isDark ? "border-gray-800 bg-gray-900/60" : "border-gray-100 bg-white/80"} backdrop-blur-sm`}>
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <button onClick={onBack} className={`p-2 rounded-lg transition-colors ${isDark ? "hover:bg-gray-800 text-gray-400" : "hover:bg-gray-100 text-gray-500"}`}><ChevronLeft size={17} /></button>
-            <button onClick={() => setIsFullScreen(v => !v)} className={`p-2 rounded-lg transition-colors ${isDark ? "hover:bg-gray-800 text-gray-400" : "hover:bg-gray-100 text-gray-500"}`}>{isFullScreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</button>
+     {/* ── Top Bar ── */}
+<div className={`flex-shrink-0 flex items-center justify-between px-5 py-3 border-b ${isDark ? "border-gray-800 bg-gray-900/60" : "border-gray-100 bg-white/80"} backdrop-blur-sm`}>
+  <div className="flex items-center gap-1.5 flex-wrap">
+    <button onClick={() => setIsFullScreen(v => !v)} className={`p-2 rounded-lg transition-colors ${isDark ? "hover:bg-gray-800 text-gray-400" : "hover:bg-gray-100 text-gray-500"}`}>{isFullScreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</button>
 
-            <div className={`w-px h-5 ${isDark ? "bg-gray-700" : "bg-gray-200"} mx-0.5`} />
-            <button onClick={undoPages} disabled={!canUndo} title="Undo (Ctrl+Z)" className={`p-2 rounded-lg transition-colors disabled:opacity-25 ${isDark ? "hover:bg-gray-800 text-gray-400" : "hover:bg-gray-100 text-gray-500"}`}><Undo2 size={16} /></button>
-            <button onClick={redoPages} disabled={!canRedo} title="Redo (Ctrl+Y)" className={`p-2 rounded-lg transition-colors disabled:opacity-25 ${isDark ? "hover:bg-gray-800 text-gray-400" : "hover:bg-gray-100 text-gray-500"}`}><Redo2 size={16} /></button>
+    <div className={`w-px h-5 ${isDark ? "bg-gray-700" : "bg-gray-200"} mx-0.5`} />
+    <button onClick={undoPages} disabled={!canUndo} title="Undo (Ctrl+Z)" className={`p-2 rounded-lg transition-colors disabled:opacity-25 ${isDark ? "hover:bg-gray-800 text-gray-400" : "hover:bg-gray-100 text-gray-500"}`}><Undo2 size={16} /></button>
+    <button onClick={redoPages} disabled={!canRedo} title="Redo (Ctrl+Y)" className={`p-2 rounded-lg transition-colors disabled:opacity-25 ${isDark ? "hover:bg-gray-800 text-gray-400" : "hover:bg-gray-100 text-gray-500"}`}><Redo2 size={16} /></button>
 
-            <div className={`w-px h-5 ${isDark ? "bg-gray-700" : "bg-gray-200"} mx-0.5`} />
+    <div className={`w-px h-5 ${isDark ? "bg-gray-700" : "bg-gray-200"} mx-0.5`} />
 
-            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl ${isDark ? "bg-gray-800" : "bg-gray-50"}`}>
-              <FileText size={14} className={isDark ? "text-gray-500" : "text-gray-400"} />
-              <input type="text" value={title} onChange={e => setTitle(e.target.value)} className={`text-sm font-semibold bg-transparent border-none outline-none w-52 ${isDark ? "text-gray-100 placeholder-gray-600" : "text-gray-900 placeholder-gray-400"}`} placeholder="Untitled page…" />
-            </div>
+    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl ${isDark ? "bg-gray-800" : "bg-gray-50"}`}>
+      <FileText size={14} className={isDark ? "text-gray-500" : "text-gray-400"} />
+      <input type="text" value={title} onChange={e => setTitle(e.target.value)} className={`text-sm font-semibold bg-transparent border-none outline-none w-52 ${isDark ? "text-gray-100 placeholder-gray-600" : "text-gray-900 placeholder-gray-400"}`} placeholder="Untitled page…" />
+    </div>
 
-            {pages.length > 1 && (
-              <div className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium ${isDark ? "bg-indigo-900/40 text-indigo-300" : "bg-indigo-50 text-indigo-600"}`}>
-                <Layers size={11} />{pages.length} pages
-              </div>
-            )}
+    {pages.length > 1 && (
+      <div className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium ${isDark ? "bg-indigo-900/40 text-indigo-300" : "bg-indigo-50 text-indigo-600"}`}>
+        <Layers size={11} />{pages.length} pages
+      </div>
+    )}
 
-            {hierarchyInfo && (
-              <div className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs ${isDark ? "bg-gray-800 text-gray-500" : "bg-gray-100 text-gray-500"}`}>
-                <span className="truncate max-w-[260px]">
-                  {[hierarchyInfo.courseName, hierarchyInfo.moduleName, hierarchyInfo.topicName].filter(Boolean).join(" › ")}
-                  {hierarchyInfo.tabType && <span className={`ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold ${isDark ? "bg-indigo-900 text-indigo-300" : "bg-indigo-100 text-indigo-600"}`}>{hierarchyInfo.tabType}</span>}
-                </span>
-              </div>
-            )}
+    {hierarchyInfo && (
+      <div className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs ${isDark ? "bg-gray-800 text-gray-500" : "bg-gray-100 text-gray-500"}`}>
+        <span className="truncate max-w-[260px]">
+          {[hierarchyInfo.courseName, hierarchyInfo.moduleName, hierarchyInfo.topicName].filter(Boolean).join(" › ")}
+          {hierarchyInfo.tabType && <span className={`ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold ${isDark ? "bg-indigo-900 text-indigo-300" : "bg-indigo-100 text-indigo-600"}`}>{hierarchyInfo.tabType}</span>}
+        </span>
+      </div>
+    )}
 
-            <SaveStatusBadge />
-          </div>
+    <SaveStatusBadge />
+  </div>
 
-          <div className="flex items-center gap-1.5">
-            <button onClick={() => setIsDark(v => !v)} className={`p-2 rounded-lg transition-colors ${isDark ? "hover:bg-gray-800 text-gray-400" : "hover:bg-gray-100 text-gray-500"}`}>{isDark ? <Sun size={17} /> : <Moon size={17} />}</button>
-            <button onClick={() => setIsPreview(v => !v)} className={`p-2 rounded-lg transition-colors ${isPreview ? "bg-indigo-100 text-indigo-600" : isDark ? "hover:bg-gray-800 text-gray-400" : "hover:bg-gray-100 text-gray-500"}`}>{isPreview ? <Edit3 size={17} /> : <Eye size={17} />}</button>
-            <button onClick={handleConfirm} disabled={isSubmitting} className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-xl text-sm font-semibold shadow-lg shadow-indigo-500/20 transition-all hover:scale-105 active:scale-100 disabled:opacity-50 disabled:hover:scale-100">
-              {isSubmitting
-                ? <><Loader2 size={15} className="animate-spin" />Saving…</>
-                : <><Save size={15} />{initialBlocks?.length > 0
-                  ? "Update Page"
-                  : pages.length > 1 ? `Create ${pages.length} Pages` : "Create Page"
-                }</>
-              }            </button>
-          </div>
-        </div>
+  <div className="flex items-center gap-1.5">
+    <button onClick={() => setIsDark(v => !v)} className={`p-2 rounded-lg transition-colors ${isDark ? "hover:bg-gray-800 text-gray-400" : "hover:bg-gray-100 text-gray-500"}`}>{isDark ? <Sun size={17} /> : <Moon size={17} />}</button>
+    <button onClick={() => setIsPreview(v => !v)} className={`p-2 rounded-lg transition-colors ${isPreview ? "bg-indigo-100 text-indigo-600" : isDark ? "hover:bg-gray-800 text-gray-400" : "hover:bg-gray-100 text-gray-500"}`}>{isPreview ? <Edit3 size={17} /> : <Eye size={17} />}</button>
+    <button onClick={handleConfirm} disabled={isSubmitting} className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-xl text-sm font-semibold shadow-lg shadow-indigo-500/20 transition-all hover:scale-105 active:scale-100 disabled:opacity-50 disabled:hover:scale-100">
+      {isSubmitting
+        ? <><Loader2 size={15} className="animate-spin" />Saving…</>
+        : <><Save size={15} />{initialBlocks?.length > 0
+          ? "Update Page"
+          : pages.length > 1 ? `Create ${pages.length} Pages` : "Create Page"
+        }</>
+      }            </button>
+    <button onClick={onBack} className={`p-2 rounded-lg transition-colors bg-red-500 hover:bg-red-600 text-white`}><X size={17} /></button>
+  </div>
+</div>
+
+        {/* ── Plain location breadcrumb (display-only) ───────────────────
+           Course > Module > … > Group > Folder > Subfolder. Tells the user
+           where this page will be saved before they hit Create. */}
+        {pathCrumbs && pathCrumbs.length > 0 && (
+          <PlainBreadcrumb crumbs={pathCrumbs} prefix="Saving to:" />
+        )}
 
         {/* ── Body: Sidebar + Editor ── */}
         <div className="flex flex-1 overflow-hidden">

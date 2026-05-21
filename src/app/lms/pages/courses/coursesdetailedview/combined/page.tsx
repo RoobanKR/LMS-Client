@@ -270,7 +270,8 @@ const CombinedExerciseMixed = () => {
   const [completedQuestions, setCompletedQuestions] = useState<Set<number>>(new Set());
   const [exerciseCompleted, setExerciseCompleted] = useState(false);
   const [mcqAnswers, setMcqAnswers] = useState<Record<string, any>>({});
-  
+  const [isTestSubmitted, setIsTestSubmitted] = useState(false);
+
   // NEW: State for flagged questions and sidebar
   const [flaggedQuestions, setFlaggedQuestions] = useState<Set<number>>(new Set());
   const [showSidebar, setShowSidebar] = useState(false);
@@ -315,6 +316,49 @@ const CombinedExerciseMixed = () => {
       _processedType: getQuestionType(q)
     }));
   };
+
+
+
+  const handleFinalTestSubmission = async () => {
+  try {
+    const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
+    
+    // We submit against the LAST question with isTestSubmission=true
+    // This is what increments testSubmissions on the exercise record
+    const lastQuestion = processedQuestions[processedQuestions.length - 1];
+    
+    const formData = new FormData();
+    formData.append('courseId', courseId);
+    formData.append('exerciseId', exerciseId);
+    formData.append('questionId', lastQuestion._id);
+    formData.append('code', ''); // empty for MCQ-type final trigger
+    formData.append('score', '0');
+    formData.append('status', 'submitted');
+    formData.append('category', category);
+    formData.append('subcategory', subcategory);
+    formData.append('nodeId', nodeId);
+    formData.append('nodeName', nodeName);
+    formData.append('nodeType', nodeType);
+    formData.append('language', 'text');
+    formData.append('isTestSubmission', 'true'); // ← THE KEY FLAG
+
+    const response = await fetch('https://lms-server-ym1q.onrender.com/courses/answers/submit', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: formData,
+    });
+
+    if (response.ok) {
+      setIsTestSubmitted(true);
+      toast.success('Exercise submitted successfully!');
+      setExerciseCompleted(true);
+    } else {
+      throw new Error('Final submission failed');
+    }
+  } catch (error) {
+    toast.error('Failed to submit exercise. Please try again.');
+  }
+};
 
   // Get processed questions
   const processedQuestions = exerciseData ? processQuestions(exerciseData.questions || []) : [];
@@ -881,6 +925,24 @@ const getBreadcrumbs = () => {
                   </span>
                 )}
               </button>
+
+
+{!isTestSubmitted && (
+  <button
+    onClick={handleFinalTestSubmission}
+    className="flex items-center gap-2 px-4 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+  >
+    <CheckCircle size={16} />
+    Submit Exercise
+  </button>
+)}
+
+{isTestSubmitted && (
+  <span className="flex items-center gap-2 px-3 py-1.5 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg">
+    <CheckCircle size={14} />
+    Submitted
+  </span>
+)}
             </div>
           </div>
         </div>

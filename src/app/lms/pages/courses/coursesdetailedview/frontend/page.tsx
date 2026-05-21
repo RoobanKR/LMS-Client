@@ -288,6 +288,8 @@ const CompilerPageContent = () => {
   return (
     <div className="w-full h-screen bg-[#1e1e1e] overflow-hidden">
       <FrontendCompiler
+        exerciseData={exerciseData} 
+
         onBack={handleBack}
         title={exerciseInfo.exerciseName || exerciseName || "Frontend Lab"}
         questions={questions}

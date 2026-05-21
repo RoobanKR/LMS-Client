@@ -11,7 +11,7 @@ import {
 
 import GenerateMCQAIQuestion, { GeneratedQuestion } from './GenerateMCQAIQuestion';
 
-const GEMINI_API_KEY = "AIzaSyCL0ui5QXP3OEsxf7l4Wv4wjq7L_MA4Hlg";
+const GEMINI_API_KEY = "AIzaSyDXTexkHW8M62kXYXGuNgwV_n1pBwsWANs";
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
 const GEMINI_API_URL_FALLBACK = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 

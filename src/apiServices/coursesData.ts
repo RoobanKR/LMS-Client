@@ -33,6 +33,11 @@ export interface PagesPayload {
     folderPath?: string[];
     folderId?: string;
     nodeType?: string;
+    // Group context: when the page is being created inside a group row
+    // (via the "Add" action on that group), this carries the group's id
+    // so the backend can attach the page to that group.
+    groupId?: string;
+    groupName?: string;
   };
 }
 
@@ -57,7 +62,8 @@ export const entityApi = {
   updateEntity: async (
     entityType: "module" | "submodule" | "topic" | "subtopic",
     entityId: string,
-    formData: FormData
+    formData: FormData,
+    onUploadProgress?: (progressEvent: { loaded: number; total?: number }) => void
   ) => {
     const token = getToken();
     const response = await axios.put(
@@ -69,6 +75,7 @@ export const entityApi = {
           ...(token && { 'Authorization': `Bearer ${token}` })
         },
         timeout: 20000000,
+        onUploadProgress,
       }
     );
     return response.data;
@@ -90,6 +97,11 @@ export const entityApi = {
       duration?: string;
       level?: string;
       tags?: Array<{ tagName: string; tagColor: string }>;
+      createdAt?: string;
+      updatedAt?: string;
+      parentGroupId?: string;
+      groupName?: string;
+      groupDescription?: string;
     }
   ) => {
     const token = getToken();
@@ -110,6 +122,11 @@ export const entityApi = {
     formData.append("folderName", folderData.folderName);
     formData.append("folderPath", folderData.folderPath);
     formData.append("action", "createFolder");
+    if (folderData.createdAt) formData.append("createdAt", folderData.createdAt);
+    if (folderData.updatedAt) formData.append("updatedAt", folderData.updatedAt);
+    if (folderData.parentGroupId) formData.append("parentGroupId", folderData.parentGroupId);
+    if (folderData.groupName) formData.append("groupName", folderData.groupName);
+    if (folderData.groupDescription) formData.append("groupDescription", folderData.groupDescription);
 
     // Add tags if any
     if (folderData.tags && folderData.tags.length > 0) {
@@ -309,6 +326,17 @@ updateFolder: async (
         hierarchyInfo: payload.hierarchyInfo
       });
 
+      // Normalise the folder path into BOTH formats so the backend can
+      // pick whichever one it stores against. Other page APIs in this file
+      // are split: getPages/deletePage expect a string, updatePage expects
+      // an array. We send both to be safe.
+      // Root → "" / [], inside FolderA → "FolderA" / ["FolderA"].
+      const fpArr = payload.hierarchyInfo?.folderPath;
+      const folderPathArr = Array.isArray(fpArr)
+        ? fpArr
+        : (typeof fpArr === "string" && fpArr ? fpArr.split("/").filter(Boolean) : []);
+      const folderPathStr = folderPathArr.join("/");
+
       const response = await axios.post(
         `${BASE_URL}/pages/${entityType}/${entityId}/pages`,
         {
@@ -321,7 +349,15 @@ updateFolder: async (
           blocks: payload.pages[0]?.blocks || [],
           tabType: payload.hierarchyInfo?.tabType,
           subcategory: payload.hierarchyInfo?.subcategory,
-          folderPath: payload.hierarchyInfo?.folderPath || []
+          // Send the array as `folderPath` (matches the previous shape this
+          // endpoint received) and ALSO send the slash-joined string under
+          // `folderPathString` so the backend can match either convention.
+          folderPath: folderPathArr,
+          folderPathString: folderPathStr,
+          folderId: payload.hierarchyInfo?.folderId,
+          // Group context — lets the backend attach the page to a group row
+          groupId: payload.hierarchyInfo?.groupId,
+          groupName: payload.hierarchyInfo?.groupName,
         },
         {
           headers: {

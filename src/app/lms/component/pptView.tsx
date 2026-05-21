@@ -8,6 +8,10 @@ import {
   Copy, ChevronUp, ChevronDown, List, CheckSquare, AlignLeft,
   Image, Check, SlidersHorizontal, BookOpen, Hash,
   MousePointer, Link, Zap, Share2, Sparkles,
+  LayoutDashboard,
+  BookMarked,
+  GraduationCap,
+  Layers,
 } from "lucide-react"
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
@@ -60,12 +64,12 @@ function GeneratedLinkPopup({
             }}>
               <Share2 size={22} color="#f59e0b" />
             </div>
-            <div>
+            {/* <div>
               <h3 style={{ color: "white", fontWeight: 700, fontSize: 16, margin: 0 }}>Live MCQ Link Generated</h3>
               <p style={{ color: "#64748b", fontSize: 12, margin: "3px 0 0" }}>
                 {questionCount} question{questionCount !== 1 ? "s" : ""} · Slide {slideNumber}
               </p>
-            </div>
+            </div> */}
           </div>
           <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#475569", padding: 4 }}>
             <X size={18} />
@@ -101,7 +105,7 @@ function GeneratedLinkPopup({
           </div>
         </div>
 
-        <a href={link} target="_blank" rel="noopener noreferrer" style={{
+        {/* <a href={link} target="_blank" rel="noopener noreferrer" style={{
           display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
           width: "100%", padding: "11px 0", backgroundColor: "#f59e0b", borderRadius: 8,
           color: "#0f172a", fontWeight: 700, fontSize: 13, textDecoration: "none",
@@ -111,7 +115,7 @@ function GeneratedLinkPopup({
           onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#f59e0b")}
         >
           <ExternalLink size={14} /> Open Live MCQ Page
-        </a>
+        </a> */}
 
         <p style={{ fontSize: 11, color: "#475569", textAlign: "center", margin: 0, lineHeight: 1.6 }}>
           Anyone with this link can answer the MCQ questions for slide {slideNumber}.<br />
@@ -718,9 +722,63 @@ interface PPTViewerProps {
   isTeacher?: boolean
   isStudent?: boolean
   sampleLiveLink?: string
+  // NEW PROPS FOR BREADCRUMB
+  breadcrumbs?: BreadcrumbItem[]
+  currentCourseName?: string
+  currentCourseId?: string
+  onNavigateToDashboard?: () => void
+  onNavigateToCourses?: () => void
+  onNavigateToCourse?: () => void
 }
 
+
+interface BreadcrumbItem {
+  id: string;
+  type: string;
+  label: string;
+  path?: string;
+  onClick?: () => void;
+}
+
+
 // ─── MAIN PPT VIEWER ──────────────────────────────────────────────────────────
+// Add this interface at the top of pptView.tsx
+interface BreadcrumbItem {
+  id: string;
+  type: string;
+  label: string;
+  path?: string;
+  onClick?: () => void;
+}
+
+// Update the PPTViewerProps interface
+interface PPTViewerProps {
+  isOpen: boolean
+  onClose: () => void
+  pptUrl: string
+  title?: string
+  totalSlides?: number
+  fileId?: string
+  entityType?: string
+  entityId?: string
+  tabType?: string
+  subcategory?: string
+  folderPath?: string[]
+  apiBaseUrl?: string
+  initialMcqs?: any[]
+  isTeacher?: boolean
+  isStudent?: boolean
+  sampleLiveLink?: string
+  // NEW PROPS FOR BREADCRUMB
+  breadcrumbs?: BreadcrumbItem[]
+  currentCourseName?: string
+  currentCourseId?: string
+  onNavigateToDashboard?: () => void
+  onNavigateToCourses?: () => void
+  onNavigateToCourse?: () => void
+}
+
+// Update the component to accept these props
 export default function PPTViewer({
   isOpen, onClose, pptUrl,
   title = "Presentation",
@@ -731,7 +789,15 @@ export default function PPTViewer({
   initialMcqs = [],
   isTeacher = true, isStudent = false,
   sampleLiveLink = "https://example.com/live-mcq-sample",
+  // NEW PROPS WITH DEFAULTS
+  breadcrumbs = [],
+  currentCourseName = "Course",
+  currentCourseId = "",
+  onNavigateToDashboard,
+  onNavigateToCourses,
+  onNavigateToCourse,
 }: PPTViewerProps) {
+  // ... rest of your existing state and functions remain the same
   const [zoom, setZoom] = useState(1)
   const [currentSlide, setCurrentSlide] = useState(1)
   const [isFullscreen, setIsFullscreen] = useState(false)
@@ -819,89 +885,368 @@ export default function PPTViewer({
 
   return (
     <div ref={containerRef} style={{ position: "fixed", inset: 0, zIndex: isFullscreen ? 2000 : 1000, backgroundColor: "#111827", display: "flex", flexDirection: "column" }}>
-
-      {/* ── HEADER (mirrors PDFViewer header exactly) ─────────────────────── */}
-      {!isFullscreen && (
-        <div style={{
-          backgroundColor: "#1f2937", color: "white",
-          padding: "8px 14px", borderBottom: "1px solid #374151",
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          gap: 10, flexShrink: 0, flexWrap: "wrap", minHeight: 48,
-        }}>
-          {/* Left: Title */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-            <FileText size={15} style={{ flexShrink: 0, color: "#fb923c" }} />
-            <span style={{ fontSize: 13, fontWeight: 600, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={title}>{title}</span>
-            {!isStudent && isTeacher && (
-              <span style={{ fontSize: 10, backgroundColor: "#7c3aed", padding: "2px 6px", borderRadius: 4, color: "white", fontWeight: 600, marginLeft: 4 }}>Teacher Mode</span>
-            )}
-          </div>
-
-          {/* Center: Slide nav + MCQ buttons — mirrors PDF center nav exactly */}
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            {/* Slide nav */}
-            <div style={{ display: "flex", alignItems: "center", gap: 4, backgroundColor: "#111827", borderRadius: 8, padding: "4px 8px", border: "1px solid #374151" }}>
-              <button onClick={() => goToSlide(currentSlide - 1)} disabled={currentSlide <= 1}
-                style={{ background: "none", border: "none", color: currentSlide <= 1 ? "#374151" : "#9ca3af", cursor: currentSlide <= 1 ? "not-allowed" : "pointer", padding: 2, display: "flex" }}>
-                <ChevronLeft size={14} />
+{!isFullscreen && (
+  <div style={{ 
+    backgroundColor: "#ffffff",
+    borderBottom: "1px solid #e2e8f0",
+    flexShrink: 0,
+    position: "relative",
+    zIndex: 10,
+  }}>
+    
+    {/* Breadcrumb row with close button */}
+    <div style={{
+      padding: "10px 14px",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: "12px",
+      borderBottom: "1px solid #f1f5f9",
+    }}>
+      {/* Breadcrumbs - left side */}
+      <div style={{ 
+        display: "flex", 
+        alignItems: "center", 
+        gap: "4px", 
+        flexWrap: "wrap",
+        flex: 1,
+      }}>
+        {breadcrumbs.length > 0 ? (
+          // Use passed breadcrumbs from LMSCoordinator
+          breadcrumbs.map((crumb, idx) => (
+            <div key={crumb.id} style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+              {idx > 0 && <ChevronRight size={12} style={{ color: "#cbd5e1", flexShrink: 0 }} />}
+              <button
+                onClick={() => {
+                  if (crumb.onClick) {
+                    crumb.onClick();
+                  } else if (crumb.type === "dashboard" && onNavigateToDashboard) {
+                    onNavigateToDashboard();
+                  } else if (crumb.type === "courses" && onNavigateToCourses) {
+                    onNavigateToCourses();
+                  } else if (crumb.type === "course" && onNavigateToCourse) {
+                    onNavigateToCourse();
+                  }
+                }}
+                disabled={idx === breadcrumbs.length - 1}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "4px 8px",
+                  borderRadius: "6px",
+                  fontSize: "11px",
+                  fontWeight: idx === breadcrumbs.length - 1 ? 700 : 500,
+                  color: idx === breadcrumbs.length - 1 ? "#1e293b" : "#64748b",
+                  backgroundColor: idx === breadcrumbs.length - 1 ? "#f8fafc" : "transparent",
+                  border: "none",
+                  cursor: idx === breadcrumbs.length - 1 ? "default" : "pointer",
+                  transition: "all 0.2s ease",
+                }}
+                onMouseEnter={(e) => {
+                  if (idx !== breadcrumbs.length - 1) {
+                    e.currentTarget.style.backgroundColor = "#f1f5f9";
+                    e.currentTarget.style.color = "#3b82f6";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (idx !== breadcrumbs.length - 1) {
+                    e.currentTarget.style.backgroundColor = "transparent";
+                    e.currentTarget.style.color = "#64748b";
+                  }
+                }}
+              >
+                {/* Icon based on crumb type */}
+                {crumb.type === "dashboard" && <LayoutDashboard size={12} style={{ flexShrink: 0 }} />}
+                {crumb.type === "courses" && <BookMarked size={12} style={{ flexShrink: 0 }} />}
+                {crumb.type === "course" && <GraduationCap size={12} style={{ flexShrink: 0, color: "#f27757" }} />}
+                {crumb.type === "module" && <Layers size={12} style={{ flexShrink: 0 }} />}
+                {crumb.type === "topic" && <BookOpen size={12} style={{ flexShrink: 0 }} />}
+                {crumb.type === "subtopic" && <FileText size={12} style={{ flexShrink: 0 }} />}
+                
+                <span style={{ 
+                  maxWidth: "180px", 
+                  overflow: "hidden", 
+                  textOverflow: "ellipsis", 
+                  whiteSpace: "nowrap" 
+                }}>
+                  {crumb.label}
+                </span>
               </button>
-              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                {slidesWithMcqs.has(currentSlide) && <div style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: "#a78bfa" }} />}
-                <span style={{ fontSize: 11, color: "#9ca3af" }}>Slide</span>
-                <span style={{ minWidth: 28, padding: "1px 6px", backgroundColor: "#111827", border: "1px solid #4b5563", borderRadius: 4, color: "white", fontSize: 13, fontWeight: 700, textAlign: "center" }}>{currentSlide}</span>
-                <span style={{ fontSize: 11, color: "#4b5563" }}>/ {totalSlides}</span>
-              </div>
-              <button onClick={() => goToSlide(currentSlide + 1)} disabled={currentSlide >= totalSlides}
-                style={{ background: "none", border: "none", color: currentSlide >= totalSlides ? "#374151" : "#9ca3af", cursor: currentSlide >= totalSlides ? "not-allowed" : "pointer", padding: 2, display: "flex" }}>
-                <ChevronRight size={14} />
+            </div>
+          ))
+        ) : (
+          // Fallback static breadcrumbs if none passed
+          <>
+            {/* Dashboard */}
+            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+              <button
+                onClick={() => onNavigateToDashboard?.()}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "4px 8px",
+                  borderRadius: "6px",
+                  fontSize: "11px",
+                  fontWeight: 500,
+                  color: "#64748b",
+                  backgroundColor: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "#f1f5f9";
+                  e.currentTarget.style.color = "#3b82f6";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                  e.currentTarget.style.color = "#64748b";
+                }}
+              >
+                <LayoutDashboard size={12} style={{ flexShrink: 0 }} />
+                <span>Dashboard</span>
               </button>
             </div>
 
-            {/* MCQ Buttons */}
-            {!isStudent && isTeacher && (
-              <>
-                <button onClick={() => openMcqForm(currentSlide, "default")}
-                  title="Add MCQ (default)"
-                  style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", backgroundColor: "#7c3aed", border: "none", borderRadius: 6, color: "white", fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
-                  <HelpCircle size={13} />+ MCQ
-                  <span style={{ backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 4, padding: "1px 5px", fontSize: 11 }}>slide {currentSlide}</span>
-                </button>
-                <button onClick={() => openMcqForm(currentSlide, "link")}
-                  title="Live Add MCQ (link)"
-                  style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", backgroundColor: "#d97706", border: "none", borderRadius: 6, color: "white", fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
-                  <Zap size={13} />Live MCQ
-                  <span style={{ backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 4, padding: "1px 5px", fontSize: 11 }}>slide {currentSlide}</span>
-                </button>
-              </>
-            )}
+            <ChevronRight size={12} style={{ color: "#cbd5e1", flexShrink: 0 }} />
 
-            {/* MCQ count badge on current slide */}
-            {mcqsOnCurrentSlide.length > 0 && (
-              <span style={{ backgroundColor: "#059669", color: "white", fontSize: 10, fontWeight: 700, padding: "3px 7px", borderRadius: 999, display: "flex", alignItems: "center", gap: 3 }}>
-                <Check size={10} /> {mcqsOnCurrentSlide.length} MCQ{mcqsOnCurrentSlide.length !== 1 ? "s" : ""} on this slide
-              </span>
-            )}
-
-            {savedMcqs.length > 0 && (
-              <button onClick={() => setShowMcqList(!showMcqList)}
-                style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", backgroundColor: showMcqList ? "#6d28d9" : "#374151", border: "none", borderRadius: 6, color: "white", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
-                <Hash size={12} />{savedMcqs.length} total MCQ{savedMcqs.length !== 1 ? "s" : ""}
+            {/* Courses */}
+            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+              <button
+                onClick={() => onNavigateToCourses?.()}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "4px 8px",
+                  borderRadius: "6px",
+                  fontSize: "11px",
+                  fontWeight: 500,
+                  color: "#64748b",
+                  backgroundColor: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "#f1f5f9";
+                  e.currentTarget.style.color = "#3b82f6";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                  e.currentTarget.style.color = "#64748b";
+                }}
+              >
+                <BookMarked size={12} style={{ flexShrink: 0 }} />
+                <span>Courses</span>
               </button>
+            </div>
+
+            <ChevronRight size={12} style={{ color: "#cbd5e1", flexShrink: 0 }} />
+
+            {/* Current Course (active) */}
+            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "4px 8px",
+                  borderRadius: "6px",
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  color: "#1e293b",
+                  backgroundColor: "#f8fafc",
+                  border: "none",
+                }}
+              >
+                <GraduationCap size={12} style={{ flexShrink: 0, color: "#f27757" }} />
+                <span style={{ maxWidth: "180px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {currentCourseName}
+                </span>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Close button - RIGHT CORNER of breadcrumb */}
+      <button 
+        onClick={onClose} 
+        style={{ 
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "6px",
+          padding: "6px 12px",
+          backgroundColor: "#dc2626",
+          color: "white",
+          border: "none", 
+          borderRadius: "8px", 
+          cursor: "pointer", 
+          transition: "all 0.2s ease",
+          fontWeight: 600,
+          flexShrink: 0,
+          fontSize: "12px",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.backgroundColor = "#b91c1c";
+          e.currentTarget.style.transform = "scale(0.98)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.backgroundColor = "#dc2626";
+          e.currentTarget.style.transform = "scale(1)";
+        }}
+      >
+        <X size={14} strokeWidth={2.5} />
+        <span>Close</span>
+      </button>
+    </div>
+
+    {/* Main header bar with file info and controls */}
+    <div style={{
+      padding: "10px 14px",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 10,
+      flexWrap: "wrap",
+      minHeight: 48,
+      backgroundColor: "#ffffff",
+    }}>
+      {/* Left side - File info */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flex: 1 }}>
+        <FileText size={15} style={{ flexShrink: 0, color: "#fb923c" }} />
+        <span style={{ 
+          fontSize: 13, 
+          fontWeight: 600, 
+          color: "#1e293b",
+          maxWidth: 220, 
+          overflow: "hidden", 
+          textOverflow: "ellipsis", 
+          whiteSpace: "nowrap" 
+        }} title={title}>
+          {title}
+        </span>
+        {!isStudent && isTeacher && (
+          <span style={{ 
+            fontSize: 10, 
+            backgroundColor: "#7c3aed", 
+            padding: "2px 8px", 
+            borderRadius: 999, 
+            color: "white", 
+            fontWeight: 600,
+            marginLeft: 4,
+          }}>
+            Teacher Mode
+          </span>
+        )}
+      </div>
+
+      {/* Right side - Controls */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+        {/* Slide navigation */}
+        <div style={{ 
+          display: "flex", 
+          alignItems: "center", 
+          gap: 4, 
+          backgroundColor: "#f8fafc", 
+          borderRadius: 8, 
+          padding: "4px 8px", 
+          border: "1px solid #e2e8f0" 
+        }}>
+          <button 
+            onClick={() => goToSlide(currentSlide - 1)} 
+            disabled={currentSlide <= 1}
+            style={{ 
+              background: "none", 
+              border: "none", 
+              color: currentSlide <= 1 ? "#cbd5e1" : "#64748b", 
+              cursor: currentSlide <= 1 ? "not-allowed" : "pointer", 
+              padding: 2, 
+              display: "flex",
+            }}
+          >
+            <ChevronLeft size={14} />
+          </button>
+          
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            {slidesWithMcqs.has(currentSlide) && (
+              <div style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: "#a78bfa" }} />
             )}
+            <span style={{ fontSize: 11, color: "#64748b" }}>Slide</span>
+            <span style={{ 
+              minWidth: 32, 
+              padding: "2px 6px", 
+              backgroundColor: "#ffffff", 
+              border: "1px solid #e2e8f0", 
+              borderRadius: 6, 
+              color: "#1e293b", 
+              fontSize: 12, 
+              fontWeight: 600, 
+              textAlign: "center" 
+            }}>
+              {currentSlide}
+            </span>
+            <span style={{ fontSize: 11, color: "#94a3b8" }}>/ {totalSlides}</span>
           </div>
-
-          {/* Right: Zoom + actions */}
-          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            <button onClick={() => setZoom(z => Math.max(0.5, +(z - 0.25).toFixed(2)))} style={{ padding: 5, backgroundColor: "#374151", color: "white", border: "none", borderRadius: 4, cursor: "pointer", display: "flex" }}><ZoomOut size={14} /></button>
-            <span style={{ fontSize: 11, color: "#d1d5db", minWidth: 38, textAlign: "center" }}>{Math.round(zoom * 100)}%</span>
-            <button onClick={() => setZoom(z => Math.min(3, +(z + 0.25).toFixed(2)))} style={{ padding: 5, backgroundColor: "#374151", color: "white", border: "none", borderRadius: 4, cursor: "pointer", display: "flex" }}><ZoomIn size={14} /></button>
-            <button onClick={handleFullscreen} style={{ padding: 5, backgroundColor: "#3b82f6", color: "white", border: "none", borderRadius: 4, cursor: "pointer", display: "flex" }}><Maximize size={14} /></button>
-            <button onClick={handleDownload} style={{ padding: 5, backgroundColor: "#10b981", color: "white", border: "none", borderRadius: 4, cursor: "pointer", display: "flex" }}><Download size={14} /></button>
-            <button onClick={onClose} style={{ padding: 5, backgroundColor: "#ef4444", color: "white", border: "none", borderRadius: 4, cursor: "pointer", display: "flex" }}><X size={14} /></button>
-          </div>
+          
+          <button 
+            onClick={() => goToSlide(currentSlide + 1)} 
+            disabled={currentSlide >= totalSlides}
+            style={{ 
+              background: "none", 
+              border: "none", 
+              color: currentSlide >= totalSlides ? "#cbd5e1" : "#64748b", 
+              cursor: currentSlide >= totalSlides ? "not-allowed" : "pointer", 
+              padding: 2, 
+              display: "flex",
+            }}
+          >
+            <ChevronRight size={14} />
+          </button>
         </div>
-      )}
 
+        {/* Zoom controls */}
+        <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+          <button 
+            onClick={() => setZoom(z => Math.max(0.5, +(z - 0.25).toFixed(2)))} 
+            style={{ padding: "5px 8px", backgroundColor: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 6, cursor: "pointer", display: "flex" }}
+          >
+            <ZoomOut size={13} />
+          </button>
+          <span style={{ fontSize: 11, color: "#64748b", minWidth: 38, textAlign: "center" }}>
+            {Math.round(zoom * 100)}%
+          </span>
+          <button 
+            onClick={() => setZoom(z => Math.min(3, +(z + 0.25).toFixed(2)))} 
+            style={{ padding: "5px 8px", backgroundColor: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 6, cursor: "pointer", display: "flex" }}
+          >
+            <ZoomIn size={13} />
+          </button>
+        </div>
+
+        {/* Fullscreen button */}
+        <button 
+          onClick={handleFullscreen} 
+          style={{ padding: "5px 8px", backgroundColor: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 6, cursor: "pointer", display: "flex" }}
+        >
+          {isFullscreen ? <Minimize size={13} /> : <Maximize size={13} />}
+        </button>
+
+        {/* Download button */}
+        <button 
+          onClick={handleDownload} 
+          style={{ padding: "5px 8px", backgroundColor: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 6, cursor: "pointer", display: "flex" }}
+        >
+          <Download size={13} />
+        </button>
+      </div>
+    </div>
+  </div>
+)}
       {/* ── BODY ──────────────────────────────────────────────────────────── */}
       <div style={{ flex: 1, position: "relative", overflow: "hidden", display: "flex" }}>
 
@@ -921,7 +1266,7 @@ export default function PPTViewer({
           }}
         >
           {/* Teacher hint banner — mirrors PDF sticky hint */}
-          {!isStudent && isTeacher && (
+          {/* {!isStudent && isTeacher && (
             <div style={{
               position: "sticky", top: 10, zIndex: 10,
               backgroundColor: "rgba(0,0,0,0.7)", color: "#9ca3af",
@@ -933,7 +1278,7 @@ export default function PPTViewer({
               <MousePointer size={10} color="#a78bfa" />
               Right-click: <span style={{ color: "#a78bfa" }}>Add MCQ</span> or <span style={{ color: "#f59e0b" }}>Live Add MCQ</span>
             </div>
-          )}
+          )} */}
 
           {/* Current slide canvas — ONE slide visible at a time */}
          <div style={{ width: "100%", maxWidth: 1200, flexShrink: 0 }}>

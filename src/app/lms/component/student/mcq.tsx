@@ -12,6 +12,8 @@ import {
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+// 1. Import at top
+import ExerciseInfoModals, { ExerciseInfoButtons } from './ExerciseInfoModals';
 
 // ── Design tokens ─────────────────────────────────────────────────────────
 const T = {
@@ -96,6 +98,7 @@ interface MCQQuestion {
 }
 interface ExerciseData {
   _id: string; exerciseType: string; configurationType: any;
+  isGraded?: boolean;
   exerciseInformation: {
     exerciseId: string; exerciseName: string; description: string;
     exerciseLevel: string; totalDuration: number; totalMarks: number; _id: string;
@@ -493,7 +496,7 @@ const QuestionPanel = ({
           {filtered.map(({q,i})=>{
             const status=getStatus(i); const isCurrent=i===currentIndex; const isFlagged=flaggedQuestions.has(i);
             let bg=T.pageBg,col=T.textSub,bdr=T.border;
-            if(isCurrent)                      { bg=T.orange;      col='#fff';      bdr=T.orange; }
+            if(isCurrent)                      { bg=T.blue;        col='#fff';      bdr=T.blue; }
             else if(status==='answered')        { bg=T.greenLight;  col=T.greenDark; bdr=T.green+'80'; }
             else if(status==='flagged')         { bg=T.amberLight;  col=T.amber;     bdr=T.amber+'80'; }
             else if(status==='answeredFlagged') { bg=T.orangeLight; col=T.orange;    bdr=T.orange+'80'; }
@@ -515,7 +518,7 @@ const QuestionPanel = ({
         </div>
       )}
       <div style={{ marginTop:12,paddingTop:10,borderTop:`1px solid ${T.borderLight}`,display:'grid',gridTemplateColumns:'1fr 1fr',gap:'5px 12px' }}>
-        {[{dot:T.orange,lbl:'Current'},{dot:T.green,lbl:'Answered'},{dot:T.amber,lbl:'Flagged'},{dot:T.orange,lbl:'Ans+Flag',op:0.55},{dot:T.red,lbl:'Required'}].map(({dot,lbl,op})=>(
+        {[{dot:T.blue,lbl:'Current'},{dot:T.green,lbl:'Answered'},{dot:T.amber,lbl:'Flagged'},{dot:T.orange,lbl:'Ans+Flag',op:0.55},{dot:T.red,lbl:'Required'}].map(({dot,lbl,op})=>(
           <div key={lbl} style={{ display:'flex',alignItems:'center',gap:5 }}>
             <div style={{ width:8,height:8,borderRadius:'50%',background:dot,opacity:op||1,flexShrink:0 }} />
             <span style={{ fontSize:11,color:T.textSub }}>{lbl}</span>
@@ -574,13 +577,65 @@ const MCQ = ({ exercise:propExercise, courseId='', courseName='Course', nodeId='
   const urlSubcategory=searchParams.get('subcategory');
   const urlCategory=searchParams.get('category');
 
+// 2. Add state inside MCQ component
+const [showDetailsModal, setShowDetailsModal] = useState(false);
+const [showOverviewModal, setShowOverviewModal] = useState(false);
   const startTimer=(duration:number)=>{
     if(timerRef.current) clearInterval(timerRef.current);
     setTimeLeft(duration*60);
-    timerRef.current=setInterval(()=>{ setTimeLeft(prev=>{ if(prev<=1){ clearInterval(timerRef.current!); setShowTimeUpDialog(true); handleTimeUp(); return 0; } return prev-1; }); },1000);
+    timerRef.current=setInterval(()=>{ setTimeLeft(prev=>{ if(prev<=1){ clearInterval(timerRef.current!); handleTimeUp(); return 0; } return prev-1; }); },1000);
   };
 
-  const handleTimeUp=async()=>{ if(quizCompleted||isSubmitting) return; setIsSubmitting(true); await saveCurrentAnswer(); setQuizCompleted(true); setIsSubmitting(false); if(exerciseData?._id){ localStorage.removeItem(`mcq_answers_${exerciseData._id}`); localStorage.removeItem(`mcq_flagged_${exerciseData._id}`); } };
+const handleTimeUp = async () => {
+  if (quizCompleted || isSubmitting) return;
+  setIsSubmitting(true);
+  await saveCurrentAnswer();
+  await sendFinalSubmission();
+  if (timerRef.current) clearInterval(timerRef.current);
+  if (exerciseData?._id) {
+    localStorage.removeItem(`mcq_answers_${exerciseData._id}`);
+    localStorage.removeItem(`mcq_flagged_${exerciseData._id}`);
+  }
+  setQuizCompleted(true);
+  toast.info("Time's up! Your answers have been submitted.");
+  setTimeout(() => { if (onCloseExercise) onCloseExercise(); else router.back(); }, 1000);
+};
+
+  // ── NEW: send isTestSubmission:true on final MCQ submit ──────────────────
+const sendFinalSubmission = async () => {
+  try {
+    const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
+    const fCId = urlCourseId || courseId;
+    if (!fCId || !exerciseData?._id) return;
+
+    const lastQ = questions[questions.length - 1]; // always use the real last question
+    if (!lastQ) return;
+
+    const fd = new FormData();
+    fd.append('courseId', fCId);
+    fd.append('exerciseId', exerciseData._id);
+    fd.append('questionId', lastQ._id);
+    fd.append('code', '');
+    fd.append('score', '0');
+    fd.append('status', 'submitted');
+    fd.append('category', urlCategory || category);
+    fd.append('subcategory', urlSubcategory || subcategory);
+    fd.append('nodeId', nodeId || '');
+    fd.append('nodeName', exerciseData.exerciseInformation?.exerciseName || 'MCQ Assessment');
+    fd.append('nodeType', nodeType || 'mcq');
+    fd.append('language', 'text');
+    fd.append('isTestSubmission', 'true');  // ← THE KEY FLAG
+
+    await fetch('https://lms-server-ym1q.onrender.com/courses/answers/submit', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: fd,
+    });
+  } catch (e) {
+    console.error('Error sending final submission flag:', e);
+  }
+};
+
 
   useEffect(()=>{
     const fetch_=async()=>{
@@ -700,8 +755,21 @@ const MCQ = ({ exercise:propExercise, courseId='', courseName='Course', nodeId='
   };
 
   const getAnsweredCount=()=>questions.filter(isQuestionAnswered).length;
-  const submitQuiz=async()=>{ if(quizCompleted||isSubmitting) return; setIsSubmitting(true); setShowSubmitDialog(false); await saveCurrentAnswer(); setQuizCompleted(true); setIsSubmitting(false); if(timerRef.current) clearInterval(timerRef.current); if(exerciseData?._id){ localStorage.removeItem(`mcq_answers_${exerciseData._id}`); localStorage.removeItem(`mcq_flagged_${exerciseData._id}`); } };
-  const handleSubmitClick=()=>{ const ua=questions.length-getAnsweredCount(); if(ua>0) setShowSubmitDialog(true); else submitQuiz(); };
+const submitQuiz = async () => {
+  if (quizCompleted || isSubmitting) return;
+  setIsSubmitting(true);
+  setShowSubmitDialog(false);
+  await saveCurrentAnswer();
+  await sendFinalSubmission();
+  if (timerRef.current) clearInterval(timerRef.current);
+  if (exerciseData?._id) {
+    localStorage.removeItem(`mcq_answers_${exerciseData._id}`);
+    localStorage.removeItem(`mcq_flagged_${exerciseData._id}`);
+  }
+  setQuizCompleted(true);
+  toast.success('Exercise submitted successfully');
+  setTimeout(() => { if (onCloseExercise) onCloseExercise(); else router.back(); }, 800);
+};  const handleSubmitClick=()=>{ const ua=questions.length-getAnsweredCount(); if(ua>0) setShowSubmitDialog(true); else submitQuiz(); };
   const handlePrev=async()=>{ if(currentQuestionIndex<=0) return; await saveCurrentAnswer(); loadAnswersForQuestion(filteredQuestions[currentQuestionIndex-1],answersRef.current); setCurrentQuestionIndex(p=>p-1); };
   const handleNext=async()=>{ await saveCurrentAnswer(); if(currentQuestionIndex<filteredQuestions.length-1){ loadAnswersForQuestion(filteredQuestions[currentQuestionIndex+1],answersRef.current); setCurrentQuestionIndex(p=>p+1); } };
   const handleJumpToQuestion=async(index:number)=>{ if(index<0||index>=filteredQuestions.length) return; await saveCurrentAnswer(); loadAnswersForQuestion(filteredQuestions[index],answersRef.current); setCurrentQuestionIndex(index); setShowSubmitDialog(false); };
@@ -729,7 +797,7 @@ const MCQ = ({ exercise:propExercise, courseId='', courseName='Course', nodeId='
   const flaggedForSidebar=new Set(Array.from(flaggedQuestions).map(gi=>questions[gi]?._id).filter(id=>id&&filteredQuestions.some(q=>q._id===id)).map(id=>filteredQuestions.findIndex(q=>q._id===id)).filter(i=>i!==-1));
 
   if(loading) return <LoadingScreen />;
-  if(quizCompleted) return <><ToastContainer position="top-right" /><CompletionScreen onClose={handleBack} timeUp={timeLeft===0} /></>;
+  if(quizCompleted) return <div style={{ minHeight:'100vh', background:T.pageBg }}><ToastContainer position="top-right" /></div>;
   if(!quizStarted||filteredQuestions.length===0) return (
     <div style={{ minHeight:'100vh',background:T.pageBg,display:'flex',alignItems:'center',justifyContent:'center',padding:24 }}>
       <div style={{ textAlign:'center',maxWidth:320 }}>
@@ -775,57 +843,76 @@ const MCQ = ({ exercise:propExercise, courseId='', courseName='Course', nodeId='
       `}</style>
 
       <ToastContainer position="top-right" />
-      {showTimeUpDialog&&<TimeUpDialog onConfirm={handleTimeUpConfirm} />}
       {showSubmitDialog&&<SubmitDialog unansweredCount={unansweredCount} flaggedCount={flaggedQuestions.size} unansweredIndices={unansweredIndices} flaggedIndices={flaggedIndices} requiredUnansweredIndices={requiredUnansweredIndices} onConfirm={submitQuiz} onCancel={()=>setShowSubmitDialog(false)} onNavigateToQuestion={handleJumpToQuestion} />}
+ {/* ── Exercise Info Modals ── ADD HERE ── */}
+  <ExerciseInfoModals
+    exercise={exerciseData}
+    showDetailsModal={showDetailsModal}
+    setShowDetailsModal={setShowDetailsModal}
+    showOverviewModal={showOverviewModal}
+    setShowOverviewModal={setShowOverviewModal}
+    solvedQuestions={new Set(
+      questions
+        .map((q, i) => ({ q, i }))
+        .filter(({ q }) => isQuestionAnswered(q))
+        .map(({ i }) => i)
+    )}
+  />
 
-      {/* ═══ TOP BAR (fixed height) ═══ */}
-      <div style={{ flexShrink:0,height:TOP_BAR_H,background:T.bg,borderBottom:`1px solid ${T.border}`,display:'flex',flexDirection:'column',zIndex:50 }}>
-        <div style={{ flex:1,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 24px',gap:12 }}>
-          {/* Left */}
-          <div style={{ display:'flex',alignItems:'center',gap:0,minWidth:0,flex:1 }}>
-            <button onClick={handleBack} className="btn-prev"
-              style={{ display:'flex',alignItems:'center',gap:6,padding:'6px 12px',borderRadius:8,border:`1.5px solid ${T.border}`,background:'transparent',color:T.textSub,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',transition:'all 0.13s',flexShrink:0,marginRight:14 }}>
-              <ArrowLeft size={13} /> Back
-            </button>
-            <div style={{ display:'flex',alignItems:'center',gap:7,flexShrink:0,marginRight:14 }}>
-              <div style={{ width:28,height:28,borderRadius:8,background:`linear-gradient(135deg,${T.orange},${T.orangeDark})`,display:'flex',alignItems:'center',justifyContent:'center',boxShadow:`0 3px 10px ${T.orangeGlow}` }}><GraduationCap size={13} color="#fff" /></div>
-              <span style={{ fontSize:13,fontWeight:800,color:T.textMain,letterSpacing:'-0.02em' }}>SmartCliff</span>
-            </div>
-            <div style={{ width:1,height:18,background:T.border,marginRight:14,flexShrink:0 }} />
-            <nav style={{ display:'flex',alignItems:'center',gap:0,minWidth:0,overflow:'hidden' }}>
-              {[{label:courseName!=='Course'&&courseName?courseName:null},{label:finalCategory!=='Course'?finalCategory.replace(/_/g,' '):null},{label:finalSubcategory},{label:exerciseTitle,active:true}].filter(b=>b.label).map((b,i,arr)=>(
-                <React.Fragment key={i}>
-                  <span style={{ fontSize:12,fontWeight:b.active?700:400,color:b.active?T.orange:T.textMuted,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:b.active?200:110 }}>{b.label}</span>
-                  {i<arr.length-1&&<ChevronRight size={12} style={{ color:T.border,margin:'0 5px',flexShrink:0 }} />}
-                </React.Fragment>
-              ))}
-            </nav>
-          </div>
-          {/* Right */}
-          <div style={{ display:'flex',alignItems:'center',gap:10,flexShrink:0 }}>
-            {totalDuration>0&&(
-              <div style={{ display:'flex',alignItems:'center',gap:7,padding:'5px 11px',borderRadius:99,background:timerIsDanger?T.redLight:timerIsWarning?T.amberLight:T.orangeLight,border:`1.5px solid ${timerCol}28`,animation:timerIsDanger?'pulse 1s ease-in-out infinite':'none' }}>
-                <Timer size={12} style={{ color:timerCol }} />
-                <span style={{ fontFamily:'monospace',fontWeight:800,fontSize:13,color:timerCol,letterSpacing:'0.04em' }}>{fmtClock(timeLeft)}</span>
-                <div style={{ width:36,height:3,borderRadius:99,background:`${timerCol}22`,overflow:'hidden' }}>
-                  <div style={{ height:'100%',width:`${timerPct}%`,background:timerCol,borderRadius:99,transition:'width 1s linear' }} />
-                </div>
-              </div>
-            )}
-            <div style={{ width:1,height:18,background:T.border }} />
-            {[{v:questions.length,label:'Total',col:T.textSub},{v:answeredCount,label:'Done',col:T.green},{v:unansweredCount,label:'Left',col:T.textMuted},{v:flaggedQuestions.size,label:'Flagged',col:T.amber}].map(({v,label,col})=>(
-              <div key={label} style={{ display:'flex',alignItems:'center',gap:3 }}>
-                <span style={{ fontSize:14,fontWeight:800,color:col }}>{v}</span>
-                <span style={{ fontSize:10,color:T.textHint,fontWeight:600 }}>{label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-        {/* Progress line */}
-        <div style={{ height:2,background:T.borderLight }}>
-          <div style={{ height:'100%',width:`${progressPct}%`,background:`linear-gradient(90deg,${T.orange},${T.orangeDark})`,transition:'width 0.5s ease' }} />
-        </div>
+    {/* ═══ TOP BAR (fixed height) ═══ */}
+<div style={{ flexShrink:0,height:TOP_BAR_H,background:T.bg,borderBottom:`1px solid ${T.border}`,display:'flex',flexDirection:'column',zIndex:50 }}>
+  <div style={{ flex:1,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 24px',gap:12 }}>
+    
+    {/* Left — back + logo + breadcrumb */}
+    <div style={{ display:'flex',alignItems:'center',gap:0,minWidth:0,flex:1 }}>
+      <div style={{ display:'flex',alignItems:'center',gap:7,flexShrink:0,marginRight:14 }}>
+        <div style={{ width:28,height:28,borderRadius:8,background:`linear-gradient(135deg,${T.orange},${T.orangeDark})`,display:'flex',alignItems:'center',justifyContent:'center',boxShadow:`0 3px 10px ${T.orangeGlow}` }}><GraduationCap size={13} color="#fff" /></div>
+        <span style={{ fontSize:13,fontWeight:800,color:T.textMain,letterSpacing:'-0.02em' }}>SmartCliff</span>
       </div>
+      <div style={{ width:1,height:18,background:T.border,marginRight:14,flexShrink:0 }} />
+      <nav style={{ display:'flex',alignItems:'center',gap:0,minWidth:0,overflow:'hidden' }}>
+        {[{label:courseName!=='Course'&&courseName?courseName:null},{label:finalCategory!=='Course'?finalCategory.replace(/_/g,' '):null},{label:finalSubcategory},{label:exerciseTitle,active:true}].filter(b=>b.label).map((b,i,arr)=>(
+          <React.Fragment key={i}>
+            <span style={{ fontSize:12,fontWeight:b.active?700:400,color:b.active?T.orange:T.textMuted,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:b.active?200:110 }}>{b.label}</span>
+            {i<arr.length-1&&<ChevronRight size={12} style={{ color:T.border,margin:'0 5px',flexShrink:0 }} />}
+          </React.Fragment>
+        ))}
+      </nav>
+    </div>
+
+    {/* Right — buttons + timer + stats */}
+    <div style={{ display:'flex',alignItems:'center',gap:10,flexShrink:0 }}>
+
+      {/* ── Exercise Info Buttons ── ADD HERE ── */}
+      <ExerciseInfoButtons
+        onDetailsClick={() => setShowDetailsModal(true)}
+        onOverviewClick={() => setShowOverviewModal(true)}
+        isGraded={exerciseData?.isGraded !== false}
+      />
+
+      <div style={{ width:1,height:18,background:T.border }} />
+
+      {/* Stats — Total / Done / Left / Flagged */}
+      {[
+        {v:questions.length,    label:'Total',  col:T.textSub},
+        {v:answeredCount,       label:'Done',   col:T.green},
+        {v:unansweredCount,     label:'Left',   col:T.textMuted},
+        {v:flaggedQuestions.size,label:'Flagged',col:T.amber}
+      ].map(({v,label,col})=>(
+        <div key={label} style={{ display:'flex',alignItems:'center',gap:3 }}>
+          <span style={{ fontSize:14,fontWeight:800,color:col }}>{v}</span>
+          <span style={{ fontSize:10,color:T.textHint,fontWeight:600 }}>{label}</span>
+        </div>
+      ))}
+
+    </div>
+  </div>
+
+  {/* Progress line */}
+  <div style={{ height:2,background:T.borderLight }}>
+    <div style={{ height:'100%',width:`${progressPct}%`,background:`linear-gradient(90deg,${T.orange},${T.orangeDark})`,transition:'width 0.5s ease' }} />
+  </div>
+</div>
 
       {/* ═══ BODY ═══ */}
       <div style={{ flex:1,minHeight:0,overflow:'hidden',display:'flex' }}>
@@ -847,13 +934,17 @@ const MCQ = ({ exercise:propExercise, courseId='', courseName='Course', nodeId='
                 <div style={{ width:5,height:5,borderRadius:'50%',background:diff.dot }} />
                 <span style={{ fontSize:10,fontWeight:700,color:diff.text,textTransform:'capitalize' as const }}>{cq.mcqQuestionDifficulty}</span>
               </div>
-              <div style={{ padding:'3px 9px',borderRadius:99,background:qt.bg }}>
-                <span style={{ fontSize:10,fontWeight:700,color:qt.color }}>{qt.label}</span>
-              </div>
-              <div style={{ display:'flex',alignItems:'center',gap:3,padding:'3px 9px',borderRadius:99,background:T.amberLight }}>
-                <Award size={10} style={{ color:T.amber }} />
-                <span style={{ fontSize:10,fontWeight:700,color:T.amber }}>{cq.mcqQuestionScore} pts</span>
-              </div>
+              {cq.mcqQuestionType !== 'multiple_choice' && (
+                <div style={{ padding:'3px 9px',borderRadius:99,background:qt.bg }}>
+                  <span style={{ fontSize:10,fontWeight:700,color:qt.color }}>{qt.label}</span>
+                </div>
+              )}
+              {exerciseData?.isGraded !== false && (
+                <div style={{ display:'flex',alignItems:'center',gap:3,padding:'3px 9px',borderRadius:99,background:T.amberLight }}>
+                  <Award size={10} style={{ color:T.amber }} />
+                  <span style={{ fontSize:10,fontWeight:700,color:T.amber }}>{exerciseData?.questionConfiguration?.mcqQuestionConfiguration?.marksPerQuestion || cq.mcqQuestionScore} marks</span>
+                </div>
+              )}
               {cq.mcqQuestionRequired&&(
                 <div style={{ display:'flex',alignItems:'center',gap:3,padding:'3px 9px',borderRadius:99,background:T.redLight }}>
                   <AlertCircle size={9} style={{ color:T.red }} />
@@ -905,10 +996,6 @@ const MCQ = ({ exercise:propExercise, courseId='', courseName='Course', nodeId='
 
         {/* Right: Compact question panel */}
         <div style={{ flexShrink:0,width:270,minHeight:0,borderLeft:`1px solid ${T.border}`,background:T.bg,overflowY:'auto',padding:'16px 14px 20px 14px' }} className="mcq-s">
-          <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12,paddingBottom:10,borderBottom:`1px solid ${T.borderLight}` }}>
-            <div style={{ display:'flex',alignItems:'center',gap:6 }}><Grid3x3 size={13} style={{ color:T.orange }} /><span style={{ fontSize:13,fontWeight:800,color:T.textMain }}>Questions</span></div>
-            <span style={{ fontSize:12,fontWeight:700,color:T.orange,background:T.orangeLight,padding:'3px 9px',borderRadius:99 }}>{answeredCount}/{questions.length}</span>
-          </div>
           <QuestionPanel
             questions={filteredQuestions} currentIndex={currentQuestionIndex}
             answers={answers} flaggedQuestions={flaggedForSidebar} onJump={handleJumpToQuestion}
@@ -956,7 +1043,10 @@ const MCQ = ({ exercise:propExercise, courseId='', courseName='Course', nodeId='
         )}
       </div>
     </div>
+
+    
   );
+  
 };
 
 export default MCQ;

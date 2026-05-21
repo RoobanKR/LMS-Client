@@ -1,5 +1,5 @@
 "use client"
-import React, { useState } from "react"
+import React, { useState, useRef } from "react"
 import {
   Play,
   CheckCircle,
@@ -13,7 +13,7 @@ import {
   Presentation,
   X,
 } from "lucide-react"
-import { PPTViewer } from "../component/ppt-viewer"
+import PPTViewer from "./ppt-viewer"
 
 interface LearningItem {
   type: string
@@ -52,16 +52,64 @@ const elementIcons: Record<string, React.ComponentType<{ className?: string }>> 
   exercise: Award,
 }
 
+const PPT_URL = "https://yromfbntadbtdyanclef.supabase.co/storage/v1/object/public/smartlms/course/ppts/1757046939955_Animated-Intro-for-Social-Media-Platforms-by-Slidesgo.pptx"
+const API_BASE = "https://lms-server-ym1q.onrender.com"
+
 export function LearningActivities({ methods, subtopicTitle }: LearningActivitiesProps) {
   const [showPPTViewer, setShowPPTViewer] = useState(false)
   const [selectedActivity, setSelectedActivity] = useState<LearningItem | null>(null)
+  const [slideImages, setSlideImages] = useState<string[]>([])
+  const [isConverting, setIsConverting] = useState(false)
+  const [convertError, setConvertError] = useState<string | null>(null)
+  // Cache so we don't re-convert on every open
+  const slideCache = useRef<Record<string, string[]>>({})
 
-  const handleActivityClick = (item: LearningItem, methodType: string) => {
+  const handleActivityClick = async (item: LearningItem, methodType: string) => {
     if (methodType === "ido") {
       setSelectedActivity(item)
       setShowPPTViewer(true)
+
+      // Return cached result immediately if available
+      if (slideCache.current[PPT_URL]) {
+        setSlideImages(slideCache.current[PPT_URL])
+        return
+      }
+
+      setIsConverting(true)
+      setConvertError(null)
+      setSlideImages([])
+
+
+      try {
+        console.log("📥 Fetching PPTX from Supabase...")
+        const fileRes = await fetch(PPT_URL)
+        if (!fileRes.ok) throw new Error(`Supabase fetch failed: ${fileRes.status}`)
+        const blob = await fileRes.blob()
+        console.log("✅ PPTX fetched, size:", blob.size, "sending to server...")
+
+        const formData = new FormData()
+        formData.append("file", blob, "presentation.pptx")
+        formData.append("pptUrl", PPT_URL)
+
+        const res = await fetch(`${API_BASE}/api/ppt/convert`, {
+          method: "POST",
+          body: formData,
+        })
+        const data = await res.json()
+        console.log("Server response:", data.success, data.error || "", data.totalSlides)
+        if (data.success) {
+          slideCache.current[PPT_URL] = data.slideImages
+          setSlideImages(data.slideImages)
+        } else {
+          setConvertError(data.error || "Conversion failed")
+        }
+      } catch (err: any) {
+        console.error("❌ Conversion error:", err.message)
+        setConvertError(err.message || "Network error")
+      } finally {
+        setIsConverting(false)
+      }
     } else {
-      // Handle other activity types
       console.log(`Opening ${item.type}: ${item.title}`)
     }
   }
@@ -74,6 +122,7 @@ export function LearningActivities({ methods, subtopicTitle }: LearningActivitie
   if (showPPTViewer && selectedActivity) {
     return (
       <div className="space-y-4">
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         {/* Header with close button */}
         <div className="flex items-center justify-between">
           <div>
@@ -85,12 +134,38 @@ export function LearningActivities({ methods, subtopicTitle }: LearningActivitie
           </button>
         </div>
 
-        {/* PPT Viewer */}
-        <PPTViewer
-          pptUrl="https://yromfbntadbtdyanclef.supabase.co/storage/v1/object/public/smartlms/course/ppts/1757046939955_Animated-Intro-for-Social-Media-Platforms-by-Slidesgo.pptx"
-          title={selectedActivity.title}
-          onClose={closePPTViewer}
-        />
+        {/* Converting overlay */}
+        {isConverting && (
+          <div style={{ textAlign:"center", padding:"40px 24px", background:"white", borderRadius:12, border:"1px solid #E5E7EB" }}>
+            <div style={{ width:40,height:40,border:"3px solid rgba(124,58,237,0.15)",borderTopColor:"#7C3AED",borderRadius:"50%",animation:"spin 0.75s linear infinite",margin:"0 auto 14px" }} />
+            <p style={{ fontSize:14,fontWeight:600,color:"#374151",marginBottom:4 }}>Converting presentation…</p>
+            <p style={{ fontSize:12,color:"#9ca3af" }}>This may take 30–60 seconds on first load</p>
+          </div>
+        )}
+
+        {/* Convert error */}
+        {convertError && !isConverting && (
+          <div style={{ padding:"20px 24px",background:"#FEF2F2",borderRadius:12,border:"1px solid #FCA5A5",color:"#991B1B",fontSize:13,display:"flex",flexDirection:"column",gap:10 }}>
+            <strong>❌ Conversion failed</strong>
+            <span>{convertError}</span>
+            <button
+              onClick={() => handleActivityClick(selectedActivity, "ido")}
+              style={{ alignSelf:"flex-start",padding:"8px 18px",background:"#DC2626",color:"white",border:"none",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:600 }}
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {/* PPT Viewer — only render when we have slide images */}
+        {!isConverting && !convertError && (
+          <PPTViewer
+            pptUrl={PPT_URL}
+            slideImages={slideImages}
+            title={selectedActivity.title}
+            onClose={closePPTViewer}
+          />
+        )}
 
         {/* Activity Info */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">

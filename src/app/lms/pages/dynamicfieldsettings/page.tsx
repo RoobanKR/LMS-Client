@@ -16,7 +16,6 @@ import CourseserviceServicemodal from './courseserviceServicemodal'
 import CategoryManagementPage from './categoryTab'
 import PedagogyManagementComponent from './PedagogyComponent'
 import { userPermission } from '@/apiServices/tokenVerify'
-import QuestionBankPage from '../questionbanks/page'
 
 // Define types for the tab
 type Tab = {
@@ -40,10 +39,6 @@ interface ApiPermission {
     createdAt: string;
     updatedAt: string;
 }
-
-
-
-
 
 // Define tab configuration
 const tabConfig = {
@@ -70,12 +65,6 @@ const tabConfig = {
         icon: BookAIcon,
         component: PedagogyManagementComponent,
         permissionKey: 'Pedagogy'
-    },
-     'Question Bank': {
-        label: 'Question Bank',
-        icon: BookAIcon,
-        component: QuestionBankPage,
-        permissionKey: 'Question Bank'
     }
 }
 

@@ -45,6 +45,7 @@ interface ChatSession {
 interface AIChatProps {
   isOpen: boolean
   onClose: () => void
+  embedded?: boolean
   context?: {
     topicTitle?: string
     fileName?: string
@@ -56,9 +57,8 @@ interface AIChatProps {
 type ExpandMode = "compact" | "expanded" | "fullscreen"
 
 // Placeholder for API Key/URL (Replace with your actual configuration)
-const GEMINI_API_KEY = "AIzaSyCVI2igqbIDxB6Oez-ap7bOhmG6FNQXvSw" // Placeholder
-const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`
-
+const GEMINI_API_KEY = "AIzaSyDXTexkHW8M62kXYXGuNgwV_n1pBwsWANs" // Placeholder
+const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 const generateLocalFallback = (userInput: string): string => {
   const messageLower = userInput.toLowerCase();
   
@@ -86,7 +86,7 @@ const generateUniqueId = () => {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 };
 
-export default function AIChat({ isOpen, onClose, context }: AIChatProps) {
+export default function AIChat({ isOpen, onClose, embedded = false, context }: AIChatProps) {
   const [sessions, setSessions] = useState<ChatSession[]>([
     {
       sessionId: "default_1",
@@ -410,8 +410,10 @@ export default function AIChat({ isOpen, onClose, context }: AIChatProps) {
   }
 
   const getContainerClasses = () => {
+    if (embedded) {
+      return "relative w-full h-full bg-white flex flex-col overflow-hidden"
+    }
     const baseClasses = "fixed bg-white flex flex-col z-50 transition-all duration-300 shadow-xl border border-gray-200 rounded-lg overflow-hidden"
-    
     switch (expandMode) {
       case "compact":
         return `${baseClasses} w-96 h-[500px] bottom-0 right-6 rounded-b-lg`
@@ -648,7 +650,7 @@ const saveNoteToPanel = async () => {
         <div className="fixed inset-0 bg-black/10 z-40" onClick={onClose} />
       )}
       
-      <div className={`${getContainerClasses()} ${expandMode === "fullscreen" ? 'z-50' : 'z-40'}`}>
+      <div className={`${getContainerClasses()}${!embedded ? ` ${expandMode === "fullscreen" ? 'z-50' : 'z-40'}` : ''}`}>
         {/* 简洁头部 */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white">
           <div className="flex items-center gap-3">

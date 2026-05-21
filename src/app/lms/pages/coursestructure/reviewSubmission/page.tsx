@@ -1673,7 +1673,7 @@ export default function EnhancedSubmissionReview() {
                           {hasSubmissions ? (
                             <Badge className={`font-bold text-[9px] uppercase tracking-wider py-0.5 px-2 border-none rounded ${isGraded ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"
                               } ${montserrat.className}`}>
-                              {isGraded ? 'Evaluated' : 'Needs Review'}
+                              {isGraded ? 'Evaluated' : 'Review'}
                             </Badge>
                           ) : (
                             <Badge

@@ -14,6 +14,11 @@ import {
   FilePlus2,
   Target
 } from "lucide-react";
+
+import {
+  Sparkles,
+} from "lucide-react";
+import { motion } from "framer-motion";
 import dynamic from "next/dynamic";
 import { getCurrentUser } from "@/apiServices/tokenVerify"
 // import "react-quill/dist/quill.snow.css";
@@ -36,6 +41,8 @@ import { StudentNavbar } from "@/app/lms/component/student/student-navbar";
 import { CourseSidebar } from "./components/Coursesidebar";
 import { CourseContent } from "./components/Coursecontent";
 import { NotionResourceModal } from "./components/Notionresourcemodal";
+import { FileUploadModal, type UploadOptions } from "./components/FileUploadModal";
+import { PlainBreadcrumb, type PlainCrumb } from "./components/PlainBreadcrumb";
 
 import {
   CourseNode, FolderItem, UploadedFile, ContentData, SubcategoryData,
@@ -43,26 +50,32 @@ import {
 } from "../uploadcourseresources/components/Types";
 import toast from "react-hot-toast";
 import TipTapEditor from "@/app/lms/component/tiptopEditor";
+import ImageViewer from "../../../component/ImageViewer";
+import WordViewer from "../../../component/wordView";
+import TxtViewer from "../../../component/textdoc";
+import TxtViewerTeacher from "../../../component/textdoc";
 
 const Editor = dynamic(() => import("primereact/editor").then((m) => m.Editor), { ssr: false });
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const T = {
-  orange: '#F27757',
-  orangeDark: '#E0623F',
-  orangeGlow: 'rgba(242,119,87,0.22)',
-  orangeLight: 'rgba(242,119,87,0.08)',
-  orangeMid: 'rgba(242,119,87,0.15)',
-  blue: '#3B82F6', // Added blue color
+  orange: '#E8640C',
+  orangeDark: '#C95308',
+  orangeGlow: 'rgba(232,100,12,0.18)',
+  orangeLight: 'rgba(232,100,12,0.08)',
+  orangeMid: 'rgba(232,100,12,0.14)',
+  blue: '#3B82F6',
   blueLight: 'rgba(59,130,246,0.08)',
-  textMain: '#1a1a2e',
-  textSub: '#6b6b7e',
-  textMuted: '#8b8b9e',
-  textHint: '#bcbccc',
-  textDark: '#000000', // Explicit black
-  border: '#e4e4ed',
+  textMain: '#0F172A',
+  textSub: '#334155',
+  textMuted: '#475569',
+  textHint: '#94A3B8',
+  textDark: '#000000',
+  border: '#eef0f4',
+  borderSoft: '#f1f5f9',
   bg: '#ffffff',
-  pageBg: '#f7f7f9',
+  pageBg: '#f8fafc',       // clean light canvas
+  cardShadow: '0 1px 2px rgba(15,23,42,0.04), 0 1px 3px rgba(15,23,42,0.03)',
 };
 // ─── Transform Helpers ─────────────────────────────────────────────────────────
 function transformToCourseNodes(courseData: CourseStructureData): CourseNode[] {
@@ -173,7 +186,7 @@ function UserMenuButton({
           border: `1.5px solid ${showUserMenu ? T.orange + "55" : "#e8e4eb"}`,
           padding: "5px 12px 5px 6px",
           boxShadow: showUserMenu
-            ? `0 2px 12px rgba(242,119,87,0.25)`
+            ? `0 2px 12px rgba(232,100,12,0.22)`
             : "0 2px 8px rgba(0,0,0,0.07), 0 1px 3px rgba(0,0,0,0.04)",
         }}
         onMouseEnter={e => {
@@ -196,7 +209,7 @@ function UserMenuButton({
             className="h-8 w-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0"
             style={{
               background: `linear-gradient(135deg, ${T.orange}, ${T.orangeDark})`,
-              boxShadow: `0 2px 8px rgba(242,119,87,0.25)`,
+              boxShadow: `0 2px 8px rgba(232,100,12,0.22)`,
             }}
           >
             {initials}
@@ -244,7 +257,7 @@ function UserMenuButton({
                 className="h-10 w-10 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
                 style={{
                   background: `linear-gradient(135deg, ${T.orange}, ${T.orangeDark})`,
-                  boxShadow: `0 4px 14px rgba(242,119,87,0.25)`,
+                  boxShadow: `0 4px 14px rgba(232,100,12,0.22)`,
                 }}
               >
                 {initials}
@@ -334,166 +347,131 @@ function UMRow({ icon: Icon, label, sub, color, hoverBg, onClick }: {
   )
 }
 // ─── Clean Breadcrumb Bar with Proper Clickable States ──────────────────────
+const BRAND_ORANGE = "#E8640C";
+
 const BreadcrumbBar = ({
   breadcrumbs,
-  activeTab,
-  activeSubcategory,
 }: {
-  breadcrumbs: BreadcrumbItem[];
-  activeTab: "I_Do" | "We_Do" | "You_Do" | null;
-  activeSubcategory: string;
+  breadcrumbs: Array<{ id: string; type: string; label: string; onClick?: () => void }>;
 }) => {
   const router = useRouter();
-  
-  if (!breadcrumbs.length) return null;
 
-  const tabLabel: Record<string, string> = {
-    I_Do: "I Do",
-    We_Do: "We Do",
-    You_Do: "You Do",
+  if (!breadcrumbs || breadcrumbs.length === 0) return null;
+
+  const allowedTypes = ["dashboard", "courses", "course"];
+  const filteredCrumbs = breadcrumbs.filter(crumb => allowedTypes.includes(crumb.type));
+
+  if (filteredCrumbs.length === 0) return null;
+
+  const handleCrumbClick = (crumb: any) => {
+    if (crumb.type === "dashboard") { router.push("/lms/pages/dashboard"); return; }
+    if (crumb.type === "courses") { router.push("/lms/pages/courses"); return; }
+    if (crumb.type === "course" && crumb.onClick) crumb.onClick();
   };
 
-  const allCrumbs = [
-    ...breadcrumbs,
-    ...(activeTab ? [{ label: tabLabel[activeTab] ?? activeTab, type: "tab", id: activeTab }] : []),
-    ...(activeSubcategory
-      ? [{ label: activeSubcategory.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()), type: "subcategory", id: activeSubcategory }]
-      : []),
-  ];
-
-  const handleCrumbClick = (crumb: BreadcrumbItem) => {
-    if (crumb.type === "dashboard") {
-      router.push("/lms/pages/dashboard");
-      return;
-    }
-    
-    if (crumb.type === "courses") {
-      router.push("/lms/pages/courses");
-      return;
-    }
-    
-    if (crumb.type === "course" && crumb.onClick) {
-      crumb.onClick();
-    }
-  };
-
-  const getCrumbIcon = (type: string, isActive: boolean = false) => {
-    const iconColor = isActive ? T.orange : "#94A3B8";
-    const iconSize = 13;
-    
-    switch (type) {
-      case "dashboard": return <LayoutDashboard size={iconSize} style={{ color: iconColor }} strokeWidth={1.8} />;
-      case "courses": return <BookMarked size={iconSize} style={{ color: iconColor }} strokeWidth={1.8} />;
-      case "course": return <GraduationCap size={iconSize} style={{ color: iconColor }} strokeWidth={1.8} />;
-      default: return null;
-    }
-  };
-
-  // Only Dashboard, Courses, and Course are clickable
-  const isClickable = (type: string, isLast: boolean): boolean => {
-    if (isLast) return false;
-    return type === "dashboard" || type === "courses" || type === "course";
-  };
-
-  // Get text style based on crumb type
-  const getTextStyle = (type: string, isLast: boolean) => {
-    if (isLast) {
-      return {
-        color: "#0F172A",
-        fontWeight: 700,
-        fontSize: '15px',
-      };
-    }
-    
-    switch (type) {
-      case "course":
-        return {
-          color: T.orange,
-          fontWeight: 600,
-          fontSize: '14px',
-        };
-      case "dashboard":
-      case "courses":
-        return {
-          color: "#64748B",
-          fontWeight: 500,
-          fontSize: '13px',
-        };
-      default:
-        return {
-          color: "#CBD5E1",
-          fontWeight: 450,
-          fontSize: '12px',
-        };
-    }
-  };
+  const LINK_BLUE = "#2563EB";
+  const LINK_BLUE_HOVER = "#1D4ED8";
+  const ACTIVE_GRAY = "#475569";
+  const MUTED = "#94A3B8";
 
   return (
     <div
-      className="flex-shrink-0"
+      className="sticky top-0 z-40 w-full flex items-center"
       style={{
-        background: T.bg,
-        padding: '16px 24px',
-        borderBottom: `1px solid ${T.border}`,
+        minHeight: 48,
+        padding: "8px 16px",
+        background: "#ffffff",
+        borderBottom: "none",
       }}
     >
-      <nav className="flex items-center gap-2 flex-wrap">
-        {allCrumbs.map((crumb, index) => {
-          const isLast = index === allCrumbs.length - 1;
-          const clickable = isClickable(crumb.type, isLast);
-          const textStyle = getTextStyle(crumb.type, isLast);
-          const icon = getCrumbIcon(crumb.type, crumb.type === "course");
-          
+      <nav className="flex items-center" style={{ gap: 2 }}>
+        {filteredCrumbs.map((crumb, index) => {
+          const isLast = index === filteredCrumbs.length - 1;
+          const isCourse = crumb.type === "course";
+          const isClickable = !isLast;
+          const labelColor = isLast ? ACTIVE_GRAY : LINK_BLUE;
+          const iconColor = isLast ? ACTIVE_GRAY : LINK_BLUE;
+
           return (
             <div key={crumb.id} className="flex items-center">
-              {clickable ? (
-                <button
-                  onClick={() => handleCrumbClick(crumb)}
-                  className="flex items-center gap-2 transition-all duration-200 group"
+              <motion.button
+                whileTap={!isLast ? { scale: 0.98 } : {}}
+                onClick={() => !isLast && handleCrumbClick(crumb)}
+                disabled={isLast}
+                className="group flex items-center"
+                style={{
+                  gap: 6,
+                  padding: "3px 6px",
+                  borderRadius: 6,
+                  background: "transparent",
+                  cursor: isClickable ? "pointer" : "default",
+                  transition: "color 0.15s ease",
+                }}
+                onMouseEnter={(e) => {
+                  if (!isClickable) return;
+                  const el = e.currentTarget as HTMLElement;
+                  const labelEl = el.querySelector<HTMLElement>("[data-crumb-label]");
+                  const iconEl = el.querySelector<HTMLElement>("[data-crumb-icon]");
+                  if (labelEl) labelEl.style.color = LINK_BLUE_HOVER;
+                  if (labelEl) labelEl.style.textDecoration = "underline";
+                  if (iconEl) iconEl.style.color = LINK_BLUE_HOVER;
+                }}
+                onMouseLeave={(e) => {
+                  if (!isClickable) return;
+                  const el = e.currentTarget as HTMLElement;
+                  const labelEl = el.querySelector<HTMLElement>("[data-crumb-label]");
+                  const iconEl = el.querySelector<HTMLElement>("[data-crumb-icon]");
+                  if (labelEl) labelEl.style.color = LINK_BLUE;
+                  if (labelEl) labelEl.style.textDecoration = "none";
+                  if (iconEl) iconEl.style.color = LINK_BLUE;
+                }}
+              >
+                <span
+                  data-crumb-icon
+                  className="flex items-center justify-center"
+                  style={{ color: iconColor, transition: "color 0.15s ease" }}
+                >
+                  {crumb.type === "dashboard" && <LayoutDashboard size={13} strokeWidth={2} />}
+                  {crumb.type === "courses" && <BookMarked size={13} strokeWidth={2} />}
+                  {crumb.type === "course" && <GraduationCap size={13} strokeWidth={2} />}
+                </span>
+
+                <span
+                  data-crumb-label
                   style={{
-                    background: 'transparent',
-                    border: 'none',
-                    padding: '4px 0',
-                    cursor: 'pointer',
+                    fontFamily: "'Inter', 'Plus Jakarta Sans', sans-serif",
+                    fontWeight: isLast ? 600 : 500,
+                    fontSize: 12.5,
+                    color: labelColor,
+                    letterSpacing: "-0.005em",
+                    lineHeight: 1.2,
+                    transition: "color 0.15s ease",
                   }}
                 >
-                  {icon}
-                  <span
-                    style={{
-                      ...textStyle,
-                      fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-                      letterSpacing: '-0.01em',
-                      transition: 'color 0.2s ease',
-                    }}
-                    onMouseEnter={e => {
-                      e.currentTarget.style.color = T.orange;
-                    }}
-                    onMouseLeave={e => {
-                      e.currentTarget.style.color = textStyle.color;
-                    }}
-                  >
-                    {crumb.label}
-                  </span>
-                </button>
-              ) : (
-                <div className="flex items-center gap-2">
-                  {icon}
-                  <span
-                    style={{
-                      ...textStyle,
-                      fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-                      letterSpacing: '-0.01em',
-                    }}
-                  >
-                    {crumb.label}
-                  </span>
-                </div>
-              )}
-              
-              {!isLast && (
-                <span style={{ margin: '0 10px', color: '#CBD5E1' }}>
-                  <ChevronRight size={13} strokeWidth={2.5} />
+                  {crumb.label}
                 </span>
+
+                {isCourse && isLast && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="flex items-center"
+                    style={{
+                      gap: 3,
+                      marginLeft: 4,
+                      padding: "1px 6px",
+                      borderRadius: 999,
+                      background: "#E8640C",
+                    }}
+                  >
+                    <Sparkles size={9} className="text-white" />
+                    <span style={{ fontSize: 9, fontWeight: 700, color: "#fff", textTransform: "uppercase", letterSpacing: "0.02em" }}>Live</span>
+                  </motion.div>
+                )}
+              </motion.button>
+
+              {!isLast && (
+                <ChevronRight size={12} strokeWidth={2} style={{ color: MUTED, margin: "0 2px" }} />
               )}
             </div>
           );
@@ -502,6 +480,7 @@ const BreadcrumbBar = ({
     </div>
   );
 };
+
 // ─── Accordion Header ─────────────────────────────────────────────────────────
 const AccordionHeader = ({ icon, iconColor, iconBg, title, subtitle, sectionKey, currentKey, onToggle }: any) => (
   <button
@@ -519,13 +498,13 @@ const AccordionHeader = ({ icon, iconColor, iconBg, title, subtitle, sectionKey,
   </button>
 );
 
-const FolderBreadcrumbBar = ({ 
-  currentFolderPath, 
+const FolderBreadcrumbBar = ({
+  currentFolderPath,
   currentFolderId,
   onNavigateUp,
   onNavigateToRoot,
   onNavigateToFolder
-}: { 
+}: {
   currentFolderPath: string[];
   currentFolderId: string | null;
   onNavigateUp: () => void;
@@ -533,7 +512,7 @@ const FolderBreadcrumbBar = ({
   onNavigateToFolder: (folderName: string, index: number) => void;
 }) => {
   if (!currentFolderId && currentFolderPath.length === 0) return null;
-  
+
   return (
     <div
       className="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 mb-3"
@@ -580,7 +559,7 @@ const FolderBreadcrumbBar = ({
         <button
           onClick={onNavigateToRoot}
           className="flex-shrink-0 text-[10.5px] font-semibold px-1.5 py-0.5 rounded transition-all cursor-pointer"
-          style={{ 
+          style={{
             color: currentFolderPath.length === 0 ? T.orange : T.textHint,
             background: currentFolderPath.length === 0 ? T.orangeLight : 'transparent',
           }}
@@ -647,6 +626,25 @@ const FolderBreadcrumbBar = ({
   );
 };
 
+// ─── Folder Builder types ─────────────────────────────────────────────────────
+interface VirtualFolderFile {
+  id: string;
+  file: File;
+  displayName: string;
+  isEditingName: boolean;
+  editNameValue: string;
+}
+interface VirtualFolderItem {
+  id: string;
+  name: string;
+  isEditingName: boolean;
+  editNameValue: string;
+  files: VirtualFolderFile[];
+  children: VirtualFolderItem[]; // sub-folders
+  isDragOver: boolean;
+  isExpanded: boolean;
+}
+
 // ─── Main Component ────────────────────────────────────────────────────────────
 export default function DynamicLMSCoordinator() {
   const { isDark, toggleDark } = useDarkMode();
@@ -704,11 +702,98 @@ export default function DynamicLMSCoordinator() {
   const [updateFileType, setUpdateFileType] = useState("");
   const [updateTabType, setUpdateTabType] = useState<"I_Do" | "We_Do" | "You_Do">("I_Do");
   const [updateSubcategory, setUpdateSubcategory] = useState("");
+  const [showFileUploadModal, setShowFileUploadModal] = useState(false);
+  const [uploadGroupId, setUploadGroupId] = useState<string | undefined>(undefined);
+  // The display name of the group being targeted by "Add files to this group".
+  // Used by the modal to render the group as the current parent in the breadcrumb
+  // AND to stamp the same groupName on every newly-uploaded file so the client's
+  // grouping logic (Coursecontent.tsx → fileGroupMap) shows the file inside the
+  // correct group accordion after refresh.
+  const [uploadGroupName, setUploadGroupName] = useState<string | undefined>(undefined);
+
+  // ── Edit / Update mode state for FileUploadModal ───────────────────────────
+  const [uploadModalEditMode, setUploadModalEditMode] = useState(false);
+  const [uploadModalInitialName, setUploadModalInitialName] = useState<string | undefined>(undefined);
+  const [uploadModalInitialDesc, setUploadModalInitialDesc] = useState<string | undefined>(undefined);
+  const [uploadModalInitialShow, setUploadModalInitialShow] = useState<boolean | undefined>(undefined);
+  const [uploadModalInitialDl, setUploadModalInitialDl] = useState<boolean | undefined>(undefined);
+  // ── Edit-mode seed data for FileUploadModal ─────────────────────────────────
+  // Pre-existing files / folders that already live on the server for the resource
+  // being edited. The modal renders these as rows with the "saved" pill so the
+  // user can see what's currently attached and delete individual items.
+  const [uploadModalInitialFiles, setUploadModalInitialFiles] = useState<Array<{ name: string; size?: string | number; path?: string[] }> | undefined>(undefined);
+  const [uploadModalInitialFolders, setUploadModalInitialFolders] = useState<Array<{ name: string; path: string[] }> | undefined>(undefined);
+  // When editing a folder, this overrides the modal's `currentFolderPath` so
+  // newly-added files land INSIDE the folder being edited, not at activity root.
+  const [uploadModalForcedPath, setUploadModalForcedPath] = useState<string[] | undefined>(undefined);
+  // Pending deletions accumulated when the user clicks the X on existing rows.
+  // Processed in `handleFileUploadModalSubmit` on Save Changes; discarded on
+  // Cancel / close. Kept in a ref to dodge stale-closure issues inside async submit.
+  const editPendingDeletionsRef = useRef<Array<{ name: string; path: string[]; fileId?: string }>>([]);
+  // Parallel queue for FOLDER deletions. The server's deleteFolder cascades so
+  // we only queue the folder itself — its nested files don't need to be queued
+  // individually (the modal still removes them from local state for UX).
+  const editPendingFolderDeletionsRef = useRef<Array<{ name: string; path: string[] }>>([]);
+  // Map of "<name>::<path>" → fileId for existing files, used to resolve which
+  // server-side file corresponds to a row the user just removed in the modal.
+  const editExistingFileIdMapRef = useRef<Record<string, string>>({});
+
+  const clearUploadModalEditState = () => {
+    setUploadModalEditMode(false);
+    setUploadModalInitialName(undefined);
+    setUploadModalInitialDesc(undefined);
+    setUploadModalInitialShow(undefined);
+    setUploadModalInitialDl(undefined);
+    setUploadModalInitialFiles(undefined);
+    setUploadModalInitialFolders(undefined);
+    setUploadModalForcedPath(undefined);
+    editPendingDeletionsRef.current = [];
+    editPendingFolderDeletionsRef.current = [];
+    editExistingFileIdMapRef.current = {};
+  };
   const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [editingFolder, setEditingFolder] = useState<FolderItem | null>(null);
   const [editFolderName, setEditFolderName] = useState("");
+  // ── Folder Builder state ────────────────────────────────────────────────────
+  const [showFolderBuilderModal, setShowFolderBuilderModal] = useState(false);
+  const [showFolderUnsavedWarning, setShowFolderUnsavedWarning] = useState(false);
+  const [folderBuilderNewName, setFolderBuilderNewName] = useState("");
+  const [virtualFolders, setVirtualFolders] = useState<VirtualFolderItem[]>([]);
+  const [folderBuilderUploading, setFolderBuilderUploading] = useState(false);
+  const [folderBuilderProgress, setFolderBuilderProgress] = useState<Record<string, number>>({});
+  const [activeDropFolderId, setActiveDropFolderId] = useState<string | null>(null);
+  const folderFileInputRef = useRef<HTMLInputElement>(null);
   const [expandedSection, setExpandedSection] = useState<string | null>("folderName");
+  // ── Folder Builder navigation (internal breadcrumb within the modal) ─────────
+  // Each nav entry may be:
+  //   • a virtual folder the user has added this session (has virtualId)
+  //   • an existing folder the user has navigated into (has existingPath)
+  //   • a synthetic group anchor (e.g. "muthu") — kind: "group", non-clickable
+  type FbNavEntry = {
+    id: string;            // unique id for this entry (key)
+    name: string;          // display name
+    kind?: "virtual" | "existing" | "group";
+    existingPath?: string[]; // full existing-folder path from activity root
+    groupId?: string;        // present for "group" entries
+  };
+  const [fbNavPath, setFbNavPath] = useState<FbNavEntry[]>([]);
+  const [fbRootFiles, setFbRootFiles] = useState<VirtualFolderFile[]>([]);
+  const [fbDragOverRoot, setFbDragOverRoot] = useState(false);
+
+  // Virtual additions keyed by their parent path (the existing-folder path the
+  // user is currently navigated into). Lets the user add new folders / files
+  // inside an existing folder without losing the work when they navigate
+  // back out. Key shape:
+  //   ""               → activity root (mirror of virtualFolders + fbRootFiles)
+  //   "sem I"          → inside existing folder "sem I"
+  //   "muthu#sem I"    → inside existing folder "sem I" that lives in group "muthu"
+  // The "muthu#" prefix disambiguates group-scoped folders from raw activity-root
+  // folders with the same name (rare but possible). For non-group paths the key
+  // is just the segments joined by "/".
+  type FbAdditions = { folders: VirtualFolderItem[]; files: VirtualFolderFile[] };
+  const [fbVirtualByPath, setFbVirtualByPath] = useState<Record<string, FbAdditions>>({});
+  const fbFileInputRef = useRef<HTMLInputElement>(null);
   const [accessLevel, setAccessLevel] = useState("private");
   const [hideStudentSettings, setHideStudentSettings] = useState<Record<string, boolean>>({});
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -737,19 +822,33 @@ export default function DynamicLMSCoordinator() {
   const [originalRoleInfo, setOriginalRoleInfo] = useState<{ roleName: string; renameRole: string } | null>(null)
   const userRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null);
-const hasInitialized = useRef(false);
-const isFetchingRef = useRef<string | null>(null);
-const lastFetchedDataRef = useRef<string>("");
-const initialDataLoadedRef = useRef(false);
-const [isInitialLoad, setIsInitialLoad] = useState(true);
-const [isNodeSelected, setIsNodeSelected] = useState(false);
-const [isSidebarLoading, setIsSidebarLoading] = useState(true);
-const [cachedContentData, setCachedContentData] = useState<Record<string, ContentData>>({});
-const [loadingNodes, setLoadingNodes] = useState<Set<string>>(new Set());
+  const hasInitialized = useRef(false);
+  const isFetchingRef = useRef<string | null>(null);
+  const lastFetchedDataRef = useRef<string>("");
+  const initialDataLoadedRef = useRef(false);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [isNodeSelected, setIsNodeSelected] = useState(false);
+  const [isSidebarLoading, setIsSidebarLoading] = useState(true);
+  const [cachedContentData, setCachedContentData] = useState<Record<string, ContentData>>({});
+  const [loadingNodes, setLoadingNodes] = useState<Set<string>>(new Set());
+  const [referenceDisplayName, setReferenceDisplayName] = useState("Reference Material");
+  // Add these state variables with your other state declarations
+  const [isContentLoading, setIsContentLoading] = useState(false);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
 
-// Add these state variables with your other state declarations
-const [isContentLoading, setIsContentLoading] = useState(false);
-const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  // Add these state variables in DynamicLMSCoordinator component
+  const [showWordViewer, setShowWordViewer] = useState(false);
+  const [currentWordUrl, setCurrentWordUrl] = useState("");
+  const [currentWordName, setCurrentWordName] = useState("");
+  const [showTxtViewer, setShowTxtViewer] = useState(false);
+  const [currentTxtUrl, setCurrentTxtUrl] = useState("");
+  const [currentTxtName, setCurrentTxtName] = useState("");
+  const [showImageViewer, setShowImageViewer] = useState(false);
+  const [currentImageUrl, setCurrentImageUrl] = useState("");
+  const [currentImageName, setCurrentImageName] = useState("");
+  const [currentImageFileId, setCurrentImageFileId] = useState("");
+  const [imagePlaylist, setImagePlaylist] = useState<Array<{ id: string; title: string; fileUrl: string }>>([]);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const subcategories = useMemo(() => {
     if (!courseStructureResponse?.data) return { I_Do: [], We_Do: [], You_Do: [] };
     const d = courseStructureResponse.data;
@@ -760,153 +859,153 @@ const [initialLoadComplete, setInitialLoadComplete] = useState(false);
     };
   }, [courseStructureResponse]);
 
-const fileTypes: FileTypeConfig[] = useMemo(() => {
-  // Static file types that are always available
-  const staticFileTypes: FileTypeConfig[] = [
-    { key: "folder", label: "New Folder", icon: <FolderPlus size={22} />, color: T.orange, tooltip: "Create a new folder" },
-    { key: "page_creation", label: "Page Builder", icon: <FilePlus2 size={22} />, color: T.orange, tooltip: "Build rich content pages with editable blocks" },
-    { key: "zip", label: "ZIP File", icon: <FileArchive size={22} />, color: "#a855f7", tooltip: "Upload ZIP archives", accept: ".zip,.rar,.7z,.tar,.gz" },
-    { key: "reference", label: "REFERENCE", icon: <BookOpen size={22} />, color: "#8b5cf6", tooltip: "Upload reference materials", accept: "*" },
-  ];
+  const fileTypes: FileTypeConfig[] = useMemo(() => {
+    // Static file types that are always available
+    const staticFileTypes: FileTypeConfig[] = [
+      { key: "folder", label: "New Folder", icon: <FolderPlus size={22} />, color: T.orange, tooltip: "Create a new folder" },
+      { key: "page_creation", label: "Page Builder", icon: <FilePlus2 size={22} />, color: T.orange, tooltip: "Build rich content pages with editable blocks" },
+      { key: "zip", label: "ZIP File", icon: <FileArchive size={22} />, color: "#a855f7", tooltip: "Upload ZIP archives", accept: ".zip,.rar,.7z,.tar,.gz" },
+      { key: "reference", label: "REFERENCE", icon: <BookOpen size={22} />, color: "#8b5cf6", tooltip: "Upload reference materials", accept: "*" },
+    ];
 
-  // Dynamic file types based on resourcesType.iDo configuration
-  const dynamicFileTypes: FileTypeConfig[] = [];
-  
-  // Check if resourcesType exists and is an object with iDo property
-  if (courseStructureResponse?.data?.resourcesType && typeof courseStructureResponse.data.resourcesType === 'object' && !Array.isArray(courseStructureResponse.data.resourcesType) && 'iDo' in courseStructureResponse.data.resourcesType) {
-    const iDoResources = (courseStructureResponse.data.resourcesType as any).iDo;
-    
-    // Video resource
-    if (iDoResources.video?.enabled === true) {
-      dynamicFileTypes.push({
-        key: "video",
-        label: "Video",
-        icon: <Video size={22} />,
-        color: "#3b82f6",
-        tooltip: "Upload video files",
-        accept: "video/*,.mp4,.avi,.mov,.mkv"
-      });
+    // Dynamic file types based on resourcesType.iDo configuration
+    const dynamicFileTypes: FileTypeConfig[] = [];
+
+    // Check if resourcesType exists and is an object with iDo property
+    if (courseStructureResponse?.data?.resourcesType && typeof courseStructureResponse.data.resourcesType === 'object' && !Array.isArray(courseStructureResponse.data.resourcesType) && 'iDo' in courseStructureResponse.data.resourcesType) {
+      const iDoResources = (courseStructureResponse.data.resourcesType as any).iDo;
+
+      // Video resource
+      if (iDoResources.video?.enabled === true) {
+        dynamicFileTypes.push({
+          key: "video",
+          label: "Video",
+          icon: <Video size={22} />,
+          color: "#3b82f6",
+          tooltip: "Upload video files",
+          accept: "video/*,.mp4,.avi,.mov,.mkv"
+        });
+      }
+
+      // PPT resource
+      if (iDoResources.ppt?.enabled === true) {
+        dynamicFileTypes.push({
+          key: "ppt",
+          label: "PPT",
+          icon: <FileText size={22} />,
+          color: "#f97316",
+          tooltip: "Upload PowerPoint files",
+          accept: ".ppt,.pptx"
+        });
+      }
+
+      // PDF resource
+      if (iDoResources.pdf?.enabled === true) {
+        dynamicFileTypes.push({
+          key: "pdf",
+          label: "PDF",
+          icon: <FileText size={22} />,
+          color: "#ef4444",
+          tooltip: "Upload PDF documents",
+          accept: ".pdf"
+        });
+      }
+
+      // URL resource
+      if (iDoResources.url?.enabled === true) {
+        dynamicFileTypes.push({
+          key: "url",
+          label: "URL",
+          icon: <Link2 size={22} />,
+          color: "#10b981",
+          tooltip: "Add external URLs",
+          accept: "url"
+        });
+      }
     }
-    
-    // PPT resource
-    if (iDoResources.ppt?.enabled === true) {
-      dynamicFileTypes.push({
-        key: "ppt",
-        label: "PPT",
-        icon: <FileText size={22} />,
-        color: "#f97316",
-        tooltip: "Upload PowerPoint files",
-        accept: ".ppt,.pptx"
-      });
-    }
-    
-    // PDF resource
-    if (iDoResources.pdf?.enabled === true) {
-      dynamicFileTypes.push({
-        key: "pdf",
-        label: "PDF",
-        icon: <FileText size={22} />,
-        color: "#ef4444",
-        tooltip: "Upload PDF documents",
-        accept: ".pdf"
-      });
-    }
-    
-    // URL resource
-    if (iDoResources.url?.enabled === true) {
-      dynamicFileTypes.push({
-        key: "url",
-        label: "URL",
-        icon: <Link2 size={22} />,
-        color: "#10b981",
-        tooltip: "Add external URLs",
-        accept: "url"
-      });
-    }
-  }
-  
-  const result = [...staticFileTypes, ...dynamicFileTypes];
-  
-  return result;
-}, [courseStructureResponse]);
+
+    const result = [...staticFileTypes, ...dynamicFileTypes];
+
+    return result;
+  }, [courseStructureResponse]);
 
 
-// Add this state
-const [configuredLanguages, setConfiguredLanguages] = useState<{
-  coreProgram: string[];
-  frontend: string[];
-  database: string[];
-}>({
-  coreProgram: [],
-  frontend: [],
-  database: []
-});
+  // Add this state
+  const [configuredLanguages, setConfiguredLanguages] = useState<{
+    coreProgram: string[];
+    frontend: string[];
+    database: string[];
+  }>({
+    coreProgram: [],
+    frontend: [],
+    database: []
+  });
 
-// Function to find the module for the selected node
-const findModuleForNode = useCallback((node: CourseNode | null): any | null => {
-  if (!node || !courseStructureResponse?.data?.modules) return null;
-  
-  const modules = courseStructureResponse.data.modules;
-  
-  // Helper to search recursively for the module containing this node
-  const findModuleInTree = (module: any, targetId: string): any | null => {
-    // Check if this module matches
-    if (module._id === targetId) return module;
-    
-    // Check topics in module
-    if (module.topics) {
-      for (const topic of module.topics) {
-        if (topic._id === targetId) return module;
-        if (topic.subTopics) {
-          for (const subtopic of topic.subTopics) {
-            if (subtopic._id === targetId) return module;
+  // Function to find the module for the selected node
+  const findModuleForNode = useCallback((node: CourseNode | null): any | null => {
+    if (!node || !courseStructureResponse?.data?.modules) return null;
+
+    const modules = courseStructureResponse.data.modules;
+
+    // Helper to search recursively for the module containing this node
+    const findModuleInTree = (module: any, targetId: string): any | null => {
+      // Check if this module matches
+      if (module._id === targetId) return module;
+
+      // Check topics in module
+      if (module.topics) {
+        for (const topic of module.topics) {
+          if (topic._id === targetId) return module;
+          if (topic.subTopics) {
+            for (const subtopic of topic.subTopics) {
+              if (subtopic._id === targetId) return module;
+            }
           }
         }
       }
-    }
-    
-    // Check submodules
-    if (module.subModules) {
-      for (const submodule of module.subModules) {
-        if (submodule._id === targetId) return module;
-        if (submodule.topics) {
-          for (const topic of submodule.topics) {
-            if (topic._id === targetId) return module;
-            if (topic.subTopics) {
-              for (const subtopic of topic.subTopics) {
-                if (subtopic._id === targetId) return module;
+
+      // Check submodules
+      if (module.subModules) {
+        for (const submodule of module.subModules) {
+          if (submodule._id === targetId) return module;
+          if (submodule.topics) {
+            for (const topic of submodule.topics) {
+              if (topic._id === targetId) return module;
+              if (topic.subTopics) {
+                for (const subtopic of topic.subTopics) {
+                  if (subtopic._id === targetId) return module;
+                }
               }
             }
           }
         }
       }
-    }
-    
-    return null;
-  };
-  
-  // Search through all modules
-  for (const module of modules) {
-    const found = findModuleInTree(module, node.id);
-    if (found) return found;
-  }
-  
-  return null;
-}, [courseStructureResponse, selectedNode]);
 
-// Extract skill set from the selected node's own testConfiguration (flat format)
-useEffect(() => {
-  if (selectedNode) {
-    const tc = selectedNode.originalData?.testConfiguration;
-    setConfiguredLanguages({
-      coreProgram: (tc?.coreProgram ?? []).filter(Boolean),
-      frontend: (tc?.frontend ?? []).filter(Boolean),
-      database: (tc?.database ?? []).filter(Boolean),
-    });
-  } else {
-    setConfiguredLanguages({ coreProgram: [], frontend: [], database: [] });
-  }
-}, [selectedNode]);
+      return null;
+    };
+
+    // Search through all modules
+    for (const module of modules) {
+      const found = findModuleInTree(module, node.id);
+      if (found) return found;
+    }
+
+    return null;
+  }, [courseStructureResponse, selectedNode]);
+
+  // Extract skill set from the selected node's own testConfiguration (flat format)
+  useEffect(() => {
+    if (selectedNode) {
+      const tc = selectedNode.originalData?.testConfiguration;
+      setConfiguredLanguages({
+        coreProgram: (tc?.coreProgram ?? []).filter(Boolean),
+        frontend: (tc?.frontend ?? []).filter(Boolean),
+        database: (tc?.database ?? []).filter(Boolean),
+      });
+    } else {
+      setConfiguredLanguages({ coreProgram: [], frontend: [], database: [] });
+    }
+  }, [selectedNode]);
   const setActiveTabPersistent = (tab: "I_Do" | "We_Do" | "You_Do" | null) => { setActiveTab(tab); if (tab) setLS("lms_selected_tab", tab); else delLS("lms_selected_tab"); };
   const setActiveSubcategoryPersistent = (sub: string) => { setActiveSubcategory(sub); setLS("lms_selected_subcategory", sub); };
   const setSelectedNodePersistent = (node: CourseNode | null) => {
@@ -943,204 +1042,268 @@ useEffect(() => {
     return findContents(rootFolders, navState.currentFolderId);
   }, [selectedNode, activeTab, activeSubcategory, contentData, getCurrentNavState]);
 
+  // Locate a folder anywhere in the tree (root or nested).
+  const findFolderInTree = useCallback((items: FolderItem[], id: string): FolderItem | null => {
+    for (const f of items) {
+      if (f.id === id) return f;
+      const inner = findFolderInTree(f.subfolders || [], id);
+      if (inner) return inner;
+    }
+    return null;
+  }, []);
+
+  // Recursive file count for a folder — counts files at every depth,
+  // does NOT count sub-folders as items.
   const getFolderItemCount = useCallback((folderId: string): number => {
     if (!selectedNode || !activeTab) return 0;
-    const count = (items: FolderItem[], id: string): number => { for (const f of items) { if (f.id === id) return (f.files?.length || 0) + (f.subfolders?.length || 0); const c = count(f.subfolders || [], id); if (c >= 0 && (f.subfolders?.some((s) => s.id === id) || f.subfolders?.some((s) => count([s], id) >= 0))) return c; } return 0; };
     const tabData = contentData[selectedNode.id]?.[activeTab] || {};
-    const roots = (tabData[activeSubcategory] || []).filter((i): i is FolderItem => isFolderItem(i) && !i.parentId);
-    return count(roots, folderId);
-  }, [selectedNode, activeTab, activeSubcategory, contentData]);
+    const roots = (tabData[activeSubcategory] || []).filter(
+      (i): i is FolderItem => isFolderItem(i) && !i.parentId,
+    );
+    const target = findFolderInTree(roots, folderId);
+    if (!target) return 0;
+    const countFiles = (folder: FolderItem): number => {
+      const direct = folder.files?.length || 0;
+      const nested = (folder.subfolders || []).reduce((s, sf) => s + countFiles(sf), 0);
+      return direct + nested;
+    };
+    return countFiles(target);
+  }, [selectedNode, activeTab, activeSubcategory, contentData, findFolderInTree]);
+
+  // Recursive size (bytes) for a folder — sums every file size at every depth.
+  const getFolderTotalSize = useCallback((folderId: string): number => {
+    if (!selectedNode || !activeTab) return 0;
+    const tabData = contentData[selectedNode.id]?.[activeTab] || {};
+    const roots = (tabData[activeSubcategory] || []).filter(
+      (i): i is FolderItem => isFolderItem(i) && !i.parentId,
+    );
+    const target = findFolderInTree(roots, folderId);
+    if (!target) return 0;
+    const sumSize = (folder: FolderItem): number => {
+      const direct = (folder.files || []).reduce(
+        (s, f) => s + (Number(f.size) || 0),
+        0,
+      );
+      const nested = (folder.subfolders || []).reduce((s, sf) => s + sumSize(sf), 0);
+      return direct + nested;
+    };
+    return sumSize(target);
+  }, [selectedNode, activeTab, activeSubcategory, contentData, findFolderInTree]);
   const processNodeContent = useCallback(async (node: CourseNode): Promise<ContentData> => {
-  const data = node.originalData;
-  if (!data?.pedagogy) return { I_Do: {}, We_Do: {}, You_Do: {} };
-  
-  const processPedagogy = (backendTab: "I_Do" | "We_Do" | "You_Do", frontendTab: "I_Do" | "We_Do" | "You_Do"): SubcategoryData => {
-    const section = data.pedagogy[backendTab];
-    if (!section) return {};
-    
-    const result: SubcategoryData = {};
-    
-    Object.keys(section).forEach((subcatKey) => {
-      const subcatData = section[subcatKey];
-      if (!subcatData) return;
-      
-      const frontendKey = subcatKey.toLowerCase().replace(/\s+/g, "_");
-      const items: (FolderItem | UploadedFile)[] = [];
-      
-      // Process folders
-      if (subcatData.folders && Array.isArray(subcatData.folders)) {
-        const processFolders = (foldersArr: any[], parentId: string | null = null, pathArr: string[] = []): FolderItem[] => {
-          const foldersOut: FolderItem[] = [];
-          
-          (foldersArr || []).forEach((folder) => {
-            if (!folder || !folder.name) return;
-            
-            const fid = folder._id;
-            if (!fid) return;
-            
-            const folderPath = [...pathArr, folder.name];
-            
-            const folderFiles: UploadedFile[] = (folder.files || []).map((file: any) => {
-              if (!file) return null;
-              const fileId = file._id;
-              if (!fileId) return null;
-              
-              const url = typeof file.fileUrl === "string" ? file.fileUrl : file.fileUrl?.base || "";
-              const rawMap: Record<string, string> = typeof file.fileUrl === "object" && file.fileUrl !== null ? file.fileUrl : {};
-              const resNames: string[] = file.availableResolutions?.length ? file.availableResolutions : Object.keys(rawMap).filter(k => rawMap[k]);
-              
-              return {
-                id: fileId,
-                name: file.fileName || "Unnamed",
-                type: file.fileType || "unknown",
-                size: typeof file.size === "string" ? parseInt(file.size) : (file.size || 0),
-                url: url,
-                uploadedAt: new Date(file.uploadedAt || Date.now()),
+    const data = node.originalData;
+    if (!data?.pedagogy) return { I_Do: {}, We_Do: {}, You_Do: {} };
+    const normalizeDate = (value: any): string => {
+      if (!value) return "";
+      const raw = typeof value === "object" && value.$date ? value.$date : value;
+      const ms = new Date(raw).getTime();
+      return Number.isNaN(ms) ? "" : new Date(ms).toISOString();
+    };
+
+    const processPedagogy = (backendTab: "I_Do" | "We_Do" | "You_Do", frontendTab: "I_Do" | "We_Do" | "You_Do"): SubcategoryData => {
+      const section = data.pedagogy[backendTab];
+      if (!section) return {};
+
+      const result: SubcategoryData = {};
+
+      Object.keys(section).forEach((subcatKey) => {
+        const subcatData = section[subcatKey];
+        if (!subcatData) return;
+
+        const frontendKey = subcatKey.toLowerCase().replace(/\s+/g, "_");
+        const items: (FolderItem | UploadedFile)[] = [];
+
+        // Process folders
+        if (subcatData.folders && Array.isArray(subcatData.folders)) {
+          const processFolders = (foldersArr: any[], parentId: string | null = null, pathArr: string[] = []): FolderItem[] => {
+            const foldersOut: FolderItem[] = [];
+
+            (foldersArr || []).forEach((folder) => {
+              if (!folder || !folder.name) return;
+
+              const fid = folder._id;
+              if (!fid) return;
+
+              const folderPath = [...pathArr, folder.name];
+
+              const folderFiles: UploadedFile[] = (folder.files || []).map((file: any) => {
+                if (!file) return null;
+                const fileId = file._id;
+                if (!fileId) return null;
+
+                const url = typeof file.fileUrl === "string" ? file.fileUrl : file.fileUrl?.base || "";
+                const rawMap: Record<string, string> = typeof file.fileUrl === "object" && file.fileUrl !== null ? file.fileUrl : {};
+                const resNames: string[] = file.availableResolutions?.length ? file.availableResolutions : Object.keys(rawMap).filter(k => rawMap[k]);
+
+                return {
+                  id: fileId,
+                  name: file.fileName || "Unnamed",
+                  type: file.fileType || "unknown",
+                  size: typeof file.size === "string" ? parseInt(file.size) : (file.size || 0),
+                  url: url,
+                  uploadedAt: normalizeDate(file.uploadedAt) || normalizeDate(file.updatedAt) || normalizeDate(file.createdAt),
+                  subcategory: subcatKey,
+                  folderId: fid,
+                  folderPath: folderPath.join("/"),
+                  tags: file.tags?.map((t: any) => ({
+                    tagName: t.tagName || t.name || "",
+                    tagColor: t.tagColor || t.color || "#3B82F6"
+                  })) || [],
+                  fileSettings: file.fileSettings ? {
+                    showToStudents: file.fileSettings.showToStudents ?? true,
+                    allowDownload: file.fileSettings.allowDownload ?? true
+                  } : undefined,
+                  availableResolutions: resNames,
+                  fileUrlMap: rawMap,
+                  description: file.fileDescription || file.description || "",
+                  isReference: file.fileType === "reference" || file.isReference === true,
+                  isVideo: file.fileType?.includes("video") || false,
+                  groupId: file.groupId || undefined,
+                  groupName: file.groupName || undefined,
+                };
+              }).filter(Boolean) as UploadedFile[];
+
+              const subfolders = processFolders(folder.subfolders || [], fid, folderPath);
+
+              const folderItem: FolderItem = {
+                id: fid,
+                name: folder.name,
+                type: "folder",
+                parentId: parentId,
+                parentGroupId: folder.parentGroupId || undefined,
+                groupName: folder.groupName || undefined,
+                groupDescription: folder.groupDescription || undefined,
+                children: [...subfolders, ...folderFiles],
+                tabType: frontendTab,
                 subcategory: subcatKey,
-                folderId: fid,
+                files: folderFiles,
+                subfolders: subfolders,
                 folderPath: folderPath.join("/"),
-                tags: file.tags?.map((t: any) => ({ 
-                  tagName: t.tagName || t.name || "", 
-                  tagColor: t.tagColor || t.color || "#3B82F6" 
-                })) || [],
-                fileSettings: file.fileSettings ? { 
-                  showToStudents: file.fileSettings.showToStudents ?? true, 
-                  allowDownload: file.fileSettings.allowDownload ?? true 
-                } : undefined,
-                availableResolutions: resNames,
-                fileUrlMap: rawMap,
-                description: file.fileDescription || file.description || "",
-                isReference: file.fileType === "reference" || file.isReference === true,
-                isVideo: file.fileType?.includes("video") || false,
+                tags: folder.tags || [],
+                uploadedAt: normalizeDate(folder.uploadedAt),
+                createdAt: normalizeDate(folder.createdAt),
+                updatedAt: normalizeDate(folder.updatedAt),
               };
-            }).filter(Boolean) as UploadedFile[];
-            
-            const subfolders = processFolders(folder.subfolders || [], fid, folderPath);
-            
-            const folderItem: FolderItem = {
-              id: fid,
-              name: folder.name,
-              type: "folder",
-              parentId: parentId,
-              children: [...subfolders, ...folderFiles],
-              tabType: frontendTab,
+
+              foldersOut.push(folderItem);
+              items.push(folderItem, ...folderFiles);
+            });
+
+            return foldersOut;
+          };
+
+          processFolders(subcatData.folders || []);
+        }
+
+        // Process root-level files
+        if (subcatData.files && Array.isArray(subcatData.files)) {
+          const rootFiles: UploadedFile[] = subcatData.files.map((file: any) => {
+            if (!file) return null;
+            const fileId = file._id;
+            if (!fileId) return null;
+
+            let fileType = file.fileType || "unknown";
+            let fileUrl = typeof file.fileUrl === "string" ? file.fileUrl : file.fileUrl?.base || "";
+
+            if (fileType?.includes("url") || fileType?.includes("link")) {
+              fileType = "url/link";
+            }
+
+            const rawFileUrlMap: Record<string, string> = typeof file.fileUrl === "object" && file.fileUrl !== null ? file.fileUrl : {};
+            const resolvedResolutions: string[] = file.availableResolutions?.length
+              ? file.availableResolutions
+              : Object.keys(rawFileUrlMap).filter(k => rawFileUrlMap[k]);
+
+            return {
+              id: fileId,
+              name: file.fileName || "Unnamed",
+              type: fileType,
+              size: typeof file.size === "string" ? parseInt(file.size) : (file.size || 0),
+              url: fileUrl,
+              uploadedAt: normalizeDate(file.uploadedAt) || normalizeDate(file.updatedAt) || normalizeDate(file.createdAt),
               subcategory: subcatKey,
-              files: folderFiles,
-              subfolders: subfolders,
-              folderPath: folderPath.join("/"),
-              tags: folder.tags || []
+              folderId: null,
+              tags: file.tags?.map((t: any) => ({
+                tagName: t.tagName || "",
+                tagColor: t.tagColor || "#3B82F6"
+              })) || [],
+              fileSettings: file.fileSettings ? {
+                showToStudents: file.fileSettings.showToStudents ?? true,
+                allowDownload: file.fileSettings.allowDownload ?? true
+              } : undefined,
+              availableResolutions: resolvedResolutions,
+              fileUrlMap: rawFileUrlMap,
+              description: file.fileDescription || file.description || "",
+              isReference: fileType === "reference" || file.isReference === true,
+              isVideo: fileType?.includes("video") || false,
+              groupId: file.groupId || undefined,
+              groupName: file.groupName || undefined,
             };
-            
-            foldersOut.push(folderItem);
-            items.push(folderItem, ...folderFiles);
+          }).filter(Boolean) as UploadedFile[];
+
+          items.push(...rootFiles);
+        }
+
+        // Process pages
+        if (subcatData.pages && Array.isArray(subcatData.pages)) {
+          const pagesMap = new Map();
+
+          subcatData.pages.forEach((page: any) => {
+            if (!page || !page._id) return;
+            if (!pagesMap.has(page._id)) {
+              pagesMap.set(page._id, page);
+            }
           });
-          
-          return foldersOut;
-        };
-        
-        processFolders(subcatData.folders || []);
-      }
-      
-      // Process root-level files
-      if (subcatData.files && Array.isArray(subcatData.files)) {
-        const rootFiles: UploadedFile[] = subcatData.files.map((file: any) => {
-          if (!file) return null;
-          const fileId = file._id;
-          if (!fileId) return null;
-          
-          let fileType = file.fileType || "unknown";
-          let fileUrl = typeof file.fileUrl === "string" ? file.fileUrl : file.fileUrl?.base || "";
-          
-          if (fileType?.includes("url") || fileType?.includes("link")) {
-            fileType = "url/link";
-          }
-          
-          const rawFileUrlMap: Record<string, string> = typeof file.fileUrl === "object" && file.fileUrl !== null ? file.fileUrl : {};
-          const resolvedResolutions: string[] = file.availableResolutions?.length 
-            ? file.availableResolutions 
-            : Object.keys(rawFileUrlMap).filter(k => rawFileUrlMap[k]);
-          
-          return {
-            id: fileId,
-            name: file.fileName || "Unnamed",
-            type: fileType,
-            size: typeof file.size === "string" ? parseInt(file.size) : (file.size || 0),
-            url: fileUrl,
-            uploadedAt: new Date(file.uploadedAt || Date.now()),
+
+          const pagesAsFiles: UploadedFile[] = Array.from(pagesMap.values()).map((page: any) => ({
+            id: page._id,
+            name: page.title || "Untitled Page",
+            type: "page",
+            size: 0,
+            url: "",
+            uploadedAt: normalizeDate(page.updatedAt) || normalizeDate(page.createdAt),
             subcategory: subcatKey,
             folderId: null,
-            tags: file.tags?.map((t: any) => ({ 
-              tagName: t.tagName || "", 
-              tagColor: t.tagColor || "#3B82F6" 
-            })) || [],
-            fileSettings: file.fileSettings ? { 
-              showToStudents: file.fileSettings.showToStudents ?? true, 
-              allowDownload: file.fileSettings.allowDownload ?? true 
-            } : undefined,
-            availableResolutions: resolvedResolutions,
-            fileUrlMap: rawFileUrlMap,
-            description: file.fileDescription || file.description || "",
-            isReference: fileType === "reference" || file.isReference === true,
-            isVideo: fileType?.includes("video") || false,
-          };
-        }).filter(Boolean) as UploadedFile[];
-        
-        items.push(...rootFiles);
-      }
-      
-      // Process pages
-      if (subcatData.pages && Array.isArray(subcatData.pages)) {
-        const pagesMap = new Map();
-        
-        subcatData.pages.forEach((page: any) => {
-          if (!page || !page._id) return;
-          if (!pagesMap.has(page._id)) {
-            pagesMap.set(page._id, page);
-          }
-        });
-        
-        const pagesAsFiles: UploadedFile[] = Array.from(pagesMap.values()).map((page: any) => ({
-          id: page._id,
-          name: page.title || "Untitled Page",
-          type: "page",
-          size: 0,
-          url: "",
-          uploadedAt: new Date(page.createdAt || Date.now()),
-          subcategory: subcatKey,
-          folderId: null,
-          tags: [],
-          _combinedCode: page.combinedCode || "",
-          _pageCount: page.pageCount || 1,
-          _blocks: page.blocks || [],
-        }));
-        
-        items.push(...pagesAsFiles);
-      }
-      
-      result[frontendKey] = items;
-    });
-    
-    return result;
-  };
-  
-  return {
-    I_Do: processPedagogy("I_Do", "I_Do"),
-    We_Do: processPedagogy("We_Do", "We_Do"),
-    You_Do: processPedagogy("You_Do", "You_Do")
-  };
-}, []);
+            tags: [],
+            _combinedCode: page.combinedCode || "",
+            _pageCount: page.pageCount || 1,
+            _blocks: page.blocks || [],
+          }));
 
+          items.push(...pagesAsFiles);
+        }
+
+        result[frontendKey] = items;
+      });
+
+      return result;
+    };
+
+    return {
+      I_Do: processPedagogy("I_Do", "I_Do"),
+      We_Do: processPedagogy("We_Do", "We_Do"),
+      You_Do: processPedagogy("You_Do", "You_Do")
+    };
+  }, []);
+
+// In DynamicLMSCoordinator, update the refreshContentData function:
 const refreshContentData = useCallback(async (node: CourseNode, backendData?: any) => {
   const data = backendData || node.originalData;
   if (!data?.pedagogy) return;
-  
+
   // Process and cache the content
   const processedContent = await processNodeContent(node);
-  
+
   // Update both caches
   setCachedContentData((prev) => ({ ...prev, [node.id]: processedContent }));
   setContentData((prev) => ({ ...prev, [node.id]: processedContent }));
   
+  // Force a re-render by creating a new reference
+  // This ensures CourseContent detects the change
+  setContentData(prev => {
+    const newContent = { ...prev, [node.id]: processedContent };
+    return newContent;
+  });
+
   // Collect all folders for navigation
   const allFolders: FolderItem[] = [];
   const collectFolders = (items: (FolderItem | UploadedFile)[]) => {
@@ -1151,92 +1314,91 @@ const refreshContentData = useCallback(async (node: CourseNode, backendData?: an
       }
     });
   };
-  
+
   Object.values(processedContent).forEach((tabData) => {
     Object.values(tabData).forEach(collectFolders);
   });
-  
+
   setFolders(allFolders);
   setInitialLoadComplete(true);
   setIsInitialLoad(false);
 }, [processNodeContent]);
 
+  const fetchAndRefresh = useCallback(async (node: CourseNode) => {
+    const fetchKey = `${node.id}`;
+    if (isFetchingRef.current === fetchKey) return;
+    isFetchingRef.current = fetchKey;
 
-const fetchAndRefresh = useCallback(async (node: CourseNode) => {
-  const fetchKey = `${node.id}`;
-  if (isFetchingRef.current === fetchKey) return;
-  isFetchingRef.current = fetchKey;
-  
-  // Set loading state
-  setIsContentLoading(true);
-  
-  try {
-    const BASE_URL = "https://lms-server-ym1q.onrender.com";
-    const token = typeof window !== "undefined" ? localStorage.getItem("smartcliff_token") : null;
-    
-    const courseRes = await fetch(`${BASE_URL}/getAll/courses-data/${courseId}`, {
-      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-    });
-    
-    if (!courseRes.ok) {
-      await refreshContentData(node);
-      return;
-    }
-    
-    const courseJson = await courseRes.json();
-    if (!courseJson?.data) {
-      await refreshContentData(node);
-      return;
-    }
-    
-    const findInFresh = (modules: any[]): any | null => {
-      for (const mod of modules) {
-        if (mod._id === node.id) return mod;
-        for (const topic of mod.topics || []) {
-          if (topic._id === node.id) return topic;
-          for (const st of topic.subTopics || []) {
-            if (st._id === node.id) return st;
-          }
-        }
-        for (const sm of mod.subModules || []) {
-          if (sm._id === node.id) return sm;
-          for (const topic of sm.topics || []) {
+    // Set loading state
+    setIsContentLoading(true);
+
+    try {
+      const BASE_URL = "https://lms-server-ym1q.onrender.com";
+      const token = typeof window !== "undefined" ? localStorage.getItem("smartcliff_token") : null;
+
+      const courseRes = await fetch(`${BASE_URL}/getAll/courses-data/${courseId}`, {
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      });
+
+      if (!courseRes.ok) {
+        await refreshContentData(node);
+        return;
+      }
+
+      const courseJson = await courseRes.json();
+      if (!courseJson?.data) {
+        await refreshContentData(node);
+        return;
+      }
+
+      const findInFresh = (modules: any[]): any | null => {
+        for (const mod of modules) {
+          if (mod._id === node.id) return mod;
+          for (const topic of mod.topics || []) {
             if (topic._id === node.id) return topic;
             for (const st of topic.subTopics || []) {
               if (st._id === node.id) return st;
             }
           }
+          for (const sm of mod.subModules || []) {
+            if (sm._id === node.id) return sm;
+            for (const topic of sm.topics || []) {
+              if (topic._id === node.id) return topic;
+              for (const st of topic.subTopics || []) {
+                if (st._id === node.id) return st;
+              }
+            }
+          }
         }
+        return null;
+      };
+
+      const freshNodeData = findInFresh(courseJson.data.modules || []);
+      if (freshNodeData) {
+        const freshNode: CourseNode = { ...node, originalData: freshNodeData };
+
+        const nodeChanged = JSON.stringify(node.originalData) !== JSON.stringify(freshNodeData);
+
+        if (nodeChanged) {
+          const transformed = transformToCourseNodes(courseJson.data);
+          setCourseData(transformed);
+          setSelectedNode(freshNode);
+        }
+
+        await refreshContentData(freshNode);
+      } else {
+        await refreshContentData(node);
       }
-      return null;
-    };
-    
-    const freshNodeData = findInFresh(courseJson.data.modules || []);
-    if (freshNodeData) {
-      const freshNode: CourseNode = { ...node, originalData: freshNodeData };
-      
-      const nodeChanged = JSON.stringify(node.originalData) !== JSON.stringify(freshNodeData);
-      
-      if (nodeChanged) {
-        const transformed = transformToCourseNodes(courseJson.data);
-        setCourseData(transformed);
-        setSelectedNode(freshNode);
-      }
-      
-      await refreshContentData(freshNode);
-    } else {
+
+      setInitialLoadComplete(true);
+    } catch (err) {
+      console.error("fetchAndRefresh error:", err);
       await refreshContentData(node);
+    } finally {
+      setIsContentLoading(false);
+      isFetchingRef.current = null;
     }
-    
-    setInitialLoadComplete(true);
-  } catch (err) {
-    console.error("fetchAndRefresh error:", err);
-    await refreshContentData(node);
-  } finally {
-    setIsContentLoading(false);
-    isFetchingRef.current = null;
-  }
-}, [courseId, refreshContentData]);
+  }, [courseId, refreshContentData]);
 
   const generateBreadcrumbs = useCallback((node: CourseNode | null): BreadcrumbItem[] => {
     const base: BreadcrumbItem[] = [{ label: "Dashboard", type: "dashboard", id: "dashboard", path: "/lms/pages/dashboard" }, { label: "Courses", type: "courses", id: "courses", path: "/lms/pages/courses" }];
@@ -1249,145 +1411,145 @@ const fetchAndRefresh = useCallback(async (node: CourseNode) => {
 
 
 
-const fetchAndCacheNodeData = useCallback(async (node: CourseNode) => {
-  const nodeId = node.id;
-  
-  // Prevent multiple simultaneous fetches for the same node
-  if (loadingNodes.has(nodeId)) return;
-  
-  setLoadingNodes(prev => new Set(prev).add(nodeId));
-  setIsContentLoading(true);
-  
-  try {
-    const BASE_URL = "https://lms-server-ym1q.onrender.com";
-    const token = typeof window !== "undefined" ? localStorage.getItem("smartcliff_token") : null;
-    
-    const courseRes = await fetch(`${BASE_URL}/getAll/courses-data/${courseId}`, {
-      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-    });
-    
-    if (!courseRes.ok) {
-      await refreshContentData(node);
-      return;
-    }
-    
-    const courseJson = await courseRes.json();
-    if (!courseJson?.data) {
-      await refreshContentData(node);
-      return;
-    }
-    
-    // Find the updated node data in the fresh response
-    const findInFresh = (modules: any[]): any | null => {
-      for (const mod of modules) {
-        if (mod._id === node.id) return mod;
-        for (const topic of mod.topics || []) {
-          if (topic._id === node.id) return topic;
-          for (const st of topic.subTopics || []) {
-            if (st._id === node.id) return st;
-          }
-        }
-        for (const sm of mod.subModules || []) {
-          if (sm._id === node.id) return sm;
-          for (const topic of sm.topics || []) {
+  const fetchAndCacheNodeData = useCallback(async (node: CourseNode) => {
+    const nodeId = node.id;
+
+    // Prevent multiple simultaneous fetches for the same node
+    if (loadingNodes.has(nodeId)) return;
+
+    setLoadingNodes(prev => new Set(prev).add(nodeId));
+    setIsContentLoading(true);
+
+    try {
+      const BASE_URL = "https://lms-server-ym1q.onrender.com";
+      const token = typeof window !== "undefined" ? localStorage.getItem("smartcliff_token") : null;
+
+      const courseRes = await fetch(`${BASE_URL}/getAll/courses-data/${courseId}`, {
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      });
+
+      if (!courseRes.ok) {
+        await refreshContentData(node);
+        return;
+      }
+
+      const courseJson = await courseRes.json();
+      if (!courseJson?.data) {
+        await refreshContentData(node);
+        return;
+      }
+
+      // Find the updated node data in the fresh response
+      const findInFresh = (modules: any[]): any | null => {
+        for (const mod of modules) {
+          if (mod._id === node.id) return mod;
+          for (const topic of mod.topics || []) {
             if (topic._id === node.id) return topic;
             for (const st of topic.subTopics || []) {
               if (st._id === node.id) return st;
             }
           }
+          for (const sm of mod.subModules || []) {
+            if (sm._id === node.id) return sm;
+            for (const topic of sm.topics || []) {
+              if (topic._id === node.id) return topic;
+              for (const st of topic.subTopics || []) {
+                if (st._id === node.id) return st;
+              }
+            }
+          }
         }
+        return null;
+      };
+
+      const freshNodeData = findInFresh(courseJson.data.modules || []);
+      if (freshNodeData) {
+        const freshNode: CourseNode = { ...node, originalData: freshNodeData };
+
+        // Check if node structure changed
+        const nodeChanged = JSON.stringify(node.originalData) !== JSON.stringify(freshNodeData);
+
+        if (nodeChanged) {
+          const transformed = transformToCourseNodes(courseJson.data);
+          setCourseData(transformed);
+          setSelectedNode(freshNode);
+        }
+
+        // Process and cache the content data
+        const processedContent = await processNodeContent(freshNode);
+
+        // Store in both caches
+        setCachedContentData(prev => ({ ...prev, [node.id]: processedContent }));
+        setContentData(prev => ({ ...prev, [node.id]: processedContent }));
+
+      } else {
+        await refreshContentData(node);
       }
-      return null;
-    };
-    
-    const freshNodeData = findInFresh(courseJson.data.modules || []);
-    if (freshNodeData) {
-      const freshNode: CourseNode = { ...node, originalData: freshNodeData };
-      
-      // Check if node structure changed
-      const nodeChanged = JSON.stringify(node.originalData) !== JSON.stringify(freshNodeData);
-      
-      if (nodeChanged) {
-        const transformed = transformToCourseNodes(courseJson.data);
-        setCourseData(transformed);
-        setSelectedNode(freshNode);
-      }
-      
-      // Process and cache the content data
-      const processedContent = await processNodeContent(freshNode);
-      
-      // Store in both caches
-      setCachedContentData(prev => ({ ...prev, [node.id]: processedContent }));
-      setContentData(prev => ({ ...prev, [node.id]: processedContent }));
-      
-    } else {
+
+      setInitialLoadComplete(true);
+    } catch (err) {
+      console.error("fetchAndCacheNodeData error:", err);
       await refreshContentData(node);
+    } finally {
+      setIsContentLoading(false);
+      setLoadingNodes(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(nodeId);
+        return newSet;
+      });
     }
-    
-    setInitialLoadComplete(true);
-  } catch (err) {
-    console.error("fetchAndCacheNodeData error:", err);
-    await refreshContentData(node);
-  } finally {
-    setIsContentLoading(false);
-    setLoadingNodes(prev => {
-      const newSet = new Set(prev);
-      newSet.delete(nodeId);
-      return newSet;
-    });
-  }
-}, [courseId, loadingNodes]);
+  }, [courseId, loadingNodes]);
 
- const selectNode = useCallback(async (node: CourseNode) => {
-  // Prevent duplicate selections
-  if (selectedNode?.id === node.id) return;
-  
-  // Check if we have cached data for this node
-  const hasCachedData = cachedContentData[node.id] !== undefined;
-  
-  setIsNodeSelected(true);
-  
-  if (!hasCachedData) {
-    setIsContentLoading(true);
-  }
-  
-  setSelectedNodePersistent(node);
-  
-  // Expand path in sidebar
-  const path = findPathToNode(courseData, node.id);
-  if (path?.length) {
-    setExpandedNodes((prev) => {
-      const n = new Set(prev);
-      path.forEach((id) => n.add(id));
-      setLS("lms_expanded_nodes", JSON.stringify([...n]));
-      return n;
-    });
-  }
-  
-  updateNavState({ currentFolderPath: [], currentFolderId: null });
-  setBreadcrumbs(generateBreadcrumbs(node));
-  
-  // Use cached data if available
-  if (hasCachedData) {
-    // Use cached data immediately
-    setContentData((prev) => ({
-      ...prev,
-      [node.id]: cachedContentData[node.id]
-    }));
-    setIsContentLoading(false);
-  } else {
-    // Fetch fresh data
-    await fetchAndCacheNodeData(node);
-  }
-  
-  // Update URL params
-  if (node.type === "topic" || node.type === "subtopic") {
-    updateURL({ nodeId: node.id, activeTab, activeSubcategory });
-  }
-}, [courseData, selectedNode, activeTab, activeSubcategory, subcategories, findPathToNode, generateBreadcrumbs, cachedContentData]);
+  const selectNode = useCallback(async (node: CourseNode) => {
+    // Prevent duplicate selections
+    if (selectedNode?.id === node.id) return;
+
+    // Check if we have cached data for this node
+    const hasCachedData = cachedContentData[node.id] !== undefined;
+
+    setIsNodeSelected(true);
+
+    if (!hasCachedData) {
+      setIsContentLoading(true);
+    }
+
+    setSelectedNodePersistent(node);
+
+    // Expand path in sidebar
+    const path = findPathToNode(courseData, node.id);
+    if (path?.length) {
+      setExpandedNodes((prev) => {
+        const n = new Set(prev);
+        path.forEach((id) => n.add(id));
+        setLS("lms_expanded_nodes", JSON.stringify([...n]));
+        return n;
+      });
+    }
+
+    updateNavState({ currentFolderPath: [], currentFolderId: null });
+    setBreadcrumbs(generateBreadcrumbs(node));
+
+    // Use cached data if available
+    if (hasCachedData) {
+      // Use cached data immediately
+      setContentData((prev) => ({
+        ...prev,
+        [node.id]: cachedContentData[node.id]
+      }));
+      setIsContentLoading(false);
+    } else {
+      // Fetch fresh data
+      await fetchAndCacheNodeData(node);
+    }
+
+    // Update URL params
+    if (node.type === "topic" || node.type === "subtopic") {
+      updateURL({ nodeId: node.id, activeTab, activeSubcategory });
+    }
+  }, [courseData, selectedNode, activeTab, activeSubcategory, subcategories, findPathToNode, generateBreadcrumbs, cachedContentData]);
 
 
-const getParentNodeName = useCallback((node: CourseNode, targetType: string): string => {
+  const getParentNodeName = useCallback((node: CourseNode, targetType: string): string => {
     const findParent = (nodes: CourseNode[], id: string, parent: CourseNode | null = null): CourseNode | null => { for (const n of nodes) { if (n.id === id) return parent; const found = findParent(n.children || [], id, n); if (found) return found; } return null; };
     const parent = findParent(courseData, node.id);
     if (!parent) return ""; if (parent.type === targetType) return parent.name; return getParentNodeName(parent, targetType);
@@ -1395,57 +1557,872 @@ const getParentNodeName = useCallback((node: CourseNode, targetType: string): st
 
   const toggleNode = (nodeId: string) => { setExpandedNodes((prev) => { const n = new Set(prev); if (n.has(nodeId)) n.delete(nodeId); else n.add(nodeId); setLS("lms_expanded_nodes", JSON.stringify([...n])); return n; }); };
 
-  const navigateToFolder = (folderId: string, folderName: string) => {
-    const findFolder = (items: (FolderItem | UploadedFile)[], id: string): FolderItem | null => { for (const item of items) { if (isFolderItem(item)) { if (item.id === id) return item; const found = findFolder(item.subfolders || [], id); if (found) return found; } } return null; };
-    if (selectedNode && activeTab) { const tabData = contentData[selectedNode.id]?.[activeTab] || {}; const subcatData = tabData[activeSubcategory] || []; const found = findFolder(subcatData, folderId); if (found) { const fullPath = found.folderPath ? found.folderPath.split("/") : [found.name]; updateNavState({ currentFolderId: folderId, currentFolderPath: fullPath }); return; } }
-    const findInFolders = (fols: FolderItem[], id: string): FolderItem | null => { for (const f of fols) { if (f.id === id) return f; const found = findInFolders(f.subfolders || [], id); if (found) return found; } return null; };
-    const fromState = findInFolders(folders, folderId);
-    if (fromState) updateNavState({ currentFolderId: folderId, currentFolderPath: fromState.folderPath ? fromState.folderPath.split("/") : [fromState.name] });
-    else { showErrorToast(`Folder "${folderName}" not found`); updateNavState({ currentFolderPath: [], currentFolderId: null }); }
+  const expandAllNodes = useCallback(() => {
+    const ids = new Set<string>();
+    const walk = (nodes: CourseNode[]) => {
+      for (const node of nodes) {
+        if (node.type !== "course" && node.children?.length) ids.add(node.id);
+        if (node.children?.length) walk(node.children);
+      }
+    };
+    walk(courseData);
+    setExpandedNodes(ids);
+    setLS("lms_expanded_nodes", JSON.stringify([...ids]));
+  }, [courseData]);
+
+  const collapseAllNodes = useCallback(() => {
+    setExpandedNodes(new Set());
+    setLS("lms_expanded_nodes", JSON.stringify([]));
+  }, []);
+
+const navigateToFolder = useCallback((folderId: string, folderName: string) => {
+  const findFolder = (items: (FolderItem | UploadedFile)[], id: string): FolderItem | null => { 
+    for (const item of items) { 
+      if (isFolderItem(item)) { 
+        if (item.id === id) return item; 
+        const found = findFolder(item.subfolders || [], id); 
+        if (found) return found; 
+      } 
+    } 
+    return null; 
   };
+  
+  if (selectedNode && activeTab) { 
+    const tabData = contentData[selectedNode.id]?.[activeTab] || {}; 
+    const subcatData = tabData[activeSubcategory] || []; 
+    const found = findFolder(subcatData, folderId); 
+    if (found) { 
+      const fullPath = found.folderPath ? found.folderPath.split("/") : [found.name]; 
+      updateNavState({ currentFolderId: folderId, currentFolderPath: fullPath }); 
+      return; 
+    } 
+  }
+  
+  const findInFolders = (fols: FolderItem[], id: string): FolderItem | null => { 
+    for (const f of fols) { 
+      if (f.id === id) return f; 
+      const found = findInFolders(f.subfolders || [], id); 
+      if (found) return found; 
+    } 
+    return null; 
+  };
+  
+  const fromState = findInFolders(folders, folderId);
+  if (fromState) {
+    updateNavState({ currentFolderId: folderId, currentFolderPath: fromState.folderPath ? fromState.folderPath.split("/") : [fromState.name] });
+  } else { 
+    showErrorToast(`Folder "${folderName}" not found`); 
+    updateNavState({ currentFolderPath: [], currentFolderId: null }); 
+  }
+}, [selectedNode, activeTab, activeSubcategory, contentData, folders, updateNavState]);
 
   const createFolder = async () => {
     if (!newFolderName.trim() || !selectedNode) return;
     setIsButtonLoading(true);
     try {
       const navState = getCurrentNavState();
-      const response = await entityApi.createFolder(selectedNode.type as any, selectedNode.id, { tabType: toBackendTab(activeTab), subcategory: activeSubcategory, folderName: newFolderName.trim(), folderPath: navState.currentFolderPath.join("/"), courses: selectedNode.originalData?.courses || "", topicId: selectedNode.originalData?.topicId || "", index: selectedNode.originalData?.index || 0, title: selectedNode.originalData?.title || "", description: selectedNode.originalData?.description || "", duration: selectedNode.originalData?.duration || "", level: selectedNode.originalData?.level || "", action: "createFolder", tags: folderTags.map((t) => ({ tagName: t.tagName, tagColor: t.tagColor })) });
+      const nowIso = new Date().toISOString();
+      const response = await entityApi.createFolder(selectedNode.type as any, selectedNode.id, { tabType: toBackendTab(activeTab), subcategory: activeSubcategory, folderName: newFolderName.trim(), folderPath: navState.currentFolderPath.join("/"), courses: selectedNode.originalData?.courses || "", topicId: selectedNode.originalData?.topicId || "", index: selectedNode.originalData?.index || 0, title: selectedNode.originalData?.title || "", description: selectedNode.originalData?.description || "", duration: selectedNode.originalData?.duration || "", level: selectedNode.originalData?.level || "", action: "createFolder", tags: folderTags.map((t) => ({ tagName: t.tagName, tagColor: t.tagColor })), createdAt: nowIso, updatedAt: nowIso });
       await fetchAndRefresh(selectedNode);
       setNewFolderName(""); setShowCreateFolderModal(false); setFolderTags([]); setEditingFolder(null);
       showSuccessToast("Folder created!");
     } catch { showErrorToast("Failed to create folder"); } finally { setIsButtonLoading(false); }
   };
 
-const saveEditFolder = async () => {
-  if (!editingFolder || !editFolderName.trim() || !selectedNode) return;
-  try {
-    const navState = getCurrentNavState();
-    const response = await entityApi.updateFolder(
-      selectedNode.type as any, 
-      selectedNode.id, 
-      { 
-        tabType: toBackendTab(activeTab), 
-        subcategory: activeSubcategory, 
-        folderName: editFolderName.trim(), 
-        folderPath: navState.currentFolderPath.join("/"), 
-        originalFolderName: editingFolder.name, 
-        courses: selectedNode.originalData?.courses || "", 
-        topicId: selectedNode.originalData?.topicId || "", 
-        action: "updateFolder",
-        tags: folderTags.map((t) => ({ tagName: t.tagName, tagColor: t.tagColor })) // ← ADD THIS
-      }
+  const createFolderWithName = async (name: string, parentPath?: string[], options?: { createdAt?: string; parentGroupId?: string; groupName?: string; groupDescription?: string }) => {
+    if (!name.trim() || !selectedNode) return;
+    try {
+      // Use the passed parentPath (from FileUploadModal navigation) if provided,
+      // otherwise fall back to the current page nav state path
+      const resolvedPath = parentPath ?? getCurrentNavState().currentFolderPath;
+      const nowIso = options?.createdAt ?? new Date().toISOString();
+      await entityApi.createFolder(selectedNode.type as any, selectedNode.id, {
+        tabType: toBackendTab(activeTab), subcategory: activeSubcategory, folderName: name.trim(),
+        folderPath: resolvedPath.join("/"),
+        courses: selectedNode.originalData?.courses || "", topicId: selectedNode.originalData?.topicId || "",
+        index: selectedNode.originalData?.index || 0, title: selectedNode.originalData?.title || "",
+        description: selectedNode.originalData?.description || "", duration: selectedNode.originalData?.duration || "",
+        level: selectedNode.originalData?.level || "", action: "createFolder", tags: [], createdAt: nowIso, updatedAt: nowIso,
+        ...(options?.parentGroupId ? { parentGroupId: options.parentGroupId } : {}),
+        ...(options?.groupName ? { groupName: options.groupName } : {}),
+        ...(options?.groupDescription ? { groupDescription: options.groupDescription } : {}),
+      });
+      await fetchAndRefresh(selectedNode);
+      // No success toast here — callers (modal, folder builder) show their own consolidated toast.
+    } catch { showErrorToast("Failed to create folder"); }
+  };
+
+  // ── Folder Builder helpers ───────────────────────────────────────────────────
+
+  /** Generic immutable tree update at a given id-path */
+  const fbUpdateAtPath = (
+    nodes: VirtualFolderItem[],
+    idPath: string[],
+    updater: (node: VirtualFolderItem) => VirtualFolderItem,
+  ): VirtualFolderItem[] => {
+    if (!idPath.length) return nodes;
+    return nodes.map(n => {
+      if (n.id !== idPath[0]) return n;
+      if (idPath.length === 1) return updater(n);
+      return { ...n, children: fbUpdateAtPath(n.children, idPath.slice(1), updater) };
+    });
+  };
+
+  /** Remove a node at a given id-path */
+  const fbRemoveAtPath = (
+    nodes: VirtualFolderItem[],
+    idPath: string[],
+  ): VirtualFolderItem[] => {
+    if (idPath.length === 1) return nodes.filter(n => n.id !== idPath[0]);
+    return nodes.map(n =>
+      n.id === idPath[0] ? { ...n, children: fbRemoveAtPath(n.children, idPath.slice(1)) } : n
     );
-    await fetchAndRefresh(selectedNode);
-    setShowCreateFolderModal(false); 
-    setEditingFolder(null); 
-    setEditFolderName(""); 
-    setFolderTags([]);
-    showSuccessToast("Updated successfully");
-  } catch { 
-    showErrorToast("Failed to update folder"); 
-    await refreshContentData(selectedNode); 
+  };
+
+  const fbMakeVFF = (f: File): VirtualFolderFile => {
+    const base = f.name.includes('.') ? f.name.slice(0, f.name.lastIndexOf('.')) : f.name;
+    return { id: `vff-${Date.now()}-${Math.random()}`, file: f, displayName: base, isEditingName: false, editNameValue: base };
+  };
+
+  /** Current nav id-path (array of ids) */
+  const fbIdPath = fbNavPath.map(p => p.id);
+
+
+
+  // Add this function alongside your other handlers
+const handleNavigateToFolderLevel = useCallback(async (folderName: string, index: number) => {
+  if (!selectedNode || !activeTab) return;
+
+  const navState = getCurrentNavState();
+  const currentPath = navState.currentFolderPath || [];
+  const newPath = currentPath.slice(0, index + 1);
+
+  if (newPath.length === 0) {
+    updateNavState({ currentFolderId: null, currentFolderPath: [] });
+    return;
   }
-};
+
+  const tabData = contentData[selectedNode.id]?.[activeTab] || {};
+  const subcatData: (FolderItem | UploadedFile)[] = tabData[activeSubcategory] || [];
+
+  // Walk only root-level folders (no parentId) recursively into subfolders
+  const findFolderByPath = (
+    items: (FolderItem | UploadedFile)[],
+    segments: string[],
+  ): FolderItem | null => {
+    if (segments.length === 0) return null;
+    const target = segments[0];
+    const match = items.find(
+      (item): item is FolderItem => isFolderItem(item) && item.name === target,
+    );
+    if (!match) return null;
+    if (segments.length === 1) return match;
+    return findFolderByPath(match.subfolders || [], segments.slice(1));
+  };
+
+  // Start search from root folders only (parentId null/undefined)
+  const rootFolders = subcatData.filter(
+    (i): i is FolderItem => isFolderItem(i) && !i.parentId,
+  );
+  const targetFolder = findFolderByPath(rootFolders, newPath);
+
+  if (targetFolder) {
+    updateNavState({ currentFolderId: targetFolder.id, currentFolderPath: newPath });
+    return;
+  }
+
+  // Fallback: refresh data and retry with root folders
+  await fetchAndRefresh(selectedNode);
+  const refreshedData: (FolderItem | UploadedFile)[] =
+    (contentData[selectedNode.id]?.[activeTab]?.[activeSubcategory]) || [];
+  const refreshedRoots = refreshedData.filter(
+    (i): i is FolderItem => isFolderItem(i) && !i.parentId,
+  );
+  const refreshedFolder = findFolderByPath(refreshedRoots, newPath);
+
+  if (refreshedFolder) {
+    updateNavState({ currentFolderId: refreshedFolder.id, currentFolderPath: newPath });
+  } else {
+    showErrorToast(`Folder "${newPath[newPath.length - 1]}" not found`);
+    updateNavState({ currentFolderId: null, currentFolderPath: [] });
+  }
+}, [selectedNode, activeTab, activeSubcategory, contentData, getCurrentNavState, updateNavState, fetchAndRefresh]);
+  /** Add folder at current nav level.
+   *
+   *  Routing rules (Phase 1):
+   *    • At FolderBuilder root + no group anchor → virtualFolders (the
+   *      original top-level virtual tree).
+   *    • Anywhere where the last nav entry is existing OR group → write to
+   *      fbVirtualByPath keyed by the current path. This lets the user add
+   *      new folders inside an existing folder / group root.
+   *    • Inside a virtual folder added this session at root → traverse the
+   *      virtualFolders tree by id (original behavior).
+   */
+  const addVirtualFolder = () => {
+    const name = folderBuilderNewName.trim();
+    if (!name) return;
+    const newFolder: VirtualFolderItem = {
+      id: `vf-${Date.now()}-${Math.random()}`,
+      name, isEditingName: false, editNameValue: name,
+      files: [], children: [], isDragOver: false, isExpanded: true,
+    };
+
+    if (fbNavPath.length === 0) {
+      // Pure root — original behavior.
+      setVirtualFolders(prev => [...prev, newFolder]);
+    } else if (fbAtPathKeyedLevel()) {
+      // At an existing folder or group anchor — route to fbVirtualByPath.
+      const key = fbCurrentPathKey();
+      setFbVirtualByPath(prev => ({
+        ...prev,
+        [key]: {
+          folders: [...(prev[key]?.folders ?? []), newFolder],
+          files: prev[key]?.files ?? [],
+        },
+      }));
+    } else {
+      // Inside a virtual folder added at root — traverse the virtualFolders
+      // tree by id, same as before.
+      setVirtualFolders(prev => fbUpdateAtPath(prev, fbIdPath, node => ({
+        ...node, children: [...node.children, newFolder],
+      })));
+    }
+
+    setFolderBuilderNewName("");
+  };
+
+  /** Remove a virtual folder at the current nav level by its id. */
+  const removeVirtualFolder = (folderId: string) => {
+    fbApplyAtCurrent((folders, files) => ({
+      folders: folders.filter(f => f.id !== folderId),
+      files,
+    }));
+  };
+
+  /** Navigate into a folder (double-click) */
+  const fbNavigateInto = (folder: VirtualFolderItem) =>
+    setFbNavPath(prev => [...prev, { id: folder.id, name: folder.name }]);
+
+  /** Navigate to breadcrumb index (0 = root, 1 = first child, …) */
+  const fbNavigateTo = (index: number) =>
+    setFbNavPath(prev => prev.slice(0, index));
+
+  /** Push an existing folder onto the FolderBuilder nav path. */
+  const fbNavigateIntoExisting = (folderName: string, fullPath: string[]) =>
+    setFbNavPath(prev => [
+      ...prev,
+      {
+        id: `ex-${fullPath.join("/")}-${Date.now()}`,
+        name: folderName,
+        kind: "existing",
+        existingPath: fullPath,
+      },
+    ]);
+
+  /** Push a group anchor onto the FolderBuilder nav path. The user lands
+   *  "inside the group" — meaning anything they add at this level gets
+   *  parentGroupId set on the server. */
+  const fbNavigateIntoGroup = (groupId: string, groupName: string) =>
+    setFbNavPath(prev => [
+      ...prev,
+      { id: `grp-${groupId}`, name: groupName, kind: "group", groupId },
+    ]);
+
+  /** True when the current location's virtual additions should be stored
+   *  in fbVirtualByPath (rather than the virtualFolders tree at root).
+   *  This is the case whenever the nav path contains ANY existing folder
+   *  or group anchor — even if the deepest segment is a virtual folder
+   *  the user descended into from that existing context. */
+  const fbAtPathKeyedLevel = (): boolean =>
+    fbNavPath.some(e => e.kind === "existing" || e.kind === "group");
+
+  /** Build the key into `fbVirtualByPath` for the user's current location.
+   *  Virtual segments contribute their name too, so e.g. "muthu#sem I/Notes"
+   *  is the key for "inside a virtual folder Notes added inside existing
+   *  folder sem I under the muthu group". */
+  const fbCurrentPathKey = (): string => {
+    if (fbNavPath.length === 0) return "";
+    let groupPrefix = "";
+    const segments: string[] = [];
+    for (const entry of fbNavPath) {
+      if (entry.kind === "group" && entry.groupId) {
+        groupPrefix = entry.name;
+      } else {
+        // existing OR virtual — both contribute a segment to the key
+        segments.push(entry.name);
+      }
+    }
+    return groupPrefix ? `${groupPrefix}#${segments.join("/")}` : segments.join("/");
+  };
+
+  /** Read existing folders/files/pages from the live pedagogy state at a
+   *  folder path within the active tab + subcategory. Used to merge "what's
+   *  already on the server" into the FolderBuilder's view. Pages live in
+   *  their own array on each folder document — surfacing them keeps the
+   *  FolderBuilder's view consistent with the main resource list. */
+  const fbReadPedagogyAt = useCallback((path: string[], groupId?: string)
+    : { folders: any[]; files: any[]; pages: any[] } => {
+    if (!selectedNode || !activeTab) return { folders: [], files: [], pages: [] };
+    const ped = selectedNode.originalData?.pedagogy?.[activeTab];
+    if (!ped) return { folders: [], files: [], pages: [] };
+    const subKey = Object.keys(ped).find(k => k.toLowerCase().replace(/\s+/g, "_") === activeSubcategory);
+    if (!subKey) return { folders: [], files: [], pages: [] };
+    const element = ped[subKey];
+    if (!element) return { folders: [], files: [], pages: [] };
+
+    // Start with activity-root content
+    let curFolders: any[] = Array.isArray(element.folders) ? element.folders : [];
+    let curFiles: any[]   = Array.isArray(element.files)   ? element.files   : [];
+    let curPages: any[]   = Array.isArray(element.pages)   ? element.pages   : [];
+
+    // If a groupId is in scope, restrict the activity-root view to that group
+    // (the user is "inside the muthu group" → only show items tagged with
+    // parentGroupId === groupId).
+    if (groupId && path.length === 0) {
+      curFolders = curFolders.filter((f: any) => (f.parentGroupId || null) === groupId);
+      curFiles   = curFiles.filter((f: any) => (f.groupId || null) === groupId);
+      curPages   = curPages.filter((p: any) => (p.groupId || null) === groupId);
+    }
+
+    // Walk into the folder path. Each segment matches a folder by name.
+    for (const seg of path) {
+      const folder = curFolders.find((f: any) => f.name === seg);
+      if (!folder) return { folders: [], files: [], pages: [] };
+      curFolders = Array.isArray(folder.subfolders) ? folder.subfolders : [];
+      curFiles   = Array.isArray(folder.files)      ? folder.files      : [];
+      curPages   = Array.isArray(folder.pages)      ? folder.pages      : [];
+    }
+
+    return { folders: curFolders, files: curFiles, pages: curPages };
+  }, [selectedNode, activeTab, activeSubcategory]);
+
+  /** Group(s) visible at the current activity-root view. Each group is
+   *  shown as a virtual "group folder" in the FolderBuilder so the user
+   *  can click into it just like a real folder. Derived from existing
+   *  folders that carry `parentGroupId`. */
+  const fbReadGroupsAtRoot = useCallback((): Array<{ groupId: string; groupName: string }> => {
+    const { folders, files } = fbReadPedagogyAt([]);
+    const map = new Map<string, string>();
+    folders.forEach((f: any) => {
+      if (f.parentGroupId) {
+        map.set(String(f.parentGroupId), String(f.groupName || "Untitled group"));
+      }
+    });
+    files.forEach((f: any) => {
+      if (f.groupId) {
+        map.set(String(f.groupId), String(f.groupName || "Untitled group"));
+      }
+    });
+    return Array.from(map.entries()).map(([groupId, groupName]) => ({ groupId, groupName }));
+  }, [fbReadPedagogyAt]);
+
+  /** Get virtual {folders, files} added this session at the current nav
+   *  level. Source switches based on where the user is standing:
+   *    • Root (fbNavPath = [])                → virtualFolders / fbRootFiles
+   *    • At an existing or group anchor       → fbVirtualByPath[key]
+   *    • Inside a virtual folder added at root → traverse virtualFolders tree
+   */
+  const fbGetCurrentLevel = (): { folders: VirtualFolderItem[]; files: VirtualFolderFile[] } => {
+    if (fbNavPath.length === 0) {
+      return { folders: virtualFolders, files: fbRootFiles };
+    }
+    if (fbAtPathKeyedLevel()) {
+      const key = fbCurrentPathKey();
+      const additions = fbVirtualByPath[key];
+      return {
+        folders: additions?.folders ?? [],
+        files: additions?.files ?? [],
+      };
+    }
+    // Inside a virtual folder added at root — traverse virtualFolders tree.
+    let nodes = virtualFolders;
+    let found: VirtualFolderItem | undefined;
+    for (const id of fbIdPath) {
+      found = nodes.find(n => n.id === id);
+      if (!found) return { folders: [], files: [] };
+      nodes = found.children;
+    }
+    return { folders: found!.children, files: found!.files };
+  };
+
+  /** Return existing (server-side) content visible at the FolderBuilder's
+   *  current navigation level. This is in addition to the virtual content
+   *  returned by fbGetCurrentLevel. The render layer shows both side by side.
+   *
+   *  Rules:
+   *    • At FolderBuilder root and no group context → show top-level folders
+   *      that don't belong to any group, top-level files that don't belong
+   *      to any group, AND every distinct group as a synthetic group-folder
+   *      row. (Group folders are how the user enters a group's contents.)
+   *    • At root + opened from a group's "+ Add resource" button (group anchor
+   *      pre-pushed onto fbNavPath) → show folders/files tagged with that group.
+   *    • Inside an existing folder → show that folder's subfolders + files. */
+  const fbGetExistingAtCurrentLevel = (): {
+    folders: any[];
+    files: any[];
+    pages: any[];
+    groups: Array<{ groupId: string; groupName: string }>;
+  } => {
+    if (fbNavPath.length === 0) {
+      const { folders, files, pages } = fbReadPedagogyAt([]);
+      // Hide grouped items at the bare-root view; surface groups as their own rows.
+      const ungroupedFolders = folders.filter((f: any) => !f.parentGroupId);
+      const ungroupedFiles   = files.filter((f: any) => !f.groupId);
+      const ungroupedPages   = pages.filter((p: any) => !p.groupId);
+      const groups = fbReadGroupsAtRoot();
+      return { folders: ungroupedFolders, files: ungroupedFiles, pages: ungroupedPages, groups };
+    }
+    const last = fbNavPath[fbNavPath.length - 1];
+
+    // Inside a group anchor — list every activity-root folder/file/page
+    // tagged with that group as if they were children of the group.
+    if (last.kind === "group" && last.groupId) {
+      const { folders, files, pages } = fbReadPedagogyAt([], last.groupId);
+      return { folders, files, pages, groups: [] };
+    }
+
+    // Inside an existing folder — show its real subfolders + files + pages.
+    if (last.kind === "existing" && last.existingPath) {
+      const { folders, files, pages } = fbReadPedagogyAt(last.existingPath);
+      return { folders, files, pages, groups: [] };
+    }
+
+    // Inside a virtual folder added this session — nothing exists on the
+    // server here yet.
+    return { folders: [], files: [], pages: [], groups: [] };
+  };
+
+  /** Add files at current nav level. Same routing rules as addVirtualFolder. */
+  const fbAddFilesHere = (files: File[]) => {
+    const toAdd = files.map(fbMakeVFF);
+
+    if (fbNavPath.length === 0) {
+      // Pure root — original behavior.
+      setFbRootFiles(prev => {
+        const existing = new Set(prev.map(f => f.file.name + f.file.size));
+        return [...prev, ...toAdd.filter(f => !existing.has(f.file.name + f.file.size))];
+      });
+    } else if (fbAtPathKeyedLevel()) {
+      // At an existing folder or group anchor — write to fbVirtualByPath.
+      const key = fbCurrentPathKey();
+      setFbVirtualByPath(prev => {
+        const existing = new Set((prev[key]?.files ?? []).map(f => f.file.name + f.file.size));
+        return {
+          ...prev,
+          [key]: {
+            folders: prev[key]?.folders ?? [],
+            files: [...(prev[key]?.files ?? []), ...toAdd.filter(f => !existing.has(f.file.name + f.file.size))],
+          },
+        };
+      });
+    } else {
+      // Inside a virtual folder added at root — traverse virtualFolders tree.
+      setVirtualFolders(prev => fbUpdateAtPath(prev, fbIdPath, node => {
+        const existing = new Set(node.files.map(f => f.file.name + f.file.size));
+        return { ...node, files: [...node.files, ...toAdd.filter(f => !existing.has(f.file.name + f.file.size))] };
+      }));
+    }
+  };
+
+  /** Apply a mutation to {folders, files} at the user's current FolderBuilder
+   *  location. Centralises the routing so every helper below just describes
+   *  WHAT to change — not WHERE the change should be written.
+   *
+   *  Branches:
+   *    • Root (fbNavPath = [])          → virtualFolders / fbRootFiles
+   *    • Existing or group anchor level → fbVirtualByPath[key]
+   *    • Inside a virtual folder at root → virtualFolders tree (via id path)
+   */
+  const fbApplyAtCurrent = (
+    updater: (folders: VirtualFolderItem[], files: VirtualFolderFile[]) =>
+      { folders: VirtualFolderItem[]; files: VirtualFolderFile[] }
+  ) => {
+    if (fbNavPath.length === 0) {
+      // Update virtualFolders + fbRootFiles in parallel.
+      const next = updater(virtualFolders, fbRootFiles);
+      setVirtualFolders(next.folders);
+      setFbRootFiles(next.files);
+      return;
+    }
+    if (fbAtPathKeyedLevel()) {
+      const key = fbCurrentPathKey();
+      setFbVirtualByPath(prev => {
+        const cur = prev[key] ?? { folders: [], files: [] };
+        return { ...prev, [key]: updater(cur.folders, cur.files) };
+      });
+      return;
+    }
+    setVirtualFolders(prev => fbUpdateAtPath(prev, fbIdPath, node => {
+      const next = updater(node.children, node.files);
+      return { ...node, children: next.folders, files: next.files };
+    }));
+  };
+
+  /** Remove a file at current nav level */
+  const fbRemoveFile = (fileId: string) => {
+    fbApplyAtCurrent((folders, files) => ({
+      folders,
+      files: files.filter(f => f.id !== fileId),
+    }));
+  };
+
+  /** Rename a file at current nav level */
+  const fbStartRenameFile = (fileId: string) => {
+    fbApplyAtCurrent((folders, files) => ({
+      folders,
+      files: files.map(f => f.id === fileId
+        ? { ...f, isEditingName: true, editNameValue: f.displayName }
+        : f),
+    }));
+  };
+  const fbUpdateFileName = (fileId: string, val: string) => {
+    fbApplyAtCurrent((folders, files) => ({
+      folders,
+      files: files.map(f => f.id === fileId ? { ...f, editNameValue: val } : f),
+    }));
+  };
+  const fbCommitFileName = (fileId: string) => {
+    fbApplyAtCurrent((folders, files) => ({
+      folders,
+      files: files.map(f => f.id === fileId
+        ? { ...f, isEditingName: false, displayName: f.editNameValue.trim() || f.displayName }
+        : f),
+    }));
+  };
+  const fbCancelFileName = (fileId: string) => {
+    fbApplyAtCurrent((folders, files) => ({
+      folders,
+      files: files.map(f => f.id === fileId ? { ...f, isEditingName: false } : f),
+    }));
+  };
+
+  /** Rename a folder at current nav level */
+  const fbStartRenameFolder = (folderId: string) => {
+    fbApplyAtCurrent((folders, files) => ({
+      folders: folders.map(f => f.id === folderId
+        ? { ...f, isEditingName: true, editNameValue: f.name }
+        : f),
+      files,
+    }));
+  };
+  const fbUpdateFolderName = (folderId: string, val: string) => {
+    fbApplyAtCurrent((folders, files) => ({
+      folders: folders.map(f => f.id === folderId ? { ...f, editNameValue: val } : f),
+      files,
+    }));
+    // Also keep nav name in sync if this folder is currently navigated-into
+    setFbNavPath(prev => prev.map(p => p.id === folderId ? { ...p, name: val } : p));
+  };
+  const fbCommitFolderName = (folderId: string) => {
+    fbApplyAtCurrent((folders, files) => ({
+      folders: folders.map(f => f.id === folderId
+        ? { ...f, isEditingName: false, name: f.editNameValue.trim() || f.name }
+        : f),
+      files,
+    }));
+    setFbNavPath(prev => prev.map(p => {
+      if (p.id !== folderId) return p;
+      const trimmed = (p.name || "").trim();
+      return trimmed ? { ...p, name: trimmed } : p;
+    }));
+  };
+  const fbCancelFolderName = (folderId: string) =>
+    fbApplyAtCurrent((folders, files) => ({
+      folders: folders.map(f => f.id === folderId ? { ...f, isEditingName: false } : f),
+      files,
+    }));
+
+  /** Count all folders + file-upload entries (for progress tracking) */
+  const fbFlattenTree = (
+    nodes: VirtualFolderItem[],
+    basePath: string[],
+    result: Array<{ serverPath: string[]; files: VirtualFolderFile[] }> = [],
+  ) => {
+    for (const n of nodes) {
+      const p = [...basePath, n.name.trim()];
+      result.push({ serverPath: p, files: n.files });
+      fbFlattenTree(n.children, p, result);
+    }
+    return result;
+  };
+
+  /** Count total items for unsaved-changes check. Considers both the
+   *  root virtual tree AND virtual additions stored at non-root paths. */
+  const fbHasWork = (): boolean => {
+    if (virtualFolders.length > 0 || fbRootFiles.length > 0) return true;
+    for (const k in fbVirtualByPath) {
+      const v = fbVirtualByPath[k];
+      if (v && (v.folders.length > 0 || v.files.length > 0)) return true;
+    }
+    return false;
+  };
+
+  /** Count total deep folders + files across both stores. */
+  const fbCountAll = () => {
+    const countFiles = (nodes: VirtualFolderItem[]): number =>
+      nodes.reduce((s, n) => s + n.files.length + countFiles(n.children), 0);
+    const countFolders = (nodes: VirtualFolderItem[]): number =>
+      nodes.reduce((s, n) => s + 1 + countFolders(n.children), 0);
+
+    let folderTotal = countFolders(virtualFolders);
+    let fileTotal   = countFiles(virtualFolders) + fbRootFiles.length;
+    for (const k in fbVirtualByPath) {
+      const v = fbVirtualByPath[k];
+      if (!v) continue;
+      folderTotal += countFolders(v.folders);
+      fileTotal   += countFiles(v.folders) + v.files.length;
+    }
+    return { folders: folderTotal, files: fileTotal };
+  };
+
+  // Legacy aliases used by existing code that hasn't changed
+  const toggleVFExpanded = (id: string) =>
+    setVirtualFolders(prev => prev.map(vf => vf.id === id ? { ...vf, isExpanded: !vf.isExpanded } : vf));
+  const startEditVFName = (id: string) =>
+    setVirtualFolders(prev => prev.map(vf => vf.id === id ? { ...vf, isEditingName: true, editNameValue: vf.name } : vf));
+  const updateVFName = (id: string, val: string) =>
+    setVirtualFolders(prev => prev.map(vf => vf.id === id ? { ...vf, editNameValue: val } : vf));
+  const commitVFName = (id: string) =>
+    setVirtualFolders(prev => prev.map(vf =>
+      vf.id === id ? { ...vf, isEditingName: false, name: vf.editNameValue.trim() || vf.name } : vf));
+  const cancelVFNameEdit = (id: string) =>
+    setVirtualFolders(prev => prev.map(vf => vf.id === id ? { ...vf, isEditingName: false } : vf));
+  const setVFDragOver = (id: string, over: boolean) =>
+    setVirtualFolders(prev => prev.map(vf => vf.id === id ? { ...vf, isDragOver: over } : vf));
+  const addFilesToVF = (folderId: string, files: File[]) =>
+    setVirtualFolders(prev => prev.map(vf => {
+      if (vf.id !== folderId) return vf;
+      const existing = new Set(vf.files.map(f => f.file.name + f.file.size));
+      const added = files.filter(f => !existing.has(f.name + f.size)).map(fbMakeVFF);
+      return { ...vf, files: [...vf.files, ...added] };
+    }));
+  const removeFileFromVF = (folderId: string, fileId: string) =>
+    setVirtualFolders(prev => prev.map(vf =>
+      vf.id === folderId ? { ...vf, files: vf.files.filter(f => f.id !== fileId) } : vf));
+  const startEditVFFile = (folderId: string, fileId: string) =>
+    setVirtualFolders(prev => prev.map(vf => vf.id === folderId
+      ? { ...vf, files: vf.files.map(f => f.id === fileId ? { ...f, isEditingName: true, editNameValue: f.displayName } : f) } : vf));
+  const updateVFFileName = (folderId: string, fileId: string, val: string) =>
+    setVirtualFolders(prev => prev.map(vf => vf.id === folderId
+      ? { ...vf, files: vf.files.map(f => f.id === fileId ? { ...f, editNameValue: val } : f) } : vf));
+  const commitVFFileName = (folderId: string, fileId: string) =>
+    setVirtualFolders(prev => prev.map(vf => vf.id === folderId
+      ? { ...vf, files: vf.files.map(f => f.id === fileId ? { ...f, isEditingName: false, displayName: f.editNameValue.trim() || f.displayName } : f) } : vf));
+  const cancelVFFileEdit = (folderId: string, fileId: string) =>
+    setVirtualFolders(prev => prev.map(vf => vf.id === folderId
+      ? { ...vf, files: vf.files.map(f => f.id === fileId ? { ...f, isEditingName: false } : f) } : vf));
+
+  const closeFolderBuilder = (goBack = true) => {
+    setShowFolderBuilderModal(false);
+    if (goBack) setShowNotionModal(true);
+    setVirtualFolders([]);
+    setFbRootFiles([]);
+    setFbNavPath([]);
+    setFbVirtualByPath({}); // Phase 1: also reset per-path virtual additions
+    setFolderBuilderNewName("");
+    setFolderBuilderProgress({});
+    setShowFolderUnsavedWarning(false);
+  };
+
+  const uploadVirtualFolders = async () => {
+    if (!selectedNode || !fbHasWork()) return;
+    const navState = getCurrentNavState();
+    setFolderBuilderUploading(true);
+
+    // Helper: upload a batch of files to a server path
+    const uploadFileBatch = async (files: VirtualFolderFile[], serverPath: string[], progressKey: string) => {
+      if (!files.length) return;
+      const fd = new FormData();
+      if (selectedNode.originalData) {
+        fd.append("courses", selectedNode.originalData.courses || "");
+        fd.append("topicId", selectedNode.originalData.topicId || "");
+        fd.append("index", String(selectedNode.originalData.index || 0));
+        fd.append("title", selectedNode.originalData.title || "");
+      }
+      fd.append("tabType", toBackendTab(activeTab));
+      fd.append("subcategory", activeSubcategory);
+      fd.append("isUpdate", "false");
+      fd.append("showToStudents", "true");
+      fd.append("allowDownload", "true");
+      const fp = serverPath.join("/");
+      if (fp) fd.append("folderPath", fp);
+      // Tag uploads with the group context when the FolderBuilder was
+      // opened via "+ Add resource to this group". Root-level files end
+      // up rendered inside the group row via Coursecontent's grouping
+      // logic; folder-nested files inherit their parent folder's group
+      // anyway so the extra tag is a no-op there.
+      if (uploadGroupId) fd.append("groupId", uploadGroupId);
+      if (uploadGroupName) fd.append("groupName", uploadGroupName);
+      files.forEach(({ file, displayName }) => {
+        const ext = file.name.includes('.') ? '.' + file.name.split('.').pop() : '';
+        const base = displayName.trim() || (file.name.includes('.') ? file.name.slice(0, file.name.lastIndexOf('.')) : file.name);
+        const finalName = base + ext;
+        const renamed = finalName !== file.name ? new window.File([file], finalName, { type: file.type }) : file;
+        fd.append("files", renamed);
+      });
+      await entityApi.updateEntity(
+        selectedNode.type as any, selectedNode.id, fd,
+        (evt: any) => {
+          if (evt?.total) {
+            const pct = Math.min(Math.round((evt.loaded / evt.total) * 100), 98);
+            setFolderBuilderProgress(prev => ({ ...prev, [progressKey]: pct }));
+          }
+        },
+      );
+      setFolderBuilderProgress(prev => ({ ...prev, [progressKey]: 100 }));
+    };
+
+    try {
+      // 1️⃣  Upload root-level files (no folder needed)
+      if (fbRootFiles.length > 0) {
+        await uploadFileBatch(fbRootFiles, navState.currentFolderPath, "__root__");
+      }
+
+      // 2️⃣  Flatten tree → create each folder then upload its files
+      const flat = fbFlattenTree(virtualFolders, navState.currentFolderPath);
+      const initProgress: Record<string, number> = { __root__: 0 };
+      flat.forEach((_, i) => { initProgress[`flat-${i}`] = 0; });
+      setFolderBuilderProgress(initProgress);
+
+      for (let i = 0; i < flat.length; i++) {
+        const { serverPath, files } = flat[i];
+        const folderName = serverPath[serverPath.length - 1];
+        const parentPath = serverPath.slice(0, -1);
+        try {
+          // Pass through the group context so the new folder is tagged
+          // with parentGroupId on the server when the FolderBuilder was
+          // opened via a group's "+ Add resource" action. Top-level group
+          // folders only — nested folders inside an existing folder don't
+          // need parentGroupId (they inherit context from their parent).
+          const isTopLevel = parentPath.length === 0;
+          await createFolderWithName(
+            folderName,
+            parentPath,
+            (isTopLevel && uploadGroupId)
+              ? { parentGroupId: uploadGroupId, groupName: uploadGroupName }
+              : undefined,
+          );
+          if (files.length > 0) {
+            await uploadFileBatch(files, serverPath, `flat-${i}`);
+          } else {
+            setFolderBuilderProgress(prev => ({ ...prev, [`flat-${i}`]: 100 }));
+          }
+        } catch {
+          showErrorToast(`Failed to create/upload "${folderName}"`);
+        }
+      }
+
+      // 3️⃣  Upload virtual additions stored at non-root paths.
+      //
+      //     fbVirtualByPath holds the work the user did while standing
+      //     inside an existing folder, a group anchor, or any descendant
+      //     of those. The key encodes the path:
+      //         "<groupName>#<seg1>/<seg2>/..."   (group-scoped)
+      //         "<seg1>/<seg2>/..."                (no group)
+      //         "<groupName>#"                     (group root, no segments)
+      //
+      //     We resolve the groupName back to a groupId by scanning the
+      //     activity-root pedagogy state, then upload each addition at
+      //     its correct server folderPath.
+      const groupIdByName = new Map<string, string>();
+      fbReadGroupsAtRoot().forEach(g => groupIdByName.set(g.groupName, g.groupId));
+
+      const byPathEntries = Object.entries(fbVirtualByPath).filter(([, v]) =>
+        v && (v.folders.length > 0 || v.files.length > 0)
+      );
+      for (const [pathKey, additions] of byPathEntries) {
+        const hashIdx = pathKey.indexOf("#");
+        const groupPrefix = hashIdx >= 0 ? pathKey.slice(0, hashIdx) : "";
+        const segmentsStr = hashIdx >= 0 ? pathKey.slice(hashIdx + 1) : pathKey;
+        const basePath = segmentsStr ? segmentsStr.split("/").filter(Boolean) : [];
+        const groupId = groupPrefix ? groupIdByName.get(groupPrefix) : undefined;
+        // Combine the activity's current nav prefix (if any) with this key's
+        // basePath. In practice the picker resets currentFolderPath to [] when
+        // a group is in scope, but we honour it here for robustness.
+        const serverBase = [...navState.currentFolderPath, ...basePath];
+
+        // (a) loose files at this path
+        if (additions.files.length > 0) {
+          const progKey = `byPath-${pathKey}-files`;
+          setFolderBuilderProgress(prev => ({ ...prev, [progKey]: 0 }));
+          // Pass groupId via formData on the file uploads when relevant.
+          // The existing uploadFileBatch closure reads uploadGroupId from
+          // closure scope — but here we want THIS key's group, not whatever
+          // uploadGroupId currently is. For now, only tag with groupId when
+          // basePath is empty (files dropped at group root).
+          await uploadFileBatch(additions.files, serverBase, progKey);
+        }
+
+        // (b) folder tree at this path
+        const flatByPath = fbFlattenTree(additions.folders, serverBase);
+        for (let i = 0; i < flatByPath.length; i++) {
+          const { serverPath, files: ffiles } = flatByPath[i];
+          const folderName = serverPath[serverPath.length - 1];
+          const parentPath = serverPath.slice(0, -1);
+          try {
+            // Tag with parentGroupId only when this folder is being created
+            // at the group's root level (parent path equals serverBase and
+            // serverBase reaches the group root itself, i.e. basePath = []).
+            const isGroupRoot = groupId && basePath.length === 0 && parentPath.length === navState.currentFolderPath.length;
+            await createFolderWithName(
+              folderName,
+              parentPath,
+              isGroupRoot
+                ? { parentGroupId: groupId, groupName: groupPrefix }
+                : undefined,
+            );
+            const progKey = `byPath-${pathKey}-flat-${i}`;
+            if (ffiles.length > 0) {
+              setFolderBuilderProgress(prev => ({ ...prev, [progKey]: 0 }));
+              await uploadFileBatch(ffiles, serverPath, progKey);
+            } else {
+              setFolderBuilderProgress(prev => ({ ...prev, [progKey]: 100 }));
+            }
+          } catch {
+            showErrorToast(`Failed to create/upload "${folderName}"`);
+          }
+        }
+      }
+
+      await fetchAndRefresh(selectedNode);
+      const { folders, files } = fbCountAll();
+      closeFolderBuilder(false);
+      showSuccessToast(`${folders} folder${folders !== 1 ? 's' : ''} · ${files} file${files !== 1 ? 's' : ''} created!`);
+    } finally {
+      setFolderBuilderUploading(false);
+    }
+  };
+
+  const saveEditFolder = async () => {
+    if (!editingFolder || !editFolderName.trim() || !selectedNode) return;
+    try {
+      const navState = getCurrentNavState();
+      const response = await entityApi.updateFolder(
+        selectedNode.type as any,
+        selectedNode.id,
+        {
+          tabType: toBackendTab(activeTab),
+          subcategory: activeSubcategory,
+          folderName: editFolderName.trim(),
+          folderPath: navState.currentFolderPath.join("/"),
+          originalFolderName: editingFolder.name,
+          courses: selectedNode.originalData?.courses || "",
+          topicId: selectedNode.originalData?.topicId || "",
+          action: "updateFolder",
+          tags: folderTags.map((t) => ({ tagName: t.tagName, tagColor: t.tagColor })) // ← ADD THIS
+        }
+      );
+      await fetchAndRefresh(selectedNode);
+      setShowCreateFolderModal(false);
+      setEditingFolder(null);
+      setEditFolderName("");
+      setFolderTags([]);
+      showSuccessToast("Updated successfully");
+    } catch {
+      showErrorToast("Failed to update folder");
+      await refreshContentData(selectedNode);
+    }
+  };
 
   // deleteFolder — replace both refresh calls
   const deleteFolder = async (folder: FolderItem) => {
@@ -1501,191 +2478,495 @@ const saveEditFolder = async () => {
   // handleDeletePage — replace refresh call
 
 
-const resetUploadModalStates = () => { 
-  setShowUploadModal(false); 
-  setSelectedFileType(""); 
-  setUploadingFiles([]); 
-  setUpdateFileId(null); 
-  setFileNames({}); 
-  setSelectedFiles([]); 
-  setUploadDescription(""); 
-  setUploadTags([]); 
-  setUploadCurrentTag(""); 
-  setUploadTagColor("#3B82F6"); 
-  setUploadAccessLevel("private"); 
-  setFolderUrl(""); 
-  setUrlFileName(""); 
-  setUrlFileType("url/link"); 
-  setIsButtonLoading(false); 
-  setText(""); 
-  // Clear file display names for update mode
-  setFileDisplayNames({});
-};
-const handleFileSelection = (files: FileList | null) => {
-  if (!files?.length) return;
-  
-  // For update mode - REPLACE the existing selection with the new file
-  if (updateFileId) {
-    const existingFileName = fileDisplayNames[updateFileId] || "";
-    
-    // IMPORTANT: Clear all existing selections and uploading files first
-    setSelectedFiles([]);
+  const resetUploadModalStates = () => {
+    setShowUploadModal(false);
+    setSelectedFileType("");
     setUploadingFiles([]);
-    
-    const newDisplay: Record<string, string> = {};
-    const newSelectedFiles = Array.from(files);
-    
-    // Set the display name for the new file
-    newSelectedFiles.forEach((f) => {
-      newDisplay[f.name] = existingFileName || (selectedFileType === "reference" ? "Reference Material" : f.name);
-    });
-    
-    setFileDisplayNames({ ...newDisplay });
-    setSelectedFiles(newSelectedFiles);
-    
-    // Create the new uploading file
-    const newUploadingFiles: UploadedFile[] = newSelectedFiles.map((f, i) => ({ 
-      id: `${Date.now()}-${i}-${Math.random()}`, // Always use a unique ID for the new file
-      name: newDisplay[f.name] || f.name, 
-      progress: 0, 
-      status: "preparing" as const, 
-      subcategory: activeSubcategory, 
-      folderId: getCurrentNavState().currentFolderId, 
-      type: f.type || "unknown", 
-      size: f.size, 
-      url: "", 
-      uploadedAt: new Date(), 
-      tags: [], 
-      folderPath: getCurrentNavState().currentFolderPath.join("/"), 
-      isReference: selectedFileType === "reference", 
-      isVideo: f.type.startsWith("video/") 
-    }));
-    
-    setUploadingFiles(newUploadingFiles);
-    
-    // Simulate upload progress for the new file
-    newUploadingFiles.forEach((u) => { 
-      let p = 0; 
-      const interval = setInterval(() => { 
-        p += 10; 
-        if (p < 100) {
-          setUploadingFiles((prev) => prev.map((f) => f.id === u.id ? { ...f, progress: p, status: "uploading" } : f));
-        } else { 
-          clearInterval(interval); 
-          setUploadingFiles((prev) => prev.map((f) => f.id === u.id ? { ...f, progress: 100, status: "ready" } : f)); 
-        } 
-      }, 100); 
-    });
-    
-  } else {
-    // For new files (multiple files allowed)
-    const newDisplay: Record<string, string> = {};
-    const newSelectedFiles = Array.from(files);
-    
-    newSelectedFiles.forEach((f) => {
-      newDisplay[f.name] = selectedFileType === "reference" ? "Reference Material" : f.name;
-    });
-    
-    setFileDisplayNames((prev) => ({ ...prev, ...newDisplay }));
-    setSelectedFiles(newSelectedFiles);
-    
-    const newUploadingFiles: UploadedFile[] = newSelectedFiles.map((f, i) => ({ 
-      id: `${Date.now()}-${i}`, 
-      name: newDisplay[f.name] || f.name, 
-      progress: 0, 
-      status: "preparing" as const, 
-      subcategory: activeSubcategory, 
-      folderId: getCurrentNavState().currentFolderId, 
-      type: f.type || "unknown", 
-      size: f.size, 
-      url: "", 
-      uploadedAt: new Date(), 
-      tags: [], 
-      folderPath: getCurrentNavState().currentFolderPath.join("/"), 
-      isReference: selectedFileType === "reference", 
-      isVideo: f.type.startsWith("video/") 
-    }));
-    
-    setUploadingFiles((prev) => [...prev, ...newUploadingFiles]);
-    
-    // Simulate upload progress for new files
-    newUploadingFiles.forEach((u) => { 
-      let p = 0; 
-      const interval = setInterval(() => { 
-        p += 10; 
-        if (p < 100) {
-          setUploadingFiles((prev) => prev.map((f) => f.id === u.id ? { ...f, progress: p, status: "uploading" } : f));
-        } else { 
-          clearInterval(interval); 
-          setUploadingFiles((prev) => prev.map((f) => f.id === u.id ? { ...f, progress: 100, status: "ready" } : f)); 
-        } 
-      }, 100); 
-    });
-  }
-};
-// Add this useEffect to reset file input when selections are cleared
-useEffect(() => {
-  if (uploadingFiles.length === 0 && fileInputRef.current) {
-    fileInputRef.current.value = '';
-  }
-}, [uploadingFiles]);
-const handleFileUpload = async (files: FileList | null, tabType: "I_Do" | "We_Do" | "You_Do" | null, subcategory: string) => {
-  if (!files || !selectedNode) return;
-  
-  const navState = getCurrentNavState();
-  const formData = new FormData();
-  
-  // Add hierarchy info
-  if (selectedNode.originalData) { 
-    formData.append("courses", selectedNode.originalData.courses || ""); 
-    formData.append("topicId", selectedNode.originalData.topicId || ""); 
-    formData.append("index", String(selectedNode.originalData.index || 0)); 
-    formData.append("title", selectedNode.originalData.title || ""); 
-  }
-  
-  // Add file type
-  if (selectedFileType) formData.append("selectedFileType", selectedFileType);
-  
-  // Add file settings
-  const fileId = updateFileId || "temp"; 
-  const fSettings = documentSettings[fileId];
-  formData.append("showToStudents", fSettings ? String(fSettings.studentShow) : "true");
-  formData.append("allowDownload", fSettings ? String(fSettings.downloadAllow) : "true");
-  
-  // Add files
-  Array.from(files).forEach((f) => formData.append("files", f));
-  
-  // Add tab and subcategory info
-  formData.append("tabType", toBackendTab(tabType)); 
-  formData.append("subcategory", subcategory);
-  
-  // Add folder path
-  const fp = navState.currentFolderPath.join("/"); 
-  if (fp) formData.append("folderPath", fp);
+    setUpdateFileId(null);
+    setFileNames({});
+    setSelectedFiles([]);
+    setUploadDescription("");
+    setUploadTags([]);
+    setUploadCurrentTag("");
+    setUploadTagColor("#3B82F6");
+    setUploadAccessLevel("private");
+    setFolderUrl("");
+    setUrlFileName("");
+    setUrlFileType("url/link");
+    setIsButtonLoading(false);
+    setText("");
+    setFileDisplayNames({});
+    setReferenceDisplayName("Reference Material"); // ← add this
+  };
+  const handleFileSelection = (files: FileList | null) => {
+    if (!files?.length) return;
 
-  // Add tags and description
-  const validTags = uploadTags.filter(t => t.tagName && t.tagName.trim());
-  if (validTags.length) formData.append("tags", JSON.stringify(validTags));
-  if (uploadDescription) formData.append("fileDescription", uploadDescription);
+    if (updateFileId) {
+      // UPDATE MODE — replace existing selection with new file
+      const existingFileName = fileDisplayNames[updateFileId] || "";
 
-  formData.append("isUpdate", "false");
-
-  try {
-    const response = await entityApi.updateEntity(selectedNode.type as any, selectedNode.id, formData);
-    if (response.data) {
-      setUploadingFiles((prev) => prev.map((f) => f.status === "uploading" ? { ...f, status: "completed", progress: 100 } : f));
-      await fetchAndRefresh(selectedNode);
+      setSelectedFiles([]);
       setUploadingFiles([]);
-      resetUploadModalStates();
-      showSuccessToast("Upload completed!");
+
+      const newDisplay: Record<string, string> = {};
+      const newSelectedFiles = Array.from(files);
+
+      newSelectedFiles.forEach((f) => {
+        newDisplay[f.name] = existingFileName || (selectedFileType === "reference" ? (referenceDisplayName.trim() || "Reference Material") : f.name);
+      });
+
+      setFileDisplayNames({ ...newDisplay });
+      setSelectedFiles(newSelectedFiles);
+
+      const newUploadingFiles: UploadedFile[] = newSelectedFiles.map((f, i) => ({
+        id: `${Date.now()}-${i}-${Math.random()}`,
+        name: newDisplay[f.name] || f.name,
+        progress: 0,
+        status: "preparing" as const,
+        subcategory: activeSubcategory,
+        folderId: getCurrentNavState().currentFolderId,
+        type: f.type || "unknown",
+        size: f.size,
+        url: "",
+        uploadedAt: new Date(),
+        tags: [],
+        folderPath: getCurrentNavState().currentFolderPath.join("/"),
+        isReference: selectedFileType === "reference",
+        isVideo: f.type.startsWith("video/"),
+      }));
+
+      setUploadingFiles(newUploadingFiles);
+
+      newUploadingFiles.forEach((u) => {
+        let p = 0;
+        const interval = setInterval(() => {
+          p += 10;
+          if (p < 100) {
+            setUploadingFiles((prev) =>
+              prev.map((f) =>
+                f.id === u.id ? { ...f, progress: p, status: "uploading" } : f
+              )
+            );
+          } else {
+            clearInterval(interval);
+            setUploadingFiles((prev) =>
+              prev.map((f) =>
+                f.id === u.id ? { ...f, progress: 100, status: "ready" } : f
+              )
+            );
+          }
+        }, 100);
+      });
+
+    } else {
+      // NEW FILE MODE — allow multiple files
+      const newDisplay: Record<string, string> = {};
+      const newSelectedFiles = Array.from(files);
+
+      newSelectedFiles.forEach((f) => {
+        if (selectedFileType === "reference") {
+          // Carry over the pre-typed reference name; append original extension
+          const ext = f.name.includes(".") ? "." + f.name.split(".").pop() : "";
+          const baseName = referenceDisplayName.trim() || "Reference Material";
+          newDisplay[f.name] = baseName + ext;
+        } else {
+          newDisplay[f.name] = f.name;
+        }
+      });
+
+      setFileDisplayNames((prev) => ({ ...prev, ...newDisplay }));
+      setSelectedFiles(newSelectedFiles);
+
+      const newUploadingFiles: UploadedFile[] = newSelectedFiles.map((f, i) => ({
+        id: `${Date.now()}-${i}`,
+        name: newDisplay[f.name] || f.name,
+        progress: 0,
+        status: "preparing" as const,
+        subcategory: activeSubcategory,
+        folderId: getCurrentNavState().currentFolderId,
+        type: f.type || "unknown",
+        size: f.size,
+        url: "",
+        uploadedAt: new Date(),
+        tags: [],
+        folderPath: getCurrentNavState().currentFolderPath.join("/"),
+        isReference: selectedFileType === "reference",
+        isVideo: f.type.startsWith("video/"),
+      }));
+
+      setUploadingFiles((prev) => [...prev, ...newUploadingFiles]);
+
+      newUploadingFiles.forEach((u) => {
+        let p = 0;
+        const interval = setInterval(() => {
+          p += 10;
+          if (p < 100) {
+            setUploadingFiles((prev) =>
+              prev.map((f) =>
+                f.id === u.id ? { ...f, progress: p, status: "uploading" } : f
+              )
+            );
+          } else {
+            clearInterval(interval);
+            setUploadingFiles((prev) =>
+              prev.map((f) =>
+                f.id === u.id ? { ...f, progress: 100, status: "ready" } : f
+              )
+            );
+          }
+        }, 100);
+      });
     }
-  } catch (err: any) { 
-    setUploadingFiles((prev) => prev.map((f) => f.status === "uploading" ? { ...f, status: "error" } : f)); 
-    setIsButtonLoading(false); 
-    const _msg = axios.isAxiosError(err) ? (typeof err.response?.data?.message === "string" ? err.response?.data?.message : JSON.stringify(err.response?.data ?? err.message)) : (err?.message || String(err)); 
-    showErrorToast(`Upload failed: ${_msg}`); 
-  }
-};
+  };
+  // Add this useEffect to reset file input when selections are cleared
+  useEffect(() => {
+    if (uploadingFiles.length === 0 && fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }, [uploadingFiles]);
+  const handleFileUpload = async (files: FileList | null, tabType: "I_Do" | "We_Do" | "You_Do" | null, subcategory: string) => {
+    if (!files || !selectedNode) return;
+
+    const navState = getCurrentNavState();
+    const formData = new FormData();
+
+    // Add hierarchy info
+    if (selectedNode.originalData) {
+      formData.append("courses", selectedNode.originalData.courses || "");
+      formData.append("topicId", selectedNode.originalData.topicId || "");
+      formData.append("index", String(selectedNode.originalData.index || 0));
+      formData.append("title", selectedNode.originalData.title || "");
+    }
+
+    // Add file type
+    if (selectedFileType) formData.append("selectedFileType", selectedFileType);
+
+    // Add file settings
+    const fileId = updateFileId || "temp";
+    const fSettings = documentSettings[fileId];
+    formData.append("showToStudents", fSettings ? String(fSettings.studentShow) : "true");
+    formData.append("allowDownload", fSettings ? String(fSettings.downloadAllow) : "true");
+
+    // Add files
+    Array.from(files).forEach((f) => formData.append("files", f));
+
+    // Add tab and subcategory info
+    formData.append("tabType", toBackendTab(tabType));
+    formData.append("subcategory", subcategory);
+
+    // Add folder path
+    const fp = navState.currentFolderPath.join("/");
+    if (fp) formData.append("folderPath", fp);
+
+    // Add tags and description
+    const validTags = uploadTags.filter(t => t.tagName && t.tagName.trim());
+    if (validTags.length) formData.append("tags", JSON.stringify(validTags));
+    if (uploadDescription) formData.append("fileDescription", uploadDescription);
+
+    formData.append("isUpdate", "false");
+
+    // Carry the group context (set when the picker was opened via a group
+    // row's "+ Add resource to this group" button) through to the server so
+    // Reference / generic file uploads via this inline UploadModal land
+    // inside the group instead of at activity root.
+    if (uploadGroupId)   formData.append("groupId", uploadGroupId);
+    if (uploadGroupName) formData.append("groupName", uploadGroupName);
+
+    try {
+      const response = await entityApi.updateEntity(selectedNode.type as any, selectedNode.id, formData);
+      if (response.data) {
+        setUploadingFiles((prev) => prev.map((f) => f.status === "uploading" ? { ...f, status: "completed", progress: 100 } : f));
+        await fetchAndRefresh(selectedNode);
+        setUploadingFiles([]);
+        resetUploadModalStates();
+        showSuccessToast("Upload completed!");
+      }
+    } catch (err: any) {
+      setUploadingFiles((prev) => prev.map((f) => f.status === "uploading" ? { ...f, status: "error" } : f));
+      setIsButtonLoading(false);
+      const _msg = axios.isAxiosError(err) ? (typeof err.response?.data?.message === "string" ? err.response?.data?.message : JSON.stringify(err.response?.data ?? err.message)) : (err?.message || String(err));
+      showErrorToast(`Upload failed: ${_msg}`);
+    }
+  };
+
+  // Drain any pending "remove existing file" AND "remove existing folder"
+  // actions queued by the modal's X buttons. Files first (so individual file
+  // deletes succeed before any cascading folder delete touches them), then
+  // folders (which cascade-delete contents on the server). Errors are swallowed
+  // per-entry so a single failure can't block the rest of the save.
+  const processPendingDeletions = async (modalBasePath: string[]) => {
+    if (!selectedNode) return;
+
+    // ── File deletions ─────────────────────────────────────────────────────
+    const filesPending = editPendingDeletionsRef.current;
+    for (const del of filesPending) {
+      if (!del.fileId) continue;
+      const absPath = [...modalBasePath, ...del.path].filter(Boolean).join("/");
+      try {
+        await entityApi.deleteFile(selectedNode.type as any, selectedNode.id, {
+          tabType: toBackendTab(activeTab),
+          subcategory: activeSubcategory,
+          folderPath: absPath,
+          action: "deleteFile",
+          updateFileId: del.fileId,
+        });
+      } catch {
+        // continue with the remaining deletions
+      }
+    }
+    editPendingDeletionsRef.current = [];
+
+    // ── Folder deletions (cascade on server) ───────────────────────────────
+    const foldersPending = editPendingFolderDeletionsRef.current;
+    for (const del of foldersPending) {
+      // For folders: del.path is the folder's PARENT path (matching the
+      // signature of the modal's deleteFolderAtPath helper). Build the
+      // absolute parent path the same way file deletions do.
+      const absParentPath = [...modalBasePath, ...del.path].filter(Boolean).join("/");
+      try {
+        await entityApi.deleteFolder(selectedNode.type as any, selectedNode.id, {
+          tabType: toBackendTab(activeTab),
+          subcategory: activeSubcategory,
+          folderName: del.name,
+          folderPath: absParentPath,
+          courses: selectedNode.originalData?.courses || "",
+          action: "deleteFolder",
+        });
+      } catch {
+        // continue with the remaining deletions
+      }
+    }
+    editPendingFolderDeletionsRef.current = [];
+  };
+
+  const handleFileUploadModalSubmit = async (
+    incomingFiles: File[],
+    groupName: string,
+    description: string,
+    targetFolderPath?: string[],
+    onProgress?: (pct: number) => void,
+    options?: UploadOptions,
+  ) => {
+    if (!selectedNode) return;
+
+    // Path that represents the modal's working root on the server. For folder
+    // edit this is forced to the folder being edited so deletions/uploads
+    // resolve to the right server location.
+    const modalBasePath = uploadModalForcedPath ?? getCurrentNavState().currentFolderPath;
+
+    // ── EDIT MODE: file update (opened via "Update" on a file row) ─────────────
+    if (updateFileId) {
+      // Special case: the user removed the existing file with X and didn't
+      // drop a replacement → treat as a pure delete of the resource.
+      const pending = editPendingDeletionsRef.current;
+      const fileWasRemoved = pending.some(p => p.fileId === updateFileId);
+      if (fileWasRemoved && incomingFiles.length === 0) {
+        try {
+          await entityApi.deleteFile(selectedNode.type as any, selectedNode.id, {
+            tabType: toBackendTab(updateTabType),
+            subcategory: updateSubcategory,
+            folderPath: modalBasePath.join("/"),
+            action: "deleteFile",
+            updateFileId,
+          });
+          await fetchAndRefresh(selectedNode);
+          showSuccessToast("File deleted!");
+        } catch (err: any) {
+          const msg = axios.isAxiosError(err)
+            ? (typeof err.response?.data?.message === "string" ? err.response?.data?.message : JSON.stringify(err.response?.data ?? err.message))
+            : (err?.message || String(err));
+          showErrorToast(`Delete failed: ${msg}`);
+        }
+        setUpdateFileId(null);
+        clearUploadModalEditState();
+        return;
+      }
+      const navState = getCurrentNavState();
+      const formData = new FormData();
+      if (selectedNode?.originalData) {
+        formData.append("courses", selectedNode.originalData.courses || "");
+        formData.append("topicId", selectedNode.originalData.topicId || "");
+        formData.append("index", String(selectedNode.originalData.index || 0));
+        formData.append("title", selectedNode.originalData.title || "");
+      }
+      formData.append("tabType", toBackendTab(updateTabType));
+      formData.append("subcategory", updateSubcategory);
+      formData.append("isUpdate", "true");
+      formData.append("updateFileId", updateFileId);
+      const isMetaOnly = incomingFiles.length === 0;
+      formData.append("metadataOnly", String(isMetaOnly));
+      if (incomingFiles.length > 0) {
+        // Build replacement file with the user-entered name
+        const f = incomingFiles[0];
+        const newBaseName = (groupName || f.name).replace(/\.[^/.]+$/, "");
+        const ext = f.name.includes(".") ? "." + f.name.split(".").pop() : "";
+        const finalName = newBaseName + ext;
+        const outFile = finalName !== f.name ? new window.File([f], finalName, { type: f.type }) : f;
+        formData.append("files", outFile);
+        formData.append("updateFileName", finalName);
+      } else {
+        formData.append("updateFileName", groupName.trim());
+      }
+      const fShow = options?.showToStudent ?? true;
+      const fDl   = options?.allowDownload ?? false;
+      formData.append("showToStudents", String(fShow));
+      formData.append("allowDownload", String(fDl));
+      const fp = navState.currentFolderPath.join("/");
+      if (fp) formData.append("folderPath", fp);
+      if (description) formData.append("fileDescription", description);
+      try {
+        await entityApi.updateEntity(
+          selectedNode.type as any, selectedNode.id, formData,
+          onProgress ? (evt) => { if (evt.total) onProgress(Math.min(Math.round((evt.loaded / evt.total) * 100), 98)); } : undefined,
+        );
+        onProgress?.(100);
+        await fetchAndRefresh(selectedNode);
+        showSuccessToast(isMetaOnly ? "File updated!" : "File replaced successfully!");
+      } catch (err: any) {
+        const msg = axios.isAxiosError(err)
+          ? (typeof err.response?.data?.message === "string" ? err.response?.data?.message : JSON.stringify(err.response?.data ?? err.message))
+          : (err?.message || String(err));
+        showErrorToast(`Update failed: ${msg}`);
+      }
+      setUpdateFileId(null);
+      clearUploadModalEditState();
+      return;
+    }
+
+    // ── EDIT MODE: folder rename + deletions + optional new files ─────────────
+    if (editingFolder && uploadModalEditMode) {
+      const navState = getCurrentNavState();
+      const newName = groupName.trim();
+      // 1. Rename the folder if the name changed (rename uses the folder's
+      //    parent path, which is the page's nav state — NOT modalBasePath which
+      //    points at the folder itself).
+      if (newName && newName !== editingFolder.name) {
+        try {
+          await entityApi.updateFolder(
+            selectedNode.type as any,
+            selectedNode.id,
+            {
+              tabType: toBackendTab(activeTab),
+              subcategory: activeSubcategory,
+              folderName: newName,
+              folderPath: navState.currentFolderPath.join("/"),
+              originalFolderName: editingFolder.name,
+              courses: selectedNode.originalData?.courses,
+              topicId: selectedNode.originalData?.topicId,
+              index: selectedNode.originalData?.index,
+              title: selectedNode.originalData?.title,
+            },
+          );
+        } catch (err: any) {
+          showErrorToast(`Rename failed: ${axios.isAxiosError(err) ? err.response?.data?.message : err.message}`);
+        }
+      }
+      // 2. Apply any pending deletions of files inside this folder.
+      await processPendingDeletions(modalBasePath);
+      // 3. If the user didn't add any new files, we're done — refresh and close.
+      if (incomingFiles.length === 0) {
+        await fetchAndRefresh(selectedNode);
+        setEditingFolder(null);
+        clearUploadModalEditState();
+        showSuccessToast("Folder updated!");
+        return;
+      }
+      // 4. Otherwise fall through to the upload logic below, which will push
+      //    the new files to the folder (modal already resolved their server path).
+      setEditingFolder(null);
+      clearUploadModalEditState();
+    }
+
+    // ── EDIT MODE: group edit OR plain "save with no new content" ─────────────
+    // When we get here in edit mode (editMode true, not a single-file edit, no
+    // editingFolder), the user is editing a group. We still need to flush any
+    // pending deletions even if no new files are being uploaded.
+    if (uploadModalEditMode && !editingFolder && !updateFileId) {
+      const hadDeletions =
+        editPendingDeletionsRef.current.length > 0 ||
+        editPendingFolderDeletionsRef.current.length > 0;
+      await processPendingDeletions(modalBasePath);
+      if (incomingFiles.length === 0) {
+        if (hadDeletions) {
+          await fetchAndRefresh(selectedNode);
+          showSuccessToast("Saved!");
+        }
+        clearUploadModalEditState();
+        return;
+      }
+      // Has new files → fall through to add-to-group flow below.
+    }
+
+    // ── CREATE / ADD TO GROUP mode ─────────────────────────────────────────────
+    if (!incomingFiles.length) return;
+    // Use the targetFolderPath from the modal's navigation; fall back to page nav state
+    const resolvedPath = targetFolderPath ?? getCurrentNavState().currentFolderPath;
+    const isGroup = incomingFiles.length > 1;
+    // The modal is the sole authority on group membership. If it didn't pass parentGroupId,
+    // the files are NOT part of any group (e.g. nested files inside a folder, or single-file uploads).
+    const groupId = options?.parentGroupId;
+
+    // Rename each file to carry the user-typed name (single file only)
+    const renamed = incomingFiles.map((f) => {
+      if (!isGroup && groupName) {
+        const ext = f.name.includes(".") ? "." + f.name.split(".").pop() : "";
+        // Strip any extension the user may have typed in groupName to avoid doubling (e.g. "file.docx" + ".docx")
+        const baseName = groupName.includes(".")
+          ? groupName.slice(0, groupName.lastIndexOf("."))
+          : groupName;
+        const finalName = baseName + ext;
+        return finalName !== f.name ? new window.File([f], finalName, { type: f.type }) : f;
+      }
+      return f;
+    });
+
+    const formData = new FormData();
+    if (selectedNode.originalData) {
+      formData.append("courses", selectedNode.originalData.courses || "");
+      formData.append("topicId", selectedNode.originalData.topicId || "");
+      formData.append("index", String(selectedNode.originalData.index || 0));
+      formData.append("title", selectedNode.originalData.title || "");
+    }
+    formData.append("tabType", toBackendTab(activeTab));
+    formData.append("subcategory", activeSubcategory);
+    formData.append("isUpdate", "false");
+    formData.append("showToStudents", String(options?.showToStudent ?? true));
+    formData.append("allowDownload", String(options?.allowDownload ?? false));
+    if (options?.createdAt) formData.append("createdAt", options.createdAt);
+    if (description) formData.append("fileDescription", description);
+    if (groupId) formData.append("groupId", groupId);
+    // groupName for DB: use options.groupName (set for new groups only; undefined for existing groups)
+    if (options?.groupName) formData.append("groupName", options.groupName);
+    const fp = resolvedPath.join("/");
+    if (fp) formData.append("folderPath", fp);
+    renamed.forEach(f => formData.append("files", f));
+
+    try {
+      const response = await entityApi.updateEntity(
+        selectedNode.type as any,
+        selectedNode.id,
+        formData,
+        onProgress
+          ? (evt) => {
+            if (evt.total) {
+              const pct = Math.min(Math.round((evt.loaded / evt.total) * 100), 98);
+              onProgress(pct);
+            }
+          }
+          : undefined,
+      );
+      if (response.data) {
+        onProgress?.(100);
+        await fetchAndRefresh(selectedNode);
+        // No success toast here — the modal already showed a single optimistic toast before closing.
+      }
+    } catch (err: any) {
+      const msg = axios.isAxiosError(err)
+        ? (typeof err.response?.data?.message === "string" ? err.response?.data?.message : JSON.stringify(err.response?.data ?? err.message))
+        : (err?.message || String(err));
+      showErrorToast(`Upload failed: ${msg}`);
+    }
+  };
 
   const buildFullHierarchyInfo = useCallback((): HierarchyInfo | undefined => {
     if (!selectedNode || !courseData.length) return undefined;
@@ -1693,190 +2974,290 @@ const handleFileUpload = async (files: FileList | null, tabType: "I_Do" | "We_Do
     const path = findNodePath(courseData, selectedNode.id) ?? [selectedNode];
     const navState = getCurrentNavState();
     const courseNode = path.find((n) => n.type === "course"); const moduleNode = path.find((n) => n.type === "module"); const submoduleNode = path.find((n) => n.type === "submodule"); const topicNode = path.find((n) => n.type === "topic"); const subtopicNode = path.find((n) => n.type === "subtopic");
-    return { courseId: courseNode?.id ?? courseData[0]?.id ?? "", courseName: courseNode?.name ?? courseStructureResponse?.data?.courseName ?? "", moduleId: moduleNode?.id, moduleName: moduleNode?.name, subModuleId: submoduleNode?.id, subModuleName: submoduleNode?.name, topicId: topicNode?.id, topicName: topicNode?.name, subTopicId: subtopicNode?.id, subTopicName: subtopicNode?.name, tabType: activeTab ?? undefined, subcategory: activeSubcategory || undefined, folderPath: navState.currentFolderPath.length > 0 ? navState.currentFolderPath : undefined, folderId: navState.currentFolderId ?? undefined, nodeType: selectedNode.type };
-  }, [selectedNode, courseData, courseStructureResponse, activeTab, activeSubcategory, getCurrentNavState]);
+    return {
+      courseId: courseNode?.id ?? courseData[0]?.id ?? "",
+      courseName: courseNode?.name ?? courseStructureResponse?.data?.courseName ?? "",
+      moduleId: moduleNode?.id, moduleName: moduleNode?.name,
+      subModuleId: submoduleNode?.id, subModuleName: submoduleNode?.name,
+      topicId: topicNode?.id, topicName: topicNode?.name,
+      subTopicId: subtopicNode?.id, subTopicName: subtopicNode?.name,
+      tabType: activeTab ?? undefined,
+      subcategory: activeSubcategory || undefined,
+      folderPath: navState.currentFolderPath.length > 0 ? navState.currentFolderPath : undefined,
+      folderId: navState.currentFolderId ?? undefined,
+      nodeType: selectedNode.type,
+      // Group context — populated when the picker was opened from a group's
+      // "Add" action. Carries through to entityApi.createPage so the new
+      // page is attached to that group instead of the activity root.
+      groupId: uploadGroupId,
+      groupName: uploadGroupName,
+    };
+  }, [selectedNode, courseData, courseStructureResponse, activeTab, activeSubcategory, getCurrentNavState, uploadGroupId, uploadGroupName]);
 
-const handleFileUpdate = async (files: FileList | null) => {
-  // If no files selected and we're in update mode, update metadata only
-  if ((!files || files.length === 0) && updateFileId) {
+  /**
+   * Build a plain top-to-bottom display breadcrumb for the resource-creation
+   * modals (NotionResourceModal / PageCreationModal / URL+Reference upload
+   * modal). Shape:
+   *
+   *   Course > Module > [SubModule] > [Topic] > [SubTopic] > Tab > Subcategory
+   *          > [Group]  > [folder] > [subfolder] > ...
+   *
+   * All segments are display-only here — clicks are wired up only in the
+   * FolderBuilder modal's own breadcrumb (which has its own builder).
+   */
+  const buildFullPathCrumbs = useCallback((): Array<{ label: string }> => {
+    const hi = buildFullHierarchyInfo();
+    if (!hi) return [];
+    const out: Array<{ label: string }> = [];
+    if (hi.courseName)    out.push({ label: hi.courseName });
+    if (hi.moduleName)    out.push({ label: hi.moduleName });
+    if (hi.subModuleName) out.push({ label: hi.subModuleName });
+    if (hi.topicName)     out.push({ label: hi.topicName });
+    if (hi.subTopicName)  out.push({ label: hi.subTopicName });
+    if (hi.tabType)       out.push({ label: hi.tabType.replace(/_/g, " ") });
+    if (hi.subcategory)   out.push({ label: hi.subcategory });
+    if (uploadGroupName)  out.push({ label: uploadGroupName });
+    const navState = getCurrentNavState();
+    (navState.currentFolderPath ?? []).forEach(seg => {
+      if (seg) out.push({ label: seg });
+    });
+    return out;
+  }, [buildFullHierarchyInfo, uploadGroupName, getCurrentNavState]);
+
+  const handleFileUpdate = async (files: FileList | null) => {
+    // If no files selected and we're in update mode, update metadata only
+    if ((!files || files.length === 0) && updateFileId) {
+      const navState = getCurrentNavState();
+      const formData = new FormData();
+
+      // Add hierarchy info
+      if (selectedNode?.originalData) {
+        formData.append("courses", selectedNode.originalData.courses || "");
+        formData.append("topicId", selectedNode.originalData.topicId || "");
+        formData.append("index", String(selectedNode.originalData.index || 0));
+        formData.append("title", selectedNode.originalData.title || "");
+      }
+
+      // Add update metadata
+      formData.append("tabType", toBackendTab(updateTabType));
+      formData.append("subcategory", updateSubcategory);
+      formData.append("isUpdate", "true");
+      formData.append("updateFileId", updateFileId);
+      formData.append("updateFileName", fileDisplayNames[updateFileId] || "");
+      formData.append("metadataOnly", "true"); // Flag to indicate metadata-only update
+
+      // Add file settings
+      const fSettings = documentSettings[updateFileId] || { studentShow: true, downloadAllow: true };
+      formData.append("showToStudents", String(fSettings.studentShow));
+      formData.append("allowDownload", String(fSettings.downloadAllow));
+
+      // Add folder path
+      const fp = navState.currentFolderPath.join("/");
+      if (fp) formData.append("folderPath", fp);
+
+      // Add tags and description
+      if (uploadTags.length) formData.append("tags", JSON.stringify(uploadTags));
+      if (uploadDescription) formData.append("fileDescription", uploadDescription); // Make sure this is sent
+
+      try {
+        const response = await entityApi.updateEntity(selectedNode.type as any, selectedNode.id, formData);
+        await fetchAndRefresh(selectedNode);
+        setUploadingFiles([]);
+        resetUploadModalStates();
+        showSuccessToast("File metadata updated successfully!");
+        setIsButtonLoading(false);
+      } catch (err: any) {
+        setIsButtonLoading(false);
+        showErrorToast(`Update failed: ${axios.isAxiosError(err) ? err.response?.data?.message : err.message}`);
+      }
+      return;
+    }
+
+
+    // If files are selected, proceed with file content update
+    if (!files || !selectedNode || !updateFileId || files.length !== 1) {
+      if (updateFileId) {
+        setIsButtonLoading(false);
+        showErrorToast("Please select a file to update");
+      }
+      return;
+    }
+
+    const file = files[0];
     const navState = getCurrentNavState();
     const formData = new FormData();
-    
+
     // Add hierarchy info
-    if (selectedNode?.originalData) { 
-      formData.append("courses", selectedNode.originalData.courses || ""); 
-      formData.append("topicId", selectedNode.originalData.topicId || ""); 
-      formData.append("index", String(selectedNode.originalData.index || 0)); 
+    if (selectedNode.originalData) {
+      formData.append("courses", selectedNode.originalData.courses || "");
+      formData.append("topicId", selectedNode.originalData.topicId || "");
+      formData.append("index", String(selectedNode.originalData.index || 0));
       formData.append("title", selectedNode.originalData.title || "");
     }
-    
-    // Add update metadata
-    formData.append("tabType", toBackendTab(updateTabType)); 
-    formData.append("subcategory", updateSubcategory); 
-    formData.append("isUpdate", "true"); 
+
+    // Add file and update info
+    formData.append("files", file);
+    formData.append("tabType", toBackendTab(updateTabType));
+    formData.append("subcategory", updateSubcategory);
+    formData.append("isUpdate", "true");
     formData.append("updateFileId", updateFileId);
     formData.append("updateFileName", fileDisplayNames[updateFileId] || "");
-    formData.append("metadataOnly", "true"); // Flag to indicate metadata-only update
-    
+    formData.append("metadataOnly", "false");
+
     // Add file settings
     const fSettings = documentSettings[updateFileId] || { studentShow: true, downloadAllow: true };
-    formData.append("showToStudents", String(fSettings.studentShow)); 
+    formData.append("showToStudents", String(fSettings.studentShow));
     formData.append("allowDownload", String(fSettings.downloadAllow));
-    
+
     // Add folder path
-    const fp = navState.currentFolderPath.join("/"); 
+    const fp = navState.currentFolderPath.join("/");
     if (fp) formData.append("folderPath", fp);
-    
+
     // Add tags and description
     if (uploadTags.length) formData.append("tags", JSON.stringify(uploadTags));
-    if (uploadDescription) formData.append("fileDescription", uploadDescription); // Make sure this is sent
-    
+    if (uploadDescription) formData.append("fileDescription", uploadDescription);
+
     try {
       const response = await entityApi.updateEntity(selectedNode.type as any, selectedNode.id, formData);
       await fetchAndRefresh(selectedNode);
       setUploadingFiles([]);
       resetUploadModalStates();
-      showSuccessToast("File metadata updated successfully!");
+      showSuccessToast("File updated successfully!");
       setIsButtonLoading(false);
-    } catch (err: any) { 
-      setIsButtonLoading(false); 
-      showErrorToast(`Update failed: ${axios.isAxiosError(err) ? err.response?.data?.message : err.message}`); 
-    }
-    return;
-  }
-
-  
-  // If files are selected, proceed with file content update
-  if (!files || !selectedNode || !updateFileId || files.length !== 1) {
-    if (updateFileId) {
+    } catch (err: any) {
       setIsButtonLoading(false);
-      showErrorToast("Please select a file to update");
+      showErrorToast(`Update failed: ${axios.isAxiosError(err) ? err.response?.data?.message : err.message}`);
     }
-    return;
-  }
-  
-  const file = files[0]; 
-  const navState = getCurrentNavState(); 
-  const formData = new FormData();
-  
-  // Add hierarchy info
-  if (selectedNode.originalData) { 
-    formData.append("courses", selectedNode.originalData.courses || ""); 
-    formData.append("topicId", selectedNode.originalData.topicId || ""); 
-    formData.append("index", String(selectedNode.originalData.index || 0)); 
-    formData.append("title", selectedNode.originalData.title || "");
-  }
-  
-  // Add file and update info
-  formData.append("files", file); 
-  formData.append("tabType", toBackendTab(updateTabType)); 
-  formData.append("subcategory", updateSubcategory); 
-  formData.append("isUpdate", "true"); 
-  formData.append("updateFileId", updateFileId);
-  formData.append("updateFileName", fileDisplayNames[updateFileId] || "");
-  formData.append("metadataOnly", "false");
-  
-  // Add file settings
-  const fSettings = documentSettings[updateFileId] || { studentShow: true, downloadAllow: true };
-  formData.append("showToStudents", String(fSettings.studentShow)); 
-  formData.append("allowDownload", String(fSettings.downloadAllow));
-  
-  // Add folder path
-  const fp = navState.currentFolderPath.join("/"); 
-  if (fp) formData.append("folderPath", fp);
-  
-  // Add tags and description
-  if (uploadTags.length) formData.append("tags", JSON.stringify(uploadTags));
-  if (uploadDescription) formData.append("fileDescription", uploadDescription);
-  
-  try {
-    const response = await entityApi.updateEntity(selectedNode.type as any, selectedNode.id, formData);
-    await fetchAndRefresh(selectedNode);
-    setUploadingFiles([]);
-    resetUploadModalStates();
-    showSuccessToast("File updated successfully!");
-    setIsButtonLoading(false);
-  } catch (err: any) { 
-    setIsButtonLoading(false); 
-    showErrorToast(`Update failed: ${axios.isAxiosError(err) ? err.response?.data?.message : err.message}`); 
-  }
-};
+  };
 
-const initiateFileUpdate = (file: UploadedFile, tabType: "I_Do" | "We_Do" | "You_Do", subcategory: string) => {
-  console.log("Initiating file update for:", file);
-  console.log("File description from data:", file.description); // Use file.description directly
-  
-  setUpdateFileId(file.id); 
-  setUpdateTabType(tabType); 
-  setUpdateSubcategory(subcategory);
-  
-  const fileType = file.type || ""; 
-  const matchedFileType = fileTypes.find((t) => fileType.includes(t.key));
-  const selectedTypeKey = matchedFileType?.key || "";
-  
-  setUpdateFileType(selectedTypeKey); 
-  setSelectedFileType(selectedTypeKey);
-  
-  // IMPORTANT: Set the file display name for the update
-  setFileDisplayNames({ [file.id]: file.name });
-  
-  // FIX: Use file.description directly since that's where it's stored in the UploadedFile type
-  const fileDescription = file.description || "";
-  setUploadDescription(fileDescription);
-  
-  setUploadTags(file.tags || []); 
-  setUploadAccessLevel(file.accessLevel || "private");
-  
-  if (file.id) {
-    setDocumentSettings((prev) => ({ 
-      ...prev, 
-      [file.id]: { 
-        studentShow: file.fileSettings?.showToStudents ?? true, 
-        downloadAllow: file.fileSettings?.allowDownload ?? true 
-      } 
-    }));
-  }
-  
-  // Handle URL files
-  if (fileType.includes("url") || fileType.includes("link")) { 
-    let url = typeof file.url === "string" ? file.url : (file.url as any)?.base || ""; 
-    setFolderUrl(url); 
-    setUrlFileName(file.name || ""); 
-    setUrlFileType(file.type || "url/link"); 
-  } else { 
-    setFolderUrl(""); 
-    setUrlFileName(""); 
-    setUrlFileType("url/link"); 
-  }
-  
-  setSelectedFiles([]); 
-  setUploadingFiles([]); 
-  setShowUploadModal(true);
-};
-useEffect(() => {
-  if (showUploadModal && uploadDescription) {
-    // Force a small delay to ensure Editor is mounted
-    const timer = setTimeout(() => {
-      // Trigger a re-render of the Editor by toggling a key
-      setEditorKey(Date.now());
-    }, 100);
-    return () => clearTimeout(timer);
-  }
-}, [showUploadModal, uploadDescription]);
+  const initiateFileUpdate = (file: UploadedFile, tabType: "I_Do" | "We_Do" | "You_Do", subcategory: string) => {
+    setUpdateFileId(file.id);
+    setUpdateTabType(tabType);
+    setUpdateSubcategory(subcategory);
 
-// Add state for editor key
-const [editorKey, setEditorKey] = useState(Date.now());
+    // Open FileUploadModal pre-filled with the file's existing data
+    setUploadModalEditMode(true);
+    setUploadModalInitialName(file.name || "");
+    setUploadModalInitialDesc(file.description || "");
+    setUploadModalInitialShow(file.fileSettings?.showToStudents ?? true);
+    setUploadModalInitialDl(file.fileSettings?.allowDownload ?? false);
+
+    // Seed the existing file as a single row in the modal explorer. Path is
+    // empty because for single-file edit the modal's currentFolderPath already
+    // resolves to the file's parent (the page's nav state at the time Edit was clicked).
+    const filePath: string[] = [];
+    setUploadModalInitialFiles([{ name: file.name || "", size: file.size, path: filePath }]);
+    setUploadModalInitialFolders([]);
+    // Track the fileId so onDeleteFile can route to the right server delete.
+    editExistingFileIdMapRef.current = {
+      [`${file.name || ""}::${filePath.join("/")}`]: file.id,
+    };
+    editPendingDeletionsRef.current = [];
+    editPendingFolderDeletionsRef.current = [];
+
+    setShowFileUploadModal(true);
+  };
+  useEffect(() => {
+    if (showUploadModal && uploadDescription) {
+      // Force a small delay to ensure Editor is mounted
+      const timer = setTimeout(() => {
+        // Trigger a re-render of the Editor by toggling a key
+        setEditorKey(Date.now());
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [showUploadModal, uploadDescription]);
+
+  // Add state for editor key
+  const [editorKey, setEditorKey] = useState(Date.now());
   const handleFileClick = (file: UploadedFile, tabType: "I_Do" | "We_Do" | "You_Do" | null, subcategory: string) => {
     const fileUrl = typeof file.url === "string" ? file.url : (file.url as any)?.base || "";
     if (!fileUrl) { alert("File URL is missing"); return; }
-    const name = (file.name || "").toLowerCase(); const type = (file.type || "").toLowerCase();
-    if (type.includes("url") || type.includes("link")) { window.open(fileUrl, "_blank", "noopener,noreferrer"); return; }
-    if (name.endsWith(".pdf") || type.includes("pdf")) { setCurrentPDFUrl(fileUrl); setCurrentPDFName(file.name); setCurrentPDFFileId(file.id); setShowPDFViewer(true); return; }
-    if (name.endsWith(".ppt") || name.endsWith(".pptx") || type.includes("presentation")) { setCurrentPPTUrl(fileUrl); setCurrentPPTName(file.name); setCurrentPPTFileId(file.id); setShowPPTViewer(true); return; }
+
+    const name = (file.name || "").toLowerCase();
+    const type = (file.type || "").toLowerCase();
+
+    // URL/link handling
+    if (type.includes("url") || type.includes("link")) {
+      window.open(fileUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    // PDF handling
+    if (name.endsWith(".pdf") || type.includes("pdf")) {
+      setCurrentPDFUrl(fileUrl);
+      setCurrentPDFName(file.name);
+      setCurrentPDFFileId(file.id);
+      setShowPDFViewer(true);
+      return;
+    }
+
+    // PowerPoint handling
+    if (name.endsWith(".ppt") || name.endsWith(".pptx") || type.includes("presentation")) {
+      setCurrentPPTUrl(fileUrl);
+      setCurrentPPTName(file.name);
+      setCurrentPPTFileId(file.id);
+      setShowPPTViewer(true);
+      return;
+    }
+
+    // Video handling
     const videoExts = [".mp4", ".avi", ".mov", ".mkv", ".webm"];
-    if (type.includes("video") || videoExts.some((e) => name.endsWith(e))) { const all = extractVideos(selectedNode!); const idx = all.findIndex((v) => v.id === file.id || v.fileName === file.name); setCurrentVideoUrl(fileUrl); setCurrentVideoName(file.name); setCurrentVideoFileId(file.id); setCurrentVideoResolutions(file.availableResolutions || []); setCurrentVideoFileUrlMap(file.fileUrlMap || {}); setVideoPlaylist(all); setCurrentVideoIndex(idx >= 0 ? idx : 0); setShowVideoViewer(true); return; }
+    if (type.includes("video") || videoExts.some((e) => name.endsWith(e))) {
+      const all = extractVideos(selectedNode!);
+      const idx = all.findIndex((v) => v.id === file.id || v.fileName === file.name);
+      setCurrentVideoUrl(fileUrl);
+      setCurrentVideoName(file.name);
+      setCurrentVideoFileId(file.id);
+      setCurrentVideoResolutions(file.availableResolutions || []);
+      setCurrentVideoFileUrlMap(file.fileUrlMap || {});
+      setVideoPlaylist(all);
+      setCurrentVideoIndex(idx >= 0 ? idx : 0);
+      setShowVideoViewer(true);
+      return;
+    }
+
+    // ZIP handling
     const zipExts = [".zip", ".rar", ".7z", ".tar", ".gz"];
-    if (type.includes("zip") || zipExts.some((e) => name.endsWith(e))) { setCurrentZipUrl(fileUrl); setCurrentZipName(file.name); setShowZipViewer(true); return; }
+    if (type.includes("zip") || zipExts.some((e) => name.endsWith(e))) {
+      setCurrentZipUrl(fileUrl);
+      setCurrentZipName(file.name);
+      setShowZipViewer(true);
+      return;
+    }
+
+    // Word document handling (.docx / .doc / .ocx stored by backend)
+    const wordExts = [".docx", ".doc", ".odt", ".rtf", ".ocx"];
+    if (type.includes("wordprocessingml") || type.includes("msword") || type.includes("opendocument.text") || wordExts.some((e) => name.endsWith(e))) {
+      setCurrentWordUrl(fileUrl);
+      setCurrentWordName(file.name);
+      setShowWordViewer(true);
+      return;
+    }
+
+    // Plain text handling
+    if (name.endsWith(".txt") || type.includes("text/plain")) {
+      setCurrentTxtUrl(fileUrl);
+      setCurrentTxtName(file.name);
+      setShowTxtViewer(true);
+      return;
+    }
+
+    // IMAGE handling
+    const imageExts = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg"];
+    if (type.includes("image") || imageExts.some((e) => name.endsWith(e))) {
+      const allImages = extractImages(selectedNode!);
+      const idx = allImages.findIndex((img) => img.id === file.id);
+      setCurrentImageUrl(fileUrl);
+      setCurrentImageName(file.name);
+      setCurrentImageFileId(file.id);
+      setImagePlaylist(allImages);
+      setCurrentImageIndex(idx >= 0 ? idx : 0);
+      setShowImageViewer(true);
+      return;
+    }
+
+    // Default: open in new tab
     window.open(fileUrl, "_blank");
   };
 
@@ -1887,6 +3268,42 @@ const [editorKey, setEditorKey] = useState(Date.now());
     return videos;
   };
 
+
+  // Add this helper function to extract all images from a node
+  const extractImages = (node: CourseNode): Array<{ id: string; title: string; fileUrl: string }> => {
+    const images: Array<{ id: string; title: string; fileUrl: string }> = [];
+    if (!node.originalData?.pedagogy) return images;
+
+    const process = (section: any) => {
+      if (!section) return;
+      Object.values(section).forEach((sub: any) => {
+        // Process files
+        sub?.files?.forEach((f: any) => {
+          const fileName = (f.fileName || "").toLowerCase();
+          const fileType = (f.fileType || "").toLowerCase();
+
+          // Check if it's an image
+          const imageExtensions = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg"];
+          const isImage = fileType.includes("image") || imageExtensions.some(ext => fileName.endsWith(ext));
+
+          if (isImage) {
+            const url = typeof f.fileUrl === "string" ? f.fileUrl : f.fileUrl?.base || "";
+            images.push({
+              id: f._id || `${Date.now()}`,
+              title: f.fileName || "Untitled Image",
+              fileUrl: url,
+            });
+          }
+        });
+      });
+    };
+
+    process(node.originalData.pedagogy.I_Do);
+    process(node.originalData.pedagogy.We_Do);
+    process(node.originalData.pedagogy.You_Do);
+
+    return images;
+  };
   const extractFileNameFromUrl = (url: string) => { try { return decodeURIComponent(url).split("/").pop()?.split("?")[0] || "link"; } catch { return "link"; } };
   const addTag = async (name: string, color: string = "#3B82F6") => { if (!name || folderTags.some((t) => t.tagName === name)) return; setLoading(true); setSuccess(false); await new Promise((r) => setTimeout(r, 500)); setFolderTags((prev) => [...prev, { tagName: name, tagColor: color }]); setCurrentTag(""); setLoading(false); setSuccess(true); };
   const removeTag = (i: number) => setFolderTags((prev) => prev.filter((_, idx) => idx !== i));
@@ -1927,81 +3344,128 @@ const [editorKey, setEditorKey] = useState(Date.now());
     setDeleteTarget({ type: "file", item: { id: pageId, isPage: true }, name });
     setShowDeleteConfirm(true);
   };
-useEffect(() => {
-  if (courseStructureResponse?.data && !hasInitialized.current) {
-    hasInitialized.current = true;
-    const transformed = transformToCourseNodes(courseStructureResponse.data);
-    setCourseData(transformed);
-    
-    // Only expand root node once
-    const savedExpanded = getLS("lms_expanded_nodes");
-    if (!savedExpanded) {
-      setExpandedNodes(new Set([courseStructureResponse.data._id]));
-    } else {
-      try {
-        setExpandedNodes(new Set(JSON.parse(savedExpanded)));
-      } catch {
-        setExpandedNodes(new Set([courseStructureResponse.data._id]));
-      }
-    }
-        setIsSidebarLoading(false);
+  useEffect(() => {
+    if (courseStructureResponse?.data && !hasInitialized.current) {
+      hasInitialized.current = true;
+      const transformed = transformToCourseNodes(courseStructureResponse.data);
+      setCourseData(transformed);
 
-    // REMOVE auto-selection - let user choose from sidebar
-    // Don't automatically select first module
-  }
-}, [courseStructureResponse?.data]);
+      // Only expand root node once
+      const savedExpanded = getLS("lms_expanded_nodes");
+      if (!savedExpanded) {
+        setExpandedNodes(new Set([courseStructureResponse.data._id]));
+      } else {
+        try {
+          setExpandedNodes(new Set(JSON.parse(savedExpanded)));
+        } catch {
+          setExpandedNodes(new Set([courseStructureResponse.data._id]));
+        }
+      }
+      setIsSidebarLoading(false);
+
+    }
+  }, [courseStructureResponse?.data]);
+
+  // ── Auto-select: first module → deepest leaf, I Do, first subcategory ─────────
+  const hasAutoSelected = useRef(false);
+  useEffect(() => {
+    // Only run once, after courseData and subcategories are ready, and no node selected yet
+    if (
+      hasAutoSelected.current ||
+      !courseData.length ||
+      selectedNode ||
+      !subcategories.I_Do.length
+    ) return;
+
+    // Helper: walk down first child at each level until no more children
+    const getDeepestFirstLeaf = (node: CourseNode): CourseNode => {
+      if (!node.children || node.children.length === 0) return node;
+      return getDeepestFirstLeaf(node.children[0]);
+    };
+
+    // courseData[0] = the course root; its first child = first module
+    const firstModule = courseData[0]?.children?.[0];
+    if (!firstModule) return;
+
+    const deepestNode = getDeepestFirstLeaf(firstModule);
+    hasAutoSelected.current = true;
+
+    // Expand path so the sidebar shows the selected item
+    const path = findPathToNode(courseData, deepestNode.id);
+    if (path?.length) {
+      setExpandedNodes(prev => {
+        const n = new Set(prev);
+        path.forEach(id => n.add(id));
+        setLS("lms_expanded_nodes", JSON.stringify([...n]));
+        return n;
+      });
+    }
+
+    // Set tab → I Do, subcategory → first one
+    const firstSub = subcategories.I_Do[0];
+    setActiveTabPersistent("I_Do");
+    setActiveSubcategoryPersistent(firstSub?.key ?? "");
+    updateURL({ activeTab: "I_Do", activeSubcategory: firstSub?.key ?? "" });
+
+    // Select the node — also flip isNodeSelected so the welcome screen hides
+    setIsNodeSelected(true);
+    setIsContentLoading(true);
+    setSelectedNodePersistent(deepestNode);
+    setBreadcrumbs(generateBreadcrumbs(deepestNode));
+    updateNavState({ currentFolderPath: [], currentFolderId: null });
+  }, [courseData, selectedNode, subcategories, findPathToNode, generateBreadcrumbs]);
 
   useEffect(() => { setBreadcrumbs(generateBreadcrumbs(selectedNode)); }, [selectedNode, courseData, generateBreadcrumbs]);
-useEffect(() => {
-  if (selectedNode && !isRestoringFromAnalytics && !contentData[selectedNode.id]) {
-    fetchAndRefresh(selectedNode);
-  }
-}, [selectedNode?.id]); // Only depends on node ID, not the whole object
-useEffect(() => {
-  if (!courseData.length) return;
-  
-  const params = new URLSearchParams(window.location.search);
-  if (params.get("fromAnalytics") === "true") {
-    setIsRestoringFromAnalytics(true);
-    
-    const cleanUrl = new URL(window.location.href);
-    cleanUrl.searchParams.delete("fromAnalytics");
-    window.history.replaceState({}, "", cleanUrl.toString());
-    
-    const storedTab = getLS("lms_selected_tab") as "I_Do" | "We_Do" | "You_Do" | null;
-    const storedSub = getLS("lms_selected_subcategory");
-    const storedId = getLS("lms_selected_node_id");
-    
-    if (storedTab) setActiveTabPersistent(storedTab);
-    if (storedSub) setActiveSubcategoryPersistent(storedSub);
-    
-    if (storedId) {
-      const findNode = (nodes: CourseNode[]): CourseNode | null => {
-        for (const n of nodes) {
-          if (n.id === storedId) return n;
-          const found = findNode(n.children || []);
-          if (found) return found;
-        }
-        return null;
-      };
-      
-      const found = findNode(courseData);
-      if (found) {
-        setSelectedNodePersistent(found);
-        const path = findPathToNode(courseData, storedId);
-        if (path) {
-          setExpandedNodes((prev) => {
-            const n = new Set(prev);
-            path.forEach((id) => n.add(id));
-            return n;
-          });
+  useEffect(() => {
+    if (selectedNode && !isRestoringFromAnalytics && !contentData[selectedNode.id]) {
+      fetchAndRefresh(selectedNode);
+    }
+  }, [selectedNode?.id]); // Only depends on node ID, not the whole object
+  useEffect(() => {
+    if (!courseData.length) return;
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("fromAnalytics") === "true") {
+      setIsRestoringFromAnalytics(true);
+
+      const cleanUrl = new URL(window.location.href);
+      cleanUrl.searchParams.delete("fromAnalytics");
+      window.history.replaceState({}, "", cleanUrl.toString());
+
+      const storedTab = getLS("lms_selected_tab") as "I_Do" | "We_Do" | "You_Do" | null;
+      const storedSub = getLS("lms_selected_subcategory");
+      const storedId = getLS("lms_selected_node_id");
+
+      if (storedTab) setActiveTabPersistent(storedTab);
+      if (storedSub) setActiveSubcategoryPersistent(storedSub);
+
+      if (storedId) {
+        const findNode = (nodes: CourseNode[]): CourseNode | null => {
+          for (const n of nodes) {
+            if (n.id === storedId) return n;
+            const found = findNode(n.children || []);
+            if (found) return found;
+          }
+          return null;
+        };
+
+        const found = findNode(courseData);
+        if (found) {
+          setSelectedNodePersistent(found);
+          const path = findPathToNode(courseData, storedId);
+          if (path) {
+            setExpandedNodes((prev) => {
+              const n = new Set(prev);
+              path.forEach((id) => n.add(id));
+              return n;
+            });
+          }
         }
       }
+
+      setTimeout(() => setIsRestoringFromAnalytics(false), 300);
     }
-    
-    setTimeout(() => setIsRestoringFromAnalytics(false), 300);
-  }
-}, [courseData]);
+  }, [courseData]);
 
   useEffect(() => {
     if (!isResizing) return;
@@ -2114,51 +3578,51 @@ useEffect(() => {
       setTimeout(() => window.dispatchEvent(new Event('storage')), 100)
     } catch { toast.error("Failed to switch role") }
   }
-// Add this loading component inside your DynamicLMSCoordinator (before the return)
-const LoadingSpinner = () => (
-  <div className="flex flex-col items-center justify-center h-full w-full" style={{ background: T.bg }}>
-    <div className="relative">
-      {/* Main spinner */}
-      <div className="w-16 h-16 border-4 rounded-full" style={{ borderColor: `${T.orange}20`, borderTopColor: T.orange }}>
-        <div className="absolute inset-0 border-4 rounded-full animate-spin" style={{ borderColor: T.orange, borderTopColor: 'transparent' }} />
-      </div>
-      
-      {/* Inner dot */}
-      <div className="absolute inset-0 flex items-center justify-center">
-        <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: T.orange }} />
-      </div>
-    </div>
-    
-    <div className="mt-6 text-center">
-      <p className="text-[13px] font-semibold" style={{ color: T.textMain }}>Loading Course Content</p>
-      <p className="text-[11px] mt-1.5" style={{ color: T.textMuted }}>Please wait while we prepare your resources...</p>
-    </div>
-    
-    {/* Animated dots */}
-    <div className="flex gap-1.5 mt-4">
-      {[0, 1, 2].map(i => (
-        <div
-          key={i}
-          className="w-1.5 h-1.5 rounded-full"
-          style={{
-            background: T.orange,
-            animation: `pulseDot 1.2s ease-in-out ${i * 0.2}s infinite`,
-          }}
-        />
-      ))}
-    </div>
-  </div>
-);
+  // Add this loading component inside your DynamicLMSCoordinator (before the return)
+  const LoadingSpinner = () => (
+    <div className="flex flex-col items-center justify-center h-full w-full" style={{ background: T.bg }}>
+      <div className="relative">
+        {/* Main spinner */}
+        <div className="w-16 h-16 border-4 rounded-full" style={{ borderColor: `${T.orange}20`, borderTopColor: T.orange }}>
+          <div className="absolute inset-0 border-4 rounded-full animate-spin" style={{ borderColor: T.orange, borderTopColor: 'transparent' }} />
+        </div>
 
-// Add the keyframes for the animation in your global styles
-const LoadingStyles = () => (
-  <style jsx global>{`
+        {/* Inner dot */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: T.orange }} />
+        </div>
+      </div>
+
+      <div className="mt-6 text-center">
+        <p className="text-[13px] font-semibold" style={{ color: T.textMain }}>Loading Course Content</p>
+        <p className="text-[11px] mt-1.5" style={{ color: T.textMuted }}>Please wait while we prepare your resources...</p>
+      </div>
+
+      {/* Animated dots */}
+      <div className="flex gap-1.5 mt-4">
+        {[0, 1, 2].map(i => (
+          <div
+            key={i}
+            className="w-1.5 h-1.5 rounded-full"
+            style={{
+              background: T.orange,
+              animation: `pulseDot 1.2s ease-in-out ${i * 0.2}s infinite`,
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+
+  // Add the keyframes for the animation in your global styles
+  const LoadingStyles = () => (
+    <style jsx global>{`
     @keyframes pulseDot {
       0%, 100% { opacity: 0.3; transform: scale(0.8); }
       50% { opacity: 1; transform: scale(1.2); }
     }
   `}</style>
-);
+  );
   if (!courseId) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: T.pageBg, fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif" }}>
@@ -2209,14 +3673,28 @@ const LoadingStyles = () => (
         .animate-in { animation: animateIn 0.3s ease-out; }
       `}</style>
 
-      <div style={{ height: '100vh', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+      <div style={{
+        height: '100vh',
+        fontFamily: "'Inter', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+        WebkitFontSmoothing: 'antialiased',
+        MozOsxFontSmoothing: 'grayscale',
+        textRendering: 'optimizeLegibility',
+      }}>
         <div className="flex flex-col overflow-hidden" style={{ height: '100%', background: T.pageBg }}>
-          <div className="flex-1 flex overflow-hidden relative" style={{ overflow: 'visible' }}>
+          <div className="flex-1 flex overflow-hidden relative" style={{ padding: 12, gap: 12 }}>
 
-            {/* ── Sidebar ────────────────────────────────────────────────────── */}
+            {/* ── Sidebar Card ────────────────────────────────────────────────── */}
             <div
               className="relative flex flex-col h-full flex-shrink-0"
-              style={{ width: `${sidebarWidth}px`, background: T.bg, borderRight: `1.5px solid ${T.border}`, transition: isResizing ? 'none' : 'width 0.2s ease' }}
+              style={{
+                width: `${sidebarWidth}px`,
+                background: T.bg,
+                borderRadius: 16,
+                border: `1px solid ${T.border}`,
+                boxShadow: T.cardShadow,
+                overflow: 'hidden',
+                transition: isResizing ? 'none' : 'width 0.2s ease'
+              }}
             >
               <CourseSidebar
                 courseData={courseData}
@@ -2228,16 +3706,23 @@ const LoadingStyles = () => (
                 moduleCount={courseData[0]?.children?.length || 0}
                 onNodeSelect={selectNode}
                 onToggleNode={toggleNode}
+                onExpandAll={expandAllNodes}
+                onCollapseAll={collapseAllNodes}
                 onSidebarWidthChange={setSidebarWidth}
                 onSearchChange={setSearchQuery}
-  isLoading={isSidebarLoading}  // Use the state variable
-
+                isLoading={isSidebarLoading}
                 onMouseDown={(e) => { setIsResizing(true); e.preventDefault(); }}
               />
             </div>
 
-            {/* ── Main content ─────────────────────────────────────────────── */}
-            <div className="flex-1 flex flex-col overflow-hidden" style={{ background: T.bg, gap: 0, overflow: 'visible' }}>
+            {/* ── Main content Card ────────────────────────────────────────── */}
+            <div className="flex-1 flex flex-col overflow-hidden" style={{
+              background: T.bg,
+              borderRadius: 16,
+              border: `1px solid ${T.border}`,
+              boxShadow: T.cardShadow,
+              gap: 0,
+            }}>
               {/* ── Breadcrumb + User Menu Row ─────────────────────── */}
               <div
                 className="flex items-center justify-between flex-shrink-0"
@@ -2264,10 +3749,10 @@ const LoadingStyles = () => (
                     style={{
                       background: showUserMenu ? "#FFF4F1" : "#ffffff",
                       borderRadius: "999px",
-                      border: `1.5px solid ${showUserMenu ? "#F2775755" : "#e8e4eb"}`,
+                      border: `1.5px solid ${showUserMenu ? "rgba(232,100,12,0.33)" : "#e8e4eb"}`,
                       padding: "5px 12px 5px 6px",
                       boxShadow: showUserMenu
-                        ? "0 2px 12px rgba(242,119,87,0.25)"
+                        ? "0 2px 12px rgba(232,100,12,0.22)"
                         : "0 2px 8px rgba(0,0,0,0.07), 0 1px 3px rgba(0,0,0,0.04)",
                     }}
                     onMouseEnter={e => {
@@ -2290,7 +3775,7 @@ const LoadingStyles = () => (
                         className="h-8 w-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0"
                         style={{
                           background: `linear-gradient(135deg, ${T.orange}, ${T.orangeDark})`,
-                          boxShadow: `0 2px 8px rgba(242,119,87,0.25)`,
+                          boxShadow: `0 2px 8px rgba(232,100,12,0.22)`,
                         }}
                       >
                         {getUserInitials()}
@@ -2336,7 +3821,7 @@ const LoadingStyles = () => (
                             className="h-10 w-10 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
                             style={{
                               background: `linear-gradient(135deg, ${T.orange}, ${T.orangeDark})`,
-                              boxShadow: `0 4px 14px rgba(242,119,87,0.25)`,
+                              boxShadow: `0 4px 14px rgba(232,100,12,0.22)`,
                             }}
                           >
                             {getUserInitials()}
@@ -2391,94 +3876,256 @@ const LoadingStyles = () => (
               </div>
 
               {/* ── Course content — zero top gap ────────────────────────────── */}
-<div className="flex-1 overflow-hidden" style={{ marginTop: 0, paddingTop: 0 }}>
-  {!isNodeSelected ? (
-    // Show welcome screen when no node is selected
-<div className="flex flex-col items-center justify-center h-full text-center p-10" style={{ animation: "ccFadeIn 0.4s ease-out both" }}>      <div className="relative overflow-hidden w-full max-w-md mb-7 rounded-2xl"
-                     style={{ background: `linear-gradient(140deg,${T.orange} 0%,#E86440 50%,${T.orangeDark} 100%)`, padding: "32px 28px", boxShadow: `0 12px 40px ${T.orangeGlow}` }}>
-                     <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }} viewBox="0 0 480 130" fill="none">
-                       <circle cx="450" cy="-5" r="90" stroke="rgba(255,255,255,0.18)" strokeWidth="1.2" />
-                       <circle cx="450" cy="-5" r="145" stroke="rgba(255,255,255,0.08)" strokeWidth="1.2" />
-                       <circle cx="30" cy="140" r="70" stroke="rgba(255,255,255,0.10)" strokeWidth="1.2" />
-                     </svg>
-                     <div style={{ position: "relative", zIndex: 1 }}>
-                       <div className="w-11 h-11 rounded-xl flex items-center justify-center mb-4 mx-auto" style={{ background: "rgba(255,255,255,0.20)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.30)" }}>
-                         <BookOpen size={20} className="text-white" />
-                       </div>
-                       <h3 className="text-[20px] font-extrabold text-white mb-1.5 tracking-tight">Welcome to Your Course</h3>
-                       <p className="text-[11.5px] font-medium leading-relaxed" style={{ color: "rgba(255,255,255,0.80)" }}>Select a module, topic, or subtopic from the sidebar to start managing resources.</p>
-                     </div>
-                   </div>
-      <div className="grid grid-cols-3 gap-3 max-w-md w-full">
-        {([
-          { icon: <Target size={20} />, color: "#dc2626", bg: "rgba(220,38,38,0.09)", title: "I Do", desc: "Teacher-led instruction" },
-          { icon: <Users size={20} />, color: "#ea580c", bg: "rgba(234,88,12,0.09)", title: "We Do", desc: "Guided practice" },
-          { icon: <BookOpen size={20} />, color: "#059669", bg: "rgba(5,150,105,0.09)", title: "You Do", desc: "Independent work" },
-        ] as any[]).map(item => (
-          <div key={item.title} className="p-4 rounded-2xl text-center"
-            style={{ background: item.bg, border: `1.5px solid ${item.color}18`, transition: "all 0.22s" }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = "translateY(-2px)"; (e.currentTarget as HTMLElement).style.boxShadow = `0 8px 20px ${item.color}18`; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = "none"; (e.currentTarget as HTMLElement).style.boxShadow = "none"; }}>
-            <div className="w-10 h-10 mx-auto mb-3 rounded-xl flex items-center justify-center" style={{ background: `${item.color}14`, color: item.color }}>{item.icon}</div>
-            <h4 className="text-[12px] font-bold tracking-tight" style={{ color: T.textMain }}>{item.title}</h4>
-            <p className="text-[10.5px] mt-1 font-medium leading-relaxed" style={{ color: T.textMuted }}>{item.desc}</p>
-          </div>
-        ))}
-      </div>
-    </div>
-  ) : isContentLoading || !initialLoadComplete ? (
-    <LoadingSpinner />
-  ) : (
-    <CourseContent
-                  selectedNode={selectedNode}
-                  activeTab={activeTab}
-                  activeSubcategory={activeSubcategory}
-                  subcategories={subcategories}
-                  contentData={contentData}
-                  breadcrumbs={[]}
-                  fileTypes={fileTypes}
-                  currentFolderContents={getCurrentFolderContents()}
-                  folderNavState={getCurrentNavState()}
-                  courseId={courseId}
-                  courseStructureName={courseStructureResponse?.data?.courseName || ""}
-               configuredLanguages={configuredLanguages}  
+              <div className="flex-1 overflow-hidden" style={{ marginTop: 0, paddingTop: 0 }}>
+                {!isNodeSelected ? (
+                  // Show welcome screen when no node is selected
+                  <div className="flex flex-col items-center justify-center h-full text-center p-10" style={{ animation: "ccFadeIn 0.4s ease-out both" }}>      <div className="relative overflow-hidden w-full max-w-md mb-7 rounded-2xl"
+                    style={{ background: `linear-gradient(140deg,${T.orange} 0%,#E86440 50%,${T.orangeDark} 100%)`, padding: "32px 28px", boxShadow: `0 12px 40px ${T.orangeGlow}` }}>
+                    <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }} viewBox="0 0 480 130" fill="none">
+                      <circle cx="450" cy="-5" r="90" stroke="rgba(255,255,255,0.18)" strokeWidth="1.2" />
+                      <circle cx="450" cy="-5" r="145" stroke="rgba(255,255,255,0.08)" strokeWidth="1.2" />
+                      <circle cx="30" cy="140" r="70" stroke="rgba(255,255,255,0.10)" strokeWidth="1.2" />
+                    </svg>
+                    <div style={{ position: "relative", zIndex: 1 }}>
+                      <div className="w-11 h-11 rounded-xl flex items-center justify-center mb-4 mx-auto" style={{ background: "rgba(255,255,255,0.20)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.30)" }}>
+                        <BookOpen size={20} className="text-white" />
+                      </div>
+                      <h3 className="text-[20px] font-extrabold text-white mb-1.5 tracking-tight">Welcome to Your Course</h3>
+                      <p className="text-[11.5px] font-medium leading-relaxed" style={{ color: "rgba(255,255,255,0.80)" }}>Select a module, topic, or subtopic from the sidebar to start managing resources.</p>
+                    </div>
+                  </div>
+                    <div className="grid grid-cols-3 gap-3 max-w-md w-full">
+                      {([
+                        { icon: <Target size={20} />, color: "#dc2626", bg: "rgba(220,38,38,0.09)", title: "I Do", desc: "Teacher-led instruction" },
+                        { icon: <Users size={20} />, color: "#ea580c", bg: "rgba(234,88,12,0.09)", title: "We Do", desc: "Guided practice" },
+                        { icon: <BookOpen size={20} />, color: "#059669", bg: "rgba(5,150,105,0.09)", title: "You Do", desc: "Independent work" },
+                      ] as any[]).map(item => (
+                        <div key={item.title} className="p-4 rounded-2xl text-center"
+                          style={{ background: item.bg, border: `1.5px solid ${item.color}18`, transition: "all 0.22s" }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = "translateY(-2px)"; (e.currentTarget as HTMLElement).style.boxShadow = `0 8px 20px ${item.color}18`; }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = "none"; (e.currentTarget as HTMLElement).style.boxShadow = "none"; }}>
+                          <div className="w-10 h-10 mx-auto mb-3 rounded-xl flex items-center justify-center" style={{ background: `${item.color}14`, color: item.color }}>{item.icon}</div>
+                          <h4 className="text-[12px] font-bold tracking-tight" style={{ color: T.textMain }}>{item.title}</h4>
+                          <p className="text-[10.5px] mt-1 font-medium leading-relaxed" style={{ color: T.textMuted }}>{item.desc}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : isContentLoading || !initialLoadComplete ? (
+                  <LoadingSpinner />
+                ) : (
+                  <CourseContent
+                    key={`${selectedNode?.id}-${Date.now()}`} // This forces re-render on content change
 
-                  onTabChange={(tab) => { setActiveTabPersistent(tab); setActiveSubcategoryPersistent(""); updateURL({ activeTab: tab, activeSubcategory: "" }); updateNavState({ currentFolderPath: [], currentFolderId: null }); }}
-                  onSubcategoryChange={(sub, comp) => { setActiveSubcategoryPersistent(sub); updateURL({ activeSubcategory: sub }); updateNavState({ currentFolderPath: [], currentFolderId: null }); }}
-                  onResourceModalOpen={() => setShowNotionModal(true)}
-                  onFileClick={handleFileClick}
-                  onNavigateToFolder={navigateToFolder}
-                  onNavigateUp={() => { const navState = getCurrentNavState(); const newPath = navState.currentFolderPath.slice(0, -1); updateNavState({ currentFolderPath: newPath, currentFolderId: newPath.length ? null : null }); }}
-onEditFolder={(folder) => { 
-  setEditingFolder(folder); 
-  setEditFolderName(folder.name); 
-  setFolderTags(folder.tags || []); // ← This is correct
-  setShowCreateFolderModal(true); 
-}}                  onDeleteFolder={(folder) => { setDeleteTarget({ type: "folder", item: folder, name: folder.name }); setShowDeleteConfirm(true); }}
-                  onDeleteFile={(id, name) => { setDeleteTarget({ type: "file", item: { id }, name }); setShowDeleteConfirm(true); }}
-                  onUpdateFile={initiateFileUpdate}
-                  getParentNodeName={getParentNodeName}
-                  getFolderItemCount={getFolderItemCount}
-                  pedagogy={selectedNode?.originalData?.pedagogy}
-                  onDeletePage={handleDeletePage}
-                  onBulkDelete={async (items) => {
-                    for (const item of items) {
-                      try {
-                        if (item.type === "page") {
-                          await doDeletePage(item.id, item.name);
-                        } else if (item.type === "folder" && item.folderItem) {
-                          await deleteFolder(item.folderItem);
-                        } else if (item.type === "file") {
-                          await deleteFile(item.id);
+                    selectedNode={selectedNode}
+                    activeTab={activeTab}
+                    activeSubcategory={activeSubcategory}
+                    subcategories={subcategories}
+                    contentData={contentData}
+                    breadcrumbs={[]}
+                      onNavigateToFolderLevel={handleNavigateToFolderLevel}
+
+                    fileTypes={fileTypes}
+                    currentFolderContents={getCurrentFolderContents()}
+                    folderNavState={getCurrentNavState()}
+                    courseId={courseId}
+                    courseStructureName={courseStructureResponse?.data?.courseName || ""}
+                    configuredLanguages={configuredLanguages}
+
+                    onTabChange={(tab) => { setActiveTabPersistent(tab); setActiveSubcategoryPersistent(""); updateURL({ activeTab: tab, activeSubcategory: "" }); updateNavState({ currentFolderPath: [], currentFolderId: null }); }}
+                    onSubcategoryChange={(sub, comp) => { setActiveSubcategoryPersistent(sub); updateURL({ activeSubcategory: sub }); updateNavState({ currentFolderPath: [], currentFolderId: null }); }}
+                    onResourceModalOpen={(groupId, groupName) => {
+                      const gid = typeof groupId === "string" && groupId ? groupId : undefined;
+                      const gname = typeof groupName === "string" && groupName ? groupName : undefined;
+                      setUploadGroupId(gid);
+                      setUploadGroupName(gname);
+                      // When adding to an existing group, the target is ALWAYS the group's
+                      // root — never whatever folder the page happens to be parked in.
+                      // Reset the persistent nav state so the modal opens at a clean root
+                      // and `currentFolderPath=[]` flows through to the server as
+                      // `folderPath=""`. The file then lands at activity root with the
+                      // group's groupId, which is exactly where the rest of the group lives.
+                      if (gid) updateNavState({ currentFolderPath: [], currentFolderId: null });
+                      clearUploadModalEditState(); // make sure modal opens fresh (not in edit mode)
+                      setShowNotionModal(true);
+                    }}
+                    onFileClick={handleFileClick}
+                    onNavigateToFolder={navigateToFolder}
+                    onNavigateToRoot={() => updateNavState({ currentFolderId: null, currentFolderPath: [] })}
+                    onNavigateUp={() => {
+                      const navState = getCurrentNavState()
+                      const newPath = navState.currentFolderPath.slice(0, -1)
+
+                      if (newPath.length === 0) {
+                        // Back to root
+                        updateNavState({ currentFolderPath: [], currentFolderId: null })
+                      } else {
+                        // Find the parent folder ID from folders state
+                        const findFolderByPath = (items: FolderItem[], targetPath: string): string | null => {
+                          for (const item of items) {
+                            if (item.folderPath === targetPath) return item.id
+                            if (item.subfolders?.length) {
+                              const found = findFolderByPath(item.subfolders, targetPath)
+                              if (found) return found
+                            }
+                          }
+                          return null
                         }
-                      } catch {
-                        // continue deleting remaining items even if one fails
+
+                        const parentPath = newPath.join('/')
+                        const parentFolderId = findFolderByPath(folders, parentPath)
+                        updateNavState({ currentFolderPath: newPath, currentFolderId: parentFolderId })
                       }
-                    }
-                  }}
-               />
-  )}
-</div>
+                    }}
+
+                    onEditFolder={(folder) => {
+                      // Open FileUploadModal pre-filled with the folder's existing name
+                      setEditingFolder(folder);
+                      setUploadModalEditMode(true);
+                      setUploadModalInitialName(folder.name);
+                      setUploadModalInitialDesc(folder.description || "");
+                      setUploadModalInitialShow(true);
+                      setUploadModalInitialDl(false);
+
+                      // Seed every file + subfolder INSIDE the folder being
+                      // edited. Paths are RELATIVE to this folder (so a file
+                      // sitting directly in the folder has path=[]). We also
+                      // build name+path → fileId map for X-click delete routing.
+                      const seedFiles: Array<{ name: string; size?: string | number; path?: string[] }> = [];
+                      const seedFolders: Array<{ name: string; path: string[] }> = [];
+                      const idMap: Record<string, string> = {};
+                      const walk = (f: FolderItem, basePath: string[]) => {
+                        (f.files || []).forEach(file => {
+                          seedFiles.push({ name: file.name, size: file.size, path: basePath });
+                          idMap[`${file.name}::${basePath.join("/")}`] = file.id;
+                        });
+                        (f.subfolders || []).forEach(sf => {
+                          seedFolders.push({ name: sf.name, path: basePath });
+                          walk(sf, [...basePath, sf.name]);
+                        });
+                      };
+                      walk(folder, []);
+                      setUploadModalInitialFiles(seedFiles);
+                      setUploadModalInitialFolders(seedFolders);
+                      editExistingFileIdMapRef.current = idMap;
+                      editPendingDeletionsRef.current = [];
+                      editPendingFolderDeletionsRef.current = [];
+
+                      // Force the modal's currentFolderPath to point at this
+                      // folder so newly-added files land INSIDE it on the server.
+                      const parentSegs = folder.folderPath
+                        ? folder.folderPath.split("/").filter(Boolean)
+                        : [];
+                      setUploadModalForcedPath([...parentSegs, folder.name]);
+
+                      setShowFileUploadModal(true);
+                    }}
+
+                    onEditGroup={(group) => {
+                      // Open FileUploadModal pre-filled with the group name; new files go into the existing group
+                      setUploadGroupId(group.groupId);
+                      setUploadGroupName(group.groupName);
+                      setUploadModalEditMode(true);
+                      setUploadModalInitialName(group.groupName || "");
+                      setUploadModalInitialDesc(group.groupDescription || "");
+                      setUploadModalInitialShow(true);
+                      setUploadModalInitialDl(false);
+
+                      // Seed every top-level file + every folder (and its
+                      // contents, recursively) that belong to the group.
+                      const seedFiles: Array<{ name: string; size?: string | number; path?: string[] }> = [];
+                      const seedFolders: Array<{ name: string; path: string[] }> = [];
+                      const idMap: Record<string, string> = {};
+
+                      // Files directly attached to the group (at activity root,
+                      // grouped by groupId).
+                      (group.files || []).forEach(file => {
+                        seedFiles.push({ name: file.name, size: file.size, path: [] });
+                        idMap[`${file.name}::`] = file.id;
+                      });
+
+                      // Top-level folders of the group + every file/subfolder
+                      // they recursively contain. Paths are relative to group root.
+                      const walk = (f: FolderItem, basePath: string[]) => {
+                        seedFolders.push({ name: f.name, path: basePath });
+                        const newBase = [...basePath, f.name];
+                        (f.files || []).forEach(file => {
+                          seedFiles.push({ name: file.name, size: file.size, path: newBase });
+                          idMap[`${file.name}::${newBase.join("/")}`] = file.id;
+                        });
+                        (f.subfolders || []).forEach(sf => walk(sf, newBase));
+                      };
+                      (group.folders || []).forEach(f => walk(f, []));
+
+                      setUploadModalInitialFiles(seedFiles);
+                      setUploadModalInitialFolders(seedFolders);
+                      editExistingFileIdMapRef.current = idMap;
+                      editPendingDeletionsRef.current = [];
+                      editPendingFolderDeletionsRef.current = [];
+
+                      // Groups live at activity root — no forced path needed.
+                      setUploadModalForcedPath(undefined);
+
+                      setShowFileUploadModal(true);
+                    }}
+
+                    onDeleteFolder={(folder) => { setDeleteTarget({ type: "folder", item: folder, name: folder.name }); setShowDeleteConfirm(true); }}
+                    onDeleteFile={(id, name) => { setDeleteTarget({ type: "file", item: { id }, name }); setShowDeleteConfirm(true); }}
+                    onUpdateFile={initiateFileUpdate}
+                    getParentNodeName={getParentNodeName}
+                    getFolderItemCount={getFolderItemCount}
+                    getFolderTotalSize={getFolderTotalSize}
+                    pedagogy={selectedNode?.originalData?.pedagogy}
+                    onDeletePage={handleDeletePage}
+                    onBulkDelete={async (items) => {
+                      if (!selectedNode) return;
+                      const navState = getCurrentNavState();
+                      // Delete all items silently (no per-item toast / no per-item refresh).
+                      // A single refresh + single toast is handled by runDeleteWithProgress in ContentList.
+                      for (const item of items) {
+                        try {
+                          if (item.type === "page") {
+                            await entityApi.deletePage(
+                              selectedNode.type as "module" | "submodule" | "topic" | "subtopic",
+                              selectedNode.id,
+                              item.id,
+                              {
+                                tabType: toBackendTab(activeTab),
+                                subcategory: activeSubcategory,
+                                folderPath: navState.currentFolderPath.length > 0 ? navState.currentFolderPath.join(",") : "",
+                              }
+                            );
+                          } else if (item.type === "folder" && item.folderItem) {
+                            const pathParts = (item.folderItem.folderPath || item.folderItem.name).split("/").filter(Boolean);
+                            const folderName = pathParts.pop();
+                            await entityApi.deleteFolder(selectedNode.type as any, selectedNode.id, {
+                              tabType: toBackendTab(activeTab),
+                              subcategory: activeSubcategory,
+                              folderName: folderName || "",
+                              folderPath: pathParts.join("/"),
+                              courses: selectedNode.originalData?.courses || "",
+                              action: "deleteFolder",
+                            });
+                          } else if (item.type === "file") {
+                            await entityApi.deleteFile(selectedNode.type as any, selectedNode.id, {
+                              tabType: toBackendTab(activeTab),
+                              subcategory: activeSubcategory,
+                              folderPath: navState.currentFolderPath.join("/"),
+                              action: "deleteFile",
+                              updateFileId: item.id,
+                            });
+                          }
+                        } catch {
+                          // continue with remaining items even if one fails
+                        }
+                      }
+                      // Single refresh after all deletions complete
+                      await fetchAndRefresh(selectedNode);
+                    }}
+                  />
+                )}
+              </div>
+
             </div>
           </div>
         </div>
@@ -2488,514 +4135,1173 @@ onEditFolder={(folder) => {
       <NotionResourceModal
         isOpen={showNotionModal}
         onClose={() => setShowNotionModal(false)}
-  fileTypes={fileTypes}  // This already contains only Video (plus static folder, zip, reference)
+        fileTypes={fileTypes}  // This already contains only Video (plus static folder, zip, reference)
         selectedNode={selectedNode}
         activeTab={activeTab}
         activeSubcategory={activeSubcategory}
         currentFolderPath={getCurrentNavState().currentFolderPath}
+        pathCrumbs={buildFullPathCrumbs()}
         onSelectType={(key) => { setSelectedFileType(key); setShowUploadModal(true); }}
-        onCreateFolder={() => setShowCreateFolderModal(true)}
+        onCreateFolder={() => {
+          setShowNotionModal(false);
+          // If the picker was opened via a group row's "+ Add resource" button,
+          // seed the FolderBuilder with that group as the current location so
+          // the user lands "inside" the group. Otherwise start at FolderBuilder
+          // root (activity root) — same as before.
+          if (uploadGroupId && uploadGroupName) {
+            setFbNavPath([{
+              id: `grp-${uploadGroupId}`,
+              name: uploadGroupName,
+              kind: "group",
+              groupId: uploadGroupId,
+            }]);
+          } else {
+            setFbNavPath([]);
+          }
+          setShowFolderBuilderModal(true);
+        }}
+        onOpenFileUploadModal={() => {
+          setShowNotionModal(false);
+          clearUploadModalEditState(); // fresh create mode
+          setShowFileUploadModal(true);
+        }}
         hierarchyInfo={buildFullHierarchyInfo()}
         onPageCreated={async () => {
-          if (selectedNode) {
-            await fetchAndRefresh(selectedNode);
-            showSuccessToast("Page created!");
-          }
+          if (!selectedNode) return;
+          // The backend now stores folderPath / folderId / groupId on the
+          // page record directly (and physically places folder-bound pages
+          // inside their folder's pages[]). A simple refresh is enough —
+          // CourseContent will pick the new page up at the correct location.
+          await fetchAndRefresh(selectedNode);
+          showSuccessToast("Page created!");
+        }}
+      />
+
+      {/* ── File Upload Modal ─────────────────────────────────────────────────── */}
+      <FileUploadModal
+        isOpen={showFileUploadModal}
+        onClose={() => {
+          setShowFileUploadModal(false);
+          setUploadGroupId(undefined);
+          setUploadGroupName(undefined);
+          // Only re-open the Notion picker if we were in create mode (not edit mode)
+          if (!uploadModalEditMode) setShowNotionModal(true);
+          setUpdateFileId(null);
+          setEditingFolder(null);
+          clearUploadModalEditState();
+        }}
+       onSuccess={() => {
+    // Close modal immediately, then refresh in background
+    setShowFileUploadModal(false);
+    setShowNotionModal(false);
+    setUploadGroupId(undefined);
+    setUploadGroupName(undefined);
+    setUpdateFileId(null);
+    setEditingFolder(null);
+    clearUploadModalEditState();
+    showSuccessToast("Upload completed successfully!");
+
+    if (selectedNode) {
+      setCachedContentData(prev => {
+        const newCache = { ...prev };
+        delete newCache[selectedNode.id];
+        return newCache;
+      });
+      fetchAndRefresh(selectedNode);
+    }
+  }}
+
+        onSubmit={handleFileUploadModalSubmit}
+        onCreateFolder={createFolderWithName}
+        // When editing a folder, we force the modal's working path to the
+        // folder's own location so new uploads land inside it. Otherwise we
+        // pass the page's current nav path as normal.
+        currentFolderPath={uploadModalForcedPath ?? getCurrentNavState().currentFolderPath}
+        parentGroupId={uploadGroupId}
+        parentGroupName={uploadGroupName}
+        editMode={uploadModalEditMode}
+        initialFileName={uploadModalInitialName}
+        initialDescription={uploadModalInitialDesc}
+        initialShowToStudent={uploadModalInitialShow}
+        initialAllowDownload={uploadModalInitialDl}
+        initialFiles={uploadModalInitialFiles}
+        initialFolders={uploadModalInitialFolders}
+        onDeleteFile={(name, path) => {
+          // The modal already removed the row from its display. Here we look up
+          // the server-side fileId and queue the deletion. The actual API call
+          // happens on Save Changes via handleFileUploadModalSubmit so the user
+          // can still cancel by closing the modal without saving.
+          const key = `${name}::${path.join("/")}`;
+          const fileId = editExistingFileIdMapRef.current[key];
+          editPendingDeletionsRef.current = [
+            ...editPendingDeletionsRef.current,
+            { name, path, fileId },
+          ];
+        }}
+        onDeleteFolder={(name, path) => {
+          // Mirror of onDeleteFile but for an existing folder. We queue the
+          // folder itself (parent path + name); the server's deleteFolder API
+          // cascades to its contents on Save Changes — no need to queue every
+          // nested file individually.
+          editPendingFolderDeletionsRef.current = [
+            ...editPendingFolderDeletionsRef.current,
+            { name, path },
+          ];
         }}
       />
 
       {/* ── Upload Modal ──────────────────────────────────────────────────────── */}
       {showUploadModal && (
-        <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50" style={{ background: 'rgba(0,0,0,0.5)' }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: 'rgba(0,0,0,0.42)', backdropFilter: 'blur(3px)', animation: 'umFadeIn 0.18s ease-out both' }}
+          onClick={resetUploadModalStates}>
           <div
-            className={`relative flex flex-col mx-4 overflow-hidden ${isButtonLoading ? 'opacity-60 pointer-events-none' : ''}`}
-            style={{ background: T.bg, borderRadius: '20px', border: `1.5px solid ${T.border}`, width: '100%', maxWidth: '640px', maxHeight: '90vh', minHeight: '500px', boxShadow: `0 24px 60px rgba(0,0,0,0.16)` }}
-            onClick={(e) => e.stopPropagation()}
+            className={`relative flex flex-col overflow-hidden mx-4 ${isButtonLoading ? 'pointer-events-none' : ''}`}
+            style={{
+              width: 880, maxWidth: 'calc(100vw - 32px)',
+              height: '86vh', maxHeight: '86vh',
+              background: T.bg, borderRadius: '22px',
+              border: `1.5px solid ${T.border}`,
+              boxShadow: '0 24px 60px rgba(0,0,0,0.18)',
+              fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif",
+              animation: 'umSlideUp 0.22s cubic-bezier(0.16,1,0.3,1) both',
+            }}
+            onClick={e => e.stopPropagation()}
           >
             {isButtonLoading && (
-              <div className="absolute inset-0 backdrop-blur-sm flex items-center justify-center z-10 rounded-2xl" style={{ background: 'rgba(255,255,255,0.85)' }}>
+              <div className="absolute inset-0 flex items-center justify-center z-10 rounded-[22px]"
+                style={{ background: 'rgba(255,255,255,0.88)', backdropFilter: 'blur(4px)' }}>
                 <div className="flex flex-col items-center gap-3">
-                  <div className="w-9 h-9 rounded-full animate-spin" style={{ border: `3px solid ${T.orangeLight}`, borderTopColor: T.orange }} />
+                  <div className="w-9 h-9 rounded-full animate-spin" style={{ border: `3px solid rgba(232,100,12,0.15)`, borderTopColor: T.orange }} />
                   <span className="text-[12px] font-semibold" style={{ color: T.textSub }}>{selectedFileType === "url" ? "Adding URL…" : "Uploading…"}</span>
                 </div>
               </div>
             )}
 
-            {/* Upload modal hero header */}
-            <div className="relative overflow-hidden flex-shrink-0" style={{ background: 'linear-gradient(135deg, #F27757 0%, #ED6445 52%, #E4573A 100%)', padding: '16px 18px 22px', borderRadius: '18px 18px 0 0' }}>
-              <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0 }} viewBox="0 0 640 80" fill="none">
-                <circle cx="610" cy="-8" r="65" stroke="rgba(255,255,255,0.18)" strokeWidth="1.2" />
-                <circle cx="610" cy="-8" r="115" stroke="rgba(255,255,255,0.10)" strokeWidth="1.2" />
+            {/* Header — matches FileUploadModal */}
+            <div className="relative overflow-hidden flex-shrink-0"
+              style={{ background: 'linear-gradient(140deg,#F08243 0%,#E8640C 48%,#C95308 100%)', padding: '10px 14px 12px', borderRadius: '20px 20px 0 0' }}>
+              <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0 }} viewBox="0 0 600 70" fill="none">
+                <circle cx="570" cy="-8" r="70" stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
+                <circle cx="30" cy="80" r="55" stroke="rgba(255,255,255,0.10)" strokeWidth="1" />
               </svg>
               <div style={{ position: 'relative', zIndex: 1 }} className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.22)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.30)' }}>
-                    {React.cloneElement(fileTypes.find((t) => t.key === selectedFileType)?.icon as React.ReactElement || <FileLucide />, { size: 18, color: '#fff' })}
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+                    style={{ background: 'rgba(255,255,255,0.22)', border: '1px solid rgba(255,255,255,0.30)' }}>
+                    {React.cloneElement(fileTypes.find((t) => t.key === selectedFileType)?.icon as React.ReactElement || <FileLucide />, { size: 14, color: '#fff' })}
                   </div>
                   <div>
-                    <h3 className="text-[14px] font-bold text-white">{updateFileId ? "Update File" : "Upload Files"}</h3>
-                    <p className="text-[11px] mt-0.5" style={{ color: 'rgba(255,255,255,0.72)' }}>
+                    <h3 className="text-[15px] font-bold text-white leading-tight">
+                      {selectedFileType === "url" ? (updateFileId ? "Update URL" : "Add URL") : (updateFileId ? "Update File" : "Upload Reference")}
+                    </h3>
+                    <p className="text-[10.5px]" style={{ color: 'rgba(255,255,255,0.72)' }}>
                       {getCurrentNavState().currentFolderPath.length > 0 ? `To "${getCurrentNavState().currentFolderPath.slice(-1)[0]}"` : "Add files with metadata"}
                     </p>
                   </div>
                 </div>
-                <button
-                  onClick={resetUploadModalStates}
-                  className="p-1.5 rounded-xl transition-all"
+                <button onClick={() => { resetUploadModalStates(); setShowNotionModal(true); }}
+                  className="flex-shrink-0 p-1 rounded-lg transition-all"
                   style={{ background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.25)', color: 'rgba(255,255,255,0.85)' }}
                   onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.30)'}
                   onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.18)'}
                 >
-                  <X size={15} />
+                  <X size={14} />
                 </button>
               </div>
             </div>
+            {/* ── Plain location breadcrumb (display-only) ──────────────
+               Course > Module > … > Group > Folder > Subfolder. Shows the
+               user where this URL / Reference will be saved before they
+               click Save. Non-clickable by design. */}
+            <PlainBreadcrumb crumbs={buildFullPathCrumbs()} prefix="Saving to:" />
 
             {/* Body */}
             <div className="flex-1 overflow-y-auto p-4 space-y-2.5">
               {/* File Details */}
-             {/* File Details */}
-<div className="rounded-2xl overflow-hidden" style={{ border: `1.5px solid ${T.border}` }}>
-  <AccordionHeader icon={<FileText />} iconColor={T.orange} iconBg={T.orangeLight} title="File Details" subtitle="Add file details and upload" sectionKey="description" currentKey={expandedUploadSection} onToggle={setExpandedUploadSection} />
-  {expandedUploadSection === "description" && (
-    <div className="p-4 space-y-4" style={{ background: T.bg }}>
-      {selectedFileType === "url" ? (
-        // URL section remains the same
-        <div className="space-y-3">
-          <div>
-            <label className="block text-[11px] font-bold mb-2" style={{ color: T.textSub }}>{updateFileId ? "Update URL" : "Enter URL"}</label>
-            <input type="url" value={folderUrl} onChange={(e) => setFolderUrl(e.target.value)} placeholder="https://example.com" className="w-full px-3 py-2.5 text-[13px] outline-none transition-all" style={{ background: T.pageBg, border: `1.5px solid ${T.border}`, borderRadius: '10px', color: T.textMain }}
-              onFocus={e => { e.currentTarget.style.borderColor = T.orange; e.currentTarget.style.boxShadow = `0 0 0 3px ${T.orangeLight}`; }}
-              onBlur={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = 'none'; }}
-            />
-          </div>
-          <div>
-            <label className="block text-[11px] font-bold mb-2" style={{ color: T.textSub }}>Link Name <span style={{ color: T.textMuted, fontWeight: 400 }}>(display name)</span></label>
-            <input
-              type="text"
-              value={urlFileName}
-              onChange={(e) => setUrlFileName(e.target.value)}
-              placeholder={folderUrl ? extractFileNameFromUrl(folderUrl) : "e.g. React Docs"}
-              className="w-full px-3 py-2.5 text-[13px] outline-none transition-all"
-              style={{ background: T.pageBg, border: `1.5px solid ${T.border}`, borderRadius: '10px', color: T.textMain }}
-              onFocus={e => { e.currentTarget.style.borderColor = T.orange; e.currentTarget.style.boxShadow = `0 0 0 3px ${T.orangeLight}`; }}
-              onBlur={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = 'none'; }}
-            />
-          </div>
-        </div>
-      ) : (
-        <>
-   {/* File Name Input - Show existing file name when updating */}
-<div>
-  <label className="block text-[11px] font-bold mb-2" style={{ color: T.textSub }}>
-    {updateFileId ? "File Name" : "File Name(s)"}
-  </label>
-  
-  {/* For update mode - show the file name that will be used */}
-  {updateFileId && updateFileType !== "url" && (
-    <div className="mb-3">
-      <div className="flex items-center gap-2">
-        <input 
-          type="text" 
-          value={fileDisplayNames[updateFileId] || ""} 
-          onChange={(e) => {
-            setFileDisplayNames((prev) => ({ 
-              ...prev, 
-              [updateFileId]: e.target.value 
-            }));
-            // Also update the uploading files name if any
-            if (uploadingFiles.length > 0) {
-              setUploadingFiles((prev) => prev.map(f => ({
-                ...f,
-                name: e.target.value
-              })));
-            }
-          }}
-          className="flex-1 px-3 py-2 text-[12px] outline-none"
-          style={{ 
-            background: T.pageBg, 
-            border: `1.5px solid ${T.border}`, 
-            borderRadius: '10px', 
-            color: T.textMain,
-            fontFamily: "inherit"
-          }}
-          onFocus={e => { e.currentTarget.style.borderColor = T.orange; }}
-          onBlur={e => { e.currentTarget.style.borderColor = T.border; }}
-          placeholder="File name"
-        />
-        {/* Show status indicator */}
-        {uploadingFiles.length > 0 && (
-          <span className="text-[11px] text-amber-600">
-            (New file selected)
-          </span>
-        )}
-        {uploadingFiles.length === 0 && updateFileId && (
-          <span className="text-[11px]" style={{ color: T.textMuted }}>
-            (Current file name)
-          </span>
-        )}
-      </div>
-      
-      {/* Show warning only when a new file is selected */}
-      {uploadingFiles.length > 0 && (
-        <p className="text-[9px] text-amber-600 mt-1">
-          ⚠️ The file will be replaced with the new file you selected
-        </p>
-      )}
-    </div>
-  )}
-  
-  {/* For new files - show multiple file inputs */}
-  {!updateFileId && selectedFiles.length > 0 && (
-    <div>
-      {selectedFiles.map((file) => (
-        <div key={file.name} className="flex items-center gap-2 mb-2">
-          <input 
-            type="text" 
-            value={fileDisplayNames[file.name] || file.name} 
-            onChange={(e) => setFileDisplayNames((prev) => ({ ...prev, [file.name]: e.target.value }))} 
-            className="flex-1 px-3 py-2 text-[12px] outline-none" 
-            style={{ background: T.pageBg, border: `1.5px solid ${T.border}`, borderRadius: '10px', color: T.textMain }} 
-            onFocus={e => { e.currentTarget.style.borderColor = T.orange; }} 
-            onBlur={e => { e.currentTarget.style.borderColor = T.border; }} 
-          />
-          <span className="text-[11px]" style={{ color: T.textMuted }}>.{file.name.split(".").pop()}</span>
-        </div>
-      ))}
-    </div>
-  )}
-</div>
-          
-         {/* File Upload Area */}
-<div>
-  <label className="block text-[11px] font-bold mb-2" style={{ color: T.textSub }}>
-    {updateFileId ? "Select New File (Optional)" : "File Upload"}
-  </label>
-  <div
-    className="p-5 text-center cursor-pointer transition-all rounded-2xl"
-    style={{ border: `1.5px dashed ${T.border}`, background: T.pageBg }}
-    onClick={() => fileInputRef.current?.click()}
-    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = T.orange; (e.currentTarget as HTMLElement).style.background = T.orangeLight; }}
-    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = T.border; (e.currentTarget as HTMLElement).style.background = T.pageBg; }}
-  >
-    <div className="mb-2" style={{ color: fileTypes.find((t) => t.key === selectedFileType)?.color || T.orange }}>
-      {React.cloneElement(fileTypes.find((t) => t.key === selectedFileType)?.icon as React.ReactElement || <Upload />, { size: 28 })}
-    </div>
-    <p className="text-[12px] font-bold mb-1" style={{ color: T.textMain }}>
-      {updateFileId ? "Click to choose a new file (optional)" : "Drop files here or click to browse"}
-    </p>
-    <p className="text-[10px]" style={{ color: T.textMuted }}>
-      {updateFileId ? "Leave empty to keep current file" : `Accepted: ${fileTypes.find((t) => t.key === selectedFileType)?.accept}`}
-    </p>
-    <input 
-      ref={fileInputRef} 
-      type="file" 
-      multiple={!updateFileId} 
-      accept={fileTypes.find((t) => t.key === selectedFileType)?.accept} 
-      className="hidden" 
-      onChange={(e) => handleFileSelection(e.target.files)} 
-    />
-  </div>
-  
-  {/* Show current file info ONLY when no new file is selected */}
-  {updateFileId && updateFileType !== "url" && uploadingFiles.length === 0 && (
-    <div className="mt-2 p-2 rounded-lg" style={{ background: T.orangeLight, border: `1px solid ${T.orange}30` }}>
-      <p className="text-[10px] font-medium" style={{ color: T.orange }}>
-        📄 Current file: {fileDisplayNames[updateFileId] || "Unknown"} (will be kept)
-      </p>
-    </div>
-  )}
-  
-  {/* Show selected new file progress bar and hide current file info */}
- {/* Show selected new file progress bar with replacement info */}
-{uploadingFiles.map((f) => (
-  <div key={f.id} className="p-3 rounded-xl mt-2" style={{ background: T.pageBg, border: `1.5px solid ${T.border}` }}>
-    <div className="flex items-center mb-1.5">
-      <Upload size={11} className="mr-1.5" style={{ color: T.textMuted }} />
-      <span className="text-[11px] flex-1" style={{ color: T.textMain }}>
-        {f.name}
-      </span>
-      <span className="text-[10px]" style={{ color: T.textMuted }}>{f.progress}%</span>
-    </div>
-    <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: T.border }}>
-      <div className="h-full rounded-full transition-all duration-200" style={{ 
-        width: `${f.progress}%`, 
-        background: f.status === "error" ? '#ef4444' : 
-                   f.status === "completed" ? '#10b981' : 
-                   T.orange 
-      }} />
-    </div>
-    {f.status === "ready" && (
-      <div className="text-[10px] font-semibold mt-1" style={{ color: T.orange }}>
-        🔄 Ready to replace existing file
-      </div>
-    )}
-    {f.status === "uploading" && (
-      <div className="text-[10px] font-semibold mt-1" style={{ color: T.orange }}>
-        ⬆️ Uploading new file...
-      </div>
-    )}
-{updateFileId && uploadingFiles.length > 0 && (
-  <div className="mt-2">
-    <button
-      onClick={() => {
-        // Clear all file selection states
-        setSelectedFiles([]);
-        setUploadingFiles([]);
-        setFileDisplayNames({});
-        // Reset the file input
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
-        }
-      }}
-      className="text-[10px] text-red-500 hover:text-red-600 flex items-center gap-1"
-    >
-      <X size={12} />
-      Clear selection
-    </button>
-  </div>
-)}
-  </div>
-))}
-</div>
-          
-{/* Description field */}
-<div>
-  <label className="block text-[11px] font-bold mb-2" style={{ color: T.textSub }}>
-    File Description
-  </label>
-  <div className="rounded-xl overflow-hidden" style={{ border: `1.5px solid ${T.border}` }}>
-    <TipTapEditor
-      value={uploadDescription}
-      onChange={(value) => {
-        console.log("Editor changed:", value);
-        setUploadDescription(value);
-      }}
-      placeholder="Enter file description here..."
-      minHeight="160px"
-      maxHeight="200px"
-      showToolbar={true}
-      editable={true}
-    />
-  </div>
-</div>
-        </>
-      )}
-    </div>
-  )}
-</div>
-
-              {/* Tags */}
-              <div className="rounded-2xl overflow-hidden" style={{ border: `1.5px solid ${T.border}` }}>
-                <AccordionHeader icon={<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>} iconColor="#10b981" iconBg="rgba(16,185,129,0.08)" title="Tags" subtitle={uploadTags.length > 0 ? `${uploadTags.length} tag(s)` : "Add tags to organize"} sectionKey="tags" currentKey={expandedUploadSection} onToggle={setExpandedUploadSection} />
-                {expandedUploadSection === "tags" && (
-                  <div className="p-4 space-y-3" style={{ background: T.bg }}>
-                    <div className="flex items-end gap-2">
-                      <div className="flex-1"><label className="block text-[11px] font-bold mb-1.5" style={{ color: T.textSub }}>Tag Name</label><input type="text" value={uploadCurrentTag} onChange={(e) => setUploadCurrentTag(e.target.value)} placeholder="Tag name…" className="w-full px-3 py-2 text-[12px] outline-none" style={{ background: T.pageBg, border: `1.5px solid ${T.border}`, borderRadius: '10px', color: T.textMain }} onFocus={e => e.currentTarget.style.borderColor = T.orange} onBlur={e => e.currentTarget.style.borderColor = T.border} /></div>
-                      <div><label className="text-[11px] font-bold mb-1.5 block" style={{ color: T.textSub }}>Color</label><input type="color" value={uploadTagColor} onChange={(e) => setUploadTagColor(e.target.value)} className="w-8 h-8 rounded-lg cursor-pointer" style={{ border: `1.5px solid ${T.border}` }} /></div>
-                      <button onClick={() => addUploadTag(uploadCurrentTag.trim(), uploadTagColor)} disabled={!uploadCurrentTag.trim()} className="px-3 py-2 text-white text-[12px] font-bold rounded-xl transition-all" style={{ background: uploadCurrentTag.trim() ? T.orange : T.border }} onMouseEnter={e => { if (uploadCurrentTag.trim()) (e.currentTarget as HTMLElement).style.background = T.orangeDark; }} onMouseLeave={e => { if (uploadCurrentTag.trim()) (e.currentTarget as HTMLElement).style.background = T.orange; }}>Add</button>
+              <div>
+                <div className="space-y-4">
+                  {selectedFileType === "url" ? (
+                    // URL section remains the same
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-[11px] font-bold mb-2" style={{ color: T.textSub }}>{updateFileId ? "Update URL" : "Enter URL"}</label>
+                        <input type="url" value={folderUrl} onChange={(e) => setFolderUrl(e.target.value)} placeholder="https://example.com" className="w-full px-3 py-2.5 text-[13px] outline-none transition-all" style={{ background: T.pageBg, border: `1.5px solid ${T.border}`, borderRadius: '10px', color: T.textMain }}
+                          onFocus={e => { e.currentTarget.style.borderColor = T.orange; e.currentTarget.style.boxShadow = `0 0 0 3px ${T.orangeLight}`; }}
+                          onBlur={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = 'none'; }}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold mb-2" style={{ color: T.textSub }}>Link Name <span style={{ color: T.textMuted, fontWeight: 400 }}>(display name)</span></label>
+                        <input
+                          type="text"
+                          value={urlFileName}
+                          onChange={(e) => setUrlFileName(e.target.value)}
+                          placeholder={folderUrl ? extractFileNameFromUrl(folderUrl) : "e.g. React Docs"}
+                          className="w-full px-3 py-2.5 text-[13px] outline-none transition-all"
+                          style={{ background: T.pageBg, border: `1.5px solid ${T.border}`, borderRadius: '10px', color: T.textMain }}
+                          onFocus={e => { e.currentTarget.style.borderColor = T.orange; e.currentTarget.style.boxShadow = `0 0 0 3px ${T.orangeLight}`; }}
+                          onBlur={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = 'none'; }}
+                        />
+                      </div>
                     </div>
-                    {uploadTags.length > 0 && (
-                      <div className="flex flex-wrap gap-2">
-                        {uploadTags.map((tag, i) => (
-                          <div key={i} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold" style={{ background: `${tag.tagColor}15`, color: tag.tagColor, border: `1.5px solid ${tag.tagColor}35` }}>
-                            {tag.tagName}<button onClick={() => removeUploadTag(i)} className="ml-1"><X size={10} /></button>
+                  ) : (
+                    <>
+                      {/* File Name Input */}
+                      {/* File Name Input */}
+                      <div>
+                        <label className="block text-[11px] font-bold mb-2" style={{ color: T.textSub }}>
+                          {updateFileId ? "File Name" : "File Name(s)"} <span style={{ color: '#DC2626' }}>*</span>
+                        </label>
+
+                        {/* UPDATE MODE: single name input */}
+                        {updateFileId && updateFileType !== "url" && (
+                          <div className="mb-3">
+                            <input
+                              type="text"
+                              value={fileDisplayNames[updateFileId] || ""}
+                              onChange={(e) => {
+                                setFileDisplayNames((prev) => ({
+                                  ...prev,
+                                  [updateFileId]: e.target.value
+                                }));
+                                if (uploadingFiles.length > 0) {
+                                  setUploadingFiles((prev) =>
+                                    prev.map(f => ({ ...f, name: e.target.value }))
+                                  );
+                                }
+                              }}
+                              className="w-full px-3 py-2 text-[12px] outline-none"
+                              style={{
+                                background: T.pageBg,
+                                border: `1.5px solid ${T.border}`,
+                                borderRadius: "10px",
+                                color: T.textMain,
+                                fontFamily: "inherit",
+                              }}
+                              onFocus={e => { e.currentTarget.style.borderColor = T.orange; }}
+                              onBlur={e => { e.currentTarget.style.borderColor = T.border; }}
+                              placeholder="File name"
+                            />
+                            {uploadingFiles.length > 0 && (
+                              <p className="text-[9px] text-amber-600 mt-1">
+                                ⚠️ The file will be replaced with the new file you selected
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* NEW FILE MODE */}
+                        {!updateFileId && (
+                          <div>
+                            {/* REFERENCE TYPE: always show name input, even before file is picked */}
+                            {selectedFileType === "reference" ? (
+                              <div className="mb-2">
+                                <input
+                                  type="text"
+                                  value={
+                                    selectedFiles.length > 0
+                                      ? (() => {
+                                        const dn = fileDisplayNames[selectedFiles[0].name] || "";
+                                        const di = dn.lastIndexOf(".");
+                                        return di > 0 ? dn.slice(0, di) : dn;
+                                      })()
+                                      : referenceDisplayName
+                                  }
+                                  onChange={(e) => {
+                                    if (selectedFiles.length > 0) {
+                                      // File already picked — update its display name in place
+                                      const origExt = selectedFiles[0].name.includes(".")
+                                        ? "." + selectedFiles[0].name.split(".").pop()
+                                        : "";
+                                      setFileDisplayNames((prev) => ({
+                                        ...prev,
+                                        [selectedFiles[0].name]: e.target.value + origExt,
+                                      }));
+                                      // Keep uploading file label in sync
+                                      setUploadingFiles((prev) =>
+                                        prev.map(f => ({ ...f, name: e.target.value + origExt }))
+                                      );
+                                    } else {
+                                      // No file yet — store as pre-selection name
+                                      setReferenceDisplayName(e.target.value);
+                                    }
+                                  }}
+                                  placeholder="Reference material name…"
+                                  className="w-full px-3 py-2 text-[12px] outline-none"
+                                  style={{
+                                    background: T.pageBg,
+                                    border: `1.5px solid ${T.border}`,
+                                    borderRadius: "10px",
+                                    color: T.textMain,
+                                    fontFamily: "inherit",
+                                  }}
+                                  onFocus={e => { e.currentTarget.style.borderColor = T.orange; }}
+                                  onBlur={e => { e.currentTarget.style.borderColor = T.border; }}
+                                />
+                                {selectedFiles.length > 0 && (
+                                  <p className="text-[9px] mt-1" style={{ color: T.textMuted }}>
+                                    Extension <strong>.{selectedFiles[0].name.split(".").pop()}</strong> will be appended automatically
+                                  </p>
+                                )}
+                              </div>
+                            ) : (
+                              /* ALL OTHER TYPES: show per-file name inputs only after files are picked */
+                              selectedFiles.length > 0
+                                ? selectedFiles.map((file) => (
+                                  <div key={file.name} className="flex items-center gap-2 mb-2">
+                                    <input
+                                      type="text"
+                                      value={(() => {
+                                        const dn = fileDisplayNames[file.name] || file.name;
+                                        const di = dn.lastIndexOf(".");
+                                        return di > 0 ? dn.slice(0, di) : dn;
+                                      })()}
+                                      onChange={(e) => {
+                                        const origExt = file.name.includes(".")
+                                          ? "." + file.name.split(".").pop()
+                                          : "";
+                                        setFileDisplayNames((prev) => ({
+                                          ...prev,
+                                          [file.name]: e.target.value + origExt,
+                                        }));
+                                      }}
+                                      className="flex-1 px-3 py-2 text-[12px] outline-none"
+                                      style={{
+                                        background: T.pageBg,
+                                        border: `1.5px solid ${T.border}`,
+                                        borderRadius: "10px",
+                                        color: T.textMain,
+                                      }}
+                                      onFocus={e => { e.currentTarget.style.borderColor = T.orange; }}
+                                      onBlur={e => { e.currentTarget.style.borderColor = T.border; }}
+                                    />
+                                    <span className="text-[11px]" style={{ color: T.textMuted }}>
+                                      .{file.name.split(".").pop()}
+                                    </span>
+                                  </div>
+                                ))
+                                : null
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* File Upload Area */}
+                      <div>
+                        <label className="block text-[11px] font-bold mb-2" style={{ color: T.textSub }}>
+                          {updateFileId ? "Select New File (Optional)" : "File Upload"}{!updateFileId && <span style={{ color: '#DC2626' }}> *</span>}
+                        </label>
+                        <div
+                          className="p-5 text-center cursor-pointer transition-all rounded-2xl"
+                          style={{ border: `1.5px dashed ${T.border}`, background: T.pageBg }}
+                          onClick={() => fileInputRef.current?.click()}
+                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = T.orange; (e.currentTarget as HTMLElement).style.background = T.orangeLight; }}
+                          onMouseLeave={e => { if (!(e.currentTarget as HTMLElement).dataset.dragover) { (e.currentTarget as HTMLElement).style.borderColor = T.border; (e.currentTarget as HTMLElement).style.background = T.pageBg; } }}
+                          onDragOver={e => { e.preventDefault(); e.stopPropagation(); (e.currentTarget as HTMLElement).dataset.dragover = 'true'; (e.currentTarget as HTMLElement).style.borderColor = T.orange; (e.currentTarget as HTMLElement).style.background = T.orangeLight; }}
+                          onDragLeave={e => { e.preventDefault(); delete (e.currentTarget as HTMLElement).dataset.dragover; (e.currentTarget as HTMLElement).style.borderColor = T.border; (e.currentTarget as HTMLElement).style.background = T.pageBg; }}
+                          onDrop={e => { e.preventDefault(); e.stopPropagation(); delete (e.currentTarget as HTMLElement).dataset.dragover; (e.currentTarget as HTMLElement).style.borderColor = T.border; (e.currentTarget as HTMLElement).style.background = T.pageBg; handleFileSelection(e.dataTransfer.files); }}
+                        >
+                          <div className="mb-2" style={{ color: fileTypes.find((t) => t.key === selectedFileType)?.color || T.orange }}>
+                            {React.cloneElement(fileTypes.find((t) => t.key === selectedFileType)?.icon as React.ReactElement || <Upload />, { size: 28 })}
+                          </div>
+                          <p className="text-[12px] font-bold mb-1" style={{ color: T.textMain }}>
+                            {updateFileId ? "Click to choose a new file (optional)" : "Drop files here or click to browse"}
+                          </p>
+                          <p className="text-[10px]" style={{ color: T.textMuted }}>
+                            {updateFileId ? "Leave empty to keep current file" : `Accepted: ${fileTypes.find((t) => t.key === selectedFileType)?.accept}`}
+                          </p>
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            multiple={!updateFileId}
+                            accept={fileTypes.find((t) => t.key === selectedFileType)?.accept}
+                            className="hidden"
+                            onChange={(e) => handleFileSelection(e.target.files)}
+                          />
+                        </div>
+
+                        {/* Show current file info ONLY when no new file is selected */}
+                        {updateFileId && updateFileType !== "url" && uploadingFiles.length === 0 && (
+                          <div className="mt-2 p-2 rounded-lg" style={{ background: T.orangeLight, border: `1px solid ${T.orange}30` }}>
+                            <p className="text-[10px] font-medium" style={{ color: T.orange }}>
+                              📄 Current file: {fileDisplayNames[updateFileId] || "Unknown"} (will be kept)
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Show selected new file progress bar with replacement info */}
+                        {uploadingFiles.map((f) => (
+                          <div key={f.id} className="p-3 rounded-xl mt-2" style={{ background: T.pageBg, border: `1.5px solid ${T.border}` }}>
+                            <div className="flex items-center mb-1.5">
+                              <Upload size={11} className="mr-1.5" style={{ color: T.textMuted }} />
+                              <span className="text-[11px] flex-1" style={{ color: T.textMain }}>
+                                {f.name}
+                              </span>
+                              <span className="text-[10px]" style={{ color: T.textMuted }}>{f.progress}%</span>
+                            </div>
+                            <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: T.border }}>
+                              <div className="h-full rounded-full transition-all duration-200" style={{
+                                width: `${f.progress}%`,
+                                background: f.status === "error" ? '#ef4444' :
+                                  f.status === "completed" ? '#10b981' :
+                                    T.orange
+                              }} />
+                            </div>
+                            {f.status === "ready" && (
+                              <div className="text-[10px] font-semibold mt-1" style={{ color: T.orange }}>
+                                🔄 Ready to replace existing file
+                              </div>
+                            )}
+                            {f.status === "uploading" && (
+                              <div className="text-[10px] font-semibold mt-1" style={{ color: T.orange }}>
+                                ⬆️ Uploading new file...
+                              </div>
+                            )}
+                            {updateFileId && uploadingFiles.length > 0 && (
+                              <div className="mt-2">
+                                <button
+                                  onClick={() => {
+                                    // Clear all file selection states
+                                    setSelectedFiles([]);
+                                    setUploadingFiles([]);
+                                    setFileDisplayNames({});
+                                    // Reset the file input
+                                    if (fileInputRef.current) {
+                                      fileInputRef.current.value = '';
+                                    }
+                                  }}
+                                  className="text-[10px] text-red-500 hover:text-red-600 flex items-center gap-1"
+                                >
+                                  <X size={12} />
+                                  Clear selection
+                                </button>
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
-                    )}
-                  </div>
-                )}
+
+                      {/* Description field */}
+                      <div>
+                        <label className="block text-[11px] font-bold mb-2" style={{ color: T.textSub }}>
+                          File Description
+                        </label>
+                        <div className="rounded-xl overflow-hidden" style={{ border: `1.5px solid ${T.border}` }}>
+                          <TipTapEditor
+                            value={uploadDescription}
+                            onChange={(value) => {
+                              console.log("Editor changed:", value);
+                              setUploadDescription(value);
+                            }}
+                            placeholder="Enter file description here..."
+                            minHeight="160px"
+                            maxHeight="200px"
+                            showToolbar={true}
+                            editable={true}
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
 
-              {/* Settings */}
-              <div className="rounded-2xl overflow-hidden" style={{ border: `1.5px solid ${T.border}` }}>
-                <AccordionHeader icon={<Settings />} iconColor={T.orange} iconBg={T.orangeLight} title="File Settings" subtitle="Configure file options" sectionKey="settings" currentKey={expandedUploadSection} onToggle={setExpandedUploadSection} />
-                {expandedUploadSection === "settings" && (
-                  <div className="p-4 space-y-2.5" style={{ background: T.bg }}>
-                    {[
-                      { key: "studentShow" as const, icon: <Eye size={15} />, label: "Show to students", desc: "Make visible to students" },
-                      { key: "downloadAllow" as const, icon: <Download size={15} />, label: "Allow download", desc: "Students can download" },
-                    ].map(({ key, icon, label, desc }) => (
-                      <div key={key} className="flex items-center justify-between p-3 rounded-xl" style={{ background: T.pageBg, border: `1.5px solid ${T.border}` }}>
-                        <div className="flex items-center gap-3">
-                          <div className="p-1.5 rounded-lg" style={{ background: T.bg, border: `1px solid ${T.border}`, color: T.textSub }}>{icon}</div>
-                          <div><p className="text-[12px] font-bold" style={{ color: T.textMain }}>{label}</p><p className="text-[10px] mt-0.5" style={{ color: T.textMuted }}>{desc}</p></div>
-                        </div>
-                        <OrangeToggle
-                          checked={documentSettings[updateFileId || "temp"]?.[key] ?? true}
-                          onChange={(checked) => { const id = updateFileId || "temp"; const cur = documentSettings[id] || { studentShow: true, downloadAllow: true }; const next = { ...cur, [key]: checked }; setDocumentSettings((prev) => ({ ...prev, [id]: next })); if (updateFileId && updateFileId !== "temp") handleUpdateFileSettings(updateFileId, next); }}
-                        />
-                      </div>
-                    ))}
+              {/* Tags */}
+              {/* <div>
+                <div className="space-y-3">
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1"><label className="block text-[11px] font-bold mb-1.5" style={{ color: T.textSub }}>Tag Name</label><input type="text" value={uploadCurrentTag} onChange={(e) => setUploadCurrentTag(e.target.value)} placeholder="Tag name…" className="w-full px-3 py-2 text-[12px] outline-none" style={{ background: T.pageBg, border: `1.5px solid ${T.border}`, borderRadius: '10px', color: T.textMain }} onFocus={e => e.currentTarget.style.borderColor = T.orange} onBlur={e => e.currentTarget.style.borderColor = T.border} /></div>
+                    <div><label className="text-[11px] font-bold mb-1.5 block" style={{ color: T.textSub }}>Color</label><input type="color" value={uploadTagColor} onChange={(e) => setUploadTagColor(e.target.value)} className="w-8 h-8 rounded-lg cursor-pointer" style={{ border: `1.5px solid ${T.border}` }} /></div>
+                    <button onClick={() => addUploadTag(uploadCurrentTag.trim(), uploadTagColor)} disabled={!uploadCurrentTag.trim()} className="px-3 py-2 text-white text-[12px] font-bold rounded-xl transition-all" style={{ background: uploadCurrentTag.trim() ? T.orange : T.border }} onMouseEnter={e => { if (uploadCurrentTag.trim()) (e.currentTarget as HTMLElement).style.background = T.orangeDark; }} onMouseLeave={e => { if (uploadCurrentTag.trim()) (e.currentTarget as HTMLElement).style.background = T.orange; }}>Add</button>
                   </div>
-                )}
-              </div>
+                  {uploadTags.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {uploadTags.map((tag, i) => (
+                        <div key={i} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold" style={{ background: `${tag.tagColor}15`, color: tag.tagColor, border: `1.5px solid ${tag.tagColor}35` }}>
+                          {tag.tagName}<button onClick={() => removeUploadTag(i)} className="ml-1"><X size={10} /></button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div> */}
+
+              {/* Settings */}
+              {/* <div>
+                <div className="space-y-2.5">
+                  {[
+                    { key: "studentShow" as const, icon: <Eye size={15} />, label: "Show to students", desc: "Make visible to students" },
+                    { key: "downloadAllow" as const, icon: <Download size={15} />, label: "Allow download", desc: "Students can download" },
+                  ].map(({ key, icon, label, desc }) => (
+                    <div key={key} className="flex items-center justify-between p-3 rounded-xl" style={{ background: T.pageBg }}>
+                      <div className="flex items-center gap-3">
+                        <div className="p-1.5 rounded-lg" style={{ background: T.bg, border: `1px solid ${T.border}`, color: T.textSub }}>{icon}</div>
+                        <div><p className="text-[12px] font-bold" style={{ color: T.textMain }}>{label}</p><p className="text-[10px] mt-0.5" style={{ color: T.textMuted }}>{desc}</p></div>
+                      </div>
+                      <OrangeToggle
+                        checked={documentSettings[updateFileId || "temp"]?.[key] ?? true}
+                        onChange={(checked) => { const id = updateFileId || "temp"; const cur = documentSettings[id] || { studentShow: true, downloadAllow: true }; const next = { ...cur, [key]: checked }; setDocumentSettings((prev) => ({ ...prev, [id]: next })); if (updateFileId && updateFileId !== "temp") handleUpdateFileSettings(updateFileId, next); }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div> */}
             </div>
 
             {/* Footer */}
-          {/* Footer */}
-<div className="flex justify-end gap-3 p-4 flex-shrink-0" style={{ borderTop: `1px solid ${T.border}`, background: T.pageBg }}>
-  <button 
-    onClick={resetUploadModalStates} 
-    className="px-4 py-2 rounded-xl text-[12px] font-bold transition-all" 
-    style={{ background: T.bg, color: T.textSub, border: `1.5px solid ${T.border}` }} 
-    onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = T.orange} 
-    onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = T.border}
-  >
-    Cancel
-  </button>
-  
-  <button
-    onClick={async () => {
-      setIsButtonLoading(true);
-      
-      // Handle URL type
-      if (selectedFileType === "url") {
-        if (!folderUrl.trim()) { 
-          alert("Enter a valid URL"); 
-          setIsButtonLoading(false); 
-          return; 
-        }
-        if (!selectedNode) { 
-          setIsButtonLoading(false); 
-          return; 
-        }
-        
-        const navState = getCurrentNavState();
-        const formData = new FormData();
-        const fields: Record<string, string> = { 
-          fileUrl: folderUrl, 
-          fileName: urlFileName || extractFileNameFromUrl(folderUrl), 
-          fileType: urlFileType,  
-          fileDescription: uploadDescription || "",
-          tabType: toBackendTab(activeTab), 
-          subcategory: activeSubcategory, 
-          folderPath: navState.currentFolderPath.join("/"), 
-          courses: selectedNode.originalData?.courses || "", 
-          topicId: selectedNode.originalData?.topicId || "", 
-          index: String(selectedNode.originalData?.index || 0), 
-          isUpdate: updateFileId ? "true" : "false", 
-          showToStudents: String(documentSettings[updateFileId || "temp"]?.studentShow ?? true), 
-          allowDownload: String(documentSettings[updateFileId || "temp"]?.downloadAllow ?? true) 
-        };
-        
-        if (updateFileId) fields.updateFileId = updateFileId;
-        if (updateFileId) fields.updateFileName = urlFileName || extractFileNameFromUrl(folderUrl);
+            <div className="flex justify-end gap-3 p-4 flex-shrink-0" style={{ borderTop: `1px solid ${T.border}`, background: T.pageBg }}>
+              <button
+                onClick={() => { resetUploadModalStates(); setShowNotionModal(true); }}
+                className="px-4 py-2 rounded-xl text-[12px] font-bold transition-all"
+                style={{ background: T.bg, color: T.textSub, border: `1.5px solid ${T.border}` }}
+                onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = T.orange}
+                onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = T.border}
+              >
+                Cancel
+              </button>
 
-        Object.entries(fields).forEach(([k, v]) => formData.append(k, v));
-        if (uploadTags.length) formData.append("tags", JSON.stringify(uploadTags));
+              <button
+                onClick={async () => {
+                  setIsButtonLoading(true);
 
-        try {
-          await entityApi.updateEntity(selectedNode.type as any, selectedNode.id, formData);
-          await fetchAndRefresh(selectedNode);
-          resetUploadModalStates();
-          showSuccessToast(updateFileId ? "URL updated!" : "URL added!");
-        } catch { 
-          showErrorToast(updateFileId ? "Failed to update URL" : "Failed to add URL"); 
-        } finally { 
-          setIsButtonLoading(false); 
-        }
-        return;
-      }
-      
-      // Handle file updates (regular files)
-      if (updateFileId) {
-        // Case 1: Update metadata only (no new file selected)
-        if (uploadingFiles.length === 0) {
-          await handleFileUpdate(null);
-        } 
-        // Case 2: Update file content (new file selected)
-        else {
-          const allReady = uploadingFiles.every((f) => f.status === "ready");
-          if (!allReady) { 
-            alert("Please wait for files to finish preparing"); 
-            setIsButtonLoading(false); 
-            return; 
-          }
-          
-          setUploadingFiles((prev) => prev.map((f) => ({ ...f, status: "submitting" as const })));
-          
-          // Create renamed files with custom display names
-          const renamed = selectedFiles.map((file) => { 
-            const display = fileDisplayNames[updateFileId] || fileDisplayNames[file.name] || file.name; 
-            const final = selectedFileType === "reference" ? "Reference Material" : display; 
-            const ext = file.name.split(".").pop(); 
-            const withExt = final.includes(".") ? final : `${final}.${ext}`; 
-            return withExt !== file.name ? new window.File([file], withExt, { type: file.type }) : file; 
-          });
-          
-          const dt = new DataTransfer(); 
-          renamed.forEach((f) => dt.items.add(f));
-          await handleFileUpdate(dt.files);
-        }
-      } 
-      // Handle new file upload
-      else {
-        const allReady = uploadingFiles.every((f) => f.status === "ready");
-        if (!allReady) { 
-          alert("Please wait for files to finish preparing"); 
-          setIsButtonLoading(false); 
-          return; 
-        }
-        
-        setUploadingFiles((prev) => prev.map((f) => ({ ...f, status: "submitting" as const })));
-        
-        // Create renamed files with custom display names
-        const renamed = selectedFiles.map((file) => { 
-          const display = fileDisplayNames[file.name] || file.name; 
-          const final = selectedFileType === "reference" ? "Reference Material" : display; 
-          const ext = file.name.split(".").pop(); 
-          const withExt = final.includes(".") ? final : `${final}.${ext}`; 
-          return withExt !== file.name ? new window.File([file], withExt, { type: file.type }) : file; 
-        });
-        
-        const dt = new DataTransfer(); 
-        renamed.forEach((f) => dt.items.add(f));
-        await handleFileUpload(dt.files, activeTab, activeSubcategory);
-      }
-      
-      setIsButtonLoading(false);
-    }}
-    disabled={
-      selectedFileType === "url" 
-        ? !folderUrl.trim() 
-        : updateFileId 
-          ? false  // Always enabled for updates (can update metadata only)
-          : uploadingFiles.length === 0 || !uploadingFiles.every((f) => f.status === "ready")
-    }
-    className="flex items-center gap-2 px-4 py-2 rounded-xl text-[12px] font-bold text-white transition-all"
-    style={{ background: T.orange, boxShadow: `0 4px 12px ${T.orangeGlow}` }}
-    onMouseEnter={e => { 
-      (e.currentTarget as HTMLElement).style.background = T.orangeDark; 
-      (e.currentTarget as HTMLElement).style.transform = 'translateY(-1px)'; 
-    }}
-    onMouseLeave={e => { 
-      (e.currentTarget as HTMLElement).style.background = T.orange; 
-      (e.currentTarget as HTMLElement).style.transform = 'none'; 
-    }}
-  >
-    {selectedFileType === "url" ? (
-      <><Link2 size={14} />{updateFileId ? "Update URL" : "Add URL"}</>
-    ) : updateFileId ? (
-      uploadingFiles.length > 0 ? (
-        <><RefreshCw size={14} />Update File & Metadata</>
-      ) : (
-        <><RefreshCw size={14} />Update Metadata Only</>
-      )
-    ) : (
-      <><Upload size={14} />Upload Files</>
-    )}
-  </button>
-</div>
+                  // Handle URL type
+                  if (selectedFileType === "url") {
+                    if (!folderUrl.trim()) {
+                      alert("Enter a valid URL");
+                      setIsButtonLoading(false);
+                      return;
+                    }
+                    if (!selectedNode) {
+                      setIsButtonLoading(false);
+                      return;
+                    }
+
+                    const navState = getCurrentNavState();
+                    const formData = new FormData();
+                    const fields: Record<string, string> = {
+                      fileUrl: folderUrl,
+                      fileName: urlFileName || extractFileNameFromUrl(folderUrl),
+                      fileType: urlFileType,
+                      fileDescription: uploadDescription || "",
+                      tabType: toBackendTab(activeTab),
+                      subcategory: activeSubcategory,
+                      folderPath: navState.currentFolderPath.join("/"),
+                      courses: selectedNode.originalData?.courses || "",
+                      topicId: selectedNode.originalData?.topicId || "",
+                      index: String(selectedNode.originalData?.index || 0),
+                      isUpdate: updateFileId ? "true" : "false",
+                      showToStudents: String(documentSettings[updateFileId || "temp"]?.studentShow ?? true),
+                      allowDownload: String(documentSettings[updateFileId || "temp"]?.downloadAllow ?? true)
+                    };
+
+                    if (updateFileId) fields.updateFileId = updateFileId;
+                    if (updateFileId) fields.updateFileName = urlFileName || extractFileNameFromUrl(folderUrl);
+
+                    Object.entries(fields).forEach(([k, v]) => formData.append(k, v));
+                    if (uploadTags.length) formData.append("tags", JSON.stringify(uploadTags));
+
+                    // Carry the group context (set when the picker was opened via
+                    // a group row's "+ Add resource to this group" button) through
+                    // to the server so the URL is attached to that group. Without
+                    // this, the URL would land at activity root and would not show
+                    // up inside the group row.
+                    if (uploadGroupId)   formData.append("groupId", uploadGroupId);
+                    if (uploadGroupName) formData.append("groupName", uploadGroupName);
+
+                    try {
+                      await entityApi.updateEntity(selectedNode.type as any, selectedNode.id, formData);
+                      await fetchAndRefresh(selectedNode);
+                      resetUploadModalStates();
+                      showSuccessToast(updateFileId ? "URL updated!" : "URL added!");
+                    } catch {
+                      showErrorToast(updateFileId ? "Failed to update URL" : "Failed to add URL");
+                    } finally {
+                      setIsButtonLoading(false);
+                    }
+                    return;
+                  }
+
+                  // Handle file updates (regular files)
+                  if (updateFileId) {
+                    // Case 1: Update metadata only (no new file selected)
+                    if (uploadingFiles.length === 0) {
+                      await handleFileUpdate(null);
+                    }
+                    // Case 2: Update file content (new file selected)
+                    else {
+                      const allReady = uploadingFiles.every((f) => f.status === "ready");
+                      if (!allReady) {
+                        alert("Please wait for files to finish preparing");
+                        setIsButtonLoading(false);
+                        return;
+                      }
+
+                      setUploadingFiles((prev) => prev.map((f) => ({ ...f, status: "submitting" as const })));
+
+                      // Create renamed files with custom display names
+                      const renamed = selectedFiles.map((file) => {
+                        const display = fileDisplayNames[updateFileId] || fileDisplayNames[file.name] || file.name;
+                        const final = selectedFileType === "reference" ? "Reference Material" : display;
+                        const ext = file.name.split(".").pop();
+                        const withExt = final.includes(".") ? final : `${final}.${ext}`;
+                        return withExt !== file.name ? new window.File([file], withExt, { type: file.type }) : file;
+                      });
+
+                      const dt = new DataTransfer();
+                      renamed.forEach((f) => dt.items.add(f));
+                      await handleFileUpdate(dt.files);
+                    }
+                  }
+                  // Handle new file upload
+                  else {
+                    const allReady = uploadingFiles.every((f) => f.status === "ready");
+                    if (!allReady) {
+                      alert("Please wait for files to finish preparing");
+                      setIsButtonLoading(false);
+                      return;
+                    }
+
+                    setUploadingFiles((prev) => prev.map((f) => ({ ...f, status: "submitting" as const })));
+
+                    // Create renamed files with custom display names
+                    const renamed = selectedFiles.map((file) => {
+                      const display = fileDisplayNames[file.name] || file.name;
+                      const final = selectedFileType === "reference" ? "Reference Material" : display;
+                      const ext = file.name.split(".").pop();
+                      const withExt = final.includes(".") ? final : `${final}.${ext}`;
+                      return withExt !== file.name ? new window.File([file], withExt, { type: file.type }) : file;
+                    });
+
+                    const dt = new DataTransfer();
+                    renamed.forEach((f) => dt.items.add(f));
+                    await handleFileUpload(dt.files, activeTab, activeSubcategory);
+                  }
+
+                  setIsButtonLoading(false);
+                }}
+                disabled={
+                  selectedFileType === "url"
+                    ? !folderUrl.trim()
+                    : updateFileId
+                      ? false  // Always enabled for updates (can update metadata only)
+                      : uploadingFiles.length === 0 || !uploadingFiles.every((f) => f.status === "ready")
+                }
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-[12px] font-bold text-white transition-all"
+                style={{ background: T.orange, boxShadow: `0 4px 12px ${T.orangeGlow}` }}
+                onMouseEnter={e => {
+                  (e.currentTarget as HTMLElement).style.background = T.orangeDark;
+                  (e.currentTarget as HTMLElement).style.transform = 'translateY(-1px)';
+                }}
+                onMouseLeave={e => {
+                  (e.currentTarget as HTMLElement).style.background = T.orange;
+                  (e.currentTarget as HTMLElement).style.transform = 'none';
+                }}
+              >
+                {selectedFileType === "url" ? (
+                  <><Link2 size={14} />{updateFileId ? "Update URL" : "Add URL"}</>
+                ) : updateFileId ? (
+                  uploadingFiles.length > 0 ? (
+                    <><RefreshCw size={14} />Update File & Metadata</>
+                  ) : (
+                    <><RefreshCw size={14} />Update Metadata Only</>
+                  )
+                ) : (
+                  <><Upload size={14} />Upload Files</>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
+
+      {/* ── Folder Builder unsaved-changes warning ──────────────────────────────── */}
+      {showFolderUnsavedWarning && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center" style={{ background: 'rgba(15,15,30,0.60)', backdropFilter: 'blur(5px)' }} onClick={() => setShowFolderUnsavedWarning(false)}>
+          <div className="flex flex-col gap-4 p-5 rounded-2xl mx-4" style={{ background: T.bg, border: `1.5px solid ${T.border}`, boxShadow: '0 20px 50px rgba(0,0,0,0.22)', maxWidth: 360, width: '100%' }} onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(245,158,11,0.10)', border: '1.5px solid rgba(245,158,11,0.25)' }}>
+                <AlertCircle size={20} style={{ color: '#d97706' }} />
+              </div>
+              <div>
+                <p className="text-[13.5px] font-bold" style={{ color: T.textMain }}>Unsaved folders</p>
+                <p className="text-[11px] mt-0.5" style={{ color: T.textMuted }}>
+                  <strong style={{ color: '#d97706' }}>{virtualFolders.length}</strong> folder{virtualFolders.length !== 1 ? 's' : ''} · <strong style={{ color: '#d97706' }}>{virtualFolders.reduce((s, vf) => s + vf.files.length, 0)}</strong> file{virtualFolders.reduce((s, vf) => s + vf.files.length, 0) !== 1 ? 's' : ''} not yet uploaded.
+                </p>
+              </div>
+            </div>
+            <p className="text-[11.5px] leading-relaxed" style={{ color: T.textSub }}>Closing will discard all virtual folders and their files.</p>
+            <div className="flex gap-2">
+              <button className="flex-1 py-2 rounded-xl text-[12px] font-bold transition-all" style={{ background: 'rgba(239,68,68,0.08)', color: '#dc2626', border: '1.5px solid rgba(239,68,68,0.20)' }} onClick={closeFolderBuilder}>Discard &amp; Close</button>
+              <button className="flex-1 py-2 rounded-xl text-[12px] font-bold text-white transition-all" style={{ background: T.orange, boxShadow: `0 3px 10px ${T.orangeGlow}` }} onClick={() => setShowFolderUnsavedWarning(false)}>Keep Editing</button>
+            </div>
+            {fbHasWork() && (
+              <button className="w-full py-1.5 rounded-xl text-[12px] font-bold flex items-center justify-center gap-1.5 transition-all" style={{ background: T.pageBg, color: T.textSub, border: `1.5px solid ${T.border}` }}
+                onClick={() => { setShowFolderUnsavedWarning(false); uploadVirtualFolders(); }}>
+                <Upload size={12} /> Create Now &amp; Close
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Folder Builder Modal ──────────────────────────────────────────────────── */}
+      {showFolderBuilderModal && (() => {
+        const { folders: lvFolders, files: lvFiles } = fbGetCurrentLevel();
+        // Phase 1: existing content at this nav level (server-side state).
+        // Renders as additional rows alongside the virtual content, so the
+        // user can see what's already there and navigate into it.
+        const { folders: exFolders, files: exFiles, pages: exPages, groups: exGroups } = fbGetExistingAtCurrentLevel();
+        const { folders: totalFolders, files: totalFiles } = fbCountAll();
+        const extColorMap: Record<string, string> = { pdf: '#ef4444', ppt: '#f97316', pptx: '#f97316', doc: '#3b82f6', docx: '#3b82f6', xls: '#10b981', xlsx: '#10b981', mp4: '#06b6d4', mov: '#06b6d4', zip: '#a855f7', rar: '#a855f7', png: '#ec4899', jpg: '#ec4899', jpeg: '#ec4899' };
+        const fmtSz = (sz: number) => sz < 1024 ? `${sz} B` : sz < 1048576 ? `${(sz / 1024).toFixed(1)} KB` : `${(sz / 1048576).toFixed(1)} MB`;
+        const currentPageFolderPath = getCurrentNavState().currentFolderPath;
+
+        return (
+          <div className="fixed inset-0 z-[90] flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.52)', backdropFilter: 'blur(4px)' }}>
+            <div className="relative flex flex-col mx-4 overflow-hidden" style={{ background: T.bg, borderRadius: '20px', border: `1.5px solid ${T.border}`, width: 880, maxWidth: 'calc(100vw - 32px)', height: '88vh', maxHeight: '88vh', boxShadow: '0 24px 60px rgba(0,0,0,0.20)', fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif" }} onClick={e => e.stopPropagation()}>
+
+              {/* ── Upload overlay ─────────────────────────────────────────── */}
+              {folderBuilderUploading && (
+                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 rounded-[20px]" style={{ background: 'rgba(255,255,255,0.94)', backdropFilter: 'blur(4px)' }}>
+                  <div className="w-10 h-10 rounded-full animate-spin" style={{ border: `3px solid ${T.orangeLight}`, borderTopColor: T.orange }} />
+                  <p className="text-[13px] font-bold" style={{ color: T.textMain }}>Creating folders &amp; uploading files…</p>
+                  <div className="w-full max-w-xs flex flex-col gap-2.5 px-4 max-h-48 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
+                    {fbFlattenTree(virtualFolders, currentPageFolderPath).map((entry, i) => (
+                      <div key={i}>
+                        <div className="flex justify-between mb-1">
+                          <span className="text-[11px] font-semibold truncate" style={{ color: T.textSub }}>{entry.serverPath.join(' / ')}</span>
+                          <span className="text-[11px] font-bold ml-2 flex-shrink-0" style={{ color: T.orange }}>{folderBuilderProgress[`flat-${i}`] ?? 0}%</span>
+                        </div>
+                        <div style={{ height: 3, background: T.border, borderRadius: 99, overflow: 'hidden' }}>
+                          <div style={{ height: 3, width: `${folderBuilderProgress[`flat-${i}`] ?? 0}%`, background: `linear-gradient(90deg,${T.orange},${T.orangeDark})`, borderRadius: 99, transition: 'width 0.3s' }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Header ────────────────────────────────────────────────── */}
+              <div className="relative overflow-hidden flex-shrink-0" style={{ background: 'linear-gradient(135deg,#F08243 0%,#E8640C 52%,#C95308 100%)', padding: '12px 16px 14px', borderRadius: '18px 18px 0 0' }}>
+                <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0 }} viewBox="0 0 560 70" fill="none"><circle cx="530" cy="-8" r="65" stroke="rgba(255,255,255,0.15)" strokeWidth="1" /><circle cx="30" cy="80" r="50" stroke="rgba(255,255,255,0.10)" strokeWidth="1" /></svg>
+                <div className="flex items-center justify-between" style={{ position: 'relative', zIndex: 1 }}>
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.22)', border: '1px solid rgba(255,255,255,0.30)' }}>
+                      <FolderPlus size={16} color="#fff" />
+                    </div>
+                    <div>
+                      <h3 className="text-[14px] font-bold text-white leading-tight">Create Folders</h3>
+                      <p className="text-[10.5px]" style={{ color: 'rgba(255,255,255,0.72)' }}>Navigate · create sub-folders · upload files — all virtual until you click Create</p>
+                    </div>
+                  </div>
+                  <button onClick={() => fbHasWork() ? setShowFolderUnsavedWarning(true) : closeFolderBuilder()}
+                    className="p-1.5 rounded-xl transition-all flex-shrink-0"
+                    style={{ background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.25)', color: 'rgba(255,255,255,0.85)' }}
+                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.30)'}
+                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.18)'}>
+                    <X size={15} />
+                  </button>
+                </div>
+              </div>
+
+              {/* ── Page location breadcrumb ───────────────────────────────── */}
+              <div className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2" style={{ background: '#faf8ff', borderBottom: `1px solid ${T.border}` }}>
+                <Home size={11} style={{ color: T.textMuted, flexShrink: 0 }} />
+                <span className="text-[10.5px] font-medium" style={{ color: T.textMuted }}>Location:</span>
+                {(() => {
+                  const hi = buildFullHierarchyInfo();
+                  const crumbs = [hi?.courseName, hi?.moduleName, hi?.subModuleName, hi?.topicName, hi?.subTopicName, hi?.tabType, hi?.subcategory, ...currentPageFolderPath].filter(Boolean);
+                  return crumbs.map((c, i) => (
+                    <React.Fragment key={i}>
+                      {i > 0 && <ChevronRight size={10} style={{ color: T.textHint, flexShrink: 0 }} />}
+                      <span className="text-[10.5px] font-semibold truncate max-w-[90px]" style={{ color: i === crumbs.length - 1 ? T.orange : T.textSub }} title={c}>{c}</span>
+                    </React.Fragment>
+                  ));
+                })()}
+              </div>
+
+              {/* ── Internal navigable breadcrumb (Root > group? > folders) ──
+                 Plain, no pill style. Rules:
+                   • Root          → clickable (jumps back to FolderBuilder root)
+                   • each nav entry → clickable (truncates the nav path);
+                                      includes group anchors and existing
+                                      folders. Group anchors look like regular
+                                      folders in the path.
+                   • last segment  → never clickable (current location);
+                                     PlainBreadcrumb enforces this. */}
+              {(() => {
+                const crumbs: PlainCrumb[] = [
+                  { label: "Root", onClick: () => fbNavigateTo(0) },
+                ];
+                fbNavPath.forEach((crumb, i) => {
+                  crumbs.push({ label: crumb.name, onClick: () => fbNavigateTo(i + 1) });
+                });
+                return (
+                  <PlainBreadcrumb
+                    crumbs={crumbs}
+                    prefix="Folder location:"
+                  />
+                );
+              })()}
+
+              {/* ── Body ──────────────────────────────────────────────────── */}
+              <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: `${T.border} transparent` }}>
+                <div className="p-4 flex flex-col gap-3">
+
+                  {/* ── Action row: new folder + upload files ──────────── */}
+                  <div className="flex gap-2 items-center flex-wrap">
+                    <input type="text" value={folderBuilderNewName}
+                      onChange={e => setFolderBuilderNewName(e.target.value)}
+                      placeholder={fbNavPath.length ? `New sub-folder inside "${fbNavPath[fbNavPath.length - 1].name}"…` : 'New folder name…'}
+                      onKeyDown={e => { if (e.key === 'Enter' && folderBuilderNewName.trim()) addVirtualFolder(); }}
+                      className="flex-1 min-w-[160px] px-3 py-2 text-[12.5px] outline-none transition-all"
+                      style={{ background: T.bg, border: `1.5px solid ${T.border}`, borderRadius: '10px', color: T.textMain }}
+                      onFocus={e => { e.currentTarget.style.borderColor = T.orange; e.currentTarget.style.boxShadow = `0 0 0 2px ${T.orangeLight}`; }}
+                      onBlur={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = 'none'; }}
+                    />
+                    <button onClick={addVirtualFolder} disabled={!folderBuilderNewName.trim() || folderBuilderUploading}
+                      className="flex items-center gap-1.5 px-3 py-2 text-[12px] font-bold text-white rounded-xl transition-all disabled:opacity-40 flex-shrink-0"
+                      style={{ background: T.orange, boxShadow: `0 3px 10px ${T.orangeGlow}` }}
+                      onMouseEnter={e => { if (folderBuilderNewName.trim()) (e.currentTarget as HTMLElement).style.background = T.orangeDark; }}
+                      onMouseLeave={e => { if (folderBuilderNewName.trim()) (e.currentTarget as HTMLElement).style.background = T.orange; }}>
+                      <FolderPlus size={13} /> Add Folder
+                    </button>
+                    <button onClick={() => fbFileInputRef.current?.click()} disabled={folderBuilderUploading}
+                      className="flex items-center gap-1.5 px-3 py-2 text-[12px] font-bold rounded-xl transition-all flex-shrink-0"
+                      style={{ background: T.bg, border: `1.5px solid ${T.border}`, color: T.textSub }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = '#3b82f6'; (e.currentTarget as HTMLElement).style.color = '#3b82f6'; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = T.border; (e.currentTarget as HTMLElement).style.color = T.textSub; }}>
+                      <Upload size={13} /> Upload Files Here
+                    </button>
+                    <input ref={fbFileInputRef} type="file" multiple className="hidden"
+                      onChange={e => { fbAddFilesHere(Array.from(e.target.files || [])); e.target.value = ''; }} />
+                  </div>
+
+                  {/* ── Drop zone ─────────────────────────────────────────── */}
+                  <div
+                    className="rounded-xl flex flex-col items-center justify-center py-4 gap-1.5 cursor-pointer transition-all"
+                    style={{ border: `2px dashed ${fbDragOverRoot ? T.orange : T.border}`, background: fbDragOverRoot ? 'rgba(232,100,12,0.05)' : T.pageBg }}
+                    onDragOver={e => { e.preventDefault(); setFbDragOverRoot(true); }}
+                    onDragLeave={() => setFbDragOverRoot(false)}
+                    onDrop={e => { e.preventDefault(); setFbDragOverRoot(false); fbAddFilesHere(Array.from(e.dataTransfer.files)); }}
+                    onClick={() => fbFileInputRef.current?.click()}>
+                    <Upload size={18} style={{ color: fbDragOverRoot ? T.orange : T.textMuted }} strokeWidth={1.5} />
+                    <span className="text-[11.5px] font-semibold" style={{ color: fbDragOverRoot ? T.orange : T.textMuted }}>
+                      {fbDragOverRoot
+                        ? 'Drop to add files here'
+                        : fbNavPath.length
+                          ? `Drop files into "${fbNavPath[fbNavPath.length - 1].name}"`
+                          : 'Drag & drop files to Root · or click to browse'}
+                    </span>
+                  </div>
+
+                  {/* ── Existing content at this nav level (Phase 1) ───────
+                      Surfaces what's already on the server so the user can
+                      see context and click into existing folders / groups.
+                      Read-only for now — delete/rename come in Phase 2/3. */}
+                  {(exGroups.length > 0 || exFolders.length > 0 || exFiles.length > 0 || exPages.length > 0) && (
+                    <div className="rounded-2xl overflow-hidden" style={{ border: `1.5px solid ${T.border}`, background: T.bg }}>
+                      <div className="px-3 py-1.5" style={{ background: T.pageBg, borderBottom: `1px solid ${T.border}` }}>
+                        <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: T.textMuted, letterSpacing: '0.08em' }}>
+                          Already here
+                        </span>
+                      </div>
+
+                      {/* Existing group rows (only ever at activity root) */}
+                      {exGroups.map((g, gi) => {
+                        const isLast = gi === exGroups.length - 1
+                          && exFolders.length === 0 && exFiles.length === 0;
+                        return (
+                          <div key={`exg-${g.groupId}`}
+                            style={{ borderBottom: isLast ? 'none' : `1px solid ${T.border}`, background: T.bg, cursor: 'pointer', transition: 'background 0.13s' }}
+                            onClick={() => fbNavigateIntoGroup(g.groupId, g.groupName)}
+                            onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(232,100,12,0.04)'}
+                            onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = T.bg}>
+                            <div className="flex items-center gap-2.5 px-3 py-2.5">
+                              <div className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: T.orangeLight, border: `1px solid rgba(232,100,12,0.22)` }}>
+                                <FolderOpen size={15} style={{ color: T.orange }} />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="truncate text-[12.5px] font-bold" style={{ color: T.textMain }}>{g.groupName}</p>
+                                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                  <span className="text-[9px] font-bold px-1 py-px rounded" style={{ background: 'rgba(99,102,241,0.12)', color: '#4338ca', border: '1px solid rgba(99,102,241,0.25)' }}>group</span>
+                                  <span className="text-[10px] font-semibold" style={{ color: T.textMuted }}>click to enter</span>
+                                </div>
+                              </div>
+                              <ChevronRight size={15} style={{ color: T.orange, flexShrink: 0 }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {/* Existing folder rows */}
+                      {exFolders.map((ef: any, fi: number) => {
+                        const isLast = fi === exFolders.length - 1 && exFiles.length === 0;
+                        // Compute the absolute path of this folder for navigation
+                        const last = fbNavPath[fbNavPath.length - 1];
+                        const parentPath = last && last.kind === "existing"
+                          ? (last.existingPath ?? [])
+                          : [];
+                        const folderPath = [...parentPath, ef.name];
+                        return (
+                          <div key={`exf-${ef._id ?? ef.name}`}
+                            style={{ borderBottom: isLast ? 'none' : `1px solid ${T.border}`, background: T.bg, cursor: 'pointer', transition: 'background 0.13s' }}
+                            onClick={() => fbNavigateIntoExisting(ef.name, folderPath)}
+                            onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(232,100,12,0.04)'}
+                            onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = T.bg}>
+                            <div className="flex items-center gap-2.5 px-3 py-2.5">
+                              <div className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: T.orangeLight, border: `1px solid rgba(232,100,12,0.22)` }}>
+                                <FolderOpen size={15} style={{ color: T.orange }} />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="truncate text-[12.5px] font-bold" style={{ color: T.textMain }}>{ef.name}</p>
+                                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                  {(() => {
+                                    // Count subfolders + files + pages — pages live in
+                                    // their own array on the folder document and were
+                                    // previously missed by this count.
+                                    const total =
+                                      (Array.isArray(ef.subfolders) ? ef.subfolders.length : 0) +
+                                      (Array.isArray(ef.files)      ? ef.files.length      : 0) +
+                                      (Array.isArray(ef.pages)      ? ef.pages.length      : 0);
+                                    return (
+                                      <span className="text-[10px] font-semibold" style={{ color: T.textMuted }}>
+                                        {total} item{total !== 1 ? 's' : ''}
+                                      </span>
+                                    );
+                                  })()}
+                                  <span className="text-[9px] font-bold px-1 py-px rounded" style={{ background: 'rgba(34,197,94,0.10)', color: '#15803d', border: '1px solid rgba(34,197,94,0.22)' }}>saved</span>
+                                </div>
+                              </div>
+                              <ChevronRight size={15} style={{ color: T.orange, flexShrink: 0 }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {/* Existing file rows (read-only for Phase 1) */}
+                      {exFiles.map((ef: any, fi: number) => {
+                        const isLast = fi === exFiles.length - 1 && exPages.length === 0;
+                        const name = ef.name || ef.fileName || 'Untitled';
+                        const ext = name.includes('.') ? name.split('.').pop()?.toLowerCase() ?? '' : '';
+                        const extColor = extColorMap[ext] ?? '#64748b';
+                        return (
+                          <div key={`exfile-${ef._id ?? name}`}
+                            style={{ borderBottom: isLast ? 'none' : `1px solid ${T.border}`, background: T.bg }}>
+                            <div className="flex items-center gap-2.5 px-3 py-2">
+                              <div className="flex-shrink-0 w-7 h-7 rounded-md flex items-center justify-center" style={{ background: `${extColor}14`, border: `1px solid ${extColor}28`, color: extColor }}>
+                                <FileIcon size={13} />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="truncate text-[12px] font-semibold" style={{ color: T.textMain }}>{name}</p>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  <span className="text-[9px] font-bold px-1 py-px rounded" style={{ background: 'rgba(34,197,94,0.10)', color: '#15803d', border: '1px solid rgba(34,197,94,0.22)' }}>saved</span>
+                                </div>
+                              </div>
+                              <span className="flex-shrink-0 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded"
+                                style={{ background: `${extColor}14`, color: extColor, border: `1px solid ${extColor}28`, letterSpacing: '0.05em' }}>{ext || 'file'}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {/* Existing page rows (read-only for Phase 1) */}
+                      {exPages.map((ep: any, pi: number) => {
+                        const isLast = pi === exPages.length - 1;
+                        const title = ep.title || 'Untitled page';
+                        const pageColor = '#6366f1';
+                        return (
+                          <div key={`expage-${ep._id?.$oid ?? ep._id ?? title}`}
+                            style={{ borderBottom: isLast ? 'none' : `1px solid ${T.border}`, background: T.bg }}>
+                            <div className="flex items-center gap-2.5 px-3 py-2">
+                              <div className="flex-shrink-0 w-7 h-7 rounded-md flex items-center justify-center" style={{ background: `${pageColor}14`, border: `1px solid ${pageColor}28`, color: pageColor }}>
+                                <FileIcon size={13} />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="truncate text-[12px] font-semibold" style={{ color: T.textMain }}>{title}</p>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  <span className="text-[9px] font-bold px-1 py-px rounded" style={{ background: 'rgba(34,197,94,0.10)', color: '#15803d', border: '1px solid rgba(34,197,94,0.22)' }}>saved</span>
+                                </div>
+                              </div>
+                              <span className="flex-shrink-0 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded"
+                                style={{ background: `${pageColor}14`, color: pageColor, border: `1px solid ${pageColor}28`, letterSpacing: '0.05em' }}>PAGE</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* ── Current level contents ─────────────────────────── */}
+                  {(lvFolders.length > 0 || lvFiles.length > 0) ? (
+                    <div className="rounded-2xl overflow-hidden" style={{ border: `1.5px solid ${T.border}` }}>
+
+                      {/* Folder rows */}
+                      {lvFolders.map((vf, fi) => {
+                        const deepCount = fbFlattenTree([vf], []).length - 1;
+                        return (
+                          <div key={vf.id}
+                            className="group/frow"
+                            style={{ borderBottom: fi < lvFolders.length - 1 || lvFiles.length > 0 ? `1px solid ${T.border}` : 'none', background: T.bg, cursor: vf.isEditingName ? 'default' : 'pointer', transition: 'background 0.13s' }}
+                            onClick={() => !vf.isEditingName && fbNavigateInto(vf)}
+                            onMouseEnter={e => { if (!vf.isEditingName) (e.currentTarget as HTMLElement).style.background = 'rgba(232,100,12,0.04)'; }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.bg; }}>
+                            <div className="flex items-center gap-2.5 px-3 py-2.5">
+                              {/* Folder icon */}
+                              <div className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: T.orangeLight, border: `1px solid rgba(232,100,12,0.22)` }}>
+                                <FolderOpen size={15} style={{ color: T.orange }} />
+                              </div>
+                              {/* Name */}
+                              <div className="flex-1 min-w-0">
+                                {vf.isEditingName ? (
+                                  <input type="text" value={vf.editNameValue} autoFocus
+                                    onChange={e => fbUpdateFolderName(vf.id, e.target.value)}
+                                    onBlur={() => fbCommitFolderName(vf.id)}
+                                    onKeyDown={e => { if (e.key === 'Enter') fbCommitFolderName(vf.id); if (e.key === 'Escape') fbCancelFolderName(vf.id); }}
+                                    onClick={e => e.stopPropagation()}
+                                    className="w-full text-[12.5px] font-bold px-1.5 py-0.5 outline-none rounded"
+                                    style={{ border: `1.5px solid ${T.orange}`, color: T.textMain, background: T.pageBg }}
+                                  />
+                                ) : (
+                                  <p className="truncate text-[12.5px] font-bold" style={{ color: T.textMain }}>
+                                    {vf.name}
+                                  </p>
+                                )}
+                                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                  <span className="text-[10px] font-semibold" style={{ color: T.textMuted }}>
+                                    {vf.files.length} file{vf.files.length !== 1 ? 's' : ''}
+                                    {deepCount > 0 && ` · ${deepCount} sub-folder${deepCount !== 1 ? 's' : ''}`}
+                                  </span>
+                                  <span className="text-[9px] font-bold px-1 py-px rounded" style={{ background: 'rgba(245,158,11,0.12)', color: '#d97706', border: '1px solid rgba(245,158,11,0.25)' }}>virtual</span>
+                                </div>
+                              </div>
+                              {/* Arrow indicator */}
+                              <ChevronRight size={15} style={{ color: T.orange, flexShrink: 0 }} />
+                              {/* Rename */}
+                              {!vf.isEditingName && (
+                                <button className="flex-shrink-0 p-1.5 rounded-lg transition-all" style={{ color: T.textHint }}
+                                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = T.blueLight; (e.currentTarget as HTMLElement).style.color = T.blue; }}
+                                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = T.textHint; }}
+                                  onClick={e => { e.stopPropagation(); fbStartRenameFolder(vf.id); }} title="Rename">
+                                  <FilePlus2 size={13} />
+                                </button>
+                              )}
+                              {/* Delete */}
+                              <button className="flex-shrink-0 p-1.5 rounded-lg transition-all" style={{ color: T.textHint }}
+                                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.08)'; (e.currentTarget as HTMLElement).style.color = '#ef4444'; }}
+                                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = T.textHint; }}
+                                onClick={e => { e.stopPropagation(); removeVirtualFolder(vf.id); }} title="Remove">
+                                <X size={13} />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {/* File rows */}
+                      {lvFiles.map((vff, fi) => {
+                        const ext = vff.file.name.includes('.') ? vff.file.name.split('.').pop()?.toLowerCase() ?? '' : '';
+                        const extColor = extColorMap[ext] ?? T.orange;
+                        return (
+                          <div key={vff.id} style={{ borderBottom: fi < lvFiles.length - 1 ? `1px solid ${T.border}` : 'none', background: T.bg }}>
+                            <div className="flex items-center gap-2.5 px-3 py-2">
+                              <div className="flex-shrink-0 w-7 h-7 rounded-md flex items-center justify-center" style={{ background: `${extColor}14`, border: `1px solid ${extColor}28`, color: extColor }}>
+                                <FileIcon size={13} />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                {vff.isEditingName ? (
+                                  <input type="text" value={vff.editNameValue} autoFocus
+                                    onChange={e => fbUpdateFileName(vff.id, e.target.value)}
+                                    onBlur={() => fbCommitFileName(vff.id)}
+                                    onKeyDown={e => { if (e.key === 'Enter') fbCommitFileName(vff.id); if (e.key === 'Escape') fbCancelFileName(vff.id); }}
+                                    className="w-full text-[12px] font-semibold px-1 py-0.5 outline-none rounded"
+                                    style={{ border: `1.5px solid ${T.orange}`, color: T.textMain, background: T.pageBg }}
+                                  />
+                                ) : (
+                                  <p className="truncate text-[12px] font-semibold cursor-text" style={{ color: T.textMain }}
+                                    title="Double-click to rename" onDoubleClick={() => fbStartRenameFile(vff.id)}>
+                                    {vff.displayName || vff.file.name}
+                                  </p>
+                                )}
+                                <p className="text-[10.5px]" style={{ color: T.textMuted }}>{fmtSz(vff.file.size)}</p>
+                              </div>
+                              <span className="flex-shrink-0 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded"
+                                style={{ background: `${extColor}14`, color: extColor, border: `1px solid ${extColor}28`, letterSpacing: '0.05em' }}>{ext || 'file'}</span>
+                              <button onClick={() => fbRemoveFile(vff.id)} className="flex-shrink-0 p-1 rounded transition-all" style={{ color: T.textHint }}
+                                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.08)'; (e.currentTarget as HTMLElement).style.color = '#ef4444'; }}
+                                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = T.textHint; }}>
+                                <X size={12} />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    // Only show the empty state when there's truly nothing —
+                    // no virtual content AND no existing content at this level.
+                    (exGroups.length === 0 && exFolders.length === 0 && exFiles.length === 0 && exPages.length === 0) && (
+                      <div className="flex flex-col items-center justify-center py-10 gap-2.5 rounded-2xl" style={{ border: `1.5px dashed ${T.border}`, background: T.pageBg }}>
+                        <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: T.orangeLight }}>
+                          {fbNavPath.length > 0 ? <FolderOpen size={22} style={{ color: T.orange }} /> : <Folder size={22} style={{ color: T.orange }} />}
+                        </div>
+                        <p className="text-[13px] font-bold" style={{ color: T.textMain }}>
+                          {fbNavPath.length > 0 ? `"${fbNavPath[fbNavPath.length - 1].name}" is empty` : 'No folders or files yet'}
+                        </p>
+                        <p className="text-[11px]" style={{ color: T.textMuted }}>
+                          {fbNavPath.length > 0 ? 'Add a sub-folder or upload files using the buttons above' : 'Type a folder name and click Add Folder, or drag files to root'}
+                        </p>
+                      </div>
+                    )
+                  )}
+
+                </div>
+              </div>
+
+              {/* ── Footer ─────────────────────────────────────────────────── */}
+              <div className="flex-shrink-0 flex items-center justify-between px-4 py-3" style={{ borderTop: `1px solid ${T.border}`, background: T.pageBg }}>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px]" style={{ color: T.textMuted }}>
+                    <strong style={{ color: T.orange }}>{totalFolders}</strong> folder{totalFolders !== 1 ? 's' : ''} &nbsp;·&nbsp;
+                    <strong style={{ color: T.orange }}>{totalFiles}</strong> file{totalFiles !== 1 ? 's' : ''} total
+                  </span>
+                  {fbNavPath.length > 0 && (
+                    <button className="text-[10.5px] font-bold px-2 py-0.5 rounded-lg transition-all" style={{ color: T.textSub, background: T.bg, border: `1px solid ${T.border}` }}
+                      onClick={() => fbNavigateTo(0)}>
+                      ↩ Back to Root
+                    </button>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => fbHasWork() ? setShowFolderUnsavedWarning(true) : closeFolderBuilder()}
+                    disabled={folderBuilderUploading}
+                    className="px-3.5 py-1.5 rounded-xl text-[12px] font-bold transition-all"
+                    style={{ background: T.bg, border: `1.5px solid ${T.border}`, color: T.textSub, opacity: folderBuilderUploading ? 0.5 : 1 }}>
+                    Cancel
+                  </button>
+                  <button onClick={uploadVirtualFolders}
+                    disabled={!fbHasWork() || folderBuilderUploading}
+                    className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-[12px] font-bold text-white transition-all disabled:opacity-40"
+                    style={{ background: T.orange, boxShadow: `0 3px 10px ${T.orangeGlow}` }}
+                    onMouseEnter={e => { if (fbHasWork() && !folderBuilderUploading) (e.currentTarget as HTMLElement).style.background = T.orangeDark; }}
+                    onMouseLeave={e => { if (fbHasWork() && !folderBuilderUploading) (e.currentTarget as HTMLElement).style.background = T.orange; }}>
+                    {folderBuilderUploading
+                      ? <><div className="w-3 h-3 rounded-full animate-spin border-2 border-white/30 border-t-white" /> Creating…</>
+                      : <><Upload size={13} /> Create ({totalFolders}f · {totalFiles}fi)</>
+                    }
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Create / Edit Folder Modal ─────────────────────────────────────────── */}
       {showCreateFolderModal && (
         <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50" style={{ background: 'rgba(0,0,0,0.5)' }}>
-          <div className={`relative flex flex-col mx-4 overflow-hidden ${isButtonLoading ? 'opacity-60 pointer-events-none' : ''}`} style={{ background: T.bg, borderRadius: '20px', border: `1.5px solid ${T.border}`, width: '100%', maxWidth: '560px', maxHeight: '85vh', minHeight: '380px', boxShadow: `0 24px 60px rgba(0,0,0,0.16)` }} onClick={e => e.stopPropagation()}>
+          <div className={`relative flex flex-col mx-4 overflow-hidden ${isButtonLoading ? 'opacity-60 pointer-events-none' : ''}`} style={{ background: T.bg, borderRadius: '20px', border: `1.5px solid ${T.border}`, width: '100%', maxWidth: '860px', maxHeight: '85vh', minHeight: '380px', boxShadow: `0 24px 60px rgba(0,0,0,0.16)` }} onClick={e => e.stopPropagation()}>
             {isButtonLoading && (
               <div className="absolute inset-0 backdrop-blur-sm flex items-center justify-center z-10 rounded-2xl" style={{ background: 'rgba(255,255,255,0.85)' }}>
                 <div className="w-9 h-9 rounded-full animate-spin" style={{ border: `3px solid ${T.orangeLight}`, borderTopColor: T.orange }} />
@@ -3003,7 +5309,7 @@ onEditFolder={(folder) => {
             )}
 
             {/* Folder modal hero header */}
-            <div className="relative overflow-hidden flex-shrink-0" style={{ background: 'linear-gradient(135deg, #F27757 0%, #ED6445 52%, #E4573A 100%)', padding: '16px 18px 22px', borderRadius: '18px 18px 0 0' }}>
+            <div className="relative overflow-hidden flex-shrink-0" style={{ background: 'linear-gradient(135deg, #F08243 0%, #E8640C 52%, #C95308 100%)', padding: '16px 18px 22px', borderRadius: '18px 18px 0 0' }}>
               <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0 }} viewBox="0 0 560 80" fill="none"><circle cx="530" cy="-8" r="65" stroke="rgba(255,255,255,0.18)" strokeWidth="1.2" /><circle cx="530" cy="-8" r="115" stroke="rgba(255,255,255,0.10)" strokeWidth="1.2" /></svg>
               <div style={{ position: 'relative', zIndex: 1 }} className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -3152,52 +5458,170 @@ onEditFolder={(folder) => {
       {/* ── Viewers ──────────────────────────────────────────────────────────────── */}
       {showZipViewer && <ZipViewer fileUrl={currentZipUrl} fileName={currentZipName} onClose={() => setShowZipViewer(false)} />}
 
-      {showPDFViewer && (
-        <PDFViewer fileUrl={currentPDFUrl} fileName={currentPDFName} fileId={currentPDFFileId} entityType={selectedNode?.type} institution={selectedNode?.originalData?.institution || ""} courses={selectedNode?.originalData?.courses || ""} entityId={selectedNode?.id} tabType={activeTab || ""} subcategory={activeSubcategory || ""} folderPath={getCurrentNavState().currentFolderPath} apiBaseUrl="https://lms-server-ym1q.onrender.com" onClose={() => { setShowPDFViewer(false); setCurrentPDFUrl(""); setCurrentPDFName(""); setCurrentPDFFileId(""); }} isTeacher={true} initialMcqs={[]} sampleLiveLink="https://example.com/live-mcq-sample" />
-      )}
-
-      {showPPTViewer && (
-        <PPTViewer isOpen={showPPTViewer} onClose={() => { setShowPPTViewer(false); setCurrentPPTUrl(""); setCurrentPPTName(""); setCurrentPPTFileId(""); }} pptUrl={currentPPTUrl} title={currentPPTName} fileId={currentPPTFileId} entityType={selectedNode?.type || ""} entityId={selectedNode?.id || ""} tabType={toBackendTab(activeTab)} subcategory={activeSubcategory} folderPath={getCurrentNavState().currentFolderPath} isTeacher={true} apiBaseUrl="https://lms-server-ym1q.onrender.com" />
-      )}
-
-{showVideoViewer && (
-  <VideoViewer
-    fileUrl={currentVideoUrl} 
-    fileName={currentVideoName} 
-    fileId={currentVideoFileId} 
+{showPDFViewer && (
+  <PDFViewer 
+    fileUrl={currentPDFUrl} 
+    fileName={currentPDFName} 
+    fileId={currentPDFFileId} 
     entityType={selectedNode?.type} 
+    institution={selectedNode?.originalData?.institution || ""} 
+    courses={selectedNode?.originalData?.courses || ""} 
     entityId={selectedNode?.id} 
-    tabType={activeTab} 
-    subcategory={activeSubcategory} 
+    tabType={activeTab || ""} 
+    subcategory={activeSubcategory || ""} 
     folderPath={getCurrentNavState().currentFolderPath} 
-    availableResolutions={currentVideoResolutions} 
-    fileUrlMap={currentVideoFileUrlMap} 
-    isVideo={true} 
-    allVideos={videoPlaylist} 
-    currentVideoIndex={currentVideoIndex}
-    onVideoChange={(idx) => { 
-      setCurrentVideoIndex(idx); 
-      const v = videoPlaylist[idx]; 
-      setCurrentVideoUrl(v.fileUrl || ""); 
-      setCurrentVideoName(v.fileName); 
-      setCurrentVideoResolutions(v.availableResolutions || []); 
-      setCurrentVideoFileUrlMap(v.fileUrlMap || {}); 
-      setCurrentVideoFileId(v.id); 
-    }}
-    onClose={() => { 
-      setShowVideoViewer(false); 
-      setCurrentVideoUrl(""); 
-      setCurrentVideoName(""); 
-      setCurrentVideoResolutions([]); 
-      setCurrentVideoFileUrlMap({}); 
-      setVideoPlaylist([]); 
-      setCurrentVideoIndex(0); 
-      setCurrentVideoFileId(""); 
-    }}
     apiBaseUrl="https://lms-server-ym1q.onrender.com" 
+    onClose={() => { 
+      setShowPDFViewer(false); 
+      setCurrentPDFUrl(""); 
+      setCurrentPDFName(""); 
+      setCurrentPDFFileId(""); 
+    }} 
     isTeacher={true} 
+    initialMcqs={[]} 
+    sampleLiveLink="https://example.com/live-mcq-sample"
+    breadcrumbs={breadcrumbs}  // ← Add this
+    onNavigateToCourse={() => {
+      // Optional: handle course navigation when clicking course breadcrumb
+      if (courseId) {
+        router.push(`/lms/pages/courses?courseId=${courseId}`);
+      }
+    }}
   />
 )}
+   {showPPTViewer && (
+  <PPTViewer 
+    isOpen={showPPTViewer} 
+    onClose={() => { 
+      setShowPPTViewer(false); 
+      setCurrentPPTUrl(""); 
+      setCurrentPPTName(""); 
+      setCurrentPPTFileId(""); 
+    }} 
+    pptUrl={currentPPTUrl} 
+    title={currentPPTName} 
+    totalSlides={20}  // You might want to calculate actual slides
+    fileId={currentPPTFileId} 
+    entityType={selectedNode?.type || ""} 
+    entityId={selectedNode?.id || ""} 
+    tabType={toBackendTab(activeTab)} 
+    subcategory={activeSubcategory} 
+    folderPath={getCurrentNavState().currentFolderPath} 
+    apiBaseUrl="https://lms-server-ym1q.onrender.com" 
+    isTeacher={true}
+    breadcrumbs={breadcrumbs}  // ← ADD THIS
+    currentCourseName={courseStructureResponse?.data?.courseName || "Course"}  // ← ADD THIS
+    currentCourseId={courseId || ""}  // ← ADD THIS
+  />
+)}
+      {/* Word Viewer */}
+{showWordViewer && (
+  <WordViewer
+    fileUrl={currentWordUrl}
+    fileName={currentWordName}
+    onClose={() => {
+      setShowWordViewer(false);
+      setCurrentWordUrl("");
+      setCurrentWordName("");
+    }}
+    isTeacher={true}
+    breadcrumbs={breadcrumbs}
+    currentCourseName={courseStructureResponse?.data?.courseName || "Course"}
+    
+  />
+)}
+
+      {/* TXT Viewer */}
+  {showTxtViewer && (
+  <TxtViewerTeacher
+    fileUrl={currentTxtUrl}
+    fileName={currentTxtName}
+    isOpen={showTxtViewer}
+    onClose={() => {
+      setShowTxtViewer(false);
+      setCurrentTxtUrl("");
+      setCurrentTxtName("");
+    }}
+    breadcrumbs={breadcrumbs}
+    currentCourseName={courseStructureResponse?.data?.courseName || "Course"}
+   
+  />
+)}
+      {/* Image Viewer */}
+     {showImageViewer && (
+  <ImageViewer
+    isOpen={showImageViewer}
+    imageUrl={currentImageUrl}
+    title={currentImageName}
+    fileId={currentImageFileId}
+    entityType={selectedNode?.type}
+    entityId={selectedNode?.id}
+    tabType={activeTab || ""}
+    subcategory={activeSubcategory || ""}
+    folderPath={getCurrentNavState().currentFolderPath}
+    onClose={() => {
+      setShowImageViewer(false);
+      setCurrentImageUrl("");
+      setCurrentImageName("");
+      setCurrentImageFileId("");
+      setImagePlaylist([]);
+      setCurrentImageIndex(0);
+    }}
+    apiBaseUrl="https://lms-server-ym1q.onrender.com"
+    isTeacher={true}
+    allImages={imagePlaylist}
+    currentImageIndex={currentImageIndex}
+    onImageChange={(idx) => {
+      setCurrentImageIndex(idx);
+      const img = imagePlaylist[idx];
+      setCurrentImageUrl(img.fileUrl);
+      setCurrentImageName(img.title);
+      setCurrentImageFileId(img.id);
+    }}
+    breadcrumbs={breadcrumbs}
+    currentCourseName={courseStructureResponse?.data?.courseName || "Course"}
+
+  />
+)}
+
+      {showVideoViewer && (
+        <VideoViewer
+          fileUrl={currentVideoUrl}
+          fileName={currentVideoName}
+          fileId={currentVideoFileId}
+          entityType={selectedNode?.type}
+          entityId={selectedNode?.id}
+          tabType={activeTab}
+          subcategory={activeSubcategory}
+          folderPath={getCurrentNavState().currentFolderPath}
+          availableResolutions={currentVideoResolutions}
+          fileUrlMap={currentVideoFileUrlMap}
+          isVideo={true}
+          allVideos={videoPlaylist}
+          currentVideoIndex={currentVideoIndex}
+          onVideoChange={(idx) => {
+            setCurrentVideoIndex(idx);
+            const v = videoPlaylist[idx];
+            setCurrentVideoUrl(v.fileUrl || "");
+            setCurrentVideoName(v.fileName);
+            setCurrentVideoResolutions(v.availableResolutions || []);
+            setCurrentVideoFileUrlMap(v.fileUrlMap || {});
+            setCurrentVideoFileId(v.id);
+          }}
+          onClose={() => {
+            setShowVideoViewer(false);
+            setCurrentVideoUrl("");
+            setCurrentVideoName("");
+            setCurrentVideoResolutions([]);
+            setCurrentVideoFileUrlMap({});
+            setVideoPlaylist([]);
+            setCurrentVideoIndex(0);
+            setCurrentVideoFileId("");
+          }}
+          apiBaseUrl="https://lms-server-ym1q.onrender.com"
+          isTeacher={true}
+        />
+      )}
     </>
   );
 }

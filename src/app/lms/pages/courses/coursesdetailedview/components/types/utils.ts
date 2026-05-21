@@ -1,13 +1,44 @@
 // utils.ts
 import { PedagogyPage, Resource, ResourceType } from "./types"
 
-export const getFileType = (fileUrl: string|{base?:string;[k:string]:string|undefined}, fileType: string): ResourceType => {
+const IMAGE_EXTS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg', '.avif', '.tiff']
+const WORD_EXTS  = ['.docx', '.doc', '.odt', '.rtf', '.ocx'] // .ocx = backend strips 'd' from .docx
+
+export const isImageResource = (fileUrl: string|{base?:string;[k:string]:string|undefined}, fileType: string): boolean => {
+  const u = (typeof fileUrl === 'string' ? fileUrl : fileUrl?.base || '').toLowerCase()
+  return fileType?.includes('image') || IMAGE_EXTS.some(e => u.endsWith(e))
+}
+
+export const isWordResource = (fileUrl: string|{base?:string;[k:string]:string|undefined}, fileType: string): boolean => {
+  const u = (typeof fileUrl === 'string' ? fileUrl : fileUrl?.base || '').toLowerCase()
+  return fileType?.includes('wordprocessingml') || fileType?.includes('msword') || fileType?.includes('opendocument.text') || WORD_EXTS.some(e => u.endsWith(e))
+}
+
+export const getFileType = (
+  fileUrl: string | {base?:string;[k:string]:string|undefined}, 
+  fileType: string,
+  fileName?: string   // ← ADD this optional param
+): ResourceType => {
   const u = typeof fileUrl === 'string' ? fileUrl : fileUrl.base || ''
+  const ul = u.toLowerCase()
+  const fn = (fileName || '').toLowerCase()   // ← ADD
+
   if(fileType?.includes("url/link") || fileType?.includes("link")) return "link"
-  if(fileType?.includes("zip") || u?.toLowerCase().includes(".zip")) return "zip"
-  if(fileType?.includes("pdf")) return "pdf"
-  if(fileType?.includes("powerpoint") || fileType?.includes("presentation") || u?.toLowerCase().includes(".ppt")) return "ppt"
-  if(fileType?.includes("video") || u?.toLowerCase().includes(".mp4") || u?.toLowerCase().includes(".mov")) return "video"
+  if(fileType?.includes("image") || IMAGE_EXTS.some(e => ul.endsWith(e) || fn.endsWith(e))) return "image"
+  if(fileType?.includes("wordprocessingml") || fileType?.includes("msword") || 
+     fileType?.includes("opendocument.text") || WORD_EXTS.some(e => ul.endsWith(e) || fn.endsWith(e))) return "word"
+  if(fileType?.includes("zip") || ul.includes(".zip") || fn.endsWith(".zip")) return "zip"
+  if(fileType?.includes("pdf") || fn.endsWith(".pdf")) return "pdf"
+  if(fileType?.includes("powerpoint") || fileType?.includes("presentation") || 
+     ul.includes(".ppt") || fn.endsWith(".ppt") || fn.endsWith(".pptx")) return "ppt"
+  if(fileType?.includes("video") || ul.includes(".mp4") || ul.includes(".mov") || 
+     ul.includes(".webm") || ul.includes(".avi") || ul.includes(".mkv") ||
+     fn.match(/\.(mp4|mov|webm|avi|mkv)$/)) return "video"
+  
+  // ← MOVE txt check UP before the fallback, also check fileName
+  if(ul.endsWith(".txt") || fn.endsWith(".txt") || fn.endsWith(".md") || 
+     fileType?.includes("text/plain")) return "txt"
+  
   if(fileType?.includes("application") || fileType?.includes("document")) return "pdf"
   return "link"
 }
@@ -50,12 +81,72 @@ export const hasPedagogyData = (item: any): boolean =>
     (item.pedagogy.You_Do && (Array.isArray(item.pedagogy.You_Do) ? item.pedagogy.You_Do.length > 0 : Object.keys(item.pedagogy.You_Do).length > 0))
   ))
 
-export const shouldShowDownload = (r: Resource) => 
-  !!(r.isReference && (!r.fileSettings || r.fileSettings.allowDownload !== false))
+// Download button is shown only when the file explicitly opts in via fileSettings.allowDownload.
+// Folders, pages, and missing settings → no download button.
+export const shouldShowDownload = (r: Resource) =>
+  !r.isFolder && r.type !== "page" && r.fileSettings?.allowDownload === true
 
-export const isResourceVisible = (r: Resource) => 
+// A resource is visible to students unless fileSettings.showToStudents is explicitly false.
+export const isResourceVisible = (r: Resource) =>
   !r.fileSettings || r.fileSettings.showToStudents !== false
 
+// Group resources by groupId. Returns an ordered list where each entry is either:
+//  - { kind: "group", groupId, groupName, items: Resource[] } — all items share that groupId, filtered by visibility
+//  - { kind: "item",  resource: Resource }                    — a standalone visible resource
+// Groups that have zero visible items after filtering are omitted entirely.
+export type GroupedResourceRow =
+  | { kind: "group"; groupId: string; groupName: string; items: Resource[] }
+  | { kind: "item"; resource: Resource };
+
+// utils.ts - COMPLETE FIXED groupResources function
+export const groupResources = (resources: Resource[]): GroupedResourceRow[] => {
+  const rows: GroupedResourceRow[] = [];
+  const seenGroups = new Set<string>();
+  
+  // Build buckets keyed by groupId — include ALL items (files AND folders)
+  const groupBuckets = new Map<string, { name: string; items: Resource[] }>();
+  
+  // First pass: collect all items that belong to groups
+  resources.forEach(r => {
+    // Skip items without groupId
+    if (!r.groupId) return;
+    
+    // For files: check visibility
+    // For folders: always include (they're containers)
+    if (!r.isFolder && !isResourceVisible(r)) return;
+    
+    const bucket = groupBuckets.get(r.groupId) ?? { name: r.groupName || "", items: [] };
+    if (!bucket.name && r.groupName) bucket.name = r.groupName;
+    bucket.items.push(r);
+    groupBuckets.set(r.groupId, bucket);
+  });
+
+  // Second pass: build the final rows
+  for (const r of resources) {
+    // Skip invisible non-folder items
+    if (!isResourceVisible(r) && !r.isFolder) continue;
+    
+    // Any resource (file OR folder) with a groupId belongs inside the group row
+    if (r.groupId) {
+      if (seenGroups.has(r.groupId)) continue;
+      seenGroups.add(r.groupId);
+      const bucket = groupBuckets.get(r.groupId);
+      if (!bucket || bucket.items.length === 0) continue;
+      
+      rows.push({
+        kind: "group",
+        groupId: r.groupId,
+        groupName: bucket.name || "Untitled group",
+        items: bucket.items,
+      });
+      continue;
+    }
+    
+    rows.push({ kind: "item", resource: r });
+  }
+  
+  return rows;
+};
 export const downloadFile = async (resource: Resource) => {
   let url = resource.externalUrl || ''
   if(!url && resource.fileUrl) {

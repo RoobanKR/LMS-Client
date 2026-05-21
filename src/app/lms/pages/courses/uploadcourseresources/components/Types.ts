@@ -42,6 +42,8 @@ export interface UploadedFile {
   fileUrlMap?: Record<string, string>     
   fileSettings?: FileSettings,
   fileDescription?: string;
+  groupId?: string;
+  groupName?: string;
 }
 
 export interface FolderItem {
@@ -49,6 +51,9 @@ export interface FolderItem {
   name: string
   type: "folder"
   parentId: string | null
+  parentGroupId?: string;
+  groupName?: string;
+  groupDescription?: string;
   children: (FolderItem | UploadedFile)[]
   tabType: "I_Do" | "We_Do" | "You_Do"
   subcategory: string

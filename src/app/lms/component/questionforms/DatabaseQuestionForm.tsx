@@ -6,6 +6,7 @@ import {
   CheckCircle2, ArrowRight, Flag, BarChart3, Code, Image,
   CloudUpload, Loader, ChevronLeft, ChevronRight, Edit2,
   Layers, ArrowLeftRight, BookOpen, Clock, Target, Sparkles,
+  Settings,
 } from 'lucide-react';
 
 // ─── FONT INJECTION ────────────────────────────────────────────────────────────
@@ -292,9 +293,12 @@ interface DatabaseQuestionFormProps {
   saveProgress: number;
   saveMessage: string;
   lockedDifficulty?: 'easy' | 'medium' | 'hard';
+  onEditExercise?: () => void;
+  sectionData?: any;
 }
 
 interface HintItem { hintText: string; pointsDeduction: number; isPublic: boolean; }
+
 interface DBQuestion {
   __localId: string;
   _id?: string;
@@ -311,6 +315,7 @@ interface DBQuestion {
   isDirty?: boolean;
   isPreExisting?: boolean;
 }
+
 type ProgContentBlock =
   | { id: string; type: 'text'; value: string }
   | { id: string; type: 'image'; url: string; alignment: 'left' | 'center' | 'right'; sizePercent: number }
@@ -351,25 +356,26 @@ const descToBlocks = (description: any): ProgContentBlock[] => {
   return [mkProgTextBlock()];
 };
 
-const DS: Record<string, { text: string; bg: string; border: string; dot: string; solid: any; pill: any }> = {
+const DS: Record<string, { text: string; bg: string; border: string; dot: string; solid: any; pill: any; bar: string }> = {
   easy: {
-    text: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0', dot: '#16a34a',
+    text: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0', dot: '#16a34a', bar: '#16a34a',
     solid: { background: '#16a34a', color: 'white' },
     pill: { background: '#f0fdf4', color: '#16a34a', border: '1.5px solid #bbf7d0' },
   },
   medium: {
-    text: '#d97706', bg: '#fffbeb', border: '#fde68a', dot: '#d97706',
+    text: '#d97706', bg: '#fffbeb', border: '#fde68a', dot: '#d97706', bar: '#d97706',
     solid: { background: '#d97706', color: 'white' },
     pill: { background: '#fffbeb', color: '#d97706', border: '1.5px solid #fde68a' },
   },
   hard: {
-    text: '#e53e3e', bg: '#fff5f5', border: '#fed7d7', dot: '#e53e3e',
+    text: '#e53e3e', bg: '#fff5f5', border: '#fed7d7', dot: '#e53e3e', bar: '#e53e3e',
     solid: { background: '#e53e3e', color: 'white' },
     pill: { background: '#fff5f5', color: '#e53e3e', border: '1.5px solid #fed7d7' },
   },
 };
 
 const mkLocalId = () => `local-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+const fmtMark = (n: number): string => parseFloat(n.toFixed(2)).toString();
 
 const dbQuestionToFlow = (q: any): DBQuestion => ({
   __localId: q._id ? `db-${q._id}` : mkLocalId(),
@@ -379,7 +385,7 @@ const dbQuestionToFlow = (q: any): DBQuestion => ({
   difficulty: q.difficulty || 'medium',
   score: q.score || q.points || 0,
   sampleQuery: q.sampleQuery || '',
-  sampleResult: q.sampleResult || [{ id: `sr-${Date.now()}`, type: 'text', value: '' }],
+  sampleResult: q.sampleResult || [mkProgTextBlock()],
   constraints: q.constraints || [],
   hints: q.hints || [],
   questionType: 'database',
@@ -389,35 +395,32 @@ const dbQuestionToFlow = (q: any): DBQuestion => ({
 });
 
 // ─── SQL Result Table ──────────────────────────────────────────────────────────
-const SqlResultTable: React.FC<{ rows: Record<string, any>[]; columns: string[] }> = ({ rows, columns }) => (
-  <div style={{ overflowX: 'auto' }}>
-    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: 'ui-monospace, monospace' }}>
-      <thead>
-        <tr style={{ background: '#1e3a5f' }}>
-          {columns.map(col => (
-            <th key={col} style={{ padding: '5px 10px', textAlign: 'left', color: '#93c5fd', fontWeight: 700, borderRight: '1px solid #1e40af', whiteSpace: 'nowrap' }}>
-              {col}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row, ri) => (
-          <tr key={ri} style={{ background: ri % 2 === 0 ? '#0f172a' : '#111827', borderBottom: '1px solid #1e3a5f' }}>
-            {columns.map(col => (
-              <td key={col} style={{ padding: '4px 10px', color: '#e2e8f0', borderRight: '1px solid #1e3a5f', whiteSpace: 'nowrap' }}>
-                {row[col] === null ? <span style={{ color: '#64748b', fontStyle: 'italic' }}>NULL</span> : String(row[col])}
-              </td>
-            ))}
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  </div>
-);
+// The SqlResultTable component should be properly defined as a function component
+const SqlResultTable: React.FC<{ rows: Record<string, any>[]; columns: string[] }> = ({ rows, columns }) => {
+  return React.createElement('div', { style: { overflowX: 'auto' } },
+    React.createElement('table', { style: { width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: 'ui-monospace, monospace' } },
+      React.createElement('thead', null,
+        React.createElement('tr', { style: { background: '#1e3a5f' } },
+          columns.map(col => React.createElement('th', { key: col, style: { padding: '5px 10px', textAlign: 'left', color: '#93c5fd', fontWeight: 700, borderRight: '1px solid #1e40af', whiteSpace: 'nowrap' } }, col))
+        )
+      ),
+      React.createElement('tbody', null,
+        rows.map((row, ri) => 
+          React.createElement('tr', { key: ri, style: { background: ri % 2 === 0 ? '#0f172a' : '#111827', borderBottom: '1px solid #1e3a5f' } },
+            columns.map(col => 
+              React.createElement('td', { key: col, style: { padding: '4px 10px', color: '#e2e8f0', borderRight: '1px solid #1e3a5f', whiteSpace: 'nowrap' } },
+                row[col] === null ? React.createElement('span', { style: { color: '#64748b', fontStyle: 'italic' } }, 'NULL') : String(row[col])
+              )
+            )
+          )
+        )
+      )
+    )
+  );
+};
 
 // ─── Image Upload Modal ────────────────────────────────────────────────────────
-const ProgImageUploadModal: React.FC<{
+const ImageUploadModal: React.FC<{
   onUpload: (url: string) => void;
   onClose: () => void;
 }> = ({ onUpload, onClose }) => {
@@ -566,7 +569,7 @@ const ProgImageUploadModal: React.FC<{
 };
 
 // ─── Image Block Component ─────────────────────────────────────────────────────
-const ProgImageBlock: React.FC<{
+const ImageBlock: React.FC<{
   block: ProgContentBlock & { type: 'image' };
   onUpdate: (patch: Partial<ProgContentBlock>) => void;
   onRemove: () => void;
@@ -681,12 +684,13 @@ const highlightAutoP = (code: string, bgColor: string): string => {
   return code
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/(--.*$)/gm, `<span style="color:${cmtC}">$1</span>`)
+    .replace(/\/\*[\s\S]*?\*\//g, `<span style="color:${cmtC}">$1</span>`)
     .replace(/("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`)/g, `<span style="color:${strC}">$1</span>`)
     .replace(/\b(\d+\.?\d*)\b/g, `<span style="color:${numC}">$1</span>`)
     .replace(new RegExp(`\\b(${kw.join('|')})\\b`, 'gi'), `<span style="color:${kwC};font-weight:600">$1</span>`);
 };
 
-const ProgCodeBlock: React.FC<{
+const CodeBlock: React.FC<{
   block: ProgContentBlock & { type: 'code' };
   onUpdate: (patch: Partial<ProgContentBlock>) => void;
   onRemove: () => void;
@@ -801,12 +805,13 @@ const ProgCodeBlock: React.FC<{
 };
 
 // ─── Description Editor ────────────────────────────────────────────────────────
-const ProgDescEditor: React.FC<{
+const DescriptionEditor: React.FC<{
   blocks: ProgContentBlock[];
   onChange: (blocks: ProgContentBlock[]) => void;
   disabled?: boolean;
   hasError?: boolean;
-}> = ({ blocks, onChange, disabled, hasError }) => {
+  placeholder?: string;
+}> = ({ blocks, onChange, disabled, hasError, placeholder = "Describe the database problem clearly. Include table schemas, sample data, and expected query results." }) => {
   const mkId = () => `pb-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const [showImgModal, setShowImgModal] = useState(false);
   const [fmtState, setFmtState] = useState({ bold: false, italic: false, underline: false });
@@ -889,7 +894,7 @@ const ProgDescEditor: React.FC<{
             <div key={b.id}
               ref={el => { if (el) { editRefs.current.set(b.id, el); lastSetValues.current.delete(b.id); } else { editRefs.current.delete(b.id); } }}
               contentEditable={!disabled} suppressContentEditableWarning
-              data-placeholder="Describe the database problem clearly. Include table schemas, sample data, and expected query results."
+              data-placeholder={placeholder}
               onInput={e => {
                 const html = (e.currentTarget as HTMLDivElement).innerHTML;
                 lastSetValues.current.set(b.id, html);
@@ -906,16 +911,16 @@ const ProgDescEditor: React.FC<{
             />
           );
           if (b.type === 'image') return (
-            <ProgImageBlock key={b.id} block={b as any} onUpdate={patch => updateBlock(b.id, patch)} onRemove={() => removeBlock(b.id)} disabled={disabled} />
+            <ImageBlock key={b.id} block={b as any} onUpdate={patch => updateBlock(b.id, patch)} onRemove={() => removeBlock(b.id)} disabled={disabled} />
           );
           if (b.type === 'code') return (
-            <ProgCodeBlock key={b.id} block={b as any} onUpdate={patch => updateBlock(b.id, patch)} onRemove={() => removeBlock(b.id)} disabled={disabled} />
+            <CodeBlock key={b.id} block={b as any} onUpdate={patch => updateBlock(b.id, patch)} onRemove={() => removeBlock(b.id)} disabled={disabled} />
           );
           return null;
         })}
       </div>
       {showImgModal && (
-        <ProgImageUploadModal onUpload={url => {
+        <ImageUploadModal onUpload={url => {
           onChange([...blocks, { id: mkId(), type: 'image', url, alignment: 'center', sizePercent: 70 }]);
           setShowImgModal(false);
         }} onClose={() => setShowImgModal(false)} />
@@ -924,53 +929,112 @@ const ProgDescEditor: React.FC<{
   );
 };
 
-// ─── Preview Modal ─────────────────────────────────────────────────────────────
+// ─── Breadcrumb Component ─────────────────────────────────────────────────────
+const capFirst = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+
+const Breadcrumb: React.FC<{
+  hierarchyData: any; tabType: string; subcategory?: string; subcategoryLabel?: string;
+  exerciseName?: string; actionLabel: string; questionLabel?: string;
+}> = ({ hierarchyData, tabType, subcategory, subcategoryLabel, exerciseName, actionLabel, questionLabel }) => {
+  const crumbs: { text: string; tip: string }[] = [];
+  if (hierarchyData?.courseName) crumbs.push({ text: hierarchyData.courseName, tip: 'Course' });
+  if (hierarchyData?.moduleName) crumbs.push({ text: hierarchyData.moduleName, tip: 'Module' });
+  if (hierarchyData?.submoduleName) crumbs.push({ text: hierarchyData.submoduleName, tip: 'Sub-module' });
+  if (hierarchyData?.topicName) crumbs.push({ text: hierarchyData.topicName, tip: 'Topic' });
+  if (hierarchyData?.subtopicName) crumbs.push({ text: hierarchyData.subtopicName, tip: 'Sub-topic' });
+
+  const Sep = () => <li><span className="lms-breadcrumb-sep">»</span></li>;
+
+  return (
+    <nav style={{ fontFamily: 'var(--lms-font)' }}>
+      <ol className="flex items-center flex-wrap gap-y-0.5">
+        {crumbs.map((c, i) => (
+          <React.Fragment key={i}>
+            <li><span className="lms-crumb" data-tip={c.tip} style={{ color: 'var(--lms-text-sec)' }}>{capFirst(c.text)}</span></li>
+            <Sep />
+          </React.Fragment>
+        ))}
+        {tabType && (<><li><span className="lms-crumb" data-tip="Category" style={{ color: 'var(--lms-text-sec)' }}>{capFirst(tabType.replace(/_/g, ' '))}</span></li><Sep /></>)}
+        {(subcategoryLabel || subcategory) && (<><li><span className="lms-crumb" data-tip="Sub-category" style={{ color: 'var(--lms-orange)' }}>{capFirst(subcategoryLabel || subcategory || '')}</span></li><Sep /></>)}
+        {exerciseName && (<><li><span className="lms-crumb" data-tip="Exercise" style={{ color: 'var(--lms-text-main)', verticalAlign: 'bottom' }}><span style={{ maxWidth: 140, display: 'inline-block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'bottom' }}>{capFirst(exerciseName)}</span></span></li><Sep /></>)}
+        <li><span style={{ fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 700, color: 'var(--lms-text-main)' }}>{capFirst(actionLabel)}{questionLabel && questionLabel !== actionLabel && (<span style={{ marginLeft: 6, fontWeight: 400, color: 'var(--lms-text-muted)', fontFamily: 'var(--lms-font)' }}>· {questionLabel}</span>)}</span></li>
+      </ol>
+    </nav>
+  );
+};
+
+// ─── Preview Modal (rich, like programming form) ───────────────────────────────
 const PreviewModal: React.FC<{
   questions: DBQuestion[];
   currentIndex: number;
+  isGeneral: boolean;
+  exerciseData: any;
   onJump: (idx: number) => void;
   onDelete: (localId: string) => void;
   onClose: () => void;
   onDone: () => void;
   hierarchyData: any;
   tabType: string;
+  subcategory?: string;
+  subcategoryLabel?: string;
   exerciseName: string;
+  actionLabel: string;
+  questionLabel: string;
   currentDiff: 'easy' | 'medium' | 'hard';
+  score: number;
+  generalMPQ: number;
+  displayScore: number;
   totalSlots: number;
   createdCount: number;
   remainingSlots: number;
+  usedMarks: number;
+  remainingMarks: number;
+  totalMarksForDiff: number;
   totalSlotsAll: number;
   createdCountAll: number;
   remainingSlotsAll: number;
   totalMarksAll: number;
   usedMarksAll: number;
-  displayScore: number;
-  isGeneral: boolean;
-  cfgType: string;
-  exerciseData: any;
   isScoreEditable: (d: 'easy' | 'medium' | 'hard') => boolean;
+  getFixedScore: (d: 'easy' | 'medium' | 'hard') => number;
   getConfiguredDiffs: () => Array<'easy' | 'medium' | 'hard'>;
+  getRemainingSlots: (d?: 'easy' | 'medium' | 'hard') => number;
+  getDbQuestionsForDiff: (d?: 'easy' | 'medium' | 'hard') => DBQuestion[];
+  getQuotaForDiff: (d: 'easy' | 'medium' | 'hard') => number;
+  getCreatedCount: (d?: 'easy' | 'medium' | 'hard') => number;
   getTotalMarksForDiff: (d: 'easy' | 'medium' | 'hard') => number;
-  usedMarks: number;
-  remainingMarks: number;
-  totalMarksForDiff: number;
+  onDiffRowClick: (d: 'easy' | 'medium' | 'hard') => void;
+  cfgType: string;
 }> = ({
-  questions, currentIndex, onJump, onDelete, onClose, onDone,
-  hierarchyData, tabType, exerciseName, currentDiff, totalSlots, createdCount, remainingSlots,
-  totalSlotsAll, createdCountAll, remainingSlotsAll, totalMarksAll, usedMarksAll, displayScore,
-  isGeneral, cfgType, exerciseData, isScoreEditable, getConfiguredDiffs,
-  getTotalMarksForDiff, usedMarks, remainingMarks, totalMarksForDiff,
+  questions, currentIndex, isGeneral, exerciseData,
+  onJump, onDelete, onClose, onDone,
+  hierarchyData, tabType, subcategory, subcategoryLabel,
+  exerciseName, actionLabel, questionLabel,
+  currentDiff, score, generalMPQ, displayScore,
+  totalSlots, createdCount, remainingSlots,
+  usedMarks, remainingMarks, totalMarksForDiff,
+  totalSlotsAll, createdCountAll, remainingSlotsAll,
+  totalMarksAll, usedMarksAll,
+  isScoreEditable, getFixedScore, getConfiguredDiffs,
+  getRemainingSlots, getDbQuestionsForDiff, getQuotaForDiff,
+  getCreatedCount, getTotalMarksForDiff, onDiffRowClick, cfgType,
 }) => {
-  const [previewIndex, setPreviewIndex] = useState(currentIndex);
+  const [expandedSet, setExpandedSet] = useState<Set<number>>(new Set());
   const [deleteTarget, setDeleteTarget] = useState<{ localId: string; title: string } | null>(null);
+  const [filterDiff, setFilterDiff] = useState<'all' | 'easy' | 'medium' | 'hard'>('all');
+  const [sidebarTab, setSidebarTab] = useState<'details' | 'overview' | null>(null);
+
   const s = DS[currentDiff] || DS.medium;
+  const subExerciseIsGraded = exerciseData?.fullExerciseData?.isGraded !== false;
 
-  const q = questions[previewIndex];
-  const fmtMark = (n: number): string => parseFloat(n.toFixed(2)).toString();
+  const savedQuestions = questions.filter(q => !!(q._id || q.isSaved || q.isPreExisting));
+  const availableDiffs = (['easy', 'medium', 'hard'] as const).filter(d =>
+    savedQuestions.some(q => q.difficulty === d)
+  );
 
-  const descBlocksArray = q ? (Array.isArray(q.description) ? q.description : descToBlocks(q.description)) : [];
-  const srBlocksArray = q ? (Array.isArray(q.sampleResult) ? q.sampleResult : descToBlocks(q.sampleResult)) : [];
-  const ds = q ? (DS[q.difficulty] || DS.medium) : DS.medium;
+  const filteredSavedQuestions = savedQuestions.filter(q =>
+    filterDiff === 'all' ? true : q.difficulty === filterDiff
+  );
 
   const renderBlock = (b: any, bi: number) => {
     if (b.type === 'text' && b.value?.trim())
@@ -990,263 +1054,334 @@ const PreviewModal: React.FC<{
 
   return (
     <>
+      {/* Exercise Details Modal */}
+      {sidebarTab === 'details' && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
+          onClick={e => { if (e.target === e.currentTarget) setSidebarTab(null); }}>
+          <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 360, maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ padding: '13px 16px', borderBottom: '1.5px solid var(--lms-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--lms-bg-surface)', flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><FileText size={14} style={{ color: 'var(--lms-text-sec)' }} /><span style={{ fontFamily: 'var(--lms-font)', fontSize: 13, fontWeight: 700, color: 'var(--lms-text-main)' }}>Exercise Details</span></div>
+              <button type="button" onClick={() => setSidebarTab(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--lms-text-muted)', display: 'flex', padding: 4, borderRadius: 6 }}><X size={15} /></button>
+            </div>
+            <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto', padding: '4px 0' }}>
+              {exerciseData?.fullExerciseData?.exerciseInformation?.exerciseId && (
+                <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                  <span className="lms-detail-label">Exercise ID</span>
+                  <span className="lms-detail-value" style={{ fontFamily: 'ui-monospace, monospace', color: 'var(--lms-violet)', fontSize: 11 }}>{exerciseData.fullExerciseData.exerciseInformation.exerciseId}</span>
+                </div>
+              )}
+              <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                <span className="lms-detail-label">Exercise Name</span>
+                <span className="lms-detail-value" style={{ color: 'var(--lms-orange)', fontSize: 11, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{exerciseName || 'Untitled'}</span>
+              </div>
+              <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                <span className="lms-detail-label">Exercise Type</span>
+                <span className="lms-detail-value" style={{ fontSize: 11 }}>Database</span>
+              </div>
+              <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                <span className="lms-detail-label">Configuration</span>
+                <span className="lms-detail-value" style={{ fontSize: 11 }}>{isGeneral ? 'General' : cfgType === 'levelBased' ? 'Level Based' : 'Selection Level'}</span>
+              </div>
+              <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                <span className="lms-detail-label">Assessment Type</span>
+                <span className="lms-detail-value" style={{ fontSize: 11, fontWeight: 700, color: subExerciseIsGraded ? 'var(--lms-success)' : 'var(--lms-warning)' }}>{subExerciseIsGraded ? 'Graded' : 'Non-Graded'}</span>
+              </div>
+            </div>
+            <div style={{ padding: '10px 16px', borderTop: '1.5px solid var(--lms-border)', display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
+              <button type="button" onClick={() => setSidebarTab(null)} className="lms-cancel-btn">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Exercise Overview Modal */}
+      {sidebarTab === 'overview' && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
+          onClick={e => { if (e.target === e.currentTarget) setSidebarTab(null); }}>
+          <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 400, maxHeight: '86vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ padding: '13px 16px', borderBottom: '1.5px solid var(--lms-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--lms-info-bg)', flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><BarChart3 size={14} style={{ color: 'var(--lms-info)' }} /><span style={{ fontFamily: 'var(--lms-font)', fontSize: 13, fontWeight: 700, color: 'var(--lms-text-main)' }}>Exercise Overview</span></div>
+              <button type="button" onClick={() => setSidebarTab(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--lms-text-muted)', display: 'flex', padding: 4, borderRadius: 6 }}><X size={15} /></button>
+            </div>
+            <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto' }}>
+              <div style={{ padding: '12px 16px', borderBottom: '1.5px solid var(--lms-border)' }}>
+                <div className="lms-sidebar-section-title" style={{ marginBottom: 8 }}><Hash size={12} style={{ color: 'var(--lms-orange)' }} /><span>Overall Questions</span></div>
+                <div className="lms-marks-row"><span className="lms-marks-label">Total Questions</span><span className="lms-marks-value" style={{ fontSize: 12, fontWeight: 700 }}>{totalSlotsAll}</span></div>
+                <div className="lms-marks-row"><span className="lms-marks-label">Created</span><span className="lms-marks-value" style={{ color: 'var(--lms-violet)', fontSize: 12 }}>{createdCountAll}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 10 }}>/{totalSlotsAll}</span></span></div>
+                <div className="lms-marks-row"><span className="lms-marks-label">Remaining</span><span className="lms-marks-value" style={{ color: remainingSlotsAll === 0 ? 'var(--lms-success)' : 'var(--lms-warning)', fontSize: 12 }}>{remainingSlotsAll}</span></div>
+                {totalSlotsAll > 0 && (<div className="lms-progress-bar"><div className="lms-progress-fill" style={{ width: `${Math.min(100, (createdCountAll / totalSlotsAll) * 100)}%`, background: remainingSlotsAll === 0 ? 'var(--lms-success)' : 'var(--lms-orange)' }} /></div>)}
+              </div>
+              {subExerciseIsGraded && totalMarksAll > 0 && (
+                <div style={{ padding: '12px 16px' }}>
+                  <div className="lms-sidebar-section-title" style={{ marginBottom: 8 }}><Award size={12} style={{ color: 'var(--lms-violet)' }} /><span>Overall Marks</span></div>
+                  <div className="lms-marks-row"><span className="lms-marks-label">Total Marks</span><span className="lms-marks-value" style={{ color: 'var(--lms-violet)', fontSize: 12 }}>{totalMarksAll}</span></div>
+                  <div className="lms-marks-row"><span className="lms-marks-label">Marks Used</span><span className="lms-marks-value" style={{ color: 'var(--lms-warning)', fontSize: 12 }}>{fmtMark(usedMarksAll)}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 10 }}>/{totalMarksAll}</span></span></div>
+                  <div className="lms-marks-row"><span className="lms-marks-label">Remaining Marks</span><span className="lms-marks-value" style={{ color: (totalMarksAll - usedMarksAll) <= 0 ? 'var(--lms-success)' : 'var(--lms-text-main)', fontSize: 12 }}>{fmtMark(Math.max(0, totalMarksAll - usedMarksAll))}</span></div>
+                  {totalMarksAll > 0 && (<div className="lms-progress-bar"><div className="lms-progress-fill" style={{ width: `${Math.min(100, (usedMarksAll / totalMarksAll) * 100)}%`, background: usedMarksAll >= totalMarksAll ? 'var(--lms-success)' : 'var(--lms-orange)' }} /></div>)}
+                </div>
+              )}
+            </div>
+            <div style={{ padding: '10px 16px', borderTop: '1.5px solid var(--lms-border)', display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
+              <button type="button" onClick={() => setSidebarTab(null)} className="lms-cancel-btn">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Preview Modal */}
       <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,26,46,0.5)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 150, padding: 12 }}>
         <div style={{ width: '96vw', maxWidth: 1400, height: '96vh', display: 'flex', flexDirection: 'column', background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', border: '1.5px solid var(--lms-border)', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
 
           {/* Header */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 20px', borderBottom: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', flexShrink: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
-              <div style={{ width: 34, height: 34, borderRadius: 9, background: 'var(--lms-violet)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Eye size={16} style={{ color: 'white' }} />
-              </div>
+              <div style={{ width: 34, height: 34, borderRadius: 9, background: 'var(--lms-violet)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Eye size={16} style={{ color: 'white' }} /></div>
               <div style={{ width: 1, height: 20, background: 'var(--lms-border)', flexShrink: 0 }} />
-              <nav style={{ display: 'flex', alignItems: 'center', gap: 0, minWidth: 0 }}>
-                {hierarchyData.courseName && (<><span className="lms-crumb" data-tip="Course" style={{ color: 'var(--lms-text-muted)' }}>{hierarchyData.courseName}</span><span className="lms-breadcrumb-sep">›</span></>)}
-                {hierarchyData.moduleName && (<><span className="lms-crumb" data-tip="Module" style={{ color: 'var(--lms-text-muted)' }}>{hierarchyData.moduleName}</span><span className="lms-breadcrumb-sep">›</span></>)}
-                {hierarchyData.submoduleName && (<><span className="lms-crumb" data-tip="Sub-module" style={{ color: 'var(--lms-text-muted)' }}>{hierarchyData.submoduleName}</span><span className="lms-breadcrumb-sep">›</span></>)}
-                {hierarchyData.topicName && (<><span className="lms-crumb" data-tip="Topic" style={{ color: 'var(--lms-text-muted)' }}>{hierarchyData.topicName}</span><span className="lms-breadcrumb-sep">›</span></>)}
-                {hierarchyData.subtopicName && (<><span className="lms-crumb" data-tip="Sub-topic" style={{ color: 'var(--lms-text-muted)' }}>{hierarchyData.subtopicName}</span><span className="lms-breadcrumb-sep">›</span></>)}
-                {exerciseName && (<><span className="lms-crumb" data-tip="Exercise" style={{ color: 'var(--lms-text-main)', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{exerciseName}</span><span className="lms-breadcrumb-sep">›</span></>)}
-                <span className="lms-crumb" style={{ color: 'var(--lms-orange)' }}>Preview Database Questions</span>
-              </nav>
+              <Breadcrumb hierarchyData={hierarchyData} tabType={tabType} subcategory={subcategory} subcategoryLabel={subcategoryLabel} exerciseName={exerciseName} actionLabel="Preview" questionLabel={questionLabel} />
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, marginLeft: 12 }}>
-              <button onClick={onClose} style={{ padding: 8, borderRadius: 8, border: '1.5px solid var(--lms-danger-bdr)', background: 'var(--lms-danger-bg)', cursor: 'pointer' }}>
-                <X size={15} style={{ color: 'var(--lms-danger)' }} />
-              </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 20, background: 'var(--lms-bg-surface)', border: '1.5px solid var(--lms-border)' }}>
+                <Hash size={11} style={{ color: 'var(--lms-text-hint)' }} />
+                <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, fontWeight: 700, color: 'var(--lms-text-main)' }}>
+                  {filteredSavedQuestions.length}{filterDiff !== 'all' ? `/${savedQuestions.length}` : ''} question{savedQuestions.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+              {!isGeneral && (
+                <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+                  <select value={filterDiff} onChange={e => setFilterDiff(e.target.value as any)} style={{
+                    fontFamily: 'var(--lms-font)', fontSize: 12, fontWeight: 600,
+                    border: `1.5px solid ${filterDiff !== 'all' ? (DS[filterDiff]?.border || 'var(--lms-border)') : 'var(--lms-border)'}`,
+                    borderRadius: 20, padding: '5px 28px 5px 12px', cursor: 'pointer', outline: 'none',
+                    background: filterDiff !== 'all' ? (DS[filterDiff]?.bg || 'var(--lms-bg-surface)') : 'var(--lms-bg-surface)',
+                    color: filterDiff !== 'all' ? (DS[filterDiff]?.text || 'var(--lms-text-sec)') : 'var(--lms-text-sec)',
+                    appearance: 'none', minWidth: 140,
+                  }}>
+                    <option value="all">All difficulties</option>
+                    {(['easy', 'medium', 'hard'] as const).map(d => (<option key={d} value={d}>{d.charAt(0).toUpperCase() + d.slice(1)} ({savedQuestions.filter(q => q.difficulty === d).length})</option>))}
+                  </select>
+                  <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8"
+                    style={{ position: 'absolute', right: 9, pointerEvents: 'none', width: 11, height: 11, color: filterDiff !== 'all' ? DS[filterDiff]?.text : 'var(--lms-text-sec)' }}>
+                    <path d="M2 4l4 4 4-4" />
+                  </svg>
+                </div>
+              )}
+              <button onClick={onClose} style={{ padding: 8, borderRadius: 8, border: '1.5px solid var(--lms-danger-bdr)', background: 'var(--lms-danger-bg)', cursor: 'pointer' }}><X size={15} style={{ color: 'var(--lms-danger)' }} /></button>
             </div>
           </div>
 
-          {/* Preview banner + question navigator */}
-          <div style={{ padding: '6px 20px', background: 'var(--lms-info-bg)', borderBottom: '1.5px solid var(--lms-info-bdr)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Eye size={11} style={{ color: 'var(--lms-info)' }} />
-              <span style={{ fontFamily: 'var(--lms-font)', fontSize: 10.5, fontWeight: 700, color: 'var(--lms-info)', letterSpacing: 0.4, textTransform: 'uppercase' }}>Preview — Read Only</span>
-            </div>
-
-            {/* Question pills navigator */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-              {questions.map((pq, i) => {
-                const pds = DS[pq.difficulty] || DS.medium;
-                const isActive = i === previewIndex;
-                return (
-                  <button key={pq.__localId} onClick={() => setPreviewIndex(i)}
-                    style={{
-                      width: 28, height: 28, borderRadius: 8, fontSize: 11, fontWeight: 800,
-                      fontFamily: 'var(--lms-font)', cursor: 'pointer', transition: 'all 0.15s',
-                      border: `2px solid ${isActive ? 'var(--lms-orange)' : pds.border}`,
-                      background: isActive ? 'var(--lms-orange)' : pds.bg,
-                      color: isActive ? 'white' : pds.text,
-                      boxShadow: isActive ? '0 2px 8px var(--lms-orange-glow)' : 'none',
-                    }}>{i + 1}</button>
-                );
-              })}
-            </div>
-
-            <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, fontWeight: 600, color: 'var(--lms-info)' }}>
-              {questions.filter(q => q.isSaved).length} / {questions.length} saved
-            </span>
+          {/* Preview banner */}
+          <div style={{ padding: '5px 20px', background: 'var(--lms-info-bg)', borderBottom: '1.5px solid var(--lms-info-bdr)', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <Eye size={11} style={{ color: 'var(--lms-info)' }} />
+            <span style={{ fontFamily: 'var(--lms-font)', fontSize: 10.5, fontWeight: 700, color: 'var(--lms-info)', letterSpacing: 0.4, textTransform: 'uppercase' }}>Preview — Read Only</span>
+            {filterDiff !== 'all' && (<span style={{ ...DS[filterDiff]?.pill, fontSize: 10, fontWeight: 700, padding: '1px 8px', borderRadius: 20, textTransform: 'capitalize', marginLeft: 4 }}>Filtered: {filterDiff}</span>)}
           </div>
 
-          {/* Body */}
           <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
 
-            {/* Main question view */}
-            <div className="lms-sidebar-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-              {!q ? (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--lms-text-hint)' }}>
-                  <Eye size={40} style={{ marginBottom: 12, opacity: 0.15 }} />
-                  <p style={{ fontFamily: 'var(--lms-font)', fontSize: 14, fontWeight: 600 }}>No questions yet</p>
+            {/* Questions list */}
+            <div className="lms-sidebar-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {filteredSavedQuestions.length === 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--lms-text-hint)', gap: 12, paddingTop: 60 }}>
+                  <Eye size={40} style={{ opacity: 0.15 }} />
+                  <p style={{ fontFamily: 'var(--lms-font)', fontSize: 14, fontWeight: 600 }}>{filterDiff !== 'all' ? `No ${filterDiff} questions saved yet` : 'No saved questions yet'}</p>
                 </div>
               ) : (
-                <>
-                  {/* Question header row */}
-                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
-                      <span style={{
-                        width: 36, height: 36, borderRadius: 10, fontSize: 14, fontWeight: 800,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                        fontFamily: 'var(--lms-font)', background: 'var(--lms-orange)', color: 'white',
-                        boxShadow: '0 2px 8px var(--lms-orange-glow)',
-                      }}>{previewIndex + 1}</span>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <h2 style={{ fontFamily: 'var(--lms-font)', fontSize: 18, fontWeight: 700, color: 'var(--lms-text-main)', margin: 0, lineHeight: 1.4, wordBreak: 'break-word' }}>
-                          {q.title || 'Untitled Question'}
-                        </h2>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
-                          <span style={{ ...ds.pill, fontSize: 10.5, fontWeight: 700, padding: '3px 10px', borderRadius: 20, textTransform: 'capitalize' as const }}>{q.difficulty}</span>
-                          <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11.5, color: 'var(--lms-text-muted)' }}>{q.score} mark{q.score !== 1 ? 's' : ''}</span>
-                          <span style={{ color: 'var(--lms-border)' }}>·</span>
-                          <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11.5, color: 'var(--lms-text-muted)' }}>Database</span>
-                          {q.isSaved && !q.isDirty && (
-                            <span style={{ fontFamily: 'var(--lms-font)', fontSize: 10.5, color: 'var(--lms-success)', fontWeight: 700 }}>✓ Saved</span>
-                          )}
+                filteredSavedQuestions.map((q, filteredIdx) => {
+                  const originalIdx = questions.findIndex(x => x.__localId === q.__localId);
+                  const ds = DS[q.difficulty] || DS.medium;
+                  const isActive = originalIdx === currentIndex;
+                  const isExpanded = expandedSet.has(filteredIdx);
+                  const titleText = q.title || 'Untitled';
+                  const qNum = (() => {
+                    if (isGeneral) return filteredIdx + 1;
+                    const sameD = filteredSavedQuestions.filter(x => x.difficulty === q.difficulty);
+                    return sameD.findIndex(x => x.__localId === q.__localId) + 1;
+                  })();
+
+                  const descBlocksArray = Array.isArray(q.description) ? q.description : descToBlocks(q.description);
+                  const srBlocksArray = Array.isArray(q.sampleResult) ? q.sampleResult : descToBlocks(q.sampleResult);
+
+                  return (
+                    <div key={q.__localId} style={{
+                      border: isActive ? `2px solid var(--lms-orange)` : '1.5px solid var(--lms-border)',
+                      borderRadius: 12, boxShadow: isActive ? '0 0 0 3px var(--lms-orange-light)' : '0 1px 4px rgba(0,0,0,0.05)',
+                      transition: 'border-color 0.15s, box-shadow 0.15s', flexShrink: 0,
+                    }}>
+                      <div style={{ padding: '12px 14px', background: isActive ? 'var(--lms-orange-50)' : 'var(--lms-bg-white)', borderRadius: isExpanded ? '10px 10px 0 0' : 10 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <span style={{
+                            width: 30, height: 30, borderRadius: 9, fontSize: 12, fontWeight: 800,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                            fontFamily: 'var(--lms-font)', background: isActive ? 'var(--lms-orange)' : ds.bg,
+                            color: isActive ? 'white' : ds.text, border: `2px solid ${isActive ? 'transparent' : ds.border}`,
+                          }}>{qNum}</span>
+                          <p style={{ flex: 1, minWidth: 0, fontFamily: 'var(--lms-font)', fontSize: 13.5, fontWeight: 700, color: 'var(--lms-text-main)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{titleText}</p>
+                          {q._id && (<span style={{ fontFamily: 'var(--lms-font)', fontSize: 9, fontWeight: 700, color: 'var(--lms-success)', background: 'var(--lms-success-bg)', border: '1px solid var(--lms-success-bdr)', padding: '2px 7px', borderRadius: 20, flexShrink: 0 }}>SAVED</span>)}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                          {!isGeneral && (<span style={{ ...ds.pill, fontSize: 10, fontWeight: 700, padding: '2px 9px', borderRadius: 20, textTransform: 'capitalize' as const, flexShrink: 0 }}>{q.difficulty}</span>)}
+                          {subExerciseIsGraded && (<span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, color: 'var(--lms-text-muted)', flexShrink: 0 }}>{q.score} marks</span>)}
+                          <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, color: 'var(--lms-text-muted)', flexShrink: 0 }}>Database</span>
+                          <div style={{ flex: 1 }} />
+                          <button onClick={() => { onJump(originalIdx); onClose(); }} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 11px', background: 'var(--lms-warning-bg)', color: 'var(--lms-warning)', fontSize: 11, fontWeight: 700, border: '1.5px solid var(--lms-warning-bdr)', borderRadius: 7, cursor: 'pointer', fontFamily: 'var(--lms-font)', flexShrink: 0 }}><Edit2 size={11} /> Edit</button>
+                          <button onClick={() => setDeleteTarget({ localId: q.__localId, title: titleText })} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 11px', background: 'var(--lms-danger-bg)', color: 'var(--lms-danger)', fontSize: 11, fontWeight: 700, border: '1.5px solid var(--lms-danger-bdr)', borderRadius: 7, cursor: 'pointer', fontFamily: 'var(--lms-font)', flexShrink: 0 }}><Trash2 size={11} /> Delete</button>
+                          <button onClick={() => setExpandedSet(prev => { const n = new Set(prev); n.has(filteredIdx) ? n.delete(filteredIdx) : n.add(filteredIdx); return n; })} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 8, border: `1.5px solid ${isExpanded ? 'var(--lms-violet-bdr)' : 'var(--lms-border)'}`, background: isExpanded ? 'var(--lms-violet-bg)' : 'var(--lms-bg-surface)', cursor: 'pointer', color: isExpanded ? 'var(--lms-violet)' : 'var(--lms-text-muted)', flexShrink: 0 }}>
+                            {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                          </button>
                         </div>
                       </div>
-                    </div>
-                    {/* Edit / Delete */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                      <button onClick={() => { onJump(previewIndex); onClose(); }}
-                        style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: 'var(--lms-warning-bg)', color: 'var(--lms-warning)', fontSize: 11.5, fontWeight: 700, border: '1.5px solid var(--lms-warning-bdr)', borderRadius: 8, cursor: 'pointer', fontFamily: 'var(--lms-font)' }}>
-                        <Edit2 size={12} /> Edit
-                      </button>
-                      <button onClick={() => setDeleteTarget({ localId: q.__localId, title: q.title })}
-                        style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: 'var(--lms-danger-bg)', color: 'var(--lms-danger)', fontSize: 11.5, fontWeight: 700, border: '1.5px solid var(--lms-danger-bdr)', borderRadius: 8, cursor: 'pointer', fontFamily: 'var(--lms-font)' }}>
-                        <Trash2 size={12} /> Delete
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Description */}
-                  <div>
-                    <p className="lms-section-label">Problem Description</p>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: 'var(--lms-bg-surface)', padding: '14px 16px', borderRadius: 10, border: '1.5px solid var(--lms-border)' }}>
-                      {descBlocksArray.map(renderBlock)}
-                    </div>
-                  </div>
-
-                  {/* Sample Query */}
-                  {q.sampleQuery && (
-                    <div>
-                      <p className="lms-section-label">Sample Query</p>
-                      <pre style={{ background: '#1e1e1e', color: '#d4d4d4', fontFamily: 'ui-monospace,monospace', fontSize: 12.5, padding: '12px 16px', borderRadius: 10, overflowX: 'auto', margin: 0, lineHeight: 1.7 }}>{q.sampleQuery}</pre>
-                    </div>
-                  )}
-
-                  {/* Expected Result */}
-                  <div>
-                    <p className="lms-section-label">Expected Result</p>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: 'var(--lms-bg-surface)', padding: '14px 16px', borderRadius: 10, border: '1.5px solid var(--lms-border)' }}>
-                      {srBlocksArray.map(renderBlock)}
-                    </div>
-                  </div>
-
-                  {/* Constraints */}
-                  {q.constraints?.filter(c => c?.trim()).length > 0 && (
-                    <div>
-                      <p className="lms-section-label">Constraints</p>
-                      <ul style={{ margin: 0, paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        {q.constraints.filter(c => c?.trim()).map((c, ci) => (
-                          <li key={ci} style={{ fontFamily: 'var(--lms-font)', fontSize: 13, color: 'var(--lms-text-main)', lineHeight: 1.6 }}>{c}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {/* Hints */}
-                  {q.hints?.length > 0 && (
-                    <div>
-                      <p className="lms-section-label">Hints</p>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        {q.hints.map((h: any, hi: number) => (
-                          <div key={hi} style={{ padding: '8px 12px', background: 'var(--lms-warning-bg)', border: '1.5px solid var(--lms-warning-bdr)', borderRadius: 8 }}>
-                            <span style={{ fontFamily: 'var(--lms-font)', fontSize: 12, color: 'var(--lms-warning)', fontWeight: 700 }}>Hint {hi + 1}: </span>
-                            <span style={{ fontFamily: 'var(--lms-font)', fontSize: 12, color: 'var(--lms-text-main)' }}>{h.hintText}</span>
-                            {h.pointsDeduction > 0 && <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, color: 'var(--lms-text-muted)', marginLeft: 8 }}>(-{h.pointsDeduction} pts)</span>}
+                      {isExpanded && (
+                        <div style={{ borderTop: '1.5px solid var(--lms-border)', borderRadius: '0 0 10px 10px', padding: '10px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                          {/* Description */}
+                          <div>
+                            <p className="lms-section-label" style={{ marginBottom: 6 }}>Description</p>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--lms-bg-white)', padding: '10px 12px', borderRadius: 8, border: '1.5px solid var(--lms-border)' }}>
+                              {descBlocksArray.map(renderBlock)}
+                            </div>
                           </div>
-                        ))}
-                      </div>
+                          {/* Sample Query */}
+                          {q.sampleQuery && (
+                            <div>
+                              <p className="lms-section-label">Sample Query</p>
+                              <pre style={{ background: '#1e1e1e', color: '#d4d4d4', fontFamily: 'ui-monospace,monospace', fontSize: 12, padding: '12px 16px', borderRadius: 10, overflowX: 'auto', margin: 0, lineHeight: 1.6 }}>{q.sampleQuery}</pre>
+                            </div>
+                          )}
+                          {/* Expected Result */}
+                          <div>
+                            <p className="lms-section-label">Expected Result</p>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--lms-bg-white)', padding: '10px 12px', borderRadius: 8, border: '1.5px solid var(--lms-border)' }}>
+                              {srBlocksArray.map(renderBlock)}
+                            </div>
+                          </div>
+                          {/* Constraints */}
+                          {q.constraints?.filter(c => c?.trim()).length > 0 && (
+                            <div>
+                              <p className="lms-section-label">Constraints</p>
+                              <ul style={{ margin: 0, paddingLeft: 16, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                {q.constraints.filter(c => c?.trim()).map((c, ci) => (<li key={ci} style={{ fontFamily: 'var(--lms-font)', fontSize: 12, color: 'var(--lms-text-main)' }}>{c}</li>))}
+                              </ul>
+                            </div>
+                          )}
+                          {/* Hints */}
+                          {q.hints?.length > 0 && (
+                            <div>
+                              <p className="lms-section-label">Hints</p>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                {q.hints.map((h: any, hi: number) => (
+                                  <div key={hi} style={{ padding: '8px 12px', background: 'var(--lms-warning-bg)', border: '1.5px solid var(--lms-warning-bdr)', borderRadius: 8 }}>
+                                    <span style={{ fontFamily: 'var(--lms-font)', fontSize: 12, color: 'var(--lms-warning)', fontWeight: 700 }}>Hint {hi + 1}: </span>
+                                    <span style={{ fontFamily: 'var(--lms-font)', fontSize: 12, color: 'var(--lms-text-main)' }}>{h.hintText}</span>
+                                    {h.pointsDeduction > 0 && <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, color: 'var(--lms-text-muted)', marginLeft: 8 }}>(-{h.pointsDeduction} pts)</span>}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </>
+                  );
+                })
               )}
             </div>
 
-            {/* Sidebar */}
-            <div style={{ width: 272, flexShrink: 0, borderLeft: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-              <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto' }}>
+            {/* Right Sidebar - same as programming form */}
+            <div style={{ width: 280, flexShrink: 0, borderLeft: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
 
-                {/* Exercise Details */}
-                <div style={{ padding: '14px 16px', borderBottom: '1.5px solid var(--lms-info-bdr)', background: 'var(--lms-info-bg)' }}>
-                  <div className="lms-sidebar-section-title"><FileText size={14} style={{ color: 'var(--lms-info)' }} />Exercise Details</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                    <div className="lms-detail-row"><span className="lms-detail-label">Exercise Name</span><span className="lms-detail-value" style={{ color: 'var(--lms-orange)', maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{exerciseName || 'Untitled'}</span></div>
-                    <div className="lms-detail-row"><span className="lms-detail-label">Module Type</span><span className="lms-detail-value">Database</span></div>
-                    <div className="lms-detail-row"><span className="lms-detail-label">Configuration</span><span className="lms-detail-value">{isGeneral ? 'General' : cfgType === 'levelBased' ? 'Level Based' : 'Selection Level'}</span></div>
-                    {!isGeneral && (<div className="lms-detail-row"><span className="lms-detail-label">Current Difficulty</span><span className="lms-detail-value" style={{ color: s.text, textTransform: 'capitalize' }}>{currentDiff}</span></div>)}
-                  </div>
-                </div>
+              {/* Two action buttons */}
+              <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: 8, borderBottom: '1.5px solid var(--lms-border)', flexShrink: 0, background: 'var(--lms-bg-surface)' }}>
+                <button onClick={() => setSidebarTab('details')} style={{
+                  display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px',
+                  borderRadius: 'var(--lms-radius-md)', fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 600,
+                  border: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', color: 'var(--lms-text-sec)',
+                  cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left',
+                }} onMouseEnter={e => { const b = e.currentTarget; b.style.borderColor = 'var(--lms-orange)'; b.style.background = 'var(--lms-orange-50)'; b.style.color = '#c85a30'; }}
+                  onMouseLeave={e => { const b = e.currentTarget; b.style.borderColor = 'var(--lms-border)'; b.style.background = 'var(--lms-bg-white)'; b.style.color = 'var(--lms-text-sec)'; }}>
+                  <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--lms-orange-50)', border: '1.5px solid var(--lms-orange-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><FileText size={14} style={{ color: 'var(--lms-orange)' }} /></div>
+                  <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 700, color: 'inherit' }}>Exercise Details</div><div style={{ fontFamily: 'var(--lms-font)', fontSize: 10.5, color: 'var(--lms-text-muted)', marginTop: 1 }}>ID, type, config, duration</div></div>
+                  <ChevronRight size={13} style={{ color: 'var(--lms-text-hint)', flexShrink: 0 }} />
+                </button>
+                <button onClick={() => setSidebarTab('overview')} style={{
+                  display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px',
+                  borderRadius: 'var(--lms-radius-md)', fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 600,
+                  border: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', color: 'var(--lms-text-sec)',
+                  cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left',
+                }} onMouseEnter={e => { const b = e.currentTarget; b.style.borderColor = 'var(--lms-info-bdr)'; b.style.background = 'var(--lms-info-bg)'; b.style.color = 'var(--lms-info)'; }}
+                  onMouseLeave={e => { const b = e.currentTarget; b.style.borderColor = 'var(--lms-border)'; b.style.background = 'var(--lms-bg-white)'; b.style.color = 'var(--lms-text-sec)'; }}>
+                  <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--lms-info-bg)', border: '1.5px solid var(--lms-info-bdr)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><BarChart3 size={14} style={{ color: 'var(--lms-info)' }} /></div>
+                  <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 700, color: 'inherit' }}>Exercise Overview</div><div style={{ fontFamily: 'var(--lms-font)', fontSize: 10.5, color: 'var(--lms-text-muted)', marginTop: 1 }}>Quota, marks, progress</div></div>
+                  <ChevronRight size={13} style={{ color: 'var(--lms-text-hint)', flexShrink: 0 }} />
+                </button>
+              </div>
 
-                {/* Question Quota */}
-                <div style={{ padding: '14px 16px', borderBottom: '1.5px solid var(--lms-orange-100)', background: 'var(--lms-orange-50)' }}>
-                  <div className="lms-sidebar-section-title"><Hash size={14} style={{ color: 'var(--lms-orange)' }} />Question Quota · {isGeneral ? '(General)' : `${currentDiff} Level`}</div>
-                  <div>
-                    <div className="lms-marks-row"><span className="lms-marks-label">Total Questions</span><span className="lms-marks-value">{totalSlots}</span></div>
-                    <div className="lms-marks-row"><span className="lms-marks-label">Questions Created</span><span className="lms-marks-value" style={{ color: 'var(--lms-violet)' }}>{createdCount}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 11 }}>/{totalSlots}</span></span></div>
-                    <div className="lms-marks-row"><span className="lms-marks-label">Remaining</span><span className="lms-marks-value" style={{ color: remainingSlots === 0 ? 'var(--lms-success)' : 'var(--lms-warning)' }}>{remainingSlots}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 11 }}>/{totalSlots}</span></span></div>
-                  </div>
-                  {totalSlots > 0 && (<div className="lms-progress-bar"><div className="lms-progress-fill" style={{ width: `${Math.min(100, (createdCount / totalSlots) * 100)}%`, background: remainingSlots === 0 ? 'var(--lms-success)' : 'var(--lms-orange)' }} /></div>)}
-                </div>
+              {/* Stats */}
+              <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto', padding: '14px 14px' }}>
+                {(() => {
+                  const activeDiff = filterDiff === 'all' ? null : filterDiff as 'easy' | 'medium' | 'hard';
+                  const diffSlots = activeDiff ? getQuotaForDiff(activeDiff) : 0;
+                  const diffCreated = activeDiff ? getCreatedCount(activeDiff) : 0;
+                  const diffRemaining = activeDiff ? getRemainingSlots(activeDiff) : 0;
+                  const diffMarksTotal = activeDiff ? getTotalMarksForDiff(activeDiff) : 0;
+                  const diffMarksUsed = activeDiff ? savedQuestions.filter(q => q.difficulty === activeDiff).reduce((acc, q) => acc + (q.score || 0), 0) : 0;
+             
+             
+                  const diffFixedScore = activeDiff ? getFixedScore(activeDiff) : 0;
+                  const diffDS = activeDiff ? (DS[activeDiff] || DS.medium) : null;
 
-                {/* Question Overview — multi-diff only */}
-                {(!isGeneral && getConfiguredDiffs().length > 1) && (
-                  <div style={{ padding: '14px 16px', borderBottom: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-surface)' }}>
-                    <div className="lms-sidebar-section-title"><BarChart3 size={14} style={{ color: 'var(--lms-text-sec)' }} />Question Overview</div>
-                    <div>
-                      <div className="lms-marks-row"><span className="lms-marks-label">Total Questions</span><span className="lms-marks-value">{totalSlotsAll}</span></div>
-                      <div className="lms-marks-row"><span className="lms-marks-label">Questions Created</span><span className="lms-marks-value" style={{ color: 'var(--lms-violet)' }}>{createdCountAll}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 11 }}>/{totalSlotsAll}</span></span></div>
-                      <div className="lms-marks-row"><span className="lms-marks-label">Remaining</span><span className="lms-marks-value" style={{ color: remainingSlotsAll === 0 ? 'var(--lms-success)' : 'var(--lms-warning)' }}>{remainingSlotsAll}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 11 }}>/{totalSlotsAll}</span></span></div>
-                    </div>
-                    {totalSlotsAll > 0 && (<div className="lms-progress-bar"><div className="lms-progress-fill" style={{ width: `${Math.min(100, (createdCountAll / totalSlotsAll) * 100)}%`, background: remainingSlotsAll === 0 ? 'var(--lms-success)' : 'var(--lms-orange)' }} /></div>)}
-                  </div>
-                )}
-
-                {/* Marks Allocation */}
-                <div style={{ padding: '14px 16px', borderBottom: '1.5px solid var(--lms-orange-100)', background: 'var(--lms-orange-50)' }}>
-                  <div className="lms-sidebar-section-title"><Award size={14} style={{ color: 'var(--lms-orange)' }} />Marks Allocation · {isGeneral ? '(General)' : `${currentDiff} Level`}</div>
-                  <div>
-                    {!isGeneral && totalMarksForDiff > 0 && (<div className="lms-marks-row"><span className="lms-marks-label">Level Total</span><span className="lms-marks-value">{totalMarksForDiff}</span></div>)}
-                    <div className="lms-marks-row"><span className="lms-marks-label">Marks per Question</span><div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span className="lms-marks-value" style={{ color: 'var(--lms-orange)' }}>{fmtMark(displayScore)}</span>{isScoreEditable(currentDiff) ? <span className="lms-badge lms-badge-violet" style={{ fontSize: '10px', padding: '2px 6px' }}>Custom</span> : <span className="lms-badge" style={{ fontSize: '10px', padding: '2px 6px', background: 'var(--lms-bg-surface)', color: 'var(--lms-text-muted)', borderColor: 'var(--lms-border)' }}>Fixed</span>}</div></div>
-                    {!isGeneral && totalMarksForDiff > 0 && (<>
-                      <div className="lms-marks-row"><span className="lms-marks-label">Marks Used</span><span className="lms-marks-value" style={{ color: 'var(--lms-warning)' }}>{fmtMark(usedMarks)}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 11 }}>/{totalMarksForDiff}</span></span></div>
-                      <div className="lms-marks-row"><span className="lms-marks-label">Remaining</span><span className="lms-marks-value" style={{ color: remainingMarks <= 0 ? 'var(--lms-success)' : 'var(--lms-violet)' }}>{fmtMark(remainingMarks)}</span></div>
-                    </>)}
-                  </div>
-                  {!isGeneral && totalMarksForDiff > 0 && (<div className="lms-progress-bar"><div className="lms-progress-fill" style={{ width: `${Math.min(100, (usedMarks / totalMarksForDiff) * 100)}%`, background: usedMarks >= totalMarksForDiff ? 'var(--lms-success)' : 'var(--lms-orange)' }} /></div>)}
-                </div>
-
-                {/* Marks Overview — multi-diff only */}
-                {(!isGeneral && getConfiguredDiffs().length > 1) && (
-                  <div style={{ padding: '14px 16px', borderBottom: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-surface)' }}>
-                    <div className="lms-sidebar-section-title"><Award size={14} style={{ color: 'var(--lms-text-sec)' }} />Marks Allocation Overview</div>
-                    <div>
-                      <div className="lms-marks-row"><span className="lms-marks-label">Total Marks</span><span className="lms-marks-value">{totalMarksAll}</span></div>
-                      <div className="lms-marks-row"><span className="lms-marks-label">Marks Used</span><span className="lms-marks-value" style={{ color: 'var(--lms-warning)' }}>{fmtMark(usedMarksAll)}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 11 }}>/{totalMarksAll}</span></span></div>
-                      <div className="lms-marks-row"><span className="lms-marks-label">Remaining</span><span className="lms-marks-value" style={{ color: Math.max(0, totalMarksAll - usedMarksAll) === 0 ? 'var(--lms-success)' : 'var(--lms-violet)' }}>{fmtMark(Math.max(0, totalMarksAll - usedMarksAll))}</span></div>
-                      {getConfiguredDiffs().map(d => (<div key={d} className="lms-marks-row"><span className="lms-marks-label" style={{ textTransform: 'capitalize' }}>{d}</span><span className="lms-marks-value" style={{ color: 'var(--lms-text-sec)', fontSize: '12px' }}>{getTotalMarksForDiff(d)}</span></div>))}
-                    </div>
-                    {totalMarksAll > 0 && (<div className="lms-progress-bar"><div className="lms-progress-fill" style={{ width: `${Math.min(100, (usedMarksAll / totalMarksAll) * 100)}%`, background: usedMarksAll >= totalMarksAll ? 'var(--lms-success)' : 'var(--lms-orange)' }} /></div>)}
-                  </div>
-                )}
-
+                  return (
+                    <>
+                      {/* Difficulty Questions */}
+                      {activeDiff && (
+                        <div style={{ marginBottom: 14 }}>
+                          <div className="lms-sidebar-section-title" style={{ fontSize: 11 }}><Hash size={12} style={{ color: diffDS.text }} /><span style={{ textTransform: 'capitalize', color: diffDS.text }}>{activeDiff} Questions</span></div>
+                          <div className="lms-marks-row"><span className="lms-marks-label">Total</span><span className="lms-marks-value" style={{ fontSize: 12 }}>{diffSlots}</span></div>
+                          <div className="lms-marks-row"><span className="lms-marks-label">Created</span><span className="lms-marks-value" style={{ color: 'var(--lms-violet)', fontSize: 12 }}>{diffCreated}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 10 }}>/{diffSlots}</span></span></div>
+                          <div className="lms-marks-row"><span className="lms-marks-label">Remaining</span><span className="lms-marks-value" style={{ color: diffRemaining === 0 ? 'var(--lms-success)' : 'var(--lms-warning)', fontSize: 12 }}>{diffRemaining}</span></div>
+                          {diffSlots > 0 && (<div className="lms-progress-bar"><div className="lms-progress-fill" style={{ width: `${Math.min(100, (diffCreated / diffSlots) * 100)}%`, background: diffRemaining === 0 ? 'var(--lms-success)' : diffDS.bar }} /></div>)}
+                        </div>
+                      )}
+                      {/* Difficulty Marks */}
+                      {activeDiff && subExerciseIsGraded && diffMarksTotal > 0 && (
+                        <div style={{ borderTop: '1.5px solid var(--lms-border)', paddingTop: 14, marginBottom: 14 }}>
+                          <div className="lms-sidebar-section-title" style={{ fontSize: 11 }}><Award size={12} style={{ color: diffDS.text }} /><span style={{ textTransform: 'capitalize', color: diffDS.text }}>{activeDiff} Marks</span></div>
+                          <div className="lms-marks-row"><span className="lms-marks-label">Total Mark</span><span className="lms-marks-value" style={{ fontSize: 12 }}>{diffMarksTotal}</span></div>
+                          <div className="lms-marks-row"><span className="lms-marks-label">Mark Per Question</span><span className="lms-marks-value" style={{ color: 'var(--lms-orange)', fontSize: 12 }}>{diffFixedScore}{isScoreEditable(activeDiff) ? <span className="lms-badge lms-badge-violet" style={{ fontSize: '9px', padding: '1px 5px', marginLeft: 3 }}>Custom</span> : <span className="lms-badge" style={{ fontSize: '9px', padding: '1px 5px', marginLeft: 3, background: 'var(--lms-bg-surface)', color: 'var(--lms-text-muted)', borderColor: 'var(--lms-border)' }}>Fixed</span>}</span></div>
+                          <div className="lms-marks-row"><span className="lms-marks-label">Used Marks</span><span className="lms-marks-value" style={{ color: 'var(--lms-warning)', fontSize: 12 }}>{fmtMark(diffMarksUsed)}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 10 }}>/{diffMarksTotal}</span></span></div>
+                          <div className="lms-marks-row"><span className="lms-marks-label">Remaining Marks</span><span className="lms-marks-value" style={{ color: (diffMarksTotal - diffMarksUsed) <= 0 ? 'var(--lms-success)' : 'var(--lms-violet)', fontSize: 12 }}>{fmtMark(Math.max(0, diffMarksTotal - diffMarksUsed))}</span></div>
+                          <div className="lms-progress-bar"><div className="lms-progress-fill" style={{ width: `${Math.min(100, (diffMarksUsed / diffMarksTotal) * 100)}%`, background: diffMarksUsed >= diffMarksTotal ? 'var(--lms-success)' : diffDS.bar }} /></div>
+                        </div>
+                      )}
+                      {/* Overall Questions */}
+                      <div style={{ borderTop: activeDiff ? '1.5px solid var(--lms-border)' : 'none', paddingTop: activeDiff ? 14 : 0, marginBottom: 14 }}>
+                        <div className="lms-sidebar-section-title" style={{ fontSize: 11 }}><Hash size={12} style={{ color: 'var(--lms-orange)' }} /><span>Overall Questions</span></div>
+                        <div className="lms-marks-row"><span className="lms-marks-label">Total Questions</span><span className="lms-marks-value" style={{ fontSize: 12 }}>{totalSlotsAll}</span></div>
+                        <div className="lms-marks-row"><span className="lms-marks-label">Created</span><span className="lms-marks-value" style={{ color: 'var(--lms-violet)', fontSize: 12 }}>{createdCountAll}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 10 }}>/{totalSlotsAll}</span></span></div>
+                        <div className="lms-marks-row"><span className="lms-marks-label">Remaining</span><span className="lms-marks-value" style={{ color: remainingSlotsAll === 0 ? 'var(--lms-success)' : 'var(--lms-warning)', fontSize: 12 }}>{remainingSlotsAll}</span></div>
+                        {totalSlotsAll > 0 && (<div className="lms-progress-bar"><div className="lms-progress-fill" style={{ width: `${Math.min(100, (createdCountAll / totalSlotsAll) * 100)}%`, background: remainingSlotsAll === 0 ? 'var(--lms-success)' : 'var(--lms-orange)' }} /></div>)}
+                      </div>
+                      {/* Overall Marks */}
+                      {subExerciseIsGraded && totalMarksAll > 0 && (
+                        <div style={{ borderTop: '1.5px solid var(--lms-border)', paddingTop: 14 }}>
+                          <div className="lms-sidebar-section-title" style={{ fontSize: 11 }}><Award size={12} style={{ color: 'var(--lms-orange)' }} /><span>Overall Marks</span></div>
+                          <div className="lms-marks-row"><span className="lms-marks-label">Marks Per Question</span><span className="lms-marks-value" style={{ color: 'var(--lms-orange)', fontSize: 12 }}>{isGeneral ? generalMPQ : displayScore}</span></div>
+                          <div className="lms-marks-row"><span className="lms-marks-label">Total Questions</span><span className="lms-marks-value" style={{ fontSize: 12 }}>{totalSlotsAll}</span></div>
+                          <div className="lms-marks-row"><span className="lms-marks-label">Total Marks</span><span className="lms-marks-value" style={{ color: 'var(--lms-violet)', fontSize: 12 }}>{totalMarksAll}</span></div>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             </div>
           </div>
 
-          {/* Footer with Prev / Next navigation */}
+          {/* Footer */}
           <div style={{ padding: '12px 20px', borderTop: '1.5px solid var(--lms-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: 'var(--lms-bg-white)' }}>
-
-            {/* Left: prev */}
-            <button className="lms-nav-btn" disabled={previewIndex <= 0}
-              onClick={() => setPreviewIndex(i => Math.max(0, i - 1))}>
-              <ChevronLeft size={13} /> Previous
-            </button>
-
-            {/* Center: counter + actions */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontFamily: 'var(--lms-font)', fontSize: 12, color: 'var(--lms-text-muted)' }}>
-                Question <strong style={{ color: 'var(--lms-text-main)' }}>{previewIndex + 1}</strong> of <strong style={{ color: 'var(--lms-text-main)' }}>{questions.length}</strong>
-              </span>
-              <div style={{ width: 1, height: 16, background: 'var(--lms-border)' }} />
+            <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, color: 'var(--lms-text-muted)' }}>{questions.filter(q => q.isSaved).length} saved · {questions.filter(q => !q.isSaved).length} unsaved</span>
+            <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={onClose} className="lms-cancel-btn">Continue Editing</button>
               <button onClick={onDone} className="lms-btn lms-btn-orange"><Check size={13} /> Done</button>
             </div>
-
-            {/* Right: next */}
-            <button className="lms-nav-btn" disabled={previewIndex >= questions.length - 1}
-              onClick={() => setPreviewIndex(i => Math.min(questions.length - 1, i + 1))}>
-              Next <ChevronRight size={13} />
-            </button>
           </div>
         </div>
       </div>
@@ -1263,14 +1398,7 @@ const PreviewModal: React.FC<{
               <p style={{ fontFamily: 'var(--lms-font)', fontSize: 11, color: 'var(--lms-danger)', fontWeight: 600 }}>This will permanently remove it.</p>
               <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
                 <button onClick={() => setDeleteTarget(null)} className="lms-cancel-btn" style={{ flex: 1 }}>Cancel</button>
-                <button onClick={() => {
-                  onDelete(deleteTarget.localId);
-                  setDeleteTarget(null);
-                  // Adjust index if we deleted the last item
-                  setPreviewIndex(i => Math.min(i, questions.length - 2));
-                }} className="lms-btn" style={{ flex: 1, justifyContent: 'center', background: 'var(--lms-danger)', color: 'white', border: 'none', boxShadow: 'none' }}>
-                  <Trash2 size={13} /> Yes, Delete
-                </button>
+                <button onClick={() => { onDelete(deleteTarget.localId); setDeleteTarget(null); }} className="lms-btn" style={{ flex: 1, justifyContent: 'center', background: 'var(--lms-danger)', color: 'white', border: 'none', boxShadow: 'none' }}><Trash2 size={13} /> Yes, Delete</button>
               </div>
             </div>
           </div>
@@ -1347,11 +1475,196 @@ const ClearConfirmDialog: React.FC<{
   </div>
 );
 
+// ─── Edit Exercise Confirm Dialog ─────────────────────────────────────────────
+const EditExerciseConfirmDialog: React.FC<{
+  exerciseName?: string; onConfirm: () => void; onCancel: () => void;
+}> = ({ exerciseName, onConfirm, onCancel }) => (
+  <div className="lms-modal-backdrop">
+    <div className="lms-modal">
+      <div className="lms-modal-header" style={{ background: 'var(--lms-orange-50)', borderBottom: '1.5px solid var(--lms-orange-100)' }}>
+        <div className="lms-modal-icon" style={{ background: 'var(--lms-orange-100)', border: '1.5px solid var(--lms-orange-100)' }}><Settings size={16} style={{ color: 'var(--lms-orange)' }} /></div>
+        <div><h2 style={{ fontFamily: 'var(--lms-font)', fontSize: 14, fontWeight: 700, color: 'var(--lms-text-main)' }}>Edit Exercise Settings?</h2><p style={{ fontFamily: 'var(--lms-font)', fontSize: 11, color: 'var(--lms-text-muted)', marginTop: 2 }}>This will close the question form</p></div>
+      </div>
+      <div className="lms-modal-body">
+        <p style={{ fontFamily: 'var(--lms-font)', fontSize: 12, color: 'var(--lms-text-sec)', lineHeight: 1.6 }}>Do you want to edit the settings for <strong style={{ color: 'var(--lms-text-main)' }}>"{exerciseName || 'this exercise'}"</strong>?<span style={{ display: 'block', marginTop: 8, color: 'var(--lms-text-muted)' }}>The question form will be closed and you'll be taken to the exercise settings. Any unsaved question changes will be lost.</span></p>
+        <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+          <button onClick={onCancel} className="lms-cancel-btn" style={{ flex: 1 }}>Cancel</button>
+          <button onClick={onConfirm} className="lms-btn lms-btn-ghost-orange" style={{ flex: 1, justifyContent: 'center' }}><Settings size={13} /> Yes, Edit Exercise</button>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+// ─── Mock SQL Preview Modal ───────────────────────────────────────────────────
+const SqlMockModal: React.FC<{
+  questions: DBQuestion[];
+  exerciseIsGraded?: boolean;
+  onClose: () => void;
+}> = ({ questions, exerciseIsGraded = true, onClose }) => {
+  const [idx, setIdx] = useState(0);
+  const [sqlQuery, setSqlQuery] = useState('');
+  const [sqlOutput, setSqlOutput] = useState<{
+    type: 'idle' | 'running' | 'result' | 'error';
+    message?: string;
+    rows?: Record<string, any>[];
+    columns?: string[];
+    time?: number;
+  }>({ type: 'idle' });
+
+  const q = questions[idx];
+  const ds = DS[q?.difficulty] || DS.medium;
+  const descBlocks = q ? (Array.isArray(q.description) ? q.description : descToBlocks(q.description)) : [];
+  const srBlocks = q ? (Array.isArray(q.sampleResult) ? q.sampleResult : descToBlocks(q.sampleResult)) : [];
+
+  useEffect(() => {
+    if (q?.sampleQuery) setSqlQuery(q.sampleQuery);
+  }, [idx, q]);
+
+  const runQuery = async () => {
+    const query = sqlQuery.trim();
+    if (!query) return;
+    setSqlOutput({ type: 'running' });
+    await new Promise(r => setTimeout(r, 600));
+    const upper = query.toUpperCase();
+    if (upper.includes('SELECT')) {
+      setSqlOutput({
+        type: 'result',
+        rows: [{ id: 1, name: 'Alice', dept: 'Engineering' }, { id: 2, name: 'Bob', dept: 'Marketing' }],
+        columns: ['id', 'name', 'dept'],
+        time: Math.round(Math.random() * 40 + 5),
+        message: '2 rows returned',
+      });
+    } else if (upper.match(/INSERT|UPDATE|DELETE/)) {
+      setSqlOutput({ type: 'result', message: `✓ ${Math.floor(Math.random() * 3) + 1} row(s) affected`, time: Math.round(Math.random() * 20 + 3) });
+    } else {
+      setSqlOutput({ type: 'result', message: '✓ Query executed successfully', time: 2 });
+    }
+  };
+
+  const renderBlock = (b: any, bi: number) => {
+    if (b.type === 'text' && b.value?.trim())
+      return <p key={bi} style={{ fontFamily: 'var(--lms-font)', fontSize: 13.5, lineHeight: 1.8, color: '#4a4a4a', margin: 0 }}>{b.value}</p>;
+    if (b.type === 'image')
+      return (<div key={bi} style={{ display: 'flex', justifyContent: b.alignment === 'right' ? 'flex-end' : b.alignment === 'center' ? 'center' : 'flex-start' }}><img src={b.url} alt="" style={{ width: `${b.sizePercent || 70}%`, borderRadius: 8, border: '1px solid #e5e5e5' }} /></div>);
+    if (b.type === 'code') {
+      const isDk = ['#1e1e1e', '#282a36', '#272822'].includes(b.bgColor);
+      return <pre key={bi} style={{ background: b.bgColor || '#f5f5f5', color: isDk ? '#d4d4d4' : '#1a1a2e', fontFamily: 'ui-monospace,monospace', fontSize: 12.5, padding: '14px 16px', borderRadius: 10, overflowX: 'auto', margin: 0, lineHeight: 1.6 }}>{b.value}</pre>;
+    }
+    return null;
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', flexDirection: 'column', background: '#f5f5f5', overflow: 'hidden', fontFamily: 'var(--lms-font)' }}>
+      {/* Top Nav */}
+      <div style={{ flexShrink: 0, height: 44, borderBottom: '1px solid #e5e5e5', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', background: '#ffffff' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 26, height: 26, borderRadius: 6, background: 'var(--lms-orange)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Database size={13} style={{ color: 'white' }} /></div>
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#333', fontFamily: 'var(--lms-font)' }}>SQL Mock Preview</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          {questions.map((_, i) => {
+            const isActive = i === idx;
+            return (
+              <button key={i} onClick={() => setIdx(i)} style={{
+                height: 26, minWidth: 26, padding: '0 8px', borderRadius: 6,
+                border: `1.5px solid ${isActive ? DS[questions[i].difficulty]?.border || '#e5e5e5' : '#e5e5e5'}`,
+                background: isActive ? (DS[questions[i].difficulty]?.bg || '#f8f8f8') : '#f8f8f8',
+                color: isActive ? (DS[questions[i].difficulty]?.text || '#666') : '#666',
+                fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--lms-font)',
+              }}>{i + 1}</button>
+            );
+          })}
+        </div>
+        <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid #e5e5e5', background: '#f8f8f8', color: '#666', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={13} /></button>
+      </div>
+
+      {/* Body */}
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        {/* Left: Problem Panel */}
+        <div style={{ width: '42%', flexShrink: 0, borderRight: '1px solid #e5e5e5', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#ffffff' }}>
+          <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto', padding: '24px 20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, fontWeight: 600, color: '#999' }}>{idx + 1} / {questions.length}</span>
+              <span style={{ ...ds.pill, fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, textTransform: 'capitalize' }}>{q?.difficulty}</span>
+              {exerciseIsGraded && q?.score > 0 && <span style={{ fontSize: 10, color: '#999' }}>{q.score} pts</span>}
+            </div>
+            <h2 style={{ fontFamily: 'var(--lms-font)', fontSize: 20, fontWeight: 800, color: '#1a1a2e', margin: '0 0 16px 0', lineHeight: 1.3 }}>{q?.title || 'Untitled'}</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>{descBlocks.map(renderBlock)}</div>
+            <div style={{ height: 1, background: '#e5e5e5', margin: '20px 0' }} />
+            {q?.sampleQuery && (
+              <div>
+                <p style={{ fontFamily: 'var(--lms-font)', fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>Sample Query</p>
+                <pre style={{ background: '#f8f8f8', border: '1px solid #e5e5e5', borderRadius: 8, padding: '12px 14px', fontSize: 12.5, fontFamily: 'ui-monospace, monospace', color: '#1a1a2e', overflowX: 'auto', lineHeight: 1.6 }}>{q.sampleQuery}</pre>
+              </div>
+            )}
+            <div style={{ marginTop: 20 }}>
+              <p style={{ fontFamily: 'var(--lms-font)', fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>Expected Result</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{srBlocks.map(renderBlock)}</div>
+            </div>
+            {q?.constraints?.filter(c => c.trim()).length > 0 && (
+              <div style={{ marginTop: 20 }}>
+                <p style={{ fontFamily: 'var(--lms-font)', fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>Constraints</p>
+                <ul style={{ margin: 0, paddingLeft: 16 }}>{q.constraints.filter(c => c.trim()).map((c, i) => (<li key={i} style={{ fontSize: 12.5, color: '#3a3a52', lineHeight: 1.6 }}>{c}</li>))}</ul>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right: SQL Editor + Console */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#fefefe' }}>
+          <div style={{ padding: '10px 14px', borderBottom: '1px solid #e5e5e5', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#ffffff' }}>
+            <span style={{ fontFamily: 'ui-monospace,monospace', fontSize: 11, color: '#999' }}>query.sql</span>
+            <button className="dbq-run-btn" onClick={runQuery} disabled={sqlOutput.type === 'running'}>
+              {sqlOutput.type === 'running' ? <><Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> Running…</> : <><Play size={13} /> Run</>}
+            </button>
+          </div>
+          <textarea value={sqlQuery} onChange={e => setSqlQuery(e.target.value)} placeholder="-- Write your SQL query here..." style={{
+            flex: 0.55, background: '#fefefe', border: 'none', outline: 'none', color: '#1a1a2e',
+            fontFamily: 'ui-monospace, "Courier New", monospace', fontSize: 13.5, lineHeight: 1.7,
+            padding: '16px 18px', resize: 'none', boxSizing: 'border-box', borderBottom: '1px solid #e5e5e5',
+          }} />
+          <div style={{ flex: 0.45, display: 'flex', flexDirection: 'column', background: '#fafafa' }}>
+            <div style={{ padding: '8px 14px', borderBottom: '1px solid #e5e5e5', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 7, height: 7, borderRadius: '50%', background: sqlOutput.type === 'running' ? '#16a34a' : '#ccc' }} />
+              <span style={{ fontSize: 10.5, fontWeight: 600, color: '#999' }}>Result</span>
+              <button onClick={() => setSqlOutput({ type: 'idle' })} style={{ marginLeft: 'auto', fontSize: 10, color: '#999', background: 'none', border: 'none', cursor: 'pointer' }}>clear</button>
+            </div>
+            <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto', padding: '10px 14px' }}>
+              {sqlOutput.type === 'idle' && <span style={{ color: '#ccc', fontSize: 11, fontStyle: 'italic' }}>Run a query to see results...</span>}
+              {sqlOutput.type === 'running' && <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Loader2 size={14} style={{ animation: 'spin 1s linear infinite', color: '#16a34a' }} /><span>Running query...</span></div>}
+              {sqlOutput.type === 'result' && (
+                <div>
+                  {sqlOutput.message && <div style={{ color: '#16a34a', marginBottom: 8 }}>{sqlOutput.message}</div>}
+                  {sqlOutput.rows && sqlOutput.columns && sqlOutput.rows.length > 0 && (
+                    <SqlResultTable rows={sqlOutput.rows} columns={sqlOutput.columns} />
+                  )}
+                  {sqlOutput.time && <div style={{ fontSize: 10, color: '#999', marginTop: 8 }}>⏱ {sqlOutput.time}ms</div>}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div style={{ flexShrink: 0, borderTop: '1px solid #e5e5e5', padding: '8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#ffffff' }}>
+        <button onClick={() => idx > 0 && setIdx(idx - 1)} disabled={idx === 0} className="lms-nav-btn" style={{ opacity: idx === 0 ? 0.3 : 1 }}><ChevronLeft size={12} /> Prev</button>
+        <span style={{ fontSize: 11, color: '#999' }}><span style={{ color: 'var(--lms-orange)', fontWeight: 700 }}>{idx + 1}</span> / {questions.length}</span>
+        <button onClick={idx < questions.length - 1 ? () => setIdx(idx + 1) : onClose} className="lms-nav-btn" style={{ background: idx < questions.length - 1 ? '#f8f8f8' : 'var(--lms-orange)', color: idx < questions.length - 1 ? '#666' : 'white', borderColor: idx < questions.length - 1 ? '#e5e5e5' : 'transparent' }}>
+          {idx < questions.length - 1 ? <>Next <ChevronRight size={12} /></> : <>Done <Check size={12} /></>}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ─── MAIN COMPONENT ────────────────────────────────────────────────────────────
 // ─── MAIN COMPONENT ────────────────────────────────────────────────────────────
 const DatabaseQuestionForm: React.FC<DatabaseQuestionFormProps> = ({
   exerciseData, tabType, initialData, isEditing = false,
   onClose, onSave, onDeleteQuestion, isSaving, saveProgress, saveMessage,
-  lockedDifficulty,
+  lockedDifficulty, onEditExercise, sectionData,
 }) => {
   injectFonts();
 
@@ -1359,6 +1672,7 @@ const DatabaseQuestionForm: React.FC<DatabaseQuestionFormProps> = ({
   const [dbQuestions, setDbQuestions] = useState<DBQuestion[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [currentDiff, setCurrentDiff] = useState<'easy' | 'medium' | 'hard'>(lockedDifficulty || 'medium');
+  const [isEditMode, setIsEditMode] = useState(!!isEditing);
 
   // Form fields
   const [title, setTitle] = useState('');
@@ -1378,26 +1692,27 @@ const DatabaseQuestionForm: React.FC<DatabaseQuestionFormProps> = ({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showOverviewModal, setShowOverviewModal] = useState(false);
+  const [showSectionModal, setShowSectionModal] = useState(false);
+  const [showEditExerciseConfirm, setShowEditExerciseConfirm] = useState(false);
   const [errs, setErrs] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState<Set<string>>(new Set());
   const [saveOk, setSaveOk] = useState(false);
-  const [isEditMode, setIsEditMode] = useState(!!isEditing);
-
-  // SQL panel state
-  const [sqlQuery, setSqlQuery] = useState('-- Write your SQL query here\nSELECT * FROM table_name;');
-  const [sqlOutput, setSqlOutput] = useState<{
-    type: 'idle' | 'running' | 'result' | 'error';
-    message?: string;
-    rows?: Record<string, any>[];
-    columns?: string[];
-    time?: number;
-  }>({ type: 'idle' });
+  const [validationToast, setValidationToast] = useState<string[]>([]);
 
   // Refs
   const titleRef = useRef<HTMLDivElement>(null);
   const serverIdMap = useRef<Map<string, string>>(new Map());
   const dbQuestionsRef = useRef<DBQuestion[]>([]);
   const currentIndexRef = useRef<number>(0);
+  const formScrollRef = useRef<HTMLDivElement>(null);
+  const stickyToolbarRef = useRef<HTMLDivElement>(null);
+  const titleSectionRef = useRef<HTMLDivElement>(null);
+  const descSectionRef = useRef<HTMLDivElement>(null);
+  const constraintsSectionRef = useRef<HTMLDivElement>(null);
+  const sampleQuerySectionRef = useRef<HTMLDivElement>(null);
+  const sampleResultSectionRef = useRef<HTMLDivElement>(null);
 
   // Editor formatting state
   const [editorState, setEditorState] = useState({
@@ -1417,6 +1732,7 @@ const DatabaseQuestionForm: React.FC<DatabaseQuestionFormProps> = ({
   const generalMPQ: number = progCfg?.generalMarksPerQuestion ||
     progCfg?.scoreSettings?.evenMarks ||
     Math.floor(generalTotalMarks / Math.max(1, generalQuestionCount));
+  const exerciseIsGraded = exerciseData?.fullExerciseData?.isGraded !== false;
 
   const getConfiguredDiffs = useCallback((): Array<'easy' | 'medium' | 'hard'> => {
     if (isGeneral) return [];
@@ -1437,40 +1753,11 @@ const DatabaseQuestionForm: React.FC<DatabaseQuestionFormProps> = ({
     return generalQuestionCount;
   }, [cfgType, progCfg, generalQuestionCount]);
 
-const getDbQuestionsForDiff = useCallback((d?: 'easy' | 'medium' | 'hard'): DBQuestion[] => {
-  // Use dbQuestions state, not dbQuestionsRef
-  const all = dbQuestions;
-  if (!d) return all;
-  return all.filter(q => q.difficulty === d);
-}, [dbQuestions]);
-
-  const getDbIdSet = useCallback((d?: 'easy' | 'medium' | 'hard'): Set<string> => {
-    const dbQs = getDbQuestionsForDiff(d);
-    return new Set(dbQs.map(q => q._id?.toString()).filter(Boolean));
-  }, [getDbQuestionsForDiff]);
-const getCreatedCount = useCallback((d?: 'easy' | 'medium' | 'hard'): number =>
-  getDbQuestionsForDiff(d).length, [getDbQuestionsForDiff]);
-
-
-  const getRemainingSlots = useCallback((d?: 'easy' | 'medium' | 'hard'): number => {
-    if (isGeneral) {
-      return Math.max(0, generalQuestionCount - getDbQuestionsForDiff().length);
-    }
-    if (!d) return 0;
-    const quota = getQuotaForDiff(d);
-    const created = getCreatedCount(d);
-    return Math.max(0, quota - created);
-  }, [isGeneral, generalQuestionCount, getQuotaForDiff, getCreatedCount, getDbQuestionsForDiff]);
-
-  const getTotalMarksForDiff = useCallback((d: 'easy' | 'medium' | 'hard'): number => {
-    const lsc = progCfg?.scoreSettings?.levelScoringConfiguration?.[d];
-    if (lsc?.type === 'question_specific') return lsc.totalMarks || 0;
-    if (lsc?.type === 'level_specific') return (lsc.marksPerQuestion || 0) * (lsc.questionCount || 0);
-    return (progCfg?.scoreSettings?.levelBasedMarks?.[d] || 0) * getQuotaForDiff(d);
-  }, [progCfg, getQuotaForDiff]);
-
-  const getDbMarksUsedForDiff = useCallback((d: 'easy' | 'medium' | 'hard'): number =>
-    getDbQuestionsForDiff(d).reduce((s, q) => s + (q.score || 0), 0), [getDbQuestionsForDiff]);
+  const getDbQuestionsForDiff = useCallback((d?: 'easy' | 'medium' | 'hard'): DBQuestion[] => {
+    const all = dbQuestions;
+    if (!d) return all;
+    return all.filter(q => q.difficulty === d);
+  }, [dbQuestions]);
 
   const getFixedScore = useCallback((d: 'easy' | 'medium' | 'hard'): number => {
     if (isGeneral) return generalMPQ;
@@ -1483,18 +1770,57 @@ const getCreatedCount = useCallback((d?: 'easy' | 'medium' | 'hard'): number =>
     !isGeneral && progCfg?.scoreSettings?.levelScoringConfiguration?.[d]?.type === 'question_specific',
     [isGeneral, progCfg]);
 
+  const getTotalMarksForDiff = useCallback((d: 'easy' | 'medium' | 'hard'): number => {
+    const lsc = progCfg?.scoreSettings?.levelScoringConfiguration?.[d];
+    if (lsc?.type === 'question_specific') return lsc.totalMarks || 0;
+    if (lsc?.type === 'level_specific') return (lsc.marksPerQuestion || 0) * (lsc.questionCount || 0);
+    return (progCfg?.scoreSettings?.levelBasedMarks?.[d] || 0) * getQuotaForDiff(d);
+  }, [progCfg, getQuotaForDiff]);
+
+  // Helper to check if current form has content
+  const currentFormHasContent = useMemo((): boolean => {
+    const descText = descBlocks.filter(b => b.type === 'text').map(b => (b as any).value).join(' ').trim();
+    const srText = sampleResultBlocks.filter(b => b.type === 'text').map(b => (b as any).value).join(' ').trim();
+    return !!(title.trim() || descText || sampleQuery.trim() || srText);
+  }, [title, descBlocks, sampleQuery, sampleResultBlocks]);
+
+  // Check if current question is already saved
+  const currentAlreadySaved = useMemo((): boolean => {
+    const currentQ = dbQuestions[currentIndex];
+    return !!(currentQ?._id || currentQ?.isSaved || serverIdMap.current.has(currentQ?.__localId || ''));
+  }, [dbQuestions, currentIndex, serverIdMap]);
+
+  // Get created count including the current unsaved question if it has content
+  const getCreatedCount = useCallback((d?: 'easy' | 'medium' | 'hard'): number => {
+    const savedCount = getDbQuestionsForDiff(d).length;
+    const shouldCountCurrent = !currentAlreadySaved && currentFormHasContent && (!d || currentDiff === d);
+    return savedCount + (shouldCountCurrent ? 1 : 0);
+  }, [getDbQuestionsForDiff, currentAlreadySaved, currentFormHasContent, currentDiff]);
+
+  // Get used marks including current unsaved question
+  const getDbMarksUsedForDiff = useCallback((d: 'easy' | 'medium' | 'hard'): number => {
+    const savedMarks = getDbQuestionsForDiff(d).reduce((s, q) => s + (q.score || 0), 0);
+    const currentScore = isGeneral ? generalMPQ : (isScoreEditable(d) ? score : getFixedScore(d));
+    const shouldCountCurrent = !currentAlreadySaved && currentFormHasContent && currentDiff === d;
+    return savedMarks + (shouldCountCurrent ? currentScore : 0);
+  }, [getDbQuestionsForDiff, currentAlreadySaved, currentFormHasContent, currentDiff, score, isGeneral, generalMPQ, isScoreEditable, getFixedScore]);
+
+  // Get remaining slots
+  const getRemainingSlots = useCallback((d?: 'easy' | 'medium' | 'hard'): number => {
+    if (isGeneral) return Math.max(0, generalQuestionCount - getCreatedCount());
+    if (!d) return 0;
+    return Math.max(0, getQuotaForDiff(d) - getCreatedCount(d));
+  }, [isGeneral, generalQuestionCount, getQuotaForDiff, getCreatedCount]);
+
   // ── Totals for all difficulties ────────────────────────────────────────────
   const totalSlotsAll = isGeneral
     ? generalQuestionCount
     : getConfiguredDiffs().reduce((s, d) => s + getQuotaForDiff(d), 0);
-  const createdCountAll = getDbQuestionsForDiff().length;
+  const createdCountAll = getCreatedCount();
   const remainingSlotsAll = Math.max(0, totalSlotsAll - createdCountAll);
   const usedMarksAll = getConfiguredDiffs().reduce((acc, d) => acc + getDbMarksUsedForDiff(d), 0);
   const totalMarksAll = exerciseData?.fullExerciseData?.exerciseInformation?.totalMarksProgramming ||
     exerciseData?.fullExerciseData?.exerciseInformation?.totalMarks || 0;
-
-  // ── Mock enabled only when ALL required questions are saved ────────────────
-  const isMockEnabled = totalSlotsAll <= 0 ? createdCountAll > 0 : createdCountAll >= totalSlotsAll;
 
   // ── Current difficulty values ──────────────────────────────────────────────
   const totalSlots = isGeneral ? generalQuestionCount : getQuotaForDiff(currentDiff);
@@ -1505,62 +1831,111 @@ const getCreatedCount = useCallback((d?: 'easy' | 'medium' | 'hard'): number =>
   const remainingMarks = isGeneral ? 0 : Math.max(0, totalMarksForDiff - usedMarks);
   const displayScore = isGeneral ? generalMPQ : (isScoreEditable(currentDiff) ? score : getFixedScore(currentDiff));
 
-// Replace the buildInitialFlow function with this:
-const buildInitialFlow = useCallback((): { questions: DBQuestion[]; startIndex: number } => {
-  // Get existing questions from exerciseData
-  const existingQuestions = exerciseData?.fullExerciseData?.questions || [];
-  
-  // Filter for database questions
-  const dbQuestionsFromExercise = existingQuestions.filter(
-    (q: any) => q.questionType === 'database'
-  );
-  
-  // Convert to flow format
-  const convertedQuestions = dbQuestionsFromExercise.map(dbQuestionToFlow);
-  
-  // If we're in edit mode with initialData, make sure it's included
-  if ((isEditing || initialData?._id) && initialData) {
-    // Check if initialData is already in the list
-    const alreadyExists = convertedQuestions.some(q => q._id === initialData._id);
-    if (!alreadyExists) {
-      const newQ = dbQuestionToFlow(initialData);
-      convertedQuestions.unshift(newQ);
+  // ── Mock enabled only when ALL required questions are saved ────────────────
+  const isMockEnabled = totalSlotsAll <= 0 ? createdCountAll > 0 : createdCountAll >= totalSlotsAll;
+
+  // ... rest of the component continues with buildInitialFlow, loadQuestionIntoForm, etc.
+  // ── Build initial flow from exerciseData ───────────────────────────────────
+  const buildInitialFlow = useCallback((): { questions: DBQuestion[]; startIndex: number } => {
+    const existingQuestions = exerciseData?.fullExerciseData?.questions || [];
+    const dbQuestionsFromExercise = existingQuestions.filter((q: any) => q.questionType === 'database');
+    const convertedQuestions = dbQuestionsFromExercise.map(dbQuestionToFlow);
+
+    if ((isEditing || initialData?._id) && initialData) {
+      const alreadyExists = convertedQuestions.some(q => q._id === initialData._id);
+      if (!alreadyExists) convertedQuestions.unshift(dbQuestionToFlow(initialData));
     }
-  }
+
+    let startIdx = 0;
+    if (isEditing && initialData?._id) {
+      startIdx = convertedQuestions.findIndex(q => q._id === initialData._id);
+      if (startIdx === -1) startIdx = 0;
+    } else if (convertedQuestions.length > 0 && !isEditing) {
+      startIdx = convertedQuestions.length;
+    }
+
+    if (convertedQuestions.length === 0 && !isEditing) {
+      const emptyQ: DBQuestion = {
+        __localId: mkLocalId(), title: '', description: [mkProgTextBlock()],
+        difficulty: lockedDifficulty || 'medium',
+        score: isGeneral ? generalMPQ : (isScoreEditable(lockedDifficulty || 'medium') ? 0 : getFixedScore(lockedDifficulty || 'medium')),
+        sampleQuery: '', sampleResult: [mkProgTextBlock()], constraints: [], hints: [],
+        questionType: 'database', isSaved: false, isDirty: false, isPreExisting: false,
+      };
+      convertedQuestions.push(emptyQ);
+      startIdx = 0;
+    }
+
+    return { questions: convertedQuestions, startIndex: startIdx };
+  }, [exerciseData, isEditing, initialData, lockedDifficulty, isGeneral, generalMPQ, isScoreEditable, getFixedScore]);
+
+
+
+
+
+
+
+// Get created count INCLUDING current unsaved question
+const getCreatedCountIncludingUnsaved = useCallback((d?: 'easy' | 'medium' | 'hard'): number => {
+  const savedCount = getCreatedCount(d);
   
-  // Find start index for editing
-  let startIdx = 0;
-  if (isEditing && initialData?._id) {
-    startIdx = convertedQuestions.findIndex(q => q._id === initialData._id);
-    if (startIdx === -1) startIdx = 0;
-  } else if (convertedQuestions.length > 0 && !isEditing) {
-    // For non-edit mode, start at the last question (to continue adding)
-    startIdx = convertedQuestions.length;
-  }
+  const shouldCountCurrent = !currentAlreadySaved && 
+    currentFormHasContent && 
+    (!d || currentDiff === d);
   
-  // If no questions exist, create an empty one
-  if (convertedQuestions.length === 0 && !isEditing) {
-    const emptyQ: DBQuestion = {
-      __localId: mkLocalId(),
-      title: '',
-      description: [mkProgTextBlock()],
-      difficulty: lockedDifficulty || 'medium',
-      score: isGeneral ? generalMPQ : (isScoreEditable(lockedDifficulty || 'medium') ? 0 : getFixedScore(lockedDifficulty || 'medium')),
-      sampleQuery: '',
-      sampleResult: [mkProgTextBlock()],
-      constraints: [],
-      hints: [],
-      questionType: 'database',
-      isSaved: false,
-      isDirty: false,
-      isPreExisting: false,
-    };
-    convertedQuestions.push(emptyQ);
-    startIdx = 0;
-  }
+  return savedCount + (shouldCountCurrent ? 1 : 0);
+}, [getCreatedCount, currentAlreadySaved, currentFormHasContent, currentDiff]);
+
+// Get used marks INCLUDING current unsaved question
+const getUsedMarksIncludingUnsaved = useCallback((d: 'easy' | 'medium' | 'hard'): number => {
+  const savedMarks = getDbMarksUsedForDiff(d);
   
-  return { questions: convertedQuestions, startIndex: startIdx };
-}, [exerciseData, isEditing, initialData, lockedDifficulty, isGeneral, generalMPQ, isScoreEditable, getFixedScore]);
+  const currentScore = isGeneral ? generalMPQ : (isScoreEditable(d) ? score : getFixedScore(d));
+  
+  const shouldCountCurrent = !currentAlreadySaved && 
+    currentFormHasContent && 
+    currentDiff === d;
+  
+  return savedMarks + (shouldCountCurrent ? currentScore : 0);
+}, [getDbMarksUsedForDiff, currentAlreadySaved, currentFormHasContent, currentDiff, score, isGeneral, generalMPQ, isScoreEditable, getFixedScore]);
+
+// Overall totals INCLUDING unsaved current question
+const createdCountAllIncludingUnsaved = useMemo((): number => {
+  if (isGeneral) {
+    return getCreatedCountIncludingUnsaved();
+  }
+  return getConfiguredDiffs().reduce((s, d) => s + getCreatedCountIncludingUnsaved(d), 0);
+}, [isGeneral, getConfiguredDiffs, getCreatedCountIncludingUnsaved]);
+
+const usedMarksAllIncludingUnsaved = useMemo((): number => {
+  if (isGeneral) return 0;
+  return getConfiguredDiffs().reduce((s, d) => s + getUsedMarksIncludingUnsaved(d), 0);
+}, [isGeneral, getConfiguredDiffs, getUsedMarksIncludingUnsaved]);
+
+const remainingSlotsAllIncludingUnsaved = useMemo((): number => {
+  return Math.max(0, totalSlotsAll - createdCountAllIncludingUnsaved);
+}, [totalSlotsAll, createdCountAllIncludingUnsaved]);
+
+// For current difficulty
+const createdCountIncludingUnsaved = useMemo((): number => {
+  return getCreatedCountIncludingUnsaved(currentDiff);
+}, [getCreatedCountIncludingUnsaved, currentDiff]);
+
+const usedMarksIncludingUnsaved = useMemo((): number => {
+  return getUsedMarksIncludingUnsaved(currentDiff);
+}, [getUsedMarksIncludingUnsaved, currentDiff]);
+
+const remainingSlotsIncludingUnsaved = useMemo((): number => {
+  return Math.max(0, totalSlots - createdCountIncludingUnsaved);
+}, [totalSlots, createdCountIncludingUnsaved]);
+
+const remainingMarksIncludingUnsaved = useMemo((): number => {
+  return Math.max(0, totalMarksForDiff - usedMarksIncludingUnsaved);
+}, [totalMarksForDiff, usedMarksIncludingUnsaved]);
+
+
+
+
   const initialFlow = useMemo(() => buildInitialFlow(), [buildInitialFlow]);
 
   useEffect(() => {
@@ -1574,65 +1949,52 @@ const buildInitialFlow = useCallback((): { questions: DBQuestion[]; startIndex: 
   }, [initialFlow]);
 
   // ── Load question into form ────────────────────────────────────────────────
-const loadQuestionIntoForm = useCallback((q: DBQuestion) => {
-  setTitle(q.title || '');
-  if (titleRef.current && q.title) {
-    titleRef.current.innerHTML = q.title;
-  }
-  setDescBlocks(Array.isArray(q.description) ? q.description : descToBlocks(q.description));
-  setSampleQuery(q.sampleQuery || '');
-  setSampleResultBlocks(Array.isArray(q.sampleResult) ? q.sampleResult : descToBlocks(q.sampleResult));
-  setConstraints(q.constraints?.length ? [...q.constraints] : ['']);
-  if (q.hints?.length > 0) {
-    const [first, ...rest] = q.hints;
-    setHint(first?.hintText || '');
-    setExtraHints(rest.map((h: any) => ({ hintText: h.hintText || '', pointsDeduction: h.pointsDeduction || 0, isPublic: h.isPublic !== false })));
-    if (rest.length > 0) setShowExtraHints(true);
-  } else {
-    setHint('');
-    setExtraHints([]);
-  }
-  setScore(q.score || 0);
-  setDifficulty(q.difficulty || currentDiff);
-  setCurrentDiff(q.difficulty || currentDiff);
-  setErrs({});      // Reset errors
-  setTouched(new Set());  // Reset touched
-  setIsEditMode(!!(q._id));
-}, [currentDiff]);
+  const loadQuestionIntoForm = useCallback((q: DBQuestion) => {
+    setTitle(q.title || '');
+    if (titleRef.current) titleRef.current.innerHTML = q.title || '';
+    setDescBlocks(Array.isArray(q.description) ? q.description : descToBlocks(q.description));
+    setSampleQuery(q.sampleQuery || '');
+    setSampleResultBlocks(Array.isArray(q.sampleResult) ? q.sampleResult : descToBlocks(q.sampleResult));
+    setConstraints(q.constraints?.length ? [...q.constraints] : ['']);
+    if (q.hints?.length > 0) {
+      const [first, ...rest] = q.hints;
+      setHint(first?.hintText || '');
+      setExtraHints(rest.map((h: any) => ({ hintText: h.hintText || '', pointsDeduction: h.pointsDeduction || 0, isPublic: h.isPublic !== false })));
+      if (rest.length > 0) setShowExtraHints(true);
+    } else {
+      setHint('');
+      setExtraHints([]);
+    }
+    setScore(q.score || 0);
+    setDifficulty(q.difficulty || currentDiff);
+    setCurrentDiff(q.difficulty || currentDiff);
+    setErrs({});
+    setTouched(new Set());
+    setIsEditMode(!!(q._id));
+  }, [currentDiff]);
 
   useEffect(() => {
     if (dbQuestions[currentIndex]) {
       loadQuestionIntoForm(dbQuestions[currentIndex]);
-    } else if (!isEditing && dbQuestions.length === 0) {
-      setTitle('');
-      if (titleRef.current) titleRef.current.innerHTML = '';
-      setDescBlocks([mkProgTextBlock()]);
-      setSampleQuery('');
-      setSampleResultBlocks([mkProgTextBlock()]);
-      setConstraints(['']);
-      setHint('');
-      setExtraHints([]);
-      const defaultScore = isGeneral ? generalMPQ : (isScoreEditable(currentDiff) ? 0 : getFixedScore(currentDiff));
-      setScore(defaultScore);
     }
-  }, [currentIndex, dbQuestions, loadQuestionIntoForm, isEditing, isGeneral, generalMPQ, currentDiff, isScoreEditable, getFixedScore]);
-// Keep refs in sync with state
-useEffect(() => {
-  dbQuestionsRef.current = dbQuestions;
-}, [dbQuestions]);
+  }, [currentIndex, dbQuestions, loadQuestionIntoForm]);
 
-useEffect(() => {
-  currentIndexRef.current = currentIndex;
-}, [currentIndex]);
+  useEffect(() => {
+    dbQuestionsRef.current = dbQuestions;
+  }, [dbQuestions]);
+
+  useEffect(() => {
+    currentIndexRef.current = currentIndex;
+  }, [currentIndex]);
+
   // ── Helper functions ───────────────────────────────────────────────────────
   const getServerId = useCallback((q: DBQuestion | null | undefined): string | undefined => {
     if (!q) return undefined;
     const mapped = serverIdMap.current.get(q.__localId);
     if (mapped) return mapped;
     if (q._id) return q._id;
-    if (isEditing && initialData?._id) return initialData._id;
     return undefined;
-  }, [isEditing, initialData]);
+  }, []);
 
   const registerSavedId = useCallback((localId: string, serverId: string) => {
     serverIdMap.current.set(localId, serverId);
@@ -1645,75 +2007,32 @@ useEffect(() => {
     });
   }, []);
 
+  const snapshotForm = useCallback((): DBQuestion => {
+    const existing = dbQuestionsRef.current[currentIndexRef.current];
+    const allHints = hint.trim()
+      ? [{ hintText: hint.trim(), pointsDeduction: 0, isPublic: true, sequence: 0 }, ...extraHints.map((h, i) => ({ ...h, sequence: i + 1 }))]
+      : extraHints.map((h, i) => ({ ...h, sequence: i }));
+    const finalScore = isGeneral ? generalMPQ : (isScoreEditable(currentDiff) ? score : getFixedScore(currentDiff));
+    const serverId = getServerId(existing);
 
-  // Add this useEffect after the existing one that loads initialFlow
-useEffect(() => {
-  // Sync with any new questions from exerciseData (e.g., after saving)
-  const existingQuestions = exerciseData?.fullExerciseData?.questions || [];
-  const dbQuestionsFromExercise = existingQuestions.filter(
-    (q: any) => q.questionType === 'database'
-  );
-  
-  const existingIds = new Set(dbQuestionsFromExercise.map((q: any) => q._id?.toString()));
-  const currentIds = new Set(dbQuestionsRef.current.map(q => q._id?.toString()).filter(Boolean));
-  
-  // Check if there are new questions not in our local state
-  const hasNewQuestions = dbQuestionsFromExercise.some(
-    (q: any) => !currentIds.has(q._id?.toString())
-  );
-  
-  if (hasNewQuestions && dbQuestionsFromExercise.length > dbQuestionsRef.current.length) {
-    // Convert new questions to flow format
-    const newFlowQuestions = dbQuestionsFromExercise.map(dbQuestionToFlow);
-    const existingFlow = dbQuestionsRef.current;
-    
-    // Merge: keep local unsaved questions, add new saved ones
-    const merged = [...newFlowQuestions];
-    for (const localQ of existingFlow) {
-      if (!localQ._id || !merged.some(m => m._id === localQ._id)) {
-        merged.push(localQ);
-      }
-    }
-    
-    // Sort by some order (e.g., by creation date or index)
-    setDbQuestions(merged);
-    dbQuestionsRef.current = merged;
-    
-    // Update serverIdMap
-    merged.forEach(q => {
-      if (q._id && q.__localId && !serverIdMap.current.has(q.__localId)) {
-        serverIdMap.current.set(q.__localId, q._id);
-      }
-    });
-  }
-}, [exerciseData]);
+    return {
+      __localId: existing?.__localId || mkLocalId(),
+      _id: serverId,
+      title: title.trim() || '',
+      description: blocksToDescription(descBlocks),
+      difficulty: currentDiff,
+      score: finalScore,
+      sampleQuery: sampleQuery.trim(),
+      sampleResult: sampleResultBlocks,
+      constraints: constraints.filter(c => c.trim()),
+      hints: allHints,
+      questionType: 'database',
+      isSaved: !!serverId || existing?.isSaved || false,
+      isDirty: !!serverId,
+      isPreExisting: !!serverId || existing?.isPreExisting || false,
+    };
+  }, [title, descBlocks, currentDiff, score, sampleQuery, sampleResultBlocks, constraints, hint, extraHints, isGeneral, generalMPQ, isScoreEditable, getFixedScore, getServerId]);
 
-
-const snapshotForm = useCallback((): DBQuestion => {
-  const existing = dbQuestionsRef.current[currentIndexRef.current];
-  const allHints = hint.trim() 
-    ? [{ hintText: hint.trim(), pointsDeduction: 0, isPublic: true, sequence: 0 }, ...extraHints.map((h, i) => ({ ...h, sequence: i + 1 }))] 
-    : extraHints.map((h, i) => ({ ...h, sequence: i }));
-  const finalScore = isGeneral ? generalMPQ : (isScoreEditable(currentDiff) ? score : getFixedScore(currentDiff));
-  const serverId = getServerId(existing);
-  
-  return {
-    __localId: existing?.__localId || mkLocalId(),
-    _id: serverId,
-    title: title.trim() || '',
-    description: blocksToDescription(descBlocks),
-    difficulty: currentDiff,
-    score: finalScore,
-    sampleQuery: sampleQuery.trim(),
-    sampleResult: sampleResultBlocks,
-    constraints: constraints.filter(c => c.trim()),
-    hints: allHints,
-    questionType: 'database',
-    isSaved: !!serverId || existing?.isSaved || false,
-    isDirty: !!serverId,
-    isPreExisting: !!serverId || existing?.isPreExisting || false,
-  };
-}, [title, descBlocks, currentDiff, score, sampleQuery, sampleResultBlocks, constraints, hint, extraHints, isGeneral, generalMPQ, isScoreEditable, getFixedScore, getServerId]);
   const validate = useCallback((): Record<string, string> => {
     const e: Record<string, string> = {};
     if (!title.trim()) e.title = 'Title is required';
@@ -1729,10 +2048,10 @@ const snapshotForm = useCallback((): DBQuestion => {
       const isEditExist = !!(existingServerId || isEditing);
       if (isEditExist && existingServerId) {
         const otherSum = getDbQuestionsForDiff(currentDiff).reduce((s, q) => q._id?.toString() === existingServerId ? s : s + (q.score || 0), 0);
-        if (otherSum + score > totalAllowed + 0.01) e.score = `Max for this question: ${Math.max(0, totalAllowed - otherSum).toFixed(2)}`;
+        if (otherSum + score > totalAllowed + 0.01) e.score = `Max for this question: ${fmtMark(Math.max(0, totalAllowed - otherSum))}`;
       } else {
         const remaining = Math.max(0, totalAllowed - usedMarks);
-        if (score > remaining + 0.01) e.score = `Score (${score}) exceeds remaining marks (${remaining.toFixed(2)})`;
+        if (score > remaining + 0.01) e.score = `Score (${score}) exceeds remaining marks (${fmtMark(remaining)})`;
       }
       if (!e.score && score <= 0) e.score = 'Score must be greater than 0';
     } else if (!isGeneral && score <= 0 && getFixedScore(currentDiff) <= 0) {
@@ -1746,6 +2065,36 @@ const snapshotForm = useCallback((): DBQuestion => {
   }, [title, descBlocks, sampleQuery, sampleResultBlocks, score, constraints, touched, validate]);
 
   const touch = (field: string) => setTouched(prev => new Set(prev).add(field));
+
+  const scrollToFirstError = (errors: Record<string, string>) => {
+    const order: { key: string; ref: React.RefObject<HTMLDivElement | null> }[] = [
+      { key: 'title', ref: titleSectionRef },
+      { key: 'description', ref: descSectionRef },
+      { key: 'sampleQuery', ref: sampleQuerySectionRef },
+      { key: 'sampleResult', ref: sampleResultSectionRef },
+      { key: 'constraints', ref: constraintsSectionRef },
+    ];
+    for (const { key, ref } of order) {
+      if (errors[key] && ref.current) {
+        const container = formScrollRef.current;
+        if (container) {
+          const stickyHeight = (stickyToolbarRef.current?.offsetHeight ?? 60) + 8;
+          const containerRect = container.getBoundingClientRect();
+          const elementRect = ref.current.getBoundingClientRect();
+          const scrollTop = container.scrollTop + (elementRect.top - containerRect.top) - stickyHeight;
+          container.scrollTo({ top: Math.max(0, scrollTop), behavior: 'smooth' });
+        } else {
+          ref.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        break;
+      }
+    }
+    const messages = Object.values(errors);
+    if (messages.length > 0) {
+      setValidationToast(messages);
+      setTimeout(() => setValidationToast([]), 3000);
+    }
+  };
 
   const hasUnsavedFormChanges = useMemo((): boolean => {
     const currentQ = dbQuestions[currentIndex];
@@ -1768,6 +2117,8 @@ const snapshotForm = useCallback((): DBQuestion => {
 
   const handleCloseRequest = useCallback(() => { if (shouldConfirmClose) setShowCloseConfirm(true); else onClose(); }, [shouldConfirmClose, onClose]);
   const handleCloseConfirmed = useCallback(() => { setShowCloseConfirm(false); onClose(); }, [onClose]);
+  const handleEditExerciseClick = useCallback(() => setShowEditExerciseConfirm(true), []);
+  const handleEditExerciseConfirm = useCallback(() => { setShowEditExerciseConfirm(false); onEditExercise?.(); }, [onEditExercise]);
 
   const handleClearCurrentQuestion = useCallback(() => {
     setTitle('');
@@ -1809,19 +2160,11 @@ const snapshotForm = useCallback((): DBQuestion => {
       let newIndex = currentIdx;
       if (newFlow.length === 0) {
         const emptyQ: DBQuestion = {
-          __localId: mkLocalId(),
-          title: '',
-          description: [mkProgTextBlock()],
+          __localId: mkLocalId(), title: '', description: [mkProgTextBlock()],
           difficulty: currentDiff,
           score: isGeneral ? generalMPQ : (isScoreEditable(currentDiff) ? 0 : getFixedScore(currentDiff)),
-          sampleQuery: '',
-          sampleResult: [mkProgTextBlock()],
-          constraints: [],
-          hints: [],
-          questionType: 'database',
-          isSaved: false,
-          isDirty: false,
-          isPreExisting: false,
+          sampleQuery: '', sampleResult: [mkProgTextBlock()], constraints: [], hints: [],
+          questionType: 'database', isSaved: false, isDirty: false, isPreExisting: false,
         };
         newFlow.push(emptyQ);
         newIndex = 0;
@@ -1852,10 +2195,9 @@ const snapshotForm = useCallback((): DBQuestion => {
     setShowDeleteConfirm(false);
   }, [dbQuestions, currentIndex, onDeleteQuestion, currentDiff, isGeneral, generalMPQ, isScoreEditable, getFixedScore, loadQuestionIntoForm]);
 
- const executeSave = useCallback(async (localId: string, payload: any, isSaveAndNext: boolean): Promise<string | undefined> => {
-  const result = await onSave({ ...payload, __saveAndNext: isSaveAndNext, __isUpdate: !!payload._id, __questionId: payload._id, __editLocalId: localId });
-  
-  const savedId = result?._id || result?.data?._id || result?.questionId || result?.data?.questionId;
+  const executeSave = useCallback(async (localId: string, payload: any, isSaveAndNext: boolean): Promise<string | undefined> => {
+    const result = await onSave({ ...payload, __saveAndNext: isSaveAndNext, __isUpdate: !!payload._id, __questionId: payload._id, __editLocalId: localId });
+    const savedId = result?._id || result?.data?._id || result?.questionId || result?.data?.questionId;
     if (savedId) registerSavedId(localId, savedId);
     const updatedFlow = dbQuestionsRef.current.map(q =>
       q.__localId === localId ? { ...q, ...payload, _id: savedId || q._id, isSaved: true, isDirty: false, isPreExisting: true } : q
@@ -1865,21 +2207,20 @@ const snapshotForm = useCallback((): DBQuestion => {
     return savedId;
   }, [onSave, registerSavedId]);
 
-  // ── handleSave — with guard like programming form ──────────────────────────
   const handleSave = useCallback(async () => {
     const validationErrors = validate();
     if (Object.keys(validationErrors).length > 0) {
       setErrs(validationErrors);
       setTouched(new Set(Object.keys(validationErrors)));
+      scrollToFirstError(validationErrors);
       return;
     }
     const snap = snapshotForm();
     const localId = snap.__localId;
     const serverId = getServerId(dbQuestions[currentIndex]);
-    // Guard: if already saved and no changes, skip re-save (same as programming form)
-    if (serverId && !hasUnsavedFormChanges) { return; }
+    if (serverId && !hasUnsavedFormChanges) return;
     try {
-await executeSave(localId, { ...snap, __preventClose: true }, false);
+      await executeSave(localId, { ...snap, __preventClose: true }, false);
       setSaveOk(true);
       setTimeout(() => setSaveOk(false), 2500);
       setIsEditMode(false);
@@ -1887,187 +2228,158 @@ await executeSave(localId, { ...snap, __preventClose: true }, false);
       console.error('Save error:', err);
     }
   }, [validate, snapshotForm, getServerId, dbQuestions, currentIndex, hasUnsavedFormChanges, executeSave]);
-const advanceAfterSave = useCallback((savedId: string | undefined) => {
-  const flow = dbQuestionsRef.current;
-  const idx = currentIndexRef.current;
-  const nextIdx = idx + 1;
 
-  if (nextIdx < flow.length) {
-    setCurrentIndex(nextIdx);
-    currentIndexRef.current = nextIdx;
-    if (flow[nextIdx]?.difficulty) {
-      setCurrentDiff(flow[nextIdx].difficulty);
-      setDifficulty(flow[nextIdx].difficulty);
+  const advanceAfterSave = useCallback((savedId: string | undefined) => {
+    const flow = dbQuestionsRef.current;
+    const idx = currentIndexRef.current;
+    const nextIdx = idx + 1;
+
+    if (nextIdx < flow.length) {
+      setCurrentIndex(nextIdx);
+      currentIndexRef.current = nextIdx;
+      if (flow[nextIdx]?.difficulty) {
+        setCurrentDiff(flow[nextIdx].difficulty);
+        setDifficulty(flow[nextIdx].difficulty);
+      }
+      loadQuestionIntoForm(flow[nextIdx]);
+      return;
     }
-    loadQuestionIntoForm(flow[nextIdx]);
-    return;
-  }
 
-  // In edit mode, just stay on the question - don't close
-  if (isEditing) {
-    setSaveOk(true);
-    setTimeout(() => setSaveOk(false), 2500);
-    return;
-  }
-
-  // For general config with no remaining slots - DON'T CLOSE
-  if (isGeneral) {
-    if (getRemainingSlots() > 0) {
-      const newQ: DBQuestion = {
-        __localId: mkLocalId(), title: '', description: [mkProgTextBlock()],
-        difficulty: currentDiff, score: generalMPQ, sampleQuery: '', sampleResult: [mkProgTextBlock()],
-        constraints: [], hints: [], questionType: 'database', isSaved: false, isDirty: false, isPreExisting: false,
-      };
-      const newFlow = [...flow, newQ];
-      dbQuestionsRef.current = newFlow; setDbQuestions(newFlow);
-      setCurrentIndex(flow.length); currentIndexRef.current = flow.length;
-      setTitle(''); if (titleRef.current) titleRef.current.innerHTML = '';
-      setDescBlocks([mkProgTextBlock()]); setSampleQuery(''); setSampleResultBlocks([mkProgTextBlock()]);
-      setConstraints(['']); setHint(''); setExtraHints([]); setScore(generalMPQ);
-    } else {
-      // No remaining slots - show success and STAY OPEN
+    if (isEditing) {
       setSaveOk(true);
       setTimeout(() => setSaveOk(false), 2500);
-      // DO NOT call onClose()
+      return;
     }
-  } else {
-    if (getRemainingSlots(currentDiff) > 0) {
-      const defaultScore = isScoreEditable(currentDiff) ? 0 : getFixedScore(currentDiff);
-      const newQ: DBQuestion = {
-        __localId: mkLocalId(), title: '', description: [mkProgTextBlock()],
-        difficulty: currentDiff, score: defaultScore, sampleQuery: '', sampleResult: [mkProgTextBlock()],
-        constraints: [], hints: [], questionType: 'database', isSaved: false, isDirty: false, isPreExisting: false,
-      };
-      const newFlow = [...flow, newQ];
-      dbQuestionsRef.current = newFlow; setDbQuestions(newFlow);
-      setCurrentIndex(flow.length); currentIndexRef.current = flow.length;
-      setTitle(''); if (titleRef.current) titleRef.current.innerHTML = '';
-      setDescBlocks([mkProgTextBlock()]); setSampleQuery(''); setSampleResultBlocks([mkProgTextBlock()]);
-      setConstraints(['']); setHint(''); setExtraHints([]); setScore(defaultScore);
-    } else {
-      // No remaining slots - show success and STAY OPEN
-      setSaveOk(true);
-      setTimeout(() => setSaveOk(false), 2500);
-      // DO NOT call onClose()
-    }
-  }
-}, [isEditing, isGeneral, getRemainingSlots, generalMPQ, currentDiff, isScoreEditable, getFixedScore, loadQuestionIntoForm]);
 
-const handleSaveAndContinue = useCallback(async () => {
-  const validationErrors = validate();
-  if (Object.keys(validationErrors).length > 0) {
-    setErrs(validationErrors);
-    setTouched(new Set(Object.keys(validationErrors)));
-    return;
-  }
-  
-  const snap = snapshotForm();
-  const localId = snap.__localId;
-  const serverId = getServerId(dbQuestions[currentIndex]);
-  
-  // Check if this is the last question
-  const isLast = currentIndex === dbQuestions.length - 1;
-  const hasRemainingSlots = isGeneral 
-    ? getRemainingSlots() > 0 
-    : getRemainingSlots(currentDiff) > 0;
-  
-  // For the last question, just save and stay (don't try to create new question)
-  if (isLast && !hasRemainingSlots) {
+    if (isGeneral) {
+      if (getRemainingSlots() > 0) {
+        const newQ: DBQuestion = {
+          __localId: mkLocalId(), title: '', description: [mkProgTextBlock()],
+          difficulty: currentDiff, score: generalMPQ, sampleQuery: '', sampleResult: [mkProgTextBlock()],
+          constraints: [], hints: [], questionType: 'database', isSaved: false, isDirty: false, isPreExisting: false,
+        };
+        const newFlow = [...flow, newQ];
+        dbQuestionsRef.current = newFlow; setDbQuestions(newFlow);
+        setCurrentIndex(flow.length); currentIndexRef.current = flow.length;
+        setTitle(''); if (titleRef.current) titleRef.current.innerHTML = '';
+        setDescBlocks([mkProgTextBlock()]); setSampleQuery(''); setSampleResultBlocks([mkProgTextBlock()]);
+        setConstraints(['']); setHint(''); setExtraHints([]); setScore(generalMPQ);
+      } else {
+        setSaveOk(true);
+        setTimeout(() => setSaveOk(false), 2500);
+      }
+    } else {
+      if (getRemainingSlots(currentDiff) > 0) {
+        const defaultScore = isScoreEditable(currentDiff) ? 0 : getFixedScore(currentDiff);
+        const newQ: DBQuestion = {
+          __localId: mkLocalId(), title: '', description: [mkProgTextBlock()],
+          difficulty: currentDiff, score: defaultScore, sampleQuery: '', sampleResult: [mkProgTextBlock()],
+          constraints: [], hints: [], questionType: 'database', isSaved: false, isDirty: false, isPreExisting: false,
+        };
+        const newFlow = [...flow, newQ];
+        dbQuestionsRef.current = newFlow; setDbQuestions(newFlow);
+        setCurrentIndex(flow.length); currentIndexRef.current = flow.length;
+        setTitle(''); if (titleRef.current) titleRef.current.innerHTML = '';
+        setDescBlocks([mkProgTextBlock()]); setSampleQuery(''); setSampleResultBlocks([mkProgTextBlock()]);
+        setConstraints(['']); setHint(''); setExtraHints([]); setScore(defaultScore);
+      } else {
+        setSaveOk(true);
+        setTimeout(() => setSaveOk(false), 2500);
+      }
+    }
+  }, [isEditing, isGeneral, getRemainingSlots, generalMPQ, currentDiff, isScoreEditable, getFixedScore, loadQuestionIntoForm]);
+
+  const handleSaveAndContinue = useCallback(async () => {
+    const validationErrors = validate();
+    if (Object.keys(validationErrors).length > 0) {
+      setErrs(validationErrors);
+      setTouched(new Set(Object.keys(validationErrors)));
+      scrollToFirstError(validationErrors);
+      return;
+    }
+
+    const snap = snapshotForm();
+    const localId = snap.__localId;
+    const serverId = getServerId(dbQuestions[currentIndex]);
+    const isLast = currentIndex === dbQuestions.length - 1;
+    const hasRemainingSlots = isGeneral ? getRemainingSlots() > 0 : getRemainingSlots(currentDiff) > 0;
+
+    if (isLast && !hasRemainingSlots) {
+      if (serverId && !isEditMode && !hasUnsavedFormChanges) return;
+      try {
+        await executeSave(localId, { ...snap, __preventClose: true }, true);
+        setSaveOk(true);
+        setTimeout(() => setSaveOk(false), 2500);
+        setIsEditMode(false);
+        const updatedFlow = dbQuestionsRef.current.map(q =>
+          q.__localId === localId ? { ...q, ...snap, _id: serverId, isSaved: true, isDirty: false } : q
+        );
+        dbQuestionsRef.current = updatedFlow;
+        setDbQuestions(updatedFlow);
+        return;
+      } catch (err) {
+        console.error('Save error:', err);
+      }
+      return;
+    }
+
     if (serverId && !isEditMode && !hasUnsavedFormChanges) {
-      return; // Already saved, nothing to do
+      advanceAfterSave(serverId);
+      return;
     }
-    
+
+    let savedId: string | undefined;
     try {
-      // ✅ Add a special flag to prevent parent from closing
-// Replace __stayOpen with __preventClose in handleSaveAndContinue:
-const saveResult = await executeSave(localId, { ...snap, __preventClose: true }, true);
+      savedId = await executeSave(localId, snap, true);
       setSaveOk(true);
       setTimeout(() => setSaveOk(false), 2500);
       setIsEditMode(false);
-      
-      // ✅ Update the local question to mark it as saved
-      const updatedFlow = dbQuestionsRef.current.map(q =>
-        q.__localId === localId ? { ...q, ...snap, _id: serverId || saveResult, isSaved: true, isDirty: false } : q
-      );
-      dbQuestionsRef.current = updatedFlow;
-      setDbQuestions(updatedFlow);
-      
-      return; // Stay on current question
+      advanceAfterSave(savedId);
     } catch (err) {
       console.error('Save error:', err);
     }
-    return;
-  }
-  
-  // For non-last questions or when there are remaining slots
-  if (serverId && !isEditMode && !hasUnsavedFormChanges) {
-    advanceAfterSave(serverId);
-    return;
-  }
-  
-  let savedId: string | undefined;
-  try {
-    savedId = await executeSave(localId, snap, true);
-    setSaveOk(true);
-    setTimeout(() => setSaveOk(false), 2500);
-    setIsEditMode(false);
-    advanceAfterSave(savedId);
-  } catch (err) {
-    console.error('Save error:', err);
-  }
-}, [validate, snapshotForm, getServerId, dbQuestions, currentIndex, isEditMode, hasUnsavedFormChanges, executeSave, isGeneral, getRemainingSlots, currentDiff, advanceAfterSave]);
+  }, [validate, snapshotForm, getServerId, dbQuestions, currentIndex, isEditMode, hasUnsavedFormChanges, executeSave, isGeneral, getRemainingSlots, currentDiff, advanceAfterSave]);
 
-const handlePrevious = useCallback(() => {
-  const idx = currentIndexRef.current;
-  if (idx <= 0) return;
-  
-  // Save current question state before moving
-  const snap = snapshotForm();
-  const newFlow = [...dbQuestionsRef.current];
-  newFlow[idx] = snap;
-  dbQuestionsRef.current = newFlow;
-  setDbQuestions(newFlow);
-  
-  // Move to previous
-  const prevIdx = idx - 1;
-  currentIndexRef.current = prevIdx;
-  setCurrentIndex(prevIdx);
-  
-  // Update difficulty if needed
-  if (newFlow[prevIdx]?.difficulty) {
-    setCurrentDiff(newFlow[prevIdx].difficulty);
-    setDifficulty(newFlow[prevIdx].difficulty);
-  }
-  
-  // Load the previous question into form
-  loadQuestionIntoForm(newFlow[prevIdx]);
-}, [snapshotForm, loadQuestionIntoForm]);
-const handleNext = useCallback(() => {
-  const idx = currentIndexRef.current;
-  const flow = dbQuestionsRef.current;
-  if (idx >= flow.length - 1) return;
-  
-  // Save current question state before moving
-  const snap = snapshotForm();
-  const newFlow = [...flow];
-  newFlow[idx] = snap;
-  dbQuestionsRef.current = newFlow;
-  setDbQuestions(newFlow);
-  
-  // Move to next
-  const nextIdx = idx + 1;
-  currentIndexRef.current = nextIdx;
-  setCurrentIndex(nextIdx);
-  
-  // Update difficulty if needed
-  if (newFlow[nextIdx]?.difficulty) {
-    setCurrentDiff(newFlow[nextIdx].difficulty);
-    setDifficulty(newFlow[nextIdx].difficulty);
-  }
-  
-  // Load the next question into form
-  loadQuestionIntoForm(newFlow[nextIdx]);
-}, [snapshotForm, loadQuestionIntoForm]);
+  const handlePrevious = useCallback(() => {
+    const idx = currentIndexRef.current;
+    if (idx <= 0) return;
+
+    const snap = snapshotForm();
+    const newFlow = [...dbQuestionsRef.current];
+    newFlow[idx] = snap;
+    dbQuestionsRef.current = newFlow;
+    setDbQuestions(newFlow);
+
+    const prevIdx = idx - 1;
+    currentIndexRef.current = prevIdx;
+    setCurrentIndex(prevIdx);
+    if (newFlow[prevIdx]?.difficulty) {
+      setCurrentDiff(newFlow[prevIdx].difficulty);
+      setDifficulty(newFlow[prevIdx].difficulty);
+    }
+    loadQuestionIntoForm(newFlow[prevIdx]);
+  }, [snapshotForm, loadQuestionIntoForm]);
+
+  const handleNext = useCallback(() => {
+    const idx = currentIndexRef.current;
+    const flow = dbQuestionsRef.current;
+    if (idx >= flow.length - 1) return;
+
+    const snap = snapshotForm();
+    const newFlow = [...flow];
+    newFlow[idx] = snap;
+    dbQuestionsRef.current = newFlow;
+    setDbQuestions(newFlow);
+
+    const nextIdx = idx + 1;
+    currentIndexRef.current = nextIdx;
+    setCurrentIndex(nextIdx);
+    if (newFlow[nextIdx]?.difficulty) {
+      setCurrentDiff(newFlow[nextIdx].difficulty);
+      setDifficulty(newFlow[nextIdx].difficulty);
+    }
+    loadQuestionIntoForm(newFlow[nextIdx]);
+  }, [snapshotForm, loadQuestionIntoForm]);
 
   const handleJumpTo = useCallback((idx: number) => {
     const curIdx = currentIndexRef.current;
@@ -2124,6 +2436,10 @@ const handleNext = useCallback(() => {
     return !!(title.trim() || descText || sampleQuery.trim() || srText);
   }, [title, descBlocks, sampleQuery, sampleResultBlocks]);
 
+  const currentQ_forMock = dbQuestions[currentIndex];
+  const currentAlreadySaved_forMock = !!(currentQ_forMock?.isSaved || currentQ_forMock?._id || serverIdMap.current.has(currentQ_forMock?.__localId));
+  const effectiveTotalFilled = createdCountAll + (currentFormHasContent && !currentAlreadySaved_forMock ? 1 : 0);
+
   // Formatting helpers
   const updateFormattingState = useCallback(() => {
     setEditorState(prev => ({
@@ -2166,36 +2482,37 @@ const handleNext = useCallback(() => {
     return () => document.removeEventListener('selectionchange', handleSelectionChange);
   }, [updateFormattingState]);
 
-  // Run SQL query mock
-  const runQuery = async () => {
-    const q = sqlQuery.trim();
-    if (!q) return;
-    setSqlOutput({ type: 'running' });
-    await new Promise(r => setTimeout(r, 600));
-    const upper = q.toUpperCase();
-    if (upper.includes('SELECT')) {
-      setSqlOutput({
-        type: 'result',
-        rows: [{ id: 1, name: 'Alice', dept: 'Engineering' }, { id: 2, name: 'Bob', dept: 'Marketing' }],
-        columns: ['id', 'name', 'dept'],
-        time: Math.round(Math.random() * 40 + 5),
-        message: '2 rows returned',
-      });
-    } else if (upper.match(/INSERT|UPDATE|DELETE/)) {
-      setSqlOutput({ type: 'result', message: `✓ ${Math.floor(Math.random() * 3) + 1} row(s) affected`, time: Math.round(Math.random() * 20 + 3) });
-    } else {
-      setSqlOutput({ type: 'result', message: '✓ Query executed successfully', time: 2 });
-    }
-  };
-
   const hierarchyData = exerciseData?.fullExerciseData?.hierarchyData || {};
+  const subcategory = exerciseData?.subcategory;
+  const subcategoryLabel = exerciseData?.subcategoryLabel;
   const exerciseName = exerciseData?.exerciseName || exerciseData?.fullExerciseData?.exerciseInformation?.exerciseName || '';
-  const exerciseType = exerciseData?.fullExerciseData?.exerciseType || 'programming';
+  const actionLabel = isEditMode ? 'Edit Question' : 'Add Question';
+  const globalQuestionNumber = currentIndex + 1;
   const diffStyle = DS[currentDiff] || DS.medium;
   const difficultyOptions = getConfiguredDiffs().length > 0 ? getConfiguredDiffs() : ['easy', 'medium', 'hard'];
 
   return (
     <div className="dbq-root" style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', flexDirection: 'column', background: 'rgba(26,26,46,0.55)', backdropFilter: 'blur(2px)', overflow: 'hidden', fontFamily: 'var(--lms-font)' }}>
+      
+      {/* Validation Toast */}
+      {validationToast.length > 0 && (
+        <div style={{
+          position: 'fixed', top: 20, right: 24, zIndex: 9999,
+          minWidth: 260, maxWidth: 340, display: 'flex', alignItems: 'flex-start', gap: 10,
+          background: '#fff', border: '1.5px solid var(--lms-danger-bdr)',
+          borderLeft: '4px solid var(--lms-danger)', borderRadius: 'var(--lms-radius-md)',
+          padding: '12px 14px', boxShadow: '0 8px 24px rgba(0,0,0,0.13)',
+          animation: 'lms-toast-slide-in 0.22s cubic-bezier(.4,0,.2,1)',
+        }}>
+          <AlertCircle size={15} style={{ color: 'var(--lms-danger)', flexShrink: 0, marginTop: 1 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontFamily: 'var(--lms-font)', fontSize: 12, fontWeight: 700, color: 'var(--lms-danger)', margin: '0 0 4px 0' }}>Please fix before saving:</p>
+            <ul style={{ margin: 0, paddingLeft: 15 }}>{validationToast.map((msg, i) => (<li key={i} style={{ fontFamily: 'var(--lms-font)', fontSize: 11.5, color: '#555', fontWeight: 600, lineHeight: 1.6 }}>{msg}</li>))}</ul>
+          </div>
+          <button onClick={() => setValidationToast([])} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#aaa', flexShrink: 0 }}><X size={13} /></button>
+        </div>
+      )}
+
       <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', background: 'var(--lms-bg-white)', overflow: 'hidden' }}>
 
         {/* HEADER */}
@@ -2203,19 +2520,9 @@ const handleNext = useCallback(() => {
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
             <div className="lms-header-logo-mark"><GraduationCap size={16} style={{ color: 'white' }} /></div>
             <div style={{ width: 1, height: 20, background: 'var(--lms-border)', flexShrink: 0 }} />
-            <span className="lms-badge" style={{ background: 'var(--lms-info-bg)', color: 'var(--lms-info)', borderColor: 'var(--lms-info-bdr)', fontSize: 10, padding: '3px 8px', flexShrink: 0 }}>
-              <Database size={9} /> Database
-            </span>
+            <span className="lms-badge" style={{ background: 'var(--lms-info-bg)', color: 'var(--lms-info)', borderColor: 'var(--lms-info-bdr)', fontSize: 10, padding: '3px 8px', flexShrink: 0 }}><Database size={9} /> Database</span>
             <div style={{ minWidth: 0, flex: 1, overflow: 'visible' }}>
-              <nav style={{ display: 'flex', alignItems: 'center', gap: 0, minWidth: 0 }}>
-                {hierarchyData.courseName && (<><span className="lms-crumb" data-tip="Course" style={{ color: 'var(--lms-text-muted)' }}>{hierarchyData.courseName}</span><span className="lms-breadcrumb-sep">›</span></>)}
-                {hierarchyData.moduleName && (<><span className="lms-crumb" data-tip="Module" style={{ color: 'var(--lms-text-muted)' }}>{hierarchyData.moduleName}</span><span className="lms-breadcrumb-sep">›</span></>)}
-                {hierarchyData.submoduleName && (<><span className="lms-crumb" data-tip="Sub-module" style={{ color: 'var(--lms-text-muted)' }}>{hierarchyData.submoduleName}</span><span className="lms-breadcrumb-sep">›</span></>)}
-                {hierarchyData.topicName && (<><span className="lms-crumb" data-tip="Topic" style={{ color: 'var(--lms-text-muted)' }}>{hierarchyData.topicName}</span><span className="lms-breadcrumb-sep">›</span></>)}
-                {hierarchyData.subtopicName && (<><span className="lms-crumb" data-tip="Sub-topic" style={{ color: 'var(--lms-text-muted)' }}>{hierarchyData.subtopicName}</span><span className="lms-breadcrumb-sep">›</span></>)}
-                {exerciseName && (<><span className="lms-crumb" data-tip="Exercise" style={{ color: 'var(--lms-text-main)', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{exerciseName}</span><span className="lms-breadcrumb-sep">›</span></>)}
-                <span className="lms-crumb" style={{ color: 'var(--lms-orange)' }}>{isEditing ? 'Edit Database Question' : 'Add Database Question'}</span>
-              </nav>
+              <Breadcrumb hierarchyData={hierarchyData} tabType={tabType} subcategory={subcategory} subcategoryLabel={subcategoryLabel} exerciseName={exerciseName} actionLabel={actionLabel} questionLabel={`Question #${globalQuestionNumber}`} />
             </div>
           </div>
 
@@ -2226,9 +2533,10 @@ const handleNext = useCallback(() => {
                 <span style={{ background: 'var(--lms-violet)', color: 'white', fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 20 }}>{dbQuestions.length}</span>
               </button>
             )}
-            <button onClick={handleCloseRequest} style={{ padding: 8, borderRadius: 8, border: '1.5px solid var(--lms-danger-bdr)', background: 'var(--lms-danger-bg)', cursor: 'pointer', color: 'var(--lms-danger)', transition: 'all 0.15s' }}>
-              <X size={15} />
-            </button>
+            {onEditExercise && (
+              <button onClick={handleEditExerciseClick} className="lms-btn lms-btn-ghost-orange"><Settings size={12} /> Edit Exercise</button>
+            )}
+            <button onClick={handleCloseRequest} style={{ padding: 8, borderRadius: 8, border: '1.5px solid var(--lms-danger-bdr)', background: 'var(--lms-danger-bg)', cursor: 'pointer', color: 'var(--lms-danger)' }}><X size={15} /></button>
           </div>
         </div>
 
@@ -2239,51 +2547,46 @@ const handleNext = useCallback(() => {
             <div style={{ position: 'relative', minWidth: 160 }}>
               <select
                 value={currentDiff}
-              // In the difficulty select onChange (around line ~2600)
-onChange={e => {
-  const d = e.target.value as 'easy' | 'medium' | 'hard';
-  if (d === currentDiff) return;
-  
-  // Save current question first
-  const snap = snapshotForm();
-  const newFlow = [...dbQuestionsRef.current];
-  newFlow[currentIndexRef.current] = snap;
-  dbQuestionsRef.current = newFlow;
-  setDbQuestions(newFlow);
-  
-  setCurrentDiff(d); 
-  setDifficulty(d);
-  
-  const existingForDiff = dbQuestions.find(q => q.difficulty === d);
-  if (existingForDiff) {
-    const idx = dbQuestions.findIndex(q => q.difficulty === d);
-    setCurrentIndex(idx); 
-    currentIndexRef.current = idx;
-    loadQuestionIntoForm(existingForDiff);
-  } else {
-    const defaultScore = isScoreEditable(d) ? 0 : getFixedScore(d);
-    const newQ: DBQuestion = {
-      __localId: mkLocalId(), title: '', description: [mkProgTextBlock()],
-      difficulty: d, score: defaultScore, sampleQuery: '', sampleResult: [mkProgTextBlock()],
-      constraints: [], hints: [], questionType: 'database', isSaved: false, isDirty: false, isPreExisting: false,
-    };
-    const finalFlow = [...newFlow, newQ];
-    dbQuestionsRef.current = finalFlow; 
-    setDbQuestions(finalFlow);
-    const newIdx = finalFlow.length - 1;
-    setCurrentIndex(newIdx); 
-    currentIndexRef.current = newIdx;
-    setTitle(''); 
-    if (titleRef.current) titleRef.current.innerHTML = '';
-    setDescBlocks([mkProgTextBlock()]); 
-    setSampleQuery(''); 
-    setSampleResultBlocks([mkProgTextBlock()]);
-    setConstraints(['']); 
-    setHint(''); 
-    setExtraHints([]); 
-    setScore(defaultScore);
-  }
-}}
+                onChange={e => {
+                  const d = e.target.value as 'easy' | 'medium' | 'hard';
+                  if (d === currentDiff) return;
+                  const snap = snapshotForm();
+                  const newFlow = [...dbQuestionsRef.current];
+                  newFlow[currentIndexRef.current] = snap;
+                  dbQuestionsRef.current = newFlow;
+                  setDbQuestions(newFlow);
+                  setCurrentDiff(d);
+                  setDifficulty(d);
+                  const existingForDiff = dbQuestions.find(q => q.difficulty === d);
+                  if (existingForDiff) {
+                    const idx = dbQuestions.findIndex(q => q.difficulty === d);
+                    setCurrentIndex(idx);
+                    currentIndexRef.current = idx;
+                    loadQuestionIntoForm(existingForDiff);
+                  } else {
+                    const defaultScore = isScoreEditable(d) ? 0 : getFixedScore(d);
+                    const newQ: DBQuestion = {
+                      __localId: mkLocalId(), title: '', description: [mkProgTextBlock()],
+                      difficulty: d, score: defaultScore, sampleQuery: '', sampleResult: [mkProgTextBlock()],
+                      constraints: [], hints: [], questionType: 'database', isSaved: false, isDirty: false, isPreExisting: false,
+                    };
+                    const finalFlow = [...newFlow, newQ];
+                    dbQuestionsRef.current = finalFlow;
+                    setDbQuestions(finalFlow);
+                    const newIdx = finalFlow.length - 1;
+                    setCurrentIndex(newIdx);
+                    currentIndexRef.current = newIdx;
+                    setTitle('');
+                    if (titleRef.current) titleRef.current.innerHTML = '';
+                    setDescBlocks([mkProgTextBlock()]);
+                    setSampleQuery('');
+                    setSampleResultBlocks([mkProgTextBlock()]);
+                    setConstraints(['']);
+                    setHint('');
+                    setExtraHints([]);
+                    setScore(defaultScore);
+                  }
+                }}
                 style={{
                   fontFamily: 'var(--lms-font)', fontSize: 12, fontWeight: 700,
                   border: `2px solid ${diffStyle.border}`, borderRadius: 'var(--lms-radius-md)',
@@ -2293,8 +2596,7 @@ onChange={e => {
                 {getConfiguredDiffs().map(d => {
                   const quota = getQuotaForDiff(d);
                   const used = getCreatedCount(d);
-                  const rem = getRemainingSlots(d);
-                  return <option key={d} value={d}>{d.charAt(0).toUpperCase() + d.slice(1)} ({used}/{quota}){rem <= 0 && d !== currentDiff ? ' ✓' : ''}</option>;
+                  return <option key={d} value={d}>{d.charAt(0).toUpperCase() + d.slice(1)} ({used}/{quota}){getRemainingSlots(d) <= 0 && d !== currentDiff ? ' ✓' : ''}</option>;
                 })}
               </select>
               <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: diffStyle.text, fontSize: 12 }}>▼</div>
@@ -2305,7 +2607,7 @@ onChange={e => {
             {totalSlots > 0 && (
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, maxWidth: 280 }}>
                 <div style={{ flex: 1, height: 6, background: 'var(--lms-bg-surface2)', borderRadius: 3, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', borderRadius: 3, background: diffStyle.text, width: `${Math.min(100, (createdCount / totalSlots) * 100)}%`, transition: 'width 0.4s' }} />
+                  <div style={{ height: '100%', borderRadius: 3, background: diffStyle.bar, width: `${Math.min(100, (createdCount / totalSlots) * 100)}%`, transition: 'width 0.4s' }} />
                 </div>
                 <span style={{ fontFamily: 'var(--lms-font)', fontSize: 10, color: 'var(--lms-text-muted)', flexShrink: 0 }}>{createdCount}/{totalSlots}</span>
               </div>
@@ -2314,13 +2616,13 @@ onChange={e => {
         )}
 
         {/* BODY */}
-        <div style={{ display: 'flex', flex: '1 1 0', minHeight: 0, overflow: 'hidden' }}>
+        <div ref={formScrollRef} style={{ display: 'flex', flex: '1 1 0', minHeight: 0, overflow: 'hidden' }}>
 
           {/* MAIN FORM */}
           <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto', padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 20, background: 'var(--lms-bg-white)' }}>
 
             {/* Sticky Toolbar */}
-            <div style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--lms-bg-white)', paddingTop: 8, paddingBottom: 8, marginTop: -8 }}>
+            <div ref={stickyToolbarRef} style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--lms-bg-white)', paddingTop: 8, paddingBottom: 8, marginTop: -8 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
                 <div style={{
                   width: 28, height: 28, borderRadius: 8,
@@ -2328,17 +2630,17 @@ onChange={e => {
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   color: 'white', fontSize: 12, fontWeight: 800, fontFamily: 'var(--lms-font)', flexShrink: 0,
                   boxShadow: `0 2px 8px ${dbQuestions[currentIndex]?._id ? 'rgba(22,163,74,0.25)' : 'var(--lms-orange-glow)'}`,
-                }}>{currentIndex + 1}</div>
+                }}>{globalQuestionNumber}</div>
 
                 {/* B I U format buttons */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
-                  <button type="button" onMouseDown={(e) => { e.preventDefault(); toggleBold(); updateFormattingState(); }} className="lms-fmt-btn" style={{ padding: '6px 8px', borderRadius: '6px', border: `1.5px solid ${editorState.isBold ? 'var(--lms-orange)' : 'var(--lms-border)'}`, background: editorState.isBold ? 'var(--lms-orange-light)' : 'var(--lms-bg-white)', color: editorState.isBold ? 'var(--lms-orange)' : 'var(--lms-text-sec)', transition: 'all 0.15s' }} title="Bold (Ctrl+B)">
+                  <button type="button" onMouseDown={(e) => { e.preventDefault(); toggleBold(); updateFormattingState(); }} className="lms-fmt-btn" style={{ padding: '6px 8px', borderRadius: '6px', border: `1.5px solid ${editorState.isBold ? 'var(--lms-orange)' : 'var(--lms-border)'}`, background: editorState.isBold ? 'var(--lms-orange-light)' : 'var(--lms-bg-white)', color: editorState.isBold ? 'var(--lms-orange)' : 'var(--lms-text-sec)' }} title="Bold (Ctrl+B)">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 4h8a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z" /><path d="M6 12h9a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z" /></svg>
                   </button>
-                  <button type="button" onMouseDown={(e) => { e.preventDefault(); toggleItalic(); updateFormattingState(); }} className="lms-fmt-btn" style={{ padding: '6px 8px', borderRadius: '6px', border: `1.5px solid ${editorState.isItalic ? 'var(--lms-orange)' : 'var(--lms-border)'}`, background: editorState.isItalic ? 'var(--lms-orange-light)' : 'var(--lms-bg-white)', color: editorState.isItalic ? 'var(--lms-orange)' : 'var(--lms-text-sec)', transition: 'all 0.15s' }} title="Italic (Ctrl+I)">
+                  <button type="button" onMouseDown={(e) => { e.preventDefault(); toggleItalic(); updateFormattingState(); }} className="lms-fmt-btn" style={{ padding: '6px 8px', borderRadius: '6px', border: `1.5px solid ${editorState.isItalic ? 'var(--lms-orange)' : 'var(--lms-border)'}`, background: editorState.isItalic ? 'var(--lms-orange-light)' : 'var(--lms-bg-white)', color: editorState.isItalic ? 'var(--lms-orange)' : 'var(--lms-text-sec)' }} title="Italic (Ctrl+I)">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="19" y1="4" x2="10" y2="4" /><line x1="14" y1="20" x2="5" y2="20" /><line x1="15" y1="4" x2="9" y2="20" /></svg>
                   </button>
-                  <button type="button" onMouseDown={(e) => { e.preventDefault(); toggleUnderline(); updateFormattingState(); }} className="lms-fmt-btn" style={{ padding: '6px 8px', borderRadius: '6px', border: `1.5px solid ${editorState.isUnderline ? 'var(--lms-orange)' : 'var(--lms-border)'}`, background: editorState.isUnderline ? 'var(--lms-orange-light)' : 'var(--lms-bg-white)', color: editorState.isUnderline ? 'var(--lms-orange)' : 'var(--lms-text-sec)', transition: 'all 0.15s' }} title="Underline (Ctrl+U)">
+                  <button type="button" onMouseDown={(e) => { e.preventDefault(); toggleUnderline(); updateFormattingState(); }} className="lms-fmt-btn" style={{ padding: '6px 8px', borderRadius: '6px', border: `1.5px solid ${editorState.isUnderline ? 'var(--lms-orange)' : 'var(--lms-border)'}`, background: editorState.isUnderline ? 'var(--lms-orange-light)' : 'var(--lms-bg-white)', color: editorState.isUnderline ? 'var(--lms-orange)' : 'var(--lms-text-sec)' }} title="Underline (Ctrl+U)">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 4v6a6 6 0 0 0 12 0V4" /><line x1="4" y1="20" x2="20" y2="20" /></svg>
                   </button>
                 </div>
@@ -2348,7 +2650,7 @@ onChange={e => {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                     {difficultyOptions.map(d => (
                       <button key={d} type="button" onClick={() => { setDifficulty(d); setCurrentDiff(d); }}
-                        style={{ padding: '4px 10px', borderRadius: 20, border: `1.5px solid ${difficulty === d ? DS[d].border : 'var(--lms-border)'}`, background: difficulty === d ? DS[d].bg : 'var(--lms-bg-white)', color: difficulty === d ? DS[d].text : 'var(--lms-text-muted)', fontSize: 10.5, fontWeight: 700, fontFamily: 'var(--lms-font)', cursor: 'pointer', textTransform: 'capitalize', transition: 'all 0.12s' }}>{d}</button>
+                        style={{ padding: '4px 10px', borderRadius: 20, border: `1.5px solid ${difficulty === d ? DS[d].border : 'var(--lms-border)'}`, background: difficulty === d ? DS[d].bg : 'var(--lms-bg-white)', color: difficulty === d ? DS[d].text : 'var(--lms-text-muted)', fontSize: 10.5, fontWeight: 700, fontFamily: 'var(--lms-font)', cursor: 'pointer', textTransform: 'capitalize' }}>{d}</button>
                     ))}
                   </div>
                 )}
@@ -2356,7 +2658,7 @@ onChange={e => {
                 <div style={{ flex: 1 }} />
 
                 {/* Score input */}
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0, padding: '4px 10px', borderRadius: 8, border: `1.5px solid ${errs.score && touched.has('score') ? 'var(--lms-danger)' : isScoreEditable(currentDiff) ? 'var(--lms-orange)' : 'var(--lms-border)'}`, background: errs.score && touched.has('score') ? 'var(--lms-danger-bg)' : isScoreEditable(currentDiff) ? 'var(--lms-orange-light)' : 'var(--lms-bg-white)' }}>
+                <div ref={titleSectionRef} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0, padding: '4px 10px', borderRadius: 8, border: `1.5px solid ${errs.score && touched.has('score') ? 'var(--lms-danger)' : isScoreEditable(currentDiff) ? 'var(--lms-orange)' : 'var(--lms-border)'}`, background: errs.score && touched.has('score') ? 'var(--lms-danger-bg)' : isScoreEditable(currentDiff) ? 'var(--lms-orange-light)' : 'var(--lms-bg-white)' }}>
                   <Award size={12} style={{ color: errs.score && touched.has('score') ? 'var(--lms-danger)' : 'var(--lms-orange)', flexShrink: 0 }} />
                   <input type="text" inputMode="numeric" readOnly={!isScoreEditable(currentDiff)} value={displayScore > 0 ? String(displayScore) : (score > 0 ? String(score) : '')} placeholder="0"
                     onChange={e => {
@@ -2376,7 +2678,7 @@ onChange={e => {
             </div>
 
             {/* Problem Title */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div ref={titleSectionRef} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <label className="lms-section-label" style={{ margin: 0 }}>Problem Title <span style={{ color: errs.title && touched.has('title') ? 'var(--lms-danger)' : 'var(--lms-text-muted)' }}>*</span></label>
                 {errs.title && touched.has('title') && (<span style={{ fontSize: 11, color: 'var(--lms-danger)', fontFamily: 'var(--lms-font)' }}>— {errs.title}</span>)}
@@ -2388,18 +2690,18 @@ onChange={e => {
             </div>
 
             {/* Problem Description */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div ref={descSectionRef} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <label className="lms-section-label" style={{ margin: 0 }}>Problem Description <span style={{ color: 'var(--lms-danger)' }}>*</span></label>
                 {errs.description && touched.has('description') && (<span style={{ fontSize: 11, color: 'var(--lms-danger)', fontFamily: 'var(--lms-font)' }}>— {errs.description}</span>)}
               </div>
               <div onBlur={() => touch('description')}>
-                <ProgDescEditor blocks={descBlocks} onChange={blocks => { setDescBlocks(blocks); if (errs.description) setErrs(p => { const n = { ...p }; delete n.description; return n; }); }} hasError={!!(errs.description && touched.has('description'))} />
+                <DescriptionEditor blocks={descBlocks} onChange={blocks => { setDescBlocks(blocks); if (errs.description) setErrs(p => { const n = { ...p }; delete n.description; return n; }); }} hasError={!!(errs.description && touched.has('description'))} placeholder="Describe the database problem clearly. Include table schemas, sample data, and expected query results." />
               </div>
             </div>
 
             {/* Sample Query */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div ref={sampleQuerySectionRef} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <label className="lms-section-label" style={{ margin: 0 }}>Sample Query <span style={{ color: 'var(--lms-danger)' }}>*</span></label>
                 {errs.sampleQuery && touched.has('sampleQuery') && (<span style={{ fontSize: 11, color: 'var(--lms-danger)', fontFamily: 'var(--lms-font)' }}>— {errs.sampleQuery}</span>)}
@@ -2408,18 +2710,18 @@ onChange={e => {
             </div>
 
             {/* Expected Result */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div ref={sampleResultSectionRef} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <label className="lms-section-label" style={{ margin: 0 }}>Expected Result <span style={{ color: 'var(--lms-danger)' }}>*</span></label>
                 {errs.sampleResult && touched.has('sampleResult') && (<span style={{ fontSize: 11, color: 'var(--lms-danger)', fontFamily: 'var(--lms-font)' }}>— {errs.sampleResult}</span>)}
               </div>
               <div onBlur={() => touch('sampleResult')}>
-                <ProgDescEditor blocks={sampleResultBlocks} onChange={blocks => { setSampleResultBlocks(blocks); if (errs.sampleResult) setErrs(p => { const n = { ...p }; delete n.sampleResult; return n; }); }} hasError={!!(errs.sampleResult && touched.has('sampleResult'))} />
+                <DescriptionEditor blocks={sampleResultBlocks} onChange={blocks => { setSampleResultBlocks(blocks); if (errs.sampleResult) setErrs(p => { const n = { ...p }; delete n.sampleResult; return n; }); }} hasError={!!(errs.sampleResult && touched.has('sampleResult'))} placeholder="Describe the expected result. Use table format or plain text." />
               </div>
             </div>
 
             {/* Constraints */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div ref={constraintsSectionRef} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <label className={`lms-section-label${errs.constraints && touched.has('constraints') ? ' lms-label-err' : ''}`} style={{ margin: 0 }}>Constraints</label>
@@ -2449,7 +2751,7 @@ onChange={e => {
                 <button type="button" onClick={() => setShowExtraHints(p => !p)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 0', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--lms-font)' }}>
                   <span className="lms-section-label" style={{ margin: 0 }}>Additional Hints</span>
                   <span style={{ fontSize: 10.5, color: 'var(--lms-text-muted)', fontWeight: 600 }}>({extraHints.length})</span>
-                  {showExtraHints ? <ChevronUp size={13} style={{ color: 'var(--lms-text-muted)', marginLeft: 2 }} /> : <ChevronDown size={13} style={{ color: 'var(--lms-text-muted)', marginLeft: 2 }} />}
+                  {showExtraHints ? <ChevronUp size={13} style={{ color: 'var(--lms-text-muted)' }} /> : <ChevronDown size={13} style={{ color: 'var(--lms-text-muted)' }} />}
                 </button>
                 <button type="button" onClick={() => { setExtraHints(p => [...p, { hintText: '', pointsDeduction: 0, isPublic: true }]); setShowExtraHints(true); }} className="lms-btn lms-btn-ghost-orange" style={{ padding: '4px 10px', fontSize: 11 }}><Plus size={11} /> Add Hint</button>
               </div>
@@ -2483,80 +2785,141 @@ onChange={e => {
             <div style={{ height: 8 }} />
           </div>
 
-          {/* RIGHT SIDEBAR — same order as programming form */}
-          <div style={{ width: 272, flexShrink: 0, borderLeft: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-            <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto' }}>
+   {/* RIGHT SIDEBAR - Exactly matching ProgrammingQuestionForm */}
+<div style={{ width: 280, flexShrink: 0, borderLeft: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+  <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto', padding: '14px 14px' }}>
 
-              {/* 1. Exercise Details */}
-              <div style={{ padding: '14px 16px', borderBottom: '1.5px solid var(--lms-info-bdr)', background: 'var(--lms-info-bg)' }}>
-                <div className="lms-sidebar-section-title"><FileText size={14} style={{ color: 'var(--lms-info)' }} />Exercise Details</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                  {exerciseData?.fullExerciseData?.exerciseInformation?.exerciseId && (<div className="lms-detail-row"><span className="lms-detail-label">Exercise ID</span><span className="lms-detail-value" style={{ fontFamily: 'ui-monospace, monospace', color: 'var(--lms-violet)', fontSize: '12px' }}>{exerciseData.fullExerciseData.exerciseInformation.exerciseId}</span></div>)}
-                  <div className="lms-detail-row"><span className="lms-detail-label">Exercise Name</span><span className="lms-detail-value" style={{ color: 'var(--lms-orange)', maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '12px' }}>{exerciseName || 'Untitled'}</span></div>
-                  <div className="lms-detail-row"><span className="lms-detail-label">Exercise Type</span><span className="lms-detail-value" style={{ fontSize: '12px' }}>{exerciseType}</span></div>
-                  <div className="lms-detail-row"><span className="lms-detail-label">Module Type</span><span className="lms-detail-value" style={{ fontSize: '12px' }}>Database</span></div>
-                  <div className="lms-detail-row"><span className="lms-detail-label">Configuration</span><span className="lms-detail-value" style={{ fontSize: '12px' }}>{isGeneral ? 'General' : cfgType === 'levelBased' ? 'Level Based' : 'Selection Level'}</span></div>
-                  {!isGeneral && (<div className="lms-detail-row"><span className="lms-detail-label">Current Difficulty</span><span className="lms-detail-value" style={{ color: diffStyle.text, textTransform: 'capitalize', fontSize: '12px' }}>{currentDiff}</span></div>)}
-                </div>
-              </div>
-
-              {/* 2. Question Quota · diff Level (orange-50) — FIRST like programming */}
-              <div style={{ padding: '14px 16px', borderBottom: '1.5px solid var(--lms-orange-100)', background: 'var(--lms-orange-50)' }}>
-                <div className="lms-sidebar-section-title"><Hash size={14} style={{ color: 'var(--lms-orange)' }} /><span className="lms-detail-value" style={{ textTransform: 'capitalize', fontSize: '12px' }}>Question Quota · {isGeneral ? '(General)' : `${currentDiff} Level`}</span></div>
-                <div>
-                  <div className="lms-marks-row"><span className="lms-marks-label">Total Questions</span><span className="lms-marks-value">{totalSlots}</span></div>
-                  <div className="lms-marks-row"><span className="lms-marks-label">Questions Created</span><span className="lms-marks-value" style={{ color: 'var(--lms-violet)' }}>{createdCount}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 11 }}>/{totalSlots}</span></span></div>
-                  <div className="lms-marks-row"><span className="lms-marks-label">Remaining Questions</span><span className="lms-marks-value" style={{ color: remainingSlots === 0 ? 'var(--lms-success)' : 'var(--lms-warning)' }}>{remainingSlots}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 11 }}>/{totalSlots}</span></span></div>
-                </div>
-                {totalSlots > 0 && (<div className="lms-progress-bar"><div className="lms-progress-fill" style={{ width: `${Math.min(100, (createdCount / totalSlots) * 100)}%`, background: remainingSlots === 0 ? 'var(--lms-success)' : 'var(--lms-orange)' }} /></div>)}
-              </div>
-
-              {/* 3. Question Overview (surface) — only multi-diff, like programming */}
-              {(!isGeneral && getConfiguredDiffs().length > 1) && (
-                <div style={{ padding: '14px 16px', borderBottom: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-surface)' }}>
-                  <div className="lms-sidebar-section-title"><BarChart3 size={14} style={{ color: 'var(--lms-text-sec)' }} />Question Overview</div>
-                  <div>
-                    <div className="lms-marks-row"><span className="lms-marks-label">Total Questions</span><span className="lms-marks-value">{totalSlotsAll}</span></div>
-                    <div className="lms-marks-row"><span className="lms-marks-label">Questions Created</span><span className="lms-marks-value" style={{ color: 'var(--lms-violet)' }}>{createdCountAll}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 11 }}>/{totalSlotsAll}</span></span></div>
-                    <div className="lms-marks-row"><span className="lms-marks-label">Remaining Questions</span><span className="lms-marks-value" style={{ color: remainingSlotsAll === 0 ? 'var(--lms-success)' : 'var(--lms-warning)' }}>{remainingSlotsAll}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 11 }}>/{totalSlotsAll}</span></span></div>
-                  </div>
-                  {totalSlotsAll > 0 && (<div className="lms-progress-bar"><div className="lms-progress-fill" style={{ width: `${Math.min(100, (createdCountAll / totalSlotsAll) * 100)}%`, background: remainingSlotsAll === 0 ? 'var(--lms-success)' : 'var(--lms-orange)' }} /></div>)}
-                </div>
-              )}
-
-              {/* 4. Marks Allocation · diff Level (orange-50) — like programming */}
-              <div style={{ padding: '14px 16px', borderBottom: '1.5px solid var(--lms-orange-100)', background: 'var(--lms-orange-50)' }}>
-                <div className="lms-sidebar-section-title"><Award size={14} style={{ color: 'var(--lms-orange)' }} /><span style={{ textTransform: 'capitalize' }}>Marks Allocation · {isGeneral ? '(General)' : `${currentDiff} Level`}</span></div>
-                <div>
-                  {!isGeneral && totalMarksForDiff > 0 && (<div className="lms-marks-row"><span className="lms-marks-label">Level Total</span><span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: '12px' }}>{totalMarksForDiff}</span></div>)}
-                  <div className="lms-marks-row"><span className="lms-marks-label">Marks per Question</span><div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span className="lms-marks-value" style={{ color: 'var(--lms-orange)', fontSize: '12px' }}>{displayScore}</span>{isScoreEditable(currentDiff) ? <span className="lms-badge lms-badge-violet" style={{ fontSize: '10px', padding: '2px 6px' }}>Custom</span> : <span className="lms-badge" style={{ fontSize: '10px', padding: '2px 6px', background: 'var(--lms-bg-surface)', color: 'var(--lms-text-muted)', borderColor: 'var(--lms-border)' }}>Fixed</span>}</div></div>
-                  {!isGeneral && totalMarksForDiff > 0 && (<>
-                    <div className="lms-marks-row"><span className="lms-marks-label">Marks Used</span><span className="lms-marks-value" style={{ color: 'var(--lms-warning)', fontSize: '12px' }}>{usedMarks.toFixed(2)}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 11 }}>/{totalMarksForDiff}</span></span></div>
-                    <div className="lms-marks-row"><span className="lms-marks-label">Remaining</span><span className="lms-marks-value" style={{ color: remainingMarks <= 0 ? 'var(--lms-success)' : 'var(--lms-violet)', fontSize: '12px' }}>{Math.max(0, remainingMarks).toFixed(2)}</span></div>
-                  </>)}
-                </div>
-                {!isGeneral && totalMarksForDiff > 0 && (<div className="lms-progress-bar"><div className="lms-progress-fill" style={{ width: `${Math.min(100, (usedMarks / totalMarksForDiff) * 100)}%`, background: usedMarks >= totalMarksForDiff ? 'var(--lms-success)' : 'var(--lms-orange)' }} /></div>)}
-              </div>
-
-              {/* 5. Marks Allocation Overview (surface) — only multi-diff, like programming */}
-              {(!isGeneral && getConfiguredDiffs().length > 1) && (
-                <div style={{ padding: '14px 16px', borderBottom: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-surface)' }}>
-                  <div className="lms-sidebar-section-title"><Award size={14} style={{ color: 'var(--lms-text-sec)' }} />Marks Allocation Overview</div>
-                  <div>
-                    <div className="lms-marks-row"><span className="lms-marks-label">Total Marks</span><span className="lms-marks-value">{totalMarksAll}</span></div>
-                    <div className="lms-marks-row"><span className="lms-marks-label">Marks Used</span><span className="lms-marks-value" style={{ color: 'var(--lms-warning)' }}>{usedMarksAll.toFixed(2)}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 11 }}>/{totalMarksAll}</span></span></div>
-                    <div className="lms-marks-row"><span className="lms-marks-label">Remaining</span><span className="lms-marks-value" style={{ color: Math.max(0, totalMarksAll - usedMarksAll) === 0 ? 'var(--lms-success)' : 'var(--lms-violet)' }}>{Math.max(0, totalMarksAll - usedMarksAll).toFixed(2)}</span></div>
-                    {getConfiguredDiffs().map(d => (<div key={d} className="lms-marks-row"><span className="lms-marks-label" style={{ textTransform: 'capitalize' }}>{d}</span><span className="lms-marks-value" style={{ color: 'var(--lms-text-sec)', fontSize: '12px' }}>{getTotalMarksForDiff(d)}</span></div>))}
-                  </div>
-                  {totalMarksAll > 0 && (<div className="lms-progress-bar"><div className="lms-progress-fill" style={{ width: `${Math.min(100, (usedMarksAll / totalMarksAll) * 100)}%`, background: usedMarksAll >= totalMarksAll ? 'var(--lms-success)' : 'var(--lms-orange)' }} /></div>)}
-                </div>
-              )}
-
-            </div>
+    {/* For Level Based - Current Difficulty Section */}
+    {!isGeneral && (
+      <>
+        {/* ── Current Difficulty Questions ── */}
+        <div style={{ marginBottom: 14 }}>
+          <div className="lms-sidebar-section-title" style={{ fontSize: 11 }}>
+            <Hash size={12} style={{ color: 'var(--lms-orange)' }} />
+            <span style={{ textTransform: 'capitalize' }}>{currentDiff} Questions</span>
           </div>
+          <div className="lms-marks-row">
+            <span className="lms-marks-label">Total</span>
+            <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{totalSlots}</span>
+          </div>
+          <div className="lms-marks-row">
+            <span className="lms-marks-label">Created</span>
+            <span className="lms-marks-value" style={{ color: 'var(--lms-violet)', fontSize: 12 }}>
+              {createdCount}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 10 }}>/{totalSlots}</span>
+            </span>
+          </div>
+          <div className="lms-marks-row">
+            <span className="lms-marks-label">Remaining</span>
+            <span className="lms-marks-value" style={{ color: remainingSlots === 0 ? 'var(--lms-success)' : 'var(--lms-warning)', fontSize: 12 }}>{remainingSlots}</span>
+          </div>
+          {totalSlots > 0 && (
+            <div className="lms-progress-bar" style={{ marginTop: 6 }}>
+              <div className="lms-progress-fill" style={{
+                width: `${Math.min(100, (createdCount / totalSlots) * 100)}%`,
+                background: remainingSlots === 0 ? 'var(--lms-success)' : 'var(--lms-orange)'
+              }} />
+            </div>
+          )}
         </div>
 
-        {/* FOOTER — exact same layout as programming form */}
+        {/* ── Current Difficulty Marks ── */}
+        {exerciseIsGraded && totalMarksForDiff > 0 && (
+          <div style={{ borderTop: '1.5px solid var(--lms-border)', paddingTop: 14, marginBottom: 14 }}>
+            <div className="lms-sidebar-section-title" style={{ fontSize: 11 }}>
+              <Award size={12} style={{ color: 'var(--lms-orange)' }} />
+              <span style={{ textTransform: 'capitalize' }}>{currentDiff} Marks</span>
+            </div>
+            <div className="lms-marks-row">
+              <span className="lms-marks-label">Total Mark</span>
+              <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{totalMarksForDiff}</span>
+            </div>
+            <div className="lms-marks-row">
+              <span className="lms-marks-label">Mark Per Question</span>
+              <span className="lms-marks-value" style={{ color: 'var(--lms-orange)', fontSize: 12 }}>
+                {displayScore}
+                {isScoreEditable(currentDiff)
+                  ? <span className="lms-badge lms-badge-violet" style={{ fontSize: '9px', padding: '1px 5px', marginLeft: 3 }}>Custom</span>
+                  : <span className="lms-badge" style={{ fontSize: '9px', padding: '1px 5px', marginLeft: 3, background: 'var(--lms-bg-surface)', color: 'var(--lms-text-muted)', borderColor: 'var(--lms-border)' }}>Fixed</span>}
+              </span>
+            </div>
+            <div className="lms-marks-row">
+              <span className="lms-marks-label">Used Marks</span>
+              <span className="lms-marks-value" style={{ color: 'var(--lms-warning)', fontSize: 12 }}>
+                {fmtMark(usedMarks)}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 10 }}>/{totalMarksForDiff}</span>
+              </span>
+            </div>
+            <div className="lms-marks-row">
+              <span className="lms-marks-label">Remaining Marks</span>
+              <span className="lms-marks-value" style={{ color: remainingMarks <= 0 ? 'var(--lms-success)' : 'var(--lms-violet)', fontSize: 12 }}>{fmtMark(remainingMarks)}</span>
+            </div>
+            <div className="lms-progress-bar" style={{ marginTop: 6 }}>
+              <div className="lms-progress-fill" style={{
+                width: `${Math.min(100, (usedMarks / totalMarksForDiff) * 100)}%`,
+                background: usedMarks >= totalMarksForDiff ? 'var(--lms-success)' : 'var(--lms-orange)'
+              }} />
+            </div>
+          </div>
+        )}
+      </>
+    )}
+
+    {/* ── Overall Questions ── */}
+    <div style={{ marginBottom: 14, borderTop: !isGeneral ? '1.5px solid var(--lms-border)' : 'none', paddingTop: !isGeneral ? 14 : 0 }}>
+      <div className="lms-sidebar-section-title" style={{ fontSize: 11 }}>
+        <Hash size={12} style={{ color: 'var(--lms-orange)' }} />
+        <span>Overall Questions</span>
+      </div>
+      <div className="lms-marks-row">
+        <span className="lms-marks-label">Total Questions</span>
+        <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{totalSlotsAll}</span>
+      </div>
+      <div className="lms-marks-row">
+        <span className="lms-marks-label">Created</span>
+        <span className="lms-marks-value" style={{ color: 'var(--lms-violet)', fontSize: 12 }}>
+          {createdCountAll}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 10 }}>/{totalSlotsAll}</span>
+        </span>
+      </div>
+      <div className="lms-marks-row">
+        <span className="lms-marks-label">Remaining</span>
+        <span className="lms-marks-value" style={{ color: remainingSlotsAll === 0 ? 'var(--lms-success)' : 'var(--lms-warning)', fontSize: 12 }}>{remainingSlotsAll}</span>
+      </div>
+      {totalSlotsAll > 0 && (
+        <div className="lms-progress-bar" style={{ marginTop: 6 }}>
+          <div className="lms-progress-fill" style={{
+            width: `${Math.min(100, (createdCountAll / totalSlotsAll) * 100)}%`,
+            background: remainingSlotsAll === 0 ? 'var(--lms-success)' : 'var(--lms-orange)'
+          }} />
+        </div>
+      )}
+    </div>
+
+    {/* ── Overall Marks ── */}
+    {exerciseIsGraded && (isGeneral ? generalMPQ > 0 : totalMarksAll > 0) && (
+      <div style={{ borderTop: '1.5px solid var(--lms-border)', paddingTop: 14 }}>
+        <div className="lms-sidebar-section-title" style={{ fontSize: 11 }}>
+          <Award size={12} style={{ color: 'var(--lms-orange)' }} />
+          <span>Overall Marks</span>
+        </div>
+        <div className="lms-marks-row">
+          <span className="lms-marks-label">Marks Per Question</span>
+          <span className="lms-marks-value" style={{ color: 'var(--lms-orange)', fontSize: 12 }}>{isGeneral ? generalMPQ : displayScore}</span>
+        </div>
+        <div className="lms-marks-row">
+          <span className="lms-marks-label">Total Questions</span>
+          <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{totalSlotsAll}</span>
+        </div>
+        <div className="lms-marks-row">
+          <span className="lms-marks-label">Total Marks</span>
+          <span className="lms-marks-value" style={{ color: 'var(--lms-violet)', fontSize: 12 }}>{isGeneral ? generalTotalMarks : totalMarksAll}</span>
+        </div>
+      </div>
+    )}
+
+  </div>
+</div>
+        </div>
+
+        {/* FOOTER */}
         <div style={{ background: 'var(--lms-bg-white)', borderTop: '1.5px solid var(--lms-border)', padding: '12px 20px', display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: 12, flexShrink: 0 }}>
 
           {/* Left: saving indicator */}
@@ -2565,183 +2928,242 @@ onChange={e => {
             {saveOk && !isSaving && (<div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 8, background: 'var(--lms-success-bg)', border: '1.5px solid var(--lms-success-bdr)' }}><Check size={13} style={{ color: 'var(--lms-success)' }} /><span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--lms-success)', fontFamily: 'var(--lms-font)' }}>Saved!</span></div>)}
           </div>
 
-          {/* Center: action buttons — identical to programming form */}
+          {/* Center: action buttons */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {/* Previous */}
-            {currentIndex > 0 && (
-              <button onClick={handlePrevious} disabled={isSaving} className="lms-nav-btn" style={{ opacity: isSaving ? 0.5 : 1 }}>
-                <ChevronLeft size={13} /> Previous
-              </button>
-            )}
-
-            {/* Next — show when not on last question in flow */}
-            {currentIndex < dbQuestions.length - 1 && (
-              <button onClick={handleNext} disabled={isSaving} className="lms-nav-btn" style={{ opacity: isSaving ? 0.5 : 1 }}>
-                Next <ChevronRight size={13} />
-              </button>
-            )}
-
-            {/* Save — slate style like programming form */}
-            <button onClick={handleSave} disabled={isSaving} className="lms-btn lms-btn-slate" style={{ opacity: isSaving ? 0.5 : 1, cursor: isSaving ? 'not-allowed' : 'pointer' }}>
-              {isSaving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
-              Save
-            </button>
-
-            {/* Save & Continue / Save & Finish */}
-            <button onClick={handleSaveAndContinue} disabled={isSaving} className="lms-btn lms-btn-orange"
-              style={{
-                opacity: isSaving ? 0.6 : 1, cursor: isSaving ? 'not-allowed' : 'pointer',
-                background: isLastQuestion ? 'var(--lms-success)' : 'var(--lms-orange)',
-                boxShadow: isLastQuestion ? '0 2px 8px rgba(22,163,74,0.25)' : '0 2px 8px var(--lms-orange-glow)',
-              }}>
+            {currentIndex > 0 && (<button onClick={handlePrevious} disabled={isSaving} className="lms-nav-btn"><ChevronLeft size={13} /> Previous</button>)}
+            {currentIndex < dbQuestions.length - 1 && (<button onClick={handleNext} disabled={isSaving} className="lms-nav-btn">Next <ChevronRight size={13} /></button>)}
+            <button onClick={handleSave} disabled={isSaving} className="lms-btn lms-btn-slate">{isSaving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}Save</button>
+            <button onClick={handleSaveAndContinue} disabled={isSaving} className="lms-btn lms-btn-orange" style={{
+              background: isLastQuestion ? 'var(--lms-success)' : 'var(--lms-orange)',
+              boxShadow: isLastQuestion ? '0 2px 8px rgba(22,163,74,0.25)' : '0 2px 8px var(--lms-orange-glow)',
+            }}>
               {isSaving ? <Loader2 size={13} className="animate-spin" /> : isLastQuestion ? <CheckCircle2 size={13} /> : <Zap size={13} />}
-              {isLastQuestion
-                ? (getServerId(dbQuestions[currentIndex]) ? 'Update & Finish' : 'Save & Finish')
-                : (getServerId(dbQuestions[currentIndex]) ? 'Update & Continue' : 'Save & Continue')}
+              {isLastQuestion ? (getServerId(dbQuestions[currentIndex]) ? 'Update & Finish' : 'Save & Finish') : (getServerId(dbQuestions[currentIndex]) ? 'Update & Continue' : 'Save & Continue')}
               {isLastQuestion ? <Flag size={11} /> : <ArrowRight size={11} />}
             </button>
-
-            {/* Delete */}
-            {dbQuestions.length > 0 && (
-              <button onClick={() => setShowDeleteConfirm(true)} disabled={isSaving} className="lms-btn"
-                style={{ background: 'var(--lms-danger-bg)', color: 'var(--lms-danger)', borderColor: 'var(--lms-danger-bdr)', opacity: isSaving ? 0.5 : 1, cursor: isSaving ? 'not-allowed' : 'pointer' }}>
-                <Trash2 size={12} /> Delete
-              </button>
-            )}
-
-            {/* Clear */}
-            {anyFormFieldHasContent && (
-              <button onClick={() => setShowClearConfirm(true)} disabled={isSaving} className="lms-btn"
-                style={{ background: 'var(--lms-warning-bg)', color: 'var(--lms-warning)', borderColor: 'var(--lms-warning-bdr)', opacity: isSaving ? 0.5 : 1, cursor: isSaving ? 'not-allowed' : 'pointer' }}>
-                <X size={12} /> Clear
-              </button>
-            )}
+            {dbQuestions.length > 0 && (<button onClick={() => setShowDeleteConfirm(true)} disabled={isSaving} className="lms-btn" style={{ background: 'var(--lms-danger-bg)', color: 'var(--lms-danger)', borderColor: 'var(--lms-danger-bdr)' }}><Trash2 size={12} /> Delete</button>)}
+            {anyFormFieldHasContent && (<button onClick={() => setShowClearConfirm(true)} disabled={isSaving} className="lms-btn" style={{ background: 'var(--lms-warning-bg)', color: 'var(--lms-warning)', borderColor: 'var(--lms-warning-bdr)' }}><X size={12} /> Clear</button>)}
           </div>
 
           {/* Right: Mock + Close */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
-            <button type="button" onClick={() => setShowMockModal(true)} disabled={!isMockEnabled}
-              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '7px 14px', borderRadius: 'var(--lms-radius-md)', fontFamily: 'var(--lms-font)', fontSize: 12, fontWeight: 600, cursor: isMockEnabled ? 'pointer' : 'not-allowed', border: `1.5px solid ${isMockEnabled ? 'var(--lms-violet-bdr)' : 'var(--lms-border)'}`, background: isMockEnabled ? 'var(--lms-violet-bg)' : 'var(--lms-bg-surface)', color: isMockEnabled ? 'var(--lms-violet)' : 'var(--lms-text-hint)', transition: 'all 0.15s', opacity: isMockEnabled ? 1 : 0.55 }}>
-              <Eye size={13} /> Mock
-            </button>
-            <button type="button" onClick={handleCloseRequest}
-              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '7px 14px', borderRadius: 'var(--lms-radius-md)', fontFamily: 'var(--lms-font)', fontSize: 12, fontWeight: 600, cursor: 'pointer', border: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', color: 'var(--lms-text-sec)', transition: 'all 0.15s' }}>
-              <X size={13} /> Close
-            </button>
+            <button type="button" onClick={() => setShowMockModal(true)} disabled={!isMockEnabled} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 14px', borderRadius: 'var(--lms-radius-md)',
+              fontFamily: 'var(--lms-font)', fontSize: 12, fontWeight: 600, cursor: isMockEnabled ? 'pointer' : 'not-allowed',
+              border: `1.5px solid ${isMockEnabled ? 'var(--lms-violet-bdr)' : 'var(--lms-border)'}`,
+              background: isMockEnabled ? 'var(--lms-violet-bg)' : 'var(--lms-bg-surface)',
+              color: isMockEnabled ? 'var(--lms-violet)' : 'var(--lms-text-hint)',
+            }}><Eye size={13} /> Mock</button>
+            <button type="button" onClick={handleCloseRequest} className="lms-cancel-btn"><X size={13} /> Close</button>
           </div>
         </div>
       </div>
 
       {/* MODALS */}
-      {showPreview && (
-        <PreviewModal
-          questions={dbQuestions.filter(q => q.isSaved || q._id || serverIdMap.current.has(q.__localId))}
-          currentIndex={currentIndex}
-          onJump={handleJumpTo}
-          onDelete={handleDeleteQuestion}
-          onClose={() => setShowPreview(false)}
-          onDone={handleCloseRequest}
-          hierarchyData={hierarchyData}
-          tabType={tabType}
-          exerciseName={exerciseName}
-          currentDiff={currentDiff}
-          totalSlots={totalSlots}
-          createdCount={createdCount}
-          remainingSlots={remainingSlots}
-          totalSlotsAll={totalSlotsAll}
-          createdCountAll={createdCountAll}
-          remainingSlotsAll={remainingSlotsAll}
-          totalMarksAll={totalMarksAll}
-          usedMarksAll={usedMarksAll}
-          displayScore={displayScore}
-          isGeneral={isGeneral}
-          cfgType={cfgType}
-          exerciseData={exerciseData}
-          isScoreEditable={isScoreEditable}
-          getConfiguredDiffs={getConfiguredDiffs}
-          getTotalMarksForDiff={getTotalMarksForDiff}
-          usedMarks={usedMarks}
-          remainingMarks={remainingMarks}
-          totalMarksForDiff={totalMarksForDiff}
-        />
-      )}
-
-      {showMockModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,26,46,0.5)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 150, padding: 12 }}>
-          <div style={{ width: '96vw', maxWidth: 1400, height: '96vh', display: 'flex', flexDirection: 'column', background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', border: '1.5px solid var(--lms-border)', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 20px', borderBottom: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', flexShrink: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
-                <div style={{ width: 34, height: 34, borderRadius: 9, background: 'var(--lms-violet)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Eye size={16} style={{ color: 'white' }} /></div>
-                <div style={{ width: 1, height: 20, background: 'var(--lms-border)', flexShrink: 0 }} />
-                <nav style={{ display: 'flex', alignItems: 'center', gap: 0, minWidth: 0 }}>
-                  {hierarchyData.courseName && (<><span className="lms-crumb" style={{ color: 'var(--lms-text-muted)' }}>{hierarchyData.courseName}</span><span className="lms-breadcrumb-sep">›</span></>)}
-                  {exerciseName && (<><span className="lms-crumb" style={{ color: 'var(--lms-text-muted)' }}>{exerciseName}</span><span className="lms-breadcrumb-sep">›</span></>)}
-                  <span className="lms-crumb" style={{ color: 'var(--lms-violet)' }}>Mock Preview</span>
-                </nav>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, marginLeft: 12 }}>
-                <button type="button" onClick={() => setShowMockModal(false)} style={{ padding: 8, borderRadius: 8, border: '1.5px solid var(--lms-danger-bdr)', background: 'var(--lms-danger-bg)', cursor: 'pointer' }}><X size={15} style={{ color: 'var(--lms-danger)' }} /></button>
-              </div>
+      {showDetailsModal && exerciseData && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
+          onClick={e => { if (e.target === e.currentTarget) setShowDetailsModal(false); }}>
+          <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 360, maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ padding: '13px 16px', borderBottom: '1.5px solid var(--lms-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--lms-bg-surface)', flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><FileText size={14} style={{ color: 'var(--lms-text-sec)' }} /><span style={{ fontFamily: 'var(--lms-font)', fontSize: 13, fontWeight: 700, color: 'var(--lms-text-main)' }}>Exercise Details</span></div>
+              <button type="button" onClick={() => setShowDetailsModal(false)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--lms-text-muted)', display: 'flex', padding: 4, borderRadius: 6 }}><X size={15} /></button>
             </div>
-            <div style={{ padding: '5px 20px', background: 'var(--lms-info-bg)', borderBottom: '1.5px solid var(--lms-info-bdr)', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-              <Eye size={11} style={{ color: 'var(--lms-info)' }} />
-              <span style={{ fontFamily: 'var(--lms-font)', fontSize: 10.5, fontWeight: 700, color: 'var(--lms-info)', letterSpacing: 0.4, textTransform: 'uppercase' }}>Mock Preview — Read Only</span>
+            <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto', padding: '4px 0' }}>
+              {exerciseData.fullExerciseData?.exerciseInformation?.exerciseId && (<div className="lms-detail-row" style={{ padding: '8px 16px' }}><span className="lms-detail-label">Exercise ID</span><span className="lms-detail-value" style={{ fontFamily: 'ui-monospace, monospace', color: 'var(--lms-violet)', fontSize: 11 }}>{exerciseData.fullExerciseData.exerciseInformation.exerciseId}</span></div>)}
+              <div className="lms-detail-row" style={{ padding: '8px 16px' }}><span className="lms-detail-label">Exercise Name</span><span className="lms-detail-value" style={{ color: 'var(--lms-orange)', fontSize: 11 }}>{exerciseName || 'Untitled'}</span></div>
+              <div className="lms-detail-row" style={{ padding: '8px 16px' }}><span className="lms-detail-label">Exercise Type</span><span className="lms-detail-value" style={{ fontSize: 11 }}>Database</span></div>
+              <div className="lms-detail-row" style={{ padding: '8px 16px' }}><span className="lms-detail-label">Configuration</span><span className="lms-detail-value" style={{ fontSize: 11 }}>{isGeneral ? 'General' : cfgType === 'levelBased' ? 'Level Based' : 'Selection Level'}</span></div>
+              <div className="lms-detail-row" style={{ padding: '8px 16px' }}><span className="lms-detail-label">Assessment Type</span><span className="lms-detail-value" style={{ fontSize: 11, fontWeight: 700, color: exerciseIsGraded ? 'var(--lms-success)' : 'var(--lms-warning)' }}>{exerciseIsGraded ? 'Graded' : 'Non-Graded'}</span></div>
             </div>
-            <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
-              <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-                {(() => {
-                  const currentQ = dbQuestions[currentIndex];
-                  if (!currentQ) return <p>No question selected</p>;
-                  const descBlocksArray = Array.isArray(currentQ.description) ? currentQ.description : descToBlocks(currentQ.description);
-                  const srBlocksArray = Array.isArray(currentQ.sampleResult) ? currentQ.sampleResult : descToBlocks(currentQ.sampleResult);
-                  const dsStyle = DS[currentQ.difficulty] || DS.medium;
-                  return (
-                    <>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ padding: '3px 10px', borderRadius: 20, background: dsStyle.bg, border: `1.5px solid ${dsStyle.border}`, color: dsStyle.text, fontSize: 11, fontWeight: 700, textTransform: 'capitalize', fontFamily: 'var(--lms-font)' }}>{currentQ.difficulty}</span>
-                        <span style={{ fontSize: 11, color: 'var(--lms-text-muted)', fontFamily: 'var(--lms-font)' }}>{currentQ.score} mark{currentQ.score !== 1 ? 's' : ''}</span>
-                      </div>
-                      <h2 style={{ fontFamily: 'var(--lms-font)', fontSize: 20, fontWeight: 700, color: 'var(--lms-text-main)', margin: 0, lineHeight: 1.4 }}>{currentQ.title || 'Untitled Question'}</h2>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                        {descBlocksArray.map((b: any, bi: number) => {
-                          if (b.type === 'text' && b.value?.trim()) return <p key={bi} style={{ fontFamily: 'var(--lms-font)', fontSize: 14, color: 'var(--lms-text-sec)', lineHeight: 1.75, margin: 0 }} dangerouslySetInnerHTML={{ __html: b.value }} />;
-                          if (b.type === 'image') return (<div key={bi} style={{ display: 'flex', justifyContent: b.alignment === 'right' ? 'flex-end' : b.alignment === 'center' ? 'center' : 'flex-start' }}><img src={b.url} alt="" style={{ width: `${b.sizePercent || 70}%`, borderRadius: 8, border: '1px solid var(--lms-border)' }} /></div>);
-                          if (b.type === 'code') { const isDk = ['#1e1e1e', '#282a36', '#272822'].includes(b.bgColor); return <pre key={bi} style={{ background: b.bgColor || '#f5f5f5', color: isDk ? '#d4d4d4' : '#1a1a2e', fontFamily: 'ui-monospace,monospace', fontSize: 12.5, padding: '14px 16px', borderRadius: 10, overflowX: 'auto', margin: 0, lineHeight: 1.6 }}>{b.value}</pre>; }
-                          return null;
-                        })}
-                      </div>
-                      {currentQ.sampleQuery && (<div><h4 style={{ fontFamily: 'var(--lms-font)', fontSize: 10.5, fontWeight: 700, color: 'var(--lms-text-main)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8, marginTop: 0 }}>Sample Query</h4><pre style={{ background: '#1e1e1e', color: '#d4d4d4', border: '1.5px solid var(--lms-border)', borderRadius: 8, padding: '10px 14px', fontSize: 12.5, fontFamily: 'ui-monospace, monospace', overflowX: 'auto', lineHeight: 1.6, margin: 0 }}>{currentQ.sampleQuery}</pre></div>)}
-                      {srBlocksArray.some((b: any) => (b.type === 'text' && b.value?.trim()) || b.type === 'image') && (<div><h4 style={{ fontFamily: 'var(--lms-font)', fontSize: 10.5, fontWeight: 700, color: 'var(--lms-text-main)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8, marginTop: 0 }}>Expected Result</h4><div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{srBlocksArray.map((b: any, bi: number) => { if (b.type === 'text' && b.value?.trim()) return <pre key={bi} style={{ background: '#f0fdf4', border: '1.5px solid var(--lms-success-bdr)', borderRadius: 8, padding: '10px 14px', fontSize: 12, fontFamily: 'ui-monospace, monospace', color: 'var(--lms-text-main)', overflowX: 'auto', lineHeight: 1.6, margin: 0 }}>{b.value}</pre>; if (b.type === 'image') return (<div key={bi} style={{ display: 'flex', justifyContent: b.alignment === 'right' ? 'flex-end' : b.alignment === 'center' ? 'center' : 'flex-start' }}><img src={b.url} alt="" style={{ width: `${b.sizePercent || 70}%`, borderRadius: 8, border: '1px solid var(--lms-success-bdr)' }} /></div>); return null; })}</div></div>)}
-                      {currentQ.constraints?.filter((c: string) => c.trim()).length > 0 && (<div><h4 style={{ fontFamily: 'var(--lms-font)', fontSize: 10.5, fontWeight: 700, color: 'var(--lms-text-main)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8, marginTop: 0 }}>Constraints</h4><ul style={{ margin: 0, paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 4 }}>{currentQ.constraints.filter((c: string) => c.trim()).map((c: string, i: number) => (<li key={i} style={{ fontSize: 13, color: 'var(--lms-text-sec)', fontFamily: 'var(--lms-font)', lineHeight: 1.6 }}>{c}</li>))}</ul></div>)}
-                    </>
-                  );
-                })()}
-              </div>
-              <div style={{ width: '50%', maxWidth: 720, borderLeft: '1.5px solid var(--lms-border)', display: 'flex', flexDirection: 'column', background: '#0d1117' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: '1.5px solid #1e293b', background: '#0f172a', flexShrink: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><div style={{ width: 28, height: 28, borderRadius: 8, background: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Terminal size={14} style={{ color: 'white' }} /></div><span style={{ fontFamily: 'var(--lms-font)', fontSize: 13, fontWeight: 700, color: '#e2e8f0' }}>SQL Editor</span><span style={{ fontSize: 10.5, fontFamily: 'var(--lms-font)', fontWeight: 600, color: '#64748b', padding: '2px 7px', borderRadius: 20, border: '1px solid #1e293b', background: '#1e293b' }}>Execution Sandbox</span></div>
-                </div>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                  <div style={{ flex: '0 0 55%', position: 'relative', borderBottom: '1.5px solid #1e293b', overflow: 'hidden' }}>
-                    <textarea value={sqlQuery} onChange={e => setSqlQuery(e.target.value)} placeholder="-- Write your SQL query here..." spellCheck={false} style={{ width: '100%', height: '100%', padding: '14px 16px', border: 'none', outline: 'none', resize: 'none', background: '#0d1117', color: '#e2e8f0', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, monospace', fontSize: 13.5, lineHeight: 1.7, boxSizing: 'border-box', letterSpacing: '0.02em' }} />
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', borderBottom: '1.5px solid #1e293b', background: '#0f172a', flexShrink: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <button type="button" className="dbq-run-btn" onClick={runQuery} disabled={!sqlQuery.trim() || sqlOutput.type === 'running'}>{sqlOutput.type === 'running' ? <><Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> Running…</> : <><Play size={13} /> Run Query</>}</button>
-                      <button type="button" onClick={() => setSqlOutput({ type: 'idle' })} style={{ padding: '5px 10px', borderRadius: 7, border: '1.5px solid #1e3a5f', background: 'transparent', color: '#64748b', fontSize: 11.5, fontFamily: 'var(--lms-font)', fontWeight: 600, cursor: 'pointer' }}>Clear</button>
-                    </div>
-                    {sqlOutput.type === 'result' && sqlOutput.time && (<span style={{ fontSize: 11, color: '#64748b', fontFamily: 'var(--lms-font)' }}>⏱ {sqlOutput.time}ms</span>)}
-                  </div>
-                  <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto', background: '#0d1117' }}>
-                    {sqlOutput.type === 'idle' && (<div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 8, opacity: 0.4 }}><Database size={28} style={{ color: '#475569' }} /><span style={{ fontSize: 12, fontFamily: 'var(--lms-font)', color: '#475569' }}>Run a query to see results</span></div>)}
-                    {sqlOutput.type === 'running' && (<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 8 }}><Loader2 size={18} style={{ color: '#16a34a', animation: 'spin 1s linear infinite' }} /><span style={{ fontSize: 12, fontFamily: 'var(--lms-font)', color: '#64748b' }}>Executing query…</span></div>)}
-                    {sqlOutput.type === 'result' && (<div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>{sqlOutput.message && (<div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', borderRadius: 7, background: '#064e3b', border: '1px solid #065f46' }}><Check size={13} style={{ color: '#4ade80', flexShrink: 0 }} /><span style={{ fontSize: 12, fontFamily: 'var(--lms-font)', color: '#4ade80', fontWeight: 600 }}>{sqlOutput.message}</span></div>)}{sqlOutput.rows && sqlOutput.columns && sqlOutput.rows.length > 0 && (<div style={{ border: '1px solid #1e3a5f', borderRadius: 8, overflow: 'hidden' }}><div style={{ padding: '5px 10px', background: '#1e293b', display: 'flex', alignItems: 'center', gap: 5, borderBottom: '1px solid #1e3a5f' }}><Table size={12} style={{ color: '#93c5fd' }} /><span style={{ fontSize: 11, fontFamily: 'var(--lms-font)', color: '#93c5fd', fontWeight: 700 }}>Result Set — {sqlOutput.rows.length} row{sqlOutput.rows.length !== 1 ? 's' : ''}</span></div><SqlResultTable rows={sqlOutput.rows} columns={sqlOutput.columns} /></div>)}</div>)}
-                  </div>
-                </div>
-              </div>
+            <div style={{ padding: '10px 16px', borderTop: '1.5px solid var(--lms-border)', display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
+              <button type="button" onClick={() => setShowDetailsModal(false)} className="lms-cancel-btn">Close</button>
             </div>
           </div>
         </div>
+      )}
+
+      {showOverviewModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
+          onClick={e => { if (e.target === e.currentTarget) setShowOverviewModal(false); }}>
+          <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 400, maxHeight: '86vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ padding: '13px 16px', borderBottom: '1.5px solid var(--lms-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--lms-info-bg)', flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><BarChart3 size={14} style={{ color: 'var(--lms-info)' }} /><span style={{ fontFamily: 'var(--lms-font)', fontSize: 13, fontWeight: 700, color: 'var(--lms-text-main)' }}>Exercise Overview</span></div>
+              <button type="button" onClick={() => setShowOverviewModal(false)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--lms-text-muted)', display: 'flex', padding: 4, borderRadius: 6 }}><X size={15} /></button>
+            </div>
+            <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto' }}>
+              <div style={{ padding: '12px 16px', borderBottom: '1.5px solid var(--lms-border)' }}>
+                <div className="lms-sidebar-section-title" style={{ marginBottom: 8 }}><Hash size={12} style={{ color: 'var(--lms-orange)' }} /><span>Overall Questions</span></div>
+                <div className="lms-marks-row"><span className="lms-marks-label">Total Questions</span><span className="lms-marks-value" style={{ fontSize: 12, fontWeight: 700 }}>{totalSlotsAll}</span></div>
+                <div className="lms-marks-row"><span className="lms-marks-label">Created</span><span className="lms-marks-value" style={{ color: 'var(--lms-violet)', fontSize: 12 }}>{createdCountAll}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 10 }}>/{totalSlotsAll}</span></span></div>
+                <div className="lms-marks-row"><span className="lms-marks-label">Remaining</span><span className="lms-marks-value" style={{ color: remainingSlotsAll === 0 ? 'var(--lms-success)' : 'var(--lms-warning)', fontSize: 12 }}>{remainingSlotsAll}</span></div>
+                {totalSlotsAll > 0 && (<div className="lms-progress-bar" style={{ marginTop: 8, marginBottom: 15 }}><div className="lms-progress-fill" style={{ width: `${Math.min(100, (createdCountAll / totalSlotsAll) * 100)}%`, background: remainingSlotsAll === 0 ? 'var(--lms-success)' : 'var(--lms-orange)' }} /></div>)}
+                {!isGeneral && getConfiguredDiffs().map(d => {
+                  const quota = getQuotaForDiff(d);
+                  const created = getCreatedCount(d);
+                  const diffColor = d === 'easy' ? '#16a34a' : d === 'medium' ? '#d97706' : '#e53e3e';
+                  return (
+                    <div key={d} style={{ marginBottom: 8 }}>
+                      <div className="lms-marks-row"><span className="lms-marks-label" style={{ textTransform: 'capitalize', color: diffColor, fontWeight: 700 }}>{d} <span style={{ fontSize: 10, fontWeight: 400, color: '#666' }}>({quota} question{quota !== 1 ? 's' : ''})</span></span><span className="lms-marks-value" style={{ fontSize: 12 }}><span style={{ color: '#7c3aed', fontWeight: 700 }}>{created}</span><span style={{ color: '#9a9ab0', fontWeight: 400 }}>/{quota}</span><span style={{ color: created >= quota ? '#16a34a' : '#666', fontSize: 10, marginLeft: 6 }}>{created >= quota ? '✓ Complete' : `${quota - created} remaining`}</span></span></div>
+                      {quota > 0 && (<div className="lms-progress-bar" style={{ marginTop: 2 }}><div className="lms-progress-fill" style={{ width: `${Math.min(100, (created / quota) * 100)}%`, background: created >= quota ? '#16a34a' : diffColor }} /></div>)}
+                    </div>
+                  );
+                })}
+              </div>
+              {exerciseIsGraded && totalMarksAll > 0 && (
+                <div style={{ padding: '12px 16px' }}>
+                  <div className="lms-sidebar-section-title" style={{ marginBottom: 8 }}><Award size={12} style={{ color: 'var(--lms-violet)' }} /><span>Overall Marks</span></div>
+                  <div className="lms-marks-row"><span className="lms-marks-label">Total Marks</span><span className="lms-marks-value" style={{ color: '#7c3aed', fontSize: 12 }}>{totalMarksAll}</span></div>
+                  <div className="lms-marks-row"><span className="lms-marks-label">Marks Used</span><span className="lms-marks-value" style={{ color: '#d97706', fontSize: 12 }}>{fmtMark(usedMarksAll)}<span style={{ color: '#9a9ab0', fontWeight: 400, fontSize: 10 }}>/{totalMarksAll}</span></span></div>
+                  <div className="lms-marks-row"><span className="lms-marks-label">Remaining Marks</span><span className="lms-marks-value" style={{ color: (totalMarksAll - usedMarksAll) <= 0 ? '#16a34a' : '#1a1a2e', fontSize: 12 }}>{fmtMark(Math.max(0, totalMarksAll - usedMarksAll))}</span></div>
+                  {totalMarksAll > 0 && (<div className="lms-progress-bar" style={{ marginTop: 8 }}><div className="lms-progress-fill" style={{ width: `${Math.min(100, (usedMarksAll / totalMarksAll) * 100)}%`, background: usedMarksAll >= totalMarksAll ? '#16a34a' : '#d97706' }} /></div>)}
+                  {!isGeneral && getConfiguredDiffs().map(d => {
+                    const levelMarks = getTotalMarksForDiff(d);
+                    const usedD = getDbMarksUsedForDiff(d);
+                    const diffColor = d === 'easy' ? '#16a34a' : d === 'medium' ? '#d97706' : '#e53e3e';
+                    return (
+                      <div key={d} style={{ marginTop: 12, padding: '8px 10px', background: '#f8f8f8', borderRadius: 8, borderLeft: `3px solid ${diffColor}` }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                          <span style={{ textTransform: 'capitalize', fontWeight: 700, fontSize: 12, color: diffColor }}>{d}</span>
+                          <span style={{ fontSize: 10, color: '#666' }}>{getFixedScore(d)} per question</span>
+                        </div>
+                        <div className="lms-marks-row"><span className="lms-marks-label" style={{ fontSize: 11 }}>Total Marks</span><span className="lms-marks-value" style={{ fontSize: 12, fontWeight: 700, color: '#7c3aed' }}>{levelMarks || 0}</span></div>
+                        <div className="lms-marks-row"><span className="lms-marks-label" style={{ fontSize: 11 }}>Used Marks</span><span className="lms-marks-value" style={{ fontSize: 12, fontWeight: 700, color: usedD >= levelMarks && levelMarks > 0 ? '#16a34a' : '#d97706' }}>{fmtMark(usedD)}</span></div>
+                        {levelMarks > 0 && (<div className="lms-progress-bar" style={{ marginTop: 4 }}><div className="lms-progress-fill" style={{ width: `${Math.min(100, (usedD / levelMarks) * 100)}%`, background: usedD >= levelMarks ? '#16a34a' : diffColor }} /></div>)}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            <div style={{ padding: '10px 16px', borderTop: '1.5px solid var(--lms-border)', display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
+              <button type="button" onClick={() => setShowOverviewModal(false)} className="lms-cancel-btn">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSectionModal && sectionData && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
+          onClick={e => { if (e.target === e.currentTarget) setShowSectionModal(false); }}>
+          <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 420, maxHeight: '86vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ padding: '13px 16px', borderBottom: '1.5px solid var(--lms-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--lms-violet-bg)', flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><Layers size={14} style={{ color: 'var(--lms-violet)' }} /><span style={{ fontFamily: 'var(--lms-font)', fontSize: 13, fontWeight: 700, color: 'var(--lms-text-main)' }}>Section Details</span></div>
+              <button type="button" onClick={() => setShowSectionModal(false)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--lms-text-muted)', display: 'flex', padding: 4, borderRadius: 6 }}><X size={15} /></button>
+            </div>
+            <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto', padding: '14px 16px' }}>
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 11, color: '#666', fontWeight: 600, marginBottom: 4, textTransform: 'uppercase' }}>Section</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a2e' }}>{sectionData.name || '—'}</div>
+                {sectionData.description && <div style={{ fontSize: 11.5, color: '#555', marginTop: 4 }}>{sectionData.description}</div>}
+              </div>
+              <div className="lms-marks-row"><span className="lms-marks-label">Order</span><span className="lms-marks-value" style={{ fontSize: 12 }}>{sectionData.order || sectionData.sectionNumber || '—'}</span></div>
+              <div className="lms-marks-row"><span className="lms-marks-label">Exercise Type</span><span className="lms-marks-value" style={{ color: '#7c3aed', fontSize: 12 }}>{sectionData.exerciseType || '—'}</span></div>
+              <div className="lms-marks-row"><span className="lms-marks-label">Total Marks</span><span className="lms-marks-value" style={{ color: '#d97706', fontSize: 12 }}>{sectionData.totalMarks ?? '—'}</span></div>
+              {sectionData.programmingConfig && (
+                <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1.5px solid var(--lms-border)' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#0d9488', marginBottom: 8, textTransform: 'uppercase' }}>Programming Config</div>
+                  <div className="lms-marks-row"><span className="lms-marks-label">Mode</span><span className="lms-marks-value" style={{ fontSize: 12 }}>{sectionData.programmingConfig.questionConfigType || '—'}</span></div>
+                  {sectionData.programmingConfig.questionConfigType === 'general' ? (
+                    <div className="lms-marks-row"><span className="lms-marks-label">Questions</span><span className="lms-marks-value" style={{ fontSize: 12 }}>{sectionData.programmingConfig.generalQuestionCount ?? 0}</span></div>
+                  ) : (
+                    (['easy', 'medium', 'hard'] as const).map(level => (
+                      <div key={level} className="lms-marks-row"><span className="lms-marks-label" style={{ textTransform: 'capitalize' }}>{level}</span><span className="lms-marks-value" style={{ fontSize: 12 }}>{sectionData.programmingConfig.levelBasedCounts?.[level] || 0}</span></div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+            <div style={{ padding: '10px 16px', borderTop: '1.5px solid var(--lms-border)', display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
+              <button type="button" onClick={() => setShowSectionModal(false)} className="lms-cancel-btn">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+{showPreview && (
+  <PreviewModal
+    // Basic props
+    questions={dbQuestions.filter(q => q.isSaved || q._id || serverIdMap.current.has(q.__localId))}
+    currentIndex={currentIndex}
+    isGeneral={isGeneral}
+    exerciseData={exerciseData}
+    onJump={handleJumpTo}
+    onDelete={handleDeleteQuestion}
+    onClose={() => setShowPreview(false)}
+    onDone={handleCloseRequest}
+    
+    // Navigation & labels
+    hierarchyData={hierarchyData}
+    tabType={tabType}
+    subcategory={subcategory}
+    subcategoryLabel={subcategoryLabel}
+    exerciseName={exerciseName}
+    actionLabel="Preview"
+    questionLabel={`${createdCountAllIncludingUnsaved} Question${createdCountAllIncludingUnsaved !== 1 ? 's' : ''}`}
+    
+    // Current question data
+    currentDiff={currentDiff}
+    score={score}
+    generalMPQ={generalMPQ}
+    displayScore={displayScore}
+    
+    // Current difficulty stats (WITH unsaved question counted)
+    totalSlots={totalSlots}
+    createdCount={createdCountIncludingUnsaved}
+    remainingSlots={remainingSlotsIncludingUnsaved}
+    usedMarks={usedMarksIncludingUnsaved}
+    remainingMarks={remainingMarksIncludingUnsaved}
+    totalMarksForDiff={totalMarksForDiff}
+    
+    // Overall stats (WITH unsaved question counted)
+    totalSlotsAll={totalSlotsAll}
+    createdCountAll={createdCountAllIncludingUnsaved}
+    remainingSlotsAll={remainingSlotsAllIncludingUnsaved}
+    totalMarksAll={totalMarksAll}
+    usedMarksAll={usedMarksAllIncludingUnsaved}
+    
+    // Helper functions
+    isScoreEditable={isScoreEditable}
+    getFixedScore={getFixedScore}
+    getConfiguredDiffs={getConfiguredDiffs}
+    getRemainingSlots={getRemainingSlots}
+    getDbQuestionsForDiff={getDbQuestionsForDiff}
+    getQuotaForDiff={getQuotaForDiff}
+    getCreatedCount={getCreatedCount}
+    getTotalMarksForDiff={getTotalMarksForDiff}
+    onDiffRowClick={() => {}}
+    cfgType={cfgType}
+  />
+)}
+
+      {showMockModal && (
+        <SqlMockModal
+          questions={(() => {
+            const allDbQuestions = getDbQuestionsForDiff();
+            const currentQ = dbQuestions[currentIndex];
+            const currentAlreadySaved = currentQ && (currentQ.isSaved || currentQ._id || serverIdMap.current.has(currentQ.__localId));
+            if (currentFormHasContent && !currentAlreadySaved) {
+              const previewQ: DBQuestion = {
+                __localId: 'mock-preview-current',
+                _id: undefined,
+                title: title.trim() || '',
+                description: blocksToDescription(descBlocks),
+                difficulty: currentDiff,
+                score: isGeneral ? generalMPQ : (isScoreEditable(currentDiff) ? score : getFixedScore(currentDiff)),
+                sampleQuery: sampleQuery.trim(),
+                sampleResult: sampleResultBlocks,
+                constraints: constraints.filter(c => c.trim()),
+                hints: hint.trim() ? [{ hintText: hint.trim(), pointsDeduction: 0, isPublic: true, sequence: 0 }] : [],
+                questionType: 'database',
+                isSaved: false,
+                isDirty: false,
+              };
+              return [...allDbQuestions, previewQ];
+            }
+            return allDbQuestions;
+          })()}
+          exerciseIsGraded={exerciseIsGraded}
+          onClose={() => setShowMockModal(false)}
+        />
       )}
 
       {showDeleteConfirm && (
@@ -2754,6 +3176,10 @@ onChange={e => {
 
       {showCloseConfirm && (
         <CloseConfirmDialog hasUnsavedChanges={hasUnsavedFormChanges} hasSavedQuestions={hasSavedQuestionsInSession} onConfirm={handleCloseConfirmed} onCancel={() => setShowCloseConfirm(false)} />
+      )}
+
+      {showEditExerciseConfirm && (
+        <EditExerciseConfirmDialog exerciseName={exerciseName} onConfirm={handleEditExerciseConfirm} onCancel={() => setShowEditExerciseConfirm(false)} />
       )}
     </div>
   );

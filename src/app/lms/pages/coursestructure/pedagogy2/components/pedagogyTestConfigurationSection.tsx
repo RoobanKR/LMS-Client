@@ -1,19 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { Label } from "@/components/ui/label";
 import { Monitor, Layout, Database } from "lucide-react";
-
+ 
 export interface TestConfiguration {
   coreProgram: string[];
   frontend: string[];
   database: string[];
 }
-
+ 
 interface TestConfigurationSectionProps {
   testConfiguration: TestConfiguration;
   onChange: (config: TestConfiguration) => void;
   availableLanguages?: TestConfiguration;
 }
-
+ 
 const languageOptions = {
   coreProgram: [
     { value: 'c', label: 'C', icon: '🔵' },
@@ -33,7 +33,7 @@ const languageOptions = {
     { value: 'mysql', label: 'MySQL', icon: '🐬' }
   ]
 };
-
+ 
 const PedagogyTestConfigurationSection: React.FC<TestConfigurationSectionProps> = ({
   testConfiguration,
   onChange,
@@ -44,7 +44,7 @@ const PedagogyTestConfigurationSection: React.FC<TestConfigurationSectionProps> 
     frontend: [],
     database: []
   });
-
+ 
   useEffect(() => {
     const newConfig = {
       coreProgram: testConfiguration?.coreProgram ? [...testConfiguration.coreProgram] : [],
@@ -53,44 +53,44 @@ const PedagogyTestConfigurationSection: React.FC<TestConfigurationSectionProps> 
     };
     setLocalConfig(newConfig);
   }, [testConfiguration]);
-
+ 
   const handleLanguageChange = (category: 'coreProgram' | 'frontend' | 'database', value: string) => {
     const current = [...localConfig[category]];
     const updated = current.includes(value)
       ? current.filter(lang => lang !== value)
       : [...current, value];
-
+ 
     const newConfig = { ...localConfig, [category]: updated };
     setLocalConfig(newConfig);
     onChange(newConfig);
   };
-
+ 
   const handleSelectAll = (category: 'coreProgram' | 'frontend' | 'database') => {
     const allValues = visibleOptions[category].map(l => l.value);
     const currentValues = localConfig[category];
     const allSelected = allValues.every(v => currentValues.includes(v));
-
+ 
     const updated = allSelected ? [] : allValues;
     const newConfig = { ...localConfig, [category]: updated };
     setLocalConfig(newConfig);
     onChange(newConfig);
   };
-
+ 
   const isSelected = (category: 'coreProgram' | 'frontend' | 'database', value: string): boolean => {
     return localConfig[category]?.includes(value) || false;
   };
-
+ 
   const isAllSelected = (category: 'coreProgram' | 'frontend' | 'database'): boolean => {
     const allValues = visibleOptions[category].map(l => l.value);
     return allValues.length > 0 && allValues.every(v => localConfig[category].includes(v));
   };
-
+ 
   const isIndeterminate = (category: 'coreProgram' | 'frontend' | 'database'): boolean => {
     const allValues = visibleOptions[category].map(l => l.value);
     const selectedCount = allValues.filter(v => localConfig[category].includes(v)).length;
     return selectedCount > 0 && selectedCount < allValues.length;
   };
-
+ 
   // Filter visible options based on availableLanguages
   // BUT if availableLanguages is not provided OR the array is empty, show NO options
   const visibleOptions = {
@@ -110,13 +110,13 @@ const PedagogyTestConfigurationSection: React.FC<TestConfigurationSectionProps> 
           ? languageOptions.database.filter(l => testConfiguration.database?.includes(l.value))
           : []), // Empty array if no database data
   };
-
+ 
   const SelectAllCheckbox = ({ category, accentColor }: {
     category: 'coreProgram' | 'frontend' | 'database';
     accentColor: string;
   }) => {
     const allSelected = isAllSelected(category);
-
+ 
     return (
       <label
         className={`flex items-center gap-1.5 text-xs font-medium cursor-pointer ml-auto select-none ${
@@ -133,13 +133,13 @@ const PedagogyTestConfigurationSection: React.FC<TestConfigurationSectionProps> 
       </label>
     );
   };
-
+ 
   return (
     <div className="bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-xl p-4 shadow-sm">
       <h3 className="text-base font-bold text-slate-900 dark:text-white font-sans mb-4">
         Skill Set
       </h3>
-
+ 
       <div className="space-y-5">
         {/* Core Programming Languages - Only show if there are options */}
         {visibleOptions.coreProgram.length > 0 && (
@@ -177,7 +177,7 @@ const PedagogyTestConfigurationSection: React.FC<TestConfigurationSectionProps> 
             </div>
           </div>
         )}
-
+ 
         {/* Frontend Technologies - Only show if there are options */}
         {visibleOptions.frontend.length > 0 && (
           <div className="space-y-2 border-b border-slate-200 dark:border-gray-700 pb-4">
@@ -214,7 +214,7 @@ const PedagogyTestConfigurationSection: React.FC<TestConfigurationSectionProps> 
             </div>
           </div>
         )}
-
+ 
         {/* Database Technologies - Only show if there are options */}
         {visibleOptions.database.length > 0 && (
           <div className="space-y-2">
@@ -251,10 +251,10 @@ const PedagogyTestConfigurationSection: React.FC<TestConfigurationSectionProps> 
             </div>
           </div>
         )}
-
+ 
         {/* Optional: Show message when all sections are empty */}
-        {visibleOptions.coreProgram.length === 0 && 
-         visibleOptions.frontend.length === 0 && 
+        {visibleOptions.coreProgram.length === 0 &&
+         visibleOptions.frontend.length === 0 &&
          visibleOptions.database.length === 0 && (
           <div className="text-center py-4 text-gray-500 text-sm">
             No skill sets configured for this course
@@ -264,5 +264,6 @@ const PedagogyTestConfigurationSection: React.FC<TestConfigurationSectionProps> 
     </div>
   );
 };
-
+ 
 export default PedagogyTestConfigurationSection;
+ 

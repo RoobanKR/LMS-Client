@@ -2,6 +2,9 @@
 import { Target, Users, BookOpen } from "lucide-react"
 import React from "react"
 
+export const FONT_PRIMARY = "'Inter','Segoe UI','Roboto',system-ui,-apple-system,BlinkMacSystemFont,sans-serif"
+export const FONT_INTER_IMPORT = "@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');"
+
 export const T = {
   orange:      '#F27757',
   orangeDark:  '#E0623F',
@@ -79,10 +82,10 @@ export const METHOD_CFG = {
 
 export const RES_COLOR: Record<string,string> = {
   page:'#6366f1', video:'#ef4444', ppt:'#f97316',
-  pdf:'#dc2626', zip:'#16a34a', link:'#9333ea', reference:'#64748b',
+  pdf:'#dc2626', zip:'#16a34a', link:'#9333ea', reference:'#64748b', image:'#06b6d4', word:'#2563eb', txt:'#64748b',
 }
 
 export const RES_LABEL: Record<string,string> = {
-  all:"All", video:"Videos", pdf:"PDFs", ppt:"Slides", 
-  zip:"ZIPs", link:"Links", reference:"Refs", page:"Pages"
+  all:"All", video:"Videos", pdf:"PDFs", ppt:"Slides",
+  zip:"ZIPs", link:"Links", reference:"Refs", page:"Pages", image:"Images", word:"Docs", txt:"Text"
 }

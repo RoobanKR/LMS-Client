@@ -483,7 +483,7 @@ import {
   ZoomIn, ZoomOut, Check, Hash, Save,
   BookOpen, Pencil, Type, ChevronLeft, ChevronRight,
   Info, Target, Award,
-  Clock, FileText,
+  Clock, FileText, BarChart3,
   Eye, Edit2, Database, CheckCircle2, Copy,
   ArrowUpDown, MoveVertical, Equal, Binary, ToggleLeft,
   MousePointerClick,
@@ -493,7 +493,8 @@ import {
   Code, Palette,
   CloudUpload,
   Grid3x3,
-  CheckCircle
+  CheckCircle,
+  Layers
 } from 'lucide-react';
 
 import GenerateMCQAIQuestion, { GeneratedQuestion } from './GenerateMCQAIQuestion';
@@ -583,6 +584,8 @@ interface MCQQuestionFormProps {
   initialQuestionId?: string;          // ← ADD THIS
   onClose: () => void; onSave: (questionData: any) => void;
   isSaving?: boolean; saveProgress?: number; saveMessage?: string;
+  onEditExercise?: () => void;
+  sectionData?: any;
 }
 // ─── TOAST ────────────────────────────────────────────────────────────────────
 type ToastType = 'success' | 'error' | 'warning' | 'info';
@@ -637,22 +640,22 @@ const MockModal: React.FC<{
   const [showSubmitDialog, setShowSubmitDialog] = useState(false);
   const [quizCompleted, setQuizCompleted] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  
+
   const block = mockBlocks[idx];
-  
+
   // Calculate progress
   const answeredCount = mockBlocks.filter(b => {
     const sel = selected[b.id] || [];
     return sel.length > 0;
   }).length;
   const progressPct = mockBlocks.length > 0 ? (answeredCount / mockBlocks.length) * 100 : 0;
-  
+
   const handleSelect = (blockId: string, optId: string) => {
     if (revealed[blockId]) return;
     const b = mockBlocks.find(x => x.id === blockId);
     if (!b) return;
     const isMulti = b.type === 'multiple-select';
-    
+
     let newSelected: string[];
     if (isMulti) {
       const cur = selected[blockId] || [];
@@ -660,9 +663,9 @@ const MockModal: React.FC<{
     } else {
       newSelected = [optId];
     }
-    
+
     setSelected(prev => ({ ...prev, [blockId]: newSelected }));
-    
+
     // Auto-check answer immediately after selection
     // For multiple-select, only check if at least one option is selected
     if (!isMulti || newSelected.length > 0) {
@@ -672,35 +675,35 @@ const MockModal: React.FC<{
       }, 100);
     }
   };
-  
+
   const handleReset = (blockId: string) => {
     setSelected(prev => { const n = { ...prev }; delete n[blockId]; return n; });
     setRevealed(prev => { const n = { ...prev }; delete n[blockId]; return n; });
   };
-  
+
   const handleSubmitQuiz = () => {
     setShowSubmitDialog(false);
     setQuizCompleted(true);
   };
-  
+
   const handleJumpToQuestion = (jumpIdx: number) => {
     setIdx(jumpIdx);
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
   };
-  
+
   if (!block) {
     return (
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center" 
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center"
         style={{ background: 'rgba(26,26,46,0.55)', fontFamily: 'var(--lms-font)' }}>
         <div className="bg-white rounded-2xl p-8 text-center" style={{ border: '1px solid var(--lms-border)' }}>
           <p className="text-sm font-semibold" style={{ color: 'var(--lms-text-sec)' }}>No option-based questions to preview.</p>
-          <button onClick={onClose} className="mt-4 px-4 py-1.5 rounded-lg text-sm font-semibold" 
+          <button onClick={onClose} className="mt-4 px-4 py-1.5 rounded-lg text-sm font-semibold"
             style={{ background: 'var(--lms-orange)', color: '#fff' }}>Close</button>
         </div>
       </div>
     );
   }
-  
+
   if (quizCompleted) {
     const correctCount = mockBlocks.filter(b => {
       const sel = selected[b.id] || [];
@@ -708,11 +711,11 @@ const MockModal: React.FC<{
       return sel.length > 0 && correctIds.every(id => sel.includes(id)) && sel.every(id => correctIds.includes(id));
     }).length;
     const total = mockBlocks.length;
-    
+
     return (
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center" 
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center"
         style={{ background: 'rgba(26,26,46,0.55)', fontFamily: 'var(--lms-font)' }}>
-        <div className="bg-white rounded-2xl p-8 text-center max-w-md mx-4" 
+        <div className="bg-white rounded-2xl p-8 text-center max-w-md mx-4"
           style={{ border: '1px solid var(--lms-border)', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
           <div className="w-20 h-20 rounded-2xl mx-auto mb-6 flex items-center justify-center"
             style={{ background: 'var(--lms-orange-light)' }}>
@@ -726,10 +729,10 @@ const MockModal: React.FC<{
             {Math.round((correctCount / total) * 100)}% • {answeredCount} answered
           </p>
           <div className="w-full h-2 rounded-full mb-6 overflow-hidden" style={{ background: 'var(--lms-bg-surface2)' }}>
-            <div className="h-full rounded-full transition-all" 
+            <div className="h-full rounded-full transition-all"
               style={{ width: `${(correctCount / total) * 100}%`, background: 'var(--lms-orange)' }} />
           </div>
-          <button onClick={onClose} 
+          <button onClick={onClose}
             className="px-6 py-3 rounded-xl text-sm font-bold transition-all"
             style={{ background: 'var(--lms-orange)', color: '#fff' }}>
             Return to Editor
@@ -738,14 +741,14 @@ const MockModal: React.FC<{
       </div>
     );
   }
-  
+
   const sel = selected[block.id] || [];
   const rev = revealed[block.id] || false;
   const correctIds = block.options.filter(o => o.isCorrect).map(o => o.id);
   const isCorrectAnswer = rev && sel.length > 0 && correctIds.every(id => sel.includes(id)) && sel.every(id => correctIds.includes(id));
   const isAnswered = sel.length > 0;
   const isLast = idx === mockBlocks.length - 1;
-  
+
   // Design tokens
   const T = {
     orange: '#F27757',
@@ -771,26 +774,26 @@ const MockModal: React.FC<{
     purple: '#8b5cf6',
     purpleLight: 'rgba(139,92,246,0.09)',
   };
-  
+
   const DIFF_CFG: Record<string, { text: string; bg: string; dot: string }> = {
-    easy:   { text: T.greenDark, bg: T.greenLight, dot: T.green },
-    medium: { text: '#b45309',   bg: T.amberLight, dot: T.amber },
-    hard:   { text: '#dc2626',   bg: T.redLight,   dot: T.red },
+    easy: { text: T.greenDark, bg: T.greenLight, dot: T.green },
+    medium: { text: '#b45309', bg: T.amberLight, dot: T.amber },
+    hard: { text: '#dc2626', bg: T.redLight, dot: T.red },
   };
-  
+
   const QTYPE_CFG: Record<string, { label: string; color: string; bg: string }> = {
-    'multiple-choice': { label: 'Single Choice', color: T.blue,    bg: T.blueLight },
-    'multiple-select': { label: 'Multi Select',  color: T.purple,  bg: T.purpleLight },
-    'true-false':      { label: 'True / False',  color: T.green,   bg: T.greenLight },
-    dropdown:          { label: 'Dropdown',      color: T.orange,  bg: T.orangeLight },
+    'multiple-choice': { label: 'Single Choice', color: T.blue, bg: T.blueLight },
+    'multiple-select': { label: 'Multi Select', color: T.purple, bg: T.purpleLight },
+    'true-false': { label: 'True / False', color: T.green, bg: T.greenLight },
+    dropdown: { label: 'Dropdown', color: T.orange, bg: T.orangeLight },
   };
-  
+
   const diff = DIFF_CFG[block.difficulty || ''] || { text: T.orange, bg: T.orangeLight, dot: T.orange };
   const qtype = QTYPE_CFG[block.type] || { label: block.type, color: T.textMuted, bg: T.pageBg };
   const isMultiSelect = block.type === 'multiple-select';
   const isDropdown = block.type === 'dropdown';
   const isTrueFalse = block.type === 'true-false';
-  
+
   // Filtered indices for question panel
   const filteredIndices = mockBlocks.map((_, i) => i);
   const isAnsweredForSidebar = (bIdx: number) => {
@@ -798,7 +801,7 @@ const MockModal: React.FC<{
     const s = selected[b.id] || [];
     return s.length > 0;
   };
-  
+
   // Check if question is correct for sidebar indicator
   const isCorrectForSidebar = (bIdx: number) => {
     const b = mockBlocks[bIdx];
@@ -806,7 +809,7 @@ const MockModal: React.FC<{
     const corrects = b.options.filter(o => o.isCorrect).map(o => o.id);
     return s.length > 0 && corrects.every(id => s.includes(id)) && s.every(id => corrects.includes(id));
   };
-  
+
   return (
     <div className="fixed inset-0 z-[9999] flex flex-col" style={{ background: T.pageBg, fontFamily: 'var(--lms-font)' }}>
       <style>{`
@@ -818,12 +821,12 @@ const MockModal: React.FC<{
         .mock-scroll::-webkit-scrollbar-track{background:#e4e4ed;border-radius:99px;}
         .mock-scroll::-webkit-scrollbar-thumb{background:#9b9bae;border-radius:99px;}
       `}</style>
-      
+
       {/* Submit Confirmation Dialog */}
       {showSubmitDialog && (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center" 
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center"
           style={{ background: 'rgba(26,26,46,0.45)', backdropFilter: 'blur(4px)' }}>
-          <div className="bg-white rounded-2xl max-w-md w-full mx-4 overflow-hidden" 
+          <div className="bg-white rounded-2xl max-w-md w-full mx-4 overflow-hidden"
             style={{ border: `1.5px solid ${T.border}` }}>
             <div className="p-6 border-b" style={{ borderBottomColor: T.border }}>
               <div className="flex items-center gap-3">
@@ -839,12 +842,12 @@ const MockModal: React.FC<{
               </div>
             </div>
             <div className="p-6 flex gap-3">
-              <button onClick={() => setShowSubmitDialog(false)} 
+              <button onClick={() => setShowSubmitDialog(false)}
                 className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all"
                 style={{ border: `1.5px solid ${T.border}`, background: 'transparent', color: T.textSub }}>
                 Keep Reviewing
               </button>
-              <button onClick={handleSubmitQuiz} 
+              <button onClick={handleSubmitQuiz}
                 className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all"
                 style={{ background: T.orange, border: 'none' }}>
                 Submit
@@ -853,12 +856,12 @@ const MockModal: React.FC<{
           </div>
         </div>
       )}
-      
+
       {/* Header */}
-      <div className="flex-shrink-0 flex items-center justify-between px-6 py-3" 
+      <div className="flex-shrink-0 flex items-center justify-between px-6 py-3"
         style={{ borderBottom: `1.5px solid ${T.border}`, background: T.bg }}>
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center" 
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center"
             style={{ background: `linear-gradient(135deg, ${T.orange}, ${T.orangeDark})`, boxShadow: `0 3px 10px ${T.orangeLight}` }}>
             <Eye className="h-4 w-4 text-white" />
           </div>
@@ -880,20 +883,20 @@ const MockModal: React.FC<{
           </button>
         </div>
       </div>
-      
+
       {/* Progress bar under header */}
       <div style={{ height: 2, background: T.border }}>
         <div style={{ height: '100%', width: `${progressPct}%`, background: T.orange, transition: 'width 0.3s' }} />
       </div>
-      
+
       {/* Main Body */}
       <div className="flex-1 min-h-0 flex">
-        
+
         {/* Left: Question content */}
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
-          
+
           {/* Question meta bar */}
-          <div className="flex-shrink-0 flex items-center justify-between px-6 py-3" 
+          <div className="flex-shrink-0 flex items-center justify-between px-6 py-3"
             style={{ borderBottom: `1px solid ${T.border}`, background: T.bg }}>
             <div className="flex items-center gap-3">
               <div className="flex items-baseline gap-0.5">
@@ -923,7 +926,7 @@ const MockModal: React.FC<{
               </button>
             )}
           </div>
-          
+
           {/* Scrollable question content */}
           <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-6 mock-scroll">
             {/* Question title + content blocks */}
@@ -983,22 +986,22 @@ const MockModal: React.FC<{
                 </div>
               );
             })()}
-            
+
             {/* Legacy question image */}
             {block.questionImageUrl && (
-              <img src={block.questionImageUrl} alt="" className="mb-4 rounded-xl max-h-48 object-contain" 
+              <img src={block.questionImageUrl} alt="" className="mb-4 rounded-xl max-h-48 object-contain"
                 style={{ border: `1.5px solid ${T.border}` }} />
             )}
-            
+
             {/* Hint text */}
             <p className="text-xs mb-4 flex items-center gap-1.5" style={{ color: T.textHint }}>
               <HelpCircle className="h-3 w-3" />
-              {isTrueFalse ? 'Click to select your answer — correct answer will be shown immediately.' : 
-               isMultiSelect ? 'Select all that apply — answer will be checked immediately.' : 
-               isDropdown ? 'Select from the dropdown — correct answer will be shown.' : 
-               'Click on an option to select — correct answer will be shown immediately.'}
+              {isTrueFalse ? 'Click to select your answer — correct answer will be shown immediately.' :
+                isMultiSelect ? 'Select all that apply — answer will be checked immediately.' :
+                  isDropdown ? 'Select from the dropdown — correct answer will be shown.' :
+                    'Click on an option to select — correct answer will be shown immediately.'}
             </p>
-            
+
             {/* Options */}
             <div className="space-y-2.5">
               {block.options.filter(o => o.text.trim()).map((opt, optIdx) => {
@@ -1008,29 +1011,29 @@ const MockModal: React.FC<{
                 let border = T.border;
                 let textColor = T.textMain;
                 let badge: React.ReactNode = null;
-                
+
                 if (rev) {
-                  if (isCorrect) { 
-                    bg = T.greenLight; 
-                    border = T.green; 
-                    textColor = T.greenDark; 
+                  if (isCorrect) {
+                    bg = T.greenLight;
+                    border = T.green;
+                    textColor = T.greenDark;
                     badge = (
-                      <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full" 
+                      <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full"
                         style={{ background: T.greenLight, color: T.greenDark }}>
                         <Check className="h-2.5 w-2.5" /> Correct
                       </span>
-                    ); 
+                    );
                   }
-                  else if (isSelected && !isCorrect) { 
-                    bg = T.redLight; 
-                    border = T.red; 
-                    textColor = T.red; 
+                  else if (isSelected && !isCorrect) {
+                    bg = T.redLight;
+                    border = T.red;
+                    textColor = T.red;
                     badge = (
-                      <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full" 
+                      <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full"
                         style={{ background: T.redLight, color: T.red }}>
                         <X className="h-2.5 w-2.5" /> Wrong
                       </span>
-                    ); 
+                    );
                   }
                   else if (isCorrect && !isSelected) {
                     // Show correct answer even if not selected
@@ -1038,7 +1041,7 @@ const MockModal: React.FC<{
                     border = T.green;
                     textColor = T.greenDark;
                     badge = (
-                      <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full" 
+                      <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full"
                         style={{ background: T.greenLight, color: T.greenDark }}>
                         <Check className="h-2.5 w-2.5" /> Correct Answer
                       </span>
@@ -1049,9 +1052,9 @@ const MockModal: React.FC<{
                   border = T.orange;
                   textColor = T.orange;
                 }
-                
+
                 const letter = String.fromCharCode(65 + optIdx);
-                
+
                 if (isTrueFalse) {
                   const val = opt.text.toLowerCase() === 'true';
                   return (
@@ -1069,7 +1072,7 @@ const MockModal: React.FC<{
                     </button>
                   );
                 }
-                
+
                 if (isDropdown) {
                   return (
                     <button key={opt.id} type="button"
@@ -1084,7 +1087,7 @@ const MockModal: React.FC<{
                     </button>
                   );
                 }
-                
+
                 return (
                   <button key={opt.id} type="button"
                     onClick={() => handleSelect(block.id, opt.id)}
@@ -1109,7 +1112,7 @@ const MockModal: React.FC<{
                         {badge}
                       </div>
                       {opt.imageUrl && (
-                        <img src={opt.imageUrl} alt="" className="mt-2 h-24 object-cover rounded-lg" 
+                        <img src={opt.imageUrl} alt="" className="mt-2 h-24 object-cover rounded-lg"
                           style={{ border: `1px solid ${T.border}` }} />
                       )}
                     </div>
@@ -1117,7 +1120,7 @@ const MockModal: React.FC<{
                 );
               })}
             </div>
-            
+
             {/* Result banner */}
             {rev && (
               <div className="mt-6 px-4 py-3 rounded-xl flex items-center gap-2"
@@ -1149,7 +1152,7 @@ const MockModal: React.FC<{
                   )}
               </div>
             )}
-            
+
             {/* Explanation if available */}
             {rev && block.hasExplanation && block.explanation && (
               <div className="mt-4 px-4 py-3 rounded-xl" style={{ background: T.blueLight, border: `1.5px solid ${T.blue}30` }}>
@@ -1160,34 +1163,34 @@ const MockModal: React.FC<{
                 <p className="text-xs leading-relaxed" style={{ color: T.textSub }} dangerouslySetInnerHTML={{ __html: block.explanation }} />
               </div>
             )}
-            
+
             <div className="h-4" />
           </div>
         </div>
-        
+
         {/* Right: Question panel */}
-        <div className="w-72 flex-shrink-0 overflow-y-auto border-l mock-scroll" 
+        <div className="w-72 flex-shrink-0 overflow-y-auto border-l mock-scroll"
           style={{ borderLeftColor: T.border, background: T.bg, padding: '16px 12px' }}>
           <div className="flex items-center justify-between mb-4 pb-2 border-b" style={{ borderBottomColor: T.borderLight }}>
             <div className="flex items-center gap-2">
               <Grid3x3 className="h-3.5 w-3.5" style={{ color: T.orange }} />
               <span className="text-xs font-bold" style={{ color: T.textMain }}>Questions</span>
             </div>
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" 
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
               style={{ background: T.orangeLight, color: T.orange }}>{answeredCount}/{mockBlocks.length}</span>
           </div>
-          
+
           <div className="grid grid-cols-5 gap-2">
             {mockBlocks.map((b, i) => {
               const isCurrent = i === idx;
               const isAnsweredFor = isAnsweredForSidebar(i);
               const isCorrectFor = isCorrectForSidebar(i);
               const isRevealedFor = revealed[b.id] || false;
-              
+
               let bg = T.bg;
               let color = T.textSub;
               let border = T.border;
-              
+
               if (isCurrent) {
                 bg = T.orange;
                 color = '#fff';
@@ -1205,7 +1208,7 @@ const MockModal: React.FC<{
                 color = T.orange;
                 border = T.orange + '80';
               }
-              
+
               return (
                 <button key={b.id} onClick={() => handleJumpToQuestion(i)}
                   className="relative aspect-square rounded-lg text-xs font-bold transition-all flex items-center justify-center"
@@ -1225,7 +1228,7 @@ const MockModal: React.FC<{
               );
             })}
           </div>
-          
+
           <div className="mt-5 pt-3 border-t" style={{ borderTopColor: T.borderLight }}>
             <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-[10px]">
               <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full" style={{ background: T.orange }} /><span style={{ color: T.textSub }}>Current</span></div>
@@ -1236,16 +1239,16 @@ const MockModal: React.FC<{
           </div>
         </div>
       </div>
-      
+
       {/* Footer Navigation */}
-      <div className="flex-shrink-0 flex items-center justify-between px-6 py-3" 
+      <div className="flex-shrink-0 flex items-center justify-between px-6 py-3"
         style={{ borderTop: `1.5px solid ${T.border}`, background: T.bg }}>
         <button onClick={() => { setIdx(i => Math.max(0, i - 1)); if (scrollRef.current) scrollRef.current.scrollTop = 0; }} disabled={idx === 0}
           className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all disabled:opacity-40"
           style={{ border: `1.5px solid ${T.border}`, color: T.textSub, background: T.bg }}>
           <ChevronLeft className="h-3.5 w-3.5" /> Previous
         </button>
-        
+
         <div className="flex items-center gap-1">
           {filteredIndices.slice(Math.max(0, idx - 4), Math.min(mockBlocks.length, idx + 5)).map((i) => {
             const isCurr = i === idx;
@@ -1254,14 +1257,14 @@ const MockModal: React.FC<{
             let dotColor = T.border;
             if (isCurr) dotColor = T.orange;
             else if (isDone) dotColor = isCorrectForDot ? T.green : T.orange;
-            
+
             return (
               <button key={i} onClick={() => handleJumpToQuestion(i)}
                 style={{ width: isCurr ? 20 : 6, height: 6, borderRadius: 99, background: dotColor, transition: 'all 0.2s' }} />
             );
           })}
         </div>
-        
+
         {!isLast ? (
           <button onClick={() => { setIdx(i => Math.min(mockBlocks.length - 1, i + 1)); if (scrollRef.current) scrollRef.current.scrollTop = 0; }}
             className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
@@ -2108,19 +2111,7 @@ const PreviewModal: React.FC<{
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [deleteConfirm, setDeleteConfirm] = useState<{ block: QuestionBlock; idx: number } | null>(null);
     const [difficultyFilter, setDifficultyFilter] = useState<'' | 'easy' | 'medium' | 'hard'>('');
-    const [filterMenuOpen, setFilterMenuOpen] = useState(false);
-    const filterRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-      if (!filterMenuOpen) return;
-      const handler = (e: MouseEvent) => {
-        if (filterRef.current && !filterRef.current.contains(e.target as Node)) {
-          setFilterMenuOpen(false);
-        }
-      };
-      document.addEventListener('mousedown', handler);
-      return () => document.removeEventListener('mousedown', handler);
-    }, [filterMenuOpen]);
+    const [sidebarTab, setSidebarTab] = useState<'details' | 'overview' | null>(null);
 
     if (!isOpen) return null;
 
@@ -2128,341 +2119,429 @@ const PreviewModal: React.FC<{
       ? blocks.filter(b => b.difficulty === difficultyFilter)
       : blocks;
 
-    const filterOptions: {
-      key: '' | 'easy' | 'medium' | 'hard';
-      label: string;
-      dot: string;
-      countBg: string;
-      countColor: string;
-    }[] = [
-        { key: '', label: 'All', dot: '#bcbccc', countBg: 'var(--lms-bg-surface2)', countColor: 'var(--lms-text-muted)' },
-        { key: 'easy', label: 'Easy', dot: '#16a34a', countBg: '#dcfce7', countColor: '#15803d' },
-        { key: 'medium', label: 'Medium', dot: '#d97706', countBg: '#fef3c7', countColor: '#b45309' },
-        { key: 'hard', label: 'Hard', dot: '#e53e3e', countBg: '#fee2e2', countColor: '#b91c1c' },
-      ];
-
-    const selected = filterOptions.find(o => o.key === difficultyFilter)!;
-    const selectedCount = difficultyFilter
-      ? blocks.filter(b => b.difficulty === difficultyFilter).length
-      : blocks.length;
+    const availableDiffs = (['easy', 'medium', 'hard'] as const).filter(d =>
+      blocks.some(b => b.difficulty === d)
+    );
+    const savedCount = blocks.filter(b => b.origin === 'db').length;
+    const remainingQ = totalMcqQuestions > 0 ? Math.max(0, totalMcqQuestions - savedCount) : 0;
+    const usedMarksCalc = blocks.filter(b => b.origin === 'db').reduce((s, b) => s + (Number(b.score) || 0), 0);
+    const isExerciseGraded = maxMcqMarks > 0;
+    const mcqExerciseName = exerciseData?.fullExerciseData?.exerciseInformation?.exerciseName || exerciseData?.exerciseName || 'Exercise';
 
     return (
-      <div className="fixed inset-0 z-[150] flex items-center justify-center p-3"
-        style={{ background: 'rgba(26,26,46,0.5)', backdropFilter: 'blur(3px)' }}
-        onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-        <div className="flex flex-col overflow-hidden"
-          style={{
-            width: '96vw', maxWidth: 1500, height: '96vh', maxHeight: '96vh',
-            background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.2)', border: '1.5px solid var(--lms-border)'
-          }}>
-
-          {/* ── Header ── */}
-          <div className="flex items-center justify-between px-5 py-2.5 flex-shrink-0"
-            style={{ borderBottom: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)' }}>
-            <div className="flex items-center gap-3 min-w-0 flex-1">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                style={{ background: 'var(--lms-violet)', boxShadow: '0 2px 8px rgba(124,58,237,0.3)' }}>
-                <Eye className="h-4 w-4 text-white" />
-              </div>
-              <div className="h-5 w-px flex-shrink-0" style={{ background: 'var(--lms-border)' }} />
-              <QuestionFormBreadcrumb
-                breadcrumbs={breadcrumbs || []} tabType={tabType}
-                exerciseName={exerciseName} actionLabel={actionLabel} questionLabel={questionLabel}
-              />
-              <div className="h-5 w-px flex-shrink-0 ml-2" style={{ background: 'var(--lms-border)' }} />
-
-              {/* ── Modern custom difficulty filter ── */}
-              <div ref={filterRef} style={{ position: 'relative', flexShrink: 0 }}>
-                {/* Trigger button */}
-                <button
-                  onClick={() => setFilterMenuOpen(v => !v)}
-                  style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 7,
-                    padding: '5px 10px 5px 9px',
-                    borderRadius: 8,
-                    border: `1.5px solid ${filterMenuOpen ? 'var(--lms-orange)' : 'var(--lms-border)'}`,
-                    background: filterMenuOpen ? 'var(--lms-orange-50)' : 'var(--lms-bg-white)',
-                    cursor: 'pointer', fontFamily: 'var(--lms-font)',
-                    transition: 'all 0.15s',
-                    boxShadow: filterMenuOpen ? '0 0 0 3px var(--lms-orange-light)' : 'none',
-                    minWidth: 130,
-                  }}
-                >
-                  {/* Dot */}
-                  <div style={{
-                    width: 8, height: 8, borderRadius: '50%',
-                    background: selected.dot, flexShrink: 0,
-                  }} />
-                  {/* Label */}
-                  <span style={{
-                    fontSize: 12.5, fontWeight: 600, flex: 1, textAlign: 'left',
-                    color: difficultyFilter
-                      ? diffConfig[difficultyFilter].color
-                      : 'var(--lms-text-main)',
-                  }}>
-                    {selected.label}
-                  </span>
-                  {/* Count badge */}
-                  <span style={{
-                    fontSize: 10, fontWeight: 700, minWidth: 18, textAlign: 'center',
-                    padding: '1px 5px', borderRadius: 10,
-                    background: selected.countBg,
-                    color: selected.countColor,
-                  }}>
-                    {selectedCount}
-                  </span>
-                  {/* Chevron */}
-                  <svg
-                    width="12" height="12" viewBox="0 0 16 16" fill="none"
-                    stroke="var(--lms-text-hint)" strokeWidth={2}
-                    style={{
-                      transition: 'transform 0.15s',
-                      transform: filterMenuOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                      flexShrink: 0,
-                    }}
-                  >
-                    <path d="M4 6l4 4 4-4" />
-                  </svg>
+      <>
+        {/* Exercise Details Modal */}
+        {sidebarTab === 'details' && (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
+            onClick={e => { if (e.target === e.currentTarget) setSidebarTab(null); }}>
+            <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 360, maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              <div style={{ padding: '13px 16px', borderBottom: '1.5px solid var(--lms-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--lms-bg-surface)', flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                  <FileText size={14} style={{ color: 'var(--lms-text-sec)' }} />
+                  <span style={{ fontFamily: 'var(--lms-font)', fontSize: 13, fontWeight: 700, color: 'var(--lms-text-main)' }}>Exercise Details</span>
+                </div>
+                <button type="button" onClick={() => setSidebarTab(null)}
+                  style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--lms-text-muted)', display: 'flex', padding: 4, borderRadius: 6 }}>
+                  <X size={15} />
                 </button>
-
-                {/* Dropdown panel */}
-                {filterMenuOpen && (
-                  <div style={{
-                    position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 300,
-                    background: 'var(--lms-bg-white)',
-                    border: '1.5px solid var(--lms-border)',
-                    borderRadius: 10,
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.10), 0 2px 6px rgba(0,0,0,0.06)',
-                    minWidth: 170, overflow: 'hidden',
-                    animation: 'lms-fade-in 0.15s ease',
-                  }}>
-                    {/* Panel header */}
-                    <div style={{
-                      padding: '8px 12px 6px',
-                      fontSize: 10, fontWeight: 700, color: 'var(--lms-text-hint)',
-                      textTransform: 'uppercase', letterSpacing: '0.07em',
-                      fontFamily: 'var(--lms-font)',
-                      borderBottom: '1px solid var(--lms-border)',
-                    }}>
-                      Filter by difficulty
-                    </div>
-
-                    {filterOptions.map(opt => {
-                      const count = opt.key
-                        ? blocks.filter(b => b.difficulty === opt.key).length
-                        : blocks.length;
-                      const isActive = difficultyFilter === opt.key;
-                      return (
-                        <button
-                          key={opt.key}
-                          onClick={() => { setDifficultyFilter(opt.key); setFilterMenuOpen(false); }}
-                          style={{
-                            width: '100%', display: 'flex', alignItems: 'center', gap: 9,
-                            padding: '8px 12px', border: 'none', cursor: 'pointer',
-                            fontFamily: 'var(--lms-font)',
-                            background: isActive ? 'var(--lms-orange-light)' : 'transparent',
-                            transition: 'background 0.1s',
-                          }}
-                          onMouseEnter={e => {
-                            if (!isActive) (e.currentTarget as HTMLElement).style.background = 'var(--lms-bg-surface)';
-                          }}
-                          onMouseLeave={e => {
-                            if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent';
-                          }}
-                        >
-                          {/* Dot */}
-                          <div style={{
-                            width: 8, height: 8, borderRadius: '50%',
-                            background: opt.dot, flexShrink: 0,
-                          }} />
-                          {/* Label */}
-                          <span style={{
-                            fontSize: 13, flex: 1, textAlign: 'left',
-                            fontWeight: isActive ? 700 : 500,
-                            color: isActive
-                              ? (opt.key ? diffConfig[opt.key].color : 'var(--lms-orange)')
-                              : 'var(--lms-text-main)',
-                          }}>
-                            {opt.label}
-                          </span>
-                          {/* Count badge */}
-                          <span style={{
-                            fontSize: 10, fontWeight: 700, minWidth: 20, textAlign: 'center',
-                            padding: '1px 5px', borderRadius: 8,
-                            background: isActive ? opt.countBg : 'var(--lms-bg-surface2)',
-                            color: isActive ? opt.countColor : 'var(--lms-text-muted)',
-                          }}>
-                            {count}
-                          </span>
-                          {/* Active tick */}
-                          {isActive && (
-                            <Check
-                              style={{
-                                width: 13, height: 13, flexShrink: 0,
-                                color: opt.key ? diffConfig[opt.key].color : 'var(--lms-orange)',
-                              }}
-                              strokeWidth={2.5}
-                            />
-                          )}
-                        </button>
-                      );
-                    })}
+              </div>
+              <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto', padding: '4px 0' }}>
+                {exerciseData?.fullExerciseData?.exerciseInformation?.exerciseId && (
+                  <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                    <span className="lms-detail-label">Exercise ID</span>
+                    <span className="lms-detail-value" style={{ fontFamily: 'ui-monospace, monospace', color: 'var(--lms-violet)', fontSize: 11 }}>
+                      {exerciseData.fullExerciseData.exerciseInformation.exerciseId}
+                    </span>
+                  </div>
+                )}
+                <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                  <span className="lms-detail-label">Exercise Name</span>
+                  <span className="lms-detail-value" style={{ color: 'var(--lms-orange)', fontSize: 11, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {mcqExerciseName}
+                  </span>
+                </div>
+                <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                  <span className="lms-detail-label">Exercise Type</span>
+                  <span className="lms-detail-value" style={{ fontSize: 11, textTransform: 'capitalize' }}>
+                    {exerciseData?.fullExerciseData?.exerciseType || 'mcq'}
+                  </span>
+                </div>
+                <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                  <span className="lms-detail-label">Scoring Type</span>
+                  <span className="lms-detail-value" style={{ fontSize: 11 }}>
+                    {scoringType === 'equalDistribution' ? 'Equal Distribution' : scoringType === 'questionSpecific' ? 'Question Specific' : scoringType}
+                  </span>
+                </div>
+                <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                  <span className="lms-detail-label">Assessment Type</span>
+                  <span className="lms-detail-value" style={{ fontSize: 11, fontWeight: 700, color: isExerciseGraded ? 'var(--lms-success)' : 'var(--lms-warning)' }}>
+                    {isExerciseGraded ? 'Graded' : 'Non-Graded'}
+                  </span>
+                </div>
+                {(exerciseData?.fullExerciseData?.exerciseInformation?.totalDuration || exerciseData?.fullExerciseData?.exerciseInformation?.duration) && (
+                  <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                    <span className="lms-detail-label">Duration</span>
+                    <span className="lms-detail-value" style={{ fontSize: 11 }}>
+                      {exerciseData?.fullExerciseData?.exerciseInformation?.totalDuration || exerciseData?.fullExerciseData?.exerciseInformation?.duration} mins
+                    </span>
                   </div>
                 )}
               </div>
-            </div>
-
-            <div className="flex items-center gap-2.5 flex-shrink-0 ml-4">
-              <button onClick={onClose}
-                className="p-2 rounded-lg transition-colors"
-                style={{ background: 'var(--lms-danger-bg)', border: '1.5px solid var(--lms-danger-bdr)' }}>
-                <X className="h-4 w-4" style={{ color: 'var(--lms-danger)' }} />
-              </button>
-            </div>
-          </div>
-
-          {/* ── Body ── */}
-          <div className="flex flex-1 min-h-0" style={{ overflow: 'hidden' }}>
-            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3" style={{ scrollbarWidth: 'thin' }}>
-              {filteredBlocks.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full py-20"
-                  style={{ color: 'var(--lms-text-hint)' }}>
-                  <Eye className="h-14 w-14 mb-4 opacity-15" />
-                  <p className="text-sm font-semibold" style={{ fontFamily: 'var(--lms-font)' }}>
-                    {difficultyFilter
-                      ? `No ${diffConfig[difficultyFilter].label} questions`
-                      : 'No questions yet'}
-                  </p>
-                  {difficultyFilter && (
-                    <button
-                      onClick={() => setDifficultyFilter('')}
-                      style={{
-                        marginTop: 8, fontSize: 12, fontWeight: 600,
-                        cursor: 'pointer', color: 'var(--lms-info)',
-                        background: 'none', border: 'none',
-                        fontFamily: 'var(--lms-font)',
-                      }}
-                    >
-                      Show all
-                    </button>
-                  )}
-                </div>
-              ) : filteredBlocks.map(block => {
-                const realIdx = blocks.indexOf(block);
-                return (
-                  <PreviewQuestionCard
-                    key={block.id} block={block} globalIndex={realIdx}
-                    isActive={realIdx === currentIndex}
-                    onEdit={() => { onEdit(realIdx); onClose(); }}
-                    onDelete={() => setDeleteConfirm({ block, idx: realIdx })}
-                    scoringType={scoringType} marksPerQuestion={marksPerQuestion}
-                    isDeleting={deletingId === block.id} totalBlocks={blocks.length}
-                  />
-                );
-              })}
-            </div>
-            <div className="w-72 flex-shrink-0" style={{
-              borderLeft: '1.5px solid var(--lms-violet-bdr)',
-              overflow: 'hidden', minWidth: 0,
-              background: 'var(--lms-violet-bg)',
-              display: 'flex',
-              flexDirection: 'column',
-            }}>
-              {/* Preview mode header stripe */}
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: 7,
-                padding: '9px 16px',
-                background: 'var(--lms-violet)',
-                borderBottom: '1.5px solid var(--lms-violet-bdr)',
-                flexShrink: 0,
-              }}>
-                <Eye className="h-3.5 w-3.5 text-white" style={{ flexShrink: 0 }} />
-                <span style={{
-                  fontSize: 11, fontWeight: 700, color: 'white',
-                  letterSpacing: '0.06em', textTransform: 'uppercase',
-                  fontFamily: 'var(--lms-font)',
-                }}>
-                  Preview mode
-                </span>
-                <span style={{
-                  marginLeft: 'auto', fontSize: 10, fontWeight: 600,
-                  color: 'rgba(255,255,255,0.7)', fontFamily: 'var(--lms-font)',
-                }}>
-                  Read only
-                </span>
-              </div>
-
-
-              <div style={{ background: 'var(--lms-violet-bg)', flex: 1, minHeight: 0, overflowY: 'auto', scrollbarWidth: 'thin' }}>
-                <ExerciseDetailsPanel
-                  exerciseData={exerciseData} scoringType={scoringType} marksPerQuestion={marksPerQuestion}
-                  totalMcqQuestions={totalMcqQuestions} maxMcqMarks={maxMcqMarks} blocks={blocks}
-                  currentBlock={null} isSaving={false} onSubmit={() => { }} onClose={onClose}
-                  sidebarBlocks={blocks.filter(b => b.origin === 'db' && !b.isDirty)}
-                  isEditing={isEditing} blockMarksErrors={{}} saveDisabledReason="" isSaveDisabled={false}
-                  showScoreRed={false} isLimitReached={isLimitReached} hideActions
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* ── Footer ── */}
-          <div className="flex-shrink-0 px-5 py-3 flex items-center justify-between"
-            style={{ borderTop: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)' }}>
-            <span className="text-[11px] flex items-center gap-1.5"
-              style={{ color: 'var(--lms-text-muted)', fontFamily: 'var(--lms-font)' }}>
-              <Edit2 className="h-3 w-3" />Click the edit icon on any question to load it in the editor
-            </span>
-            <button onClick={onClose} className="lms-btn lms-btn-slate">Close Preview</button>
-          </div>
-        </div>
-
-        {/* ── Delete confirmation ── */}
-        {deleteConfirm && (
-          <div className="fixed inset-0 z-[210] flex items-center justify-center p-4"
-            style={{ background: 'rgba(26,26,46,0.45)', backdropFilter: 'blur(2px)' }}>
-            <div className="lms-modal" style={{ maxWidth: 400 }}>
-              <div className="lms-modal-header">
-                <div className="lms-modal-icon" style={{ background: 'var(--lms-danger-bg)' }}>
-                  <Trash2 className="h-4 w-4" style={{ color: 'var(--lms-danger)' }} />
-                </div>
-                <h3 className="text-sm font-bold"
-                  style={{ fontFamily: 'var(--lms-font)', color: 'var(--lms-text-main)' }}>
-                  Delete Question
-                </h3>
-              </div>
-              <div className="lms-modal-body">
-                <p className="text-xs font-medium mb-2"
-                  style={{ color: 'var(--lms-text-sec)', fontFamily: 'var(--lms-font)' }}>
-                  {deleteConfirm.block.questionText.replace(/<[^>]*>/g, '').trim() || 'Untitled question'}
-                </p>
-                <p className="text-[11px] font-medium"
-                  style={{ color: 'var(--lms-danger)', fontFamily: 'var(--lms-font)' }}>
-                  This action cannot be undone.
-                </p>
-                <div className="flex items-center gap-2 pt-3">
-                  <button onClick={() => setDeleteConfirm(null)} className="lms-cancel-btn flex-1">
-                    Cancel
-                  </button>
-                  <button
-                    onClick={async () => {
-                      const { block, idx } = deleteConfirm!;
-                      setDeleteConfirm(null);
-                      setDeletingId(block.id);
-                      try { await onDeleteFromPreview(block, idx); } finally { setDeletingId(null); }
-                    }}
-                    className="lms-btn lms-btn-orange flex-1 justify-center"
-                    style={{ background: 'var(--lms-danger)', boxShadow: 'none' }}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />Yes, Delete
-                  </button>
-                </div>
+              <div style={{ padding: '10px 16px', borderTop: '1.5px solid var(--lms-border)', display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
+                <button type="button" onClick={() => setSidebarTab(null)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 16px', borderRadius: 'var(--lms-radius-md)', fontFamily: 'var(--lms-font)', fontSize: 12, fontWeight: 600, border: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-surface)', color: 'var(--lms-text-sec)', cursor: 'pointer' }}>
+                  Close
+                </button>
               </div>
             </div>
           </div>
         )}
-      </div>
+
+        {/* Exercise Overview Modal */}
+        {sidebarTab === 'overview' && (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
+            onClick={e => { if (e.target === e.currentTarget) setSidebarTab(null); }}>
+            <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 400, maxHeight: '86vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              <div style={{ padding: '13px 16px', borderBottom: '1.5px solid var(--lms-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--lms-info-bg)', flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                  <BarChart3 size={14} style={{ color: 'var(--lms-info)' }} />
+                  <span style={{ fontFamily: 'var(--lms-font)', fontSize: 13, fontWeight: 700, color: 'var(--lms-text-main)' }}>Exercise Overview</span>
+                </div>
+                <button type="button" onClick={() => setSidebarTab(null)}
+                  style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--lms-text-muted)', display: 'flex', padding: 4, borderRadius: 6 }}>
+                  <X size={15} />
+                </button>
+              </div>
+              <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto' }}>
+                <div style={{ padding: '12px 16px', borderBottom: '1.5px solid var(--lms-border)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                    <Hash size={12} style={{ color: 'var(--lms-orange)' }} />
+                    <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, fontWeight: 700, color: 'var(--lms-orange)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Overall Questions</span>
+                  </div>
+                  <div className="lms-marks-row">
+                    <span className="lms-marks-label">Total Questions</span>
+                    <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{totalMcqQuestions || '—'}</span>
+                  </div>
+                  <div className="lms-marks-row">
+                    <span className="lms-marks-label">Created</span>
+                    <span className="lms-marks-value" style={{ color: 'var(--lms-violet)', fontSize: 12 }}>
+                      {savedCount}{totalMcqQuestions > 0 && <span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 10 }}>/{totalMcqQuestions}</span>}
+                    </span>
+                  </div>
+                  {totalMcqQuestions > 0 && (
+                    <>
+                      <div className="lms-marks-row">
+                        <span className="lms-marks-label">Remaining</span>
+                        <span className="lms-marks-value" style={{ color: remainingQ === 0 ? 'var(--lms-success)' : 'var(--lms-warning)', fontSize: 12 }}>{remainingQ}</span>
+                      </div>
+                      <div className="lms-progress-bar" style={{ marginTop: 8 }}>
+                        <div className="lms-progress-fill" style={{ width: `${Math.min(100, (savedCount / totalMcqQuestions) * 100)}%`, background: remainingQ === 0 ? 'var(--lms-success)' : 'var(--lms-orange)' }} />
+                      </div>
+                    </>
+                  )}
+                </div>
+                {isExerciseGraded && maxMcqMarks > 0 && (
+                  <div style={{ padding: '12px 16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                      <Award size={12} style={{ color: 'var(--lms-violet)' }} />
+                      <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, fontWeight: 700, color: 'var(--lms-violet)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Overall Marks</span>
+                    </div>
+                    <div className="lms-marks-row">
+                      <span className="lms-marks-label">Total Marks</span>
+                      <span className="lms-marks-value" style={{ color: 'var(--lms-violet)', fontSize: 12 }}>{maxMcqMarks}</span>
+                    </div>
+                    <div className="lms-marks-row">
+                      <span className="lms-marks-label">Per Question</span>
+                      <span className="lms-marks-value" style={{ color: 'var(--lms-orange)', fontSize: 12 }}>{marksPerQuestion}</span>
+                    </div>
+                    <div className="lms-marks-row">
+                      <span className="lms-marks-label">Marks Used</span>
+                      <span className="lms-marks-value" style={{ color: 'var(--lms-warning)', fontSize: 12 }}>
+                        {usedMarksCalc}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 10 }}>/{maxMcqMarks}</span>
+                      </span>
+                    </div>
+                    <div className="lms-marks-row">
+                      <span className="lms-marks-label">Remaining</span>
+                      <span className="lms-marks-value" style={{ color: Math.max(0, maxMcqMarks - usedMarksCalc) === 0 ? 'var(--lms-success)' : 'var(--lms-text-main)', fontSize: 12 }}>
+                        {Math.max(0, maxMcqMarks - usedMarksCalc)}
+                      </span>
+                    </div>
+                    <div className="lms-progress-bar" style={{ marginTop: 8 }}>
+                      <div className="lms-progress-fill" style={{ width: `${Math.min(100, (usedMarksCalc / maxMcqMarks) * 100)}%`, background: usedMarksCalc >= maxMcqMarks ? 'var(--lms-success)' : 'var(--lms-orange)' }} />
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div style={{ padding: '10px 16px', borderTop: '1.5px solid var(--lms-border)', display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
+                <button type="button" onClick={() => setSidebarTab(null)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 16px', borderRadius: 'var(--lms-radius-md)', fontFamily: 'var(--lms-font)', fontSize: 12, fontWeight: 600, border: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-surface)', color: 'var(--lms-text-sec)', cursor: 'pointer' }}>
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="fixed inset-0 z-[150] flex items-center justify-center p-3"
+          style={{ background: 'rgba(26,26,46,0.5)', backdropFilter: 'blur(3px)' }}
+          onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+          <div className="flex flex-col overflow-hidden"
+            style={{
+              width: '96vw', maxWidth: 1500, height: '96vh', maxHeight: '96vh',
+              background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.2)', border: '1.5px solid var(--lms-border)'
+            }}>
+
+            {/* ── Header ── */}
+            <div className="flex items-center justify-between px-5 py-2.5 flex-shrink-0"
+              style={{ borderBottom: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)' }}>
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                  style={{ background: 'var(--lms-violet)', boxShadow: '0 2px 8px rgba(124,58,237,0.3)' }}>
+                  <Eye className="h-4 w-4 text-white" />
+                </div>
+                <div className="h-5 w-px flex-shrink-0" style={{ background: 'var(--lms-border)' }} />
+                <QuestionFormBreadcrumb
+                  breadcrumbs={breadcrumbs || []} tabType={tabType}
+                  exerciseName={exerciseName} actionLabel={actionLabel} questionLabel={questionLabel}
+                />
+                <div className="h-5 w-px flex-shrink-0 ml-2" style={{ background: 'var(--lms-border)' }} />
+
+                {/* Difficulty filter */}
+                {/* Difficulty filter — always visible */}
+                <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+                  <select
+                    value={difficultyFilter}
+                    onChange={e => setDifficultyFilter(e.target.value as any)}
+                    style={{
+                      fontFamily: 'var(--lms-font)', fontSize: 12, fontWeight: 600,
+                      border: `1.5px solid ${difficultyFilter ? (difficultyFilter === 'easy' ? '#bbf7d0' : difficultyFilter === 'medium' ? '#fde68a' : '#fed7d7') : 'var(--lms-border)'}`,
+                      borderRadius: 20, padding: '5px 28px 5px 12px', cursor: 'pointer',
+                      outline: 'none',
+                      background: difficultyFilter ? (difficultyFilter === 'easy' ? '#f0fdf4' : difficultyFilter === 'medium' ? '#fffbeb' : '#fff5f5') : 'var(--lms-bg-surface)',
+                      color: difficultyFilter ? (difficultyFilter === 'easy' ? '#16a34a' : difficultyFilter === 'medium' ? '#d97706' : '#e53e3e') : 'var(--lms-text-sec)',
+                      appearance: 'none', WebkitAppearance: 'none', minWidth: 140,
+                    }}
+                  >
+                    <option value="">All difficulties</option>
+                    <option value="easy">Easy ({blocks.filter(b => b.difficulty === 'easy').length})</option>
+                    <option value="medium">Medium ({blocks.filter(b => b.difficulty === 'medium').length})</option>
+                    <option value="hard">Hard ({blocks.filter(b => b.difficulty === 'hard').length})</option>
+                  </select>
+                  <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8"
+                    style={{ position: 'absolute', right: 9, pointerEvents: 'none', width: 11, height: 11, color: difficultyFilter ? (difficultyFilter === 'easy' ? '#16a34a' : difficultyFilter === 'medium' ? '#d97706' : '#e53e3e') : 'var(--lms-text-sec)' }}>
+                    <path d="M2 4l4 4 4-4" />
+                  </svg>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2.5 flex-shrink-0 ml-4">
+                <button onClick={onClose}
+                  className="p-2 rounded-lg transition-colors"
+                  style={{ background: 'var(--lms-danger-bg)', border: '1.5px solid var(--lms-danger-bdr)' }}>
+                  <X className="h-4 w-4" style={{ color: 'var(--lms-danger)' }} />
+                </button>
+              </div>
+            </div>
+
+            {/* ── Body ── */}
+            <div className="flex flex-1 min-h-0" style={{ overflow: 'hidden' }}>
+              <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3" style={{ scrollbarWidth: 'thin' }}>
+                {filteredBlocks.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full py-20"
+                    style={{ color: 'var(--lms-text-hint)' }}>
+                    <Eye className="h-14 w-14 mb-4 opacity-15" />
+                    <p className="text-sm font-semibold" style={{ fontFamily: 'var(--lms-font)' }}>
+                      {difficultyFilter
+                        ? `No ${difficultyFilter.charAt(0).toUpperCase() + difficultyFilter.slice(1)} questions`
+                        : 'No questions yet'}
+                    </p>
+                    {difficultyFilter && (
+                      <button
+                        onClick={() => setDifficultyFilter('')}
+                        style={{
+                          marginTop: 8, fontSize: 12, fontWeight: 600,
+                          cursor: 'pointer', color: 'var(--lms-info)',
+                          background: 'none', border: 'none',
+                          fontFamily: 'var(--lms-font)',
+                        }}
+                      >
+                        Show all
+                      </button>
+                    )}
+                  </div>
+                ) : filteredBlocks.map(block => {
+                  const realIdx = blocks.indexOf(block);
+                  return (
+                    <PreviewQuestionCard
+                      key={block.id} block={block} globalIndex={realIdx}
+                      isActive={realIdx === currentIndex}
+                      onEdit={() => { onEdit(realIdx); onClose(); }}
+                      onDelete={() => setDeleteConfirm({ block, idx: realIdx })}
+                      scoringType={scoringType} marksPerQuestion={marksPerQuestion}
+                      isDeleting={deletingId === block.id} totalBlocks={blocks.length}
+                    />
+                  );
+                })}
+              </div>
+              {/* Right Sidebar */}
+              <div style={{ width: 280, flexShrink: 0, borderLeft: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+                {/* Two action buttons */}
+                <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: 8, borderBottom: '1.5px solid var(--lms-border)', flexShrink: 0, background: 'var(--lms-bg-surface)' }}>
+                  <button
+                    onClick={() => setSidebarTab('details')}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px', borderRadius: 'var(--lms-radius-md)', fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 600, border: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', color: 'var(--lms-text-sec)', cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left' }}
+                    onMouseEnter={e => { const b = e.currentTarget; b.style.borderColor = 'var(--lms-orange)'; b.style.background = 'var(--lms-orange-50)'; b.style.color = '#c85a30'; }}
+                    onMouseLeave={e => { const b = e.currentTarget; b.style.borderColor = 'var(--lms-border)'; b.style.background = 'var(--lms-bg-white)'; b.style.color = 'var(--lms-text-sec)'; }}
+                  >
+                    <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--lms-orange-50)', border: '1.5px solid var(--lms-orange-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <FileText size={14} style={{ color: 'var(--lms-orange)' }} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 700, color: 'inherit' }}>Exercise Details</div>
+                      <div style={{ fontFamily: 'var(--lms-font)', fontSize: 10.5, color: 'var(--lms-text-muted)', marginTop: 1 }}>ID, type, config, duration</div>
+                    </div>
+                    <ChevronRight className="h-3.5 w-3.5" style={{ color: 'var(--lms-text-hint)', flexShrink: 0 }} />
+                  </button>
+                  <button
+                    onClick={() => setSidebarTab('overview')}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px', borderRadius: 'var(--lms-radius-md)', fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 600, border: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', color: 'var(--lms-text-sec)', cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left' }}
+                    onMouseEnter={e => { const b = e.currentTarget; b.style.borderColor = 'var(--lms-info-bdr)'; b.style.background = 'var(--lms-info-bg)'; b.style.color = 'var(--lms-info)'; }}
+                    onMouseLeave={e => { const b = e.currentTarget; b.style.borderColor = 'var(--lms-border)'; b.style.background = 'var(--lms-bg-white)'; b.style.color = 'var(--lms-text-sec)'; }}
+                  >
+                    <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--lms-info-bg)', border: '1.5px solid var(--lms-info-bdr)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <BarChart3 size={14} style={{ color: 'var(--lms-info)' }} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 700, color: 'inherit' }}>Exercise Overview</div>
+                      <div style={{ fontFamily: 'var(--lms-font)', fontSize: 10.5, color: 'var(--lms-text-muted)', marginTop: 1 }}>Quota, marks, progress</div>
+                    </div>
+                    <ChevronRight className="h-3.5 w-3.5" style={{ color: 'var(--lms-text-hint)', flexShrink: 0 }} />
+                  </button>
+                </div>
+
+                {/* Stats summary */}
+                <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto', padding: '14px 14px' }}>
+                  <div style={{ marginBottom: 14 }}>
+                    <div className="lms-sidebar-section-title" style={{ fontSize: 11 }}>
+                      <Hash size={12} style={{ color: 'var(--lms-orange)' }} />
+                      <span>Questions</span>
+                    </div>
+                    <div className="lms-marks-row">
+                      <span className="lms-marks-label">Total</span>
+                      <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{totalMcqQuestions || '—'}</span>
+                    </div>
+                    <div className="lms-marks-row">
+                      <span className="lms-marks-label">Created</span>
+                      <span className="lms-marks-value" style={{ color: 'var(--lms-violet)', fontSize: 12 }}>
+                        {savedCount}{totalMcqQuestions > 0 && <span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 10 }}>/{totalMcqQuestions}</span>}
+                      </span>
+                    </div>
+                    {totalMcqQuestions > 0 && (
+                      <>
+                        <div className="lms-marks-row">
+                          <span className="lms-marks-label">Remaining</span>
+                          <span className="lms-marks-value" style={{ color: remainingQ === 0 ? 'var(--lms-success)' : 'var(--lms-warning)', fontSize: 12 }}>{remainingQ}</span>
+                        </div>
+                        <div className="lms-progress-bar" style={{ marginTop: 6 }}>
+                          <div className="lms-progress-fill" style={{ width: `${Math.min(100, (savedCount / totalMcqQuestions) * 100)}%`, background: remainingQ === 0 ? 'var(--lms-success)' : 'var(--lms-orange)' }} />
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {isExerciseGraded && maxMcqMarks > 0 && (
+                    <div style={{ borderTop: '1.5px solid var(--lms-border)', paddingTop: 14 }}>
+                      <div className="lms-sidebar-section-title" style={{ fontSize: 11 }}>
+                        <Award size={12} style={{ color: 'var(--lms-orange)' }} />
+                        <span>Marks</span>
+                      </div>
+                      <div className="lms-marks-row">
+                        <span className="lms-marks-label">Per Question</span>
+                        <span className="lms-marks-value" style={{ color: 'var(--lms-orange)', fontSize: 12 }}>{marksPerQuestion}</span>
+                      </div>
+                      <div className="lms-marks-row">
+                        <span className="lms-marks-label">Total</span>
+                        <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{maxMcqMarks}</span>
+                      </div>
+                      <div className="lms-marks-row">
+                        <span className="lms-marks-label">Used</span>
+                        <span className="lms-marks-value" style={{ color: 'var(--lms-warning)', fontSize: 12 }}>
+                          {usedMarksCalc}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 10 }}>/{maxMcqMarks}</span>
+                        </span>
+                      </div>
+                      <div className="lms-marks-row">
+                        <span className="lms-marks-label">Remaining</span>
+                        <span className="lms-marks-value" style={{ color: Math.max(0, maxMcqMarks - usedMarksCalc) === 0 ? 'var(--lms-success)' : 'var(--lms-violet)', fontSize: 12 }}>
+                          {Math.max(0, maxMcqMarks - usedMarksCalc)}
+                        </span>
+                      </div>
+                      <div className="lms-progress-bar" style={{ marginTop: 6 }}>
+                        <div className="lms-progress-fill" style={{ width: `${Math.min(100, (usedMarksCalc / maxMcqMarks) * 100)}%`, background: usedMarksCalc >= maxMcqMarks ? 'var(--lms-success)' : 'var(--lms-orange)' }} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* ── Footer ── */}
+            <div className="flex-shrink-0 px-5 py-3 flex items-center justify-between"
+              style={{ borderTop: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)' }}>
+              <span className="text-[11px] flex items-center gap-1.5"
+                style={{ color: 'var(--lms-text-muted)', fontFamily: 'var(--lms-font)' }}>
+                <Edit2 className="h-3 w-3" />Click the edit icon on any question to load it in the editor
+              </span>
+              <button onClick={onClose} className="lms-btn lms-btn-slate">Close Preview</button>
+            </div>
+          </div>
+
+          {/* ── Delete confirmation ── */}
+          {deleteConfirm && (
+            <div className="fixed inset-0 z-[210] flex items-center justify-center p-4"
+              style={{ background: 'rgba(26,26,46,0.45)', backdropFilter: 'blur(2px)' }}>
+              <div className="lms-modal" style={{ maxWidth: 400 }}>
+                <div className="lms-modal-header">
+                  <div className="lms-modal-icon" style={{ background: 'var(--lms-danger-bg)' }}>
+                    <Trash2 className="h-4 w-4" style={{ color: 'var(--lms-danger)' }} />
+                  </div>
+                  <h3 className="text-sm font-bold"
+                    style={{ fontFamily: 'var(--lms-font)', color: 'var(--lms-text-main)' }}>
+                    Delete Question
+                  </h3>
+                </div>
+                <div className="lms-modal-body">
+                  <p className="text-xs font-medium mb-2"
+                    style={{ color: 'var(--lms-text-sec)', fontFamily: 'var(--lms-font)' }}>
+                    {deleteConfirm.block.questionText.replace(/<[^>]*>/g, '').trim() || 'Untitled question'}
+                  </p>
+                  <p className="text-[11px] font-medium"
+                    style={{ color: 'var(--lms-danger)', fontFamily: 'var(--lms-font)' }}>
+                    This action cannot be undone.
+                  </p>
+                  <div className="flex items-center gap-2 pt-3">
+                    <button onClick={() => setDeleteConfirm(null)} className="lms-cancel-btn flex-1">
+                      Cancel
+                    </button>
+                    <button
+                      onClick={async () => {
+                        const { block, idx } = deleteConfirm!;
+                        setDeleteConfirm(null);
+                        setDeletingId(block.id);
+                        try { await onDeleteFromPreview(block, idx); } finally { setDeletingId(null); }
+                      }}
+                      className="lms-btn lms-btn-orange flex-1 justify-center"
+                      style={{ background: 'var(--lms-danger)', boxShadow: 'none' }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />Yes, Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </>
     );
   };
 
@@ -2543,7 +2622,7 @@ const ExerciseDetailsPanel: React.FC<{
     );
 
     return (
-    <div className="h-full flex flex-col" style={{ background: 'var(--lms-orange-50)', overflow: 'hidden', minHeight: 0 }}>
+      <div className="h-full flex flex-col" style={{ background: 'var(--lms-orange-50)', overflow: 'hidden', minHeight: 0 }}>
         <div className="flex-1 overflow-y-auto min-h-0" style={{ scrollbarWidth: 'thin' }}>
           {/* Exercise Details */}
           <div className="px-4 py-3" style={{ borderBottom: '1.5px solid var(--lms-info-bdr)', background: 'var(--lms-info-bg)' }}>
@@ -2672,7 +2751,7 @@ const ExerciseDetailsPanel: React.FC<{
         </div>
 
         {/* Footer */}
-  {/* Footer — progress bar only (no Cancel / Save buttons) */}
+        {/* Footer — progress bar only (no Cancel / Save buttons) */}
         {isSaving && saveProgress !== undefined && (
           <div className="flex-shrink-0 px-3 py-3" style={{ borderTop: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)' }}>
             <div className="flex items-center gap-2">
@@ -3222,7 +3301,9 @@ const CodeBlock: React.FC<{
 const MCQQuestionForm: React.FC<MCQQuestionFormProps> = ({
   breadcrumbs, exerciseData, tabType, initialData, isEditing = false,
   initialQuestionId,
-  onClose, onSave, isSaving = false, saveProgress, saveMessage
+  onClose, onSave, isSaving = false, saveProgress, saveMessage,
+  onEditExercise,
+  sectionData,
 }) => {
   injectFonts();
   const toast = useToast();
@@ -3268,6 +3349,7 @@ const MCQQuestionForm: React.FC<MCQQuestionFormProps> = ({
   const [showExerciseSettings, setShowExerciseSettings] = useState(false);
   const [exerciseSettingsData, setExerciseSettingsData] = useState<any>(null);
   const [activeFormats, setActiveFormats] = useState<Set<string>>(new Set());
+  const [sidebarTab, setSidebarTab] = useState<'details' | 'overview' | 'section' | null>(null);
 
   const mainScrollRef = useRef<HTMLDivElement>(null);
   const richTextRefs = useRef<{ [id: string]: React.RefObject<HTMLDivElement> }>({});
@@ -3289,6 +3371,8 @@ const MCQQuestionForm: React.FC<MCQQuestionFormProps> = ({
   const entityId = exerciseData?.nodeId || '';
   const exerciseDbId = exerciseData?.exerciseId || exerciseData?.fullExerciseData?._id || exerciseData?.id || '';
   const subcategory = exerciseData?.subcategory || 'assignments';
+  const currentSectionId = exerciseData?.currentSectionId || exerciseData?.fullExerciseData?.currentSectionId || null;
+  const currentSectionName = exerciseData?.currentSectionName || exerciseData?.fullExerciseData?.currentSectionName || null;
 
   const makeDefaultBlock = (id: string, sequence: number = 0): QuestionBlock => ({
     id, origin: 'new', type: 'multiple-choice', questionText: '', title: '', description: '',
@@ -3315,6 +3399,10 @@ const MCQQuestionForm: React.FC<MCQQuestionFormProps> = ({
 
 
   const handleEditExercise = useCallback(() => {
+    // If parent (AddQuestionForm) owns the ExerciseSettings panel, delegate to it
+    // so it can properly refresh exercise data and keep the form mounted.
+    if (onEditExercise) { onEditExercise(); return; }
+
     const settingsData = {
       ...exerciseData?.fullExerciseData,
       exerciseInformation: {
@@ -3396,7 +3484,19 @@ const MCQQuestionForm: React.FC<MCQQuestionFormProps> = ({
         : makeDefaultBlock(id).orderingItems,
     };
   };
-
+  const filterQuestionsBySection = useCallback(
+    (questions: any[]): any[] => {
+      if (!currentSectionId && !currentSectionName) {
+        return questions;
+      }
+      return questions.filter((q: any) => {
+        if (q.sectionId && q.sectionId === currentSectionId) return true;
+        if (!q.sectionId && q.sectionName && q.sectionName === currentSectionName) return true;
+        return false;
+      });
+    },
+    [currentSectionId, currentSectionName]
+  );
   const [questionBlocks, setQuestionBlocks] = useState<QuestionBlock[]>(() => {
     // When editing, start empty — fetchExercise will populate from DB
     if (isEditing) return [];
@@ -3437,8 +3537,8 @@ const MCQQuestionForm: React.FC<MCQQuestionFormProps> = ({
         // ── Prefer cached questions already passed via exerciseData ──────────
         const cachedQuestions = exerciseData?.fullExerciseData?.questions;
         if (cachedQuestions && cachedQuestions.length > 0) {
-          const dbQuestions = cachedQuestions.filter(
-            (q: any) => q.questionType === 'mcq'
+          const dbQuestions = filterQuestionsBySection(
+            cachedQuestions.filter((q: any) => q.questionType === 'mcq')
           );
           const dbBlocks = dbQuestions.map((q: any) => buildBlockFromDbQuestion(q));
           const existingNewBlocks = questionBlocks.filter(b => b.origin === 'new');
@@ -3460,8 +3560,8 @@ const MCQQuestionForm: React.FC<MCQQuestionFormProps> = ({
         // ── Fallback: fetch from API ──────────────────────────────────────────
         const response = await exerciseApi.getExerciseById(exerciseDbId);
         const exercise = response?.data?.exercise;
-        const dbQuestions = (exercise?.questions || []).filter(
-          (q: any) => q.questionType === 'mcq'
+        const dbQuestions = filterQuestionsBySection(
+          (exercise?.questions || []).filter((q: any) => q.questionType === 'mcq')
         );
         const dbBlocks =
           dbQuestions.length > 0
@@ -4103,7 +4203,8 @@ const MCQQuestionForm: React.FC<MCQQuestionFormProps> = ({
       mcqQuestionImageSizePercent: b.questionImageSizePercent || 100,
       questionType: 'mcq', sequence: qi, hasExplanation: b.hasExplanation || false,
       questionContent: b.questionContent || [],
-
+      sectionId: currentSectionId ?? null,
+      sectionName: currentSectionName || undefined,
     };
     if (b.type === 'true-false') q.trueFalseAnswer = b.trueFalseAnswer;
     if (b.type === 'short-answer') q.shortAnswer = b.shortAnswer || '';
@@ -4161,167 +4262,167 @@ const MCQQuestionForm: React.FC<MCQQuestionFormProps> = ({
   };
 
   // ─── PER-QUESTION SAVE ────────────────────────────────────────────────────────
- // ─── PER-QUESTION SAVE ────────────────────────────────────────────────────────
-const handleSaveCurrentQuestion = async (andNext: boolean, andFinish: boolean = false) => {
-  if (!currentBlock) return;
+  // ─── PER-QUESTION SAVE ────────────────────────────────────────────────────────
+  const handleSaveCurrentQuestion = async (andNext: boolean, andFinish: boolean = false) => {
+    if (!currentBlock) return;
 
-  // Capture BEFORE any async state update — used later to decide navigation strategy
-  const wasExistingQuestion = currentBlock.origin === 'db';
+    // Capture BEFORE any async state update — used later to decide navigation strategy
+    const wasExistingQuestion = currentBlock.origin === 'db';
 
-  // ── If already saved and clean, just navigate (no API call needed) ──────
-  const isSavedClean = savedQuestionIds.has(currentBlock.id) && !currentBlock.isDirty;
-  const isDbClean = currentBlock.origin === 'db' && !currentBlock.isDirty;
-  if (isSavedClean || isDbClean) {
-    if (andNext) {
-      const nextIndex = currentIndex + 1;
-      if (nextIndex < questionBlocks.length) {
-        goToIndex(nextIndex);
+    // ── If already saved and clean, just navigate (no API call needed) ──────
+    const isSavedClean = savedQuestionIds.has(currentBlock.id) && !currentBlock.isDirty;
+    const isDbClean = currentBlock.origin === 'db' && !currentBlock.isDirty;
+    if (isSavedClean || isDbClean) {
+      if (andNext) {
+        const nextIndex = currentIndex + 1;
+        if (nextIndex < questionBlocks.length) {
+          goToIndex(nextIndex);
+        } else {
+          // No next block — check quota before deciding to create one or toast
+          const usedSavedCount = savedBlocks.filter(b => b.id !== currentBlock.id).length + 1;
+          const usedSavedMarks = savedBlocks
+            .filter(b => b.id !== currentBlock.id)
+            .reduce((s, b) => s + (Number(b.score) || 0), 0) + (Number(currentBlock.score) || 0);
+          const canAddMore = scoringType === 'equalDistribution'
+            ? (totalMcqQuestions <= 0 || usedSavedCount < totalMcqQuestions)
+            : (maxMcqMarks <= 0 || (maxMcqMarks - usedSavedMarks) >= 0.1);
+          if (canAddMore) {
+            const id = generateId('block');
+            setQuestionBlocks(bs => {
+              const newBlock = makeDefaultBlock(id, bs.length);
+              setCurrentIndex(bs.length);
+              return [...bs, newBlock];
+            });
+            setTimeout(() => mainScrollRef.current?.scrollTo({ top: 0 }), 50);
+          } else {
+            toast.info('Last question', 'You are already on the last question.');
+          }
+        }
+      } else if (andFinish) {
+        // If already saved and Finish clicked, just close
+        clearDraft();
+        onClose();
+        toast.success('All questions saved!', 'You can now preview the mock test.');
+        return;
+      }
+      return;
+    }
+
+    // Step 1: validate
+    const valid = triggerValidationForBlock(currentBlock);
+    if (!valid) {
+      const firstError = getFirstValidationError(currentBlock);
+      toast.error('Validation failed', firstError || 'Please fix all errors before saving.');
+      return;
+    }
+    if (blockMarksErrors[currentBlock.id]) {
+      toast.error('Score error', blockMarksErrors[currentBlock.id]);
+      return;
+    }
+
+    setIsSavingQuestion(true);
+    try {
+      if (currentBlock.origin === 'db' && currentBlock.dbId) {
+        // ── UPDATE existing DB question ──────────────────────────────────────────
+        await questionApi.updateMCQQuestion(
+          entityType, entityId, exerciseDbId,
+          currentBlock.dbId, currentBlock, tabType, subcategory
+        );
+        setQuestionBlocks(prev =>
+          prev.map(b => b.id === currentBlock.id ? { ...b, isDirty: false } : b)
+        );
+        setSavedQuestionIds(prev => new Set([...prev, currentBlock.id]));
+        toast.success('Question updated', 'Changes have been saved.');
       } else {
-        // No next block — check quota before deciding to create one or toast
-        const usedSavedCount = savedBlocks.filter(b => b.id !== currentBlock.id).length + 1;
-        const usedSavedMarks = savedBlocks
+        // ── CREATE new question ──────────────────────────────────────────────────
+        const allImages: any[] = [];
+        const { question, images } = buildQuestionPayload(currentBlock, 0);
+        allImages.push(...images);
+
+        const fd = new FormData();
+        fd.append('questionsData', JSON.stringify([question]));
+        fd.append('questionsData[0]', JSON.stringify(question));
+        fd.append('tabType', tabType);
+        fd.append('subcategory', subcategory);
+        allImages.forEach(item =>
+          fd.append(
+            item.type === 'option' ? `question_0_option_${item.oi}_image` : `question_0_image`,
+            item.file
+          )
+        );
+
+        const response = await questionApi.addQuestion(
+          entityType, entityId, exerciseDbId, fd, tabType, subcategory
+        );
+        clearDraft();
+
+        // Try to capture the new DB ID from API response
+        const newDbId = response?.data?.questions?.[0]?._id
+          || response?.data?.question?._id
+          || response?.data?._id
+          || undefined;
+
+        // Mark as saved in local state
+        setQuestionBlocks(prev =>
+          prev.map(b => b.id === currentBlock.id
+            ? { ...b, origin: 'db' as const, isDirty: false, dbId: newDbId || b.dbId }
+            : b
+          )
+        );
+        setSavedQuestionIds(prev => new Set([...prev, currentBlock.id]));
+        toast.success('Question saved', 'Question added to the exercise.');
+      }
+
+      // ── Save & Finish: close modal after save ─────────────────────────────
+      if (andFinish) {
+        clearDraft();
+        onClose();
+        toast.success('All questions saved!', 'Exercise is now complete.');
+        return;
+      }
+
+      // Step 2: if Save & Next
+      if (andNext) {
+        const nextIndex = currentIndex + 1;
+
+        // ── If a next block already exists in the list, just navigate to it ──
+        if (nextIndex < questionBlocks.length) {
+          goToIndex(nextIndex);
+          return;
+        }
+
+        // ── No next block exists — check quota for both new and existing questions ──
+        const updatedSavedMarks = savedBlocks
           .filter(b => b.id !== currentBlock.id)
           .reduce((s, b) => s + (Number(b.score) || 0), 0) + (Number(currentBlock.score) || 0);
-        const canAddMore = scoringType === 'equalDistribution'
-          ? (totalMcqQuestions <= 0 || usedSavedCount < totalMcqQuestions)
-          : (maxMcqMarks <= 0 || (maxMcqMarks - usedSavedMarks) >= 0.1);
-        if (canAddMore) {
-          const id = generateId('block');
-          setQuestionBlocks(bs => {
-            const newBlock = makeDefaultBlock(id, bs.length);
-            setCurrentIndex(bs.length);
-            return [...bs, newBlock];
-          });
-          setTimeout(() => mainScrollRef.current?.scrollTo({ top: 0 }), 50);
-        } else {
+        const updatedSavedCount = savedBlocks.filter(b => b.id !== currentBlock.id).length + 1;
+
+        const canAdd = scoringType === 'equalDistribution'
+          ? (totalMcqQuestions <= 0 || updatedSavedCount < totalMcqQuestions)
+          : (maxMcqMarks <= 0 || (maxMcqMarks - updatedSavedMarks) >= 0.1);
+
+        if (!canAdd) {
           toast.info('Last question', 'You are already on the last question.');
+          return;
         }
+
+        const id = generateId('block');
+        setQuestionBlocks(bs => {
+          const newBlock = makeDefaultBlock(id, bs.length);
+          setCurrentIndex(bs.length);
+          return [...bs, newBlock];
+        });
+        setTimeout(() => mainScrollRef.current?.scrollTo({ top: 0 }), 50);
       }
-    } else if (andFinish) {
-      // If already saved and Finish clicked, just close
-      clearDraft();
-      onClose();
-      toast.success('All questions saved!', 'You can now preview the mock test.');
-      return;
+    } catch (err: any) {
+      toast.error(
+        'Save failed',
+        err?.response?.data?.message?.[0]?.value || 'Could not save the question.'
+      );
+    } finally {
+      setIsSavingQuestion(false);
     }
-    return;
-  }
-
-  // Step 1: validate
-  const valid = triggerValidationForBlock(currentBlock);
-  if (!valid) {
-    const firstError = getFirstValidationError(currentBlock);
-    toast.error('Validation failed', firstError || 'Please fix all errors before saving.');
-    return;
-  }
-  if (blockMarksErrors[currentBlock.id]) {
-    toast.error('Score error', blockMarksErrors[currentBlock.id]);
-    return;
-  }
-
-  setIsSavingQuestion(true);
-  try {
-    if (currentBlock.origin === 'db' && currentBlock.dbId) {
-      // ── UPDATE existing DB question ──────────────────────────────────────────
-      await questionApi.updateMCQQuestion(
-        entityType, entityId, exerciseDbId,
-        currentBlock.dbId, currentBlock, tabType, subcategory
-      );
-      setQuestionBlocks(prev =>
-        prev.map(b => b.id === currentBlock.id ? { ...b, isDirty: false } : b)
-      );
-      setSavedQuestionIds(prev => new Set([...prev, currentBlock.id]));
-      toast.success('Question updated', 'Changes have been saved.');
-    } else {
-      // ── CREATE new question ──────────────────────────────────────────────────
-      const allImages: any[] = [];
-      const { question, images } = buildQuestionPayload(currentBlock, 0);
-      allImages.push(...images);
-
-      const fd = new FormData();
-      fd.append('questionsData', JSON.stringify([question]));
-      fd.append('questionsData[0]', JSON.stringify(question));
-      fd.append('tabType', tabType);
-      fd.append('subcategory', subcategory);
-      allImages.forEach(item =>
-        fd.append(
-          item.type === 'option' ? `question_0_option_${item.oi}_image` : `question_0_image`,
-          item.file
-        )
-      );
-
-      const response = await questionApi.addQuestion(
-        entityType, entityId, exerciseDbId, fd, tabType, subcategory
-      );
-      clearDraft();
-
-      // Try to capture the new DB ID from API response
-      const newDbId = response?.data?.questions?.[0]?._id
-        || response?.data?.question?._id
-        || response?.data?._id
-        || undefined;
-
-      // Mark as saved in local state
-      setQuestionBlocks(prev =>
-        prev.map(b => b.id === currentBlock.id
-          ? { ...b, origin: 'db' as const, isDirty: false, dbId: newDbId || b.dbId }
-          : b
-        )
-      );
-      setSavedQuestionIds(prev => new Set([...prev, currentBlock.id]));
-      toast.success('Question saved', 'Question added to the exercise.');
-    }
-
-    // ── Save & Finish: close modal after save ─────────────────────────────
-    if (andFinish) {
-      clearDraft();
-      onClose();
-      toast.success('All questions saved!', 'Exercise is now complete.');
-      return;
-    }
-
-    // Step 2: if Save & Next
-    if (andNext) {
-      const nextIndex = currentIndex + 1;
-
-      // ── If a next block already exists in the list, just navigate to it ──
-      if (nextIndex < questionBlocks.length) {
-        goToIndex(nextIndex);
-        return;
-      }
-
-      // ── No next block exists — check quota for both new and existing questions ──
-      const updatedSavedMarks = savedBlocks
-        .filter(b => b.id !== currentBlock.id)
-        .reduce((s, b) => s + (Number(b.score) || 0), 0) + (Number(currentBlock.score) || 0);
-      const updatedSavedCount = savedBlocks.filter(b => b.id !== currentBlock.id).length + 1;
-
-      const canAdd = scoringType === 'equalDistribution'
-        ? (totalMcqQuestions <= 0 || updatedSavedCount < totalMcqQuestions)
-        : (maxMcqMarks <= 0 || (maxMcqMarks - updatedSavedMarks) >= 0.1);
-
-      if (!canAdd) {
-        toast.info('Last question', 'You are already on the last question.');
-        return;
-      }
-
-      const id = generateId('block');
-      setQuestionBlocks(bs => {
-        const newBlock = makeDefaultBlock(id, bs.length);
-        setCurrentIndex(bs.length);
-        return [...bs, newBlock];
-      });
-      setTimeout(() => mainScrollRef.current?.scrollTo({ top: 0 }), 50);
-    }
-  } catch (err: any) {
-    toast.error(
-      'Save failed',
-      err?.response?.data?.message?.[0]?.value || 'Could not save the question.'
-    );
-  } finally {
-    setIsSavingQuestion(false);
-  }
-};
+  };
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     markAllEmptyOptions();
@@ -4900,93 +5001,93 @@ const handleSaveCurrentQuestion = async (andNext: boolean, andFinish: boolean = 
         />
       )}
 
-   {/* ── HEADER ── */}
-<div className="flex items-center justify-between px-4 py-2.5 flex-shrink-0"
-  style={{ background: 'var(--lms-bg-white)', borderBottom: '1.5px solid var(--lms-border)' }}>
-  <div className="flex items-center gap-3 min-w-0 flex-1">
-    <div className="lms-header-logo-mark">
-      <GraduationCap className="h-4 w-4 text-white" />
-    </div>
-    <div className="h-5 w-px flex-shrink-0" style={{ background: 'var(--lms-border)' }} />
-    <div className="min-w-0 flex-1">
-      <QuestionFormBreadcrumb breadcrumbs={breadcrumbs || []} tabType={tabType} exerciseName={exerciseName} actionLabel={actionLabel} questionLabel={questionLabel} />
-    </div>
-  </div>
-
-  <div className="flex items-center gap-2 flex-shrink-0 ml-3">
-    {loadingExercise && (
-      <span className="flex items-center gap-1.5 text-[11px] font-semibold px-2 py-1 rounded-lg mr-2"
-        style={{ color: 'var(--lms-orange)', background: 'var(--lms-orange-50)', border: '1.5px solid var(--lms-orange-100)', fontFamily: 'var(--lms-font)' }}>
-        <Loader className="h-3 w-3 animate-spin" />Loading…
-      </span>
-    )}
-    {dirtyBlocks.length > 0 && (
-      <span className="lms-badge lms-badge-amber mr-2">
-        <Edit2 className="h-2.5 w-2.5" />{dirtyBlocks.length} edited
-      </span>
-    )}
-
-    <button
-      onClick={() => setShowPreviewModal(true)}
-      disabled={savedBlocks.length === 0}
-      className="lms-btn lms-btn-ghost-violet mr-2"
-      style={savedBlocks.length === 0 ? { opacity: 0.45, cursor: 'not-allowed' } : {}}
-    >
-      <Eye className="h-3.5 w-3.5" />Preview
-      {savedBlocks.length > 0 && (
-        <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full" style={{ background: 'var(--lms-violet)', color: 'white' }}>
-          {savedBlocks.length}
-        </span>
-      )}
-    </button>
-
-    {limitReachedForAI ? (
-      <div className="relative group/ai-limit mr-2">
-        <div className="lms-btn lms-btn-orange" style={{ opacity: 0.5, cursor: 'not-allowed' }}>
-          <Sparkles className="h-3.5 w-3.5" />Generate AI
-        </div>
-        <div className="absolute top-full right-0 mt-2 z-[9999] w-64 text-[11px] font-medium px-3 py-2.5 rounded-lg leading-relaxed pointer-events-none opacity-0 group-hover/ai-limit:opacity-100 transition-opacity"
-          style={{ background: '#1a1a2e', color: 'white', boxShadow: '0 4px 20px rgba(0,0,0,0.25)', fontFamily: 'var(--lms-font)' }}>
-          <div className="absolute top-[-5px] right-4 w-2.5 h-2.5 rotate-45" style={{ background: '#1a1a2e' }} />
-          <div className="flex items-start gap-2">
-            <AlertCircle className="h-3.5 w-3.5 text-amber-400 flex-shrink-0 mt-0.5" />
-            <span>{getAiLimitTooltip()}</span>
+      {/* ── HEADER ── */}
+      <div className="flex items-center justify-between px-4 py-2.5 flex-shrink-0"
+        style={{ background: 'var(--lms-bg-white)', borderBottom: '1.5px solid var(--lms-border)' }}>
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <div className="lms-header-logo-mark">
+            <GraduationCap className="h-4 w-4 text-white" />
+          </div>
+          <div className="h-5 w-px flex-shrink-0" style={{ background: 'var(--lms-border)' }} />
+          <div className="min-w-0 flex-1">
+            <QuestionFormBreadcrumb breadcrumbs={breadcrumbs || []} tabType={tabType} exerciseName={exerciseName} actionLabel={actionLabel} questionLabel={questionLabel} />
           </div>
         </div>
+
+        <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+          {loadingExercise && (
+            <span className="flex items-center gap-1.5 text-[11px] font-semibold px-2 py-1 rounded-lg mr-2"
+              style={{ color: 'var(--lms-orange)', background: 'var(--lms-orange-50)', border: '1.5px solid var(--lms-orange-100)', fontFamily: 'var(--lms-font)' }}>
+              <Loader className="h-3 w-3 animate-spin" />Loading…
+            </span>
+          )}
+          {dirtyBlocks.length > 0 && (
+            <span className="lms-badge lms-badge-amber mr-2">
+              <Edit2 className="h-2.5 w-2.5" />{dirtyBlocks.length} edited
+            </span>
+          )}
+
+          <button
+            onClick={() => setShowPreviewModal(true)}
+            disabled={savedBlocks.length === 0}
+            className="lms-btn lms-btn-ghost-violet mr-2"
+            style={savedBlocks.length === 0 ? { opacity: 0.45, cursor: 'not-allowed' } : {}}
+          >
+            <Eye className="h-3.5 w-3.5" />Preview
+            {savedBlocks.length > 0 && (
+              <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full" style={{ background: 'var(--lms-violet)', color: 'white' }}>
+                {savedBlocks.length}
+              </span>
+            )}
+          </button>
+
+          {limitReachedForAI ? (
+            <div className="relative group/ai-limit mr-2">
+              <div className="lms-btn lms-btn-orange" style={{ opacity: 0.5, cursor: 'not-allowed' }}>
+                <Sparkles className="h-3.5 w-3.5" />Generate AI
+              </div>
+              <div className="absolute top-full right-0 mt-2 z-[9999] w-64 text-[11px] font-medium px-3 py-2.5 rounded-lg leading-relaxed pointer-events-none opacity-0 group-hover/ai-limit:opacity-100 transition-opacity"
+                style={{ background: '#1a1a2e', color: 'white', boxShadow: '0 4px 20px rgba(0,0,0,0.25)', fontFamily: 'var(--lms-font)' }}>
+                <div className="absolute top-[-5px] right-4 w-2.5 h-2.5 rotate-45" style={{ background: '#1a1a2e' }} />
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-3.5 w-3.5 text-amber-400 flex-shrink-0 mt-0.5" />
+                  <span>{getAiLimitTooltip()}</span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <GenerateMCQAIQuestion
+              breadcrumbs={breadcrumbs} exerciseData={exerciseData}
+              onClose={() => { }} onSave={handleAIGeneratedQuestions}
+              buttonClassName="lms-btn lms-btn-orange mr-2"
+              buttonText={<span className="flex items-center gap-1.5"><Sparkles className="h-3.5 w-3.5" />Generate AI</span>}
+              scoringType={scoringType} marksPerQuestion={marksPerQuestion}
+              maxSelectableCount={scoringType === 'equalDistribution' && totalMcqQuestions > 0
+                ? Math.max(isCurrentBlockFillable ? 1 : 0, totalMcqQuestions - questionBlocks.length + (isCurrentBlockFillable ? 1 : 0))
+                : -1}
+              remainingMarks={scoringType === 'questionSpecific' && maxMcqMarks > 0
+                ? Math.max(0, maxMcqMarks - questionBlocks.reduce((s, b) => s + (Number(b.score) || 0), 0))
+                : undefined}
+            />
+          )}
+
+          {!isEditing && exerciseData?.id && (
+            <span className="text-[10px] font-semibold px-1.5 py-1 rounded-lg hidden sm:block mr-2"
+              style={{ background: 'var(--lms-orange-50)', color: '#c85a30', border: '1.5px solid var(--lms-orange-100)', fontFamily: 'var(--lms-font)' }}>Auto-saved</span>
+          )}
+
+          <button onClick={handleEditExercise} className="lms-btn lms-btn-ghost-orange mr-2">
+            <Settings2 className="h-3.5 w-3.5" />Edit Exercise
+          </button>
+          <button
+            onClick={handleCloseClick}
+            className="p-2 rounded-lg transition-colors cursor-pointer bg-red-100 hover:bg-red-200"
+            style={{ color: 'var(--lms-text-muted)' }}
+          >
+            <X className="h-4 w-4 text-red-600" />
+          </button>
+        </div>
       </div>
-    ) : (
-      <GenerateMCQAIQuestion
-        breadcrumbs={breadcrumbs} exerciseData={exerciseData}
-        onClose={() => { }} onSave={handleAIGeneratedQuestions}
-        buttonClassName="lms-btn lms-btn-orange mr-2"
-        buttonText={<span className="flex items-center gap-1.5"><Sparkles className="h-3.5 w-3.5" />Generate AI</span>}
-        scoringType={scoringType} marksPerQuestion={marksPerQuestion}
-        maxSelectableCount={scoringType === 'equalDistribution' && totalMcqQuestions > 0
-          ? Math.max(isCurrentBlockFillable ? 1 : 0, totalMcqQuestions - questionBlocks.length + (isCurrentBlockFillable ? 1 : 0))
-          : -1}
-        remainingMarks={scoringType === 'questionSpecific' && maxMcqMarks > 0
-          ? Math.max(0, maxMcqMarks - questionBlocks.reduce((s, b) => s + (Number(b.score) || 0), 0))
-          : undefined}
-      />
-    )}
-
-    {!isEditing && exerciseData?.id && (
-      <span className="text-[10px] font-semibold px-1.5 py-1 rounded-lg hidden sm:block mr-2"
-        style={{ background: 'var(--lms-orange-50)', color: '#c85a30', border: '1.5px solid var(--lms-orange-100)', fontFamily: 'var(--lms-font)' }}>Auto-saved</span>
-    )}
-
-    <button onClick={handleEditExercise} className="lms-btn lms-btn-ghost-orange mr-2">
-      <Settings2 className="h-3.5 w-3.5" />Edit Overview
-    </button>
- <button 
-  onClick={handleCloseClick} 
-  className="p-2 rounded-lg transition-colors cursor-pointer bg-red-100 hover:bg-red-200" 
-  style={{ color: 'var(--lms-text-muted)' }}
->
-  <X className="h-4 w-4 text-red-600" />
-</button>
-  </div>
-</div>
       {/* ── BODY ── */}
       <div className="flex flex-1 min-h-0" style={{ overflow: 'hidden' }}>
 
@@ -5347,229 +5448,343 @@ const handleSaveCurrentQuestion = async (andNext: boolean, andFinish: boolean = 
               </div>
             )}
           </div>
-<div className="flex-shrink-0 py-3" style={{ borderTop: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', paddingLeft: 32, paddingRight: 32 }}>
-  <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: 8 }}>
+          <div className="flex-shrink-0 py-3" style={{ borderTop: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', paddingLeft: 32, paddingRight: 32 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: 8 }}>
 
-    {/* LEFT: empty spacer */}
-    <div />
+              {/* LEFT: empty spacer */}
+              <div />
 
-    {/* CENTER: Prev · counter · Next · Save&Next/Finish */}
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-      <button onClick={handlePrevQuestion} disabled={currentIndex === 0} className="lms-nav-btn flex-shrink-0">
-        <ChevronLeft className="h-3.5 w-3.5" />Prev
-      </button>
+              {/* CENTER: Prev · counter · Next · Save&Next/Finish */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                <button onClick={handlePrevQuestion} disabled={currentIndex === 0} className="lms-nav-btn flex-shrink-0">
+                  <ChevronLeft className="h-3.5 w-3.5" />Prev
+                </button>
 
-      <span className="text-[12px] font-medium flex-shrink-0" style={{ color: 'var(--lms-text-sec)', fontFamily: 'var(--lms-font)', whiteSpace: 'nowrap' }}>
-        <span style={{ color: 'var(--lms-orange)', fontWeight: 700 }}>{currentIndex + 1}</span>
-        <span style={{ color: 'var(--lms-text-hint)' }}> / </span>
-        {questionBlocks.length}
-      </span>
+                <span className="text-[12px] font-medium flex-shrink-0" style={{ color: 'var(--lms-text-sec)', fontFamily: 'var(--lms-font)', whiteSpace: 'nowrap' }}>
+                  <span style={{ color: 'var(--lms-orange)', fontWeight: 700 }}>{currentIndex + 1}</span>
+                  <span style={{ color: 'var(--lms-text-hint)' }}> / </span>
+                  {questionBlocks.length}
+                </span>
 
-      <button
-        onClick={() => goToIndex(currentIndex + 1)}
-        disabled={currentIndex >= questionBlocks.length - 1}
-        className="lms-nav-btn flex-shrink-0"
-      >
-        Next <ChevronRight className="h-3.5 w-3.5" />
-      </button>
+                <button
+                  onClick={() => goToIndex(currentIndex + 1)}
+                  disabled={currentIndex >= questionBlocks.length - 1}
+                  className="lms-nav-btn flex-shrink-0"
+                >
+                  Next <ChevronRight className="h-3.5 w-3.5" />
+                </button>
 
-    {currentBlock && !isSaveAndFinish && (
-  <button
-    onClick={() => handleSaveCurrentQuestion(true)}
-    disabled={isSavingQuestion}
-    className="lms-btn flex-shrink-0"
-    style={{
-      background: 'var(--lms-orange)', color: 'white',
-      borderColor: 'transparent',
-      boxShadow: '0 2px 8px var(--lms-orange-glow)',
-      fontFamily: 'var(--lms-font)',
-    }}
-  >
-    {isSavingQuestion
-      ? <><Loader className="h-3.5 w-3.5 animate-spin" />Saving…</>
-      : <><CloudUpload className="h-3.5 w-3.5" />Save &amp; Next</>
-    }
-  </button>
-)}
+                {currentBlock && !isSaveAndFinish && (
+                  <button
+                    onClick={() => handleSaveCurrentQuestion(true)}
+                    disabled={isSavingQuestion}
+                    className="lms-btn flex-shrink-0"
+                    style={{
+                      background: 'var(--lms-orange)', color: 'white',
+                      borderColor: 'transparent',
+                      boxShadow: '0 2px 8px var(--lms-orange-glow)',
+                      fontFamily: 'var(--lms-font)',
+                    }}
+                  >
+                    {isSavingQuestion
+                      ? <><Loader className="h-3.5 w-3.5 animate-spin" />Saving…</>
+                      : <><CloudUpload className="h-3.5 w-3.5" />Save &amp; Next</>
+                    }
+                  </button>
+                )}
 
-{currentBlock && isSaveAndFinish && (
-  <>
-    <button
-      onClick={() => handleSaveCurrentQuestion(false, false)}
-      disabled={isSavingQuestion}
-      className="lms-btn flex-shrink-0"
-      style={{
-        background: 'var(--lms-orange)', color: 'white',
-        borderColor: 'transparent',
-        boxShadow: '0 2px 8px var(--lms-orange-glow)',
-        fontFamily: 'var(--lms-font)',
-      }}
-    >
-      {isSavingQuestion
-        ? <><Loader className="h-3.5 w-3.5 animate-spin" />Saving…</>
-        : <><CloudUpload className="h-3.5 w-3.5" />Save</>
-      }
-    </button>
-    <button
-      onClick={() => { 
-        // First save the current question, then finish
-        handleSaveCurrentQuestion(false, true);
-      }}
-      className="lms-btn flex-shrink-0"
-      style={{
-        background: 'var(--lms-success)', color: 'white',
-        borderColor: 'transparent',
-        boxShadow: '0 2px 8px rgba(22,163,74,0.25)',
-        fontFamily: 'var(--lms-font)',
-      }}
-    >
-      <Check className="h-3.5 w-3.5" />Finish
-    </button>
-  </>
-)}
-    </div>
+                {currentBlock && isSaveAndFinish && (
+                  <>
+                    <button
+                      onClick={() => handleSaveCurrentQuestion(false, false)}
+                      disabled={isSavingQuestion}
+                      className="lms-btn flex-shrink-0"
+                      style={{
+                        background: 'var(--lms-orange)', color: 'white',
+                        borderColor: 'transparent',
+                        boxShadow: '0 2px 8px var(--lms-orange-glow)',
+                        fontFamily: 'var(--lms-font)',
+                      }}
+                    >
+                      {isSavingQuestion
+                        ? <><Loader className="h-3.5 w-3.5 animate-spin" />Saving…</>
+                        : <><CloudUpload className="h-3.5 w-3.5" />Save</>
+                      }
+                    </button>
+                    <button
+                      onClick={() => {
+                        // First save the current question, then finish
+                        handleSaveCurrentQuestion(false, true);
+                      }}
+                      className="lms-btn flex-shrink-0"
+                      style={{
+                        background: 'var(--lms-success)', color: 'white',
+                        borderColor: 'transparent',
+                        boxShadow: '0 2px 8px rgba(22,163,74,0.25)',
+                        fontFamily: 'var(--lms-font)',
+                      }}
+                    >
+                      <Check className="h-3.5 w-3.5" />Finish
+                    </button>
+                  </>
+                )}
+              </div>
 
-    {/* RIGHT: Saved indicator + Required + Delete + Duplicate + Clear */}
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+              {/* RIGHT: Saved indicator + Required + Delete + Duplicate + Clear */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
 
-      {currentBlock && (() => {
-        const isSavedClean = savedQuestionIds.has(currentBlock.id) && !currentBlock.isDirty;
-        const isDbClean = currentBlock.origin === 'db' && !currentBlock.isDirty;
-        const alreadySaved = isSavedClean || isDbClean;
-        return alreadySaved ? (
-          <span className="flex items-center gap-1.5 text-[11px] font-semibold flex-shrink-0"
-            style={{ color: 'var(--lms-success)', fontFamily: 'var(--lms-font)' }}>
-            <CheckCircle2 className="h-3.5 w-3.5" />Saved
-          </span>
-        ) : (
-          <span className="flex items-center gap-1.5 text-[11px] font-semibold flex-shrink-0"
-            style={{ color: 'var(--lms-warning)', fontFamily: 'var(--lms-font)' }}>
-            <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--lms-warning)', flexShrink: 0 }} />
-            Unsaved
-          </span>
-        );
-      })()}
+                {currentBlock && (() => {
+                  const isSavedClean = savedQuestionIds.has(currentBlock.id) && !currentBlock.isDirty;
+                  const isDbClean = currentBlock.origin === 'db' && !currentBlock.isDirty;
+                  const alreadySaved = isSavedClean || isDbClean;
+                  return alreadySaved ? (
+                    <span className="flex items-center gap-1.5 text-[11px] font-semibold flex-shrink-0"
+                      style={{ color: 'var(--lms-success)', fontFamily: 'var(--lms-font)' }}>
+                      <CheckCircle2 className="h-3.5 w-3.5" />Saved
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1.5 text-[11px] font-semibold flex-shrink-0"
+                      style={{ color: 'var(--lms-warning)', fontFamily: 'var(--lms-font)' }}>
+                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--lms-warning)', flexShrink: 0 }} />
+                      Unsaved
+                    </span>
+                  );
+                })()}
 
-      <div className="w-px h-5 flex-shrink-0" style={{ background: 'var(--lms-border)' }} />
+                <div className="w-px h-5 flex-shrink-0" style={{ background: 'var(--lms-border)' }} />
 
-      {currentBlock && (
-        <label className="flex items-center gap-1.5 cursor-pointer select-none flex-shrink-0">
-          <span className="text-[11px] font-medium" style={{ color: 'var(--lms-text-sec)', fontFamily: 'var(--lms-font)' }}>Required</span>
-          <button type="button" onClick={() => updateBlock(currentBlock.id, { isRequired: !currentBlock.isRequired })}
-            className="relative rounded-full transition-colors flex-shrink-0"
-            style={{ width: 28, height: 16, background: currentBlock.isRequired ? 'var(--lms-orange)' : 'var(--lms-border-hover)' }}>
-            <div className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow-sm transition-transform ${currentBlock.isRequired ? 'translate-x-3' : 'translate-x-0.5'}`} />
-          </button>
-        </label>
-      )}
+                {currentBlock && (
+                  <label className="flex items-center gap-1.5 cursor-pointer select-none flex-shrink-0">
+                    <span className="text-[11px] font-medium" style={{ color: 'var(--lms-text-sec)', fontFamily: 'var(--lms-font)' }}>Required</span>
+                    <button type="button" onClick={() => updateBlock(currentBlock.id, { isRequired: !currentBlock.isRequired })}
+                      className="relative rounded-full transition-colors flex-shrink-0"
+                      style={{ width: 28, height: 16, background: currentBlock.isRequired ? 'var(--lms-orange)' : 'var(--lms-border-hover)' }}>
+                      <div className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow-sm transition-transform ${currentBlock.isRequired ? 'translate-x-3' : 'translate-x-0.5'}`} />
+                    </button>
+                  </label>
+                )}
 
-      <div className="w-px h-5 flex-shrink-0" style={{ background: 'var(--lms-border)' }} />
+                <div className="w-px h-5 flex-shrink-0" style={{ background: 'var(--lms-border)' }} />
 
-      {currentBlock && questionBlocks.length > 1 && (
-        <div className="lms-tooltip-wrap flex-shrink-0">
-          <button onClick={() => requestDelete(currentIndex)} className="lms-icon-btn lms-icon-btn-red">
-            <Trash2 className="h-4 w-4" />
-          </button>
-          <div className="lms-tooltip lms-tooltip-right" style={{ background: 'var(--lms-danger)' }}>
-            Delete question
-            <div style={{ borderTopColor: 'var(--lms-danger)' }} />
+                {currentBlock && questionBlocks.length > 1 && (
+                  <div className="lms-tooltip-wrap flex-shrink-0">
+                    <button onClick={() => requestDelete(currentIndex)} className="lms-icon-btn lms-icon-btn-red">
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                    <div className="lms-tooltip lms-tooltip-right" style={{ background: 'var(--lms-danger)' }}>
+                      Delete question
+                      <div style={{ borderTopColor: 'var(--lms-danger)' }} />
+                    </div>
+                  </div>
+                )}
+
+                {currentBlock && (
+                  <div className="lms-tooltip-wrap flex-shrink-0">
+                    <button onClick={duplicateQuestionBlock} disabled={!currentBlockIsValid}
+                      className={`lms-icon-btn ${currentBlockIsValid ? 'lms-icon-btn-violet' : 'lms-icon-btn-slate'}`}
+                      style={!currentBlockIsValid ? { cursor: 'not-allowed', opacity: 0.45 } : {}}>
+                      <Copy className="h-4 w-4" />
+                    </button>
+                    <div className="lms-tooltip lms-tooltip-right">{currentBlockIsValid ? 'Duplicate question' : 'Complete question first'}</div>
+                  </div>
+                )}
+
+                {currentBlock && (
+                  <div className="lms-tooltip-wrap flex-shrink-0">
+                    <button onClick={() => {
+                      const defaultBlock = makeDefaultBlock(currentBlock.id, currentIndex);
+                      updateBlock(currentBlock.id, {
+                        questionText: defaultBlock.questionText, questionContent: defaultBlock.questionContent,
+                        options: defaultBlock.options, matchingPairs: defaultBlock.matchingPairs,
+                        orderingItems: defaultBlock.orderingItems, trueFalseAnswer: defaultBlock.trueFalseAnswer,
+                        shortAnswer: defaultBlock.shortAnswer, numericAnswer: defaultBlock.numericAnswer,
+                        numericTolerance: defaultBlock.numericTolerance, hasExplanation: defaultBlock.hasExplanation,
+                        explanation: defaultBlock.explanation, questionImageUrl: defaultBlock.questionImageUrl,
+                        optionsPerRow: defaultBlock.optionsPerRow,
+                      });
+                      const ref = richTextRefs.current[currentBlock.id]?.current;
+                      if (ref) ref.innerHTML = '';
+                      setQuestionTextEmpty(prev => ({ ...prev, [currentBlock.id]: true }));
+                      setErrors(prev => { const nb = { ...(prev.blocks || {}) }; delete nb[currentBlock.id]; return { blocks: nb }; });
+                      setValidationAttempted(prev => { const s = new Set(prev); s.delete(currentBlock.id); return s; });
+                      setEmptyOptWarnings(prev => { const n = { ...prev }; delete n[currentBlock.id]; return n; });
+                      setSavedQuestionIds(prev => { const s = new Set(prev); s.delete(currentBlock.id); return s; });
+                    }} className="lms-icon-btn lms-icon-btn-slate">
+                      <RotateCcw className="h-4 w-4" />
+                    </button>
+                    <div className="lms-tooltip lms-tooltip-right">Clear question</div>
+                  </div>
+                )}
+
+              </div>
+
+            </div>
           </div>
-        </div>
-      )}
-
-      {currentBlock && (
-        <div className="lms-tooltip-wrap flex-shrink-0">
-          <button onClick={duplicateQuestionBlock} disabled={!currentBlockIsValid}
-            className={`lms-icon-btn ${currentBlockIsValid ? 'lms-icon-btn-violet' : 'lms-icon-btn-slate'}`}
-            style={!currentBlockIsValid ? { cursor: 'not-allowed', opacity: 0.45 } : {}}>
-            <Copy className="h-4 w-4" />
-          </button>
-          <div className="lms-tooltip lms-tooltip-right">{currentBlockIsValid ? 'Duplicate question' : 'Complete question first'}</div>
-        </div>
-      )}
-
-      {currentBlock && (
-        <div className="lms-tooltip-wrap flex-shrink-0">
-          <button onClick={() => {
-            const defaultBlock = makeDefaultBlock(currentBlock.id, currentIndex);
-            updateBlock(currentBlock.id, {
-              questionText: defaultBlock.questionText, questionContent: defaultBlock.questionContent,
-              options: defaultBlock.options, matchingPairs: defaultBlock.matchingPairs,
-              orderingItems: defaultBlock.orderingItems, trueFalseAnswer: defaultBlock.trueFalseAnswer,
-              shortAnswer: defaultBlock.shortAnswer, numericAnswer: defaultBlock.numericAnswer,
-              numericTolerance: defaultBlock.numericTolerance, hasExplanation: defaultBlock.hasExplanation,
-              explanation: defaultBlock.explanation, questionImageUrl: defaultBlock.questionImageUrl,
-              optionsPerRow: defaultBlock.optionsPerRow,
-            });
-            const ref = richTextRefs.current[currentBlock.id]?.current;
-            if (ref) ref.innerHTML = '';
-            setQuestionTextEmpty(prev => ({ ...prev, [currentBlock.id]: true }));
-            setErrors(prev => { const nb = { ...(prev.blocks || {}) }; delete nb[currentBlock.id]; return { blocks: nb }; });
-            setValidationAttempted(prev => { const s = new Set(prev); s.delete(currentBlock.id); return s; });
-            setEmptyOptWarnings(prev => { const n = { ...prev }; delete n[currentBlock.id]; return n; });
-            setSavedQuestionIds(prev => { const s = new Set(prev); s.delete(currentBlock.id); return s; });
-          }} className="lms-icon-btn lms-icon-btn-slate">
-            <RotateCcw className="h-4 w-4" />
-          </button>
-          <div className="lms-tooltip lms-tooltip-right">Clear question</div>
-        </div>
-      )}
-
-    </div>
-
-  </div>
-</div>
         </div>
 
         {/* ── RIGHT PANEL ── */}
-        <div className="w-72 flex-shrink-0 flex flex-col" style={{ borderLeft: '1.5px solid var(--lms-border)', overflow: 'hidden', minWidth: 0 }}>
-          <div className="flex-1 overflow-hidden min-h-0">
-            <ExerciseDetailsPanel
-              exerciseData={exerciseData} scoringType={scoringType} marksPerQuestion={marksPerQuestion}
-              totalMcqQuestions={totalMcqQuestions} maxMcqMarks={maxMcqMarks} blocks={questionBlocks}
-              currentBlock={currentBlock} isSaving={isSaving} onSubmit={handleSubmit}
-              onClose={handleCloseClick} isEditing={isEditing} blockMarksErrors={blockMarksErrors}
-              saveProgress={saveProgress} saveMessage={saveMessage} saveDisabledReason={saveDisabledReason}
-              sidebarBlocks={savedBlocks}
-              isSaveDisabled={isSaveDisabled} showScoreRed={showScoreRed} isLimitReached={limitReached}
-            />
+        <div style={{ width: 280, flexShrink: 0, borderLeft: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+          {/* Two action buttons */}
+          <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: 8, borderBottom: '1.5px solid var(--lms-border)', flexShrink: 0, background: 'var(--lms-bg-surface)' }}>
+            <button
+              onClick={() => setSidebarTab('details')}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px', borderRadius: 'var(--lms-radius-md)', fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 600, border: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', color: 'var(--lms-text-sec)', cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left' }}
+              onMouseEnter={e => { const b = e.currentTarget; b.style.borderColor = 'var(--lms-orange)'; b.style.background = 'var(--lms-orange-50)'; b.style.color = '#c85a30'; }}
+              onMouseLeave={e => { const b = e.currentTarget; b.style.borderColor = 'var(--lms-border)'; b.style.background = 'var(--lms-bg-white)'; b.style.color = 'var(--lms-text-sec)'; }}
+            >
+              <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--lms-orange-50)', border: '1.5px solid var(--lms-orange-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <FileText size={14} style={{ color: 'var(--lms-orange)' }} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 700, color: 'inherit' }}>Exercise Details</div>
+                <div style={{ fontFamily: 'var(--lms-font)', fontSize: 10.5, color: 'var(--lms-text-muted)', marginTop: 1 }}>ID, type, config, duration</div>
+              </div>
+              <ChevronRight size={13} style={{ color: 'var(--lms-text-hint)', flexShrink: 0 }} />
+            </button>
+            <button
+              onClick={() => setSidebarTab('overview')}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px', borderRadius: 'var(--lms-radius-md)', fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 600, border: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', color: 'var(--lms-text-sec)', cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left' }}
+              onMouseEnter={e => { const b = e.currentTarget; b.style.borderColor = 'var(--lms-info-bdr)'; b.style.background = 'var(--lms-info-bg)'; b.style.color = 'var(--lms-info)'; }}
+              onMouseLeave={e => { const b = e.currentTarget; b.style.borderColor = 'var(--lms-border)'; b.style.background = 'var(--lms-bg-white)'; b.style.color = 'var(--lms-text-sec)'; }}
+            >
+              <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--lms-info-bg)', border: '1.5px solid var(--lms-info-bdr)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <BarChart3 size={14} style={{ color: 'var(--lms-info)' }} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 700, color: 'inherit' }}>Exercise Overview</div>
+                <div style={{ fontFamily: 'var(--lms-font)', fontSize: 10.5, color: 'var(--lms-text-muted)', marginTop: 1 }}>Quota, marks, progress</div>
+              </div>
+              <ChevronRight size={13} style={{ color: 'var(--lms-text-hint)', flexShrink: 0 }} />
+            </button>
+            {sectionData && (
+              <button
+                onClick={() => setSidebarTab('section')}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px', borderRadius: 'var(--lms-radius-md)', fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 600, border: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', color: 'var(--lms-text-sec)', cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left', marginTop: 8 }}
+                onMouseEnter={e => { const b = e.currentTarget; b.style.borderColor = 'var(--lms-violet-bdr)'; b.style.background = 'var(--lms-violet-bg)'; b.style.color = 'var(--lms-violet)'; }}
+                onMouseLeave={e => { const b = e.currentTarget; b.style.borderColor = 'var(--lms-border)'; b.style.background = 'var(--lms-bg-white)'; b.style.color = 'var(--lms-text-sec)'; }}
+              >
+                <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--lms-violet-bg)', border: '1.5px solid var(--lms-violet-bdr)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Layers size={14} style={{ color: 'var(--lms-violet)' }} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 700, color: 'inherit' }}>Section Details</div>
+                  <div style={{ fontFamily: 'var(--lms-font)', fontSize: 10.5, color: 'var(--lms-text-muted)', marginTop: 1 }}>{sectionData.name || 'Current section'}</div>
+                </div>
+                <ChevronRight size={13} style={{ color: 'var(--lms-text-hint)', flexShrink: 0 }} />
+              </button>
+            )}
           </div>
+
+          {/* Stats summary */}
+          {(() => {
+            const _savedCount = savedBlocks.length;
+            const _remainingQ = Math.max(0, totalMcqQuestions - _savedCount);
+            const _usedMarks = scoringType === 'equalDistribution'
+              ? _savedCount * marksPerQuestion
+              : savedBlocks.reduce((s, b) => s + (Number(b.score) || 0), 0);
+            const _isGraded = exerciseData?.fullExerciseData?.isGraded !== false;
+            return (
+              <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto', padding: '14px 14px' }}>
+                {/* Questions */}
+                <div style={{ marginBottom: 14 }}>
+                  <div className="lms-sidebar-section-title" style={{ fontSize: 11 }}>
+                    <Hash size={12} style={{ color: 'var(--lms-orange)' }} />
+                    <span>Questions</span>
+                  </div>
+                  <div className="lms-marks-row">
+                    <span className="lms-marks-label">Total</span>
+                    <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{totalMcqQuestions || '—'}</span>
+                  </div>
+                  <div className="lms-marks-row">
+                    <span className="lms-marks-label">Created</span>
+                    <span className="lms-marks-value" style={{ color: 'var(--lms-violet)', fontSize: 12 }}>
+                      {_savedCount}{totalMcqQuestions > 0 && <span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 10 }}>/{totalMcqQuestions}</span>}
+                    </span>
+                  </div>
+                  {totalMcqQuestions > 0 && (
+                    <>
+                      <div className="lms-marks-row">
+                        <span className="lms-marks-label">Remaining</span>
+                        <span className="lms-marks-value" style={{ color: _remainingQ === 0 ? 'var(--lms-success)' : 'var(--lms-warning)', fontSize: 12 }}>{_remainingQ}</span>
+                      </div>
+                      <div className="lms-progress-bar" style={{ marginTop: 6 }}>
+                        <div className="lms-progress-fill" style={{ width: `${Math.min(100, (_savedCount / totalMcqQuestions) * 100)}%`, background: _remainingQ === 0 ? 'var(--lms-success)' : 'var(--lms-orange)' }} />
+                      </div>
+                    </>
+                  )}
+                </div>
+                {/* Marks */}
+                {_isGraded && maxMcqMarks > 0 && (
+                  <div style={{ borderTop: '1.5px solid var(--lms-border)', paddingTop: 14 }}>
+                    <div className="lms-sidebar-section-title" style={{ fontSize: 11 }}>
+                      <Award size={12} style={{ color: 'var(--lms-orange)' }} />
+                      <span>Marks</span>
+                    </div>
+                    <div className="lms-marks-row">
+                      <span className="lms-marks-label">Per Question</span>
+                      <span className="lms-marks-value" style={{ color: 'var(--lms-orange)', fontSize: 12 }}>{marksPerQuestion}</span>
+                    </div>
+                    <div className="lms-marks-row">
+                      <span className="lms-marks-label">Total</span>
+                      <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{maxMcqMarks}</span>
+                    </div>
+                    <div className="lms-marks-row">
+                      <span className="lms-marks-label">Used</span>
+                      <span className="lms-marks-value" style={{ color: 'var(--lms-warning)', fontSize: 12 }}>
+                        {_usedMarks}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 10 }}>/{maxMcqMarks}</span>
+                      </span>
+                    </div>
+                    <div className="lms-marks-row">
+                      <span className="lms-marks-label">Remaining</span>
+                      <span className="lms-marks-value" style={{ color: Math.max(0, maxMcqMarks - _usedMarks) === 0 ? 'var(--lms-success)' : 'var(--lms-violet)', fontSize: 12 }}>
+                        {Math.max(0, maxMcqMarks - _usedMarks)}
+                      </span>
+                    </div>
+                    <div className="lms-progress-bar" style={{ marginTop: 6 }}>
+                      <div className="lms-progress-fill" style={{ width: `${Math.min(100, (_usedMarks / maxMcqMarks) * 100)}%`, background: _usedMarks >= maxMcqMarks ? 'var(--lms-success)' : 'var(--lms-orange)' }} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           {/* Mock + Close buttons */}
-         <div className="flex-shrink-0 px-3 py-2.5 flex items-center gap-2"
-  style={{ borderTop: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)' }}>
-  <button
-    type="button"
-    onClick={() => setShowMockModal(true)}
-    disabled={!isSaveAndFinish || !currentBlockIsValid || !savedQuestionIds.has(currentBlock?.id || '') && currentBlock?.origin !== 'db'}
-    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-    style={{
-      background: isSaveAndFinish && currentBlockIsValid ? 'var(--lms-orange)' : 'var(--lms-bg-surface2)',
-      color: isSaveAndFinish && currentBlockIsValid ? '#fff' : 'var(--lms-text-muted)',
-      border: `1.5px solid ${isSaveAndFinish && currentBlockIsValid ? 'var(--lms-orange)' : 'var(--lms-border)'}`,
-      fontFamily: 'var(--lms-font)',
-      minWidth: '120px', // Add minimum width
-      height: '36px', // Set fixed height
-    }}
-    title={!isSaveAndFinish ? 'Complete all required questions to enable Mock' : !currentBlockIsValid ? 'Fill in all fields for the last question first' : 'Preview all questions as a mock test'}>
-    <Eye className="h-3.5 w-3.5" />
-    Mock Preview
-  </button>
-  <button
-    type="button"
-    onClick={handleCloseClick}
-    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
-    style={{
-      background: 'var(--lms-bg-surface2)',
-      color: 'var(--lms-text-sec)',
-      border: '1.5px solid var(--lms-border)',
-      fontFamily: 'var(--lms-font)',
-      minWidth: '120px', // Add same minimum width
-      height: '36px', // Set same fixed height
-    }}>
-    <X className="h-3.5 w-3.5" />
-    Close
-  </button>
-</div>
+          <div className="flex-shrink-0 px-3 py-2.5 flex items-center gap-2"
+            style={{ borderTop: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)' }}>
+            <button
+              type="button"
+              onClick={() => setShowMockModal(true)}
+              disabled={!isSaveAndFinish || !currentBlockIsValid || !savedQuestionIds.has(currentBlock?.id || '') && currentBlock?.origin !== 'db'}
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{
+                background: isSaveAndFinish && currentBlockIsValid ? 'var(--lms-orange)' : 'var(--lms-bg-surface2)',
+                color: isSaveAndFinish && currentBlockIsValid ? '#fff' : 'var(--lms-text-muted)',
+                border: `1.5px solid ${isSaveAndFinish && currentBlockIsValid ? 'var(--lms-orange)' : 'var(--lms-border)'}`,
+                fontFamily: 'var(--lms-font)',
+                minWidth: '120px', // Add minimum width
+                height: '36px', // Set fixed height
+              }}
+              title={!isSaveAndFinish ? 'Complete all required questions to enable Mock' : !currentBlockIsValid ? 'Fill in all fields for the last question first' : 'Preview all questions as a mock test'}>
+              <Eye className="h-3.5 w-3.5" />
+              Mock Preview
+            </button>
+            <button
+              type="button"
+              onClick={handleCloseClick}
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+              style={{
+                background: 'var(--lms-bg-surface2)',
+                color: 'var(--lms-text-sec)',
+                border: '1.5px solid var(--lms-border)',
+                fontFamily: 'var(--lms-font)',
+                minWidth: '120px', // Add same minimum width
+                height: '36px', // Set same fixed height
+              }}>
+              <X className="h-3.5 w-3.5" />
+              Close
+            </button>
+          </div>
         </div>
       </div>
 
@@ -5585,7 +5800,7 @@ const handleSaveCurrentQuestion = async (andNext: boolean, andFinish: boolean = 
       <PreviewModal
         isOpen={showPreviewModal} breadcrumbs={breadcrumbs} tabType={tabType}
         exerciseName={exerciseName} actionLabel="Preview" questionLabel={questionLabel}
-onClose={() => setShowPreviewModal(false)} blocks={savedBlocks} currentIndex={Math.min(currentIndex, Math.max(0, savedBlocks.length - 1))}
+        onClose={() => setShowPreviewModal(false)} blocks={savedBlocks} currentIndex={Math.min(currentIndex, Math.max(0, savedBlocks.length - 1))}
         onEdit={(idx) => { goToIndex(idx); }} onDeleteFromPreview={handleDeleteFromPreview}
         scoringType={scoringType} marksPerQuestion={marksPerQuestion} exerciseData={exerciseData}
         maxMcqMarks={maxMcqMarks} totalMcqQuestions={totalMcqQuestions} isSaving={isSaving}
@@ -5627,6 +5842,263 @@ onClose={() => setShowPreviewModal(false)} blocks={savedBlocks} currentIndex={Ma
 
       {showDifficultyMenu && <div className="fixed inset-0 z-40" onClick={() => setShowDifficultyMenu(false)} />}
       {showQTypeMenu && <div className="fixed inset-0 z-40" onClick={() => setShowQTypeMenu(false)} />}
+
+      {/* ── Exercise Details overlay modal ── */}
+      {sidebarTab === 'details' && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
+          onClick={e => { if (e.target === e.currentTarget) setSidebarTab(null); }}>
+          <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 360, maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ padding: '13px 16px', borderBottom: '1.5px solid var(--lms-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--lms-bg-surface)', flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <FileText size={14} style={{ color: 'var(--lms-text-sec)' }} />
+                <span style={{ fontFamily: 'var(--lms-font)', fontSize: 13, fontWeight: 700, color: 'var(--lms-text-main)' }}>Exercise Details</span>
+              </div>
+              <button type="button" onClick={() => setSidebarTab(null)}
+                style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--lms-text-muted)', display: 'flex', padding: 4, borderRadius: 6 }}>
+                <X size={15} />
+              </button>
+            </div>
+            <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto', padding: '4px 0' }}>
+              {exerciseData?.fullExerciseData?.exerciseInformation?.exerciseId && (
+                <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                  <span className="lms-detail-label">Exercise ID</span>
+                  <span className="lms-detail-value" style={{ fontFamily: 'ui-monospace, monospace', color: 'var(--lms-violet)', fontSize: 11 }}>
+                    {exerciseData.fullExerciseData.exerciseInformation.exerciseId}
+                  </span>
+                </div>
+              )}
+              <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                <span className="lms-detail-label">Exercise Name</span>
+                <span className="lms-detail-value" style={{ color: 'var(--lms-orange)', fontSize: 11, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {exerciseName}
+                </span>
+              </div>
+              <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                <span className="lms-detail-label">Exercise Type</span>
+                <span className="lms-detail-value" style={{ fontSize: 11, textTransform: 'capitalize' }}>
+                  {exerciseData?.fullExerciseData?.exerciseType || 'mcq'}
+                </span>
+              </div>
+              <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                <span className="lms-detail-label">Scoring Type</span>
+                <span className="lms-detail-value" style={{ fontSize: 11 }}>
+                  {scoringType === 'equalDistribution' ? 'Equal Distribution' : scoringType === 'questionSpecific' ? 'Question Specific' : scoringType}
+                </span>
+              </div>
+              <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                <span className="lms-detail-label">Assessment Type</span>
+                <span className="lms-detail-value" style={{ fontSize: 11, fontWeight: 700, color: exerciseData?.fullExerciseData?.isGraded !== false ? 'var(--lms-success)' : 'var(--lms-warning)' }}>
+                  {exerciseData?.fullExerciseData?.isGraded !== false ? 'Graded' : 'Non-Graded'}
+                </span>
+              </div>
+              {(exerciseData?.fullExerciseData?.exerciseInformation?.totalDuration || exerciseData?.fullExerciseData?.exerciseInformation?.duration) && (
+                <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                  <span className="lms-detail-label">Duration</span>
+                  <span className="lms-detail-value" style={{ fontSize: 11 }}>
+                    {exerciseData?.fullExerciseData?.exerciseInformation?.totalDuration || exerciseData?.fullExerciseData?.exerciseInformation?.duration} mins
+                  </span>
+                </div>
+              )}
+            </div>
+            <div style={{ padding: '10px 16px', borderTop: '1.5px solid var(--lms-border)', display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
+              <button type="button" onClick={() => setSidebarTab(null)}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 16px', borderRadius: 'var(--lms-radius-md)', fontFamily: 'var(--lms-font)', fontSize: 12, fontWeight: 600, border: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-surface)', color: 'var(--lms-text-sec)', cursor: 'pointer' }}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Exercise Overview overlay modal ── */}
+      {sidebarTab === 'overview' && (() => {
+        const _savedCount = savedBlocks.length;
+        const _remainingQ = Math.max(0, totalMcqQuestions - _savedCount);
+        const _usedMarks = savedBlocks.reduce((s, b) => s + (Number(b.score) || 0), 0);
+        const _isGraded = exerciseData?.fullExerciseData?.isGraded !== false;
+        return (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
+            onClick={e => { if (e.target === e.currentTarget) setSidebarTab(null); }}>
+            <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 400, maxHeight: '86vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              <div style={{ padding: '13px 16px', borderBottom: '1.5px solid var(--lms-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--lms-info-bg)', flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                  <BarChart3 size={14} style={{ color: 'var(--lms-info)' }} />
+                  <span style={{ fontFamily: 'var(--lms-font)', fontSize: 13, fontWeight: 700, color: 'var(--lms-text-main)' }}>Exercise Overview</span>
+                </div>
+                <button type="button" onClick={() => setSidebarTab(null)}
+                  style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--lms-text-muted)', display: 'flex', padding: 4, borderRadius: 6 }}>
+                  <X size={15} />
+                </button>
+              </div>
+              <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto' }}>
+                <div style={{ padding: '12px 16px', borderBottom: '1.5px solid var(--lms-border)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                    <Hash size={12} style={{ color: 'var(--lms-orange)' }} />
+                    <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, fontWeight: 700, color: 'var(--lms-orange)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Overall Questions</span>
+                  </div>
+                  <div className="lms-marks-row">
+                    <span className="lms-marks-label">Total Questions</span>
+                    <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{totalMcqQuestions || '—'}</span>
+                  </div>
+                  <div className="lms-marks-row">
+                    <span className="lms-marks-label">Created</span>
+                    <span className="lms-marks-value" style={{ color: 'var(--lms-violet)', fontSize: 12 }}>
+                      {_savedCount}{totalMcqQuestions > 0 && <span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 10 }}>/{totalMcqQuestions}</span>}
+                    </span>
+                  </div>
+                  {totalMcqQuestions > 0 && (
+                    <>
+                      <div className="lms-marks-row">
+                        <span className="lms-marks-label">Remaining</span>
+                        <span className="lms-marks-value" style={{ color: _remainingQ === 0 ? 'var(--lms-success)' : 'var(--lms-warning)', fontSize: 12 }}>{_remainingQ}</span>
+                      </div>
+                      <div className="lms-progress-bar" style={{ marginTop: 8 }}>
+                        <div className="lms-progress-fill" style={{ width: `${Math.min(100, (_savedCount / totalMcqQuestions) * 100)}%`, background: _remainingQ === 0 ? 'var(--lms-success)' : 'var(--lms-orange)' }} />
+                      </div>
+                    </>
+                  )}
+                </div>
+                {_isGraded && maxMcqMarks > 0 && (
+                  <div style={{ padding: '12px 16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                      <Award size={12} style={{ color: 'var(--lms-violet)' }} />
+                      <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, fontWeight: 700, color: 'var(--lms-violet)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Overall Marks</span>
+                    </div>
+                    <div className="lms-marks-row">
+                      <span className="lms-marks-label">Total Marks</span>
+                      <span className="lms-marks-value" style={{ color: 'var(--lms-violet)', fontSize: 12 }}>{maxMcqMarks}</span>
+                    </div>
+                    <div className="lms-marks-row">
+                      <span className="lms-marks-label">Per Question</span>
+                      <span className="lms-marks-value" style={{ color: 'var(--lms-orange)', fontSize: 12 }}>{marksPerQuestion}</span>
+                    </div>
+                    <div className="lms-marks-row">
+                      <span className="lms-marks-label">Marks Used</span>
+                      <span className="lms-marks-value" style={{ color: 'var(--lms-warning)', fontSize: 12 }}>
+                        {_usedMarks}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 10 }}>/{maxMcqMarks}</span>
+                      </span>
+                    </div>
+                    <div className="lms-marks-row">
+                      <span className="lms-marks-label">Remaining</span>
+                      <span className="lms-marks-value" style={{ color: Math.max(0, maxMcqMarks - _usedMarks) === 0 ? 'var(--lms-success)' : 'var(--lms-text-main)', fontSize: 12 }}>
+                        {Math.max(0, maxMcqMarks - _usedMarks)}
+                      </span>
+                    </div>
+                    <div className="lms-progress-bar" style={{ marginTop: 8 }}>
+                      <div className="lms-progress-fill" style={{ width: `${Math.min(100, (_usedMarks / maxMcqMarks) * 100)}%`, background: _usedMarks >= maxMcqMarks ? 'var(--lms-success)' : 'var(--lms-orange)' }} />
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div style={{ padding: '10px 16px', borderTop: '1.5px solid var(--lms-border)', display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
+                <button type="button" onClick={() => setSidebarTab(null)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 16px', borderRadius: 'var(--lms-radius-md)', fontFamily: 'var(--lms-font)', fontSize: 12, fontWeight: 600, border: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-surface)', color: 'var(--lms-text-sec)', cursor: 'pointer' }}>
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Section Details overlay modal ── */}
+      {sidebarTab === 'section' && sectionData && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
+          onClick={e => { if (e.target === e.currentTarget) setSidebarTab(null); }}>
+          <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 420, maxHeight: '86vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ padding: '13px 16px', borderBottom: '1.5px solid var(--lms-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--lms-violet-bg)', flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <Layers size={14} style={{ color: 'var(--lms-violet)' }} />
+                <span style={{ fontFamily: 'var(--lms-font)', fontSize: 13, fontWeight: 700, color: 'var(--lms-text-main)' }}>Section Details</span>
+              </div>
+              <button type="button" onClick={() => setSidebarTab(null)}
+                style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--lms-text-muted)', display: 'flex', padding: 4, borderRadius: 6 }}>
+                <X size={15} />
+              </button>
+            </div>
+            <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto', padding: '14px 16px' }}>
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 11, color: 'var(--lms-text-muted)', fontWeight: 600, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Section</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--lms-text-main)' }}>{sectionData.name || '—'}</div>
+                {sectionData.description && (
+                  <div style={{ fontSize: 11.5, color: 'var(--lms-text-sec)', marginTop: 4 }}>{sectionData.description}</div>
+                )}
+              </div>
+              <div className="lms-marks-row">
+                <span className="lms-marks-label">Order</span>
+                <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{sectionData.order || sectionData.sectionNumber || '—'}</span>
+              </div>
+              <div className="lms-marks-row">
+                <span className="lms-marks-label">Exercise Type</span>
+                <span className="lms-marks-value" style={{ color: 'var(--lms-violet)', fontSize: 12 }}>{sectionData.exerciseType || '—'}</span>
+              </div>
+              <div className="lms-marks-row">
+                <span className="lms-marks-label">Total Marks</span>
+                <span className="lms-marks-value" style={{ color: 'var(--lms-orange)', fontSize: 12 }}>{sectionData.totalMarks ?? '—'}</span>
+              </div>
+              {sectionData.difficulty && (
+                <div className="lms-marks-row">
+                  <span className="lms-marks-label">Difficulty</span>
+                  <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12, textTransform: 'capitalize' }}>{sectionData.difficulty}</span>
+                </div>
+              )}
+              {sectionData.mcqConfig && (
+                <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1.5px solid var(--lms-border)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--lms-info)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>MCQ Config</span>
+                  </div>
+                  <div className="lms-marks-row">
+                    <span className="lms-marks-label">Questions</span>
+                    <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{sectionData.mcqConfig.generalQuestionCount ?? 0}</span>
+                  </div>
+                  {sectionData.mcqSectionMarks !== undefined && (
+                    <div className="lms-marks-row">
+                      <span className="lms-marks-label">MCQ Marks</span>
+                      <span className="lms-marks-value" style={{ color: 'var(--lms-violet)', fontSize: 12 }}>{sectionData.mcqSectionMarks}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+              {sectionData.programmingConfig && (
+                <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1.5px solid var(--lms-border)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--lms-success)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Programming Config</span>
+                  </div>
+                  <div className="lms-marks-row">
+                    <span className="lms-marks-label">Mode</span>
+                    <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{sectionData.programmingConfig.questionConfigType || '—'}</span>
+                  </div>
+                  {sectionData.programmingConfig.questionConfigType === 'general' ? (
+                    <div className="lms-marks-row">
+                      <span className="lms-marks-label">Questions</span>
+                      <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{sectionData.programmingConfig.generalQuestionCount ?? 0}</span>
+                    </div>
+                  ) : (
+                    (['easy', 'medium', 'hard'] as const).map(level => (
+                      <div key={level} className="lms-marks-row">
+                        <span className="lms-marks-label" style={{ textTransform: 'capitalize' }}>{level}</span>
+                        <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{sectionData.programmingConfig.levelBasedCounts?.[level] || 0}</span>
+                      </div>
+                    ))
+                  )}
+                  {sectionData.programmingSectionMarks !== undefined && (
+                    <div className="lms-marks-row">
+                      <span className="lms-marks-label">Programming Marks</span>
+                      <span className="lms-marks-value" style={{ color: 'var(--lms-success)', fontSize: 12 }}>{sectionData.programmingSectionMarks}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <div style={{ padding: '10px 16px', borderTop: '1.5px solid var(--lms-border)', display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
+              <button type="button" onClick={() => setSidebarTab(null)}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 16px', borderRadius: 'var(--lms-radius-md)', fontFamily: 'var(--lms-font)', fontSize: 12, fontWeight: 600, border: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-surface)', color: 'var(--lms-text-sec)', cursor: 'pointer' }}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

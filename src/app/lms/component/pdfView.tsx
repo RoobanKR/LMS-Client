@@ -10,6 +10,10 @@ import {
   MousePointer, Link, Zap, ExternalLink, Share2, QrCode,
   Users, Activity, BarChart2, TrendingUp, Clock, CheckCircle,
   XCircle, Award, Radio, Eye, ChevronRightIcon, Wifi, WifiOff,
+  LayoutDashboard,
+  BookMarked,
+  GraduationCap,
+  Layers,
 } from "lucide-react"
 import { io as socketIOClient, Socket } from "socket.io-client"
 
@@ -64,6 +68,15 @@ interface ActiveLink {
   createdAt: Date
   label: string
   questions?: QuestionMeta[]
+}
+
+
+interface BreadcrumbItem {
+  id: string;
+  type: string;
+  label: string;
+  path?: string;
+  onClick?: () => void;
 }
 
 // ─── SOCKET HOOK ──────────────────────────────────────────────────────────────
@@ -991,12 +1004,12 @@ function GeneratedLinkPopup({
             }}>
               <Share2 size={21} color="#f59e0b" />
             </div>
-            <div>
+            {/* <div>
               <h3 style={{ color: "white", fontWeight: 800, fontSize: 15, margin: 0 }}>Live MCQ Ready!</h3>
               <p style={{ color: "#64748b", fontSize: 11, margin: "3px 0 0" }}>
                 {questionCount} question{questionCount !== 1 ? "s" : ""} · Page {pageNumber}
               </p>
-            </div>
+            </div> */}
           </div>
           <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#475569", padding: 4 }}>
             <X size={17} />
@@ -1050,7 +1063,7 @@ function GeneratedLinkPopup({
                 </button>
               </div>
             </div>
-
+{/* 
             <a href={link} target="_blank" rel="noopener noreferrer" style={{
               display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
               width: "100%", padding: "11px 0", backgroundColor: "#f59e0b",
@@ -1061,7 +1074,7 @@ function GeneratedLinkPopup({
               onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#f59e0b")}
             >
               <ExternalLink size={14} /> Open Live MCQ Page
-            </a>
+            </a> */}
 
             <p style={{ fontSize: 10, color: "#475569", textAlign: "center", margin: 0, lineHeight: 1.5 }}>
               Share this link with students. Results update live in the class dashboard.
@@ -1689,9 +1702,43 @@ interface PDFViewerProps {
   isTeacher?: boolean
   isStudent?: boolean
   sampleLiveLink?: string
+  breadcrumbs?: BreadcrumbItem[]  // ← ADD THIS
+  onNavigateToCourse?: () => void   // ← ADD THIS (optional)
 }
 
 // ─── PDF VIEWER (MAIN) ────────────────────────────────────────────────────────
+// Add this interface at the top of pdfview.tsx (after the existing imports)
+interface BreadcrumbItem {
+  id: string;
+  type: string;
+  label: string;
+  path?: string;
+  onClick?: () => void;
+}
+
+// Update the PDFViewerProps interface to include breadcrumbs
+interface PDFViewerProps {
+  fileUrl: string | { base: string }
+  fileName: string
+  fileId?: string
+  entityType?: string
+  entityId?: string
+  institution?: string
+  courses?: string
+  tabType?: string
+  subcategory?: string
+  folderPath?: string[]
+  apiBaseUrl?: string
+  onClose: () => void
+  initialMcqs?: any[]
+  isTeacher?: boolean
+  isStudent?: boolean
+  sampleLiveLink?: string
+  breadcrumbs?: BreadcrumbItem[]  // ← ADD THIS
+  onNavigateToCourse?: () => void   // ← ADD THIS (optional)
+}
+
+// Update the component props
 export default function PDFViewer({
   fileUrl, fileName,
   fileId = "", entityType = "", entityId = "",
@@ -1704,7 +1751,10 @@ export default function PDFViewer({
   isTeacher = true,
   isStudent = false,
   sampleLiveLink,
+  breadcrumbs = [],  // ← ADD THIS with default empty array
+  onNavigateToCourse,  // ← ADD THIS
 }: PDFViewerProps) {
+  // ... rest of your existing state declarations
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [pdfDoc, setPdfDoc] = useState<any>(null)
   const [totalPages, setTotalPages] = useState(0)
@@ -1742,6 +1792,16 @@ export default function PDFViewer({
     const raw = q.videoTimestamp ?? q.pageNumber ?? q.timestamp ?? 0
     return typeof raw === "number" ? Math.round(raw) : parseInt(String(raw)) || 0
   }
+
+
+  // Add this helper function inside PDFViewer component (after state declarations)
+const handleBreadcrumbClick = (crumb: BreadcrumbItem) => {
+  if (crumb.onClick) {
+    crumb.onClick();
+  } else if (crumb.type === "course" && onNavigateToCourse) {
+    onNavigateToCourse();
+  }
+};
 
   const mcqsByPage = React.useMemo(() => {
     const map = new Map<number, any[]>()
@@ -1863,92 +1923,360 @@ export default function PDFViewer({
   return (
     <div ref={containerRef} style={{ position: "fixed", inset: 0, backgroundColor: "#111827", zIndex: isFullscreen ? 2000 : 1000, display: "flex", flexDirection: "column" }}>
 
-      {!isFullscreen && (
-        <div style={{ backgroundColor: "#1f2937", color: "white", padding: "8px 14px", borderBottom: "1px solid #374151", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexShrink: 0, flexWrap: "wrap", minHeight: 48 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-            <FileText size={15} style={{ flexShrink: 0, color: "#a78bfa" }} />
-            <span style={{ fontSize: 13, fontWeight: 600, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={fileName}>{fileName}</span>
-            {!isStudent && isTeacher && <span style={{ fontSize: 10, backgroundColor: "#7c3aed", padding: "2px 6px", borderRadius: 4, color: "white", fontWeight: 600, marginLeft: 4 }}>Teacher Mode</span>}
-          </div>
-
-          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 4, backgroundColor: "#111827", borderRadius: 8, padding: "4px 8px", border: "1px solid #374151" }}>
-              <button onClick={() => scrollToPage(currentPage - 1)} disabled={currentPage <= 1 || isLoading} style={{ background: "none", border: "none", color: currentPage <= 1 ? "#374151" : "#9ca3af", cursor: currentPage <= 1 ? "not-allowed" : "pointer", padding: 2, display: "flex" }}><ChevronLeft size={14} /></button>
-              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                {pagesWithMcqs.has(currentPage) && <div style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: "#a78bfa" }} />}
-                <span style={{ fontSize: 11, color: "#9ca3af" }}>Page</span>
-                <span style={{ minWidth: 28, padding: "1px 6px", backgroundColor: "#111827", border: "1px solid #4b5563", borderRadius: 4, color: "white", fontSize: 13, fontWeight: 700, textAlign: "center" }}>{currentPage}</span>
-                {totalPages > 0 && <span style={{ fontSize: 11, color: "#4b5563" }}>/ {totalPages}</span>}
-              </div>
-              <button onClick={() => scrollToPage(currentPage + 1)} disabled={currentPage >= totalPages || isLoading} style={{ background: "none", border: "none", color: currentPage >= totalPages ? "#374151" : "#9ca3af", cursor: currentPage >= totalPages ? "not-allowed" : "pointer", padding: 2, display: "flex" }}><ChevronRight size={14} /></button>
-            </div>
-
-            {!isStudent && isTeacher && (
-              <>
-                <button onClick={() => openMcqForm(currentPage, "default")} disabled={isLoading || !pdfDoc} style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", backgroundColor: "#7c3aed", border: "none", borderRadius: 6, color: "white", fontSize: 12, fontWeight: 700, cursor: pdfDoc ? "pointer" : "not-allowed", whiteSpace: "nowrap" }}>
-                  <HelpCircle size={13} />+ MCQ<span style={{ backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 4, padding: "1px 5px", fontSize: 11 }}>pg {currentPage}</span>
-                </button>
-                <button onClick={() => openMcqForm(currentPage, "link")} disabled={isLoading || !pdfDoc} style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", backgroundColor: "#d97706", border: "none", borderRadius: 6, color: "white", fontSize: 12, fontWeight: 700, cursor: pdfDoc ? "pointer" : "not-allowed", whiteSpace: "nowrap" }}>
-                  <Zap size={13} />Live MCQ<span style={{ backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 4, padding: "1px 5px", fontSize: 11 }}>pg {currentPage}</span>
-                </button>
-              </>
-            )}
-
-            {mcqsOnCurrentPage.length > 0 && (
-              <span style={{ backgroundColor: "#059669", color: "white", fontSize: 10, fontWeight: 700, padding: "3px 7px", borderRadius: 999, display: "flex", alignItems: "center", gap: 3 }}>
-                <Check size={10} /> {mcqsOnCurrentPage.length} MCQ{mcqsOnCurrentPage.length !== 1 ? "s" : ""} on this page
-              </span>
-            )}
-
-            {savedMcqs.length > 0 && (
-              <button onClick={() => setShowMcqList(!showMcqList)} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", backgroundColor: showMcqList ? "#6d28d9" : "#374151", border: "none", borderRadius: 6, color: "white", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
-                <Hash size={12} />{savedMcqs.length} total MCQ{savedMcqs.length !== 1 ? "s" : ""}
-              </button>
-            )}
-
-            {!isStudent && isTeacher && activeLinks.length > 0 && (
+   {!isFullscreen && (
+  <div style={{ 
+    backgroundColor: "#ffffff",  // White background
+    borderBottom: "1px solid #e2e8f0",
+    flexShrink: 0,
+    position: "relative",
+    zIndex: 10,
+  }}>
+    
+    {/* Breadcrumb row with close button */}
+    {breadcrumbs && breadcrumbs.length > 0 && (
+      <div style={{
+        padding: "10px 14px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",  // Space between breadcrumbs and close button
+        gap: "12px",
+        borderBottom: "1px solid #f1f5f9",
+      }}>
+        {/* Breadcrumbs - left side */}
+        <div style={{ 
+          display: "flex", 
+          alignItems: "center", 
+          gap: "4px", 
+          flexWrap: "wrap",
+          flex: 1,
+        }}>
+          {breadcrumbs.map((crumb, idx) => (
+            <div key={crumb.id} style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+              {idx > 0 && (
+                <ChevronRight 
+                  size={12} 
+                  style={{ color: "#cbd5e1", flexShrink: 0 }} 
+                />
+              )}
               <button
-                onClick={() => setShowStatsModal(true)}
+                onClick={() => handleBreadcrumbClick(crumb)}
+                disabled={idx === breadcrumbs.length - 1}
                 style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  padding: "5px 12px",
-                  background: "linear-gradient(135deg, #6366f1, #10b981)",
-                  border: "none", borderRadius: 6, color: "white",
-                  fontSize: 12, fontWeight: 700, cursor: "pointer",
-                  whiteSpace: "nowrap",
-                  boxShadow: "0 4px 14px rgba(99,102,241,0.4)",
-                  position: "relative",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "4px 8px",
+                  borderRadius: "6px",
+                  fontSize: "11px",
+                  fontWeight: idx === breadcrumbs.length - 1 ? 700 : 500,
+                  color: idx === breadcrumbs.length - 1 ? "#1e293b" : "#64748b",
+                  backgroundColor: idx === breadcrumbs.length - 1 ? "#f8fafc" : "transparent",
+                  border: "none",
+                  cursor: idx === breadcrumbs.length - 1 ? "default" : "pointer",
+                  transition: "all 0.2s ease",
+                  fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+                }}
+                onMouseEnter={(e) => {
+                  if (idx !== breadcrumbs.length - 1) {
+                    e.currentTarget.style.backgroundColor = "#f1f5f9";
+                    e.currentTarget.style.color = "#3b82f6";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (idx !== breadcrumbs.length - 1) {
+                    e.currentTarget.style.backgroundColor = "transparent";
+                    e.currentTarget.style.color = "#64748b";
+                  }
                 }}
               >
-                <Activity size={13} />
-                Live Stats
-                {Object.values(students).length > 0 && (
-                  <span style={{ backgroundColor: "rgba(255,255,255,0.25)", borderRadius: 99, padding: "1px 6px", fontSize: 10 }}>
-                    {Object.values(students).length}
-                  </span>
-                )}
-                {connected && (
-                  <span style={{
-                    position: "absolute", top: -3, right: -3,
-                    width: 8, height: 8, borderRadius: "50%",
-                    backgroundColor: "#10b981", border: "2px solid #1f2937",
-                    animation: "livePulse 2s ease-in-out infinite",
-                  }} />
-                )}
+                {/* Icon based on crumb type */}
+                {crumb.type === "dashboard" && <LayoutDashboard size={12} style={{ flexShrink: 0 }} />}
+                {crumb.type === "courses" && <BookMarked size={12} style={{ flexShrink: 0 }} />}
+                {crumb.type === "course" && <GraduationCap size={12} style={{ flexShrink: 0, color: "#f27757" }} />}
+                {crumb.type === "module" && <Layers size={12} style={{ flexShrink: 0 }} />}
+                {crumb.type === "submodule" && <Layers size={12} style={{ flexShrink: 0 }} />}
+                {crumb.type === "topic" && <BookOpen size={12} style={{ flexShrink: 0 }} />}
+                {crumb.type === "subtopic" && <FileText size={12} style={{ flexShrink: 0 }} />}
+                
+                {/* Label */}
+                <span style={{ 
+                  maxWidth: "180px", 
+                  overflow: "hidden", 
+                  textOverflow: "ellipsis", 
+                  whiteSpace: "nowrap" 
+                }}>
+                  {crumb.label}
+                </span>
               </button>
+            </div>
+          ))}
+        </div>
+
+        {/* Close button - RIGHT CORNER of breadcrumb */}
+        <button 
+          onClick={onClose} 
+          style={{ 
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "6px",
+            padding: "6px 12px",
+            backgroundColor: "#dc2626",  // Red background
+            color: "white",              // White X
+            border: "none", 
+            borderRadius: "8px", 
+            cursor: "pointer", 
+            transition: "all 0.2s ease",
+            fontWeight: 600,
+            flexShrink: 0,
+            fontSize: "12px",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = "#b91c1c";  // Darker red on hover
+            e.currentTarget.style.transform = "scale(0.98)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = "#dc2626";
+            e.currentTarget.style.transform = "scale(1)";
+          }}
+        >
+          <X size={14} strokeWidth={2.5} />
+          <span>Close</span>
+        </button>
+      </div>
+    )}
+
+    {/* Main header bar with file info and controls (without close button) */}
+    <div style={{
+      padding: "10px 14px",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 10,
+      flexWrap: "wrap",
+      minHeight: 48,
+      backgroundColor: "#ffffff",
+    }}>
+      {/* Left side - File info */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flex: 1 }}>
+        <FileText size={15} style={{ flexShrink: 0, color: "#a78bfa" }} />
+        <span style={{ 
+          fontSize: 13, 
+          fontWeight: 600, 
+          color: "#1e293b",
+          maxWidth: 220, 
+          overflow: "hidden", 
+          textOverflow: "ellipsis", 
+          whiteSpace: "nowrap" 
+        }} title={fileName}>
+          {fileName}
+        </span>
+        {!isStudent && isTeacher && (
+          <span style={{ 
+            fontSize: 10, 
+            backgroundColor: "#7c3aed", 
+            padding: "2px 8px", 
+            borderRadius: 999, 
+            color: "white", 
+            fontWeight: 600,
+            marginLeft: 4,
+          }}>
+            Teacher Mode
+          </span>
+        )}
+      </div>
+
+      {/* Right side - Controls (without close button) */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+        {/* Page navigation */}
+        <div style={{ 
+          display: "flex", 
+          alignItems: "center", 
+          gap: 4, 
+          backgroundColor: "#f8fafc", 
+          borderRadius: 8, 
+          padding: "4px 8px", 
+          border: "1px solid #e2e8f0" 
+        }}>
+          <button 
+            onClick={() => scrollToPage(currentPage - 1)} 
+            disabled={currentPage <= 1 || isLoading} 
+            style={{ 
+              background: "none", 
+              border: "none", 
+              color: currentPage <= 1 ? "#cbd5e1" : "#64748b", 
+              cursor: currentPage <= 1 ? "not-allowed" : "pointer", 
+              padding: 2, 
+              display: "flex",
+              transition: "color 0.2s",
+            }}
+          >
+            <ChevronLeft size={14} />
+          </button>
+          
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            {pagesWithMcqs.has(currentPage) && (
+              <div style={{ 
+                width: 6, 
+                height: 6, 
+                borderRadius: "50%", 
+                backgroundColor: "#a78bfa",
+                animation: "pulse 2s infinite",
+              }} />
+            )}
+            <span style={{ fontSize: 11, color: "#64748b" }}>Page</span>
+            <span style={{ 
+              minWidth: 32, 
+              padding: "2px 6px", 
+              backgroundColor: "#ffffff", 
+              border: "1px solid #e2e8f0", 
+              borderRadius: 6, 
+              color: "#1e293b", 
+              fontSize: 12, 
+              fontWeight: 600, 
+              textAlign: "center" 
+            }}>
+              {currentPage}
+            </span>
+            {totalPages > 0 && (
+              <span style={{ fontSize: 11, color: "#94a3b8" }}>/ {totalPages}</span>
             )}
           </div>
-
-          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            <button onClick={() => setScale(z => Math.max(0.5, +(z - 0.25).toFixed(2)))} style={{ padding: 5, backgroundColor: "#374151", color: "white", border: "none", borderRadius: 4, cursor: "pointer", display: "flex" }}><ZoomOut size={14} /></button>
-            <span style={{ fontSize: 11, color: "#d1d5db", minWidth: 38, textAlign: "center" }}>{Math.round(scale * 100)}%</span>
-            <button onClick={() => setScale(z => Math.min(3, +(z + 0.25).toFixed(2)))} style={{ padding: 5, backgroundColor: "#374151", color: "white", border: "none", borderRadius: 4, cursor: "pointer", display: "flex" }}><ZoomIn size={14} /></button>
-            <button onClick={() => { if (!isFullscreen) containerRef.current?.requestFullscreen?.(); else document.exitFullscreen?.() }} style={{ padding: 5, backgroundColor: "#3b82f6", color: "white", border: "none", borderRadius: 4, cursor: "pointer", display: "flex" }}><Maximize size={14} /></button>
-            <button onClick={handleDownload} style={{ padding: 5, backgroundColor: "#10b981", color: "white", border: "none", borderRadius: 4, cursor: "pointer", display: "flex" }}><Download size={14} /></button>
-            <button onClick={onClose} style={{ padding: 5, backgroundColor: "#ef4444", color: "white", border: "none", borderRadius: 4, cursor: "pointer", display: "flex" }}><X size={14} /></button>
-          </div>
+          
+          <button 
+            onClick={() => scrollToPage(currentPage + 1)} 
+            disabled={currentPage >= totalPages || isLoading} 
+            style={{ 
+              background: "none", 
+              border: "none", 
+              color: currentPage >= totalPages ? "#cbd5e1" : "#64748b", 
+              cursor: currentPage >= totalPages ? "not-allowed" : "pointer", 
+              padding: 2, 
+              display: "flex",
+              transition: "color 0.2s",
+            }}
+          >
+            <ChevronRight size={14} />
+          </button>
         </div>
-      )}
+
+        {/* Zoom controls */}
+        <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+          <button 
+            onClick={() => setScale(z => Math.max(0.5, +(z - 0.25).toFixed(2)))} 
+            style={{ 
+              padding: "5px 8px", 
+              backgroundColor: "#f8fafc", 
+              color: "#64748b", 
+              border: "1px solid #e2e8f0", 
+              borderRadius: 6, 
+              cursor: "pointer", 
+              display: "flex",
+              transition: "all 0.2s",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = "#f1f5f9";
+              e.currentTarget.style.borderColor = "#cbd5e1";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "#f8fafc";
+              e.currentTarget.style.borderColor = "#e2e8f0";
+            }}
+          >
+            <ZoomOut size={13} />
+          </button>
+          
+          <span style={{ 
+            fontSize: 11, 
+            color: "#64748b", 
+            minWidth: 38, 
+            textAlign: "center",
+            fontWeight: 500,
+          }}>
+            {Math.round(scale * 100)}%
+          </span>
+          
+          <button 
+            onClick={() => setScale(z => Math.min(3, +(z + 0.25).toFixed(2)))} 
+            style={{ 
+              padding: "5px 8px", 
+              backgroundColor: "#f8fafc", 
+              color: "#64748b", 
+              border: "1px solid #e2e8f0", 
+              borderRadius: 6, 
+              cursor: "pointer", 
+              display: "flex",
+              transition: "all 0.2s",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = "#f1f5f9";
+              e.currentTarget.style.borderColor = "#cbd5e1";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "#f8fafc";
+              e.currentTarget.style.borderColor = "#e2e8f0";
+            }}
+          >
+            <ZoomIn size={13} />
+          </button>
+        </div>
+
+        {/* Fullscreen button */}
+        <button 
+          onClick={() => { 
+            if (!isFullscreen) containerRef.current?.requestFullscreen?.(); 
+            else document.exitFullscreen?.(); 
+          }} 
+          style={{ 
+            padding: "5px 8px", 
+            backgroundColor: "#f8fafc", 
+            color: "#64748b", 
+            border: "1px solid #e2e8f0", 
+            borderRadius: 6, 
+            cursor: "pointer", 
+            display: "flex",
+            transition: "all 0.2s",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = "#f1f5f9";
+            e.currentTarget.style.borderColor = "#cbd5e1";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = "#f8fafc";
+            e.currentTarget.style.borderColor = "#e2e8f0";
+          }}
+        >
+          {isFullscreen ? <Minimize size={13} /> : <Maximize size={13} />}
+        </button>
+
+        {/* Download button */}
+        <button 
+          onClick={handleDownload} 
+          style={{ 
+            padding: "5px 8px", 
+            backgroundColor: "#f8fafc", 
+            color: "#64748b", 
+            border: "1px solid #e2e8f0", 
+            borderRadius: 6, 
+            cursor: "pointer", 
+            display: "flex",
+            transition: "all 0.2s",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = "#f1f5f9";
+            e.currentTarget.style.borderColor = "#cbd5e1";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = "#f8fafc";
+            e.currentTarget.style.borderColor = "#e2e8f0";
+          }}
+        >
+          <Download size={13} />
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
       {!isStudent && isTeacher && activeLinks.length > 0 && !showStatsModal && (
         <div style={{ position: "absolute", top: 54, right: 16, zIndex: 50 }}>
@@ -1972,12 +2300,12 @@ export default function PDFViewer({
               <button onClick={handleDownload} style={{ padding: "8px 18px", backgroundColor: "#7c3aed", color: "white", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>Download instead</button>
             </div>
           )}
-          {!isStudent && isTeacher && !isLoading && pdfDoc && (
+          {/* {!isStudent && isTeacher && !isLoading && pdfDoc && (
             <div style={{ position: "sticky", top: 10, zIndex: 10, backgroundColor: "rgba(0,0,0,0.7)", color: "#9ca3af", fontSize: 10, padding: "6px 12px", borderRadius: 20, border: "1px solid #374151", display: "flex", alignItems: "center", gap: 6, marginBottom: 10, pointerEvents: "none" }}>
               <MousePointer size={10} color="#a78bfa" />
               Right-click: <span style={{ color: "#a78bfa" }}>Add MCQ</span> or <span style={{ color: "#f59e0b" }}>Live Add MCQ</span>
             </div>
-          )}
+          )} */}
           {pdfDoc && Array.from({ length: totalPages }, (_, i) => i + 1).map(pg => {
             const mcqsOnPage = mcqsByPage.get(pg) || []
             return (

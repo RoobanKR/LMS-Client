@@ -359,6 +359,7 @@ export interface FrontendQuestionFormProps {
   saveMessage: string;
   lockedDifficulty?: 'easy' | 'medium' | 'hard';
   onEditExercise?: () => void;
+  sectionData?: any;
 }
 
 interface TC {
@@ -2238,10 +2239,214 @@ const PreviewModal: React.FC<{
 }) => {
     const [expandedSet, setExpandedSet] = useState<Set<number>>(new Set());
     const [deleteTarget, setDeleteTarget] = useState<{ localId: string; title: string } | null>(null);
+    const [filterDiff, setFilterDiff] = useState<'all' | 'easy' | 'medium' | 'hard'>('all');
+    const [sidebarTab, setSidebarTab] = useState<'details' | 'overview' | null>(null);
     const s = DS[currentDiff] || DS.medium;
+
+    const savedQuestions = questions.filter(q => !!(q._id || q.isSaved || q.isPreExisting));
+    const availableDiffs = (['easy', 'medium', 'hard'] as const).filter(d =>
+      savedQuestions.some(q => q.difficulty === d)
+    );
+    const filteredSavedQuestions = savedQuestions.filter(q =>
+      filterDiff === 'all' ? true : q.difficulty === filterDiff
+    );
+    const subExerciseIsGraded = !isGeneral
+      ? (exerciseData?.fullExerciseData?.isGraded !== false)
+      : (exerciseData?.fullExerciseData?.isGraded !== false);
 
     return (
       <>
+      {/* Exercise Details Modal */}
+      {sidebarTab === 'details' && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
+          onClick={e => { if (e.target === e.currentTarget) setSidebarTab(null); }}>
+          <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 360, maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ padding: '13px 16px', borderBottom: '1.5px solid var(--lms-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--lms-bg-surface)', flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <FileText size={14} style={{ color: 'var(--lms-text-sec)' }} />
+                <span style={{ fontFamily: 'var(--lms-font)', fontSize: 13, fontWeight: 700, color: 'var(--lms-text-main)' }}>Exercise Details</span>
+              </div>
+              <button type="button" onClick={() => setSidebarTab(null)}
+                style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--lms-text-muted)', display: 'flex', padding: 4, borderRadius: 6 }}>
+                <X size={15} />
+              </button>
+            </div>
+            <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto', padding: '4px 0' }}>
+              {exerciseData?.fullExerciseData?.exerciseInformation?.exerciseId && (
+                <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                  <span className="lms-detail-label">Exercise ID</span>
+                  <span className="lms-detail-value" style={{ fontFamily: 'ui-monospace, monospace', color: 'var(--lms-violet)', fontSize: 11 }}>
+                    {exerciseData.fullExerciseData.exerciseInformation.exerciseId}
+                  </span>
+                </div>
+              )}
+              <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                <span className="lms-detail-label">Exercise Name</span>
+                <span className="lms-detail-value" style={{ color: 'var(--lms-orange)', fontSize: 11, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {exerciseName || 'Untitled'}
+                </span>
+              </div>
+              <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                <span className="lms-detail-label">Exercise Type</span>
+                <span className="lms-detail-value" style={{ fontSize: 11, textTransform: 'capitalize' }}>
+                  {exerciseData?.fullExerciseData?.exerciseType || 'frontend'}
+                </span>
+              </div>
+              <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                <span className="lms-detail-label">Configuration</span>
+                <span className="lms-detail-value" style={{ fontSize: 11 }}>
+                  {isGeneral ? 'General' : cfgType === 'levelBased' ? 'Level Based' : 'Selection Level'}
+                </span>
+              </div>
+              <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                <span className="lms-detail-label">Assessment Type</span>
+                <span className="lms-detail-value" style={{ fontSize: 11, fontWeight: 700, color: subExerciseIsGraded ? 'var(--lms-success)' : 'var(--lms-warning)' }}>
+                  {subExerciseIsGraded ? 'Graded' : 'Non-Graded'}
+                </span>
+              </div>
+              {(exerciseData?.fullExerciseData?.exerciseInformation?.totalDuration || exerciseData?.fullExerciseData?.exerciseInformation?.duration) && (
+                <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                  <span className="lms-detail-label">Duration</span>
+                  <span className="lms-detail-value" style={{ fontSize: 11 }}>
+                    {exerciseData?.fullExerciseData?.exerciseInformation?.totalDuration || exerciseData?.fullExerciseData?.exerciseInformation?.duration} mins
+                  </span>
+                </div>
+              )}
+            </div>
+            <div style={{ padding: '10px 16px', borderTop: '1.5px solid var(--lms-border)', display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
+              <button type="button" onClick={() => setSidebarTab(null)}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 16px', borderRadius: 'var(--lms-radius-md)', fontFamily: 'var(--lms-font)', fontSize: 12, fontWeight: 600, border: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-surface)', color: 'var(--lms-text-sec)', cursor: 'pointer' }}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Exercise Overview Modal */}
+      {sidebarTab === 'overview' && (() => {
+        const configuredDiffs = getConfiguredDiffs();
+        return (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
+            onClick={e => { if (e.target === e.currentTarget) setSidebarTab(null); }}>
+            <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 400, maxHeight: '86vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              <div style={{ padding: '13px 16px', borderBottom: '1.5px solid var(--lms-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--lms-info-bg)', flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                  <BarChart3 size={14} style={{ color: 'var(--lms-info)' }} />
+                  <span style={{ fontFamily: 'var(--lms-font)', fontSize: 13, fontWeight: 700, color: 'var(--lms-text-main)' }}>Exercise Overview</span>
+                </div>
+                <button type="button" onClick={() => setSidebarTab(null)}
+                  style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--lms-text-muted)', display: 'flex', padding: 4, borderRadius: 6 }}>
+                  <X size={15} />
+                </button>
+              </div>
+              <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto' }}>
+                <div style={{ padding: '12px 16px', borderBottom: '1.5px solid var(--lms-border)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                    <Hash size={12} style={{ color: 'var(--lms-orange)' }} />
+                    <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, fontWeight: 700, color: 'var(--lms-orange)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Overall Questions</span>
+                  </div>
+                  <div className="lms-marks-row">
+                    <span className="lms-marks-label">Total Questions</span>
+                    <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{totalSlotsAll}</span>
+                  </div>
+                  <div className="lms-marks-row">
+                    <span className="lms-marks-label">Created</span>
+                    <span className="lms-marks-value" style={{ color: 'var(--lms-violet)', fontSize: 12 }}>
+                      {createdCountAll}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 10 }}>/{totalSlotsAll}</span>
+                    </span>
+                  </div>
+                  <div className="lms-marks-row">
+                    <span className="lms-marks-label">Remaining</span>
+                    <span className="lms-marks-value" style={{ color: remainingSlotsAll === 0 ? 'var(--lms-success)' : 'var(--lms-warning)', fontSize: 12 }}>{remainingSlotsAll}</span>
+                  </div>
+                  {totalSlotsAll > 0 && (
+                    <div className="lms-progress-bar" style={{ marginTop: 8 }}>
+                      <div className="lms-progress-fill" style={{ width: `${Math.min(100, (createdCountAll / totalSlotsAll) * 100)}%`, background: remainingSlotsAll === 0 ? 'var(--lms-success)' : 'var(--lms-orange)' }} />
+                    </div>
+                  )}
+                  {!isGeneral && configuredDiffs.length > 0 && (
+                    <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 0 }}>
+                      {configuredDiffs.map(d => {
+                        const quota = getQuotaForDiff(d);
+                        const created = getCreatedCount(d);
+                        const rem = quota - created;
+                        const diffColor = d === 'easy' ? 'var(--lms-success)' : d === 'medium' ? 'var(--lms-warning)' : 'var(--lms-danger)';
+                        return (
+                          <div key={d} className="lms-marks-row" style={{ paddingLeft: 8, borderLeft: `2px solid ${diffColor}`, marginBottom: 2 }}>
+                            <span className="lms-marks-label" style={{ textTransform: 'capitalize', color: diffColor }}>{d}</span>
+                            <span className="lms-marks-value" style={{ fontSize: 11 }}>
+                              <span style={{ color: 'var(--lms-violet)' }}>{created}</span>
+                              <span style={{ color: 'var(--lms-text-hint)', fontWeight: 400 }}>/{quota}</span>
+                              <span style={{ color: rem <= 0 ? 'var(--lms-success)' : 'var(--lms-text-muted)', fontSize: 10, marginLeft: 6, fontWeight: 500 }}>
+                                {rem <= 0 ? '✓' : `${rem} left`}
+                              </span>
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                {subExerciseIsGraded && totalMarksAll > 0 && (
+                  <div style={{ padding: '12px 16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                      <Award size={12} style={{ color: 'var(--lms-violet)' }} />
+                      <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, fontWeight: 700, color: 'var(--lms-violet)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Overall Marks</span>
+                    </div>
+                    <div className="lms-marks-row">
+                      <span className="lms-marks-label">Total Marks</span>
+                      <span className="lms-marks-value" style={{ color: 'var(--lms-violet)', fontSize: 12 }}>{totalMarksAll}</span>
+                    </div>
+                    <div className="lms-marks-row">
+                      <span className="lms-marks-label">Marks Used</span>
+                      <span className="lms-marks-value" style={{ color: 'var(--lms-warning)', fontSize: 12 }}>
+                        {fmtMark(usedMarksAll)}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 10 }}>/{totalMarksAll}</span>
+                      </span>
+                    </div>
+                    <div className="lms-marks-row">
+                      <span className="lms-marks-label">Remaining</span>
+                      <span className="lms-marks-value" style={{ color: (totalMarksAll - usedMarksAll) <= 0 ? 'var(--lms-success)' : 'var(--lms-text-main)', fontSize: 12 }}>
+                        {fmtMark(Math.max(0, totalMarksAll - usedMarksAll))}
+                      </span>
+                    </div>
+                    {totalMarksAll > 0 && (
+                      <div className="lms-progress-bar" style={{ marginTop: 8 }}>
+                        <div className="lms-progress-fill" style={{ width: `${Math.min(100, (usedMarksAll / totalMarksAll) * 100)}%`, background: usedMarksAll >= totalMarksAll ? 'var(--lms-success)' : 'var(--lms-orange)' }} />
+                      </div>
+                    )}
+                    {configuredDiffs.length > 0 && (
+                      <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 0 }}>
+                        {configuredDiffs.map(d => {
+                          const levelMarks = getTotalMarksForDiff(d);
+                          const usedD = savedQuestions.filter(q => q.difficulty === d).reduce((acc, q) => acc + (q.score || 0), 0);
+                          const diffColor = d === 'easy' ? 'var(--lms-success)' : d === 'medium' ? 'var(--lms-warning)' : 'var(--lms-danger)';
+                          return (
+                            <div key={d} className="lms-marks-row" style={{ paddingLeft: 8, borderLeft: `2px solid ${diffColor}`, marginBottom: 2 }}>
+                              <span className="lms-marks-label" style={{ textTransform: 'capitalize', color: diffColor }}>{d}</span>
+                              <span className="lms-marks-value" style={{ fontSize: 11 }}>
+                                <span style={{ color: 'var(--lms-warning)' }}>{fmtMark(usedD)}</span>
+                                <span style={{ color: 'var(--lms-text-hint)', fontWeight: 400 }}>/{levelMarks || '?'}</span>
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div style={{ padding: '10px 16px', borderTop: '1.5px solid var(--lms-border)', display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
+                <button type="button" onClick={() => setSidebarTab(null)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 16px', borderRadius: 'var(--lms-radius-md)', fontFamily: 'var(--lms-font)', fontSize: 12, fontWeight: 600, border: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-surface)', color: 'var(--lms-text-sec)', cursor: 'pointer' }}>
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,26,46,0.5)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 150, padding: 12 }}>
           <div style={{ width: '96vw', maxWidth: 1400, height: '96vh', display: 'flex', flexDirection: 'column', background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', border: '1.5px solid var(--lms-border)', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
 
@@ -2254,35 +2459,90 @@ const PreviewModal: React.FC<{
                 <div style={{ width: 1, height: 20, background: 'var(--lms-border)', flexShrink: 0 }} />
                 <QuestionFormBreadcrumb hierarchyData={hierarchyData} tabType={tabType} subcategory={subcategory} subcategoryLabel={subcategoryLabel} exerciseName={exerciseName} actionLabel="Preview" questionLabel={questionLabel} />
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, marginLeft: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 16 }}>
+                {/* Question count pill */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 20, background: 'var(--lms-bg-surface)', border: '1.5px solid var(--lms-border)' }}>
+                  <Hash size={11} style={{ color: 'var(--lms-text-hint)' }} />
+                  <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, fontWeight: 700, color: 'var(--lms-text-main)' }}>
+                    {filteredSavedQuestions.length}{filterDiff !== 'all' ? `/${savedQuestions.length}` : ''} question{savedQuestions.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+                {/* Difficulty filter — only when multiple diffs exist */}
+         {/* Difficulty filter — always visible for level-based */}
+                {!isGeneral && (
+                  <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+                    <select
+                      value={filterDiff}
+                      onChange={e => setFilterDiff(e.target.value as any)}
+                      style={{
+                        fontFamily: 'var(--lms-font)',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        border: `1.5px solid ${filterDiff !== 'all' ? (DS[filterDiff]?.border || 'var(--lms-border)') : 'var(--lms-border)'}`,
+                        borderRadius: 20,
+                        padding: '5px 28px 5px 12px',
+                        cursor: 'pointer',
+                        outline: 'none',
+                        background: filterDiff !== 'all' ? (DS[filterDiff]?.bg || 'var(--lms-bg-surface)') : 'var(--lms-bg-surface)',
+                        color: filterDiff !== 'all' ? (DS[filterDiff]?.text || 'var(--lms-text-sec)') : 'var(--lms-text-sec)',
+                        appearance: 'none', WebkitAppearance: 'none', minWidth: 140,
+                      }}
+                    >
+                      <option value="all">All difficulties</option>
+                      {(['easy', 'medium', 'hard'] as const).map(d => (
+                        <option key={d} value={d}>
+                          {d.charAt(0).toUpperCase() + d.slice(1)} ({savedQuestions.filter(q => q.difficulty === d).length})
+                        </option>
+                      ))}
+                    </select>
+                    <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8"
+                      style={{ position: 'absolute', right: 9, pointerEvents: 'none', width: 11, height: 11, color: filterDiff !== 'all' ? DS[filterDiff]?.text : 'var(--lms-text-sec)' }}>
+                      <path d="M2 4l4 4 4-4" />
+                    </svg>
+                  </div>
+                )}
                 <button onClick={onClose} style={{ padding: 8, borderRadius: 8, border: '1.5px solid var(--lms-danger-bdr)', background: 'var(--lms-danger-bg)', cursor: 'pointer' }}>
                   <X size={15} style={{ color: 'var(--lms-danger)' }} />
                 </button>
               </div>
             </div>
 
-            {/* Read Only Preview banner */}
+            {/* Preview banner */}
             <div style={{ padding: '5px 20px', background: 'var(--lms-info-bg)', borderBottom: '1.5px solid var(--lms-info-bdr)', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
               <Eye size={11} style={{ color: 'var(--lms-info)' }} />
               <span style={{ fontFamily: 'var(--lms-font)', fontSize: 10.5, fontWeight: 700, color: 'var(--lms-info)', letterSpacing: 0.4, textTransform: 'uppercase' }}>Preview</span>
+              {filterDiff !== 'all' && (
+                <span style={{ ...(DS[filterDiff]?.pill || {}), fontSize: 10, fontWeight: 700, padding: '1px 8px', borderRadius: 20, textTransform: 'capitalize', marginLeft: 4 }}>
+                  Filtered: {filterDiff}
+                </span>
+              )}
             </div>
 
             <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
               {/* Questions list */}
               <div className="lms-sidebar-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {questions.length === 0 ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--lms-text-hint)' }}>
-                    <Eye size={40} style={{ marginBottom: 12, opacity: 0.15 }} />
-                    <p style={{ fontFamily: 'var(--lms-font)', fontSize: 14, fontWeight: 600 }}>No questions yet</p>
+                {filteredSavedQuestions.length === 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--lms-text-hint)', gap: 12, paddingTop: 60 }}>
+                    <Eye size={40} style={{ opacity: 0.15 }} />
+                    <p style={{ fontFamily: 'var(--lms-font)', fontSize: 14, fontWeight: 600 }}>
+                      {filterDiff !== 'all' ? `No ${filterDiff} questions saved yet` : 'No saved questions yet'}
+                    </p>
+                    {filterDiff !== 'all' && (
+                      <button onClick={() => setFilterDiff('all')}
+                        style={{ fontFamily: 'var(--lms-font)', fontSize: 12, fontWeight: 600, color: 'var(--lms-violet)', background: 'var(--lms-violet-bg)', border: '1.5px solid var(--lms-violet-bdr)', borderRadius: 20, padding: '4px 14px', cursor: 'pointer' }}>
+                        Show all difficulties
+                      </button>
+                    )}
                   </div>
-                ) : questions.map((q, i) => {
+                ) : filteredSavedQuestions.map((q, filteredIdx) => {
+                  const i = questions.findIndex(x => x.__localId === q.__localId);
                   const ds = DS[q.difficulty] || DS.medium;
                   const isActive = i === currentIndex;
-                  const isExpanded = expandedSet.has(i);
+                  const isExpanded = expandedSet.has(filteredIdx);
                   const titleText = Array.isArray(q.title) ? getTitleText(q.title as any) || 'Untitled' : (q.title as string) || 'Untitled';
                   const qNum = (() => {
-                    if (isGeneral) return i + 1;
-                    const sameD = questions.filter(x => x.difficulty === q.difficulty);
+                    if (isGeneral) return filteredIdx + 1;
+                    const sameD = filteredSavedQuestions.filter(x => x.difficulty === q.difficulty);
                     return sameD.findIndex(x => x.__localId === q.__localId) + 1;
                   })();
 
@@ -2367,7 +2627,7 @@ const PreviewModal: React.FC<{
                             <Trash2 size={11} /> Delete
                           </button>
                           <button
-                            onClick={() => setExpandedSet(prev => { const n = new Set(prev); n.has(i) ? n.delete(i) : n.add(i); return n; })}
+                            onClick={() => setExpandedSet(prev => { const n = new Set(prev); n.has(filteredIdx) ? n.delete(filteredIdx) : n.add(filteredIdx); return n; })}
                             style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 8, border: `1.5px solid ${isExpanded ? 'var(--lms-violet-bdr)' : 'var(--lms-border)'}`, background: isExpanded ? 'var(--lms-violet-bg)' : 'var(--lms-bg-surface)', cursor: 'pointer', color: isExpanded ? 'var(--lms-violet)' : 'var(--lms-text-muted)', flexShrink: 0, transition: 'all 0.15s' }}>
                             {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                           </button>
@@ -2442,213 +2702,200 @@ const PreviewModal: React.FC<{
                 })}
               </div>
 
-              {/* Preview sidebar */}
-              <div style={{ width: 272, flexShrink: 0, borderLeft: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-                <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto' }}>
-
-                  {/* Exercise Details */}
-                  <div style={{ padding: '14px 16px', borderBottom: '1.5px solid var(--lms-info-bdr)', background: 'var(--lms-info-bg)' }}>
-                    <div className="lms-sidebar-section-title">
-                      <FileText size={14} style={{ color: 'var(--lms-info)' }} />
-                      Exercise Details
+              {/* Right Sidebar */}
+              <div style={{ width: 280, flexShrink: 0, borderLeft: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+                {/* Two action buttons */}
+                <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: 8, borderBottom: '1.5px solid var(--lms-border)', flexShrink: 0, background: 'var(--lms-bg-surface)' }}>
+                  <button
+                    onClick={() => setSidebarTab('details')}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px', borderRadius: 'var(--lms-radius-md)', fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 600, border: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', color: 'var(--lms-text-sec)', cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left' }}
+                    onMouseEnter={e => { const b = e.currentTarget; b.style.borderColor = 'var(--lms-orange)'; b.style.background = 'var(--lms-orange-50)'; b.style.color = '#c85a30'; }}
+                    onMouseLeave={e => { const b = e.currentTarget; b.style.borderColor = 'var(--lms-border)'; b.style.background = 'var(--lms-bg-white)'; b.style.color = 'var(--lms-text-sec)'; }}
+                  >
+                    <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--lms-orange-50)', border: '1.5px solid var(--lms-orange-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <FileText size={14} style={{ color: 'var(--lms-orange)' }} />
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                      {exerciseData?.fullExerciseData?.exerciseInformation?.exerciseId && (
-                        <div className="lms-detail-row">
-                          <span className="lms-detail-label">Exercise ID</span>
-                          <span className="lms-detail-value" style={{ fontFamily: 'ui-monospace, monospace', color: 'var(--lms-violet)', fontSize: '12px' }}>
-                            {exerciseData.fullExerciseData.exerciseInformation.exerciseId}
-                          </span>
-                        </div>
-                      )}
-                      <div className="lms-detail-row">
-                        <span className="lms-detail-label">Exercise Name</span>
-                        <span className="lms-detail-value" style={{ color: 'var(--lms-orange)', maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '12px' }}>
-                          {exerciseName || 'Untitled'}
-                        </span>
-                      </div>
-                      <div className="lms-detail-row">
-                        <span className="lms-detail-label">Exercise Type</span>
-                        <span className="lms-detail-value" style={{ fontSize: '12px' }}>
-                          {exerciseData?.fullExerciseData?.exerciseType || 'programming'}
-                        </span>
-                      </div>
-                      <div className="lms-detail-row">
-                        <span className="lms-detail-label">Module Type</span>
-                        <span className="lms-detail-value" style={{ fontSize: '12px' }}>Frontend</span>
-                      </div>
-                      <div className="lms-detail-row">
-                        <span className="lms-detail-label">Configuration</span>
-                        <span className="lms-detail-value" style={{ fontSize: '12px' }}>
-                          {isGeneral ? 'General' : cfgType === 'levelBased' ? 'Level Based' : 'Selection Level'}
-                        </span>
-                      </div>
-                      {(exerciseData?.fullExerciseData?.exerciseInformation?.totalDuration || exerciseData?.fullExerciseData?.exerciseInformation?.duration) && (
-                        <div className="lms-detail-row">
-                          <span className="lms-detail-label">Duration</span>
-                          <span className="lms-detail-value" style={{ fontSize: '12px' }}>
-                            {exerciseData?.fullExerciseData?.exerciseInformation?.totalDuration ||
-                              exerciseData?.fullExerciseData?.exerciseInformation?.duration} mins
-                          </span>
-                        </div>
-                      )}
-                      {!isGeneral && (
-                        <div className="lms-detail-row">
-                          <span className="lms-detail-label">Current Difficulty</span>
-                          <span className="lms-detail-value" style={{ color: s.text, textTransform: 'capitalize', fontSize: '12px' }}>{currentDiff}</span>
-                        </div>
-                      )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 700, color: 'inherit' }}>Exercise Details</div>
+                      <div style={{ fontFamily: 'var(--lms-font)', fontSize: 10.5, color: 'var(--lms-text-muted)', marginTop: 1 }}>ID, type, config, duration</div>
                     </div>
-                  </div>
+                    <ChevronRight size={13} style={{ color: 'var(--lms-text-hint)', flexShrink: 0 }} />
+                  </button>
+                  <button
+                    onClick={() => setSidebarTab('overview')}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px', borderRadius: 'var(--lms-radius-md)', fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 600, border: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', color: 'var(--lms-text-sec)', cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left' }}
+                    onMouseEnter={e => { const b = e.currentTarget; b.style.borderColor = 'var(--lms-info-bdr)'; b.style.background = 'var(--lms-info-bg)'; b.style.color = 'var(--lms-info)'; }}
+                    onMouseLeave={e => { const b = e.currentTarget; b.style.borderColor = 'var(--lms-border)'; b.style.background = 'var(--lms-bg-white)'; b.style.color = 'var(--lms-text-sec)'; }}
+                  >
+                    <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--lms-info-bg)', border: '1.5px solid var(--lms-info-bdr)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <BarChart3 size={14} style={{ color: 'var(--lms-info)' }} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 700, color: 'inherit' }}>Exercise Overview</div>
+                      <div style={{ fontFamily: 'var(--lms-font)', fontSize: 10.5, color: 'var(--lms-text-muted)', marginTop: 1 }}>Quota, marks, progress</div>
+                    </div>
+                    <ChevronRight size={13} style={{ color: 'var(--lms-text-hint)', flexShrink: 0 }} />
+                  </button>
+                </div>
+{/* Stats summary */}
+                <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto', padding: '14px 14px' }}>
+                  {(() => {
+                    const configuredDiffs = getConfiguredDiffs();
+                    // Which diffs to show in sidebar: filtered diff only, or all configured
+                    const diffsToShow: Diff[] = !isGeneral
+                      ? (filterDiff === 'all' ? configuredDiffs : [filterDiff as Diff])
+                      : [];
 
-                  {/* Question Overview - only when multiple difficulties */}
-                  {(!isGeneral && getConfiguredDiffs().length > 1) && (
-                    <div style={{ padding: '14px 16px', borderBottom: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-surface)' }}>
-                      <div className="lms-sidebar-section-title">
-                        <BarChart3 size={14} style={{ color: 'var(--lms-text-sec)' }} />
-                        Question Overview
-                      </div>
-                      <div>
-                        {[
-                          { label: 'Total Questions', value: `${totalSlotsAll}`, color: 'var(--lms-text-main)', denom: null },
-                          { label: 'Questions Created', value: `${createdCountAll}`, color: 'var(--lms-violet)', denom: `${totalSlotsAll}` },
-                          { label: 'Remaining Questions', value: `${remainingSlotsAll}`, color: remainingSlotsAll === 0 ? 'var(--lms-success)' : 'var(--lms-warning)', denom: `${totalSlotsAll}` },
-                        ].map(({ label, value, color, denom }) => (
-                          <div key={label} className="lms-marks-row">
-                            <span className="lms-marks-label">{label}</span>
-                            <span className="lms-marks-value" style={{ color }}>
-                              {value}{denom != null && <span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 11 }}>/{denom}</span>}
-                            </span>
+                    return (
+                      <>
+                        {/* Per-Difficulty sections */}
+                        {diffsToShow.map((d) => {
+                          const dSlots = getQuotaForDiff(d);
+                          const dCreated = getCreatedCount(d);
+                          const dRemaining = getRemainingSlots(d);
+                          const dMarksTotal = getTotalMarksForDiff(d);
+                          const dMarksUsed = savedQuestions.filter(q => q.difficulty === d).reduce((acc, q) => acc + (q.score || 0), 0);
+                          const dMarksRemaining = Math.max(0, dMarksTotal - dMarksUsed);
+                          const dFixedScore = getFixedScore(d);
+                          const dDS = DS[d] || DS.medium;
+                          return (
+                            <div key={d} style={{ marginBottom: 14, paddingBottom: 14, borderBottom: '1px dashed var(--lms-border)' }}>
+                              <div className="lms-sidebar-section-title" style={{ fontSize: 11 }}>
+                                <Hash size={12} style={{ color: dDS.text }} />
+                                <span style={{ textTransform: 'capitalize', color: dDS.text }}>{d} Questions</span>
+                              </div>
+                              <div className="lms-marks-row">
+                                <span className="lms-marks-label">Total</span>
+                                <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{dSlots}</span>
+                              </div>
+                              <div className="lms-marks-row">
+                                <span className="lms-marks-label">Created</span>
+                                <span className="lms-marks-value" style={{ color: 'var(--lms-violet)', fontSize: 12 }}>
+                                  {dCreated}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 10 }}>/{dSlots}</span>
+                                </span>
+                              </div>
+                              <div className="lms-marks-row">
+                                <span className="lms-marks-label">Remaining</span>
+                                <span className="lms-marks-value" style={{ color: dRemaining === 0 ? 'var(--lms-success)' : 'var(--lms-warning)', fontSize: 12 }}>{dRemaining}</span>
+                              </div>
+                              {dSlots > 0 && (
+                                <div className="lms-progress-bar" style={{ marginTop: 6 }}>
+                                  <div className="lms-progress-fill" style={{ width: `${Math.min(100, (dCreated / dSlots) * 100)}%`, background: dRemaining === 0 ? 'var(--lms-success)' : dDS.bar }} />
+                                </div>
+                              )}
+                              {subExerciseIsGraded && dMarksTotal > 0 && (
+                                <div style={{ marginTop: 10 }}>
+                                  <div className="lms-sidebar-section-title" style={{ fontSize: 11 }}>
+                                    <Award size={12} style={{ color: dDS.text }} />
+                                    <span style={{ textTransform: 'capitalize', color: dDS.text }}>{d} Marks</span>
+                                  </div>
+                                  <div className="lms-marks-row">
+                                    <span className="lms-marks-label">Total Mark</span>
+                                    <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{dMarksTotal}</span>
+                                  </div>
+                                  <div className="lms-marks-row">
+                                    <span className="lms-marks-label">Per Question</span>
+                                    <span className="lms-marks-value" style={{ color: dDS.text, fontSize: 12 }}>
+                                      {dFixedScore}
+                                      {isScoreEditable(d)
+                                        ? <span className="lms-badge lms-badge-violet" style={{ fontSize: '9px', padding: '1px 5px', marginLeft: 3 }}>Custom</span>
+                                        : <span className="lms-badge" style={{ fontSize: '9px', padding: '1px 5px', marginLeft: 3, background: 'var(--lms-bg-surface)', color: 'var(--lms-text-muted)', borderColor: 'var(--lms-border)' }}>Fixed</span>}
+                                    </span>
+                                  </div>
+                                  <div className="lms-marks-row">
+                                    <span className="lms-marks-label">Used</span>
+                                    <span className="lms-marks-value" style={{ color: 'var(--lms-warning)', fontSize: 12 }}>
+                                      {fmtMark(dMarksUsed)}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 10 }}>/{dMarksTotal}</span>
+                                    </span>
+                                  </div>
+                                  <div className="lms-marks-row">
+                                    <span className="lms-marks-label">Remaining</span>
+                                    <span className="lms-marks-value" style={{ color: dMarksRemaining <= 0 ? 'var(--lms-success)' : 'var(--lms-violet)', fontSize: 12 }}>{fmtMark(dMarksRemaining)}</span>
+                                  </div>
+                                  <div className="lms-progress-bar" style={{ marginTop: 6 }}>
+                                    <div className="lms-progress-fill" style={{ width: `${Math.min(100, (dMarksUsed / dMarksTotal) * 100)}%`, background: dMarksUsed >= dMarksTotal ? 'var(--lms-success)' : dDS.bar }} />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+
+                        {/* Overall Questions — always shown */}
+                        <div style={{ marginBottom: 14 }}>
+                          <div className="lms-sidebar-section-title" style={{ fontSize: 11 }}>
+                            <Hash size={12} style={{ color: 'var(--lms-orange)' }} />
+                            <span>{isGeneral ? 'Questions' : 'Overall Questions'}</span>
                           </div>
-                        ))}
-                      </div>
-                      {totalSlotsAll > 0 && (
-                        <div className="lms-progress-bar">
-                          <div className="lms-progress-fill" style={{ width: `${Math.min(100, (createdCountAll / totalSlotsAll) * 100)}%`, background: remainingSlotsAll === 0 ? 'var(--lms-success)' : 'var(--lms-orange)' }} />
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Question Quota */}
-                  <div style={{ padding: '14px 16px', borderBottom: '1.5px solid var(--lms-orange-100)', background: 'var(--lms-orange-50)' }}>
-                    <div className="lms-sidebar-section-title">
-                      <Hash size={14} style={{ color: 'var(--lms-orange)' }} />
-                      <span className="lms-detail-value" style={{ textTransform: 'capitalize', fontSize: '12px' }}>
-                        Question Quota · {isGeneral ? '(General)' : `${currentDiff} Level`}
-                      </span>
-                    </div>
-                    <div>
-                      <div className="lms-marks-row">
-                        <span className="lms-marks-label">Total Questions</span>
-                        <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: '12px' }}>{totalSlots}</span>
-                      </div>
-                      <div className="lms-marks-row">
-                        <span className="lms-marks-label">Questions Created</span>
-                        <span className="lms-marks-value" style={{ color: 'var(--lms-violet)', fontSize: '12px' }}>
-                          {createdCount}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 11 }}>/{totalSlots}</span>
-                        </span>
-                      </div>
-                      <div className="lms-marks-row">
-                        <span className="lms-marks-label">Remaining Questions</span>
-                        <span className="lms-marks-value" style={{ color: remainingSlots === 0 ? 'var(--lms-success)' : 'var(--lms-warning)', fontSize: '12px' }}>
-                          {remainingSlots}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 11 }}>/{totalSlots}</span>
-                        </span>
-                      </div>
-                    </div>
-                    {totalSlots > 0 && (
-                      <div className="lms-progress-bar">
-                        <div className="lms-progress-fill" style={{
-                          width: `${Math.min(100, (createdCount / totalSlots) * 100)}%`,
-                          background: remainingSlots === 0 ? 'var(--lms-success)' : 'var(--lms-orange)'
-                        }} />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Marks Allocation Overview (all diffs) */}
-                  {(!isGeneral && getConfiguredDiffs().length > 1) && (
-                    <div style={{ padding: '14px 16px', borderBottom: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-surface)' }}>
-                      <div className="lms-sidebar-section-title">
-                        <Award size={14} style={{ color: 'var(--lms-text-sec)' }} />
-                        Marks Allocation Overview
-                      </div>
-                      <div>
-                        <div className="lms-marks-row">
-                          <span className="lms-marks-label">Total Marks</span>
-                          <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: '12px' }}>{totalMarksAll}</span>
-                        </div>
-                        <div className="lms-marks-row">
-                          <span className="lms-marks-label">Marks Used</span>
-                          <span className="lms-marks-value" style={{ color: 'var(--lms-warning)', fontSize: '12px' }}>
-                            {fmtMark(usedMarksAll)}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 11 }}>/{totalMarksAll}</span>
-                          </span>
-                        </div>
-                        <div className="lms-marks-row">
-                          <span className="lms-marks-label">Remaining</span>
-                          <span className="lms-marks-value" style={{ color: Math.max(0, totalMarksAll - usedMarksAll) === 0 ? 'var(--lms-success)' : 'var(--lms-violet)', fontSize: '12px' }}>
-                            {fmtMark(Math.max(0, totalMarksAll - usedMarksAll))}
-                          </span>
-                        </div>
-                        {getConfiguredDiffs().map(d => (
-                          <div key={d} className="lms-marks-row">
-                            <span className="lms-marks-label" style={{ textTransform: 'capitalize' }}>{d}</span>
-                            <span className="lms-marks-value" style={{ color: 'var(--lms-text-sec)', fontSize: '12px' }}>{getTotalMarksForDiff(d)}</span>
-                          </div>
-                        ))}
-                      </div>
-                      {totalMarksAll > 0 && (
-                        <div className="lms-progress-bar">
-                          <div className="lms-progress-fill" style={{ width: `${Math.min(100, (usedMarksAll / totalMarksAll) * 100)}%`, background: usedMarksAll >= totalMarksAll ? 'var(--lms-success)' : 'var(--lms-orange)' }} />
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Marks Allocation */}
-                  <div style={{ padding: '14px 16px', borderBottom: '1.5px solid var(--lms-orange-100)', background: 'var(--lms-orange-50)' }}>
-                    <div className="lms-sidebar-section-title">
-                      <Award size={14} style={{ color: 'var(--lms-orange)' }} />
-                      <span style={{ textTransform: 'capitalize' }}>
-                        Marks Allocation · {isGeneral ? '(General)' : `${currentDiff} Level`}
-                      </span>
-                    </div>
-                    <div>
-                      {!isGeneral && totalMarksForDiff > 0 && (
-                        <div className="lms-marks-row">
-                          <span className="lms-marks-label">Level Total</span>
-                          <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: '12px' }}>{totalMarksForDiff}</span>
-                        </div>
-                      )}
-                      <div className="lms-marks-row">
-                        <span className="lms-marks-label">Marks per Question</span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span className="lms-marks-value" style={{ color: 'var(--lms-orange)', fontSize: '12px' }}>{displayScore}</span>
-                          <span className="lms-badge" style={{ fontSize: '10px', padding: '2px 6px', background: 'var(--lms-bg-surface)', color: 'var(--lms-text-muted)', borderColor: 'var(--lms-border)' }}>Fixed</span>
-                        </div>
-                      </div>
-                      {!isGeneral && totalMarksForDiff > 0 && (
-                        <>
                           <div className="lms-marks-row">
-                            <span className="lms-marks-label">Marks Used</span>
-                            <span className="lms-marks-value" style={{ color: 'var(--lms-warning)', fontSize: '12px' }}>
-                              {fmtMark(usedMarks)}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 11 }}>/{totalMarksForDiff}</span>
+                            <span className="lms-marks-label">Total</span>
+                            <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{totalSlotsAll}</span>
+                          </div>
+                          <div className="lms-marks-row">
+                            <span className="lms-marks-label">Created</span>
+                            <span className="lms-marks-value" style={{ color: 'var(--lms-violet)', fontSize: 12 }}>
+                              {createdCountAll}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 10 }}>/{totalSlotsAll}</span>
                             </span>
                           </div>
                           <div className="lms-marks-row">
                             <span className="lms-marks-label">Remaining</span>
-                            <span className="lms-marks-value" style={{ color: remainingMarks <= 0 ? 'var(--lms-success)' : 'var(--lms-violet)', fontSize: '12px' }}>{fmtMark(remainingMarks)}</span>
+                            <span className="lms-marks-value" style={{ color: remainingSlotsAll === 0 ? 'var(--lms-success)' : 'var(--lms-warning)', fontSize: 12 }}>{remainingSlotsAll}</span>
                           </div>
-                        </>
-                      )}
-                    </div>
-                    {!isGeneral && totalMarksForDiff > 0 && (
-                      <div className="lms-progress-bar">
-                        <div className="lms-progress-fill" style={{ width: `${Math.min(100, (usedMarks / totalMarksForDiff) * 100)}%`, background: usedMarks >= totalMarksForDiff ? 'var(--lms-success)' : 'var(--lms-orange)' }} />
-                      </div>
-                    )}
-                  </div>
+                          {totalSlotsAll > 0 && (
+                            <div className="lms-progress-bar" style={{ marginTop: 6 }}>
+                              <div className="lms-progress-fill" style={{ width: `${Math.min(100, (createdCountAll / totalSlotsAll) * 100)}%`, background: remainingSlotsAll === 0 ? 'var(--lms-success)' : 'var(--lms-orange)' }} />
+                            </div>
+                          )}
+                        </div>
 
+                        {/* Overall Marks — always shown when graded */}
+                        {subExerciseIsGraded && (isGeneral ? displayScore > 0 : totalMarksAll > 0) && (
+                          <div style={{ borderTop: '1.5px solid var(--lms-border)', paddingTop: 14 }}>
+                            <div className="lms-sidebar-section-title" style={{ fontSize: 11 }}>
+                              <Award size={12} style={{ color: 'var(--lms-orange)' }} />
+                              <span>{isGeneral ? 'Marks' : 'Overall Marks'}</span>
+                            </div>
+                            {isGeneral ? (
+                              <>
+                                <div className="lms-marks-row">
+                                  <span className="lms-marks-label">Per Question</span>
+                                  <span className="lms-marks-value" style={{ color: 'var(--lms-orange)', fontSize: 12 }}>{displayScore}</span>
+                                </div>
+                                <div className="lms-marks-row">
+                                  <span className="lms-marks-label">Total</span>
+                                  <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{totalMarksAll}</span>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div className="lms-marks-row">
+                                  <span className="lms-marks-label">Total Marks</span>
+                                  <span className="lms-marks-value" style={{ color: 'var(--lms-violet)', fontSize: 12 }}>{totalMarksAll}</span>
+                                </div>
+                                <div className="lms-marks-row">
+                                  <span className="lms-marks-label">Used</span>
+                                  <span className="lms-marks-value" style={{ color: 'var(--lms-warning)', fontSize: 12 }}>
+                                    {fmtMark(usedMarksAll)}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 10 }}>/{totalMarksAll}</span>
+                                  </span>
+                                </div>
+                                <div className="lms-marks-row">
+                                  <span className="lms-marks-label">Remaining</span>
+                                  <span className="lms-marks-value" style={{ color: (totalMarksAll - usedMarksAll) <= 0 ? 'var(--lms-success)' : 'var(--lms-text-main)', fontSize: 12 }}>
+                                    {fmtMark(Math.max(0, totalMarksAll - usedMarksAll))}
+                                  </span>
+                                </div>
+                                {totalMarksAll > 0 && (
+                                  <div className="lms-progress-bar" style={{ marginTop: 6 }}>
+                                    <div className="lms-progress-fill" style={{ width: `${Math.min(100, (usedMarksAll / totalMarksAll) * 100)}%`, background: usedMarksAll >= totalMarksAll ? 'var(--lms-success)' : 'var(--lms-orange)' }} />
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
@@ -2656,7 +2903,7 @@ const PreviewModal: React.FC<{
             {/* Footer */}
             <div style={{ padding: '12px 20px', borderTop: '1.5px solid var(--lms-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: 'var(--lms-bg-white)' }}>
               <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, color: 'var(--lms-text-muted)' }}>
-                {questions.filter(q => q.isSaved).length} saved · {questions.filter(q => !q.isSaved).length} unsaved
+                {savedQuestions.length} saved · {questions.filter(q => !q.isSaved).length} unsaved
               </span>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={onClose} className="lms-cancel-btn">Continue Editing</button>
@@ -2765,7 +3012,7 @@ const TitleEditor: React.FC<{
 const FrontendQuestionForm: React.FC<FrontendQuestionFormProps> = ({
   exerciseData, tabType, initialData, isEditing = false,
   onClose, onSave, onDeleteQuestion, isSaving, saveProgress, saveMessage,
-  lockedDifficulty, onEditExercise,
+  lockedDifficulty, onEditExercise, sectionData,
 }) => {
   injectFonts();
 
@@ -2779,6 +3026,7 @@ const FrontendQuestionForm: React.FC<FrontendQuestionFormProps> = ({
   const returnDiffRef = useRef<Diff | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [sidebarTab, setSidebarTab] = useState<'details' | 'overview' | 'section' | null>(null);
 
   const progCfg = exerciseData.fullExerciseData?.questionConfiguration?.programmingQuestionConfiguration;
   const cfgType = (progCfg?.questionConfigType as string) || 'general';
@@ -3835,7 +4083,7 @@ const FrontendQuestionForm: React.FC<FrontendQuestionFormProps> = ({
             {/* Edit Exercise */}
             {onEditExercise && (
               <button onClick={handleEditExerciseClick} className="lms-btn lms-btn-ghost-orange" style={{ marginRight: 24 }}>
-                <Settings size={12} /> Edit Overview
+                <Settings size={12} /> Edit Exercise
               </button>
             )}
             {/* Close */}
@@ -4224,192 +4472,213 @@ const FrontendQuestionForm: React.FC<FrontendQuestionFormProps> = ({
           </div>
 
           {/* ── RIGHT SIDEBAR ── */}
-          <div style={{ width: 272, flexShrink: 0, borderLeft: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-            <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto' }}>
-              {/* Exercise Details — info-bg */}
-              <div style={{ padding: '14px 16px', borderBottom: '1.5px solid var(--lms-info-bdr)', background: 'var(--lms-info-bg)' }}>
-                <div className="lms-sidebar-section-title">
-                  <FileText size={14} style={{ color: 'var(--lms-info)' }} />
-                  Exercise Details
+          <div style={{ width: 280, flexShrink: 0, borderLeft: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+            {/* Two action buttons */}
+            <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: 8, borderBottom: '1.5px solid var(--lms-border)', flexShrink: 0, background: 'var(--lms-bg-surface)' }}>
+              <button
+                onClick={() => setSidebarTab('details')}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px', borderRadius: 'var(--lms-radius-md)', fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 600, border: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', color: 'var(--lms-text-sec)', cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left' }}
+                onMouseEnter={e => { const b = e.currentTarget; b.style.borderColor = 'var(--lms-orange)'; b.style.background = 'var(--lms-orange-50)'; b.style.color = '#c85a30'; }}
+                onMouseLeave={e => { const b = e.currentTarget; b.style.borderColor = 'var(--lms-border)'; b.style.background = 'var(--lms-bg-white)'; b.style.color = 'var(--lms-text-sec)'; }}
+              >
+                <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--lms-orange-50)', border: '1.5px solid var(--lms-orange-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <FileText size={14} style={{ color: 'var(--lms-orange)' }} />
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                  {exerciseData.fullExerciseData?.exerciseInformation?.exerciseId && (
-                    <div className="lms-detail-row">
-                      <span className="lms-detail-label">Exercise ID</span>
-                      <span className="lms-detail-value" style={{ fontFamily: 'ui-monospace, monospace', color: 'var(--lms-violet)', fontSize: '12px' }}>{exerciseData.fullExerciseData.exerciseInformation.exerciseId}</span>
-                    </div>
-                  )}
-                  <div className="lms-detail-row">
-                    <span className="lms-detail-label">Exercise Name</span>
-                    <span className="lms-detail-value" style={{ color: 'var(--lms-orange)', maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '12px' }}>{exerciseName || 'Untitled'}</span>
-                  </div>
-                  <div className="lms-detail-row">
-                    <span className="lms-detail-label">Exercise Type</span>
-                    <span className="lms-detail-value" style={{ fontSize: '12px' }}>{exerciseData.fullExerciseData?.exerciseType || 'programming'}</span>
-                  </div>
-                  <div className="lms-detail-row">
-                    <span className="lms-detail-label">Module Type</span>
-                    <span className="lms-detail-value" style={{ fontSize: '12px' }}>Frontend</span>
-                  </div>
-                  <div className="lms-detail-row">
-                    <span className="lms-detail-label">Configuration</span>
-                    <span className="lms-detail-value" style={{ fontSize: '12px' }}>{isGeneral ? 'General' : cfgType === 'levelBased' ? 'Level Based' : 'Selection Level'}</span>
-                  </div>
-                  {(exerciseData.fullExerciseData?.exerciseInformation?.totalDuration || exerciseData.fullExerciseData?.exerciseInformation?.duration) && (
-                    <div className="lms-detail-row">
-                      <span className="lms-detail-label">Duration</span>
-                      <span className="lms-detail-value" style={{ fontSize: '12px' }}>{exerciseData.fullExerciseData?.exerciseInformation?.totalDuration || exerciseData.fullExerciseData?.exerciseInformation?.duration} mins</span>
-                    </div>
-                  )}
-                  {!isGeneral && (
-                    <div className="lms-detail-row">
-                      <span className="lms-detail-label">Current Difficulty</span>
-                      <span className="lms-detail-value" style={{ color: s.text, textTransform: 'capitalize', fontSize: '12px' }}>{currentDiff}</span>
-                    </div>
-                  )}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 700, color: 'inherit' }}>Exercise Details</div>
+                  <div style={{ fontFamily: 'var(--lms-font)', fontSize: 10.5, color: 'var(--lms-text-muted)', marginTop: 1 }}>ID, type, config, duration</div>
                 </div>
-              </div>
-
-              {/* ── Overall Questions (all difficulties) ── */}
-              {(!isGeneral && getConfiguredDiffs().length > 1) && (
-                <div style={{ padding: '14px 16px', borderBottom: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-surface)' }}>
-                  <div className="lms-sidebar-section-title">
-                    <BarChart3 size={14} style={{ color: 'var(--lms-text-sec)' }} />
-                    Question Overview
-                  </div>
-                  <div>
-                    {[
-                      { label: 'Total Questions', value: `${totalSlotsAll}`, color: 'var(--lms-text-main)', denom: null },
-                      { label: 'Questions Created', value: `${createdCountAll}`, color: 'var(--lms-violet)', denom: `${totalSlotsAll}` },
-                      { label: 'Remaining Questions', value: `${remainingSlotsAll}`, color: remainingSlotsAll === 0 ? 'var(--lms-success)' : 'var(--lms-warning)', denom: `${totalSlotsAll}` },
-                    ].map(({ label, value, color, denom }) => (
-                      <div key={label} className="lms-marks-row">
-                        <span className="lms-marks-label">{label}</span>
-                        <span className="lms-marks-value" style={{ color }}>
-                          {value}{denom != null && <span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 11 }}>/{denom}</span>}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                  {totalSlotsAll > 0 && (
-                    <div className="lms-progress-bar">
-                      <div className="lms-progress-fill" style={{ width: `${Math.min(100, (createdCountAll / totalSlotsAll) * 100)}%`, background: remainingSlotsAll === 0 ? 'var(--lms-success)' : 'var(--lms-orange)' }} />
-                    </div>
-                  )}
+                <ChevronRight size={13} style={{ color: 'var(--lms-text-hint)', flexShrink: 0 }} />
+              </button>
+              <button
+                onClick={() => setSidebarTab('overview')}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px', borderRadius: 'var(--lms-radius-md)', fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 600, border: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', color: 'var(--lms-text-sec)', cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left' }}
+                onMouseEnter={e => { const b = e.currentTarget; b.style.borderColor = 'var(--lms-info-bdr)'; b.style.background = 'var(--lms-info-bg)'; b.style.color = 'var(--lms-info)'; }}
+                onMouseLeave={e => { const b = e.currentTarget; b.style.borderColor = 'var(--lms-border)'; b.style.background = 'var(--lms-bg-white)'; b.style.color = 'var(--lms-text-sec)'; }}
+              >
+                <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--lms-info-bg)', border: '1.5px solid var(--lms-info-bdr)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <BarChart3 size={14} style={{ color: 'var(--lms-info)' }} />
                 </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 700, color: 'inherit' }}>Exercise Overview</div>
+                  <div style={{ fontFamily: 'var(--lms-font)', fontSize: 10.5, color: 'var(--lms-text-muted)', marginTop: 1 }}>Quota, marks, progress</div>
+                </div>
+                <ChevronRight size={13} style={{ color: 'var(--lms-text-hint)', flexShrink: 0 }} />
+              </button>
+              {sectionData && (
+                <button
+                  onClick={() => setSidebarTab('section')}
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px', borderRadius: 'var(--lms-radius-md)', fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 600, border: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', color: 'var(--lms-text-sec)', cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left', marginTop: 8 }}
+                  onMouseEnter={e => { const b = e.currentTarget; b.style.borderColor = 'var(--lms-violet-bdr)'; b.style.background = 'var(--lms-violet-bg)'; b.style.color = 'var(--lms-violet)'; }}
+                  onMouseLeave={e => { const b = e.currentTarget; b.style.borderColor = 'var(--lms-border)'; b.style.background = 'var(--lms-bg-white)'; b.style.color = 'var(--lms-text-sec)'; }}
+                >
+                  <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--lms-violet-bg)', border: '1.5px solid var(--lms-violet-bdr)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Layers size={14} style={{ color: 'var(--lms-violet)' }} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 700, color: 'inherit' }}>Section Details</div>
+                    <div style={{ fontFamily: 'var(--lms-font)', fontSize: 10.5, color: 'var(--lms-text-muted)', marginTop: 1 }}>{sectionData.name || 'Current section'}</div>
+                  </div>
+                  <ChevronRight size={13} style={{ color: 'var(--lms-text-hint)', flexShrink: 0 }} />
+                </button>
               )}
+            </div>
+{/* Stats summary */}
+            {(() => {
+              const _isGraded = exerciseData?.fullExerciseData?.isGraded !== false;
+              const configuredDiffs = getConfiguredDiffs();
+              return (
+                <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto', padding: '14px 14px' }}>
 
-              {/* Questions section — orange-50 */}
-              <div style={{ padding: '14px 16px', borderBottom: '1.5px solid var(--lms-orange-100)', background: 'var(--lms-orange-50)' }}>
-                <div className="lms-sidebar-section-title">
-                  <Hash size={14} style={{ color: 'var(--lms-orange)' }} />
-                  <span className="lms-detail-value" style={{ textTransform: 'capitalize', fontSize: '12px' }}>Question Quota · {isGeneral ? '(General)' : `${currentDiff} Level`}</span>
-                </div>
-                <div>
-                  {[
-                    { label: 'Total Questions', value: `${totalSlots}`, color: 'var(--lms-text-main)', denom: null },
-                    { label: 'Questions Created', value: `${createdCount}`, color: 'var(--lms-violet)', denom: `${totalSlots}` },
-                    { label: 'Remaining Questions', value: `${remainingSlots}`, color: remainingSlots === 0 ? 'var(--lms-success)' : 'var(--lms-warning)', denom: `${totalSlots}` },
-                  ].map(({ label, value, color, denom }) => (
-                    <div key={label} className="lms-marks-row">
-                      <span className="lms-marks-label">{label}</span>
-                      <span className="lms-marks-value" style={{ color }}>
-                        {value}{denom && <span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 11 }}>/{denom}</span>}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                {totalSlots > 0 && (
-                  <div className="lms-progress-bar">
-                    <div className="lms-progress-fill" style={{ width: `${Math.min(100, (createdCount / totalSlots) * 100)}%`, background: remainingSlots === 0 ? 'var(--lms-success)' : 'var(--lms-orange)' }} />
-                  </div>
-                )}
-              </div>
+                  {/* Per-Difficulty sections (level-based only) */}
+                  {!isGeneral && configuredDiffs.map((d) => {
+                    const dSlots = getQuotaForDiff(d);
+                    const dCreated = getCreatedCount(d);
+                    const dRemaining = getRemainingSlots(d);
+                    const dMarksTotal = getTotalMarksForDiff(d);
+                    const dMarksUsed = getDbMarksUsedForDiff(d);
+                    const dMarksRemaining = Math.max(0, dMarksTotal - dMarksUsed);
+                    const dFixedScore = getFixedScore(d);
+                    const dDS = DS[d] || DS.medium;
+                    return (
+                      <div key={d} style={{ marginBottom: 14, paddingBottom: 14, borderBottom: '1px dashed var(--lms-border)' }}>
+                        <div className="lms-sidebar-section-title" style={{ fontSize: 11 }}>
+                          <Hash size={12} style={{ color: dDS.text }} />
+                          <span style={{ textTransform: 'capitalize', color: dDS.text }}>{d} Questions</span>
+                        </div>
+                        <div className="lms-marks-row">
+                          <span className="lms-marks-label">Total</span>
+                          <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{dSlots}</span>
+                        </div>
+                        <div className="lms-marks-row">
+                          <span className="lms-marks-label">Created</span>
+                          <span className="lms-marks-value" style={{ color: 'var(--lms-violet)', fontSize: 12 }}>
+                            {dCreated}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 10 }}>/{dSlots}</span>
+                          </span>
+                        </div>
+                        <div className="lms-marks-row">
+                          <span className="lms-marks-label">Remaining</span>
+                          <span className="lms-marks-value" style={{ color: dRemaining === 0 ? 'var(--lms-success)' : 'var(--lms-warning)', fontSize: 12 }}>{dRemaining}</span>
+                        </div>
+                        {dSlots > 0 && (
+                          <div className="lms-progress-bar" style={{ marginTop: 6 }}>
+                            <div className="lms-progress-fill" style={{ width: `${Math.min(100, (dCreated / dSlots) * 100)}%`, background: dRemaining === 0 ? 'var(--lms-success)' : dDS.bar }} />
+                          </div>
+                        )}
+                        {_isGraded && dMarksTotal > 0 && (
+                          <div style={{ marginTop: 10 }}>
+                            <div className="lms-sidebar-section-title" style={{ fontSize: 11 }}>
+                              <Award size={12} style={{ color: dDS.text }} />
+                              <span style={{ textTransform: 'capitalize', color: dDS.text }}>{d} Marks</span>
+                            </div>
+                            <div className="lms-marks-row">
+                              <span className="lms-marks-label">Total Mark</span>
+                              <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{dMarksTotal}</span>
+                            </div>
+                            <div className="lms-marks-row">
+                              <span className="lms-marks-label">Per Question</span>
+                              <span className="lms-marks-value" style={{ color: dDS.text, fontSize: 12 }}>
+                                {dFixedScore}
+                                {isScoreEditable(d)
+                                  ? <span className="lms-badge lms-badge-violet" style={{ fontSize: '9px', padding: '1px 5px', marginLeft: 3 }}>Custom</span>
+                                  : <span className="lms-badge" style={{ fontSize: '9px', padding: '1px 5px', marginLeft: 3, background: 'var(--lms-bg-surface)', color: 'var(--lms-text-muted)', borderColor: 'var(--lms-border)' }}>Fixed</span>}
+                              </span>
+                            </div>
+                            <div className="lms-marks-row">
+                              <span className="lms-marks-label">Used</span>
+                              <span className="lms-marks-value" style={{ color: 'var(--lms-warning)', fontSize: 12 }}>
+                                {fmtMark(dMarksUsed)}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 10 }}>/{dMarksTotal}</span>
+                              </span>
+                            </div>
+                            <div className="lms-marks-row">
+                              <span className="lms-marks-label">Remaining</span>
+                              <span className="lms-marks-value" style={{ color: dMarksRemaining <= 0 ? 'var(--lms-success)' : 'var(--lms-violet)', fontSize: 12 }}>{fmtMark(dMarksRemaining)}</span>
+                            </div>
+                            <div className="lms-progress-bar" style={{ marginTop: 6 }}>
+                              <div className="lms-progress-fill" style={{ width: `${Math.min(100, (dMarksUsed / dMarksTotal) * 100)}%`, background: dMarksUsed >= dMarksTotal ? 'var(--lms-success)' : dDS.bar }} />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
 
-              {/* Marks Allocation Overview (all diffs) */}
-              {(!isGeneral && getConfiguredDiffs().length > 1) && (
-                <div style={{ padding: '14px 16px', borderBottom: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-surface)' }}>
-                  <div className="lms-sidebar-section-title">
-                    <Award size={14} style={{ color: 'var(--lms-text-sec)' }} />
-                    Marks Allocation Overview
-                  </div>
-                  <div>
-                    <div className="lms-marks-row">
-                      <span className="lms-marks-label">Total Marks</span>
-                      <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: '12px' }}>{totalMarksAll}</span>
+                  {/* Overall Questions — always shown */}
+                  <div style={{ marginBottom: 14 }}>
+                    <div className="lms-sidebar-section-title" style={{ fontSize: 11 }}>
+                      <Hash size={12} style={{ color: 'var(--lms-orange)' }} />
+                      <span>{isGeneral ? 'Questions' : 'Overall Questions'}</span>
                     </div>
                     <div className="lms-marks-row">
-                      <span className="lms-marks-label">Marks Used</span>
-                      <span className="lms-marks-value" style={{ color: 'var(--lms-warning)', fontSize: '12px' }}>
-                        {fmtMark(usedMarksAll)}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 11 }}>/{totalMarksAll}</span>
+                      <span className="lms-marks-label">Total</span>
+                      <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{totalSlotsAll}</span>
+                    </div>
+                    <div className="lms-marks-row">
+                      <span className="lms-marks-label">Created</span>
+                      <span className="lms-marks-value" style={{ color: 'var(--lms-violet)', fontSize: 12 }}>
+                        {createdCountAll}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 10 }}>/{totalSlotsAll}</span>
                       </span>
                     </div>
                     <div className="lms-marks-row">
                       <span className="lms-marks-label">Remaining</span>
-                      <span className="lms-marks-value" style={{ color: Math.max(0, totalMarksAll - usedMarksAll) === 0 ? 'var(--lms-success)' : 'var(--lms-violet)', fontSize: '12px' }}>
-                        {fmtMark(Math.max(0, totalMarksAll - usedMarksAll))}
-                      </span>
+                      <span className="lms-marks-value" style={{ color: remainingSlotsAll === 0 ? 'var(--lms-success)' : 'var(--lms-warning)', fontSize: 12 }}>{remainingSlotsAll}</span>
                     </div>
-                    {getConfiguredDiffs().map(d => (
-                      <div key={d} className="lms-marks-row">
-                        <span className="lms-marks-label" style={{ textTransform: 'capitalize' }}>{d}</span>
-                        <span className="lms-marks-value" style={{ color: 'var(--lms-text-sec)', fontSize: '12px' }}>{getTotalMarksForDiff(d)}</span>
+                    {totalSlotsAll > 0 && (
+                      <div className="lms-progress-bar" style={{ marginTop: 6 }}>
+                        <div className="lms-progress-fill" style={{ width: `${Math.min(100, (createdCountAll / totalSlotsAll) * 100)}%`, background: remainingSlotsAll === 0 ? 'var(--lms-success)' : 'var(--lms-orange)' }} />
                       </div>
-                    ))}
+                    )}
                   </div>
-                  {totalMarksAll > 0 && (
-                    <div className="lms-progress-bar">
-                      <div className="lms-progress-fill" style={{ width: `${Math.min(100, (usedMarksAll / totalMarksAll) * 100)}%`, background: usedMarksAll >= totalMarksAll ? 'var(--lms-success)' : 'var(--lms-orange)' }} />
-                    </div>
-                  )}
-                </div>
-              )}
 
-              {/* Marks Allocation · diff */}
-              <div style={{ padding: '14px 16px', borderBottom: '1.5px solid var(--lms-orange-100)', background: 'var(--lms-orange-50)' }}>
-                <div className="lms-sidebar-section-title">
-                  <Award size={14} style={{ color: 'var(--lms-orange)' }} />
-                  <span style={{ textTransform: 'capitalize' }}>Marks Allocation · {isGeneral ? '(General)' : `${currentDiff} Level`}</span>
-                </div>
-                <div>
-                  {!isGeneral && totalMarksForDiff > 0 && (
-                    <div className="lms-marks-row">
-                      <span className="lms-marks-label">Level Total</span>
-                      <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: '12px' }}>{totalMarksForDiff}</span>
+                  {/* Overall Marks — always shown when graded */}
+                  {_isGraded && (isGeneral ? generalMPQ > 0 : totalMarksAll > 0) && (
+                    <div style={{ borderTop: '1.5px solid var(--lms-border)', paddingTop: 14 }}>
+                      <div className="lms-sidebar-section-title" style={{ fontSize: 11 }}>
+                        <Award size={12} style={{ color: 'var(--lms-orange)' }} />
+                        <span>{isGeneral ? 'Marks' : 'Overall Marks'}</span>
+                      </div>
+                      {isGeneral ? (
+                        <>
+                          <div className="lms-marks-row">
+                            <span className="lms-marks-label">Per Question</span>
+                            <span className="lms-marks-value" style={{ color: 'var(--lms-orange)', fontSize: 12 }}>{generalMPQ}</span>
+                          </div>
+                          <div className="lms-marks-row">
+                            <span className="lms-marks-label">Total</span>
+                            <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{totalMarksAll}</span>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="lms-marks-row">
+                            <span className="lms-marks-label">Total Marks</span>
+                            <span className="lms-marks-value" style={{ color: 'var(--lms-violet)', fontSize: 12 }}>{totalMarksAll}</span>
+                          </div>
+                          <div className="lms-marks-row">
+                            <span className="lms-marks-label">Used</span>
+                            <span className="lms-marks-value" style={{ color: 'var(--lms-warning)', fontSize: 12 }}>
+                              {fmtMark(usedMarksAll)}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 10 }}>/{totalMarksAll}</span>
+                            </span>
+                          </div>
+                          <div className="lms-marks-row">
+                            <span className="lms-marks-label">Remaining</span>
+                            <span className="lms-marks-value" style={{ color: (totalMarksAll - usedMarksAll) <= 0 ? 'var(--lms-success)' : 'var(--lms-text-main)', fontSize: 12 }}>
+                              {fmtMark(Math.max(0, totalMarksAll - usedMarksAll))}
+                            </span>
+                          </div>
+                          {totalMarksAll > 0 && (
+                            <div className="lms-progress-bar" style={{ marginTop: 6 }}>
+                              <div className="lms-progress-fill" style={{ width: `${Math.min(100, (usedMarksAll / totalMarksAll) * 100)}%`, background: usedMarksAll >= totalMarksAll ? 'var(--lms-success)' : 'var(--lms-orange)' }} />
+                            </div>
+                          )}
+                        </>
+                      )}
                     </div>
                   )}
-                  <div className="lms-marks-row">
-                    <span className="lms-marks-label">Marks per Question</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span className="lms-marks-value" style={{ color: 'var(--lms-orange)', fontSize: '12px' }}>{displayScore}</span>
-                      {isScoreEditable(currentDiff)
-                        ? <span className="lms-badge lms-badge-violet" style={{ fontSize: '10px', padding: '2px 6px' }}>Custom</span>
-                        : <span className="lms-badge" style={{ fontSize: '10px', padding: '2px 6px', background: 'var(--lms-bg-surface)', color: 'var(--lms-text-muted)', borderColor: 'var(--lms-border)' }}>Fixed</span>}
-                    </div>
-                  </div>
-                  {!isGeneral && totalMarksForDiff > 0 && (
-                    <>
-                      <div className="lms-marks-row">
-                        <span className="lms-marks-label">Marks Used</span>
-                        <span className="lms-marks-value" style={{ color: 'var(--lms-warning)', fontSize: '12px' }}>
-                          {fmtMark(usedMarks)}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 11 }}>/{totalMarksForDiff}</span>
-                        </span>
-                      </div>
-                      <div className="lms-marks-row">
-                        <span className="lms-marks-label">Remaining</span>
-                        <span className="lms-marks-value" style={{ color: remainingMarks <= 0 ? 'var(--lms-success)' : 'var(--lms-violet)', fontSize: '12px' }}>{fmtMark(remainingMarks)}</span>
-                      </div>
-                    </>
-                  )}
-                </div>
-                {!isGeneral && totalMarksForDiff > 0 && (
-                  <div className="lms-progress-bar">
-                    <div className="lms-progress-fill" style={{ width: `${Math.min(100, (usedMarks / totalMarksForDiff) * 100)}%`, background: usedMarks >= totalMarksForDiff ? 'var(--lms-success)' : 'var(--lms-orange)' }} />
-                  </div>
-                )}
-              </div>
 
-            </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
         {/* ── FOOTER ── */}
@@ -4813,6 +5082,307 @@ const FrontendQuestionForm: React.FC<FrontendQuestionFormProps> = ({
                   <X size={13} /> Yes, Clear All
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Exercise Details overlay modal ── */}
+      {sidebarTab === 'details' && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
+          onClick={e => { if (e.target === e.currentTarget) setSidebarTab(null); }}>
+          <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 360, maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ padding: '13px 16px', borderBottom: '1.5px solid var(--lms-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--lms-bg-surface)', flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <FileText size={14} style={{ color: 'var(--lms-text-sec)' }} />
+                <span style={{ fontFamily: 'var(--lms-font)', fontSize: 13, fontWeight: 700, color: 'var(--lms-text-main)' }}>Exercise Details</span>
+              </div>
+              <button type="button" onClick={() => setSidebarTab(null)}
+                style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--lms-text-muted)', display: 'flex', padding: 4, borderRadius: 6 }}>
+                <X size={15} />
+              </button>
+            </div>
+            <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto', padding: '4px 0' }}>
+              {exerciseData.fullExerciseData?.exerciseInformation?.exerciseId && (
+                <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                  <span className="lms-detail-label">Exercise ID</span>
+                  <span className="lms-detail-value" style={{ fontFamily: 'ui-monospace, monospace', color: 'var(--lms-violet)', fontSize: 11 }}>
+                    {exerciseData.fullExerciseData.exerciseInformation.exerciseId}
+                  </span>
+                </div>
+              )}
+              <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                <span className="lms-detail-label">Exercise Name</span>
+                <span className="lms-detail-value" style={{ color: 'var(--lms-orange)', fontSize: 11, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{exerciseName || 'Untitled'}</span>
+              </div>
+              <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                <span className="lms-detail-label">Exercise Type</span>
+                <span className="lms-detail-value" style={{ fontSize: 11 }}>{exerciseData.fullExerciseData?.exerciseType || 'programming'}</span>
+              </div>
+              <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                <span className="lms-detail-label">Module Type</span>
+                <span className="lms-detail-value" style={{ fontSize: 11 }}>Frontend</span>
+              </div>
+              <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                <span className="lms-detail-label">Configuration</span>
+                <span className="lms-detail-value" style={{ fontSize: 11 }}>{isGeneral ? 'General' : cfgType === 'levelBased' ? 'Level Based' : 'Selection Level'}</span>
+              </div>
+              <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                <span className="lms-detail-label">Assessment Type</span>
+                <span className="lms-detail-value" style={{ fontSize: 11, fontWeight: 700, color: exerciseData?.fullExerciseData?.isGraded !== false ? 'var(--lms-success)' : 'var(--lms-warning)' }}>
+                  {exerciseData?.fullExerciseData?.isGraded !== false ? 'Graded' : 'Non-Graded'}
+                </span>
+              </div>
+              {(exerciseData.fullExerciseData?.exerciseInformation?.totalDuration || exerciseData.fullExerciseData?.exerciseInformation?.duration) && (
+                <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                  <span className="lms-detail-label">Duration</span>
+                  <span className="lms-detail-value" style={{ fontSize: 11 }}>
+                    {exerciseData.fullExerciseData?.exerciseInformation?.totalDuration || exerciseData.fullExerciseData?.exerciseInformation?.duration} mins
+                  </span>
+                </div>
+              )}
+              {!isGeneral && (
+                <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                  <span className="lms-detail-label">Current Difficulty</span>
+                  <span className="lms-detail-value" style={{ fontSize: 11, textTransform: 'capitalize', color: DS[currentDiff]?.text }}>{currentDiff}</span>
+                </div>
+              )}
+            </div>
+            <div style={{ padding: '10px 16px', borderTop: '1.5px solid var(--lms-border)', display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
+              <button type="button" onClick={() => setSidebarTab(null)}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 16px', borderRadius: 'var(--lms-radius-md)', fontFamily: 'var(--lms-font)', fontSize: 12, fontWeight: 600, border: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-surface)', color: 'var(--lms-text-sec)', cursor: 'pointer' }}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Exercise Overview overlay modal ── */}
+      {sidebarTab === 'overview' && (() => {
+        const _isGraded = exerciseData?.fullExerciseData?.isGraded !== false;
+        const configuredDiffs = getConfiguredDiffs();
+        return (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
+            onClick={e => { if (e.target === e.currentTarget) setSidebarTab(null); }}>
+            <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 420, maxHeight: '88vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              <div style={{ padding: '13px 16px', borderBottom: '1.5px solid var(--lms-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--lms-info-bg)', flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                  <BarChart3 size={14} style={{ color: 'var(--lms-info)' }} />
+                  <span style={{ fontFamily: 'var(--lms-font)', fontSize: 13, fontWeight: 700, color: 'var(--lms-text-main)' }}>Exercise Overview</span>
+                </div>
+                <button type="button" onClick={() => setSidebarTab(null)}
+                  style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--lms-text-muted)', display: 'flex', padding: 4, borderRadius: 6 }}>
+                  <X size={15} />
+                </button>
+              </div>
+              <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto' }}>
+                {/* Overall Questions */}
+                <div style={{ padding: '12px 16px', borderBottom: '1.5px solid var(--lms-border)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                    <Hash size={12} style={{ color: 'var(--lms-orange)' }} />
+                    <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, fontWeight: 700, color: 'var(--lms-orange)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      {isGeneral ? 'Questions' : 'Overall Questions'}
+                    </span>
+                  </div>
+                  <div className="lms-marks-row">
+                    <span className="lms-marks-label">Total</span>
+                    <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{totalSlotsAll}</span>
+                  </div>
+                  <div className="lms-marks-row">
+                    <span className="lms-marks-label">Created</span>
+                    <span className="lms-marks-value" style={{ color: 'var(--lms-violet)', fontSize: 12 }}>
+                      {createdCountAll}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 10 }}>/{totalSlotsAll}</span>
+                    </span>
+                  </div>
+                  <div className="lms-marks-row">
+                    <span className="lms-marks-label">Remaining</span>
+                    <span className="lms-marks-value" style={{ color: remainingSlotsAll === 0 ? 'var(--lms-success)' : 'var(--lms-warning)', fontSize: 12 }}>{remainingSlotsAll}</span>
+                  </div>
+                  {totalSlotsAll > 0 && (
+                    <div className="lms-progress-bar" style={{ marginTop: 8 }}>
+                      <div className="lms-progress-fill" style={{ width: `${Math.min(100, (createdCountAll / totalSlotsAll) * 100)}%`, background: remainingSlotsAll === 0 ? 'var(--lms-success)' : 'var(--lms-orange)' }} />
+                    </div>
+                  )}
+                  {!isGeneral && configuredDiffs.length > 0 && (
+                    <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      {configuredDiffs.map(d => {
+                        const quota = getQuotaForDiff(d);
+                        const created = getCreatedCount(d);
+                        const rem = quota - created;
+                        const diffColor = d === 'easy' ? 'var(--lms-success)' : d === 'medium' ? 'var(--lms-warning)' : 'var(--lms-danger)';
+                        return (
+                          <div key={d} className="lms-marks-row" style={{ paddingLeft: 8, borderLeft: `2px solid ${diffColor}`, marginBottom: 2 }}>
+                            <span className="lms-marks-label" style={{ textTransform: 'capitalize', color: diffColor }}>{d}</span>
+                            <span className="lms-marks-value" style={{ fontSize: 11 }}>
+                              <span style={{ color: 'var(--lms-violet)' }}>{created}</span>
+                              <span style={{ color: 'var(--lms-text-hint)', fontWeight: 400 }}>/{quota}</span>
+                              <span style={{ color: rem <= 0 ? 'var(--lms-success)' : 'var(--lms-text-muted)', fontSize: 10, marginLeft: 6, fontWeight: 500 }}>
+                                {rem <= 0 ? '✓' : `${rem} left`}
+                              </span>
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                {/* Marks */}
+                {_isGraded && (isGeneral ? generalMPQ > 0 : totalMarksAll > 0) && (
+                  <div style={{ padding: '12px 16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                      <Award size={12} style={{ color: 'var(--lms-violet)' }} />
+                      <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, fontWeight: 700, color: 'var(--lms-violet)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        {isGeneral ? 'Marks' : 'Overall Marks'}
+                      </span>
+                    </div>
+                    {isGeneral ? (
+                      <>
+                        <div className="lms-marks-row">
+                          <span className="lms-marks-label">Per Question</span>
+                          <span className="lms-marks-value" style={{ color: 'var(--lms-orange)', fontSize: 12 }}>{generalMPQ}</span>
+                        </div>
+                        <div className="lms-marks-row">
+                          <span className="lms-marks-label">Total Marks</span>
+                          <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{totalMarksAll}</span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="lms-marks-row">
+                          <span className="lms-marks-label">Total Marks</span>
+                          <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{totalMarksAll}</span>
+                        </div>
+                        <div className="lms-marks-row">
+                          <span className="lms-marks-label">Marks Used</span>
+                          <span className="lms-marks-value" style={{ color: 'var(--lms-warning)', fontSize: 12 }}>
+                            {fmtMark(usedMarksAll)}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 10 }}>/{totalMarksAll}</span>
+                          </span>
+                        </div>
+                        <div className="lms-marks-row">
+                          <span className="lms-marks-label">Remaining</span>
+                          <span className="lms-marks-value" style={{ color: Math.max(0, totalMarksAll - usedMarksAll) === 0 ? 'var(--lms-success)' : 'var(--lms-violet)', fontSize: 12 }}>
+                            {fmtMark(Math.max(0, totalMarksAll - usedMarksAll))}
+                          </span>
+                        </div>
+                        {totalMarksAll > 0 && (
+                          <div className="lms-progress-bar" style={{ marginTop: 8 }}>
+                            <div className="lms-progress-fill" style={{ width: `${Math.min(100, (usedMarksAll / totalMarksAll) * 100)}%`, background: usedMarksAll >= totalMarksAll ? 'var(--lms-success)' : 'var(--lms-orange)' }} />
+                          </div>
+                        )}
+                        {/* Per-diff marks breakdown */}
+                        {configuredDiffs.length > 0 && (
+                          <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            {configuredDiffs.map(d => {
+                              const dTotal = getTotalMarksForDiff(d);
+                              const dColor = d === 'easy' ? 'var(--lms-success)' : d === 'medium' ? 'var(--lms-warning)' : 'var(--lms-danger)';
+                              return (
+                                <div key={d} className="lms-marks-row" style={{ paddingLeft: 8, borderLeft: `2px solid ${dColor}`, marginBottom: 2 }}>
+                                  <span className="lms-marks-label" style={{ textTransform: 'capitalize', color: dColor }}>{d}</span>
+                                  <span className="lms-marks-value" style={{ fontSize: 11, color: 'var(--lms-text-sec)' }}>{dTotal} marks</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div style={{ padding: '10px 16px', borderTop: '1.5px solid var(--lms-border)', display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
+                <button type="button" onClick={() => setSidebarTab(null)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 16px', borderRadius: 'var(--lms-radius-md)', fontFamily: 'var(--lms-font)', fontSize: 12, fontWeight: 600, border: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-surface)', color: 'var(--lms-text-sec)', cursor: 'pointer' }}>
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Section Details overlay modal ── */}
+      {sidebarTab === 'section' && sectionData && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
+          onClick={e => { if (e.target === e.currentTarget) setSidebarTab(null); }}>
+          <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 420, maxHeight: '86vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ padding: '13px 16px', borderBottom: '1.5px solid var(--lms-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--lms-violet-bg)', flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <Layers size={14} style={{ color: 'var(--lms-violet)' }} />
+                <span style={{ fontFamily: 'var(--lms-font)', fontSize: 13, fontWeight: 700, color: 'var(--lms-text-main)' }}>Section Details</span>
+              </div>
+              <button type="button" onClick={() => setSidebarTab(null)}
+                style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--lms-text-muted)', display: 'flex', padding: 4, borderRadius: 6 }}>
+                <X size={15} />
+              </button>
+            </div>
+            <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto', padding: '14px 16px' }}>
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 11, color: 'var(--lms-text-muted)', fontWeight: 600, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Section</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--lms-text-main)' }}>{sectionData.name || '—'}</div>
+                {sectionData.description && (
+                  <div style={{ fontSize: 11.5, color: 'var(--lms-text-sec)', marginTop: 4 }}>{sectionData.description}</div>
+                )}
+              </div>
+              <div className="lms-marks-row">
+                <span className="lms-marks-label">Order</span>
+                <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{sectionData.order || sectionData.sectionNumber || '—'}</span>
+              </div>
+              <div className="lms-marks-row">
+                <span className="lms-marks-label">Exercise Type</span>
+                <span className="lms-marks-value" style={{ color: 'var(--lms-violet)', fontSize: 12 }}>{sectionData.exerciseType || '—'}</span>
+              </div>
+              <div className="lms-marks-row">
+                <span className="lms-marks-label">Total Marks</span>
+                <span className="lms-marks-value" style={{ color: 'var(--lms-orange)', fontSize: 12 }}>{sectionData.totalMarks ?? '—'}</span>
+              </div>
+              {sectionData.difficulty && (
+                <div className="lms-marks-row">
+                  <span className="lms-marks-label">Difficulty</span>
+                  <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12, textTransform: 'capitalize' }}>{sectionData.difficulty}</span>
+                </div>
+              )}
+              {sectionData.mcqConfig && (
+                <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1.5px solid var(--lms-border)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--lms-info)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>MCQ Config</span>
+                  </div>
+                  <div className="lms-marks-row">
+                    <span className="lms-marks-label">Questions</span>
+                    <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{sectionData.mcqConfig.generalQuestionCount ?? 0}</span>
+                  </div>
+                </div>
+              )}
+              {sectionData.programmingConfig && (
+                <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1.5px solid var(--lms-border)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--lms-success)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Programming Config</span>
+                  </div>
+                  <div className="lms-marks-row">
+                    <span className="lms-marks-label">Mode</span>
+                    <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{sectionData.programmingConfig.questionConfigType || '—'}</span>
+                  </div>
+                  {sectionData.programmingConfig.questionConfigType === 'general' ? (
+                    <div className="lms-marks-row">
+                      <span className="lms-marks-label">Questions</span>
+                      <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{sectionData.programmingConfig.generalQuestionCount ?? 0}</span>
+                    </div>
+                  ) : (
+                    (['easy', 'medium', 'hard'] as const).map(level => (
+                      <div key={level} className="lms-marks-row">
+                        <span className="lms-marks-label" style={{ textTransform: 'capitalize' }}>{level}</span>
+                        <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{sectionData.programmingConfig.levelBasedCounts?.[level] || 0}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+            <div style={{ padding: '10px 16px', borderTop: '1.5px solid var(--lms-border)', display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
+              <button type="button" onClick={() => setSidebarTab(null)}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 16px', borderRadius: 'var(--lms-radius-md)', fontFamily: 'var(--lms-font)', fontSize: 12, fontWeight: 600, border: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-surface)', color: 'var(--lms-text-sec)', cursor: 'pointer' }}>
+                Close
+              </button>
             </div>
           </div>
         </div>

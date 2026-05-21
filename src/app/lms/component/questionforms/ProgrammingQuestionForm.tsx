@@ -339,6 +339,10 @@ const injectFonts = (() => {
         from { transform: translateX(110%); opacity: 0; }
         to   { transform: translateX(0);    opacity: 1; }
       }
+      @keyframes lms-toast-slide-in {
+        from { opacity: 0; transform: translateX(60px); }
+        to   { opacity: 1; transform: translateX(0); }
+      }
     `;
     document.head.appendChild(style);
   };
@@ -359,6 +363,7 @@ export interface ProgrammingQuestionFormProps {
   saveMessage: string;
   lockedDifficulty?: 'easy' | 'medium' | 'hard';
   onEditExercise?: () => void;
+  sectionData?: any;
 }
 
 interface TC {
@@ -434,8 +439,8 @@ const descToBlocks = (description: any): ProgContentBlock[] => {
     typeof description === 'string'
       ? description
       : typeof description.text === 'string'
-      ? description.text
-      : '';
+        ? description.text
+        : '';
   if (textVal.trim()) {
     blocks.push({ id: mkId(), type: 'text', value: textVal });
   }
@@ -1141,12 +1146,18 @@ const ProgDescEditor: React.FC<{
   onChange: (blocks: ProgContentBlock[]) => void;
   disabled?: boolean;
   hasError?: boolean;
-}> = ({ blocks, onChange, disabled, hasError }) => {
+  resetKey?: number;
+}> = ({ blocks, onChange, disabled, hasError, resetKey }) => {
   const mkId = () => `pb-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const [showImgModal, setShowImgModal] = React.useState(false);
   const [fmtState, setFmtState] = React.useState({ bold: false, italic: false, underline: false });
   const editRefs = React.useRef<Map<string, HTMLDivElement>>(new Map());
   const lastSetValues = React.useRef<Map<string, string>>(new Map());
+
+  // Clear lastSetValues cache when question changes so stale IDs don't skip DOM updates
+  React.useEffect(() => {
+    lastSetValues.current.clear();
+  }, [resetKey]);
 
   const updateBlock = (id: string, patch: Partial<ProgContentBlock>) => {
     onChange(blocks.map(b => b.id === id ? ({ ...b, ...patch } as ProgContentBlock) : b));
@@ -1250,10 +1261,10 @@ const ProgDescEditor: React.FC<{
                 fontSize: 15,
                 fontWeight: 500,
                 lineHeight: 1.65,
-                color: hasError ? 'var(--lms-danger)' : 'var(--lms-text-main)',
+                color: 'var(--lms-text-main)',
                 background: 'transparent',
                 border: 'none',
-                borderBottom: `2px solid ${hasError ? 'var(--lms-danger)' : disabled ? 'var(--lms-border)' : 'var(--lms-orange)'}`,
+                borderBottom: `2px solid ${disabled ? 'var(--lms-border)' : 'var(--lms-text-main)'}`,
                 borderRadius: 0,
                 outline: 'none',
                 width: '100%',
@@ -1362,9 +1373,9 @@ const ProgTitleEditor: React.FC<{
               rows={1}
               style={{
                 fontFamily: 'var(--lms-font)', fontSize: 15, fontWeight: 500,
-                color: hasError ? 'var(--lms-danger)' : 'var(--lms-text-main)',
+                color: 'var(--lms-text-main)',
                 background: 'transparent', border: 'none',
-                borderBottom: `2px solid ${hasError ? 'var(--lms-danger)' : disabled ? 'var(--lms-border)' : 'var(--lms-orange)'}`,
+                borderBottom: `2px solid ${disabled ? 'var(--lms-border)' : 'var(--lms-text-main)'}`,
                 borderRadius: 0, outline: 'none', width: '100%', padding: '4px 0',
                 opacity: disabled ? 0.6 : 1, cursor: disabled ? 'not-allowed' : 'text',
                 resize: 'none', overflow: 'hidden', lineHeight: 1.4, boxSizing: 'border-box',
@@ -1412,7 +1423,8 @@ const ProgrammingMockModal: React.FC<{
   questions: FlowQuestion[];
   selectedLanguages: string[];
   onClose: () => void;
-}> = ({ questions, selectedLanguages, onClose }) => {
+  exerciseIsGraded?: boolean;
+}> = ({ questions, selectedLanguages, onClose, exerciseIsGraded = true }) => {
   const [idx, setIdx] = useState(0);
   const [code, setCode] = useState('');
   const [lang, setLang] = useState(selectedLanguages[0]?.toLowerCase() || 'python');
@@ -1671,7 +1683,7 @@ const ProgrammingMockModal: React.FC<{
                       {q.difficulty}
                     </span>
                   )}
-                  {q?.score > 0 && (
+                  {exerciseIsGraded && q?.score > 0 && (
                     <span style={{ fontSize: 10, color: '#999', fontFamily: 'var(--lms-font)' }}>
                       {q.score} pts
                     </span>
@@ -2000,11 +2012,11 @@ const QuestionFormBreadcrumb: React.FC<{
   exerciseName?: string; actionLabel: string; questionLabel: string;
 }> = ({ hierarchyData, tabType, subcategory, subcategoryLabel, exerciseName, actionLabel, questionLabel }) => {
   const crumbs: { text: string; tip: string }[] = [];
-  if (hierarchyData?.courseName)    crumbs.push({ text: hierarchyData.courseName,    tip: 'Course' });
-  if (hierarchyData?.moduleName)    crumbs.push({ text: hierarchyData.moduleName,    tip: 'Module' });
+  if (hierarchyData?.courseName) crumbs.push({ text: hierarchyData.courseName, tip: 'Course' });
+  if (hierarchyData?.moduleName) crumbs.push({ text: hierarchyData.moduleName, tip: 'Module' });
   if (hierarchyData?.submoduleName) crumbs.push({ text: hierarchyData.submoduleName, tip: 'Sub-module' });
-  if (hierarchyData?.topicName)     crumbs.push({ text: hierarchyData.topicName,     tip: 'Topic' });
-  if (hierarchyData?.subtopicName)  crumbs.push({ text: hierarchyData.subtopicName,  tip: 'Sub-topic' });
+  if (hierarchyData?.topicName) crumbs.push({ text: hierarchyData.topicName, tip: 'Topic' });
+  if (hierarchyData?.subtopicName) crumbs.push({ text: hierarchyData.subtopicName, tip: 'Sub-topic' });
 
   const Sep = () => <li><span className="lms-breadcrumb-sep">»</span></li>;
 
@@ -2154,7 +2166,7 @@ const DiffSwitchDialog: React.FC<{
             <p style={{ fontFamily: 'var(--lms-font)', fontSize: 12, color: 'var(--lms-text-sec)', lineHeight: 1.6 }}>
               Switching to <strong style={{ color: toDS.text, textTransform: 'capitalize' }}>{toDiff}</strong>{' '}
               {remainingInTo > 0
-                ? <>will start adding questions for that difficulty. <span style={{ display: 'block', marginTop: 4, color: 'var(--lms-text-muted)' }}>{remainingInTo} slot{remainingInTo !== 1 ? 's' : ''} remaining.</span></>
+                ? <>will start adding questions for that difficulty. <span style={{ display: 'block', marginTop: 4, color: 'var(--lms-text-muted)' }}>{remainingInTo} Question{remainingInTo !== 1 ? 's' : ''} remaining.</span></>
                 : <>will take you to existing <strong style={{ color: toDS.text, textTransform: 'capitalize' }}>{toDiff}</strong> questions to review or update.</>
               }
             </p>
@@ -2297,10 +2309,222 @@ const PreviewModal: React.FC<{
 }) => {
     const [expandedSet, setExpandedSet] = useState<Set<number>>(new Set());
     const [deleteTarget, setDeleteTarget] = useState<{ localId: string; title: string } | null>(null);
+    const [filterDiff, setFilterDiff] = useState<'all' | 'easy' | 'medium' | 'hard'>('all');
+    const [sidebarTab, setSidebarTab] = useState<'details' | 'overview' | null>(null);
+
     const s = DS[currentDiff] || DS.medium;
+    const subIsSelectionLevel = cfgType === 'selectionLevel';
+    const subExerciseIsGraded = !subIsSelectionLevel && (exerciseData?.fullExerciseData?.isGraded !== false);
+
+    // Get unique difficulties present in saved questions
+    const savedQuestions = questions.filter(q => !!(q._id || q.isSaved || q.isPreExisting));
+    const availableDiffs = (['easy', 'medium', 'hard'] as const).filter(d =>
+      savedQuestions.some(q => q.difficulty === d)
+    );
+
+    // Apply filter
+    const filteredSavedQuestions = savedQuestions.filter(q =>
+      filterDiff === 'all' ? true : q.difficulty === filterDiff
+    );
 
     return (
       <>
+        {/* Exercise Details Modal */}
+        {sidebarTab === 'details' && (
+          <div
+            style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
+            onClick={e => { if (e.target === e.currentTarget) setSidebarTab(null as any); }}>
+            <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 360, maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              <div style={{ padding: '13px 16px', borderBottom: '1.5px solid var(--lms-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--lms-bg-surface)', flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                  <FileText size={14} style={{ color: 'var(--lms-text-sec)' }} />
+                  <span style={{ fontFamily: 'var(--lms-font)', fontSize: 13, fontWeight: 700, color: 'var(--lms-text-main)' }}>Exercise Details</span>
+                </div>
+                <button type="button" onClick={() => setSidebarTab(null as any)}
+                  style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--lms-text-muted)', display: 'flex', padding: 4, borderRadius: 6 }}>
+                  <X size={15} />
+                </button>
+              </div>
+              <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto', padding: '4px 0' }}>
+                {exerciseData?.fullExerciseData?.exerciseInformation?.exerciseId && (
+                  <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                    <span className="lms-detail-label">Exercise ID</span>
+                    <span className="lms-detail-value" style={{ fontFamily: 'ui-monospace, monospace', color: 'var(--lms-violet)', fontSize: 11 }}>
+                      {exerciseData.fullExerciseData.exerciseInformation.exerciseId}
+                    </span>
+                  </div>
+                )}
+                <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                  <span className="lms-detail-label">Exercise Name</span>
+                  <span className="lms-detail-value" style={{ color: 'var(--lms-orange)', fontSize: 11, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {exerciseName || 'Untitled'}
+                  </span>
+                </div>
+                <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                  <span className="lms-detail-label">Exercise Type</span>
+                  <span className="lms-detail-value" style={{ fontSize: 11, textTransform: 'capitalize' }}>
+                    {exerciseData?.fullExerciseData?.exerciseType || 'programming'}
+                  </span>
+                </div>
+                <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                  <span className="lms-detail-label">Configuration</span>
+                  <span className="lms-detail-value" style={{ fontSize: 11 }}>
+                    {isGeneral ? 'General' : cfgType === 'levelBased' ? 'Level Based' : 'Selection Level'}
+                  </span>
+                </div>
+                <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                  <span className="lms-detail-label">Assessment Type</span>
+                  <span className="lms-detail-value" style={{ fontSize: 11, fontWeight: 700, color: subExerciseIsGraded ? 'var(--lms-success)' : 'var(--lms-warning)' }}>
+                    {subExerciseIsGraded ? 'Graded' : 'Non-Graded'}
+                  </span>
+                </div>
+                {(exerciseData?.fullExerciseData?.exerciseInformation?.totalDuration || exerciseData?.fullExerciseData?.exerciseInformation?.duration) && (
+                  <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                    <span className="lms-detail-label">Duration</span>
+                    <span className="lms-detail-value" style={{ fontSize: 11 }}>
+                      {exerciseData?.fullExerciseData?.exerciseInformation?.totalDuration || exerciseData?.fullExerciseData?.exerciseInformation?.duration} mins
+                    </span>
+                  </div>
+                )}
+              </div>
+              <div style={{ padding: '10px 16px', borderTop: '1.5px solid var(--lms-border)', display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
+                <button type="button" onClick={() => setSidebarTab(null as any)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 16px', borderRadius: 'var(--lms-radius-md)', fontFamily: 'var(--lms-font)', fontSize: 12, fontWeight: 600, border: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-surface)', color: 'var(--lms-text-sec)', cursor: 'pointer' }}>
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Exercise Overview Modal */}
+        {sidebarTab === 'overview' && (() => {
+          const configuredDiffs = getConfiguredDiffs();
+          return (
+            <div
+              style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
+              onClick={e => { if (e.target === e.currentTarget) setSidebarTab(null as any); }}>
+              <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 400, maxHeight: '86vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                <div style={{ padding: '13px 16px', borderBottom: '1.5px solid var(--lms-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--lms-info-bg)', flexShrink: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <BarChart3 size={14} style={{ color: 'var(--lms-info)' }} />
+                    <span style={{ fontFamily: 'var(--lms-font)', fontSize: 13, fontWeight: 700, color: 'var(--lms-text-main)' }}>Exercise Overview</span>
+                  </div>
+                  <button type="button" onClick={() => setSidebarTab(null as any)}
+                    style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--lms-text-muted)', display: 'flex', padding: 4, borderRadius: 6 }}>
+                    <X size={15} />
+                  </button>
+                </div>
+                <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto' }}>
+                  {/* Overall Questions */}
+                  <div style={{ padding: '12px 16px', borderBottom: '1.5px solid var(--lms-border)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                      <Hash size={12} style={{ color: 'var(--lms-orange)' }} />
+                      <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, fontWeight: 700, color: 'var(--lms-orange)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Overall Questions</span>
+                    </div>
+                    <div className="lms-marks-row">
+                      <span className="lms-marks-label">Total Questions</span>
+                      <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{totalSlotsAll}</span>
+                    </div>
+                    <div className="lms-marks-row">
+                      <span className="lms-marks-label">Created</span>
+                      <span className="lms-marks-value" style={{ color: 'var(--lms-violet)', fontSize: 12 }}>
+                        {createdCountAll}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 10 }}>/{totalSlotsAll}</span>
+                      </span>
+                    </div>
+                    <div className="lms-marks-row">
+                      <span className="lms-marks-label">Remaining Marks</span>
+                      <span className="lms-marks-value" style={{ color: remainingSlotsAll === 0 ? 'var(--lms-success)' : 'var(--lms-warning)', fontSize: 12 }}>{remainingSlotsAll}</span>
+                    </div>
+                    {totalSlotsAll > 0 && (
+                      <div className="lms-progress-bar" style={{ marginTop: 8 }}>
+                        <div className="lms-progress-fill" style={{ width: `${Math.min(100, (createdCountAll / totalSlotsAll) * 100)}%`, background: remainingSlotsAll === 0 ? 'var(--lms-success)' : 'var(--lms-orange)' }} />
+                      </div>
+                    )}
+                    {/* {!isGeneral && configuredDiffs.length > 0 && (
+                      <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 0 }}>
+                        {configuredDiffs.map(d => {
+                          const quota = getQuotaForDiff(d);
+                          const created = getCreatedCount(d);
+                          const rem = quota - created;
+                          const diffColor = d === 'easy' ? 'var(--lms-success)' : d === 'medium' ? 'var(--lms-warning)' : 'var(--lms-danger)';
+                          return (
+                            <div key={d} className="lms-marks-row" style={{ paddingLeft: 8, borderLeft: `2px solid ${diffColor}`, marginBottom: 2 }}>
+                              <span className="lms-marks-label" style={{ textTransform: 'capitalize', color: diffColor }}>{d}</span>
+                              <span className="lms-marks-value" style={{ fontSize: 11 }}>
+                                <span style={{ color: 'var(--lms-violet)' }}>{created}</span>
+                                <span style={{ color: 'var(--lms-text-hint)', fontWeight: 400 }}>/{quota}</span>
+                                <span style={{ color: rem <= 0 ? 'var(--lms-success)' : 'var(--lms-text-muted)', fontSize: 10, marginLeft: 6, fontWeight: 500 }}>
+                                  {rem <= 0 ? '✓' : `${rem} left`}
+                                </span>
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )} */}
+                  </div>
+                  {/* Overall Marks */}
+                  {subExerciseIsGraded && totalMarksAll > 0 && (
+                    <div style={{ padding: '12px 16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                        <Award size={12} style={{ color: 'var(--lms-violet)' }} />
+                        <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, fontWeight: 700, color: 'var(--lms-violet)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Overall Marks</span>
+                      </div>
+                      <div className="lms-marks-row">
+                        <span className="lms-marks-label">Total Marks</span>
+                        <span className="lms-marks-value" style={{ color: 'var(--lms-violet)', fontSize: 12 }}>{totalMarksAll}</span>
+                      </div>
+                      <div className="lms-marks-row">
+                        <span className="lms-marks-label">Marks Used</span>
+                        <span className="lms-marks-value" style={{ color: 'var(--lms-warning)', fontSize: 12 }}>
+                          {fmtMark(usedMarksAll)}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 10 }}>/{totalMarksAll}</span>
+                        </span>
+                      </div>
+                      <div className="lms-marks-row">
+                        <span className="lms-marks-label">Remaining Marks</span>
+                        <span className="lms-marks-value" style={{ color: (totalMarksAll - usedMarksAll) <= 0 ? 'var(--lms-success)' : 'var(--lms-text-main)', fontSize: 12 }}>
+                          {fmtMark(Math.max(0, totalMarksAll - usedMarksAll))}
+                        </span>
+                      </div>
+                      {totalMarksAll > 0 && (
+                        <div className="lms-progress-bar" style={{ marginTop: 8 }}>
+                          <div className="lms-progress-fill" style={{ width: `${Math.min(100, (usedMarksAll / totalMarksAll) * 100)}%`, background: usedMarksAll >= totalMarksAll ? 'var(--lms-success)' : 'var(--lms-orange)' }} />
+                        </div>
+                      )}
+                      {configuredDiffs.length > 0 && (
+                        <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 0 }}>
+                          {configuredDiffs.map(d => {
+                            const levelMarks = getTotalMarksForDiff(d);
+                            const usedD = savedQuestions.filter(q => q.difficulty === d).reduce((acc, q) => acc + (q.score || 0), 0);
+                            const perQ = getFixedScore(d);
+                            const diffColor = d === 'easy' ? 'var(--lms-success)' : d === 'medium' ? 'var(--lms-warning)' : 'var(--lms-danger)';
+                            return (
+                              <div key={d} className="lms-marks-row" style={{ paddingLeft: 8, borderLeft: `2px solid ${diffColor}`, marginBottom: 2 }}>
+                                <span className="lms-marks-label" style={{ textTransform: 'capitalize', color: diffColor }}>{d}</span>
+                                <span className="lms-marks-value" style={{ fontSize: 11 }}>
+                                  <span style={{ color: 'var(--lms-warning)' }}>{fmtMark(usedD)}</span>
+                                  <span style={{ color: 'var(--lms-text-hint)', fontWeight: 400 }}>/{levelMarks || '?'}</span>
+                                  {perQ > 0 && <span style={{ color: 'var(--lms-text-muted)', fontSize: 10, marginLeft: 6, fontWeight: 500 }}>{perQ} mark per question</span>}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div style={{ padding: '10px 16px', borderTop: '1.5px solid var(--lms-border)', display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
+                  <button type="button" onClick={() => setSidebarTab(null as any)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 16px', borderRadius: 'var(--lms-radius-md)', fontFamily: 'var(--lms-font)', fontSize: 12, fontWeight: 600, border: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-surface)', color: 'var(--lms-text-sec)', cursor: 'pointer' }}>
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,26,46,0.5)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 150, padding: 12 }}>
           <div style={{ width: '96vw', maxWidth: 1400, height: '96vh', display: 'flex', flexDirection: 'column', background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', border: '1.5px solid var(--lms-border)', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
 
@@ -2313,424 +2537,446 @@ const PreviewModal: React.FC<{
                 <div style={{ width: 1, height: 20, background: 'var(--lms-border)', flexShrink: 0 }} />
                 <QuestionFormBreadcrumb hierarchyData={hierarchyData} tabType={tabType} subcategory={subcategory} subcategoryLabel={subcategoryLabel} exerciseName={exerciseName} actionLabel="Preview" questionLabel={questionLabel} />
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, marginLeft: 12 }}>
-                {/* <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 'var(--lms-radius-md)', border: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-surface)' }}>
-                  <Hash size={12} style={{ color: 'var(--lms-text-hint)' }} />
+
+              {/* Right side: filter + count + close */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 16 }}>
+                {/* Question count pill */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 20, background: 'var(--lms-bg-surface)', border: '1.5px solid var(--lms-border)' }}>
+                  <Hash size={11} style={{ color: 'var(--lms-text-hint)' }} />
                   <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, fontWeight: 700, color: 'var(--lms-text-main)' }}>
-                    {questions.length} question{questions.length !== 1 ? 's' : ''}
+                    {filteredSavedQuestions.length}{filterDiff !== 'all' ? `/${savedQuestions.length}` : ''} question{savedQuestions.length !== 1 ? 's' : ''}
                   </span>
-                </div> */}
+                </div>
+
+                {/* Difficulty filter — always visible for level-based */}
+                {!isGeneral && (
+                  <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+                    <select
+                      value={filterDiff}
+                      onChange={e => setFilterDiff(e.target.value as any)}
+                      style={{
+                        fontFamily: 'var(--lms-font)',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        border: `1.5px solid ${filterDiff !== 'all' ? (DS[filterDiff]?.border || 'var(--lms-border)') : 'var(--lms-border)'}`,
+                        borderRadius: 20,
+                        padding: '5px 28px 5px 12px',
+                        cursor: 'pointer',
+                        outline: 'none',
+                        background: filterDiff !== 'all' ? (DS[filterDiff]?.bg || 'var(--lms-bg-surface)') : 'var(--lms-bg-surface)',
+                        color: filterDiff !== 'all' ? (DS[filterDiff]?.text || 'var(--lms-text-sec)') : 'var(--lms-text-sec)',
+                        appearance: 'none',
+                        WebkitAppearance: 'none',
+                        minWidth: 140,
+                      }}
+                    >
+                      <option value="all">All difficulties</option>
+                      {(['easy', 'medium', 'hard'] as const).map(d => (
+                        <option key={d} value={d}>
+                          {d.charAt(0).toUpperCase() + d.slice(1)} ({savedQuestions.filter(q => q.difficulty === d).length})
+                        </option>
+                      ))}
+                    </select>
+                    <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8"
+                      style={{ position: 'absolute', right: 9, pointerEvents: 'none', width: 11, height: 11, color: filterDiff !== 'all' ? DS[filterDiff]?.text : 'var(--lms-text-sec)' }}>
+                      <path d="M2 4l4 4 4-4" />
+                    </svg>
+                  </div>
+                )}
+
+                {/* Close */}
                 <button onClick={onClose} style={{ padding: 8, borderRadius: 8, border: '1.5px solid var(--lms-danger-bdr)', background: 'var(--lms-danger-bg)', cursor: 'pointer' }}>
                   <X size={15} style={{ color: 'var(--lms-danger)' }} />
                 </button>
               </div>
             </div>
 
-            {/* Read Only Preview banner */}
+            {/* Preview banner */}
             <div style={{ padding: '5px 20px', background: 'var(--lms-info-bg)', borderBottom: '1.5px solid var(--lms-info-bdr)', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
               <Eye size={11} style={{ color: 'var(--lms-info)' }} />
               <span style={{ fontFamily: 'var(--lms-font)', fontSize: 10.5, fontWeight: 700, color: 'var(--lms-info)', letterSpacing: 0.4, textTransform: 'uppercase' }}>Preview</span>
+              {filterDiff !== 'all' && (
+                <span style={{ ...DS[filterDiff]?.pill, fontSize: 10, fontWeight: 700, padding: '1px 8px', borderRadius: 20, textTransform: 'capitalize', marginLeft: 4 }}>
+                  Filtered: {filterDiff}
+                </span>
+              )}
             </div>
 
             <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+
               {/* Questions list */}
               <div className="lms-sidebar-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {questions.length === 0 ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--lms-text-hint)' }}>
-                    <Eye size={40} style={{ marginBottom: 12, opacity: 0.15 }} />
-                    <p style={{ fontFamily: 'var(--lms-font)', fontSize: 14, fontWeight: 600 }}>No questions yet</p>
-                  </div>
-                ) : questions.map((q, i) => {
-                  const ds = DS[q.difficulty] || DS.medium;
-                  const isActive = i === currentIndex;
-                  const isExpanded = expandedSet.has(i);
-                  const titleText = Array.isArray(q.title) ? getTitleText(q.title as any) || 'Untitled' : (q.title as string) || 'Untitled';
-                  const qNum = (() => {
-                    if (isGeneral) return i + 1;
-                    const sameD = questions.filter(x => x.difficulty === q.difficulty);
-                    return sameD.findIndex(x => x.__localId === q.__localId) + 1;
-                  })();
-
-                  // Resolve rich content for expanded panel
-                  const tBlocks: any[] = [{ type: 'text', value: titleText }];
-                  const dBlocks: any[] = Array.isArray(q.description) && (q.description as any[]).length > 0
-                    ? (q.description as any[])
-                    : (() => { const dObj: any = typeof q.description === 'object' && !Array.isArray(q.description) ? q.description : { text: '' }; return dObj?.contentBlocks || (dObj?.text?.trim() ? [{ type: 'text', value: dObj.text }] : []); })();
-                  const hasRichTitle = tBlocks.some((b: any) => b.type === 'image' || b.type === 'code');
-                  const hasDesc = dBlocks.some((b: any) => b.type !== 'text' || b.value?.trim());
-
-                  const renderBlock = (b: any, bi: number) => {
-                    if (b.type === 'text' && b.value?.trim())
-                      return <p key={bi} style={{ fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 400, color: 'var(--lms-text-main)', margin: 0, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{b.value}</p>;
-                    if (b.type === 'image')
-                      return (
-                        <div key={bi} style={{ display: 'flex', justifyContent: b.alignment === 'right' ? 'flex-end' : b.alignment === 'center' ? 'center' : 'flex-start' }}>
-                          <img src={b.url} alt="" style={{ width: `${b.sizePercent || 70}%`, maxWidth: '100%', borderRadius: 6, border: '1px solid var(--lms-border)' }} />
-                        </div>
-                      );
-                    if (b.type === 'code') {
-                      const isDk = ['#1e1e1e', '#282a36', '#272822'].includes(b.bgColor);
-                      return <pre key={bi} style={{ background: b.bgColor || '#f5f5f5', color: isDk ? '#d4d4d4' : '#1a1a2e', fontFamily: 'ui-monospace,monospace', fontSize: 11.5, padding: '10px 14px', borderRadius: 8, margin: 0, overflowX: 'auto', lineHeight: 1.6 }}>{b.value}</pre>;
-                    }
-                    return null;
-                  };
-
-                  return (
-                    <div key={q.__localId} style={{
-                      border: isActive ? `2px solid var(--lms-orange)` : '1.5px solid var(--lms-border)',
-                      borderRadius: 12,
-                      boxShadow: isActive ? '0 0 0 3px var(--lms-orange-light)' : '0 1px 4px rgba(0,0,0,0.05)',
-                      transition: 'border-color 0.15s, box-shadow 0.15s',
-                      flexShrink: 0,
-                      overflow: 'visible',
-                    }}>
-
-                      {/* ── Card header ── */}
-                      <div style={{ padding: '12px 14px', background: isActive ? 'var(--lms-orange-50)' : 'var(--lms-bg-white)', borderRadius: isExpanded ? '10px 10px 0 0' : 10 }}>
-
-                        {/* Row 1: num + title + CURRENT/SAVED + actions */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          {/* Question number badge */}
-                          <span style={{
-                            width: 30, height: 30, borderRadius: 9, fontSize: 12, fontWeight: 800,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                            fontFamily: 'var(--lms-font)',
-                            background: isActive ? 'var(--lms-orange)' : ds.bg,
-                            color: isActive ? 'white' : ds.text,
-                            border: `2px solid ${isActive ? 'transparent' : ds.border}`,
-                          }}>{qNum}</span>
-
-                          {/* Title */}
-                          <p style={{
-                            flex: 1, minWidth: 0,
-                            fontFamily: 'var(--lms-font)', fontSize: 13.5, fontWeight: 700,
-                            color: 'var(--lms-text-main)', margin: 0,
-                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                          }}>{titleText}</p>
-
-                          {/* Status badges */}
-                          {isActive && (
-                            <span style={{ fontFamily: 'var(--lms-font)', fontSize: 9, fontWeight: 700, color: 'var(--lms-orange)', background: 'var(--lms-orange-50)', border: '1px solid var(--lms-orange-100)', padding: '2px 7px', borderRadius: 20, flexShrink: 0 }}>CURRENT</span>
-                          )}
-                          {q._id && (
-                            <span style={{ fontFamily: 'var(--lms-font)', fontSize: 9, fontWeight: 700, color: 'var(--lms-success)', background: 'var(--lms-success-bg)', border: '1px solid var(--lms-success-bdr)', padding: '2px 7px', borderRadius: 20, flexShrink: 0 }}>SAVED</span>
-                          )}
-                        </div>
-
-                        {/* Row 2: difficulty + meta + action buttons */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-                          {/* Meta info */}
-                          {!isGeneral && (
-                            <span style={{ ...ds.pill, fontSize: 10, fontWeight: 700, padding: '2px 9px', borderRadius: 20, textTransform: 'capitalize' as const, flexShrink: 0 }}>{q.difficulty}</span>
-                          )}
-                          <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, color: 'var(--lms-text-muted)', flexShrink: 0 }}>{q.score} marks</span>
-                          <span style={{ color: 'var(--lms-border)', fontSize: 11, flexShrink: 0 }}>·</span>
-                          <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, color: 'var(--lms-text-muted)', flexShrink: 0 }}>{q.testCases?.length || 0} test case{(q.testCases?.length || 0) !== 1 ? 's' : ''}</span>
-                          {q.isSaved && !q.isDirty && (
-                            <span style={{ fontFamily: 'var(--lms-font)', fontSize: 10, color: 'var(--lms-success)', fontWeight: 600, flexShrink: 0 }}>✓ Saved</span>
-                          )}
-                          {q.isDirty && (
-                            <span style={{ fontFamily: 'var(--lms-font)', fontSize: 10, color: 'var(--lms-warning)', fontWeight: 600, flexShrink: 0 }}>✎ Modified</span>
-                          )}
-
-                          {/* Spacer */}
-                          <div style={{ flex: 1 }} />
-
-                          {/* Action buttons */}
-                          <button
-                            onClick={() => { onJump(i); onClose(); }}
-                            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 11px', background: 'var(--lms-warning-bg)', color: 'var(--lms-warning)', fontSize: 11, fontWeight: 700, border: '1.5px solid var(--lms-warning-bdr)', borderRadius: 7, cursor: 'pointer', fontFamily: 'var(--lms-font)', flexShrink: 0 }}>
-                            <Edit2 size={11} /> Edit
-                          </button>
-                          <button
-                            onClick={() => setDeleteTarget({ localId: q.__localId, title: titleText })}
-                            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 11px', background: 'var(--lms-danger-bg)', color: 'var(--lms-danger)', fontSize: 11, fontWeight: 700, border: '1.5px solid var(--lms-danger-bdr)', borderRadius: 7, cursor: 'pointer', fontFamily: 'var(--lms-font)', flexShrink: 0 }}>
-                            <Trash2 size={11} /> Delete
-                          </button>
-                          {/* Expand toggle */}
-                          <button
-                            onClick={() => setExpandedSet(prev => { const n = new Set(prev); n.has(i) ? n.delete(i) : n.add(i); return n; })}
-                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 8, border: `1.5px solid ${isExpanded ? 'var(--lms-violet-bdr)' : 'var(--lms-border)'}`, background: isExpanded ? 'var(--lms-violet-bg)' : 'var(--lms-bg-surface)', cursor: 'pointer', color: isExpanded ? 'var(--lms-violet)' : 'var(--lms-text-muted)', flexShrink: 0, transition: 'all 0.15s' }}>
-                            {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* ── Expanded detail panel ── */}
-                      {isExpanded && (
-                        <div style={{ borderTop: '1.5px solid var(--lms-border)', borderRadius: '0 0 10px 10px', padding: '10px 16px', display: 'flex', flexDirection: 'column' }}>
-
-                          {/* Problem Title (rich blocks — only when image/code present) */}
-                          {hasRichTitle && (
-                            <div>
-                              <p className="lms-section-label" >Problem Title</p>
-                              <div style={{ display: 'flex', flexDirection: 'column', background: 'var(--lms-bg-white)', padding: '0px 12px', borderRadius: 8, border: '1.5px solid var(--lms-border)' }}>
-                                {tBlocks.map(renderBlock)}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Description */}
-                          {hasDesc && (
-                            <div>
-                              <p className="lms-section-label" style={{ marginBottom: 6 }}>Description</p>
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--lms-bg-white)', padding: '10px 12px', borderRadius: 8, border: '1.5px solid var(--lms-border)' }}>
-                                {dBlocks.map(renderBlock)}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Test Cases */}
-                          {(q.testCases?.length || 0) > 0 && (
-                            <div>
-                              <p className="lms-section-label mt-5" >Test Cases ({q.testCases.length})</p>
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                {q.testCases.map((tc: any, ti: number) => (
-                                  <div key={ti} style={{ background: 'var(--lms-bg-white)', borderRadius: 8, border: '1.5px solid var(--lms-border)', overflow: 'hidden' }}>
-                                    <div style={{ padding: '6px 10px', background: ti === 0 ? 'var(--lms-orange-50)' : 'var(--lms-bg-surface)', borderBottom: '1px solid var(--lms-border)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                                      <span style={{ fontFamily: 'var(--lms-font)', fontSize: 10.5, fontWeight: 700, color: ti === 0 ? '#c85a30' : 'var(--lms-text-sec)' }}>
-                                        Test Case {ti + 1}{ti === 0 ? ' · Sample' : ''}
-                                      </span>
-                                      {tc.isHidden && <span style={{ fontFamily: 'var(--lms-font)', fontSize: 10, padding: '1px 7px', borderRadius: 20, background: 'var(--lms-bg-surface2)', color: 'var(--lms-text-muted)' }}>Hidden</span>}
-                                    </div>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
-                                      <div style={{ padding: '8px 12px', borderRight: '1px solid var(--lms-border)' }}>
-                                        <span style={{ fontFamily: 'var(--lms-font)', fontSize: 9.5, fontWeight: 700, color: 'var(--lms-text-hint)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 4 }}>Input</span>
-                                        <code style={{ fontFamily: 'ui-monospace, monospace', fontSize: 11, color: 'var(--lms-text-main)', wordBreak: 'break-all', whiteSpace: 'pre-wrap' }}>{tc.input || <span style={{ color: 'var(--lms-text-hint)', fontStyle: 'italic' }}>empty</span>}</code>
-                                      </div>
-                                      <div style={{ padding: '8px 12px' }}>
-                                        <span style={{ fontFamily: 'var(--lms-font)', fontSize: 9.5, fontWeight: 700, color: 'var(--lms-text-hint)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 4 }}>Expected Output</span>
-                                        <code style={{ fontFamily: 'ui-monospace, monospace', fontSize: 11, color: 'var(--lms-text-main)', wordBreak: 'break-all', whiteSpace: 'pre-wrap' }}>{tc.expectedOutput || <span style={{ color: 'var(--lms-text-hint)', fontStyle: 'italic' }}>empty</span>}</code>
-                                      </div>
-                                    </div>
-                                    {tc.explanation && (
-                                      <div style={{ padding: '6px 12px', borderTop: '1px solid var(--lms-border)', background: 'var(--lms-bg-surface)' }}>
-                                        <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, color: 'var(--lms-text-muted)' }}>{tc.explanation}</span>
-                                      </div>
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Constraints */}
-                          {(q.constraints?.filter((c: string) => c?.trim()).length || 0) > 0 && (
-                            <div>
-                              <p className="lms-section-label mt-5">Constraints</p>
-                              <ul style={{ margin: 0, paddingLeft: 16, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                {q.constraints.filter((c: string) => c?.trim()).map((c: string, ci: number) => (
-                                  <li key={ci} style={{ fontFamily: 'var(--lms-font)', fontSize: 12, color: 'var(--lms-text-main)' }}>{c}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-
-                          {/* Limits */}
-                          {/* <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-                            <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, color: 'var(--lms-text-muted)', display: 'flex', alignItems: 'center', gap: 5 }}>
-                              <Clock size={11} style={{ flexShrink: 0 }} /> Time Limit: <strong style={{ color: 'var(--lms-text-main)' }}>{q.timeLimit || 2000} ms</strong>
-                            </span>
-                            <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, color: 'var(--lms-text-muted)', display: 'flex', alignItems: 'center', gap: 5 }}>
-                              <Database size={11} style={{ flexShrink: 0 }} /> Memory Limit: <strong style={{ color: 'var(--lms-text-main)' }}>{q.memoryLimit || 256} MB</strong>
-                            </span>
-                          </div> */}
-
-                        </div>
+                {(() => {
+                  if (filteredSavedQuestions.length === 0) return (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--lms-text-hint)', gap: 12, paddingTop: 60 }}>
+                      <Eye size={40} style={{ opacity: 0.15 }} />
+                      <p style={{ fontFamily: 'var(--lms-font)', fontSize: 14, fontWeight: 600 }}>
+                        {filterDiff !== 'all' ? `No ${filterDiff} questions saved yet` : 'No saved questions yet'}
+                      </p>
+                      {filterDiff !== 'all' && (
+                        <button onClick={() => setFilterDiff('all')}
+                          style={{ fontFamily: 'var(--lms-font)', fontSize: 12, fontWeight: 600, color: 'var(--lms-violet)', background: 'var(--lms-violet-bg)', border: '1.5px solid var(--lms-violet-bdr)', borderRadius: 20, padding: '4px 14px', cursor: 'pointer' }}>
+                          Show all difficulties
+                        </button>
                       )}
                     </div>
                   );
-                })}
+
+                  return filteredSavedQuestions.map((q, filteredIdx) => {
+                    const originalIdx = questions.findIndex(x => x.__localId === q.__localId);
+                    const ds = DS[q.difficulty] || DS.medium;
+                    const isActive = originalIdx === currentIndex;
+                    const isExpanded = expandedSet.has(filteredIdx);
+                    const titleText = Array.isArray(q.title) ? getTitleText(q.title as any) || 'Untitled' : (q.title as string) || 'Untitled';
+                    const qNum = (() => {
+                      if (isGeneral) return filteredIdx + 1;
+                      const sameD = filteredSavedQuestions.filter(x => x.difficulty === q.difficulty);
+                      return sameD.findIndex(x => x.__localId === q.__localId) + 1;
+                    })();
+
+                    const tBlocks: any[] = [{ type: 'text', value: titleText }];
+                    const dBlocks: any[] = Array.isArray(q.description) && (q.description as any[]).length > 0
+                      ? (q.description as any[])
+                      : (() => { const dObj: any = typeof q.description === 'object' && !Array.isArray(q.description) ? q.description : { text: '' }; return dObj?.contentBlocks || (dObj?.text?.trim() ? [{ type: 'text', value: dObj.text }] : []); })();
+                    const hasRichTitle = tBlocks.some((b: any) => b.type === 'image' || b.type === 'code');
+                    const hasDesc = dBlocks.some((b: any) => b.type !== 'text' || b.value?.trim());
+
+                    const renderBlock = (b: any, bi: number) => {
+                      if (b.type === 'text' && b.value?.trim())
+                        return <p key={bi} style={{ fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 400, color: 'var(--lms-text-main)', margin: 0, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{b.value}</p>;
+                      if (b.type === 'image')
+                        return (
+                          <div key={bi} style={{ display: 'flex', justifyContent: b.alignment === 'right' ? 'flex-end' : b.alignment === 'center' ? 'center' : 'flex-start' }}>
+                            <img src={b.url} alt="" style={{ width: `${b.sizePercent || 70}%`, maxWidth: '100%', borderRadius: 6, border: '1px solid var(--lms-border)' }} />
+                          </div>
+                        );
+                      if (b.type === 'code') {
+                        const isDk = ['#1e1e1e', '#282a36', '#272822'].includes(b.bgColor);
+                        return <pre key={bi} style={{ background: b.bgColor || '#f5f5f5', color: isDk ? '#d4d4d4' : '#1a1a2e', fontFamily: 'ui-monospace,monospace', fontSize: 11.5, padding: '10px 14px', borderRadius: 8, margin: 0, overflowX: 'auto', lineHeight: 1.6 }}>{b.value}</pre>;
+                      }
+                      return null;
+                    };
+
+                    return (
+                      <div key={q.__localId} style={{
+                        border: isActive ? `2px solid var(--lms-orange)` : '1.5px solid var(--lms-border)',
+                        borderRadius: 12,
+                        boxShadow: isActive ? '0 0 0 3px var(--lms-orange-light)' : '0 1px 4px rgba(0,0,0,0.05)',
+                        transition: 'border-color 0.15s, box-shadow 0.15s',
+                        flexShrink: 0,
+                        overflow: 'visible',
+                      }}>
+                        <div style={{ padding: '12px 14px', background: isActive ? 'var(--lms-orange-50)' : 'var(--lms-bg-white)', borderRadius: isExpanded ? '10px 10px 0 0' : 10 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <span style={{
+                              width: 30, height: 30, borderRadius: 9, fontSize: 12, fontWeight: 800,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                              fontFamily: 'var(--lms-font)',
+                              background: isActive ? 'var(--lms-orange)' : ds.bg,
+                              color: isActive ? 'white' : ds.text,
+                              border: `2px solid ${isActive ? 'transparent' : ds.border}`,
+                            }}>{qNum}</span>
+                            <p style={{ flex: 1, minWidth: 0, fontFamily: 'var(--lms-font)', fontSize: 13.5, fontWeight: 700, color: 'var(--lms-text-main)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{titleText}</p>
+                            {q._id && (
+                              <span style={{ fontFamily: 'var(--lms-font)', fontSize: 9, fontWeight: 700, color: 'var(--lms-success)', background: 'var(--lms-success-bg)', border: '1px solid var(--lms-success-bdr)', padding: '2px 7px', borderRadius: 20, flexShrink: 0 }}>SAVED</span>
+                            )}
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                            {!isGeneral && (
+                              <span style={{ ...ds.pill, fontSize: 10, fontWeight: 700, padding: '2px 9px', borderRadius: 20, textTransform: 'capitalize' as const, flexShrink: 0 }}>{q.difficulty}</span>
+                            )}
+                            {subExerciseIsGraded && (
+                              <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, color: 'var(--lms-text-muted)', flexShrink: 0 }}>{q.score} marks</span>
+                            )}
+                            {subExerciseIsGraded && <span style={{ color: 'var(--lms-border)', fontSize: 11, flexShrink: 0 }}>·</span>}
+                            <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, color: 'var(--lms-text-muted)', flexShrink: 0 }}>{q.testCases?.length || 0} test case{(q.testCases?.length || 0) !== 1 ? 's' : ''}</span>
+                            {q.isSaved && !q.isDirty && <span style={{ fontFamily: 'var(--lms-font)', fontSize: 10, color: 'var(--lms-success)', fontWeight: 600, flexShrink: 0 }}>✓ Saved</span>}
+                            {q.isDirty && <span style={{ fontFamily: 'var(--lms-font)', fontSize: 10, color: 'var(--lms-warning)', fontWeight: 600, flexShrink: 0 }}>✎ Modified</span>}
+                            <div style={{ flex: 1 }} />
+                            <button onClick={() => { onJump(originalIdx); onClose(); }}
+                              style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 11px', background: 'var(--lms-warning-bg)', color: 'var(--lms-warning)', fontSize: 11, fontWeight: 700, border: '1.5px solid var(--lms-warning-bdr)', borderRadius: 7, cursor: 'pointer', fontFamily: 'var(--lms-font)', flexShrink: 0 }}>
+                              <Edit2 size={11} /> Edit
+                            </button>
+                            <button onClick={() => setDeleteTarget({ localId: q.__localId, title: titleText })}
+                              style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 11px', background: 'var(--lms-danger-bg)', color: 'var(--lms-danger)', fontSize: 11, fontWeight: 700, border: '1.5px solid var(--lms-danger-bdr)', borderRadius: 7, cursor: 'pointer', fontFamily: 'var(--lms-font)', flexShrink: 0 }}>
+                              <Trash2 size={11} /> Delete
+                            </button>
+                            <button onClick={() => setExpandedSet(prev => { const n = new Set(prev); n.has(filteredIdx) ? n.delete(filteredIdx) : n.add(filteredIdx); return n; })}
+                              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 8, border: `1.5px solid ${isExpanded ? 'var(--lms-violet-bdr)' : 'var(--lms-border)'}`, background: isExpanded ? 'var(--lms-violet-bg)' : 'var(--lms-bg-surface)', cursor: 'pointer', color: isExpanded ? 'var(--lms-violet)' : 'var(--lms-text-muted)', flexShrink: 0, transition: 'all 0.15s' }}>
+                              {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                            </button>
+                          </div>
+                        </div>
+
+                        {isExpanded && (
+                          <div style={{ borderTop: '1.5px solid var(--lms-border)', borderRadius: '0 0 10px 10px', padding: '10px 16px', display: 'flex', flexDirection: 'column' }}>
+                            {hasRichTitle && (
+                              <div>
+                                <p className="lms-section-label">Problem Title</p>
+                                <div style={{ display: 'flex', flexDirection: 'column', background: 'var(--lms-bg-white)', padding: '0px 12px', borderRadius: 8, border: '1.5px solid var(--lms-border)' }}>
+                                  {tBlocks.map(renderBlock)}
+                                </div>
+                              </div>
+                            )}
+                            {hasDesc && (
+                              <div>
+                                <p className="lms-section-label" style={{ marginBottom: 6 }}>Description</p>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--lms-bg-white)', padding: '10px 12px', borderRadius: 8, border: '1.5px solid var(--lms-border)' }}>
+                                  {dBlocks.map(renderBlock)}
+                                </div>
+                              </div>
+                            )}
+                            {(q.testCases?.length || 0) > 0 && (
+                              <div>
+                                <p className="lms-section-label mt-5">Test Cases ({q.testCases.length})</p>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                  {q.testCases.map((tc: any, ti: number) => (
+                                    <div key={ti} style={{ background: 'var(--lms-bg-white)', borderRadius: 8, border: '1.5px solid var(--lms-border)', overflow: 'hidden' }}>
+                                      <div style={{ padding: '6px 10px', background: ti === 0 ? 'var(--lms-orange-50)' : 'var(--lms-bg-surface)', borderBottom: '1px solid var(--lms-border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <span style={{ fontFamily: 'var(--lms-font)', fontSize: 10.5, fontWeight: 700, color: ti === 0 ? '#c85a30' : 'var(--lms-text-sec)' }}>
+                                          Test Case {ti + 1}{ti === 0 ? ' · Sample' : ''}
+                                        </span>
+                                        {tc.isHidden && <span style={{ fontFamily: 'var(--lms-font)', fontSize: 10, padding: '1px 7px', borderRadius: 20, background: 'var(--lms-bg-surface2)', color: 'var(--lms-text-muted)' }}>Hidden</span>}
+                                      </div>
+                                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
+                                        <div style={{ padding: '8px 12px', borderRight: '1px solid var(--lms-border)' }}>
+                                          <span style={{ fontFamily: 'var(--lms-font)', fontSize: 9.5, fontWeight: 700, color: 'var(--lms-text-hint)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 4 }}>Input</span>
+                                          <code style={{ fontFamily: 'ui-monospace, monospace', fontSize: 11, color: 'var(--lms-text-main)', wordBreak: 'break-all', whiteSpace: 'pre-wrap' }}>{tc.input || <span style={{ color: 'var(--lms-text-hint)', fontStyle: 'italic' }}>empty</span>}</code>
+                                        </div>
+                                        <div style={{ padding: '8px 12px' }}>
+                                          <span style={{ fontFamily: 'var(--lms-font)', fontSize: 9.5, fontWeight: 700, color: 'var(--lms-text-hint)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 4 }}>Expected Output</span>
+                                          <code style={{ fontFamily: 'ui-monospace, monospace', fontSize: 11, color: 'var(--lms-text-main)', wordBreak: 'break-all', whiteSpace: 'pre-wrap' }}>{tc.expectedOutput || <span style={{ color: 'var(--lms-text-hint)', fontStyle: 'italic' }}>empty</span>}</code>
+                                        </div>
+                                      </div>
+                                      {tc.explanation && (
+                                        <div style={{ padding: '6px 12px', borderTop: '1px solid var(--lms-border)', background: 'var(--lms-bg-surface)' }}>
+                                          <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, color: 'var(--lms-text-muted)' }}>{tc.explanation}</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            {(q.constraints?.filter((c: string) => c?.trim()).length || 0) > 0 && (
+                              <div>
+                                <p className="lms-section-label mt-5">Constraints</p>
+                                <ul style={{ margin: 0, paddingLeft: 16, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                  {q.constraints.filter((c: string) => c?.trim()).map((c: string, ci: number) => (
+                                    <li key={ci} style={{ fontFamily: 'var(--lms-font)', fontSize: 12, color: 'var(--lms-text-main)' }}>{c}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
               </div>
 
-              {/* Preview sidebar */}
-              <div style={{ width: 272, flexShrink: 0, borderLeft: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-              <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto' }}>
+              {/* Right Sidebar */}
+              <div style={{ width: 280, flexShrink: 0, borderLeft: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
 
-                {/* Exercise Details */}
-                <div style={{ padding: '14px 16px', borderBottom: '1.5px solid var(--lms-info-bdr)', background: 'var(--lms-info-bg)' }}>
-                  <div className="lms-sidebar-section-title">
-                    <FileText size={14} style={{ color: 'var(--lms-info)' }} />
-                    Exercise Details
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                    {exerciseData?.fullExerciseData?.exerciseInformation?.exerciseId && (
-                      <div className="lms-detail-row">
-                        <span className="lms-detail-label">Exercise ID</span>
-                        <span className="lms-detail-value" style={{ fontFamily: 'ui-monospace, monospace', color: 'var(--lms-violet)', fontSize: '12px' }}>{exerciseData.fullExerciseData.exerciseInformation.exerciseId}</span>
-                      </div>
-                    )}
-                    <div className="lms-detail-row">
-                      <span className="lms-detail-label">Exercise Name</span>
-                      <span className="lms-detail-value" style={{ color: 'var(--lms-orange)', maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '12px' }}>{exerciseName || 'Untitled'}</span>
+                {/* Two action buttons */}
+                <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: 8, borderBottom: '1.5px solid var(--lms-border)', flexShrink: 0, background: 'var(--lms-bg-surface)' }}>
+                  <button
+                    onClick={() => setSidebarTab('details')}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      width: '100%', padding: '10px 14px', borderRadius: 'var(--lms-radius-md)',
+                      fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 600,
+                      border: '1.5px solid var(--lms-border)',
+                      background: 'var(--lms-bg-white)', color: 'var(--lms-text-sec)',
+                      cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left',
+                    }}
+                    onMouseEnter={e => { const b = e.currentTarget; b.style.borderColor = 'var(--lms-orange)'; b.style.background = 'var(--lms-orange-50)'; b.style.color = '#c85a30'; }}
+                    onMouseLeave={e => { const b = e.currentTarget; b.style.borderColor = 'var(--lms-border)'; b.style.background = 'var(--lms-bg-white)'; b.style.color = 'var(--lms-text-sec)'; }}
+                  >
+                    <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--lms-orange-50)', border: '1.5px solid var(--lms-orange-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <FileText size={14} style={{ color: 'var(--lms-orange)' }} />
                     </div>
-                    <div className="lms-detail-row">
-                      <span className="lms-detail-label">Exercise Type</span>
-                      <span className="lms-detail-value" style={{ fontSize: '12px' }}>{exerciseData?.fullExerciseData?.exerciseType || 'programming'}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 700, color: 'inherit' }}>Exercise Details</div>
+                      <div style={{ fontFamily: 'var(--lms-font)', fontSize: 10.5, color: 'var(--lms-text-muted)', marginTop: 1 }}>ID, type, config, duration</div>
                     </div>
-                    <div className="lms-detail-row">
-                      <span className="lms-detail-label">Module Type</span>
-                      <span className="lms-detail-value" style={{ fontSize: '12px' }}>CoreProgramming</span>
+                    <ChevronRight size={13} style={{ color: 'var(--lms-text-hint)', flexShrink: 0 }} />
+                  </button>
+
+                  <button
+                    onClick={() => setSidebarTab('overview')}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      width: '100%', padding: '10px 14px', borderRadius: 'var(--lms-radius-md)',
+                      fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 600,
+                      border: '1.5px solid var(--lms-border)',
+                      background: 'var(--lms-bg-white)', color: 'var(--lms-text-sec)',
+                      cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left',
+                    }}
+                    onMouseEnter={e => { const b = e.currentTarget; b.style.borderColor = 'var(--lms-info-bdr)'; b.style.background = 'var(--lms-info-bg)'; b.style.color = 'var(--lms-info)'; }}
+                    onMouseLeave={e => { const b = e.currentTarget; b.style.borderColor = 'var(--lms-border)'; b.style.background = 'var(--lms-bg-white)'; b.style.color = 'var(--lms-text-sec)'; }}
+                  >
+                    <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--lms-info-bg)', border: '1.5px solid var(--lms-info-bdr)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <BarChart3 size={14} style={{ color: 'var(--lms-info)' }} />
                     </div>
-                    <div className="lms-detail-row">
-                      <span className="lms-detail-label">Configuration</span>
-                      <span className="lms-detail-value" style={{ fontSize: '12px' }}>{isGeneral ? 'General' : cfgType === 'levelBased' ? 'Level Based' : 'Selection Level'}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 700, color: 'inherit' }}>Exercise Overview</div>
+                      <div style={{ fontFamily: 'var(--lms-font)', fontSize: 10.5, color: 'var(--lms-text-muted)', marginTop: 1 }}>Quota, marks, progress</div>
                     </div>
-                    {(exerciseData?.fullExerciseData?.exerciseInformation?.totalDuration || exerciseData?.fullExerciseData?.exerciseInformation?.duration) && (
-                      <div className="lms-detail-row">
-                        <span className="lms-detail-label">Duration</span>
-                        <span className="lms-detail-value" style={{ fontSize: '12px' }}>{exerciseData?.fullExerciseData?.exerciseInformation?.totalDuration || exerciseData?.fullExerciseData?.exerciseInformation?.duration} mins</span>
-                      </div>
-                    )}
-                    {!isGeneral && (
-                      <div className="lms-detail-row">
-                        <span className="lms-detail-label">Current Difficulty</span>
-                        <span className="lms-detail-value" style={{ color: (DS[currentDiff] || DS.medium).text, textTransform: 'capitalize', fontSize: '12px' }}>{currentDiff}</span>
-                      </div>
-                    )}
-                  </div>
+                    <ChevronRight size={13} style={{ color: 'var(--lms-text-hint)', flexShrink: 0 }} />
+                  </button>
                 </div>
 
-            
-                {/* Question Quota · diff Level */}
-                <div style={{ padding: '14px 16px', borderBottom: '1.5px solid var(--lms-orange-100)', background: 'var(--lms-orange-50)' }}>
-                  <div className="lms-sidebar-section-title">
-                    <Hash size={14} style={{ color: 'var(--lms-orange)' }} />
-                    <span className="lms-detail-value" style={{ textTransform: 'capitalize', fontSize: '12px' }}>Question Quota · {isGeneral ? '(General)' : `${currentDiff} Level`}</span>
-                  </div>
-                  <div>
-                    {[
-                      { label: 'Total Questions', value: `${totalSlots}`, color: 'var(--lms-text-main)', denom: null },
-                      { label: 'Questions Created', value: `${createdCount}`, color: 'var(--lms-violet)', denom: `${totalSlots}` },
-                      { label: 'Remaining Questions', value: `${remainingSlots}`, color: remainingSlots === 0 ? 'var(--lms-success)' : 'var(--lms-warning)', denom: `${totalSlots}` },
-                    ].map(({ label, value, color, denom }) => (
-                      <div key={label} className="lms-marks-row">
-                        <span className="lms-marks-label">{label}</span>
-                        <span className="lms-marks-value" style={{ color }}>
-                          {value}{denom && <span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 11 }}>/{denom}</span>}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                  {totalSlots > 0 && (
-                    <div className="lms-progress-bar">
-                      <div className="lms-progress-fill" style={{ width: `${Math.min(100, (createdCount / totalSlots) * 100)}%`, background: remainingSlots === 0 ? 'var(--lms-success)' : 'var(--lms-orange)' }} />
-                    </div>
-                  )}
-                </div>
-    {/* Question Overview — only when multiple difficulties */}
-                {(!isGeneral && getConfiguredDiffs().length > 1) && (
-                  <div style={{ padding: '14px 16px', borderBottom: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-surface)' }}>
-                    <div className="lms-sidebar-section-title">
-                      <BarChart3 size={14} style={{ color: 'var(--lms-text-sec)' }} />
-                      Question Overview
-                    </div>
-                    <div>
-                      {[
-                        { label: 'Total Questions', value: `${totalSlotsAll}`, color: 'var(--lms-text-main)', denom: null },
-                        { label: 'Questions Created', value: `${createdCountAll}`, color: 'var(--lms-violet)', denom: `${totalSlotsAll}` },
-                        { label: 'Remaining Questions', value: `${remainingSlotsAll}`, color: remainingSlotsAll === 0 ? 'var(--lms-success)' : 'var(--lms-warning)', denom: `${totalSlotsAll}` },
-                      ].map(({ label, value, color, denom }) => (
-                        <div key={label} className="lms-marks-row">
-                          <span className="lms-marks-label">{label}</span>
-                          <span className="lms-marks-value" style={{ color }}>
-                            {value}{denom != null && <span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 11 }}>/{denom}</span>}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                    {totalSlotsAll > 0 && (
-                      <div className="lms-progress-bar">
-                        <div className="lms-progress-fill" style={{ width: `${Math.min(100, (createdCountAll / totalSlotsAll) * 100)}%`, background: remainingSlotsAll === 0 ? 'var(--lms-success)' : 'var(--lms-orange)' }} />
-                      </div>
-                    )}
-                  </div>
-                )}
-   {/* Marks Allocation · diff Level */}
-                <div style={{ padding: '14px 16px', borderBottom: '1.5px solid var(--lms-orange-100)', background: 'var(--lms-orange-50)' }}>
-                  <div className="lms-sidebar-section-title">
-                    <Award size={14} style={{ color: 'var(--lms-orange)' }} />
-                    <span style={{ textTransform: 'capitalize' }}>Marks Allocation · {isGeneral ? '(General)' : `${currentDiff} Level`}</span>
-                  </div>
-                  <div>
-                    {!isGeneral && totalMarksForDiff > 0 && (
-                      <div className="lms-marks-row">
-                        <span className="lms-marks-label">Level Total</span>
-                        <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: '12px' }}>{totalMarksForDiff}</span>
-                      </div>
-                    )}
-                    <div className="lms-marks-row">
-                      <span className="lms-marks-label">Marks per Question</span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span className="lms-marks-value" style={{ color: 'var(--lms-orange)', fontSize: '12px' }}>{fmtMark(displayScore)}</span>
-                        {isScoreEditable(currentDiff)
-                          ? <span className="lms-badge lms-badge-violet" style={{ fontSize: '10px', padding: '2px 6px' }}>Custom</span>
-                          : <span className="lms-badge" style={{ fontSize: '10px', padding: '2px 6px', background: 'var(--lms-bg-surface)', color: 'var(--lms-text-muted)', borderColor: 'var(--lms-border)' }}>Fixed</span>}
-                      </div>
-                    </div>
-                    {!isGeneral && totalMarksForDiff > 0 && (
+                {/* Stats */}
+                <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto', padding: '14px 14px' }}>
+
+                  {(() => {
+                    const activeDiff = filterDiff === 'all' ? null : filterDiff as Diff;
+
+                    // Per-difficulty computed values
+                    const diffSlots = activeDiff ? getQuotaForDiff(activeDiff) : 0;
+                    const diffCreated = activeDiff ? getCreatedCount(activeDiff) : 0;
+                    const diffRemaining = activeDiff ? getRemainingSlots(activeDiff) : 0;
+                    const diffMarksTotal = activeDiff ? getTotalMarksForDiff(activeDiff) : 0;
+                    const diffMarksUsed = activeDiff ? savedQuestions.filter(q => q.difficulty === activeDiff).reduce((acc, q) => acc + (q.score || 0), 0) : 0;
+                    const diffMarksRemaining = Math.max(0, diffMarksTotal - diffMarksUsed);
+                    const diffFixedScore = activeDiff ? getFixedScore(activeDiff) : 0;
+                    const diffDS = activeDiff ? (DS[activeDiff] || DS.medium) : null;
+
+                    return (
                       <>
-                        <div className="lms-marks-row">
-                          <span className="lms-marks-label">Marks Used</span>
-                          <span className="lms-marks-value" style={{ color: 'var(--lms-warning)', fontSize: '12px' }}>
-                            {fmtMark(usedMarks)}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 11 }}>/{totalMarksForDiff}</span>
-                          </span>
+                        {/* ── Difficulty Questions (when a diff is selected) ── */}
+                        {activeDiff && (
+                          <div style={{ marginBottom: 14 }}>
+                            <div className="lms-sidebar-section-title" style={{ fontSize: 11 }}>
+                              <Hash size={12} style={{ color: diffDS.text }} />
+                              <span style={{ textTransform: 'capitalize', color: diffDS.text }}>{activeDiff} Questions</span>
+                            </div>
+                            <div className="lms-marks-row">
+                              <span className="lms-marks-label">Total</span>
+                              <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{diffSlots}</span>
+                            </div>
+                            <div className="lms-marks-row">
+                              <span className="lms-marks-label">Created</span>
+                              <span className="lms-marks-value" style={{ color: 'var(--lms-violet)', fontSize: 12 }}>
+                                {diffCreated}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 10 }}>/{diffSlots}</span>
+                              </span>
+                            </div>
+                            <div className="lms-marks-row">
+                              <span className="lms-marks-label">Remaining</span>
+                              <span className="lms-marks-value" style={{ color: diffRemaining === 0 ? 'var(--lms-success)' : 'var(--lms-warning)', fontSize: 12 }}>{diffRemaining}</span>
+                            </div>
+                            {diffSlots > 0 && (
+                              <div className="lms-progress-bar" style={{ marginTop: 6 }}>
+                                <div className="lms-progress-fill" style={{
+                                  width: `${Math.min(100, (diffCreated / diffSlots) * 100)}%`,
+                                  background: diffRemaining === 0 ? 'var(--lms-success)' : diffDS.bar
+                                }} />
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* ── Difficulty Marks (when a diff is selected + graded) ── */}
+                        {activeDiff && subExerciseIsGraded && diffMarksTotal > 0 && (
+                          <div style={{ borderTop: '1.5px solid var(--lms-border)', paddingTop: 14, marginBottom: 14 }}>
+                            <div className="lms-sidebar-section-title" style={{ fontSize: 11 }}>
+                              <Award size={12} style={{ color: diffDS.text }} />
+                              <span style={{ textTransform: 'capitalize', color: diffDS.text }}>{activeDiff} Marks</span>
+                            </div>
+                            <div className="lms-marks-row">
+                              <span className="lms-marks-label">Total Mark</span>
+                              <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{diffMarksTotal}</span>
+                            </div>
+                            <div className="lms-marks-row">
+                              <span className="lms-marks-label">Mark Per Question</span>
+                              <span className="lms-marks-value" style={{ color: 'var(--lms-orange)', fontSize: 12 }}>
+                                {diffFixedScore}
+                                {isScoreEditable(activeDiff)
+                                  ? <span className="lms-badge lms-badge-violet" style={{ fontSize: '9px', padding: '1px 5px', marginLeft: 3 }}>Custom</span>
+                                  : <span className="lms-badge" style={{ fontSize: '9px', padding: '1px 5px', marginLeft: 3, background: 'var(--lms-bg-surface)', color: 'var(--lms-text-muted)', borderColor: 'var(--lms-border)' }}>Fixed</span>}
+                              </span>
+                            </div>
+                            <div className="lms-marks-row">
+                              <span className="lms-marks-label">Used Marks</span>
+                              <span className="lms-marks-value" style={{ color: 'var(--lms-warning)', fontSize: 12 }}>
+                                {fmtMark(diffMarksUsed)}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 10 }}>/{diffMarksTotal}</span>
+                              </span>
+                            </div>
+                            <div className="lms-marks-row">
+                              <span className="lms-marks-label">Remaining Marks</span>
+                              <span className="lms-marks-value" style={{ color: diffMarksRemaining <= 0 ? 'var(--lms-success)' : 'var(--lms-violet)', fontSize: 12 }}>{fmtMark(diffMarksRemaining)}</span>
+                            </div>
+                            <div className="lms-progress-bar" style={{ marginTop: 6 }}>
+                              <div className="lms-progress-fill" style={{
+                                width: `${Math.min(100, (diffMarksUsed / diffMarksTotal) * 100)}%`,
+                                background: diffMarksUsed >= diffMarksTotal ? 'var(--lms-success)' : diffDS.bar
+                              }} />
+                            </div>
+                          </div>
+                        )}
+
+                        {/* ── Overall Questions (always visible) ── */}
+                        <div style={{
+                          borderTop: activeDiff ? '1.5px solid var(--lms-border)' : 'none',
+                          paddingTop: activeDiff ? 14 : 0,
+                          marginBottom: 14
+                        }}>
+                          <div className="lms-sidebar-section-title" style={{ fontSize: 11 }}>
+                            <Hash size={12} style={{ color: 'var(--lms-orange)' }} />
+                            <span>Overall Questions</span>
+                          </div>
+                          <div className="lms-marks-row">
+                            <span className="lms-marks-label">Total Questions</span>
+                            <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{totalSlotsAll}</span>
+                          </div>
+                          <div className="lms-marks-row">
+                            <span className="lms-marks-label">Created</span>
+                            <span className="lms-marks-value" style={{ color: 'var(--lms-violet)', fontSize: 12 }}>
+                              {createdCountAll}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 10 }}>/{totalSlotsAll}</span>
+                            </span>
+                          </div>
+                          <div className="lms-marks-row">
+                            <span className="lms-marks-label">Remaining</span>
+                            <span className="lms-marks-value" style={{ color: remainingSlotsAll === 0 ? 'var(--lms-success)' : 'var(--lms-warning)', fontSize: 12 }}>{remainingSlotsAll}</span>
+                          </div>
+                          {totalSlotsAll > 0 && (
+                            <div className="lms-progress-bar" style={{ marginTop: 6 }}>
+                              <div className="lms-progress-fill" style={{
+                                width: `${Math.min(100, (createdCountAll / totalSlotsAll) * 100)}%`,
+                                background: remainingSlotsAll === 0 ? 'var(--lms-success)' : 'var(--lms-orange)'
+                              }} />
+                            </div>
+                          )}
                         </div>
-                        <div className="lms-marks-row">
-                          <span className="lms-marks-label">Remaining</span>
-                          <span className="lms-marks-value" style={{ color: remainingMarks <= 0 ? 'var(--lms-success)' : 'var(--lms-violet)', fontSize: '12px' }}>{fmtMark(remainingMarks)}</span>
-                        </div>
+
+                        {/* ── Overall Marks (always visible when graded) ── */}
+                        {subExerciseIsGraded && totalMarksAll > 0 && (
+                          <div style={{ borderTop: '1.5px solid var(--lms-border)', paddingTop: 14 }}>
+                            <div className="lms-sidebar-section-title" style={{ fontSize: 11 }}>
+                              <Award size={12} style={{ color: 'var(--lms-orange)' }} />
+                              <span>Overall Marks</span>
+                            </div>
+                            <div className="lms-marks-row">
+                              <span className="lms-marks-label">Marks Per Question</span>
+                              <span className="lms-marks-value" style={{ color: 'var(--lms-orange)', fontSize: 12 }}>{isGeneral ? generalMPQ : displayScore}</span>
+                            </div>
+                            <div className="lms-marks-row">
+                              <span className="lms-marks-label">Total Questions</span>
+                              <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{totalSlotsAll}</span>
+                            </div>
+                            <div className="lms-marks-row">
+                              <span className="lms-marks-label">Total Marks</span>
+                              <span className="lms-marks-value" style={{ color: 'var(--lms-violet)', fontSize: 12 }}>{totalMarksAll}</span>
+                            </div>
+                          </div>
+                        )}
                       </>
-                    )}
-                  </div>
-                  {!isGeneral && totalMarksForDiff > 0 && (
-                    <div className="lms-progress-bar">
-                      <div className="lms-progress-fill" style={{ width: `${Math.min(100, (usedMarks / totalMarksForDiff) * 100)}%`, background: usedMarks >= totalMarksForDiff ? 'var(--lms-success)' : 'var(--lms-orange)' }} />
-                    </div>
-                  )}
+                    );
+                  })()}
+
                 </div>
-                {/* Marks Allocation Overview (all diffs) */}
-                {(!isGeneral && getConfiguredDiffs().length > 1) && (
-                  <div style={{ padding: '14px 16px', borderBottom: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-surface)' }}>
-                    <div className="lms-sidebar-section-title">
-                      <Award size={14} style={{ color: 'var(--lms-text-sec)' }} />
-                      Marks Allocation Overview
-                    </div>
-                    <div>
-                      <div className="lms-marks-row">
-                        <span className="lms-marks-label">Total Marks</span>
-                        <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: '12px' }}>{totalMarksAll}</span>
-                      </div>
-                      <div className="lms-marks-row">
-                        <span className="lms-marks-label">Marks Used</span>
-                        <span className="lms-marks-value" style={{ color: 'var(--lms-warning)', fontSize: '12px' }}>
-                          {fmtMark(usedMarksAll)}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 11 }}>/{totalMarksAll}</span>
-                        </span>
-                      </div>
-                      <div className="lms-marks-row">
-                        <span className="lms-marks-label">Remaining</span>
-                        <span className="lms-marks-value" style={{ color: Math.max(0, totalMarksAll - usedMarksAll) === 0 ? 'var(--lms-success)' : 'var(--lms-violet)', fontSize: '12px' }}>
-                          {fmtMark(Math.max(0, totalMarksAll - usedMarksAll))}
-                        </span>
-                      </div>
-                      {getConfiguredDiffs().map(d => (
-                        <div key={d} className="lms-marks-row">
-                          <span className="lms-marks-label" style={{ textTransform: 'capitalize' }}>{d}</span>
-                          <span className="lms-marks-value" style={{ color: 'var(--lms-text-sec)', fontSize: '12px' }}>{getTotalMarksForDiff(d)}</span>
-                        </div>
-                      ))}
-                    </div>
-                    {totalMarksAll > 0 && (
-                      <div className="lms-progress-bar">
-                        <div className="lms-progress-fill" style={{ width: `${Math.min(100, (usedMarksAll / totalMarksAll) * 100)}%`, background: usedMarksAll >= totalMarksAll ? 'var(--lms-success)' : 'var(--lms-orange)' }} />
-                      </div>
-                    )}
-                  </div>
-                )}
-
-             
-
-              </div>
               </div>
             </div>
 
@@ -2748,6 +2994,7 @@ const PreviewModal: React.FC<{
             </div>
           </div>
         </div>
+
         {deleteTarget && (
           <DeleteConfirmDialog questionTitle={deleteTarget.title}
             onConfirm={() => { onDelete(deleteTarget.localId); setDeleteTarget(null); }}
@@ -2772,10 +3019,10 @@ const TitleEditor: React.FC<{
   // Track the "source of truth" text so we can avoid re-setting
   // the DOM while the user is actively typing (which resets cursor).
   const lastSetText = useRef<string>('');
- 
+
   const textBlock = titleBlocks.find(b => b.type === 'text');
   const currentText = textBlock ? (textBlock as any).value as string : '';
- 
+
   // Only push value into DOM when it changes from *outside*
   // (e.g. question switch via loadQuestionIntoForm), not while typing.
   useEffect(() => {
@@ -2785,7 +3032,7 @@ const TitleEditor: React.FC<{
       lastSetText.current = currentText;
     }
   }, [currentText]);
- 
+
   const handleInput = (e: React.FormEvent<HTMLDivElement>) => {
     const newText = e.currentTarget.innerHTML;
     lastSetText.current = newText; // keep ref in sync so effect won't overwrite
@@ -2804,7 +3051,7 @@ const TitleEditor: React.FC<{
     }
     if (newText.trim()) setTouched(p => new Set(p).add('title'));
   };
- 
+
   return (
     <div
       ref={divRef}
@@ -2820,13 +3067,7 @@ const TitleEditor: React.FC<{
         color: 'var(--lms-text-main)',
         background: 'transparent',
         border: 'none',
-        borderBottom: `2px solid ${
-          hasError
-            ? 'var(--lms-danger)'
-            : isDisabled
-            ? 'var(--lms-border)'
-            : 'var(--lms-orange)'
-        }`,
+        borderBottom: `2px solid ${isDisabled ? 'var(--lms-border)' : 'var(--lms-text-main)'}`,
         outline: 'none',
         width: '100%',
         padding: '4px 0',
@@ -2847,11 +3088,11 @@ const TitleEditor: React.FC<{
 const ProgrammingQuestionForm: React.FC<ProgrammingQuestionFormProps> = ({
   exerciseData, tabType, initialData, isEditing = false,
   onClose, onSave, onDeleteQuestion, isSaving, saveProgress, saveMessage,
-  lockedDifficulty, onEditExercise,
+  lockedDifficulty, onEditExercise, sectionData,
 }) => {
   injectFonts();
 
-const [isEditMode, setIsEditMode] = useState(true); // always editable
+  const [isEditMode, setIsEditMode] = useState(true); // always editable
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [showEditExerciseConfirm, setShowEditExerciseConfirm] = useState(false);
 
@@ -2861,10 +3102,16 @@ const [isEditMode, setIsEditMode] = useState(true); // always editable
   const returnDiffRef = useRef<Diff | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [showOverviewModal, setShowOverviewModal] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showSectionModal, setShowSectionModal] = useState(false);
 
   const progCfg = exerciseData.fullExerciseData?.questionConfiguration?.programmingQuestionConfiguration;
   const cfgType = (progCfg?.questionConfigType as string) || 'general';
   const isGeneral = cfgType === 'general';
+  // isGraded: selectionLevel is always non-graded; general/levelBased respect the stored flag
+  const isSelectionLevelType = cfgType === 'selectionLevel';
+  const exerciseIsGraded = !isSelectionLevelType && (exerciseData.fullExerciseData?.isGraded !== false);
 
   const generalQuestionCount: number = progCfg?.generalQuestionCount || 0;
   const generalTotalMarks: number =
@@ -2889,18 +3136,36 @@ const [isEditMode, setIsEditMode] = useState(true); // always editable
   }, [isGeneral, cfgType, progCfg]);
 
   const getQuotaForDiff = useCallback((d: Diff): number => {
-    if (cfgType === 'levelBased') return progCfg?.scoreSettings?.levelScoringConfiguration?.[d]?.questionCount || progCfg?.levelBasedCounts?.[d] || 0;
+    if (cfgType === 'levelBased') {
+      // levelBasedCounts is always the source of truth
+      // levelScoringConfiguration.questionCount is stale — only use as last fallback
+      return progCfg?.levelBasedCounts?.[d]
+        || progCfg?.scoreSettings?.levelScoringConfiguration?.[d]?.questionCount
+        || 0;
+    }
     if (cfgType === 'selectionLevel') return progCfg?.selectionLevelCounts?.[d] || 0;
     return generalQuestionCount;
   }, [cfgType, progCfg, generalQuestionCount]);
-
+  // AFTER (fixed)
   const getTotalMarksForDiff = useCallback((d: Diff): number => {
     const lsc = progCfg?.scoreSettings?.levelScoringConfiguration?.[d];
-    if (lsc?.type === 'question_specific') return lsc.totalMarks || 0;
-    if (lsc?.type === 'level_specific') return (lsc.marksPerQuestion || 0) * (lsc.questionCount || 0);
-    return (progCfg?.scoreSettings?.levelBasedMarks?.[d] || 0) * getQuotaForDiff(d);
-  }, [progCfg, getQuotaForDiff]);
+    const actualCount = getQuotaForDiff(d);
 
+    if (!lsc) return 0;
+
+    if (lsc.type === 'level_specific') {
+      // DB may store totalMarks: 0 — always recalculate
+      if (lsc.totalMarks && lsc.totalMarks > 0) return lsc.totalMarks;
+      return (lsc.marksPerQuestion || progCfg?.scoreSettings?.levelBasedMarks?.[d] || 0) * actualCount;
+    }
+
+    if (lsc.type === 'question_specific') {
+      return lsc.totalMarks || 0;
+    }
+
+    // Final fallback
+    return (progCfg?.scoreSettings?.levelBasedMarks?.[d] || 0) * actualCount;
+  }, [progCfg, getQuotaForDiff]);
   const getScoringType = useCallback((d: Diff): 'level_specific' | 'question_specific' | 'fixed' => {
     const lsc = progCfg?.scoreSettings?.levelScoringConfiguration?.[d];
     if (lsc?.type === 'question_specific') return 'question_specific';
@@ -3121,6 +3386,49 @@ const [isEditMode, setIsEditMode] = useState(true); // always editable
 
   const titleRef = useRef<HTMLTextAreaElement>(null);
 
+  // ── Section refs for scroll-to-error ──────────────────────────────────────
+  const scoreSectionRef = useRef<HTMLDivElement>(null);
+  const titleSectionRef = useRef<HTMLDivElement>(null);
+  const descSectionRef = useRef<HTMLDivElement>(null);
+  const constraintsSectionRef = useRef<HTMLDivElement>(null);
+  const testcasesSectionRef = useRef<HTMLDivElement>(null);
+  const stickyToolbarRef = useRef<HTMLDivElement>(null);
+  const formScrollRef = useRef<HTMLDivElement>(null);
+  const [validationToast, setValidationToast] = useState<string[]>([]);
+
+  const scrollToFirstError = (errors: Record<string, string>) => {
+    // Score lives in the sticky toolbar (always visible) — no need to scroll to it.
+    // Scroll only to content fields in top-to-bottom order.
+    const order: { key: string; ref: React.RefObject<HTMLDivElement | null> }[] = [
+      { key: 'title', ref: titleSectionRef },
+      { key: 'description', ref: descSectionRef },
+      { key: 'constraints', ref: constraintsSectionRef },
+      { key: 'testcases', ref: testcasesSectionRef },
+    ];
+    for (const { key, ref } of order) {
+      if (errors[key] && ref.current) {
+        const container = formScrollRef.current;
+        if (container) {
+          // Offset scroll by the sticky toolbar height so the label is not hidden behind it
+          const stickyHeight = (stickyToolbarRef.current?.offsetHeight ?? 60) + 8;
+          const containerRect = container.getBoundingClientRect();
+          const elementRect = ref.current.getBoundingClientRect();
+          const scrollTop = container.scrollTop + (elementRect.top - containerRect.top) - stickyHeight;
+          container.scrollTo({ top: Math.max(0, scrollTop), behavior: 'smooth' });
+        } else {
+          ref.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        break;
+      }
+    }
+    // Show toast listing all missing fields
+    const messages = Object.values(errors);
+    if (messages.length > 0) {
+      setValidationToast(messages);
+      setTimeout(() => setValidationToast([]), 3000);
+    }
+  };
+
 
   const getRemainingSlots = useCallback((d?: Diff, withFlow?: FlowQuestion[]): number => {
     const flow = withFlow ?? flowQuestionsRef.current;
@@ -3188,45 +3496,45 @@ const [isEditMode, setIsEditMode] = useState(true); // always editable
     setTimeout(() => titleRef.current?.focus(), 80);
   }, []);
 
-const loadQuestionIntoForm = (q: FlowQuestion) => {
-  setTitleBlocks(titleToBlocks(q.title));
+  const loadQuestionIntoForm = (q: FlowQuestion) => {
+    setTitleBlocks(titleToBlocks(q.title));
 
-  // description is already a clean ProgContentBlock[] after dbQuestionToFlow normalizes it
-  // but handle edge cases defensively
-  let descBlocksLoaded: ProgContentBlock[];
+    // description is already a clean ProgContentBlock[] after dbQuestionToFlow normalizes it
+    // but handle edge cases defensively
+    let descBlocksLoaded: ProgContentBlock[];
 
-  if (Array.isArray(q.description) && (q.description as any[]).length > 0) {
-    descBlocksLoaded = (q.description as any[]).map((b: any) => ({
-      ...b,
-      id: b.id || `pb-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    }));
-  } else {
-    descBlocksLoaded = descToBlocks(q.description);
-  }
+    if (Array.isArray(q.description) && (q.description as any[]).length > 0) {
+      descBlocksLoaded = (q.description as any[]).map((b: any) => ({
+        ...b,
+        id: b.id || `pb-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      }));
+    } else {
+      descBlocksLoaded = descToBlocks(q.description);
+    }
 
-  const plainText = descBlocksLoaded
-    .filter(b => b.type === 'text')
-    .map(b => (b as any).value)
-    .join('\n');
+    const plainText = descBlocksLoaded
+      .filter(b => b.type === 'text')
+      .map(b => (b as any).value)
+      .join('\n');
 
-  setDesc(plainText);
-  setDescBlocks(descBlocksLoaded);
+    setDesc(plainText);
+    setDescBlocks(descBlocksLoaded);
 
-  setConstr(q.constraints?.length ? [...q.constraints] : ['']);
-  setHint(q.hints?.[0]?.hintText || '');
-  setExtraH(
-    (q.hints || []).slice(1).map((h: any) => ({
-      hintText: h.hintText,
-      pointsDeduction: h.pointsDeduction || 0,
-      isPublic: h.isPublic !== false,
-    }))
-  );
-  setScore(q.score || 0);
-  setTL(q.timeLimit || 2000);
-  setML(q.memoryLimit || 256);
-  setTcs(
-    q.testCases?.length
-      ? q.testCases.map((tc: any, i: number) => ({
+    setConstr(q.constraints?.length ? [...q.constraints] : ['']);
+    setHint(q.hints?.[0]?.hintText || '');
+    setExtraH(
+      (q.hints || []).slice(1).map((h: any) => ({
+        hintText: h.hintText,
+        pointsDeduction: h.pointsDeduction || 0,
+        isPublic: h.isPublic !== false,
+      }))
+    );
+    setScore(q.score || 0);
+    setTL(q.timeLimit || 2000);
+    setML(q.memoryLimit || 256);
+    setTcs(
+      q.testCases?.length
+        ? q.testCases.map((tc: any, i: number) => ({
           id: tc._id || `tc-${Date.now()}-${i}`,
           input: tc.input || '',
           expectedOutput: tc.expectedOutput || '',
@@ -3234,13 +3542,13 @@ const loadQuestionIntoForm = (q: FlowQuestion) => {
           isSample: tc.isSample ?? i === 0,
           description: tc.explanation || `Test Case ${i + 1}`,
         }))
-      : [mkTC(0)]
-  );
-  setCurrentDiff((q.difficulty as Diff) || currentDiff);
-  setErrs({});
-  setTouched(new Set());
-  setIsEditMode(!!(getServerId(q)));
-};
+        : [mkTC(0)]
+    );
+    setCurrentDiff((q.difficulty as Diff) || currentDiff);
+    setErrs({});
+    setTouched(new Set());
+    setIsEditMode(!!(getServerId(q)));
+  };
 
   const resetForm = (defaultScore?: number) => {
     setTitleBlocks([mkProgTextBlock()]); setDesc(''); setDescBlocks([mkProgTextBlock()]); setConstr(['']); setHint(''); setExtraH([]);
@@ -3248,91 +3556,94 @@ const loadQuestionIntoForm = (q: FlowQuestion) => {
     setTL(2000); setML(256); setTcs([mkTC(0)]); setErrs({}); setTouched(new Set()); setIsEditMode(false);
   };
 
- const snapshotForm = (overrides?: Partial<FlowQuestion>): FlowQuestion => {
-  const existing = flowQuestionsRef.current[currentIndexRef.current];
-  const allHints = hint.trim()
-    ? [{ hintText: hint.trim(), pointsDeduction: 0, isPublic: true, sequence: 0 },
-       ...extraHints.map((h, i) => ({ ...h, sequence: i + 1 }))]
-    : extraHints.map((h, i) => ({ ...h, sequence: i }));
-  const finalScore = isGeneral
-    ? generalMPQ
-    : isScoreEditable(currentDiff) ? score : getFixedScore(currentDiff);
-  const serverId = getServerId(existing) || overrides?._id;
+  const snapshotForm = (overrides?: Partial<FlowQuestion>): FlowQuestion => {
+    const existing = flowQuestionsRef.current[currentIndexRef.current];
+    const allHints = hint.trim()
+      ? [{ hintText: hint.trim(), pointsDeduction: 0, isPublic: true, sequence: 0 },
+      ...extraHints.map((h, i) => ({ ...h, sequence: i + 1 }))]
+      : extraHints.map((h, i) => ({ ...h, sequence: i }));
+    const finalScore = isGeneral
+      ? generalMPQ
+      : isScoreEditable(currentDiff) ? score : getFixedScore(currentDiff);
+    const serverId = getServerId(existing) || overrides?._id;
 
-  return {
-    __localId: existing?.__localId || mkLocalId(),
-    _id: serverId,
-    title: getTitleText(titleBlocks) || '',
-    description: descBlocks, // ← pure ProgContentBlock[] array, normalized on save via mkPayload
-    difficulty: isGeneral ? 'medium' : currentDiff,
-    score: finalScore,
-    testCases: tcs.map((tc, i) => ({
-      input: tc.input,
-      expectedOutput: tc.expectedOutput,
-      isSample: tc.isSample,
-      isHidden: tc.isHidden,
-      points: 1,
-      explanation: tc.description || `Test Case ${i + 1}`,
-      sequence: i,
-    })),
-    constraints: constraints.filter(c => c.trim()),
-    hints: allHints,
-    timeLimit,
-    memoryLimit: memLimit,
-    questionType: 'programming',
-    isSaved: !!(serverId) || existing?.isSaved || false,
-    isDirty: !!(serverId),
-    isPreExisting: existing?.isPreExisting || !!(serverId) || false,
-    ...overrides,
+    return {
+      __localId: existing?.__localId || mkLocalId(),
+      _id: serverId,
+      sectionId: exerciseData?.currentSectionId || null,  // ✅ ADD THIS
+      title: getTitleText(titleBlocks) || '',
+      description: descBlocks, // ← pure ProgContentBlock[] array, normalized on save via mkPayload
+      difficulty: isGeneral ? 'medium' : currentDiff,
+      score: finalScore,
+      testCases: tcs.map((tc, i) => ({
+        input: tc.input,
+        expectedOutput: tc.expectedOutput,
+        isSample: tc.isSample,
+        isHidden: tc.isHidden,
+        points: 1,
+        explanation: tc.description || `Test Case ${i + 1}`,
+        sequence: i,
+      })),
+      constraints: constraints.filter(c => c.trim()),
+      hints: allHints,
+      timeLimit,
+      memoryLimit: memLimit,
+      questionType: 'programming',
+      isSaved: !!(serverId) || existing?.isSaved || false,
+      isDirty: !!(serverId),
+      isPreExisting: existing?.isPreExisting || !!(serverId) || false,
+      ...overrides,
+    };
   };
-};
 
 
-const mkPayload = () => {
-  const safeTitle = getTitleText(titleBlocks) || '';
-  const allHints = hint.trim()
-    ? [{ hintText: hint.trim(), pointsDeduction: 0, isPublic: true, sequence: 0 },
-       ...extraHints.map((h, i) => ({ ...h, sequence: i + 1 }))]
-    : extraHints.map((h, i) => ({ ...h, sequence: i }));
-  const finalScore = isGeneral
-    ? generalMPQ
-    : isScoreEditable(currentDiff) ? score : getFixedScore(currentDiff);
+  const mkPayload = () => {
+    const safeTitle = getTitleText(titleBlocks) || '';
+    const allHints = hint.trim()
+      ? [{ hintText: hint.trim(), pointsDeduction: 0, isPublic: true, sequence: 0 },
+      ...extraHints.map((h, i) => ({ ...h, sequence: i + 1 }))]
+      : extraHints.map((h, i) => ({ ...h, sequence: i }));
+    const finalScore = isGeneral
+      ? generalMPQ
+      : isScoreEditable(currentDiff) ? score : getFixedScore(currentDiff);
 
-  return {
-    questionType: 'programming',
-    title: safeTitle,
-    // Always serialize as { contentBlocks, text, imageUrl, ... } for DB
-    description: {
-      contentBlocks: descBlocks,
-      text: descBlocks
-        .filter(b => b.type === 'text')
-        .map(b => (b as any).value)
-        .join('\n')
-        .trim(),
-      imageUrl: (descBlocks.find(b => b.type === 'image') as any)?.url || null,
-      imageAlignment: (descBlocks.find(b => b.type === 'image') as any)?.alignment || 'left',
-      imageSizePercent: (descBlocks.find(b => b.type === 'image') as any)?.sizePercent || 100,
-    },
-    difficulty: isGeneral ? 'medium' : currentDiff,
-    score: finalScore,
-    points: finalScore,
-    constraints: constraints.filter(c => c.trim()),
-    hints: allHints,
-    testCases: tcs.map((tc, i) => ({
-      input: tc.input,
-      expectedOutput: tc.expectedOutput,
-      isSample: tc.isSample,
-      isHidden: tc.isHidden,
-      points: 1,
-      explanation: tc.description || `Test Case ${i + 1}`,
-      sequence: i,
-    })),
-    solutions: { startedCode: '', functionName: 'main', language: 'python' },
-    timeLimit,
-    memoryLimit: memLimit,
-    isActive: true,
+    return {
+      questionType: 'programming',
+      sectionId: exerciseData?.currentSectionId || null,  // ✅ ADD THIS
+
+      title: safeTitle,
+      // Always serialize as { contentBlocks, text, imageUrl, ... } for DB
+      description: {
+        contentBlocks: descBlocks,
+        text: descBlocks
+          .filter(b => b.type === 'text')
+          .map(b => (b as any).value)
+          .join('\n')
+          .trim(),
+        imageUrl: (descBlocks.find(b => b.type === 'image') as any)?.url || null,
+        imageAlignment: (descBlocks.find(b => b.type === 'image') as any)?.alignment || 'left',
+        imageSizePercent: (descBlocks.find(b => b.type === 'image') as any)?.sizePercent || 100,
+      },
+      difficulty: isGeneral ? 'medium' : currentDiff,
+      score: finalScore,
+      points: finalScore,
+      constraints: constraints.filter(c => c.trim()),
+      hints: allHints,
+      testCases: tcs.map((tc, i) => ({
+        input: tc.input,
+        expectedOutput: tc.expectedOutput,
+        isSample: tc.isSample,
+        isHidden: tc.isHidden,
+        points: 1,
+        explanation: tc.description || `Test Case ${i + 1}`,
+        sequence: i,
+      })),
+      solutions: { startedCode: '', functionName: 'main', language: 'python' },
+      timeLimit,
+      memoryLimit: memLimit,
+      isActive: true,
+    };
   };
-};
   const handleEditClick = () => setIsEditMode(true);
   const handleCancelEdit = () => { setIsEditMode(false); if (flowQuestions[currentIndex]) loadQuestionIntoForm(flowQuestions[currentIndex]); };
   const handleEditExerciseClick = () => setShowEditExerciseConfirm(true);
@@ -3375,7 +3686,7 @@ const mkPayload = () => {
 
     const defaultScore = isScoreEditable(d) ? 0 : getFixedScore(d);
 
-    // ── 4. Reuse existing unsaved empty slot for this diff rather than creating a duplicate ──
+    // ── 4. Reuse existing unsaved empty question for this diff rather than creating a duplicate ──
     const existingEmptyIdx = flowAfterDbLoad.findIndex(
       q => q.difficulty === d && !q.isSaved && !q._id && !serverIdMap.current.get(q.__localId)
     );
@@ -3385,7 +3696,7 @@ const mkPayload = () => {
       resetForm(defaultScore); setTimeout(() => titleRef.current?.focus(), 80); return;
     }
 
-    // ── 5. Create a new empty slot for difficulty d ──
+    // ── 5. Create a new empty question for difficulty d ──
     const newQ: FlowQuestion = { __localId: mkLocalId(), _id: undefined, title: '', description: { text: '', imageUrl: null, imageAlignment: 'left', imageSizePercent: 100 }, difficulty: d, score: defaultScore, testCases: [], constraints: [], hints: [], timeLimit: 2000, memoryLimit: 256, questionType: 'programming', isSaved: false, isDirty: false };
     const newFlow = [...flowAfterDbLoad, newQ];
     flowQuestionsRef.current = newFlow; setFlowQuestions(newFlow);
@@ -3575,23 +3886,29 @@ const mkPayload = () => {
     return newQ.__localId;
   };
 
-const handleSave = async () => {
-  if (!validate()) return;
-  const localId = ensureCurrentInFlow(); const latestQ = flowQuestionsRef.current[currentIndexRef.current];
-  const serverId = serverIdMap.current.get(localId) || latestQ?._id || (isEditing && initialData?._id ? initialData._id : undefined);
-if (serverId && !hasUnsavedFormChanges) { return; }
-  try { await executeSave(localId, { ...mkPayload(), __preventClose: true }, false); } catch (err) { console.error('handleSave error:', err); return; }
-  setSaveOk(true);
-  setTimeout(() => setSaveOk(false), 2500);
-};
+  const handleSave = async () => {
+    const { valid, errors } = validate();
+    if (!valid) { scrollToFirstError(errors); return; }
+    const localId = ensureCurrentInFlow(); const latestQ = flowQuestionsRef.current[currentIndexRef.current];
+    const serverId = serverIdMap.current.get(localId) || latestQ?._id || (isEditing && initialData?._id ? initialData._id : undefined);
+    if (serverId && !hasUnsavedFormChanges) { return; }
+    try { await executeSave(localId, { ...mkPayload(), __preventClose: true }, false); } catch (err) { console.error('handleSave error:', err); return; }
+    setSaveOk(true);
+    setTimeout(() => setSaveOk(false), 2500);
+  };
 
   const handleSaveAndContinue = async () => {
     const flow = flowQuestionsRef.current; const idx = currentIndexRef.current; let currentQ = flow[idx];
-    if (!currentQ) { if (!validate()) return; const localId = ensureCurrentInFlow(); currentQ = flowQuestionsRef.current[currentIndexRef.current]; }
+    if (!currentQ) {
+      const { valid: v0, errors: e0 } = validate();
+      if (!v0) { scrollToFirstError(e0); return; }
+      const localId = ensureCurrentInFlow(); currentQ = flowQuestionsRef.current[currentIndexRef.current];
+    }
     const latestQ = flowQuestionsRef.current[currentIndexRef.current]; const localId = latestQ?.__localId ?? currentQ.__localId;
     const serverId = serverIdMap.current.get(localId) || latestQ?._id || (isEditing && initialData?._id ? initialData._id : undefined);
     if (serverId && !isEditMode && !hasUnsavedFormChanges) { advanceAfterSave(serverId); return; }
-    if (!validate()) return;
+    const { valid, errors } = validate();
+    if (!valid) { scrollToFirstError(errors); return; }
     let savedId: string | undefined;
     try { savedId = await executeSave(localId, mkPayload(), true); } catch (err) { console.error('handleSaveAndContinue error:', err); return; }
     setSaveOk(true); setTimeout(() => setSaveOk(false), 2500); setIsEditMode(false); advanceAfterSave(savedId);
@@ -3656,7 +3973,7 @@ if (serverId && !hasUnsavedFormChanges) { return; }
       if (flowWithDb[lastDIdx]) loadQuestionIntoForm(flowWithDb[lastDIdx]); setTimeout(() => titleRef.current?.focus(), 80); return;
     }
     const defaultScore = isScoreEditable(d) ? 0 : getFixedScore(d);
-    // Reuse existing unsaved empty slot rather than creating a duplicate
+    // Reuse existing unsaved empty question rather than creating a duplicate
     const existingEmptyIdx = flowWithDb.findIndex(q => q.difficulty === d && !q.isSaved && !q._id && !serverIdMap.current.get(q.__localId));
     if (existingEmptyIdx >= 0) {
       flowQuestionsRef.current = flowWithDb; setFlowQuestions(flowWithDb);
@@ -3669,7 +3986,7 @@ if (serverId && !hasUnsavedFormChanges) { return; }
     resetForm(defaultScore); setTimeout(() => titleRef.current?.focus(), 80);
   };
 
-  const validate = (): boolean => {
+  const validate = (): { valid: boolean; errors: Record<string, string> } => {
     const e: Record<string, string> = {};
     const titleText = getTitleText(titleBlocks);
     if (!titleText && !titleBlocks.some(b => b.type === 'image' || b.type === 'code')) e.title = 'Title is required';
@@ -3693,7 +4010,7 @@ if (serverId && !hasUnsavedFormChanges) { return; }
         if (!e.score && score <= 0) e.score = 'Score must be greater than 0';
       }
     }
-    setErrs(e); setTouched(new Set(Object.keys(e))); return Object.keys(e).length === 0;
+    setErrs(e); setTouched(new Set(Object.keys(e))); return { valid: Object.keys(e).length === 0, errors: e };
   };
 
   const handleScoreBlur = () => {
@@ -3719,30 +4036,7 @@ if (serverId && !hasUnsavedFormChanges) { return; }
     return getConfiguredDiffs().filter(d => d !== currentDiff && getRemainingSlots(d) > 0).map(d => ({ diff: d, remaining: getRemainingSlots(d) }));
   }, [currentDiff, getConfiguredDiffs, getRemainingSlots, isGeneral]);
 
-const isLastQuestion = useMemo((): boolean => {
-  // In editing mode from QuestionView — last question in flow
-  if (isEditing) {
-    return currentIndex === flowQuestions.length - 1;
-  }
-  if (isGeneral) {
-    const quota = generalQuestionCount;
-    if (quota <= 0) return false;
-    return getRemainingSlots() <= 1;
-  } else {
-    const remaining = getRemainingSlots(currentDiff);
-    const otherDiffsHaveSlots = getConfiguredDiffs()
-      .filter(d => d !== currentDiff)
-      .some(d => getRemainingSlots(d) > 0);
-    return remaining <= 1 && !otherDiffsHaveSlots;
-  }
-}, [
-  isEditing, isGeneral, currentDiff, generalQuestionCount,
-  currentIndex, flowQuestions.length,
-  getRemainingSlots, getConfiguredDiffs
-]);
-
-
-const s = DS[currentDiff] || DS.medium;
+  const s = DS[currentDiff] || DS.medium;
   const currentQ = flowQuestions[currentIndex];
   const isEditingExistingQ = !!(getServerId(currentQ)) || isEditing;
   const isCurrentPreExisting = !!(currentQ?.isPreExisting || (getServerId(currentQ)));
@@ -3762,22 +4056,31 @@ const s = DS[currentDiff] || DS.medium;
     : getConfiguredDiffs().reduce((s, d) => s + getCreatedCount(d), 0);
   const remainingSlotsAll = Math.max(0, totalSlotsAll - createdCountAll);
 
-  // Continuous global question number across all difficulties (easy→medium→hard)
-const globalQuestionNumber = useMemo((): number => {
-  if (isGeneral) return currentIndex + 1;
+  // Last question = currently at the final quota question (not just last item in array)
+  // totalSlotsAll is the configured quota (e.g. 5). We're on the last question only when
+  // currentIndex has reached question index (totalSlotsAll - 1).
+  // If no quota is set (totalSlotsAll === 0) fall back to position in current flow array.
+  const isLastQuestion = useMemo((): boolean => {
+    if (totalSlotsAll > 0) return currentIndex >= totalSlotsAll - 1;
+    return currentIndex >= flowQuestions.length - 1;
+  }, [currentIndex, totalSlotsAll, flowQuestions.length]);
 
-  // Count only questions of current difficulty
-  const dQuestions = flowQuestions.filter(q => q.difficulty === currentDiff);
-  const posInDiff = dQuestions.findIndex(
-    q => q.__localId === flowQuestions[currentIndex]?.__localId
-  );
-  
-  // If not found (new unsaved slot not yet in flow), it's next after saved ones
-  if (posInDiff === -1) {
-    return dQuestions.length + 1;
-  }
-  return posInDiff + 1;
-}, [isGeneral, currentDiff, currentIndex, flowQuestions]);
+  // Continuous global question number across all difficulties (easy→medium→hard)
+  const globalQuestionNumber = useMemo((): number => {
+    if (isGeneral) return currentIndex + 1;
+
+    // Count only questions of current difficulty
+    const dQuestions = flowQuestions.filter(q => q.difficulty === currentDiff);
+    const posInDiff = dQuestions.findIndex(
+      q => q.__localId === flowQuestions[currentIndex]?.__localId
+    );
+
+    // If not found (new unsaved question not yet in flow), it's next after saved ones
+    if (posInDiff === -1) {
+      return dQuestions.length + 1;
+    }
+    return posInDiff + 1;
+  }, [isGeneral, currentDiff, currentIndex, flowQuestions]);
 
   const totalMarksForDiff = isGeneral ? 0 : getTotalMarksForDiff(currentDiff);
   const usedMarks = isGeneral ? 0 : getDbMarksUsedForDiff(currentDiff);
@@ -3843,11 +4146,10 @@ const globalQuestionNumber = useMemo((): number => {
     currentFormHasContent && !currentAlreadySaved_forMock ? 1 : 0
   );
 
-  // Mock: enabled only on last required question AND all slots projected filled
+  // Mock: enabled only when ALL required questions are saved (not just filled in form)
   const isMockEnabled = (() => {
-    if (!currentFormHasContent) return false;
-    if (totalSlotsAll <= 0) return effectiveTotalFilled > 0;
-    return effectiveTotalFilled >= totalSlotsAll;
+    if (totalSlotsAll <= 0) return savedQuestionsCount > 0;
+    return savedQuestionsCount >= totalSlotsAll;
   })();
 
   const addTC = () => setTcs(p => [...p, mkTC(p.length)]);
@@ -3976,130 +4278,194 @@ const globalQuestionNumber = useMemo((): number => {
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <div className="prog-root" style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', flexDirection: 'column', background: 'rgba(26,26,46,0.55)', backdropFilter: 'blur(2px)', overflow: 'hidden', fontFamily: 'var(--lms-font)' }}>
+
+      {/* ── Validation Toast (top-right corner) ── */}
+      {validationToast.length > 0 && (
+        <div style={{
+          position: 'fixed', top: 20, right: 24, zIndex: 9999,
+          minWidth: 260, maxWidth: 340,
+          display: 'flex', alignItems: 'flex-start', gap: 10,
+          background: '#fff',
+          border: '1.5px solid var(--lms-danger-bdr)',
+          borderLeft: '4px solid var(--lms-danger)',
+          borderRadius: 'var(--lms-radius-md)',
+          padding: '12px 14px',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.13)',
+          animation: 'lms-toast-slide-in 0.22s cubic-bezier(.4,0,.2,1)',
+        }}>
+          <AlertCircle size={15} style={{ color: 'var(--lms-danger)', flexShrink: 0, marginTop: 1 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontFamily: 'var(--lms-font)', fontSize: 12, fontWeight: 700, color: 'var(--lms-danger)', margin: '0 0 4px 0' }}>
+              Please fix before saving:
+            </p>
+            <ul style={{ margin: 0, paddingLeft: 15 }}>
+              {validationToast.map((msg, i) => (
+                <li key={i} style={{ fontFamily: 'var(--lms-font)', fontSize: 11.5, color: '#555', fontWeight: 600, lineHeight: 1.6 }}>{msg}</li>
+              ))}
+            </ul>
+          </div>
+          <button onClick={() => setValidationToast([])} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#aaa', flexShrink: 0, lineHeight: 1 }}>
+            <X size={13} />
+          </button>
+        </div>
+      )}
+
       <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', background: 'var(--lms-bg-white)', overflow: 'hidden' }}>
 
-    {/* ── HEADER ── */}
-<div style={{ background: 'var(--lms-bg-white)', borderBottom: '1.5px solid var(--lms-border)', padding: '10px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-  <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
-    {/* Logo mark */}
-    <div className="lms-header-logo-mark">
-      <GraduationCap size={16} style={{ color: 'white' }} />
-    </div>
-    <div style={{ width: 1, height: 20, background: 'var(--lms-border)', flexShrink: 0 }} />
+        {/* ── HEADER ── */}
+        <div style={{ background: 'var(--lms-bg-white)', borderBottom: '1.5px solid var(--lms-border)', padding: '10px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
+            {/* Logo mark */}
+            <div className="lms-header-logo-mark">
+              <GraduationCap size={16} style={{ color: 'white' }} />
+            </div>
+            <div style={{ width: 1, height: 20, background: 'var(--lms-border)', flexShrink: 0 }} />
 
-    {/* Edit mode indicators */}
-    {isCurrentPreExisting && !isEditMode && !isEditing && (
-      <button onClick={handleEditClick}
-        className="lms-btn lms-btn-ghost-orange"
-        style={{ padding: '5px 12px', fontSize: 12 }}>
-        <Edit2 size={12} /> Edit
-      </button>
-    )}
-    {isEditMode && (
-      <span className="lms-badge lms-badge-amber">
-        <Edit2 size={11} /> Editing
-      </span>
-    )}
+            {/* Edit mode indicators */}
+            {isCurrentPreExisting && !isEditMode && !isEditing && (
+              <button onClick={handleEditClick}
+                className="lms-btn lms-btn-ghost-orange"
+                style={{ padding: '5px 12px', fontSize: 12 }}>
+                <Edit2 size={12} /> Edit Exercise
+              </button>
+            )}
+            {isEditMode && (
+              <span className="lms-badge lms-badge-amber">
+                <Edit2 size={11} /> Editing
+              </span>
+            )}
 
-    <div style={{ minWidth: 0, flex: 1, overflow: 'visible' }}>
-      <QuestionFormBreadcrumb hierarchyData={hierarchyData} tabType={tabType} subcategory={subcategory} subcategoryLabel={subcategoryLabel} exerciseName={exerciseName} actionLabel={actionLabel} questionLabel={questionLabel} />
-    </div>
-  </div>
+            <div style={{ minWidth: 0, flex: 1, overflow: 'visible' }}>
+              <QuestionFormBreadcrumb hierarchyData={hierarchyData} tabType={tabType} subcategory={subcategory} subcategoryLabel={subcategoryLabel} exerciseName={exerciseName} actionLabel={actionLabel} questionLabel={questionLabel} />
+            </div>
+          </div>
 
-  <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0, marginLeft: 12 }}>
-    {/* Preview */}
-    {flowQuestions?.length > 0 && (
-      <button onClick={() => setShowPreview(true)} className="lms-btn lms-btn-ghost-violet" style={{ marginRight: 24 }}>
-        <Eye size={12} /> Preview
-        <span style={{ background: 'var(--lms-violet)', color: 'white', fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 20 }}>
-          {flowQuestions.length}
-        </span>
-      </button>
-    )}
+       <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0, marginLeft: 12 }}>
+            {/* Preview */}
+            {(() => {
+              const dbCount = getDbQuestionsForDiff().length;
+              const flowSavedCount = flowQuestions.filter(q => !!(q._id || q.isSaved || q.isPreExisting)).length;
+              const savedCount = Math.max(dbCount, flowSavedCount);
+              return savedCount > 0 && (
+                <button onClick={() => setShowPreview(true)} className="lms-btn lms-btn-ghost-violet" style={{ marginRight: 24 }}>
+                  <Eye size={12} /> Preview
+                  <span style={{ background: 'var(--lms-violet)', color: 'white', fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 20 }}>
+                    {savedCount}
+                  </span>
+                </button>
+              );
+            })()}
 
-    {/* Edit Exercise */}
-    {onEditExercise && (
-      <button onClick={handleEditExerciseClick} className="lms-btn lms-btn-ghost-orange" style={{ marginRight: 24 }}>
-        <Settings size={12} /> Edit Overview
-      </button>
-    )}
-    
-    {/* Close */}
-    <button onClick={handleCloseRequest} style={{ padding: 8, borderRadius: 8, border: '1.5px solid var(--lms-danger-bdr)', background: 'var(--lms-danger-bg)', cursor: 'pointer', color: 'var(--lms-danger)', transition: 'all 0.15s' }}>
-      <X size={15} />
-    </button>
-  </div>
-</div>
+            {/* Edit Exercise */}
+            {onEditExercise && (
+              <button onClick={handleEditExerciseClick} className="lms-btn lms-btn-ghost-orange" style={{ marginRight: 24 }}>
+                <Settings size={12} /> Edit Exercise
+              </button>
+            )}
+
+            {/* Close */}
+            <button onClick={handleCloseRequest} style={{ padding: 8, borderRadius: 8, border: '1.5px solid var(--lms-danger-bdr)', background: 'var(--lms-danger-bg)', cursor: 'pointer', color: 'var(--lms-danger)', transition: 'all 0.15s' }}>
+              <X size={15} />
+            </button>
+          </div>
+        </div>
 
         {/* ── DIFFICULTY SELECT BAR ── */}
-    {!isGeneral && getConfiguredDiffs().length > 0 && (
-  <div style={{ background: 'var(--lms-bg-surface)', borderBottom: '1.5px solid var(--lms-border)', padding: '10px 20px', display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0 }}>
-    <span style={{ fontFamily: 'var(--lms-font)', fontSize: 12, fontWeight: 700, color: 'var(--lms-text-sec)', flexShrink: 0 }}>Switch Difficulty:</span>
-    <div style={{ position: 'relative', minWidth: 160 }}>
-      <select
-        value={currentDiff}
-        onChange={e => {
-          const d = e.target.value as Diff;
-          if (d === currentDiff) return;
-          // Show dialog only when current slot is a new unsaved question with data
-          const cq = flowQuestions[currentIndex];
-          setDiffSwitchTarget(d);
-        }}
-        style={{ 
-          fontFamily: 'var(--lms-font)', 
-          fontSize: 12, 
-          fontWeight: 700, 
-          border: `2px solid ${s.border}`, 
-          borderRadius: 'var(--lms-radius-md)', 
-          padding: '6px 32px 6px 12px', 
-          cursor: 'pointer', 
-          outline: 'none', 
-          background: s.bg, 
-          color: s.text, 
-          width: '100%',
-          appearance: 'none'
+        {!isGeneral && getConfiguredDiffs().length > 0 && (
+          <div style={{ background: 'var(--lms-bg-surface)', borderBottom: '1.5px solid var(--lms-border)', padding: '10px 20px', display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0 }}>
+            <span style={{ fontFamily: 'var(--lms-font)', fontSize: 12, fontWeight: 700, color: 'var(--lms-text-sec)', flexShrink: 0 }}>Switch Difficulty:</span>
+            <div style={{ position: 'relative', minWidth: 160 }}>
+              <select
+                value={currentDiff}
+                onChange={e => {
+                  const d = e.target.value as Diff;
+                  if (d === currentDiff) return;
+                  // Show dialog only when current question is a new unsaved question with data
+                  const cq = flowQuestions[currentIndex];
+                  setDiffSwitchTarget(d);
+                }}
+                style={{
+                  fontFamily: 'var(--lms-font)',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  border: `2px solid ${s.border}`,
+                  borderRadius: 'var(--lms-radius-md)',
+                  padding: '6px 32px 6px 12px',
+                  cursor: 'pointer',
+                  outline: 'none',
+                  background: s.bg,
+                  color: s.text,
+                  width: '100%',
+                  appearance: 'none'
+                }}>
+                {getConfiguredDiffs().map(d => {
+                  const quota = getQuotaForDiff(d);
+                  const rem = getRemainingSlots(d);
+                  const used = quota - rem;
+                  return <option key={d} value={d}>{d.charAt(0).toUpperCase() + d.slice(1)} ({used}/{quota}){rem <= 0 && d !== currentDiff ? ' ✓' : ''}</option>;
+                })}
+              </select>
+              <div style={{
+                position: 'absolute',
+                right: '12px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                pointerEvents: 'none',
+                color: s.text,
+                fontSize: '12px'
+              }}>
+                ▼
+              </div>
+            </div>
+            <span style={{ fontFamily: 'var(--lms-font)', fontSize: 12, fontWeight: 600, color: remainingSlots > 0 ? s.text : 'var(--lms-success)' }}>
+              {remainingSlots > 0 ? `${remainingSlots} question${remainingSlots !== 1 ? 's' : ''} remaining` : '✓ All Questions filled'}
+            </span>
+            {/* {totalSlots > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, maxWidth: 280 }}>
+                <div style={{ flex: 1, height: 6, background: 'var(--lms-bg-surface2)', borderRadius: 3, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', borderRadius: 3, background: s.bar, width: `${Math.min(100, (createdCount / totalSlots) * 100)}%`, transition: 'width 0.4s' }} />
+                </div>
+                <span style={{ fontFamily: 'var(--lms-font)', fontSize: 10, color: 'var(--lms-text-muted)', flexShrink: 0 }}>{createdCount}/{totalSlots}</span>
+              </div>
+            )} */}
+            <div style={{ flex: 1 }} />
+            {/* <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+      <button
+        type="button"
+        onClick={() => setShowDetailsModal(true)}
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 5,
+          padding: '5px 11px', borderRadius: 'var(--lms-radius-md)',
+          fontFamily: 'var(--lms-font)', fontSize: 11.5, fontWeight: 600,
+          border: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)',
+          color: 'var(--lms-text-sec)', cursor: 'pointer', transition: 'all 0.15s',
         }}>
-        {getConfiguredDiffs().map(d => {
-          const quota = getQuotaForDiff(d); 
-          const rem = getRemainingSlots(d); 
-          const used = quota - rem;
-          return <option key={d} value={d}>{d.charAt(0).toUpperCase() + d.slice(1)} ({used}/{quota}){rem <= 0 && d !== currentDiff ? ' ✓' : ''}</option>;
-        })}
-      </select>
-      <div style={{
-        position: 'absolute',
-        right: '12px',
-        top: '50%',
-        transform: 'translateY(-50%)',
-        pointerEvents: 'none',
-        color: s.text,
-        fontSize: '12px'
-      }}>
-        ▼
-      </div>
-    </div>
-    <span style={{ fontFamily: 'var(--lms-font)', fontSize: 12, fontWeight: 600, color: remainingSlots > 0 ? s.text : 'var(--lms-success)' }}>
-      {remainingSlots > 0 ? `${remainingSlots} slot${remainingSlots !== 1 ? 's' : ''} remaining` : '✓ All slots filled'}
-    </span>
-    {totalSlots > 0 && (
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, maxWidth: 280 }}>
-        <div style={{ flex: 1, height: 6, background: 'var(--lms-bg-surface2)', borderRadius: 3, overflow: 'hidden' }}>
-          <div style={{ height: '100%', borderRadius: 3, background: s.bar, width: `${Math.min(100, (createdCount / totalSlots) * 100)}%`, transition: 'width 0.4s' }} />
-        </div>
-        <span style={{ fontFamily: 'var(--lms-font)', fontSize: 10, color: 'var(--lms-text-muted)', flexShrink: 0 }}>{createdCount}/{totalSlots}</span>
-      </div>
-    )}
-  </div>
-)}
+        <FileText size={12} /> Exercise Details
+      </button>
+      <button
+        type="button"
+        onClick={() => setShowOverviewModal(true)}
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 5,
+          padding: '5px 11px', borderRadius: 'var(--lms-radius-md)',
+          fontFamily: 'var(--lms-font)', fontSize: 11.5, fontWeight: 600,
+          border: '1.5px solid var(--lms-info-bdr)', background: 'var(--lms-info-bg)',
+          color: 'var(--lms-info)', cursor: 'pointer', transition: 'all 0.15s',
+        }}>
+        <BarChart3 size={12} /> Exercise Overview
+      </button>
+    </div> */}
+          </div>
+        )}
 
         {/* ── BODY ── */}
         <div style={{ display: 'flex', flex: '1 1 0', minHeight: 0, overflow: 'hidden' }}>
 
           {/* ── MAIN FORM ── */}
-          <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto', padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 20, background: 'var(--lms-bg-white)' }}>
+          <div ref={formScrollRef} className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto', padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 20, background: 'var(--lms-bg-white)' }}>
 
             {/* Sticky Toolbar */}
-            <div style={{
+            <div ref={stickyToolbarRef} style={{
               position: 'sticky',
               top: 0,
               zIndex: 10,
@@ -4203,105 +4569,127 @@ const globalQuestionNumber = useMemo((): number => {
 
                 <div style={{ flex: 1 }} />
 
-                {/* Score — compact right-side input */}
-                <div style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0,
-                  padding: '4px 10px', borderRadius: 8,
-                  border: `1.5px solid ${errs.score && touched.has('score') ? 'var(--lms-danger)' : 'var(--lms-border)'}`,
-                  background: errs.score && touched.has('score') ? 'var(--lms-danger-bg)' : 'var(--lms-bg-white)',
-                }}>
-                  <Award size={12} style={{ color: errs.score && touched.has('score') ? 'var(--lms-danger)' : 'var(--lms-orange)', flexShrink: 0 }} />
-                  <input
-                    type="text" inputMode="numeric"
-                    value={(() => {
-                      const v = isGeneral ? generalMPQ : isScoreEditable(currentDiff) ? score : getFixedScore(currentDiff);
-                      return v === 0 ? '' : String(v);
-                    })()}
-                    placeholder="0"
-                    onChange={e => {
-                      if (!isScoreEditable(currentDiff) || isGeneral || isFormDisabled) return;
-                      const r = e.target.value;
-                      if (/^\d*\.?\d*$/.test(r)) {
-                        const n = parseFloat(r);
-                        if (!isNaN(n) && n >= 0) setScore(n);
-                        if (r === '') setScore(0);
-                      }
-                    }}
-                    onBlur={handleScoreBlur}
-                    disabled={isGeneral || !isScoreEditable(currentDiff) || isFormDisabled}
-                    style={{
-                      width: 32, background: 'transparent', border: 'none', outline: 'none',
-                      fontSize: 12, fontWeight: 700,
-                      color: errs.score && touched.has('score') ? 'var(--lms-danger)' : 'var(--lms-text-main)',
-                      fontFamily: 'var(--lms-font)', textAlign: 'center',
-                      lineHeight: 1, padding: 0, margin: 0,
-                      cursor: (isGeneral || !isScoreEditable(currentDiff) || isFormDisabled) ? 'not-allowed' : 'text',
-                    }}
-                  />
-                  <span style={{ fontSize: 11, color: 'var(--lms-text-muted)', fontFamily: 'var(--lms-font)', whiteSpace: 'nowrap', fontWeight: 600 }}>mark</span>
-                  {(!isScoreEditable(currentDiff) || isGeneral) && (
-                    <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'var(--lms-font)', padding: '1px 6px', borderRadius: 20, background: 'var(--lms-bg-surface2)', color: 'var(--lms-text-muted)', border: '1px solid var(--lms-border)', marginLeft: 2 }}>Fixed</span>
-                  )}
-                </div>
+                {/* Score — straight line input (only for graded exercises) */}
+                {exerciseIsGraded && (
+                  <span ref={scoreSectionRef} style={{
+                    display: 'inline',
+                    whiteSpace: 'nowrap'
+                  }}>
+
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={(() => {
+                        const v = isGeneral ? generalMPQ : isScoreEditable(currentDiff) ? score : getFixedScore(currentDiff);
+                        return v === 0 ? '' : String(v);
+                      })()}
+                      placeholder="Enter the mark"
+                      onChange={e => {
+                        if (!isScoreEditable(currentDiff) || isGeneral || isFormDisabled) return;
+                        const r = e.target.value;
+                        if (/^\d*\.?\d*$/.test(r)) {
+                          const n = parseFloat(r);
+                          if (!isNaN(n) && n >= 0) setScore(n);
+                          if (r === '') setScore(0);
+                        }
+                      }}
+                      onBlur={handleScoreBlur}
+                      disabled={isGeneral || !isScoreEditable(currentDiff) || isFormDisabled}
+                      style={{
+                        width: 120,
+                        background: 'transparent',
+                        border: 'none',
+                        outline: 'none',
+                        fontSize: 'inherit',
+                        fontWeight: 400,
+                        color: errs.score && touched.has('score') ? 'var(--lms-danger)' : 'var(--lms-text-main)',
+                        fontFamily: 'var(--lms-font)',
+                        textAlign: 'left',
+                        padding: '0 0 2px 0',
+                        margin: 10,
+                        borderBottom: '1.5px solid #333',
+                        lineHeight: 'inherit',
+                        cursor: (isGeneral || !isScoreEditable(currentDiff) || isFormDisabled) ? 'not-allowed' : 'text',
+                        borderRadius: 0,
+                      }}
+                    />
+                    {(!isScoreEditable(currentDiff) || isGeneral) && (
+                      <span style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        fontFamily: 'var(--lms-font)',
+                        padding: '1px 6px',
+                        borderRadius: 20,
+                        background: 'var(--lms-bg-surface2)',
+                        color: 'var(--lms-text-muted)',
+                        border: '1px solid var(--lms-border)',
+                        marginLeft: 6,
+                        verticalAlign: 'middle'
+                      }}>Fixed</span>
+                    )}
+                  </span>
+                )}
               </div>
 
               {/* Problem Title label */}
 
             </div>
-            {/* Problem Title label */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <label className={`lms-section-label`} style={{ margin: 0 }}>
-                Problem Title <span style={{ color: errs.title && touched.has('title') ? 'var(--lms-danger)' : 'var(--lms-text-muted)' }}>*</span>
-              </label>
-              {errs.title && touched.has('title') && (
-                <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, color: 'var(--lms-danger)' }}>— {errs.title}</span>
-              )}
-            </div>
+            {/* Problem Title section */}
+            <div ref={titleSectionRef} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <label className={`lms-section-label`} style={{ margin: 0 }}>
+                  Problem Title <span style={{ color: errs.title && touched.has('title') ? 'var(--lms-danger)' : 'var(--lms-text-muted)' }}>*</span>
+                </label>
+                {errs.title && touched.has('title') && (
+                  <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, color: 'var(--lms-danger)' }}>— {errs.title}</span>
+                )}
+              </div>
 
-            {/* Title Editor - ContentEditable */}
-            <div onBlur={() => setTouched(p => new Set(p).add('title'))}>
-              {titleBlocks.map((b, bi) => {
-                if (b.type === 'text') {
-                  return <TitleEditor
-                    key={b.id}
-                    titleBlocks={titleBlocks}
-                    setTitleBlocks={(blocks) => {
-                      setTitleBlocks(blocks);
-                      if (errs.title && getTitleText(blocks)) setErrs(p => { const n = { ...p }; delete n.title; return n; });
-                    }}
-                    isDisabled={isCurrentPreExisting && !isEditMode}
-                    hasError={!!(errs.title && touched.has('title'))}
-                    setTouched={setTouched}
-                  />;
-                }
-                if (b.type === 'image') {
-                  return (
-                    <ProgImageBlock
+              {/* Title Editor - ContentEditable */}
+              <div onBlur={() => setTouched(p => new Set(p).add('title'))}>
+                {titleBlocks.map((b, bi) => {
+                  if (b.type === 'text') {
+                    return <TitleEditor
                       key={b.id}
-                      block={b as any}
-                      onUpdate={patch => setTitleBlocks(prev => prev.map(tb => tb.id === b.id ? { ...tb, ...patch } as ProgContentBlock : tb))}
-                      onRemove={() => setTitleBlocks(prev => { const n = prev.filter(tb => tb.id !== b.id); return n.length ? n : [mkProgTextBlock()]; })}
-                      disabled={isFormDisabled}
-                    />
-                  );
-                }
-                if (b.type === 'code') {
-                  return (
-                    <ProgCodeBlockMCQ
-                      key={b.id}
-                      block={b as any}
-                      onUpdate={patch => setTitleBlocks(prev => prev.map(tb => tb.id === b.id ? { ...tb, ...patch } as ProgContentBlock : tb))}
-                      onRemove={() => setTitleBlocks(prev => { const n = prev.filter(tb => tb.id !== b.id); return n.length ? n : [mkProgTextBlock()]; })}
-                      disabled={isFormDisabled}
-                    />
-                  );
-                }
-                return null;
-              })}
-            </div>
+                      titleBlocks={titleBlocks}
+                      setTitleBlocks={(blocks) => {
+                        setTitleBlocks(blocks);
+                        if (errs.title && getTitleText(blocks)) setErrs(p => { const n = { ...p }; delete n.title; return n; });
+                      }}
+                      isDisabled={isCurrentPreExisting && !isEditMode}
+                      hasError={!!(errs.title && touched.has('title'))}
+                      setTouched={setTouched}
+                    />;
+                  }
+                  if (b.type === 'image') {
+                    return (
+                      <ProgImageBlock
+                        key={b.id}
+                        block={b as any}
+                        onUpdate={patch => setTitleBlocks(prev => prev.map(tb => tb.id === b.id ? { ...tb, ...patch } as ProgContentBlock : tb))}
+                        onRemove={() => setTitleBlocks(prev => { const n = prev.filter(tb => tb.id !== b.id); return n.length ? n : [mkProgTextBlock()]; })}
+                        disabled={isFormDisabled}
+                      />
+                    );
+                  }
+                  if (b.type === 'code') {
+                    return (
+                      <ProgCodeBlockMCQ
+                        key={b.id}
+                        block={b as any}
+                        onUpdate={patch => setTitleBlocks(prev => prev.map(tb => tb.id === b.id ? { ...tb, ...patch } as ProgContentBlock : tb))}
+                        onRemove={() => setTitleBlocks(prev => { const n = prev.filter(tb => tb.id !== b.id); return n.length ? n : [mkProgTextBlock()]; })}
+                        disabled={isFormDisabled}
+                      />
+                    );
+                  }
+                  return null;
+                })}
+              </div>
+            </div>{/* end titleSectionRef wrapper */}
 
             {/* ── Description ── */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div ref={descSectionRef} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <label className="lms-section-label" style={{ margin: 0 }}>Problem Description <span style={{ color: 'var(--lms-danger)' }}>*</span></label>
                 {errs.description && touched.has('description') && <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, color: 'var(--lms-danger)' }}>— {errs.description}</span>}
@@ -4315,16 +4703,17 @@ const globalQuestionNumber = useMemo((): number => {
                   }}
                   disabled={isFormDisabled}
                   hasError={!!(errs.description && touched.has('description'))}
+                  resetKey={currentIndex}
                 />
               </div>
             </div>
 
             {/* ── Constraints ── */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div ref={constraintsSectionRef} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <label className={`lms-section-label${errs.constraints && touched.has('constraints') ? ' lms-label-err' : ''}`} style={{ margin: 0 }}>
-                    Constraints <span style={{ color: errs.constraints && touched.has('constraints') ? 'var(--lms-danger)' : 'var(--lms-text-muted)' }}>*</span>
+                  <label className="lms-section-label" style={{ margin: 0 }}>
+                    Constraints <span style={{ color: 'var(--lms-text-muted)' }}>*</span>
                   </label>
                   {errs.constraints && touched.has('constraints') && (
                     <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, color: 'var(--lms-danger)' }}>— {errs.constraints}</span>
@@ -4353,11 +4742,11 @@ const globalQuestionNumber = useMemo((): number => {
             </div>
 
             {/* ── Test Cases ── */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div ref={testcasesSectionRef} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                  <label className={`lms-section-label${errs.testcases && touched.has('testcases') ? ' lms-label-err' : ''}`} style={{ margin: 0 }}>
-                    Test Cases <span style={{ color: errs.testcases && touched.has('testcases') ? 'var(--lms-danger)' : 'var(--lms-text-muted)' }}>*</span>
+                  <label className="lms-section-label" style={{ margin: 0 }}>
+                    Test Cases <span style={{ color: 'var(--lms-text-muted)' }}>*</span>
                   </label>
                   {errs.testcases && touched.has('testcases') && (
                     <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, color: 'var(--lms-danger)' }}>— {errs.testcases}</span>
@@ -4368,7 +4757,7 @@ const globalQuestionNumber = useMemo((): number => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {tcs.map((tc, i) => (
                   <div key={tc.id}
-                    style={{ border: i === 0 ? '1.5px solid var(--lms-orange)' : '1.5px solid var(--lms-border)', borderRadius: 'var(--lms-radius-md)', padding: 12, background: i === 0 ? 'var(--lms-bg-white)' : 'var(--lms-bg-surface)', transition: 'all 0.15s' }}
+                    style={{ border: '1.5px solid var(--lms-border)', borderRadius: 'var(--lms-radius-md)', padding: 12, background: i === 0 ? 'var(--lms-bg-white)' : 'var(--lms-bg-surface)', transition: 'all 0.15s' }}
                     className="group">
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -4397,11 +4786,11 @@ const globalQuestionNumber = useMemo((): number => {
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                       <div>
-                        <label className="lms-section-label" style={{ margin: 0, marginBottom: 4, display: 'block' }}>Input (stdin)</label>
+                        <label className="lms-section-label" style={{ margin: 0, marginBottom: 4, display: 'block' }}>Input (Click Enter to give multiple inputs)</label>
                         <TA value={tc.input} onChange={v => updTC(tc.id, 'input', v)} placeholder="stdin…" rows={3} mono disabled={isFormDisabled} />
                       </div>
                       <div>
-                        <label className="lms-section-label" style={{ margin: 0, marginBottom: 4, display: 'block' }}>Expected Output (stdout)</label>
+                        <label className="lms-section-label" style={{ margin: 0, marginBottom: 4, display: 'block' }}>Expected Output</label>
                         <TA value={tc.expectedOutput} onChange={v => updTC(tc.id, 'expectedOutput', v)} placeholder="expected stdout…" rows={3} mono disabled={isFormDisabled} />
                       </div>
                     </div>
@@ -4481,195 +4870,618 @@ const globalQuestionNumber = useMemo((): number => {
           </div>
 
           {/* ── RIGHT SIDEBAR ── */}
-          <div style={{ width: 272, flexShrink: 0, borderLeft: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-            <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto' }}>
-              {/* Exercise Details — info-bg */}
-              <div style={{ padding: '14px 16px', borderBottom: '1.5px solid var(--lms-info-bdr)', background: 'var(--lms-info-bg)' }}>
-                <div className="lms-sidebar-section-title">
-                  <FileText size={14} style={{ color: 'var(--lms-info)' }} />
-                  Exercise Details
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                  {exerciseData.fullExerciseData?.exerciseInformation?.exerciseId && (
-                    <div className="lms-detail-row">
-                      <span className="lms-detail-label">Exercise ID</span>
-                      <span className="lms-detail-value" style={{ fontFamily: 'ui-monospace, monospace', color: 'var(--lms-violet)', fontSize: '12px' }}>{exerciseData.fullExerciseData.exerciseInformation.exerciseId}</span>
-                    </div>
-                  )}
-                  <div className="lms-detail-row">
-                    <span className="lms-detail-label">Exercise Name</span>
-                    <span className="lms-detail-value" style={{ color: 'var(--lms-orange)', maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '12px' }}>{exerciseName || 'Untitled'}</span>
-                  </div>
-                  <div className="lms-detail-row">
-                    <span className="lms-detail-label">Exercise Type</span>
-                    <span className="lms-detail-value" style={{ fontSize: '12px' }}>{exerciseData.fullExerciseData?.exerciseType || 'programming'}</span>
-                  </div>
-                  <div className="lms-detail-row">
-                    <span className="lms-detail-label">Module Type</span>
-                    <span className="lms-detail-value" style={{ fontSize: '12px' }}>CoreProgramming</span>
-                  </div>
-                  <div className="lms-detail-row">
-                    <span className="lms-detail-label">Configuration</span>
-                    <span className="lms-detail-value" style={{ fontSize: '12px' }}>{isGeneral ? 'General' : cfgType === 'levelBased' ? 'Level Based' : 'Selection Level'}</span>
-                  </div>
-                  {(exerciseData.fullExerciseData?.exerciseInformation?.totalDuration || exerciseData.fullExerciseData?.exerciseInformation?.duration) && (
-                    <div className="lms-detail-row">
-                      <span className="lms-detail-label">Duration</span>
-                      <span className="lms-detail-value" style={{ fontSize: '12px' }}>{exerciseData.fullExerciseData?.exerciseInformation?.totalDuration || exerciseData.fullExerciseData?.exerciseInformation?.duration} mins</span>
-                    </div>
-                  )}
-                  {!isGeneral && (
-                    <div className="lms-detail-row">
-                      <span className="lms-detail-label">Current Difficulty</span>
-                      <span className="lms-detail-value" style={{ color: s.text, textTransform: 'capitalize', fontSize: '12px' }}>{currentDiff}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
+          <div style={{ width: 280, flexShrink: 0, borderLeft: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
 
-         
-              {/* Questions section — orange-50 */}
-              <div style={{ padding: '14px 16px', borderBottom: '1.5px solid var(--lms-orange-100)', background: 'var(--lms-orange-50)' }}>
-                <div className="lms-sidebar-section-title">
-                  <Hash size={14} style={{ color: 'var(--lms-orange)' }} />
-                  <span className="lms-detail-value" style={{ textTransform: 'capitalize', fontSize: '12px' }}>Question Quota · {isGeneral ? '(General)' : `${currentDiff} Level`}</span>
+            {/* Two action buttons */}
+            <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: 8, borderBottom: '1.5px solid var(--lms-border)', flexShrink: 0, background: 'var(--lms-bg-surface)' }}>
+              <button
+                type="button"
+                onClick={() => setShowDetailsModal(true)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  width: '100%', padding: '10px 14px', borderRadius: 'var(--lms-radius-md)',
+                  fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 600,
+                  border: '1.5px solid var(--lms-border)',
+                  background: 'var(--lms-bg-white)', color: 'var(--lms-text-sec)',
+                  cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left',
+                }}
+                onMouseEnter={e => { const b = e.currentTarget; b.style.borderColor = 'var(--lms-orange)'; b.style.background = 'var(--lms-orange-50)'; b.style.color = '#c85a30'; }}
+                onMouseLeave={e => { const b = e.currentTarget; b.style.borderColor = 'var(--lms-border)'; b.style.background = 'var(--lms-bg-white)'; b.style.color = 'var(--lms-text-sec)'; }}
+              >
+                <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--lms-orange-50)', border: '1.5px solid var(--lms-orange-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <FileText size={14} style={{ color: 'var(--lms-orange)' }} />
                 </div>
-                <div>
-                  {[
-                    { label: 'Total Questions', value: `${totalSlots}`, color: 'var(--lms-text-main)', denom: null },
-                    { label: 'Questions Created', value: `${createdCount}`, color: 'var(--lms-violet)', denom: `${totalSlots}` },
-                    { label: 'Remaining Questions', value: `${remainingSlots}`, color: remainingSlots === 0 ? 'var(--lms-success)' : 'var(--lms-warning)', denom: `${totalSlots}` },
-                  ].map(({ label, value, color, denom }) => (
-                    <div key={label} className="lms-marks-row">
-                      <span className="lms-marks-label">{label}</span>
-                      <span className="lms-marks-value" style={{ color }}>
-                        {value}{denom && <span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 11 }}>/{denom}</span>}
-                      </span>
-                    </div>
-                  ))}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 700, color: 'inherit' }}>Exercise Details</div>
+                  <div style={{ fontFamily: 'var(--lms-font)', fontSize: 10.5, color: 'var(--lms-text-muted)', marginTop: 1 }}>ID, type, config, duration</div>
                 </div>
-                {totalSlots > 0 && (
-                  <div className="lms-progress-bar">
-                    <div className="lms-progress-fill" style={{ width: `${Math.min(100, (createdCount / totalSlots) * 100)}%`, background: remainingSlots === 0 ? 'var(--lms-success)' : 'var(--lms-orange)' }} />
-                  </div>
-                )}
-              </div>
+                <ChevronRight size={13} style={{ color: 'var(--lms-text-hint)', flexShrink: 0 }} />
+              </button>
 
-
-     {/* ── Overall Questions (all difficulties) ── */}
-              {(!isGeneral && getConfiguredDiffs().length > 1) && (
-                <div style={{ padding: '14px 16px', borderBottom: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-surface)' }}>
-                  <div className="lms-sidebar-section-title">
-                    <BarChart3 size={14} style={{ color: 'var(--lms-text-sec)' }} />
-                    Question Overview
-                  </div>
-                  <div>
-                    {[
-                      { label: 'Total Questions', value: `${totalSlotsAll}`, color: 'var(--lms-text-main)', denom: null },
-                      { label: 'Questions Created', value: `${createdCountAll}`, color: 'var(--lms-violet)', denom: `${totalSlotsAll}` },
-                      { label: 'Remaining Questions', value: `${remainingSlotsAll}`, color: remainingSlotsAll === 0 ? 'var(--lms-success)' : 'var(--lms-warning)', denom: `${totalSlotsAll}` },
-                    ].map(({ label, value, color, denom }) => (
-                      <div key={label} className="lms-marks-row">
-                        <span className="lms-marks-label">{label}</span>
-                        <span className="lms-marks-value" style={{ color }}>
-                          {value}{denom != null && <span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 11 }}>/{denom}</span>}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                  {totalSlotsAll > 0 && (
-                    <div className="lms-progress-bar">
-                      <div className="lms-progress-fill" style={{ width: `${Math.min(100, (createdCountAll / totalSlotsAll) * 100)}%`, background: remainingSlotsAll === 0 ? 'var(--lms-success)' : 'var(--lms-orange)' }} />
-                    </div>
-                  )}
+              {!isGeneral && (
+              <button
+                type="button"
+                onClick={() => setShowOverviewModal(true)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  width: '100%', padding: '10px 14px', borderRadius: 'var(--lms-radius-md)',
+                  fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 600,
+                  border: '1.5px solid var(--lms-border)',
+                  background: 'var(--lms-bg-white)', color: 'var(--lms-text-sec)',
+                  cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left',
+                }}
+                onMouseEnter={e => { const b = e.currentTarget; b.style.borderColor = 'var(--lms-info-bdr)'; b.style.background = 'var(--lms-info-bg)'; b.style.color = 'var(--lms-info)'; }}
+                onMouseLeave={e => { const b = e.currentTarget; b.style.borderColor = 'var(--lms-border)'; b.style.background = 'var(--lms-bg-white)'; b.style.color = 'var(--lms-text-sec)'; }}
+              >
+                <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--lms-info-bg)', border: '1.5px solid var(--lms-info-bdr)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <BarChart3 size={14} style={{ color: 'var(--lms-info)' }} />
                 </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 700, color: 'inherit' }}>Exercise Overview</div>
+                  <div style={{ fontFamily: 'var(--lms-font)', fontSize: 10.5, color: 'var(--lms-text-muted)', marginTop: 1 }}>Quota, marks, progress</div>
+                </div>
+                <ChevronRight size={13} style={{ color: 'var(--lms-text-hint)', flexShrink: 0 }} />
+              </button>
               )}
-   {/* Marks Allocation · diff */}
-              <div style={{ padding: '14px 16px', borderBottom: '1.5px solid var(--lms-orange-100)', background: 'var(--lms-orange-50)' }}>
-                <div className="lms-sidebar-section-title">
-                  <Award size={14} style={{ color: 'var(--lms-orange)' }} />
-                  <span style={{ textTransform: 'capitalize' }}>Marks Allocation · {isGeneral ? '(General)' : `${currentDiff} Level`}</span>
-                </div>
-                <div>
-                  {!isGeneral && totalMarksForDiff > 0 && (
-                    <div className="lms-marks-row">
-                      <span className="lms-marks-label">Level Total</span>
-                      <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: '12px' }}>{totalMarksForDiff}</span>
-                    </div>
-                  )}
+              {sectionData && (
+                <button
+                  type="button"
+                  onClick={() => setShowSectionModal(true)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    width: '100%', padding: '10px 14px', borderRadius: 'var(--lms-radius-md)',
+                    fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 600,
+                    border: '1.5px solid var(--lms-border)',
+                    background: 'var(--lms-bg-white)', color: 'var(--lms-text-sec)',
+                    cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left',
+                    marginTop: 8,
+                  }}
+                  onMouseEnter={e => { const b = e.currentTarget; b.style.borderColor = 'var(--lms-violet-bdr)'; b.style.background = 'var(--lms-violet-bg)'; b.style.color = 'var(--lms-violet)'; }}
+                  onMouseLeave={e => { const b = e.currentTarget; b.style.borderColor = 'var(--lms-border)'; b.style.background = 'var(--lms-bg-white)'; b.style.color = 'var(--lms-text-sec)'; }}
+                >
+                  <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--lms-violet-bg)', border: '1.5px solid var(--lms-violet-bdr)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Layers size={14} style={{ color: 'var(--lms-violet)' }} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 700, color: 'inherit' }}>Section Details</div>
+                    <div style={{ fontFamily: 'var(--lms-font)', fontSize: 10.5, color: 'var(--lms-text-muted)', marginTop: 1 }}>{sectionData.name || 'Current section'}</div>
+                  </div>
+                  <ChevronRight size={13} style={{ color: 'var(--lms-text-hint)', flexShrink: 0 }} />
+                </button>
+              )}
+            </div>
+
+            {/* Stats summary — Questions + Marks */}
+            <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto', padding: '14px 14px' }}>
+
+              {/* ── Current Difficulty Questions ── */}
+              {!isGeneral && (
+                <div style={{ marginBottom: 14 }}>
+                  <div className="lms-sidebar-section-title" style={{ fontSize: 11 }}>
+                    <Hash size={12} style={{ color: 'var(--lms-orange)' }} />
+                    <span style={{ textTransform: 'capitalize' }}>{currentDiff} Questions</span>
+                  </div>
                   <div className="lms-marks-row">
-                    <span className="lms-marks-label">Marks per Question</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span className="lms-marks-value" style={{ color: 'var(--lms-orange)', fontSize: '12px' }}>{displayScore}</span>
-                      {isScoreEditable(currentDiff)
-                        ? <span className="lms-badge lms-badge-violet" style={{ fontSize: '10px', padding: '2px 6px' }}>Custom</span>
-                        : <span className="lms-badge" style={{ fontSize: '10px', padding: '2px 6px', background: 'var(--lms-bg-surface)', color: 'var(--lms-text-muted)', borderColor: 'var(--lms-border)' }}>Fixed</span>}
-                    </div>
+                    <span className="lms-marks-label">Total</span>
+                    <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{totalSlots}</span>
                   </div>
-                  {!isGeneral && totalMarksForDiff > 0 && (
-                    <>
-                      <div className="lms-marks-row">
-                        <span className="lms-marks-label">Marks Used</span>
-                        <span className="lms-marks-value" style={{ color: 'var(--lms-warning)', fontSize: '12px' }}>
-                          {fmtMark(usedMarks)}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 11 }}>/{totalMarksForDiff}</span>
-                        </span>
-                      </div>
-                      <div className="lms-marks-row">
-                        <span className="lms-marks-label">Remaining</span>
-                        <span className="lms-marks-value" style={{ color: remainingMarks <= 0 ? 'var(--lms-success)' : 'var(--lms-violet)', fontSize: '12px' }}>{fmtMark(remainingMarks)}</span>
-                      </div>
-                    </>
-                  )}
-                </div>
-                {!isGeneral && totalMarksForDiff > 0 && (
-                  <div className="lms-progress-bar">
-                    <div className="lms-progress-fill" style={{ width: `${Math.min(100, (usedMarks / totalMarksForDiff) * 100)}%`, background: usedMarks >= totalMarksForDiff ? 'var(--lms-success)' : 'var(--lms-orange)' }} />
+                  <div className="lms-marks-row">
+                    <span className="lms-marks-label">Created</span>
+                    <span className="lms-marks-value" style={{ color: 'var(--lms-violet)', fontSize: 12 }}>
+                      {createdCount}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 10 }}>/{totalSlots}</span>
+                    </span>
                   </div>
-                )}
-              </div>
-              {/* Marks Allocation Overview (all diffs) */}
-              {(!isGeneral && getConfiguredDiffs().length > 1) && (
-                <div style={{ padding: '14px 16px', borderBottom: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-surface)' }}>
-                  <div className="lms-sidebar-section-title">
-                    <Award size={14} style={{ color: 'var(--lms-text-sec)' }} />
-                    Marks Allocation Overview
+                  <div className="lms-marks-row">
+                    <span className="lms-marks-label">Remaining</span>
+                    <span className="lms-marks-value" style={{ color: remainingSlots === 0 ? 'var(--lms-success)' : 'var(--lms-warning)', fontSize: 12 }}>{remainingSlots}</span>
                   </div>
-                  <div>
-                    <div className="lms-marks-row">
-                      <span className="lms-marks-label">Total Marks</span>
-                      <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: '12px' }}>{totalMarksAll}</span>
-                    </div>
-                    <div className="lms-marks-row">
-                      <span className="lms-marks-label">Marks Used</span>
-                      <span className="lms-marks-value" style={{ color: 'var(--lms-warning)', fontSize: '12px' }}>
-                        {fmtMark(usedMarksAll)}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 11 }}>/{totalMarksAll}</span>
-                      </span>
-                    </div>
-                    <div className="lms-marks-row">
-                      <span className="lms-marks-label">Remaining</span>
-                      <span className="lms-marks-value" style={{ color: Math.max(0, totalMarksAll - usedMarksAll) === 0 ? 'var(--lms-success)' : 'var(--lms-violet)', fontSize: '12px' }}>
-                        {fmtMark(Math.max(0, totalMarksAll - usedMarksAll))}
-                      </span>
-                    </div>
-                    {getConfiguredDiffs().map(d => (
-                      <div key={d} className="lms-marks-row">
-                        <span className="lms-marks-label" style={{ textTransform: 'capitalize' }}>{d}</span>
-                        <span className="lms-marks-value" style={{ color: 'var(--lms-text-sec)', fontSize: '12px' }}>{getTotalMarksForDiff(d)}</span>
-                      </div>
-                    ))}
-                  </div>
-                  {totalMarksAll > 0 && (
-                    <div className="lms-progress-bar">
-                      <div className="lms-progress-fill" style={{ width: `${Math.min(100, (usedMarksAll / totalMarksAll) * 100)}%`, background: usedMarksAll >= totalMarksAll ? 'var(--lms-success)' : 'var(--lms-orange)' }} />
+                  {totalSlots > 0 && (
+                    <div className="lms-progress-bar" style={{ marginTop: 6 }}>
+                      <div className="lms-progress-fill" style={{
+                        width: `${Math.min(100, (createdCount / totalSlots) * 100)}%`,
+                        background: remainingSlots === 0 ? 'var(--lms-success)' : 'var(--lms-orange)'
+                      }} />
                     </div>
                   )}
                 </div>
               )}
 
-           
+              {/* ── Overall Questions ── */}
+              <div style={{ marginBottom: 14, borderTop: isGeneral ? 'none' : '1px dashed var(--lms-border)', paddingTop: isGeneral ? 0 : 14 }}>
+                <div className="lms-sidebar-section-title" style={{ fontSize: 11 }}>
+                  <Hash size={12} style={{ color: 'var(--lms-orange)' }} />
+                  <span>Overall Questions</span>
+                </div>
+                <div className="lms-marks-row">
+                  <span className="lms-marks-label">Total Questions</span>
+                  <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{totalSlotsAll}</span>
+                </div>
+                <div className="lms-marks-row">
+                  <span className="lms-marks-label">Created</span>
+                  <span className="lms-marks-value" style={{ color: 'var(--lms-violet)', fontSize: 12 }}>
+                    {createdCountAll}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 10 }}>/{totalSlotsAll}</span>
+                  </span>
+                </div>
+                <div className="lms-marks-row">
+                  <span className="lms-marks-label">Remaining</span>
+                  <span className="lms-marks-value" style={{ color: remainingSlotsAll === 0 ? 'var(--lms-success)' : 'var(--lms-warning)', fontSize: 12 }}>{remainingSlotsAll}</span>
+                </div>
+                {totalSlotsAll > 0 && (
+                  <div className="lms-progress-bar" style={{ marginTop: 6 }}>
+                    <div className="lms-progress-fill" style={{
+                      width: `${Math.min(100, (createdCountAll / totalSlotsAll) * 100)}%`,
+                      background: remainingSlotsAll === 0 ? 'var(--lms-success)' : 'var(--lms-orange)'
+                    }} />
+                  </div>
+                )}
+              </div>
+
+              {/* ── Current Difficulty Marks ── */}
+              {exerciseIsGraded && !isGeneral && totalMarksForDiff > 0 && (
+                <div style={{ borderTop: '1.5px solid var(--lms-border)', paddingTop: 14, marginBottom: 14 }}>
+                  <div className="lms-sidebar-section-title" style={{ fontSize: 11 }}>
+                    <Award size={12} style={{ color: 'var(--lms-orange)' }} />
+                    <span style={{ textTransform: 'capitalize' }}>{currentDiff} Marks</span>
+                  </div>
+                  <div className="lms-marks-row">
+                    <span className="lms-marks-label">Total Mark</span>
+                    <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{totalMarksForDiff}</span>
+                  </div>
+                  <div className="lms-marks-row">
+                    <span className="lms-marks-label">Mark Per Question</span>
+                    <span className="lms-marks-value" style={{ color: 'var(--lms-orange)', fontSize: 12 }}>
+                      {displayScore}
+                      {isScoreEditable(currentDiff)
+                        ? <span className="lms-badge lms-badge-violet" style={{ fontSize: '9px', padding: '1px 5px', marginLeft: 3 }}>Custom</span>
+                        : <span className="lms-badge" style={{ fontSize: '9px', padding: '1px 5px', marginLeft: 3, background: 'var(--lms-bg-surface)', color: 'var(--lms-text-muted)', borderColor: 'var(--lms-border)' }}>Fixed</span>}
+                    </span>
+                  </div>
+                  <div className="lms-marks-row">
+                    <span className="lms-marks-label">Used Marks</span>
+                    <span className="lms-marks-value" style={{ color: 'var(--lms-warning)', fontSize: 12 }}>
+                      {fmtMark(usedMarks)}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 10 }}>/{totalMarksForDiff}</span>
+                    </span>
+                  </div>
+                  <div className="lms-marks-row">
+                    <span className="lms-marks-label">Remaining Marks</span>
+                    <span className="lms-marks-value" style={{ color: remainingMarks <= 0 ? 'var(--lms-success)' : 'var(--lms-violet)', fontSize: 12 }}>{fmtMark(remainingMarks)}</span>
+                  </div>
+                  <div className="lms-progress-bar" style={{ marginTop: 6 }}>
+                    <div className="lms-progress-fill" style={{
+                      width: `${Math.min(100, (usedMarks / totalMarksForDiff) * 100)}%`,
+                      background: usedMarks >= totalMarksForDiff ? 'var(--lms-success)' : 'var(--lms-orange)'
+                    }} />
+                  </div>
+                </div>
+              )}
+
+              {/* ── Overall Marks ── */}
+              {exerciseIsGraded && (isGeneral ? generalMPQ > 0 : totalMarksAll > 0) && (
+                <div style={{ borderTop: '1.5px solid var(--lms-border)', paddingTop: 14 }}>
+                  <div className="lms-sidebar-section-title" style={{ fontSize: 11 }}>
+                    <Award size={12} style={{ color: 'var(--lms-orange)' }} />
+                    <span>Overall Marks</span>
+                  </div>
+                  <div className="lms-marks-row">
+                    <span className="lms-marks-label">Marks Per Question</span>
+                    <span className="lms-marks-value" style={{ color: 'var(--lms-orange)', fontSize: 12 }}>{isGeneral ? generalMPQ : displayScore}</span>
+                  </div>
+                  <div className="lms-marks-row">
+                    <span className="lms-marks-label">Total Questions</span>
+                    <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{totalSlotsAll}</span>
+                  </div>
+                  <div className="lms-marks-row">
+                    <span className="lms-marks-label">Total Marks</span>
+                    <span className="lms-marks-value" style={{ color: 'var(--lms-violet)', fontSize: 12 }}>{isGeneral ? generalTotalMarks : totalMarksAll}</span>
+                  </div>
+                </div>
+              )}
 
             </div>
           </div>
+          {/* ── Exercise Details Modal ── */}
+          {showDetailsModal && (
+            <div
+              style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
+              onClick={e => { if (e.target === e.currentTarget) setShowDetailsModal(false); }}>
+              <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 360, maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+                {/* Header */}
+                <div style={{ padding: '13px 16px', borderBottom: '1.5px solid var(--lms-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--lms-bg-surface)', flexShrink: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <FileText size={14} style={{ color: 'var(--lms-text-sec)' }} />
+                    <span style={{ fontFamily: 'var(--lms-font)', fontSize: 13, fontWeight: 700, color: 'var(--lms-text-main)' }}>Exercise Details</span>
+                  </div>
+                  <button type="button" onClick={() => setShowDetailsModal(false)}
+                    style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--lms-text-muted)', display: 'flex', padding: 4, borderRadius: 6 }}>
+                    <X size={15} />
+                  </button>
+                </div>
+
+                {/* Body — label:value rows */}
+                <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto', padding: '4px 0' }}>
+                  {exerciseData.fullExerciseData?.exerciseInformation?.exerciseId && (
+                    <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                      <span className="lms-detail-label">Exercise ID</span>
+                      <span className="lms-detail-value" style={{ fontFamily: 'ui-monospace, monospace', color: 'var(--lms-violet)', fontSize: 11 }}>
+                        {exerciseData.fullExerciseData.exerciseInformation.exerciseId}
+                      </span>
+                    </div>
+                  )}
+                  <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                    <span className="lms-detail-label">Exercise Name</span>
+                    <span className="lms-detail-value" style={{ color: 'var(--lms-orange)', fontSize: 11, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {exerciseName || 'Untitled'}
+                    </span>
+                  </div>
+                  <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                    <span className="lms-detail-label">Exercise Type</span>
+                    <span className="lms-detail-value" style={{ fontSize: 11, textTransform: 'capitalize' }}>
+                      {exerciseData.fullExerciseData?.exerciseType || 'programming'}
+                    </span>
+                  </div>
+                  <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                    <span className="lms-detail-label">Configuration</span>
+                    <span className="lms-detail-value" style={{ fontSize: 11 }}>
+                      {isGeneral ? 'General' : cfgType === 'levelBased' ? 'Level Based' : 'Selection Level'}
+                    </span>
+                  </div>
+                  <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                    <span className="lms-detail-label">Assessment Type</span>
+                    <span className="lms-detail-value" style={{ fontSize: 11, fontWeight: 700, color: exerciseIsGraded ? 'var(--lms-success)' : 'var(--lms-warning)' }}>
+                      {exerciseIsGraded ? 'Graded' : 'Non-Graded'}
+                    </span>
+                  </div>
+                  {(exerciseData.fullExerciseData?.exerciseInformation?.totalDuration || exerciseData.fullExerciseData?.exerciseInformation?.duration) && (
+                    <div className="lms-detail-row" style={{ padding: '8px 16px' }}>
+                      <span className="lms-detail-label">Duration</span>
+                      <span className="lms-detail-value" style={{ fontSize: 11 }}>
+                        {exerciseData.fullExerciseData?.exerciseInformation?.totalDuration || exerciseData.fullExerciseData?.exerciseInformation?.duration} mins
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Footer */}
+                <div style={{ padding: '10px 16px', borderTop: '1.5px solid var(--lms-border)', display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
+                  <button type="button" onClick={() => setShowDetailsModal(false)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 16px', borderRadius: 'var(--lms-radius-md)', fontFamily: 'var(--lms-font)', fontSize: 12, fontWeight: 600, border: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-surface)', color: 'var(--lms-text-sec)', cursor: 'pointer' }}>
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Exercise Overview Modal ── */}
+          {/* ── Exercise Overview Modal ── */}
+          {showOverviewModal && (() => {
+            // exerciseIsGraded from component level — graded = show marks, non-graded = questions only
+            const configuredDiffs = getConfiguredDiffs();
+
+            return (
+              <div
+                style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
+                onClick={e => { if (e.target === e.currentTarget) setShowOverviewModal(false); }}>
+                <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 400, maxHeight: '86vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+                  {/* Header */}
+                  <div style={{ padding: '13px 16px', borderBottom: '1.5px solid var(--lms-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--lms-info-bg)', flexShrink: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                      <BarChart3 size={14} style={{ color: 'var(--lms-info)' }} />
+                      <span style={{ fontFamily: 'var(--lms-font)', fontSize: 13, fontWeight: 700, color: 'var(--lms-text-main)' }}>Exercise Overview</span>
+                    </div>
+                    <button type="button" onClick={() => setShowOverviewModal(false)}
+                      style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--lms-text-muted)', display: 'flex', padding: 4, borderRadius: 6 }}>
+                      <X size={15} />
+                    </button>
+                  </div>
+
+                  {/* Body */}
+                  <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto' }}>
+
+                    {/* ── Overall Questions section ── */}
+                    <div style={{ padding: '12px 16px', borderBottom: '1.5px solid var(--lms-border)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                        <Hash size={12} style={{ color: 'var(--lms-orange)' }} />
+                        <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, fontWeight: 700, color: 'var(--lms-orange)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Overall Questions</span>
+                      </div>
+
+
+
+                      {/* Overall totals */}
+                      <div style={{ marginTop: !isGeneral && configuredDiffs.length > 0 ? 12 : 0, paddingTop: !isGeneral && configuredDiffs.length > 0 ? 12 : 0, borderTop: !isGeneral && configuredDiffs.length > 0 ? '1px solid var(--lms-border)' : 'none' }}>
+                        <div className="lms-marks-row">
+                          <span className="lms-marks-label">Total Questions</span>
+                          <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12, fontWeight: 700 }}>{totalSlotsAll}</span>
+                        </div>
+                        <div className="lms-marks-row">
+                          <span className="lms-marks-label">Created</span>
+                          <span className="lms-marks-value" style={{ color: 'var(--lms-violet)', fontSize: 12, fontWeight: 700 }}>
+                            {createdCountAll}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 10 }}>/{totalSlotsAll}</span>
+                          </span>
+                        </div>
+                        <div className="lms-marks-row ">
+                          <span className="lms-marks-label">Remaining</span>
+                          <span className="lms-marks-value" style={{ color: remainingSlotsAll === 0 ? 'var(--lms-success)' : 'var(--lms-warning)', fontSize: 12, fontWeight: 700 }}>
+                            {remainingSlotsAll}
+                          </span>
+                        </div>
+                        {totalSlotsAll > 0 && (
+                          <div className="lms-progress-bar" style={{ marginTop: 8, marginBottom: 15 }}>
+                            <div className="lms-progress-fill mb-3" style={{ width: `${Math.min(100, (createdCountAll / totalSlotsAll) * 100)}%`, background: remainingSlotsAll === 0 ? 'var(--lms-success)' : 'var(--lms-orange)' }} />
+                          </div>
+                        )}
+                      </div>
+                      {/* Per-difficulty question breakdown */}
+                      {!isGeneral && configuredDiffs.length > 0 && (
+                        <div style={{ marginBottom: 12 }}>
+                          {configuredDiffs.map(d => {
+                            const quota = getQuotaForDiff(d);
+                            const created = getCreatedCount(d);
+                            const diffColor = d === 'easy' ? 'var(--lms-success)' : d === 'medium' ? 'var(--lms-warning)' : 'var(--lms-danger)';
+                            return (
+                              <div key={d} style={{ marginBottom: 8 }}>
+                                <div className="lms-marks-row" style={{ marginBottom: 4 }}>
+                                  <span className="lms-marks-label" style={{ textTransform: 'capitalize', color: diffColor, fontWeight: 700 }}>
+                                    {d} <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--lms-text-muted)' }}>({quota} question{quota !== 1 ? 's' : ''})</span>
+                                  </span>
+                                  <span className="lms-marks-value" style={{ fontSize: 12 }}>
+                                    <span style={{ color: 'var(--lms-violet)', fontWeight: 700 }}>{created}</span>
+                                    <span style={{ color: 'var(--lms-text-hint)', fontWeight: 400 }}>/{quota}</span>
+                                    <span style={{
+                                      color: created >= quota ? 'var(--lms-success)' : 'var(--lms-text-muted)',
+                                      fontSize: 10,
+                                      marginLeft: 6,
+                                      fontWeight: 500
+                                    }}>
+                                      {created >= quota ? '✓ Complete' : `${quota - created} remaining`}
+                                    </span>
+                                  </span>
+                                </div>
+                                {quota > 0 && (
+                                  <div className="lms-progress-bar" style={{ marginTop: 2 }}>
+                                    <div className="lms-progress-fill" style={{
+                                      width: `${Math.min(100, (created / quota) * 100)}%`,
+                                      background: created >= quota ? 'var(--lms-success)' : diffColor
+                                    }} />
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                    </div>
+
+                    {/* ── Overall Marks section — graded only ── */}
+                    {exerciseIsGraded && (isGeneral ? (generalTotalMarks > 0 || generalMPQ > 0) : totalMarksAll > 0) && (
+                      <div style={{ padding: '12px 16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                          <Award size={12} style={{ color: 'var(--lms-violet)' }} />
+                          <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, fontWeight: 700, color: 'var(--lms-violet)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Overall Marks</span>
+                        </div>
+
+                        {isGeneral ? (
+                          <>
+                            <div className="lms-marks-row">
+                              <span className="lms-marks-label">Marks per Question</span>
+                              <span className="lms-marks-value" style={{ color: 'var(--lms-orange)', fontSize: 12 }}>{generalMPQ}</span>
+                            </div>
+                            <div className="lms-marks-row">
+                              <span className="lms-marks-label">Total Questions</span>
+                              <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{generalQuestionCount}</span>
+                            </div>
+                            <div className="lms-marks-row">
+                              <span className="lms-marks-label">Total Marks</span>
+                              <span className="lms-marks-value" style={{ color: 'var(--lms-violet)', fontSize: 12 }}>{generalTotalMarks}</span>
+                            </div>
+                          </>
+                        ) : (
+                          // levelBased
+                          <>
+                            <div className="lms-marks-row">
+                              <span className="lms-marks-label">Total Marks</span>
+                              <span className="lms-marks-value" style={{ color: 'var(--lms-violet)', fontSize: 12 }}>{totalMarksAll}</span>
+                            </div>
+                            <div className="lms-marks-row">
+                              <span className="lms-marks-label">Marks Used</span>
+                              <span className="lms-marks-value" style={{ color: 'var(--lms-warning)', fontSize: 12 }}>
+                                {fmtMark(usedMarksAll)}<span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 10 }}>/{totalMarksAll}</span>
+                              </span>
+                            </div>
+                            <div className="lms-marks-row">
+                              <span className="lms-marks-label">Remaining Marks</span>
+                              <span className="lms-marks-value" style={{ color: (totalMarksAll - usedMarksAll) <= 0 ? 'var(--lms-success)' : 'var(--lms-text-main)', fontSize: 12 }}>
+                                {fmtMark(Math.max(0, totalMarksAll - usedMarksAll))}
+                              </span>
+                            </div>
+                            {totalMarksAll > 0 && (
+                              <div className="lms-progress-bar" style={{ marginTop: 8 }}>
+                                <div className="lms-progress-fill" style={{ width: `${Math.min(100, (usedMarksAll / totalMarksAll) * 100)}%`, background: usedMarksAll >= totalMarksAll ? 'var(--lms-success)' : 'var(--lms-orange)' }} />
+                              </div>
+                            )}
+
+                            {/* Per-difficulty marks breakdown */}
+                            {configuredDiffs.length > 0 && (
+                              <div style={{ marginTop: 12 }}>
+                                <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--lms-text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                  By Difficulty
+                                </div>
+                                {configuredDiffs.map(d => {
+                                  const levelMarks = getTotalMarksForDiff(d);
+                                  const usedD = getDbMarksUsedForDiff(d);
+                                  const isQuestSpecific = getScoringType(d) === 'question_specific';
+                                  const diffColor = d === 'easy' ? 'var(--lms-success)' : d === 'medium' ? 'var(--lms-warning)' : 'var(--lms-danger)';
+                                  return (
+                                    <div key={d} style={{
+                                      marginBottom: 10,
+                                      padding: '8px 10px',
+                                      background: 'var(--lms-bg-surface)',
+                                      borderRadius: 'var(--lms-radius-sm)',
+                                      borderLeft: `3px solid ${diffColor}`,
+                                    }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                                        <span style={{ textTransform: 'capitalize', fontWeight: 700, fontSize: 12, color: diffColor }}>
+                                          {d}
+                                        </span>
+                                        {!isQuestSpecific && (
+                                          <span style={{ fontSize: 10, color: 'var(--lms-text-muted)' }}>
+                                            {getFixedScore(d)} per question
+                                          </span>
+                                        )}
+                                        {isQuestSpecific && (
+                                          <span style={{ fontSize: 10, color: 'var(--lms-violet)', fontStyle: 'italic' }}>
+                                            custom per question
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="lms-marks-row" style={{ marginBottom: 2 }}>
+                                        <span className="lms-marks-label" style={{ fontSize: 11 }}>Total Marks</span>
+                                        <span className="lms-marks-value" style={{ fontSize: 12, fontWeight: 700, color: 'var(--lms-violet)' }}>
+                                          {levelMarks || 0}
+                                        </span>
+                                      </div>
+                                      <div className="lms-marks-row">
+                                        <span className="lms-marks-label" style={{ fontSize: 11 }}>Used Marks</span>
+                                        <span className="lms-marks-value" style={{
+                                          fontSize: 12,
+                                          fontWeight: 700,
+                                          color: usedD >= levelMarks && levelMarks > 0 ? 'var(--lms-success)' : 'var(--lms-warning)'
+                                        }}>
+                                          {fmtMark(usedD)}
+                                        </span>
+                                      </div>
+                                      {levelMarks > 0 && (
+                                        <div className="lms-progress-bar" style={{ marginTop: 4 }}>
+                                          <div className="lms-progress-fill" style={{
+                                            width: `${Math.min(100, (usedD / levelMarks) * 100)}%`,
+                                            background: usedD >= levelMarks ? 'var(--lms-success)' : diffColor
+                                          }} />
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Footer */}
+                  <div style={{ padding: '10px 16px', borderTop: '1.5px solid var(--lms-border)', display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
+                    <button type="button" onClick={() => setShowOverviewModal(false)}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 16px', borderRadius: 'var(--lms-radius-md)', fontFamily: 'var(--lms-font)', fontSize: 12, fontWeight: 600, border: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-surface)', color: 'var(--lms-text-sec)', cursor: 'pointer' }}>
+                      Close
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* ── Section Details Modal ── */}
+          {showSectionModal && sectionData && (
+            <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
+              onClick={e => { if (e.target === e.currentTarget) setShowSectionModal(false); }}>
+              <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 420, maxHeight: '86vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                <div style={{ padding: '13px 16px', borderBottom: '1.5px solid var(--lms-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--lms-violet-bg)', flexShrink: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <Layers size={14} style={{ color: 'var(--lms-violet)' }} />
+                    <span style={{ fontFamily: 'var(--lms-font)', fontSize: 13, fontWeight: 700, color: 'var(--lms-text-main)' }}>Section Details</span>
+                  </div>
+                  <button type="button" onClick={() => setShowSectionModal(false)}
+                    style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--lms-text-muted)', display: 'flex', padding: 4, borderRadius: 6 }}>
+                    <X size={15} />
+                  </button>
+                </div>
+                <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto', padding: '14px 16px' }}>
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ fontSize: 11, color: 'var(--lms-text-muted)', fontWeight: 600, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Section</div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--lms-text-main)' }}>{sectionData.name || '—'}</div>
+                    {sectionData.description && (
+                      <div style={{ fontSize: 11.5, color: 'var(--lms-text-sec)', marginTop: 4 }}>{sectionData.description}</div>
+                    )}
+                  </div>
+                  <div className="lms-marks-row">
+                    <span className="lms-marks-label">Order</span>
+                    <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{sectionData.order || sectionData.sectionNumber || '—'}</span>
+                  </div>
+                  <div className="lms-marks-row">
+                    <span className="lms-marks-label">Exercise Type</span>
+                    <span className="lms-marks-value" style={{ color: 'var(--lms-violet)', fontSize: 12 }}>{sectionData.exerciseType || '—'}</span>
+                  </div>
+                  <div className="lms-marks-row">
+                    <span className="lms-marks-label">Total Marks</span>
+                    <span className="lms-marks-value" style={{ color: 'var(--lms-orange)', fontSize: 12 }}>{sectionData.totalMarks ?? '—'}</span>
+                  </div>
+                  {sectionData.difficulty && (
+                    <div className="lms-marks-row">
+                      <span className="lms-marks-label">Difficulty</span>
+                      <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12, textTransform: 'capitalize' }}>{sectionData.difficulty}</span>
+                    </div>
+                  )}
+                  {sectionData.mcqConfig && (
+                    <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1.5px solid var(--lms-border)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--lms-info)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>MCQ Config</span>
+                      </div>
+                      <div className="lms-marks-row">
+                        <span className="lms-marks-label">Questions</span>
+                        <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{sectionData.mcqConfig.generalQuestionCount ?? 0}</span>
+                      </div>
+                      {sectionData.mcqSectionMarks !== undefined && (
+                        <div className="lms-marks-row">
+                          <span className="lms-marks-label">MCQ Marks</span>
+                          <span className="lms-marks-value" style={{ color: 'var(--lms-violet)', fontSize: 12 }}>{sectionData.mcqSectionMarks}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {sectionData.programmingConfig && (
+                    <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1.5px solid var(--lms-border)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--lms-success)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Programming Config</span>
+                      </div>
+                      <div className="lms-marks-row">
+                        <span className="lms-marks-label">Mode</span>
+                        <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{sectionData.programmingConfig.questionConfigType || '—'}</span>
+                      </div>
+                      {sectionData.programmingConfig.questionConfigType === 'general' ? (
+                        <div className="lms-marks-row">
+                          <span className="lms-marks-label">Questions</span>
+                          <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{sectionData.programmingConfig.generalQuestionCount ?? 0}</span>
+                        </div>
+                      ) : (
+                        (['easy', 'medium', 'hard'] as const).map(level => (
+                          <div key={level} className="lms-marks-row">
+                            <span className="lms-marks-label" style={{ textTransform: 'capitalize' }}>{level}</span>
+                            <span className="lms-marks-value" style={{ color: 'var(--lms-text-main)', fontSize: 12 }}>{sectionData.programmingConfig.levelBasedCounts?.[level] || 0}</span>
+                          </div>
+                        ))
+                      )}
+                      {sectionData.programmingSectionMarks !== undefined && (
+                        <div className="lms-marks-row">
+                          <span className="lms-marks-label">Programming Marks</span>
+                          <span className="lms-marks-value" style={{ color: 'var(--lms-success)', fontSize: 12 }}>{sectionData.programmingSectionMarks}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div style={{ padding: '10px 16px', borderTop: '1.5px solid var(--lms-border)', display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
+                  <button type="button" onClick={() => setShowSectionModal(false)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 16px', borderRadius: 'var(--lms-radius-md)', fontFamily: 'var(--lms-font)', fontSize: 12, fontWeight: 600, border: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-surface)', color: 'var(--lms-text-sec)', cursor: 'pointer' }}>
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
         {/* ── FOOTER ── */}
         {/* ── FOOTER ── */}
@@ -4689,102 +5501,120 @@ const globalQuestionNumber = useMemo((): number => {
             )}
           </div>
 
-     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-  {/* Previous */}
-  {currentIndex > 0 && (
-    <button onClick={handlePrevious} disabled={isSaving} className="lms-nav-btn"
-      style={{ opacity: isSaving ? 0.5 : 1 }}>
-      <ChevronLeft size={13} /> Previous
-    </button>
-  )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {/* Previous */}
+            {currentIndex > 0 && (
+              <button onClick={handlePrevious} disabled={isSaving} className="lms-nav-btn"
+                style={{ opacity: isSaving ? 0.5 : 1 }}>
+                <ChevronLeft size={13} /> Previous
+              </button>
+            )}
 
-  {/* Next — show when not on last question in flow */}
-  {currentIndex < flowQuestions.length - 1 && (
-    <button onClick={() => {
-      const snap = snapshotForm({
-        isSaved: flowQuestions[currentIndex]?.isSaved || false,
-        _id: getServerId(flowQuestions[currentIndex])
-      });
-      const newFlow = [...flowQuestionsRef.current];
-      newFlow[currentIndex] = snap;
-      flowQuestionsRef.current = newFlow;
-      setFlowQuestions(newFlow);
-      const nextIdx = currentIndex + 1;
-      currentIndexRef.current = nextIdx;
-      setCurrentIndex(nextIdx);
-      if (!isGeneral && newFlow[nextIdx]?.difficulty) {
-        setCurrentDiff(newFlow[nextIdx].difficulty as Diff);
-      }
-      loadQuestionIntoForm(newFlow[nextIdx]);
-      setTimeout(() => titleRef.current?.focus(), 80);
-    }} disabled={isSaving} className="lms-nav-btn"
-      style={{ opacity: isSaving ? 0.5 : 1 }}>
-      Next <ChevronRight size={13} />
-    </button>
-  )}
+            {/* Next — show when not on last question in flow */}
+            {currentIndex < flowQuestions.length - 1 && (
+              <button onClick={() => {
+                const snap = snapshotForm({
+                  isSaved: flowQuestions[currentIndex]?.isSaved || false,
+                  _id: getServerId(flowQuestions[currentIndex])
+                });
+                const newFlow = [...flowQuestionsRef.current];
+                newFlow[currentIndex] = snap;
+                flowQuestionsRef.current = newFlow;
+                setFlowQuestions(newFlow);
+                const nextIdx = currentIndex + 1;
+                currentIndexRef.current = nextIdx;
+                setCurrentIndex(nextIdx);
+                if (!isGeneral && newFlow[nextIdx]?.difficulty) {
+                  setCurrentDiff(newFlow[nextIdx].difficulty as Diff);
+                }
+                loadQuestionIntoForm(newFlow[nextIdx]);
+                setTimeout(() => titleRef.current?.focus(), 80);
+              }} disabled={isSaving} className="lms-nav-btn"
+                style={{ opacity: isSaving ? 0.5 : 1 }}>
+                Next <ChevronRight size={13} />
+              </button>
+            )}
 
-  {/* Save — always show */}
-  <button onClick={handleSave} disabled={isSaving}
-    className="lms-btn lms-btn-slate"
-    style={{ opacity: isSaving ? 0.5 : 1, cursor: isSaving ? 'not-allowed' : 'pointer' }}>
-    {isSaving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
-    Save
-  </button>
+            {/* Save — always show */}
+            <button onClick={handleSave} disabled={isSaving}
+              className="lms-btn lms-btn-slate"
+              style={{ opacity: isSaving ? 0.5 : 1, cursor: isSaving ? 'not-allowed' : 'pointer' }}>
+              {isSaving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+              Save
+            </button>
 
-  {/* Save & Continue / Finish */}
-  <button onClick={handleSaveAndContinue} disabled={isSaving}
-    className="lms-btn lms-btn-orange"
-    style={{
-      opacity: isSaving ? 0.6 : 1,
-      cursor: isSaving ? 'not-allowed' : 'pointer',
-      background: isLastQuestion ? 'var(--lms-success)' : 'var(--lms-orange)',
-      boxShadow: isLastQuestion
-        ? '0 2px 8px rgba(22,163,74,0.25)'
-        : '0 2px 8px var(--lms-orange-glow)',
-    }}>
-    {isSaving
-      ? <Loader2 size={13} className="animate-spin" />
-      : isLastQuestion ? <CheckCircle2 size={13} /> : <Zap size={13} />}
-    {isLastQuestion
-      ? (getServerId(flowQuestions[currentIndex]) ? 'Update & Finish' : 'Save & Finish')
-      : (getServerId(flowQuestions[currentIndex]) ? 'Update & Continue' : 'Save & Continue')}
-    {isLastQuestion ? <Flag size={11} /> : <ArrowRight size={11} />}
-  </button>
+            {/* Save & Continue / Finish */}
+            {(() => {
+              const currentQ = flowQuestions[currentIndex];
+              const isSaved = !!(getServerId(currentQ) || currentQ?.isSaved || currentQ?.isPreExisting);
+              const isFinish = isLastQuestion;
+              const hasChanges = hasUnsavedFormChanges;
 
-  {/* Delete */}
-  {flowQuestions.length > 0 && (
-    <button
-      onClick={() => setShowDeleteConfirm(true)}
-      disabled={isSaving}
-      className="lms-btn"
-      style={{
-        background: 'var(--lms-danger-bg)',
-        color: 'var(--lms-danger)',
-        borderColor: 'var(--lms-danger-bdr)',
-        opacity: isSaving ? 0.5 : 1,
-        cursor: isSaving ? 'not-allowed' : 'pointer'
-      }}>
-      <Trash2 size={12} /> Delete
-    </button>
-  )}
+              let label: string;
+              if (!isSaved) {
+                label = isFinish ? 'Save & Finish' : 'Save & Continue';
+              } else if (isFinish) {
+                label = hasChanges ? 'Update & Finish' : 'Finish';
+              } else {
+                label = 'Update & Continue';
+              }
 
-  {/* Clear */}
-  {anyFormFieldHasContent && (
-    <button
-      onClick={() => setShowClearConfirm(true)}
-      disabled={isSaving}
-      className="lms-btn"
-      style={{
-        background: 'var(--lms-warning-bg)',
-        color: 'var(--lms-warning)',
-        borderColor: 'var(--lms-warning-bdr)',
-        opacity: isSaving ? 0.5 : 1,
-        cursor: isSaving ? 'not-allowed' : 'pointer'
-      }}>
-      <X size={12} /> Clear
-    </button>
-  )}
-</div>
+              const isGreen = isFinish;
+
+              return (
+                <button onClick={handleSaveAndContinue} disabled={isSaving}
+                  className="lms-btn lms-btn-orange"
+                  style={{
+                    opacity: isSaving ? 0.6 : 1,
+                    cursor: isSaving ? 'not-allowed' : 'pointer',
+                    background: isGreen ? 'var(--lms-success)' : 'var(--lms-orange)',
+                    boxShadow: isGreen
+                      ? '0 2px 8px rgba(22,163,74,0.25)'
+                      : '0 2px 8px var(--lms-orange-glow)',
+                  }}>
+                  {isSaving
+                    ? <Loader2 size={13} className="animate-spin" />
+                    : isGreen ? <CheckCircle2 size={13} /> : <Zap size={13} />}
+                  {label}
+                  {isGreen ? <Flag size={11} /> : <ArrowRight size={11} />}
+                </button>
+              );
+            })()}
+
+            {/* Delete */}
+            {flowQuestions.length > 0 && (
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                disabled={isSaving}
+                className="lms-btn"
+                style={{
+                  background: 'var(--lms-danger-bg)',
+                  color: 'var(--lms-danger)',
+                  borderColor: 'var(--lms-danger-bdr)',
+                  opacity: isSaving ? 0.5 : 1,
+                  cursor: isSaving ? 'not-allowed' : 'pointer'
+                }}>
+                <Trash2 size={12} /> Delete
+              </button>
+            )}
+
+            {/* Clear */}
+            {anyFormFieldHasContent && (
+              <button
+                onClick={() => setShowClearConfirm(true)}
+                disabled={isSaving}
+                className="lms-btn"
+                style={{
+                  background: 'var(--lms-warning-bg)',
+                  color: 'var(--lms-warning)',
+                  borderColor: 'var(--lms-warning-bdr)',
+                  opacity: isSaving ? 0.5 : 1,
+                  cursor: isSaving ? 'not-allowed' : 'pointer'
+                }}>
+                <X size={12} /> Clear
+              </button>
+            )}
+          </div>
           {/* Right: Mock + Close */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
             <button
@@ -4831,21 +5661,60 @@ const globalQuestionNumber = useMemo((): number => {
           onConfirm={confirmDiffSwitch} onCancel={() => setDiffSwitchTarget(null)} />
       )}
       {showPreview && (
-        <PreviewModal questions={flowQuestions} currentIndex={currentIndex} isGeneral={isGeneral} exerciseData={exerciseData}
-          onJump={handleJumpTo} onDelete={handleDeleteQuestion} onClose={() => setShowPreview(false)} onDone={handleCloseRequest}
-          hierarchyData={hierarchyData} tabType={tabType} subcategory={subcategory} subcategoryLabel={subcategoryLabel}
-          exerciseName={exerciseName} actionLabel="Preview"
-          questionLabel={`${flowQuestions.length} Question${flowQuestions.length !== 1 ? 's' : ''}`}
-          currentDiff={currentDiff} score={score} generalMPQ={generalMPQ}
-          totalSlots={totalSlots} createdCount={createdCount} remainingSlots={remainingSlots}
-          isScoreEditable={isScoreEditable} getFixedScore={getFixedScore}
-          getConfiguredDiffs={getConfiguredDiffs} getRemainingSlots={getRemainingSlots}
-          getDbQuestionsForDiff={getDbQuestionsForDiff} getQuotaForDiff={getQuotaForDiff}
-          getCreatedCount={getCreatedCount} getTotalMarksForDiff={getTotalMarksForDiff} usedMarks={usedMarks}
-          onDiffRowClick={handleDiffRowClick} cfgType={cfgType}
-          totalMarksAll={totalMarksAll} usedMarksAll={usedMarksAll} displayScore={displayScore}
-          remainingMarks={remainingMarks} totalMarksForDiff={totalMarksForDiff}
-          totalSlotsAll={totalSlotsAll} createdCountAll={createdCountAll} remainingSlotsAll={remainingSlotsAll} />
+        <PreviewModal
+          questions={(() => {
+            // Always start from DB as source of truth
+            const dbQuestions = getDbQuestionsForDiff().map(dbQuestionToFlow);
+            const dbIdSet = new Set(dbQuestions.map(q => q._id).filter(Boolean));
+
+            // Add any newly saved questions from this session not yet in DB
+            const sessionSaved = flowQuestions.filter(q => {
+              const sid = serverIdMap.current.get(q.__localId) || q._id;
+              return sid && !dbIdSet.has(sid);
+            });
+
+            return [...dbQuestions, ...sessionSaved];
+          })()}
+          currentIndex={currentIndex}
+          isGeneral={isGeneral}
+          exerciseData={exerciseData}
+          onJump={handleJumpTo}
+          onDelete={handleDeleteQuestion}
+          onClose={() => setShowPreview(false)}
+          onDone={handleCloseRequest}
+          hierarchyData={hierarchyData}
+          tabType={tabType}
+          subcategory={subcategory}
+          subcategoryLabel={subcategoryLabel}
+          exerciseName={exerciseName}
+          actionLabel="Preview"
+          questionLabel={`${Math.max(getDbQuestionsForDiff().length, flowQuestions.filter(q => !!(q._id || q.isSaved || q.isPreExisting)).length)} Question${Math.max(getDbQuestionsForDiff().length, flowQuestions.filter(q => !!(q._id || q.isSaved || q.isPreExisting)).length) !== 1 ? 's' : ''}`}
+          currentDiff={currentDiff}
+          score={score}
+          generalMPQ={generalMPQ}
+          totalSlots={totalSlots}
+          createdCount={createdCount}
+          remainingSlots={remainingSlots}
+          isScoreEditable={isScoreEditable}
+          getFixedScore={getFixedScore}
+          getConfiguredDiffs={getConfiguredDiffs}
+          getRemainingSlots={getRemainingSlots}
+          getDbQuestionsForDiff={getDbQuestionsForDiff}
+          getQuotaForDiff={getQuotaForDiff}
+          getCreatedCount={getCreatedCount}
+          getTotalMarksForDiff={getTotalMarksForDiff}
+          usedMarks={usedMarks}
+          onDiffRowClick={handleDiffRowClick}
+          cfgType={cfgType}
+          totalMarksAll={totalMarksAll}
+          usedMarksAll={usedMarksAll}
+          displayScore={displayScore}
+          remainingMarks={remainingMarks}
+          totalMarksForDiff={totalMarksForDiff}
+          totalSlotsAll={totalSlotsAll}
+          createdCountAll={createdCountAll}
+          remainingSlotsAll={remainingSlotsAll}
+        />
       )}
       {showEditExerciseConfirm && (
         <EditExerciseConfirmDialog exerciseName={exerciseName}
@@ -4917,6 +5786,7 @@ const globalQuestionNumber = useMemo((): number => {
           selectedLanguages={
             exerciseData.fullExerciseData?.programmingSettings?.selectedLanguages || ['Python']
           }
+          exerciseIsGraded={exerciseIsGraded}
           onClose={() => setShowMockModal(false)}
         />
       )}

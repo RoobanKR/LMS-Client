@@ -73,7 +73,7 @@ import DropdownSection from "@/components/ui/dropdownSection";
 import { toast, Toaster } from 'sonner';
 import { createPortal } from "react-dom";
 import DashboardLayout from "@/app/lms/component/layout";
-import PedagogyTestConfigurationSection from "./components/pedagogyTestConfiguration";
+import PedagogyTestConfigurationSection from "./components/pedagogyTestConfigurationSection";
 
 interface Modules {
     _id: string
@@ -487,7 +487,6 @@ export default function PedagogyManagement() {
     const [directActionsEnabled, setDirectActionsEnabled] = useState(false)
     const [isOpen, setIsOpen] = useState(false);
     const [duplicateChecked, setDuplicateChecked] = useState(false);
-    const [undoRedoChecked, setUndoRedoChecked] = useState(false);
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const [itemToDelete, setItemToDelete] = useState<{
         type: 'module' | 'submodule' | 'topic' | 'subtopic',
@@ -496,13 +495,9 @@ export default function PedagogyManagement() {
     const [showDialog, setShowDialog] = useState(false);
     const [dialogType, setDialogType] = useState<'module' | 'submodule' | 'topic' | 'subtopic' | null>(null);
     const [editingMerge, setEditingMerge] = useState<{
-
         type: "iDo" | "weDo" | "youDo";
-
         activity: string;
-
         mergeIndex: number;
-
         value: number;
         hierarchyIds?: any;
     } | null>(null);
@@ -587,12 +582,9 @@ export default function PedagogyManagement() {
         },
         onSuccess: async () => {
             await queryClient.invalidateQueries({ queryKey: ['pedagogyViews'] });
-
-            // Force a refetch of pedagogy views
             await queryClient.refetchQueries({
                 queryKey: ['pedagogyViews', selectedCourse?._id, modules.length]
             });
-
             setShowSuccessMessage(true);
             setTimeout(() => setShowSuccessMessage(false), 2000);
         }
@@ -690,7 +682,6 @@ export default function PedagogyManagement() {
     });
     const hasModules = modules.length > 0;
     const hasTopics = topics.length > 0;
-    // Check which hierarchy levels are configured for the course
     const hasModuleHierarchy = selectedCourse?.courseHierarchy.includes('Module') || false;
     const hasTopicHierarchy = selectedCourse?.courseHierarchy.includes('Topic') || false;
     const [mergeSelectionMode, setMergeSelectionMode] = useState<'level' | 'pedagogy' | null>(null);
@@ -698,8 +689,6 @@ export default function PedagogyManagement() {
     const [expandedModules, setExpandedModules] = useState(new Set());
     const [expandedSubModules, setExpandedSubModules] = useState(new Set());
     const [expandedTopics, setExpandedTopics] = useState(new Set());
-
-    // Check if we should show "Add First" messages
     const showAddModuleFirst = hasModuleHierarchy && !hasModules;
     const showAddTopicFirst = hasTopicHierarchy && !hasTopics && !hasModuleHierarchy;
     const shouldDisableControls = showAddModuleFirst || showAddTopicFirst;
@@ -714,7 +703,6 @@ export default function PedagogyManagement() {
         const hierarchyLevels = selectedCourse?.courseHierarchy.map(level => level.toLowerCase()) || [];
         return hierarchyLevels.includes("sub module");
     };
-    // Update the getHeaderText function to return the full hierarchy
     const getHeaderText = () => {
         if (dialogType === "submodule") {
             return selectedModuleForSubModule ? `Module: ${selectedModuleForSubModule.name}` : "Module";
@@ -736,7 +724,6 @@ export default function PedagogyManagement() {
                 if (parentModule) {
                     text += `Module: ${parentModule.title} → `;
                 }
-
                 // Get submodule if exists
                 if (selectedTopicForSubTopic.subModuleId) {
                     const parentSubModule = subModules.find(sm => sm._id === selectedTopicForSubTopic.subModuleId);
@@ -744,7 +731,6 @@ export default function PedagogyManagement() {
                         text += `Submodule: ${parentSubModule.title} → `;
                     }
                 }
-
                 // Get topic
                 const parentTopic = topics.find(t => t._id === selectedTopicForSubTopic.id);
                 if (parentTopic) {
@@ -840,16 +826,12 @@ export default function PedagogyManagement() {
             console.log('Duplicate success:', data);
             setShowSuccessMessage(true);
             setTimeout(() => setShowSuccessMessage(false), 3000);
-
-            // Refresh data
             queryClient.invalidateQueries({ queryKey: ['modules'] });
             queryClient.invalidateQueries({ queryKey: ['subModules'] });
             queryClient.invalidateQueries({ queryKey: ['topics'] });
             queryClient.invalidateQueries({ queryKey: ['subTopics'] });
             queryClient.invalidateQueries({ queryKey: ['pedagogyViews'] });
             queryClient.invalidateQueries({ queryKey: ['levelViews'] });
-
-            // Close popup and reset states
             setShowDuplicatePopup(false);
             setSelectedDuplicateCourse(null);
             setDuplicateChecked(false);
@@ -865,7 +847,6 @@ export default function PedagogyManagement() {
     });
     const [selectedModuleToHighlight, setSelectedModuleToHighlight] = useState<string | null>(null);
     const [moduleSearchQuery, setModuleSearchQuery] = useState("");
-    // Add these queries after your existing queries
     const {
         data: duplicateModules = [],
         isLoading: isDuplicateModulesLoading,
@@ -889,7 +870,6 @@ export default function PedagogyManagement() {
             return data.filter(subModule => subModule.courses.includes(selectedDuplicateCourse._id));
         }
     });
-
     const {
         data: duplicateTopics = [],
         isLoading: isDuplicateTopicsLoading,
@@ -917,14 +897,12 @@ export default function PedagogyManagement() {
     const [selectedLevelSubModulesForMerge, setSelectedLevelSubModulesForMerge] = useState<Set<string>>(new Set());
     const [selectedLevelTopicsForMerge, setSelectedLevelTopicsForMerge] = useState<Set<string>>(new Set());
     const [selectedLevelSubTopicsForMerge, setSelectedLevelSubTopicsForMerge] = useState<Set<string>>(new Set());
-
     const [savedLevelMergeSelections, setSavedLevelMergeSelections] = useState<{
         modules: string[] | any[];
         subModules: string[] | any[];
         topics: string[] | any[];
         subTopics: string[] | any[];
     } | null>(null);
-
     const [savedPedagogyMergeSelections, setSavedPedagogyMergeSelections] = useState<{
         iDo: { [activity: string]: { modules: string[]; subModules: string[]; topics: string[]; subTopics: string[] } };
         weDo: { [activity: string]: { modules: string[]; subModules: string[]; topics: string[]; subTopics: string[] } };
@@ -934,39 +912,31 @@ export default function PedagogyManagement() {
         weDo: {},
         youDo: {}
     });
-
     const [selectedPedagogyModulesForMerge, setSelectedPedagogyModulesForMerge] = useState<{
         [activityType: string]: { [activity: string]: Set<string> };
     }>({});
-
     const [selectedPedagogySubModulesForMerge, setSelectedPedagogySubModulesForMerge] = useState<{
         [activityType: string]: { [activity: string]: Set<string> };
     }>({});
-
     const [selectedPedagogyTopicsForMerge, setSelectedPedagogyTopicsForMerge] = useState<{
         [activityType: string]: { [activity: string]: Set<string> };
     }>({});
-
     const [selectedPedagogySubTopicsForMerge, setSelectedPedagogySubTopicsForMerge] = useState<{
         [activityType: string]: { [activity: string]: Set<string> };
     }>({});
-
     const [showMergePedagogySection, setShowMergePedagogySection] = useState<{
         iDo: boolean;
         weDo: boolean;
         youDo: boolean;
     }>({ iDo: false, weDo: false, youDo: false });
-    // Add to your existing state declarations
     const [enableModuleSelection, setEnableModuleSelection] = useState(false);
     const [selectedModulesForDuplication, setSelectedModulesForDuplication] = useState<Set<string>>(new Set());
-    // Add current activity type being edited for merge
     const [currentMergeActivity, setCurrentMergeActivity] = useState<string>('');
     const [disableAddonlyMode, setDisableAddonlyMode] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState<string>('all');
     const [showCoursePreview, setShowCoursePreview] = useState(false);
     const [previewCourse, setPreviewCourse] = useState<Course | null>(null);
     const [showDuplicateConfirmation, setShowDuplicateConfirmation] = useState(false);
-    // Add these functions to clear merge selections
     const clearLevelMergeSelections = () => {
         setSavedLevelMergeSelections(null);
         setSelectedLevel('');
@@ -976,7 +946,6 @@ export default function PedagogyManagement() {
         setSelectedLevelSubTopicsForMerge(new Set());
         setShowMergeLevelSection(false);
     };
-    // Add this near your other useEffect hooks
     useEffect(() => {
         if (selectedCourse && !selectedCourse.testConfiguration) {
             toast.warning('This course does not have test configuration. Module creation is disabled.', {
@@ -987,7 +956,6 @@ export default function PedagogyManagement() {
     }, [selectedCourse]);
     const clearPedagogyMergeSelections = (activityType?: "iDo" | "weDo" | "youDo", activity?: string) => {
         if (activityType && activity) {
-            // Clear specific activity merge
             setSavedPedagogyMergeSelections(prev => ({
                 ...prev,
                 [activityType]: {
@@ -995,7 +963,6 @@ export default function PedagogyManagement() {
                     [activity]: undefined
                 }
             }));
-
             setSelectedPedagogyModulesForMerge(prev => ({
                 ...prev,
                 [activityType]: {
@@ -1003,7 +970,6 @@ export default function PedagogyManagement() {
                     [activity]: new Set()
                 }
             }));
-
             setSelectedPedagogySubModulesForMerge(prev => ({
                 ...prev,
                 [activityType]: {
@@ -1011,7 +977,6 @@ export default function PedagogyManagement() {
                     [activity]: new Set()
                 }
             }));
-
             setSelectedPedagogyTopicsForMerge(prev => ({
                 ...prev,
                 [activityType]: {
@@ -1019,7 +984,6 @@ export default function PedagogyManagement() {
                     [activity]: new Set()
                 }
             }));
-
             setSelectedPedagogySubTopicsForMerge(prev => ({
                 ...prev,
                 [activityType]: {
@@ -1027,13 +991,11 @@ export default function PedagogyManagement() {
                     [activity]: new Set()
                 }
             }));
-
             setShowMergePedagogySection(prev => ({
                 ...prev,
                 [activityType]: false
             }));
         } else {
-            // Clear all pedagogy merges
             setSavedPedagogyMergeSelections({ iDo: {}, weDo: {}, youDo: {} });
             setSelectedPedagogyModulesForMerge({});
             setSelectedPedagogySubModulesForMerge({});
@@ -1041,17 +1003,11 @@ export default function PedagogyManagement() {
             setSelectedPedagogySubTopicsForMerge({});
             setShowMergePedagogySection({ iDo: false, weDo: false, youDo: false });
         }
-
         setSelectedPedagogyActivities({
             iDo: [],
             weDo: [],
             youDo: []
         });
-        // setPedagogyHours({
-        //     iDo: {},
-        //     weDo: {},
-        //     youDo: {}
-        // });
     };
 
     const [showPedagogyDialog, setShowPedagogyDialog] = useState(false);
@@ -1089,7 +1045,6 @@ export default function PedagogyManagement() {
         enabled: !!token && !!selectedCourse && modules.length > 0,
     });
     const { data: levelViews } = useQuery(levelViewApi.getAll());
-    // Get the course-specific level view
     const courseLevelView = useMemo(() => {
         if (!selectedCourse || !levelViews) return null;
         return levelViews.find((view: { courses: string; }) => view.courses === selectedCourse._id);
@@ -1119,7 +1074,6 @@ export default function PedagogyManagement() {
             setTimeout(() => setShowSuccessMessage(false), 2000);
         }
     });
-    // Delete level mutation
     const deleteLevelMutation = useMutation({
         mutationFn: (levelId: string) =>
             levelViewApi.delete(levelId).mutationFn(),
@@ -1129,15 +1083,11 @@ export default function PedagogyManagement() {
             setTimeout(() => setShowSuccessMessage(false), 2000);
         }
     });
-
-    // Add these sorting utility functions
     const sortByIndex = (a: { index?: number }, b: { index?: number }) => {
         const aIndex = a.index ?? 0;
         const bIndex = b.index ?? 0;
         return aIndex - bIndex;
     };
-
-    // Memoized sorted arrays to prevent unnecessary re-renders
     const sortedModules = useMemo(() => [...modules].sort(sortByIndex), [modules]);
     const sortedSubModules = useMemo(() => [...subModules].sort(sortByIndex), [subModules]);
     const sortedTopics = useMemo(() => [...topics].sort(sortByIndex), [topics]);
@@ -1154,7 +1104,6 @@ export default function PedagogyManagement() {
             }
         }
     }, [selected, courses]);
-    // Reset control states when shouldDisableControls changes
     useEffect(() => {
         if (shouldDisableControls) {
             setActionsEnabled(false);
@@ -1178,14 +1127,9 @@ export default function PedagogyManagement() {
 
     useEffect(() => {
         if (!selectedCourse || !token) return;
-
-        // Fetch all course-related data
         const fetchCourseData = async () => {
             try {
-                // Fetch modules
                 await fetchModulesForCourse();
-
-
             } catch (error) {
                 console.error("Failed to fetch course data:", error);
             }
@@ -1195,7 +1139,6 @@ export default function PedagogyManagement() {
     }, [selectedCourse, token]);
 
     useEffect(() => {
-        // Course structure and pedagogy processing
         if (modules.length > 0 && selectedCourse) {
             const newStructure = modules.map(module => ({
                 id: module._id,
@@ -1219,8 +1162,6 @@ export default function PedagogyManagement() {
             }));
 
             setCourseStructure(newStructure as any);
-
-            // Initialize or process pedagogy data
             if ((pedagogyViews?.length ?? 0) > 0) {
                 const { newCourseHours, newMergedCells } = processPedagogyData(pedagogyViews as any);
                 setCourseHours(newCourseHours);
@@ -1280,27 +1221,22 @@ export default function PedagogyManagement() {
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (isMoveModeActive && movableCell) {
-                // Check if click is outside any draggable cell
                 const target = event.target as HTMLElement;
                 const isDraggableCell = target.closest('[draggable="true"]');
-
                 if (!isDraggableCell) {
                     setMovableCell(null);
                     setIsMoveModeActive(false);
                 }
             }
         };
-
         if (isMoveModeActive) {
             document.addEventListener('mousedown', handleClickOutside);
         }
-
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
         };
     }, [isMoveModeActive, movableCell]);
     useEffect(() => {
-        // When pedagogyViews data OR savedPedagogyMergeSelections change, reprocess the pedagogy data
         if ((pedagogyViews || Object.keys(savedPedagogyMergeSelections).length > 0) && modules.length > 0 && selectedCourse) {
             const { newCourseHours, newMergedCells } = processPedagogyData(pedagogyViews || []);
             setCourseHours(newCourseHours);
@@ -1312,14 +1248,11 @@ export default function PedagogyManagement() {
             setEnableModuleSelection(false);
         }
     }, [selectedDuplicateOptions]);
-
-    // Helper function to extract We_Do activities (first level keys only)
     const getWeDoActivities = (): string[] => {
         if (!selectedCourse?.We_Do) return [];
         if (Array.isArray(selectedCourse.We_Do)) {
             return selectedCourse.We_Do;
         }
-        // If it's an object, return only the first level keys
         return Object.keys(selectedCourse.We_Do);
     };
 
@@ -1346,23 +1279,17 @@ export default function PedagogyManagement() {
         showSummary: false,
     });
 
-    // Add this function to filter courses based on selection mode
     const getAvailableDuplicateCourses = () => {
         if (!selectedCourse) return [];
-
         let filteredCourses = courses.filter((course: Course) => course._id !== selectedCourse._id);
-
-        // Apply category filter
         if (selectedCategory !== 'all') {
             filteredCourses = filteredCourses.filter((course: Course) =>
                 course.category === selectedCategory
             );
         }
-
         if (duplicateSelectionMode === 'all') {
             return filteredCourses;
         } else {
-            // Hierarchy-based filtering (original logic)
             return filteredCourses.filter((course: Course) =>
                 course.courseHierarchy.join(',') === selectedCourse.courseHierarchy.join(',')
             );
@@ -1371,52 +1298,38 @@ export default function PedagogyManagement() {
     const getAvailableCategories = () => {
         const categories = new Set<string>();
         categories.add('all'); // Add "all" option
-
         courses.forEach((course: Course) => {
             if (course.category && course._id !== selectedCourse?._id) {
                 categories.add(course.category);
             }
         });
-
         return Array.from(categories);
     };
-    // Function to get common consecutive hierarchy levels between two courses
     const getCommonHierarchyLevels = (currentCourse: any, selectedCourse: any) => {
         const currentHierarchy = currentCourse.courseHierarchy.map((level: string) =>
             level === 'Sub Module' ? 'SubModule' : level === 'Sub Topic' ? 'SubTopic' : level
         );
-
         const selectedHierarchy = selectedCourse.courseHierarchy.map((level: string) =>
             level === 'Sub Module' ? 'SubModule' : level === 'Sub Topic' ? 'SubTopic' : level
         );
-
         const commonLevels = [];
-
-        // Check for consecutive common levels starting from the first level
         for (let i = 0; i < Math.min(currentHierarchy.length, selectedHierarchy.length); i++) {
             if (currentHierarchy[i] === selectedHierarchy[i]) {
                 commonLevels.push(currentHierarchy[i]);
             } else {
-                // Stop at first mismatch - hierarchies must be consecutive
                 break;
             }
         }
 
         return commonLevels;
     };
-    // Function to handle duplication confirmation
     const handleDuplicateConfirm = async () => {
         if (!selectedDuplicateCourse || !selectedCourse) return;
-
-        // Get institution ID from localStorage
         const institutionId = localStorage.getItem('smartcliff_institution');
         const createdBy = localStorage.getItem('smartcliff_userId'); // or however you store user ID
-
-        // Combine hierarchy and views selections
         const duplicateItems = [
             ...selectedDuplicateOptions.hierarchy
         ];
-
         if (duplicateItems.length === 0) {
             showError("Please select at least one item to duplicate");
             return;
@@ -1448,7 +1361,6 @@ export default function PedagogyManagement() {
                 ? "bg-gray-100 border-gray-300 cursor-not-allowed"
                 : "bg-gradient-to-r from-indigo-50 via-white to-pink-50 border-gray-200 hover:shadow-md"
                 }`}>
-
                 {/* Left Icon + Text */}
                 <div className="flex items-center gap-3">
                     <div
@@ -1478,7 +1390,6 @@ export default function PedagogyManagement() {
                         </p>
                     </div>
                 </div>
-
                 {/* Compact Gradient Toggle */}
                 <button
                     type="button"
@@ -1525,11 +1436,8 @@ export default function PedagogyManagement() {
     }) => {
         const [searchQuery, setSearchQuery] = useState("");
         const [isOpen, setIsOpen] = useState(false);
-
-        // Filter courses based on search query
         const filteredCourses = useMemo(() => {
             if (!searchQuery.trim()) return courses;
-
             const query = searchQuery.toLowerCase();
             return courses.filter(course =>
                 course.courseName.toLowerCase().includes(query) ||
@@ -1645,24 +1553,17 @@ export default function PedagogyManagement() {
                 level === 'Sub Topic' ? 'SubTopic' : level)
             .sort((a, b) => (hierarchyMap[a] || 0) - (hierarchyMap[b] || 0)) || [];
     };
-
-    // Add this helper function to check if a hierarchy level should be enabled
     const isHierarchyLevelEnabled = (level: string) => {
         if (!selectedDuplicateCourse) return false;
 
         const commonLevels = getCommonHierarchyLevels(selectedCourse, selectedDuplicateCourse);
         const currentIndex = commonLevels.indexOf(level);
-
-        // First level is always enabled
         if (currentIndex === 0) return true;
-
-        // Check if all previous levels are selected
         for (let i = 0; i < currentIndex; i++) {
             if (!selectedDuplicateOptions.hierarchy.includes(commonLevels[i])) {
                 return false;
             }
         }
-
         return true;
     };
 
@@ -1682,19 +1583,16 @@ export default function PedagogyManagement() {
         }
     };
 
-    // 3. Add this new function to handle hierarchical checkbox changes
     const handleHierarchyCheckboxChange = (checkboxValue: any, checked: string | boolean) => {
         const hierarchyOrder = getHierarchyOrder();
         const currentIndex = hierarchyOrder.indexOf(checkboxValue);
 
         if (checked) {
-            // When selecting, just add the current item
             setSelectedDuplicateOptions(prev => ({
                 ...prev,
                 hierarchy: [...prev.hierarchy, checkboxValue]
             }));
         } else {
-            // When deselecting, remove this item and all items that come after it in hierarchy
             const itemsToRemove = hierarchyOrder.slice(currentIndex);
             setSelectedDuplicateOptions(prev => ({
                 ...prev,
@@ -1705,7 +1603,6 @@ export default function PedagogyManagement() {
 
     const fetchModulesForCourse = async () => {
         if (!selectedCourse) return;
-        // React Query will handle the caching and refetching automatically
         await refetchModules();
     };
     const initializeCourseHours = (modules: Modules[]) => {

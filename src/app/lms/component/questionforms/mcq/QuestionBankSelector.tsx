@@ -87,10 +87,36 @@ const QuestionBankSelector: React.FC<QuestionBankSelectorProps> = ({
     return commonWords.length / totalWords.size;
   };
 
- const getQuestionTitle = (question: any): string => {
-  const title = question.mcqQuestionTitle || question.questionText || question.title || '';
+const getQuestionTitle = (question: any): string => {
+  // Handle different formats of mcqQuestionTitle
+  if (question.mcqQuestionTitle) {
+    // Case 1: It's an object with a text property (like in your data)
+    if (typeof question.mcqQuestionTitle === 'object' && question.mcqQuestionTitle !== null) {
+      if (question.mcqQuestionTitle.text) {
+        return question.mcqQuestionTitle.text.replace(/<[^>]*>/g, '').trim();
+      }
+      // Case 2: It's an array of content blocks
+      if (Array.isArray(question.mcqQuestionTitle)) {
+        return question.mcqQuestionTitle
+          .filter((cb: any) => cb.type === 'text')
+          .map((cb: any) => (cb.value || '').replace(/<[^>]*>/g, '').trim())
+          .filter(Boolean)
+          .join(' ');
+      }
+    }
+    // Case 3: It's a string
+    if (typeof question.mcqQuestionTitle === 'string') {
+      return question.mcqQuestionTitle.replace(/<[^>]*>/g, '').trim();
+    }
+  }
   
-  // Handle array format (content blocks)
+  // Fallback to other title fields
+  const title = question.questionText || question.title || '';
+  
+  if (typeof title === 'string') {
+    return title.replace(/<[^>]*>/g, '').trim();
+  }
+  
   if (Array.isArray(title)) {
     return title
       .filter((cb: any) => cb.type === 'text')
@@ -99,22 +125,57 @@ const QuestionBankSelector: React.FC<QuestionBankSelectorProps> = ({
       .join(' ');
   }
   
-  // Handle HTML string format
-  if (typeof title === 'string') {
-    return title.replace(/<[^>]*>/g, '').trim();
-  }
-  
-  return '';
+  return 'Untitled Question';
 };
 
-  const getQuestionDescription = (question: Question): string => {
-    if (question.questionType?.toLowerCase() === 'mcq') {
-      return question.mcqQuestionDescription || 
-             question.description || 
-             'Multiple Choice Question';
+ const getQuestionDescription = (question: any): string => {
+  if (question.questionType?.toLowerCase() === 'mcq') {
+    const desc = question.mcqQuestionDescription;
+    
+    // Handle object with text property
+    if (desc && typeof desc === 'object' && desc !== null) {
+      if (desc.text) {
+        return desc.text.replace(/<[^>]*>/g, '').trim();
+      }
+      if (Array.isArray(desc)) {
+        return desc
+          .filter((cb: any) => cb.type === 'text')
+          .map((cb: any) => (cb.value || '').replace(/<[^>]*>/g, '').trim())
+          .filter(Boolean)
+          .join(' ');
+      }
     }
-    return question.description || 'No description provided';
-  };
+    
+    // Handle string
+    if (typeof desc === 'string') {
+      return desc.replace(/<[^>]*>/g, '').trim();
+    }
+    
+    return 'Multiple Choice Question';
+  }
+  
+  const description = question.description;
+  if (typeof description === 'string') {
+    return description.replace(/<[^>]*>/g, '').substring(0, 120);
+  }
+  
+  if (description && typeof description === 'object' && description !== null) {
+    if (description.text) {
+      return description.text.replace(/<[^>]*>/g, '').substring(0, 120);
+    }
+    if (Array.isArray(description)) {
+      const text = description
+        .filter((b: any) => b.type === 'text')
+        .map((b: any) => b.value || '')
+        .join(' ')
+        .replace(/<[^>]*>/g, '')
+        .trim();
+      return text.substring(0, 120) || 'No description provided';
+    }
+  }
+  
+  return 'No description provided';
+};
 
   // Check if a question is duplicate with existing questions
   const isDuplicate = (bankQuestion: Question): boolean => {

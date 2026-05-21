@@ -587,13 +587,13 @@ export function Sidebar({ className }: SidebarProps) {
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="absolute -right-3 top-1/2 transform -translate-y-1/2 w-6 h-6 rounded-full border bg-white shadow-md hover:bg-gray-50 z-10"
+                        className="absolute -right-4 top-1/2 transform -translate-y-1/2 w-9 h-9 rounded-full border-2 border-gray-200 bg-white shadow-lg hover:bg-gray-100 hover:shadow-xl hover:border-gray-300 z-10 transition-all duration-200"
                         onClick={() => setIsCollapsed(!isCollapsed)}
                     >
                         {isCollapsed ? (
-                            <ChevronRight className="h-3 w-3" />
+                            <ChevronRight className="h-4 w-4 text-gray-600" />
                         ) : (
-                            <ChevronLeft className="h-3 w-3" />
+                            <ChevronLeft className="h-4 w-4 text-gray-600" />
                         )}
                     </Button>
                 )}

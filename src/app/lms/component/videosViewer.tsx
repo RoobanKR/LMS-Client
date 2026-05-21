@@ -1427,10 +1427,10 @@ const openMcqForm = () => {
 
             {/* Top bar */}
             <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
+              {/* <div className="flex items-center gap-3">
                 <div className="text-white text-sm font-medium truncate max-w-xs" title={fileName}>{fileName||"Video"}</div>
                 <div className="text-white/60 text-xs bg-black/40 px-2 py-1 rounded">Right-click to add MCQ</div>
-              </div>
+              </div> */}
               <div className="flex items-center gap-1.5">
                 {savedMcqs.length>0 && (
                   <button onClick={()=>setShowMcqList(!showMcqList)}

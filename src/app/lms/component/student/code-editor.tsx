@@ -7,12 +7,15 @@ import { useRouter } from 'next/navigation';
 
 import {
     Play, RotateCcw, CheckCircle2, Maximize2, Minimize2,  // Add this
-    X, Code, FileText, AlertCircle, Terminal, Menu, ChevronRight, ChevronLeft, Search, AlertTriangle, CheckCircle, XCircle, Lock, ArrowUpDown, X as XIcon, Loader2, SkipForward, Clock, ShieldAlert, Camera, Video, Save, LogOut, Trash2, Shield, Mic, MicOff, ShieldCheck, UserCheck, Monitor
+    X, Code, FileText, AlertCircle, Terminal, Menu, ChevronRight, ChevronLeft, Search, AlertTriangle, CheckCircle, XCircle, Lock, ArrowUpDown, X as XIcon, Loader2, SkipForward, Clock, ShieldAlert, Camera, Video, Save, LogOut, Trash2, Shield, Mic, MicOff, ShieldCheck, UserCheck, Monitor, Info,
+    Award,
+    BarChart3
 } from "lucide-react"
 import dynamic from 'next/dynamic'
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css'
 import Script from 'next/script'
+import ExerciseInfoModals, { ExerciseInfoButtons } from './ExerciseInfoModals'
 
 // Piston API configuration
 const PISTON_API_URL = "https://emkc.org/api/v2/piston/execute"
@@ -54,6 +57,9 @@ interface ExerciseInformation {
     totalPoints?: number
     totalQuestions?: number
     estimatedTime?: number
+    totalMarksProgramming?: number
+    totalMarks?: number
+    totalDuration?: number
 }
 
 interface ProgrammingSettings {
@@ -141,6 +147,7 @@ interface ExerciseQuestion {
     sampleInput: string
     sampleOutput: string
     points: number
+    score?: number
     constraints: string[]
     hints: Array<{
         hintText: string
@@ -188,6 +195,27 @@ interface Exercise {
     version?: number
     questions: ExerciseQuestion[]
     courseId?: string
+    exerciseType?: string
+    gradeSettings?: {
+        programmingGradeToPass?: number
+        combinedGradeToPass?: number
+    }
+    questionConfiguration?: {
+        programmingQuestionConfiguration?: {
+            questionFlow?: 'freeFlow' | 'controlled'
+            questionConfigType?: 'general' | 'levelBased' | 'selectionLevel'
+            scoreSettings?: {
+                scoreType?: string          // 'evenMarks' | 'levelBasedMarks'
+                evenMarks?: number          // used when scoreType === 'evenMarks'
+                levelBasedMarks?: Record<string, number>  // legacy: { easy: n, medium: n, hard: n }
+                levelScoringConfiguration?: {
+                    easy?: { type?: string; marksPerQuestion?: number; totalMarks?: number; questionCount?: number }
+                    medium?: { type?: string; marksPerQuestion?: number; totalMarks?: number; questionCount?: number }
+                    hard?: { type?: string; marksPerQuestion?: number; totalMarks?: number; questionCount?: number }
+                }
+            }
+        }
+    }
     securitySettings?: {
         timerEnabled?: boolean
         timerDuration?: number
@@ -253,66 +281,70 @@ interface CodeEditorProps {
     // Add these new props
     onCloseExercise?: () => void; // Renamed for clarity
     onResetExercise?: () => void; // Alternative: specific function to reset exercise
+    courseName?: string
+    hierarchy?: string[]
+    onNavigateToBreadcrumb?: (level: 'course' | 'hierarchy' | 'category') => void
+    resetProgress?: boolean
 }
 // Render a ProgContentBlock[] array to HTML
 const renderBlocksToHtml = (blocks: any[]): string =>
-  blocks.map((block: any) => {
-    if (block.type === 'text') return block.value || '';
-    if (block.type === 'code') {
-      const escaped = (block.value || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-      return `<pre style="background:${block.bgColor||'#f5f5f5'};border-radius:8px;padding:10px 14px;font-size:12.5px;font-family:ui-monospace,monospace;overflow-x:auto;line-height:1.6;margin:6px 0"><code class="language-${block.language||''}">${escaped}</code></pre>`;
-    }
-    if (block.type === 'image') {
-      const align = block.alignment === 'right' ? 'flex-end' : block.alignment === 'center' ? 'center' : 'flex-start';
-      return `<div style="display:flex;justify-content:${align};margin:6px 0"><img src="${block.url}" alt="" style="max-width:${block.sizePercent||100}%;border-radius:8px;border:1px solid #e4e4ed" /></div>`;
-    }
-    return '';
-  }).join('');
+    blocks.map((block: any) => {
+        if (block.type === 'text') return block.value || '';
+        if (block.type === 'code') {
+            const escaped = (block.value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            return `<pre style="background:${block.bgColor || '#f5f5f5'};border-radius:8px;padding:10px 14px;font-size:12.5px;font-family:ui-monospace,monospace;overflow-x:auto;line-height:1.6;margin:6px 0"><code class="language-${block.language || ''}">${escaped}</code></pre>`;
+        }
+        if (block.type === 'image') {
+            const align = block.alignment === 'right' ? 'flex-end' : block.alignment === 'center' ? 'center' : 'flex-start';
+            return `<div style="display:flex;justify-content:${align};margin:6px 0"><img src="${block.url}" alt="" style="max-width:${block.sizePercent || 100}%;border-radius:8px;border:1px solid #e4e4ed" /></div>`;
+        }
+        return '';
+    }).join('');
 
 // Helper to extract description HTML from rich blocks or fallback to description.text
 // Helper to extract description HTML from rich blocks or fallback to description.text
 const getDescriptionHtml = (question: ExerciseQuestion): string => {
-  // Priority 1: description is an object with text array (new format)
-  if (typeof question.description === 'object' && question.description !== null) {
-    const desc = question.description as any;
-    
-    // Check if description.text is an array of blocks
-    if (Array.isArray(desc.text) && desc.text.length > 0) {
-      return renderBlocksToHtml(desc.text);
+    // Priority 1: description is an object with text array (new format)
+    if (typeof question.description === 'object' && question.description !== null) {
+        const desc = question.description as any;
+
+        // Check if description.text is an array of blocks
+        if (Array.isArray(desc.text) && desc.text.length > 0) {
+            return renderBlocksToHtml(desc.text);
+        }
+
+        // Check if description has direct contentBlocks
+        if (Array.isArray(desc.contentBlocks) && desc.contentBlocks.length > 0) {
+            return renderBlocksToHtml(desc.contentBlocks);
+        }
+
+        // If description.text is a string, use it
+        if (typeof desc.text === 'string' && desc.text.trim()) {
+            let html = desc.text;
+            if (desc.imageUrl) {
+                html += `<img src="${desc.imageUrl}" style="max-width:${desc.imageSizePercent || 100}%;display:block;margin-top:8px;border-radius:8px" />`;
+            }
+            return html;
+        }
     }
-    
-    // Check if description has direct contentBlocks
-    if (Array.isArray(desc.contentBlocks) && desc.contentBlocks.length > 0) {
-      return renderBlocksToHtml(desc.contentBlocks);
+
+    // Priority 2: description is directly a ProgContentBlock[] array (old format)
+    if (Array.isArray(question.description) && (question.description as any[]).length > 0) {
+        return renderBlocksToHtml(question.description as any[]);
     }
-    
-    // If description.text is a string, use it
-    if (typeof desc.text === 'string' && desc.text.trim()) {
-      let html = desc.text;
-      if (desc.imageUrl) {
-        html += `<img src="${desc.imageUrl}" style="max-width:${desc.imageSizePercent || 100}%;display:block;margin-top:8px;border-radius:8px" />`;
-      }
-      return html;
+
+    // Priority 3: programmingQuestionDescription (legacy field — backward compat)
+    if (Array.isArray((question as any).programmingQuestionDescription) &&
+        (question as any).programmingQuestionDescription.length > 0) {
+        return renderBlocksToHtml((question as any).programmingQuestionDescription);
     }
-  }
 
-  // Priority 2: description is directly a ProgContentBlock[] array (old format)
-  if (Array.isArray(question.description) && (question.description as any[]).length > 0) {
-    return renderBlocksToHtml(question.description as any[]);
-  }
+    // Priority 4: plain string fallback
+    if (typeof question.description === 'string') {
+        return question.description;
+    }
 
-  // Priority 3: programmingQuestionDescription (legacy field — backward compat)
-  if (Array.isArray((question as any).programmingQuestionDescription) &&
-      (question as any).programmingQuestionDescription.length > 0) {
-    return renderBlocksToHtml((question as any).programmingQuestionDescription);
-  }
-
-  // Priority 4: plain string fallback
-  if (typeof question.description === 'string') {
-    return question.description;
-  }
-
-  return 'Solve the question';
+    return 'Solve the question';
 };
 const convertExerciseToProblems = (exercise: Exercise): ProblemData[] => {
     if (!exercise.questions || exercise.questions.length === 0) {
@@ -329,27 +361,27 @@ const convertExerciseToProblems = (exercise: Exercise): ProblemData[] => {
         }];
     }
 
-return exercise.questions.map((question, index) => ({
-  id: index + 1,
-  title: question.title || `Question ${index + 1}`,
-  description: getDescriptionHtml(question),   // ← use helper
-  difficulty: (question?.difficulty?.charAt(0).toUpperCase() + question?.difficulty?.slice(1)) as "Easy" | "Medium" | "Hard",
-  examples: question.testCases
-    ?.filter(tc => tc.isSample && !tc.isHidden)
-    .map(tc => ({
-      input: tc.input,
-      output: tc.expectedOutput,
-      explanation: tc.explanation || "Sample test case"
-    })) || (question.sampleInput ? [{
-      input: question.sampleInput,
-      output: question.sampleOutput,
-      explanation: "Sample input and output"
-    }] : []),
-  constraints: question.constraints || [],
-  initialCode: question.solutions?.startedCode || question.solutions?.staetedCode || 
-    `# Write your solution here\ndef main():\n    # Your code here\n    pass`,
-  hints: question.hints?.map(h => h.hintText) || [],
-}));
+    return exercise.questions.map((question, index) => ({
+        id: index + 1,
+        title: question.title || `Question ${index + 1}`,
+        description: getDescriptionHtml(question),   // ← use helper
+        difficulty: (question?.difficulty?.charAt(0).toUpperCase() + question?.difficulty?.slice(1)) as "Easy" | "Medium" | "Hard",
+        examples: question.testCases
+            ?.filter(tc => tc.isSample && !tc.isHidden)
+            .map(tc => ({
+                input: tc.input,
+                output: tc.expectedOutput,
+                explanation: tc.explanation || "Sample test case"
+            })) || (question.sampleInput ? [{
+                input: question.sampleInput,
+                output: question.sampleOutput,
+                explanation: "Sample input and output"
+            }] : []),
+        constraints: question.constraints || [],
+        initialCode: question.solutions?.startedCode || question.solutions?.staetedCode ||
+            `# Write your solution here\ndef main():\n    # Your code here\n    pass`,
+        hints: question.hints?.map(h => h.hintText) || [],
+    }));
 };
 
 const getPistonLanguage = (language: string): { language: string; version: string } => {
@@ -717,6 +749,44 @@ const InteractiveTerminal = ({
     );
 };
 
+const FONT = "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif";
+
+const InfoRow = ({ label, value, theme, mono }: { label: string; value?: string | null; theme: string; mono?: boolean }) => {
+    if (value == null || value === '') return null;
+    return (
+        <div style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            gap: 16,
+            padding: '12px 0',
+            borderBottom: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'}`,
+        }}>
+            <span style={{
+                fontSize: 12.5,
+                color: theme === 'dark' ? 'rgba(255,255,255,0.7)' : '#475569',
+                fontWeight: 500,
+                flexShrink: 0,
+                minWidth: 110,
+                lineHeight: 1.5,
+            }}>
+                {label}
+            </span>
+            <span style={{
+                fontSize: 12.5,
+                color: theme === 'dark' ? '#f1f5f9' : '#0f172a',
+                fontWeight: 600,
+                textAlign: 'right',
+                fontFamily: mono ? 'ui-monospace, monospace' : 'inherit',
+                wordBreak: 'break-all',
+                flex: 1,
+                lineHeight: 1.5,
+            }}>
+                {value}
+            </span>
+        </div>
+    );
+};
 export default function CodeEditor({
     exercise,
     defaultProblems,
@@ -734,7 +804,11 @@ export default function CodeEditor({
     onBack,
     // Add these new props
     onCloseExercise,
-    onResetExercise
+    onResetExercise,
+    courseName,
+    hierarchy,
+    onNavigateToBreadcrumb,
+    resetProgress = false
 }: CodeEditorProps) {
     // --- Security State ---
     const [isAssessmentMode, setIsAssessmentMode] = useState(false);
@@ -745,6 +819,7 @@ export default function CodeEditor({
     const [isTerminated, setIsTerminated] = useState(false);
     const [terminationReason, setTerminationReason] = useState("");
     const [timeLeft, setTimeLeft] = useState<number | null>(null);
+    const [exerciseTimeLeft, setExerciseTimeLeft] = useState<number | null>(null);
     const [tabSwitchCount, setTabSwitchCount] = useState(0);
     const [showTerminal, setShowTerminal] = useState(false);
     const [terminalLogs, setTerminalLogs] = useState<LogEntry[]>([]);
@@ -758,7 +833,7 @@ export default function CodeEditor({
     const [pyodideReady, setPyodideReady] = useState(false);
     const pyodideRef = useRef<any>(null);
     const [showSearch, setShowSearch] = useState(false);
-
+    const [selectedDifficulty, setSelectedDifficulty] = useState('all');
     // --- Core State ---
     const [code, setCode] = useState("")
     const [selectedLanguage, setSelectedLanguage] = useState("javascript")
@@ -782,13 +857,14 @@ export default function CodeEditor({
     const [attemptsLoaded, setAttemptsLoaded] = useState(false);
     const [solvedQuestions, setSolvedQuestions] = useState<Set<number>>(new Set());
     const [skippedQuestions, setSkippedQuestions] = useState<Set<number>>(new Set());
-
+    const [showDetailsModal, setShowDetailsModal] = useState(false);
+    const [showOverviewModal, setShowOverviewModal] = useState(false);
     // --- Available Languages ---
     const [availableLanguages, setAvailableLanguages] = useState<string[]>(["javascript", "python", "java", "cpp", "c", "csharp"]);
 
     // --- Image Modal State ---
     const [modalImage, setModalImage] = useState<{ url: string; alt: string } | null>(null);
-
+    const [rightPanelSplit, setRightPanelSplit] = useState(75);
     useEffect(() => {
         console.log(currentQuestion)
     }, [currentQuestion])
@@ -802,9 +878,15 @@ export default function CodeEditor({
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const animationFrameRef = useRef<number | null>(null);
     const screenVideoRef = useRef<HTMLVideoElement>(null);
+    const isTestSubmittingRef = useRef(false);
     const inputResolverRef = useRef<((value: string) => void) | null>(null);
     const [showExitConfirmation, setShowExitConfirmation] = useState(false);
     const [pendingExitAction, setPendingExitAction] = useState<(() => void) | null>(null);
+    const [showExerciseInfo, setShowExerciseInfo] = useState(false);
+    const [showBackConfirm, setShowBackConfirm] = useState(false);
+    const [pendingNavLevel, setPendingNavLevel] = useState<'course' | 'hierarchy' | 'category' | null>(null);
+    const [showOutput, setShowOutput] = useState(false);
+    const outputScrollRef = useRef<HTMLDivElement>(null);
 
     // Add these with your existing state variables
     // Add these with your existing state variables
@@ -818,8 +900,91 @@ export default function CodeEditor({
     const problem = problems.length > 0 ? problems[currentProblemIndex] : null
     const router = useRouter();
 
+    // --- Full exercise data (re-fetched to get complete exerciseInformation fields) ---
+    const [fullExercise, setFullExercise] = useState<Exercise | null>(exercise || null);
+    useEffect(() => {
+        setFullExercise(exercise || null);
+        if (!exercise?._id) return;
+        // Always re-fetch so totalMarks / totalMarksProgramming are complete
+        const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
+        fetch(`https://lms-server-ym1q.onrender.com/exercise/${exercise._id}`, {
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+        })
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
+                if (!data) return;
+                const full = data.data || data.exercise || data;
+                if (full?._id) {
+                    // Keep the prop's questions array (already resolved) but use full exerciseInformation
+                    setFullExercise({ ...full, questions: exercise.questions ?? full.questions });
+                }
+            })
+            .catch(() => { /* keep prop data */ });
+    }, [exercise?._id]);
+
+    // Convenience alias — use fullExercise everywhere for display fields
+    const exData = fullExercise ?? exercise;
+
     // --- Security Configuration ---
     const securitySettings = exercise?.securitySettings || {};
+
+    // Resolve question flow: new field (questionFlow) takes priority over legacy allowNext boolean.
+    // DB default for questionFlow is 'freeFlow', so unknown = free.
+    const isFreeFlow: boolean = (() => {
+        const qFlow = exercise?.questionConfiguration?.programmingQuestionConfiguration?.questionFlow;
+        if (qFlow === 'freeFlow') return true;
+        if (qFlow === 'controlled') return false;
+        // Fallback to legacy allowNext boolean (default true = free)
+        return exercise?.questionBehavior?.allowNext ?? true;
+    })();
+
+    // ── Difficulty jump buttons ──
+    // Map of difficulty → [first index in problems array, total count]
+    const difficultyMap = useMemo<Record<string, { firstIndex: number; count: number }>>(() => {
+        const map: Record<string, { firstIndex: number; count: number }> = {};
+        problems.forEach((_, i) => {
+            const diff = (exercise?.questions?.[i]?.difficulty || '').toLowerCase();
+            if (!diff) return;
+            if (!map[diff]) map[diff] = { firstIndex: i, count: 0 };
+            map[diff].count += 1;
+        });
+        return map;
+    }, [problems, exercise?.questions]);
+
+    // Ordered list of difficulties that actually have questions
+    const availableDifficulties = useMemo(
+        () => (['easy', 'medium', 'hard'] as const).filter(d => !!difficultyMap[d]),
+        [difficultyMap]
+    );
+
+    const jumpToDifficulty = (diff: string) => {
+        const entry = difficultyMap[diff];
+        if (entry) setCurrentProblemIndex(entry.firstIndex);
+    };
+
+
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!isHorizontalResizing) return;
+            const container = editorRef.current;
+            if (!container) return;
+            const rect = container.getBoundingClientRect();
+            const relY = ((e.clientY - rect.top) / rect.height) * 100;
+            setRightPanelSplit(Math.min(Math.max(25, relY), 85));
+        };
+        const handleMouseUp = () => setIsHorizontalResizing(false);
+        if (isHorizontalResizing) {
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+        }
+        return () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [isHorizontalResizing]);
+
+
+    const currentDiff = (exercise?.questions?.[currentProblemIndex]?.difficulty || '').toLowerCase();
 
     // Helper function to escape HTML
     const escapeHtml = (text: string): string => {
@@ -847,7 +1012,7 @@ export default function CodeEditor({
                 setModalImage(null);
             }
         };
-        
+
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [modalImage]);
@@ -938,78 +1103,78 @@ export default function CodeEditor({
         return '<div>No description provided</div>';
     };
 
-const ImageModal = ({ image, onClose, theme }: { image: { url: string; alt: string } | null; onClose: () => void; theme: string }) => {
-    useEffect(() => {
-        if (image) {
-            document.body.style.overflow = 'hidden';
-        } else {
-            document.body.style.overflow = 'unset';
-        }
-        return () => {
-            document.body.style.overflow = 'unset';
-        };
-    }, [image]);
+    const ImageModal = ({ image, onClose, theme }: { image: { url: string; alt: string } | null; onClose: () => void; theme: string }) => {
+        useEffect(() => {
+            if (image) {
+                document.body.style.overflow = 'hidden';
+            } else {
+                document.body.style.overflow = 'unset';
+            }
+            return () => {
+                document.body.style.overflow = 'unset';
+            };
+        }, [image]);
 
-    if (!image) return null;
+        if (!image) return null;
 
-    return (
-        <div
-            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm"
-            onClick={onClose}
-        >
+        return (
             <div
-                className={`relative flex flex-col rounded-xl shadow-2xl border overflow-hidden ${theme === 'dark' ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'}`}
-                style={{ width: '600px', height: '500px', maxWidth: '90vw', maxHeight: '85vh' }}
-                onClick={(e) => e.stopPropagation()}
+                className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm"
+                onClick={onClose}
             >
-                {/* Fixed Header - never shrinks */}
                 <div
-                    className={`flex items-center justify-between px-4 py-2.5 border-b flex-shrink-0 ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'}`}
-                    style={{ height: '42px' }}
+                    className={`relative flex flex-col rounded-xl shadow-2xl border overflow-hidden ${theme === 'dark' ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'}`}
+                    style={{ width: '600px', height: '500px', maxWidth: '90vw', maxHeight: '85vh' }}
+                    onClick={(e) => e.stopPropagation()}
                 >
-                    <span className={`text-xs font-semibold truncate ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
-                        🖼️ {image.alt || 'Question Image'}
-                    </span>
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <button
-                            onClick={() => window.open(image.url, '_blank')}
-                            className={`h-6 px-2 text-[10px] rounded flex items-center gap-1 transition-colors ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
-                        >
-                            <Maximize2 className="w-3 h-3" />
-                            Full
-                        </button>
-                        <button
-                            onClick={onClose}
-                            className={`h-6 w-6 flex items-center justify-center rounded transition-colors ${theme === 'dark' ? 'hover:bg-red-900/50 text-gray-400 hover:text-red-400' : 'hover:bg-red-100 text-gray-500 hover:text-red-600'}`}
-                        >
-                            <X className="w-3.5 h-3.5" />
-                        </button>
+                    {/* Fixed Header - never shrinks */}
+                    <div
+                        className={`flex items-center justify-between px-4 py-2.5 border-b flex-shrink-0 ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'}`}
+                        style={{ height: '42px' }}
+                    >
+                        <span className={`text-xs font-semibold truncate ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                            🖼️ {image.alt || 'Question Image'}
+                        </span>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <button
+                                onClick={() => window.open(image.url, '_blank')}
+                                className={`h-6 px-2 text-[10px] rounded flex items-center gap-1 transition-colors ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
+                            >
+                                <Maximize2 className="w-3 h-3" />
+                                Full
+                            </button>
+                            <button
+                                onClick={onClose}
+                                className={`h-6 w-6 flex items-center justify-center rounded transition-colors ${theme === 'dark' ? 'hover:bg-red-900/50 text-gray-400 hover:text-red-400' : 'hover:bg-red-100 text-gray-500 hover:text-red-600'}`}
+                            >
+                                <X className="w-3.5 h-3.5" />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Fixed Image Area - always exactly fills remaining space */}
+                    <div
+                        className={`flex-1 overflow-auto flex items-center justify-center ${theme === 'dark' ? 'bg-gray-950' : 'bg-gray-100'}`}
+                        style={{ height: 'calc(500px - 42px)' }}
+                    >
+                        <img
+                            src={image.url}
+                            alt={image.alt}
+                            style={{
+                                maxWidth: '100%',
+                                maxHeight: '100%',
+                                width: 'auto',
+                                height: 'auto',
+                                objectFit: 'contain',
+                                borderRadius: '4px',
+                                display: 'block',
+                            }}
+                        />
                     </div>
                 </div>
-
-                {/* Fixed Image Area - always exactly fills remaining space */}
-                <div
-                    className={`flex-1 overflow-auto flex items-center justify-center ${theme === 'dark' ? 'bg-gray-950' : 'bg-gray-100'}`}
-                    style={{ height: 'calc(500px - 42px)' }}
-                >
-                    <img
-                        src={image.url}
-                        alt={image.alt}
-                        style={{
-                            maxWidth: '100%',
-                            maxHeight: '100%',
-                            width: 'auto',
-                            height: 'auto',
-                            objectFit: 'contain',
-                            borderRadius: '4px',
-                            display: 'block',
-                        }}
-                    />
-                </div>
             </div>
-        </div>
-    );
-};
+        );
+    };
 
     // Determine if assessment mode is active (You Do category)
     useEffect(() => {
@@ -1193,7 +1358,7 @@ function solve() {
                     setUserAttempts(data.attempts || 0);
                     setAttemptsLoaded(true);
 
-                    if (data.data && data.data !== "null" && data.data.trim() !== "") {
+                    if (!resetProgress && data.data && data.data !== "null" && data.data.trim() !== "") {
                         setCode(data.data);
                     }
 
@@ -1221,7 +1386,12 @@ function solve() {
         }
     }, [currentQuestion?._id]);
 
-
+    // Mark exercise as in-progress in localStorage so exercises list can offer Resume/Start Fresh
+    useEffect(() => {
+        if (exercise?._id) {
+            localStorage.setItem('ex_in_progress_' + exercise._id, '1');
+        }
+    }, [exercise?._id]);
 
 
 
@@ -1419,11 +1589,39 @@ function solve() {
             setTimeLeft(null);
         }
     }, [isAssessmentMode, hasStarted, securitySettings.timerEnabled, securitySettings.timerDuration]);
+    // --- Exercise-level countdown timer (driven by exerciseInformation.totalDuration) ---
+    useEffect(() => {
+        const totalDuration = exercise?.exerciseInformation?.totalDuration;
+        if (!totalDuration || totalDuration <= 0) {
+            setExerciseTimeLeft(null);
+            return;
+        }
+        const totalSeconds = totalDuration * 60; // totalDuration is in minutes
+        setExerciseTimeLeft(totalSeconds);
+        const timer = setInterval(() => {
+            setExerciseTimeLeft(prev => {
+                if (prev === null || prev <= 0) {
+                    clearInterval(timer);
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+        return () => clearInterval(timer);
+    }, [exercise?.exerciseInformation?.totalDuration]);
+
     const formatTime = (seconds: number | null) => {
         if (seconds === null) return "No Limit";
         const mins = Math.floor(seconds / 60);
         const secs = seconds % 60;
         return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    const formatExerciseTime = (seconds: number | null): string => {
+        if (seconds === null) return "--:--";
+        const m = Math.floor(seconds / 60);
+        const s = seconds % 60;
+        return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
     };
     const addTerminalLog = (type: LogEntry['type'], content: string) => {
         setTerminalLogs(prev => [...prev, {
@@ -2274,24 +2472,23 @@ function solve() {
     // Update the runCode function around line ~820
     const runCode = async () => {
         // Check security setting first, then exercise setting
-        const isCopyPasteDisabled = securitySettings.disableClipboard === true;
+        // const isCopyPasteDisabled = securitySettings.disableClipboard === true;
 
-        if (isCopyPasteDisabled && isCopyPasteDetected(code)) {
-            addTerminalLog('error', 'Copy-paste is not allowed for this exercise. Please type the code yourself.');
-            setShowTerminal(true);
-            return;
-        }
+        // if (isCopyPasteDisabled && isCopyPasteDetected(code)) {
+        //     addTerminalLog('error', 'Copy-paste is not allowed for this exercise. Please type the code yourself.');
+        //     return;
+        // }
 
         // Then check exercise setting if security doesn't restrict it
-        if (!isCopyPasteDisabled && !exercise?.compilerSettings?.allowCopyPaste && isCopyPasteDetected(code)) {
-            addTerminalLog('error', 'Copy-paste is not allowed for this exercise. Please type the code yourself.');
-            setShowTerminal(true);
-            return;
-        }
+        // if (!isCopyPasteDisabled && !exercise?.compilerSettings?.allowCopyPaste && isCopyPasteDetected(code)) {
+        //     addTerminalLog('error', 'Copy-paste is not allowed for this exercise. Please type the code yourself.');
+        //     return;
+        // }
 
         setIsRunning(true);
-        setShowTerminal(true);
         clearTerminal();
+
+        setRightPanelSplit(60);
 
         try {
             const sampleInput = problem?.examples?.[0]?.input ||
@@ -2335,19 +2532,22 @@ function solve() {
         questionId: string,
         status = 'attempted',
         score = 0,
+        isTestSubmission = false,  // ← NEW PARAM
     ) => {
         try {
-            const currentCode = editorInstanceRef.current ? editorInstanceRef.current.getValue() : code;
-            const currentCourseId = courseId || (exercise?.courseId ? exercise.courseId.toString() : "");
+            const currentCode = editorInstanceRef.current
+                ? editorInstanceRef.current.getValue()
+                : code;
+            const currentCourseId = courseId || (exercise?.courseId
+                ? exercise.courseId.toString()
+                : "");
             if (!currentCourseId) {
                 throw new Error('No courseId');
             }
 
             const finalScore = score > 0 ? score : (status === 'solved' ? 100 : 0);
 
-            // Create FormData for multipart/form-data
             const formData = new FormData();
-            // Add all data as separate fields for easier parsing on backend
             formData.append('courseId', currentCourseId);
             formData.append('exerciseId', exercise?._id || "");
             formData.append('questionId', questionId);
@@ -2362,32 +2562,35 @@ function solve() {
             formData.append('language', selectedLanguage);
             formData.append('attemptLimitEnabled', (exercise?.questionBehavior?.attemptLimitEnabled || false).toString());
             formData.append('maxAttempts', (exercise?.questionBehavior?.maxAttempts || 1).toString());
-
-            // Add screen recording if available
-
-            console.log("FOrmDATA", formData);
+            formData.append('isTestSubmission', isTestSubmission.toString()); // ← SEND FLAG
 
             addTerminalLog('system', '📤 Submitting to server...');
 
-            const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
+            const token = localStorage.getItem('smartcliff_token')
+                || localStorage.getItem('token')
+                || '';
+
             const response = await fetch('https://lms-server-ym1q.onrender.com/courses/answers/submit', {
                 method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                    // Don't set Content-Type - let browser set it with boundary
-                },
+                headers: { 'Authorization': `Bearer ${token}` },
                 body: formData,
             });
 
             const result = await response.json();
 
             if (response.status === 403) {
-                const errorMsg = result.message?.find((m: any) => m.key === 'error')?.value || "Max attempts reached.";
+                const errorMsg = result.message?.find((m: any) => m.key === 'error')?.value
+                    || "Max attempts reached.";
                 throw new Error(errorMsg);
             }
 
             if (!response.ok) {
                 throw new Error(`Server error: ${response.status}`);
+            }
+
+            // ── Sync userAttempts from backend ONLY on full test submission ──
+            if (isTestSubmission && result.userAttempts != null) {
+                setUserAttempts(result.userAttempts);
             }
 
             addTerminalLog('success', '✅ Submission successful!');
@@ -2398,180 +2601,254 @@ function solve() {
             throw error;
         }
     };
+    // const submitCode = async () => {
+    //     if (isAssessmentMode && !hasStarted) {
+    //         showToast({
+    //             type: 'warning',
+    //             title: 'Assessment Not Started',
+    //             message: 'Please start the assessment first',
+    //             duration: 3000
+    //         });
+    //         return;
+    //     }
+
+    //     // Check security setting first
+    //     const isCopyPasteDisabled = securitySettings.disableClipboard === true;
+
+    //     if (isCopyPasteDisabled && isCopyPasteDetected(code)) {
+    //         addTerminalLog('error', 'Submission rejected: Copy-paste is not allowed for this exercise.');
+    //         return;
+    //     }
+
+    //     // Then check exercise setting if security doesn't restrict it
+    //     if (!isCopyPasteDisabled && !exercise?.compilerSettings?.allowCopyPaste && isCopyPasteDetected(code)) {
+    //         addTerminalLog('error', 'Submission rejected: Copy-paste is not allowed for this exercise.');
+    //         return;
+    //     }
+
+    //     // Check attempts
+    //     if (exercise?.questionBehavior?.attemptLimitEnabled && currentQuestion) {
+    //         const max = exercise.questionBehavior.maxAttempts || 1;
+    //         if (userAttempts >= max) {
+    //             const msg = `Maximum attempts reached (${userAttempts}/${max}). You cannot submit again.`;
+    //             addTerminalLog('error', msg);
+    //             showToast({
+    //                 type: 'error',
+    //                 title: 'Limit Reached',
+    //                 message: msg,
+    //                 duration: 4000
+    //             });
+    //             return;
+    //         }
+    //     }
+
+    //     setIsRunning(true);
+    //     setShowTerminal(true);
+    //     clearTerminal();
+
+    //     addTerminalLog('system', '🚀 Starting submission process...');
+
+    //     try {
+    //         // Prepare screen recording blob if available
+    //         let screenRecordingBlob: Blob | undefined;
+    //         if (securitySettings.screenRecordingEnabled && recordedChunksRef.current.length > 0) {
+    //             screenRecordingBlob = new Blob(recordedChunksRef.current, {
+    //                 type: mediaRecorderRef.current?.mimeType || 'video/webm'
+    //             });
+    //             addTerminalLog('system', `📹 Including screen recording with submission (${screenRecordingBlob.size} bytes)...`);
+    //         }
+
+    //         // Submit to backend with screen recording
+    //         addTerminalLog('system', '💾 Saving progress to server for manual evaluation...');
+    //         const submitResponse = await submitProgressToBackend(
+    //             currentQuestion!._id,
+    //             'submitted', // Use 'submitted' status for manual evaluation
+    //             0, // Score will be assigned manually
+    //             screenRecordingBlob
+    //         );
+
+    //         if (submitResponse && submitResponse.success) {
+    //             // Update attempts
+    //             setUserAttempts(prev => prev + 1);
+
+    //             addTerminalLog('success', '✅ Code submitted for manual evaluation!');
+
+    //             // Mark as submitted
+    //             setSolvedQuestions(prev => {
+    //                 const newSet = new Set(prev);
+    //                 newSet.add(currentProblemIndex);
+    //                 return newSet;
+    //             });
+
+    //             // Check if this is the last question
+    //             const isLastQuestion = currentProblemIndex === problems.length - 1;
+
+    //             // Auto-navigate if allowed (only if not last question)
+    //             if (isFreeFlow && !isLastQuestion) {
+    //                 let countdown = 3;
+
+    //                 const countdownInterval = setInterval(() => {
+    //                     addTerminalLog('system', `⏱️ Next question in ${countdown}...`);
+    //                     countdown--;
+
+    //                     if (countdown < 0) {
+    //                         clearInterval(countdownInterval);
+    //                         setCurrentProblemIndex(currentProblemIndex + 1);
+    //                         addTerminalLog('system', '➡️ Moving to next question...');
+    //                     }
+    //                 }, 1000);
+    //             }
+
+    //             // Check if last question in assessment mode
+    //             if (isAssessmentMode && isLastQuestion) {
+    //                 addTerminalLog('success', '🎉 Assessment completed! All questions submitted.');
+
+    //                 // Show completion message
+    //                 showToast({
+    //                     type: 'success',
+    //                     title: 'Assessment Completed',
+    //                     message: 'All questions have been submitted successfully!',
+    //                     duration: 5000
+    //                 });
+
+    //                 // Stop recording if active
+    //                 if (isRecording) {
+    //                     await stopScreenRecording();
+    //                 }
+
+    //                 // Exit fullscreen if in fullscreen mode
+    //                 if (document.fullscreenElement) {
+    //                     await document.exitFullscreen();
+    //                 }
+
+    //                 // Add a delay before redirecting to let the user see the success message
+    //                 setTimeout(() => {
+    //                     // Redirect to the course detailed view
+    //                     if (courseId) {
+    //                         // router.refresh();
+
+    //                         if (onCloseExercise) {
+    //                             onCloseExercise();
+    //                         }
+    //                     } else {
+    //                         // Fallback if no courseId is available
+    //                         router.push('/lms/dashboard');
+    //                     }
+    //                 }, 2000);
+
+    //             } else if (isLastQuestion && !isAssessmentMode) {
+    //                 // For non-assessment mode, still redirect after last question
+    //                 addTerminalLog('success', '✅ All questions completed!');
+
+    //                 showToast({
+    //                     type: 'success',
+    //                     title: 'Exercise Completed',
+    //                     message: 'All questions have been submitted!',
+    //                     duration: 3000
+    //                 });
+
+    //                 setTimeout(() => {
+    //                     if (courseId) {
+    //                         if (onCloseExercise) {
+    //                             onCloseExercise();
+    //                         }
+    //                     } else {
+    //                         router.push('/lms/dashboard');
+    //                     }
+    //                 }, 2000);
+    //             }
+
+    //         }
+
+    //     } catch (error: any) {
+    //         console.error("Submission error:", error);
+    //         addTerminalLog('error', `❌ ${error.message}`);
+    //     } finally {
+    //         setIsRunning(false);
+    //     }
+    // };
+
+
 
     const submitCode = async () => {
-        if (isAssessmentMode && !hasStarted) {
-            showToast({
-                type: 'warning',
-                title: 'Assessment Not Started',
-                message: 'Please start the assessment first',
-                duration: 3000
-            });
-            return;
-        }
-
-        // Check security setting first
-        const isCopyPasteDisabled = securitySettings.disableClipboard === true;
-
-        if (isCopyPasteDisabled && isCopyPasteDetected(code)) {
-            addTerminalLog('error', 'Submission rejected: Copy-paste is not allowed for this exercise.');
-            setShowTerminal(true);
-            return;
-        }
-
-        // Then check exercise setting if security doesn't restrict it
-        if (!isCopyPasteDisabled && !exercise?.compilerSettings?.allowCopyPaste && isCopyPasteDetected(code)) {
-            addTerminalLog('error', 'Submission rejected: Copy-paste is not allowed for this exercise.');
-            setShowTerminal(true);
-            return;
-        }
-
-        // Check attempts
         if (exercise?.questionBehavior?.attemptLimitEnabled && currentQuestion) {
             const max = exercise.questionBehavior.maxAttempts || 1;
             if (userAttempts >= max) {
                 const msg = `Maximum attempts reached (${userAttempts}/${max}). You cannot submit again.`;
                 addTerminalLog('error', msg);
-                setShowTerminal(true);
+                showToast({ type: 'error', title: 'Limit Reached', message: msg, duration: 4000 });
+                return;
+            }
+        }
+
+        const isLastQuestion = currentProblemIndex === problems.length - 1;
+
+        if (isLastQuestion && exercise?.questionBehavior?.allQuestionsRequired === true) {
+            const missing: number[] = [];
+            for (let i = 0; i < problems.length; i++) {
+                if (i !== currentProblemIndex && !solvedQuestions.has(i)) missing.push(i + 1);
+            }
+            if (missing.length > 0) {
                 showToast({
                     type: 'error',
-                    title: 'Limit Reached',
-                    message: msg,
-                    duration: 4000
+                    title: 'Incomplete Submission',
+                    message: `You must attempt all questions before submitting. Questions ${missing.join(', ')} remaining.`,
+                    duration: 5000
                 });
                 return;
             }
         }
 
         setIsRunning(true);
-        // setShowTerminal(true);
         clearTerminal();
 
-        addTerminalLog('system', '🚀 Starting submission process...');
-
         try {
-            // Prepare screen recording blob if available
-            let screenRecordingBlob: Blob | undefined;
-            if (securitySettings.screenRecordingEnabled && recordedChunksRef.current.length > 0) {
-                screenRecordingBlob = new Blob(recordedChunksRef.current, {
-                    type: mediaRecorderRef.current?.mimeType || 'video/webm'
-                });
-                addTerminalLog('system', `📹 Including screen recording with submission (${screenRecordingBlob.size} bytes)...`);
-            }
+            const liveQuestion = exercise?.questions?.[currentProblemIndex];
+            const liveQuestionId = liveQuestion?._id || currentQuestion?._id;
 
-            // Submit to backend with screen recording
-            addTerminalLog('system', '💾 Saving progress to server for manual evaluation...');
+            // ── isTestSubmission true only on last question ──
             const submitResponse = await submitProgressToBackend(
-                currentQuestion!._id,
-                'submitted', // Use 'submitted' status for manual evaluation
-                0, // Score will be assigned manually
-                screenRecordingBlob
+                liveQuestionId!,
+                'submitted',
+                0,
+                isLastQuestion  // ← true only for last question
             );
 
             if (submitResponse && submitResponse.success) {
-                // Update attempts
-                setUserAttempts(prev => prev + 1);
-
-                addTerminalLog('success', '✅ Code submitted for manual evaluation!');
-
-                // Mark as submitted
                 setSolvedQuestions(prev => {
                     const newSet = new Set(prev);
                     newSet.add(currentProblemIndex);
                     return newSet;
                 });
 
-                // Check if this is the last question
-                const isLastQuestion = currentProblemIndex === problems.length - 1;
-
-                // Auto-navigate if allowed (only if not last question)
-                if (exercise?.questionBehavior?.allowNext && !isLastQuestion) {
-                    let countdown = 3;
-
-                    const countdownInterval = setInterval(() => {
-                        addTerminalLog('system', `⏱️ Next question in ${countdown}...`);
-                        countdown--;
-
-                        if (countdown < 0) {
-                            clearInterval(countdownInterval);
-                            setCurrentProblemIndex(currentProblemIndex + 1);
-                            addTerminalLog('system', '➡️ Moving to next question...');
-                        }
-                    }, 1000);
-                }
-
-                // Check if last question in assessment mode
-                if (isAssessmentMode && isLastQuestion) {
-                    addTerminalLog('success', '🎉 Assessment completed! All questions submitted.');
-
-                    // Show completion message
-                    showToast({
-                        type: 'success',
-                        title: 'Assessment Completed',
-                        message: 'All questions have been submitted successfully!',
-                        duration: 5000
-                    });
-
-                    // Stop recording if active
-                    if (isRecording) {
-                        await stopScreenRecording();
-                    }
-
-                    // Exit fullscreen if in fullscreen mode
-                    if (document.fullscreenElement) {
-                        await document.exitFullscreen();
-                    }
-
-                    // Add a delay before redirecting to let the user see the success message
-                    setTimeout(() => {
-                        // Redirect to the course detailed view
-                        if (courseId) {
-                            // router.refresh();
-
-                            if (onCloseExercise) {
-                                onCloseExercise();
-                            }
-                        } else {
-                            // Fallback if no courseId is available
-                            router.push('/lms/dashboard');
-                        }
-                    }, 2000);
-
-                } else if (isLastQuestion && !isAssessmentMode) {
-                    // For non-assessment mode, still redirect after last question
-                    addTerminalLog('success', '✅ All questions completed!');
-
+                if (isLastQuestion) {
                     showToast({
                         type: 'success',
                         title: 'Exercise Completed',
                         message: 'All questions have been submitted!',
                         duration: 3000
                     });
-
                     setTimeout(() => {
-                        if (courseId) {
-                            if (onCloseExercise) {
-                                onCloseExercise();
-                            }
-                        } else {
-                            router.push('/lms/dashboard');
-                        }
+                        if (onCloseExercise) onCloseExercise();
+                        else router.push('/lms/dashboard');
                     }, 2000);
+                } else {
+                    showToast({
+                        type: 'success',
+                        title: 'Submitted',
+                        message: 'Your answer has been submitted successfully.',
+                        duration: 3000
+                    });
                 }
-
             }
 
         } catch (error: any) {
             console.error("Submission error:", error);
-            addTerminalLog('error', `❌ ${error.message}`);
+            addTerminalLog('error', `Submission failed: ${error.message}`);
         } finally {
             setIsRunning(false);
         }
     };
-
-
-
-
     const cycleSortOption = () => {
         const sortOptions: Array<'default' | 'difficulty' | 'title'> = ['default', 'difficulty', 'title'];
         const currentIndex = sortOptions.indexOf(sortBy);
@@ -2649,6 +2926,7 @@ function solve() {
                 suggestOnTriggerCharacters: exercise.compilerSettings.autoSuggestion,
                 quickSuggestions: exercise.compilerSettings.autoSuggestion,
                 fontSize: exercise.compilerSettings.fontSize || 14,
+                fontFamily: FONT,
                 tabSize: exercise.compilerSettings.tabSize || 2,
                 theme: exercise.compilerSettings.theme === 'dark' ? 'vs-dark' : 'vs'
             });
@@ -2740,26 +3018,34 @@ function solve() {
         }
     };
 
-    const nextProblem = () => {
-        const isCurrentSolved = solvedQuestions.has(currentProblemIndex);
-        if (exercise?.questionBehavior?.allowNext) {
-            if (currentProblemIndex < problems.length - 1) {
-                setCurrentProblemIndex(currentProblemIndex + 1);
-            }
+    const saveCurrentQuestionProgress = async () => {
+        const liveQuestion = exercise?.questions?.[currentProblemIndex];
+        const liveId = liveQuestion?._id || currentQuestion?._id;
+        if (liveId) {
+            try { await submitProgressToBackend(liveId, 'attempted', 0); } catch { /* ignore nav-save errors */ }
+        }
+    };
+
+    const nextProblem = async () => {
+        if (currentProblemIndex >= problems.length - 1) return;
+        await saveCurrentQuestionProgress();
+        if (isFreeFlow) {
+            setCurrentProblemIndex(currentProblemIndex + 1);
         } else {
-            if (currentProblemIndex < problems.length - 1 && isCurrentSolved) {
+            if (solvedQuestions.has(currentProblemIndex)) {
                 setCurrentProblemIndex(currentProblemIndex + 1);
-            } else if (!isCurrentSolved) {
-                addTerminalLog('warning', 'Please solve this question before proceeding to the next one.');
+            } else {
+                addTerminalLog('warning', 'Submit this question before moving to the next one (Controlled Flow).');
             }
         }
     };
 
-    const prevProblem = () => {
+    const prevProblem = async () => {
         if (currentProblemIndex > 0) {
-            setCurrentProblemIndex(currentProblemIndex - 1)
+            await saveCurrentQuestionProgress();
+            setCurrentProblemIndex(currentProblemIndex - 1);
         }
-    }
+    };
 
     const selectProblem = (index: number) => {
         if (index >= 0 && index < problems.length) {
@@ -2851,7 +3137,7 @@ function solve() {
         <div
             ref={editorRef}
             className={`${theme === 'dark' ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'} border-gray-300 flex flex-col border ${isFullscreen ? 'rounded-none' : 'rounded-lg relative h-full min-h-0 flex-1'}`}
-            style={isFullscreen ? { position: 'fixed', inset: 0, width: '100vw', height: '100vh', zIndex: 2147483647, overflow: 'hidden' } : undefined}
+            style={{ fontFamily: FONT, ...(isFullscreen ? { position: 'fixed', inset: 0, width: '100vw', height: '100vh', zIndex: 2147483647, overflow: 'hidden' } : {}) }}
         >
             {/* Security Agreement Modal */}
             <SecurityAgreementModal
@@ -2931,17 +3217,6 @@ function solve() {
                 </div>
             )}
 
-            <InteractiveTerminal
-                isOpen={showTerminal}
-                onClose={() => setShowTerminal(false)}
-                logs={terminalLogs}
-                isRunning={isRunning}
-                isWaitingForInput={isWaitingForInput}
-                onInputSubmit={handleTerminalInput}
-                language={selectedLanguage}
-                onClear={clearTerminal}
-                theme={theme}
-            />
 
             {isAssessmentMode && !hasStarted && !showSecurityAgreement && (
                 <div className="absolute inset-0 z-[60] bg-zinc-900/95 flex flex-col items-center justify-center p-4 backdrop-blur-sm">
@@ -2981,6 +3256,367 @@ function solve() {
                 </div>
             )}
 
+            {/* ── Persistent Exercise Info Strip ── */}
+            {exercise && (
+                <div style={{ flexShrink: 0, borderBottom: `1px solid ${theme === 'dark' ? '#374151' : '#e5e7eb'}` }}>
+                    {/* Row 1 — Back + Breadcrumb */}
+                    <div style={{
+                        display: 'flex', alignItems: 'center',
+                        padding: '6px 12px',
+                        borderBottom: `1px solid ${theme === 'dark' ? '#1f2937' : '#f0f0f0'}`,
+                        gap: 8,
+                        background: theme === 'dark' ? '#0d1117' : '#f8f9fa',
+                    }}>
+                        {/* Back button */}
+                        <button
+                            onClick={() => setShowBackConfirm(true)}
+                            title="Go back"
+                            style={{
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                width: 26, height: 26, flexShrink: 0,
+                                borderRadius: 6,
+                                border: `1px solid ${theme === 'dark' ? '#374151' : '#d1d5db'}`,
+                                background: theme === 'dark' ? '#1f2937' : '#fff',
+                                color: theme === 'dark' ? '#9ca3af' : '#6b7280',
+                                cursor: 'pointer',
+                            }}
+                        >
+                            <ChevronLeft style={{ width: 14, height: 14 }} />
+                        </button>
+
+                        {/* Separator */}
+                        <div style={{ width: 1, height: 16, background: theme === 'dark' ? '#374151' : '#e5e7eb', flexShrink: 0 }} />
+
+                        {/* Breadcrumb segments */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', flex: 1, minWidth: 0 }}>
+                            <button onClick={() => setPendingNavLevel('course')} style={{ fontFamily: FONT, fontSize: 12.5, fontWeight: 500, color: theme === 'dark' ? '#60a5fa' : '#2563eb', background: 'none', border: 'none', cursor: 'pointer', padding: 0, whiteSpace: 'nowrap' }}>
+                                {courseName || 'Course'}
+                            </button>
+
+                            {(hierarchy || []).map((seg, i) => (
+                                <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    <ChevronRight style={{ width: 12, height: 12, color: theme === 'dark' ? '#4b5563' : '#c0c4cc', flexShrink: 0 }} />
+                                    <button onClick={() => setPendingNavLevel('hierarchy')} style={{ fontFamily: FONT, fontSize: 12.5, fontWeight: 500, color: theme === 'dark' ? '#60a5fa' : '#2563eb', background: 'none', border: 'none', cursor: 'pointer', padding: 0, whiteSpace: 'nowrap' }}>
+                                        {seg}
+                                    </button>
+                                </span>
+                            ))}
+
+                            {category && (
+                                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    <ChevronRight style={{ width: 12, height: 12, color: theme === 'dark' ? '#4b5563' : '#c0c4cc', flexShrink: 0 }} />
+                                    <button onClick={() => setPendingNavLevel('category')} style={{ fontFamily: FONT, fontSize: 12.5, fontWeight: 500, color: theme === 'dark' ? '#60a5fa' : '#2563eb', background: 'none', border: 'none', cursor: 'pointer', padding: 0, whiteSpace: 'nowrap' }}>
+                                        {category === 'We_Do' ? 'We Do' : category === 'I_Do' ? 'I Do' : category === 'You_Do' ? 'You Do' : category}
+                                    </button>
+                                </span>
+                            )}
+
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <ChevronRight style={{ width: 12, height: 12, color: theme === 'dark' ? '#4b5563' : '#c0c4cc', flexShrink: 0 }} />
+                                <span style={{ fontFamily: FONT, fontSize: 12.5, fontWeight: 600, color: theme === 'dark' ? '#e5e7eb' : '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {exercise?.exerciseInformation?.exerciseName || 'Exercise'}
+                                </span>
+                            </span>
+                        </div>
+
+                        {/* Exercise Info button — right corner of breadcrumb row */}
+                        {/* {exercise && (
+                            <button
+                                onClick={() => setShowExerciseInfo(!showExerciseInfo)}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: 5,
+                                    flexShrink: 0, marginLeft: 8,
+                                    padding: '4px 11px', height: 26,
+                                    borderRadius: 6,
+                                    border: `1px solid ${showExerciseInfo ? '#3b82f6' : (theme === 'dark' ? '#374151' : '#d1d5db')}`,
+                                    background: showExerciseInfo ? (theme === 'dark' ? '#1e3a5f' : '#dbeafe') : (theme === 'dark' ? '#1f2937' : '#fff'),
+                                    color: showExerciseInfo ? (theme === 'dark' ? '#93c5fd' : '#2563eb') : (theme === 'dark' ? '#9ca3af' : '#6b7280'),
+                                    cursor: 'pointer',
+                                    fontFamily: FONT,
+                                    fontSize: 12,
+                                    fontWeight: 500,
+                                    whiteSpace: 'nowrap',
+                                }}
+                            >
+                                <Info style={{ width: 13, height: 13, flexShrink: 0 }} />
+                                Exercise Info
+                            </button>
+                        )} */}
+
+
+                        {/* Right corner of breadcrumb row — Submit Test + Close */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, marginLeft: 8 }}>
+                            <button
+                                onClick={async () => {
+                                    // ── Attempt limit check ──
+                                    if (exercise?.questionBehavior?.attemptLimitEnabled) {
+                                        const max = exercise.questionBehavior.maxAttempts || 1;
+                                        if (userAttempts >= max) {
+                                            showToast({
+                                                type: 'error',
+                                                title: 'Limit Reached',
+                                                message: `Maximum attempts reached (${userAttempts}/${max}). You cannot submit again.`,
+                                                duration: 4000
+                                            });
+                                            return;
+                                        }
+                                    }
+
+                                    // ── allQuestionsRequired gate ──
+                                    if (exercise?.questionBehavior?.allQuestionsRequired === true) {
+                                        const missing: number[] = [];
+                                        for (let i = 0; i < problems.length; i++) {
+                                            if (i !== currentProblemIndex && !solvedQuestions.has(i)) missing.push(i + 1);
+                                        }
+                                        if (missing.length > 0) {
+                                            showToast({
+                                                type: 'error',
+                                                title: 'Incomplete Submission',
+                                                message: `You must attempt all questions before submitting. Questions ${missing.join(', ')} remaining.`,
+                                                duration: 5000
+                                            });
+                                            return;
+                                        }
+                                    }
+
+                                    if (isTestSubmittingRef.current) return;
+                                    isTestSubmittingRef.current = true;
+
+                                    try {
+                                        if (currentQuestion) {
+                                            const liveQuestion = exercise?.questions?.[currentProblemIndex];
+                                            await submitProgressToBackend(
+                                                liveQuestion?._id || currentQuestion._id,
+                                                'submitted',
+                                                0,
+                                                true  // ← always isTestSubmission = true for Submit Test button
+                                            );
+                                        }
+
+                                        setSolvedQuestions(prev => {
+                                            const newSet = new Set(prev);
+                                            newSet.add(currentProblemIndex);
+                                            return newSet;
+                                        });
+
+                                        if (exercise?._id) localStorage.removeItem('ex_in_progress_' + exercise._id);
+
+                                        showToast({
+                                            type: 'success',
+                                            title: 'Test Submitted',
+                                            message: 'Your test has been submitted successfully.',
+                                            duration: 3000
+                                        });
+
+                                        setTimeout(() => {
+                                            if (isAssessmentMode && hasStarted) {
+                                                if (isRecording) stopScreenRecording();
+                                                if (document.fullscreenElement) document.exitFullscreen().catch(() => { });
+                                            }
+                                            if (onCloseExercise) onCloseExercise();
+                                            else if (onBack) onBack();
+                                        }, 1500);
+
+                                    } catch (error: any) {
+                                        isTestSubmittingRef.current = false;
+                                        showToast({
+                                            type: 'error',
+                                            title: 'Submission Failed',
+                                            message: error.message || 'Could not submit test.',
+                                            duration: 4000
+                                        });
+                                    }
+                                }}
+                                disabled={isRunning}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 6,
+                                    padding: '6px 12px',
+                                    borderRadius: 6,
+                                    border: 'none',
+                                    background: isRunning ? '#6b7280' : (theme === 'dark' ? '#059669' : '#10b981'),
+                                    color: 'white',
+                                    fontSize: '13px',
+                                    fontWeight: 500,
+                                    cursor: isRunning ? 'not-allowed' : 'pointer',
+                                    transition: 'all 0.2s ease',
+                                    opacity: isRunning ? 0.7 : 1,
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.background = theme === 'dark' ? '#047857' : '#059669';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = theme === 'dark' ? '#059669' : '#10b981';
+                                }}
+                            >
+                                {isRunning
+                                    ? <Loader2 style={{ width: 14, height: 14 }} className="animate-spin" />
+                                    : <CheckCircle style={{ width: 14, height: 14 }} />}
+                                Submit Exercise
+                            </button>
+
+                            <button
+                                onClick={() => setShowBackConfirm(true)}
+
+                                style={{
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    width: 28, height: 28, flexShrink: 0,
+                                    borderRadius: 6,
+                                    border: `1px solid ${theme === 'dark' ? '#4b1c1c' : '#fca5a5'}`,
+                                    background: theme === 'dark' ? '#1f0a0a' : '#fef2f2',
+                                    color: theme === 'dark' ? '#f87171' : '#dc2626',
+                                    cursor: 'pointer',
+                                }}
+                                title="Close exercise"
+                            >
+                                <X style={{ width: 13, height: 13 }} />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Back confirmation dialog */}
+                    {showBackConfirm && (
+                        <div style={{ position: 'fixed', inset: 0, zIndex: 99999, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <div style={{ background: theme === 'dark' ? '#1f2937' : '#fff', borderRadius: 12, padding: '28px 32px', width: 360, boxShadow: '0 20px 60px rgba(0,0,0,0.3)', border: `1px solid ${theme === 'dark' ? '#374151' : '#e5e7eb'}` }}>
+                                <p style={{ fontFamily: FONT, fontSize: 16, fontWeight: 700, color: theme === 'dark' ? '#f9fafb' : '#111827', marginBottom: 8 }}>Leave Exercise?</p>
+                                <p style={{ fontFamily: FONT, fontSize: 13, color: theme === 'dark' ? '#9ca3af' : '#6b7280', marginBottom: 24, lineHeight: 1.6 }}>
+                                    Your code is saved, but unsaved progress may be lost. Where would you like to go?
+                                </p>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                    <button onClick={() => { setShowBackConfirm(false); onNavigateToBreadcrumb?.('category'); }} style={{ fontFamily: FONT, fontSize: 13, fontWeight: 600, padding: '9px 16px', borderRadius: 8, border: 'none', background: '#3b82f6', color: '#fff', cursor: 'pointer', textAlign: 'left' }}>
+                                        Back to {category === 'We_Do' ? 'We Do' : category === 'I_Do' ? 'I Do' : category === 'You_Do' ? 'You Do' : 'exercise list'}
+                                    </button>
+                                    {(hierarchy || []).length > 0 && (
+                                        <button onClick={() => { setShowBackConfirm(false); onNavigateToBreadcrumb?.('hierarchy'); }} style={{ fontFamily: FONT, fontSize: 13, fontWeight: 500, padding: '9px 16px', borderRadius: 8, border: `1px solid ${theme === 'dark' ? '#374151' : '#e5e7eb'}`, background: 'none', color: theme === 'dark' ? '#d1d5db' : '#374151', cursor: 'pointer', textAlign: 'left' }}>
+                                            Back to {(hierarchy || []).slice(-1)[0] || 'Topic'}
+                                        </button>
+                                    )}
+                                    <button onClick={() => { setShowBackConfirm(false); onNavigateToBreadcrumb?.('course'); }} style={{ fontFamily: FONT, fontSize: 13, fontWeight: 500, padding: '9px 16px', borderRadius: 8, border: `1px solid ${theme === 'dark' ? '#374151' : '#e5e7eb'}`, background: 'none', color: theme === 'dark' ? '#d1d5db' : '#374151', cursor: 'pointer', textAlign: 'left' }}>
+                                        Back to {courseName || 'Course'}
+                                    </button>
+                                    <button onClick={() => setShowBackConfirm(false)} style={{ fontFamily: FONT, fontSize: 12, fontWeight: 500, padding: '8px 16px', borderRadius: 8, border: 'none', background: 'none', color: theme === 'dark' ? '#6b7280' : '#9ca3af', cursor: 'pointer' }}>
+                                        Stay in Exercise
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Breadcrumb leave-confirm dialog */}
+                    {pendingNavLevel !== null && (
+                        <div style={{ position: 'fixed', inset: 0, zIndex: 99999, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <div style={{ background: theme === 'dark' ? '#1f2937' : '#fff', borderRadius: 12, padding: '28px 32px', width: 360, boxShadow: '0 20px 60px rgba(0,0,0,0.35)', border: `1px solid ${theme === 'dark' ? '#374151' : '#e5e7eb'}` }}>
+                                <p style={{ fontFamily: FONT, fontSize: 16, fontWeight: 700, color: theme === 'dark' ? '#f9fafb' : '#111827', marginBottom: 8 }}>Leave Exercise?</p>
+                                <p style={{ fontFamily: FONT, fontSize: 13, color: theme === 'dark' ? '#9ca3af' : '#6b7280', marginBottom: 24, lineHeight: 1.6 }}>
+                                    Your progress may not be saved if you leave now.
+                                </p>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                    {/* PRIMARY — Stay (dominant, dark) */}
+                                    <button
+                                        onClick={() => setPendingNavLevel(null)}
+                                        style={{ fontFamily: FONT, fontSize: 13, fontWeight: 700, padding: '11px 16px', borderRadius: 8, border: 'none', background: theme === 'dark' ? '#f9fafb' : '#111827', color: theme === 'dark' ? '#111827' : '#fff', cursor: 'pointer', textAlign: 'center' }}
+                                    >
+                                        Stay in Exercise
+                                    </button>
+                                    {/* SECONDARY — Leave (outlined) */}
+                                    <button
+                                        onClick={() => { onNavigateToBreadcrumb?.(pendingNavLevel); setPendingNavLevel(null); }}
+                                        style={{ fontFamily: FONT, fontSize: 13, fontWeight: 500, padding: '10px 16px', borderRadius: 8, border: `1px solid ${theme === 'dark' ? '#374151' : '#d1d5db'}`, background: 'none', color: theme === 'dark' ? '#9ca3af' : '#6b7280', cursor: 'pointer', textAlign: 'center' }}
+                                    >
+                                        Leave
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    {/* Row 2 — Difficulty dropdown + stats pills */}
+                    {/* Row 2 — Difficulty dropdown + stats pills */}
+                    <div
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '6px 14px',
+                            background: theme === 'dark' ? '#111827' : '#f9fafb',
+                            gap: 10,
+                            flexWrap: 'wrap',
+                        }}
+                    >
+                        {/* Left side — Difficulty Dropdown */}
+
+
+                        {/* Center — Info Buttons (MCQ-style) */}
+                        <ExerciseInfoButtons
+                            onDetailsClick={() => setShowDetailsModal(true)}
+                            onOverviewClick={() => setShowOverviewModal(true)}
+                            isGraded={exData?.isGraded !== false}
+                            detailsActive={showDetailsModal}
+                            overviewActive={showOverviewModal}
+                        />
+
+                        {/* Right side — Total Marks badge + MCQ-style Timer */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                            {/* Total Marks badge — always visible when graded */}
+                            {exData?.isGraded !== false && (() => {
+                                const _ss = exData?.questionConfiguration?.programmingQuestionConfiguration?.scoreSettings;
+                                const _progCalc = _ss
+                                    ? _ss.scoreType === 'evenMarks' && _ss.evenMarks
+                                        ? _ss.evenMarks * (problems.length || 1)
+                                        : (['easy', 'medium', 'hard'] as const).reduce(
+                                            (s, d) => s + ((_ss.levelScoringConfiguration as any)?.[d]?.totalMarks || 0), 0
+                                          )
+                                    : 0;
+                                const tm =
+                                    exData?.exerciseInformation?.totalMarksProgramming ||
+                                    exData?.exerciseInformation?.totalMarks ||
+                                    exData?.exerciseInformation?.totalPoints ||
+                                    _progCalc || 0;
+                                return (
+                                    <span style={{
+                                        fontSize: 11, fontWeight: 600,
+                                        padding: '3px 10px', borderRadius: 99,
+                                        background: theme === 'dark' ? '#1a3a2a' : '#dcfce7',
+                                        color: theme === 'dark' ? '#86efac' : '#15803d',
+                                        display: 'flex', alignItems: 'center', gap: 4,
+                                        fontFamily: FONT, whiteSpace: 'nowrap',
+                                    }}>
+                                        <Award style={{ width: 12, height: 12 }} />
+                                        Total marks: {tm}
+                                    </span>
+                                );
+                            })()}
+
+                            {/* MCQ-style timer with progress bar */}
+                            {exerciseTimeLeft !== null && (exData?.exerciseInformation?.totalDuration || 0) > 0 && (() => {
+                                const totalSecs = (exData?.exerciseInformation?.totalDuration || 0) * 60;
+                                const pct = totalSecs > 0 ? Math.max(0, (exerciseTimeLeft / totalSecs) * 100) : 0;
+                                const isDanger = exerciseTimeLeft < 60;
+                                const isWarning = exerciseTimeLeft < 300 && !isDanger;
+                                const tcol = isDanger ? '#ef4444' : isWarning ? '#f59e0b' : '#F27757';
+                                return (
+                                    <div style={{ minWidth: 130 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                <Clock style={{ width: 12, height: 12, color: tcol }} />
+                                                <span style={{ fontSize: 11, color: '#9b9bae', fontWeight: 600, fontFamily: FONT }}>Time Left</span>
+                                            </div>
+                                            <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: 14, fontWeight: 800, color: tcol, animation: isDanger ? 'pulse 1s ease-in-out infinite' : 'none' }}>
+                                                {formatExerciseTime(exerciseTimeLeft)}
+                                            </span>
+                                        </div>
+                                        <div style={{ height: 4, borderRadius: 99, background: theme === 'dark' ? '#374151' : '#f4f4f7', overflow: 'hidden' }}>
+                                            <div style={{ height: '100%', width: `${pct}%`, background: tcol, borderRadius: 99, transition: 'width 1s linear' }} />
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+
             <div className={`flex items-center justify-between p-2.5 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-300'}`}>
                 <div className="flex items-center gap-3">
                     <button
@@ -2996,30 +3632,125 @@ function solve() {
                             <button
                                 onClick={prevProblem}
                                 disabled={currentProblemIndex === 0}
-                                className={`w-7 h-7 flex items-center justify-center border rounded ${theme === 'dark' ? 'border-gray-600 hover:bg-gray-700 text-gray-300' : 'border-gray-300 hover:bg-gray-200 text-gray-700'} disabled:opacity-50`}
+                                className={`px-2.5 h-7 flex items-center justify-center gap-1 border rounded text-xs font-medium transition-colors ${theme === 'dark'
+                                    ? 'border-indigo-500 bg-indigo-900/50 hover:bg-indigo-800 text-indigo-200 disabled:text-indigo-700'
+                                    : 'border-indigo-300 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 disabled:text-indigo-300'
+                                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                title="Previous Problem"
                             >
-                                <ChevronLeft className="w-3.5 h-3.5" />
+                                <ChevronLeft className="w-3 h-3" /> Prev
                             </button>
-                            <span className="text-xs font-medium">{currentProblemIndex + 1}/{problems.length}</span>
+                            <span className={`text-xs font-semibold min-w-[40px] text-center ${theme === 'dark' ? 'text-emerald-400' : 'text-emerald-600'}`} aria-label={`Problem ${currentProblemIndex + 1} of ${problems.length}`}>
+                                {currentProblemIndex + 1}/{problems.length}
+                            </span>
                             <button
                                 onClick={nextProblem}
-                                disabled={currentProblemIndex === problems.length - 1 || (!exercise?.questionBehavior?.allowNext && !isQuestionSolved(currentProblemIndex))}
-                                className={`w-7 h-7 flex items-center justify-center border rounded ${theme === 'dark' ? 'border-gray-600 hover:bg-gray-700 text-gray-300' : 'border-gray-300 hover:bg-gray-200 text-gray-700'} disabled:opacity-50`}
+                                disabled={currentProblemIndex === problems.length - 1 || (!isFreeFlow && !isQuestionSolved(currentProblemIndex))}
+                                className={`px-2.5 h-7 flex items-center justify-center gap-1 border rounded text-xs font-medium transition-colors ${theme === 'dark'
+                                    ? 'border-blue-500 bg-blue-900/50 hover:bg-blue-800 text-blue-200 disabled:text-blue-700'
+                                    : 'border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-700 disabled:text-blue-300'
+                                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                title="Next Problem"
                             >
-                                <ChevronRight className="w-3.5 h-3.5" />
+                                Next <ChevronRight className="w-3 h-3" />
                             </button>
                             {exercise?.questionBehavior?.allowSkip && (
                                 <button
                                     onClick={skipCurrentQuestion}
                                     disabled={currentProblemIndex === problems.length - 1}
-                                    className={`w-7 h-7 flex items-center justify-center border rounded ${theme === 'dark' ? 'border-gray-600 hover:bg-gray-700 text-gray-300' : 'border-gray-300 hover:bg-gray-200 text-gray-700'}`}
+                                    className={`w-7 h-7 flex items-center justify-center border rounded transition-colors ${theme === 'dark'
+                                        ? 'border-amber-500 bg-amber-900/50 hover:bg-amber-800 text-amber-200'
+                                        : 'border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-700'
+                                        }`}
                                     title="Skip Question"
+                                    aria-label="Skip current question"
                                 >
                                     <SkipForward className="w-3.5 h-3.5" />
                                 </button>
                             )}
                         </div>
                     )}
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        {availableDifficulties.length > 0 && (
+                            <>
+                                <span style={{
+                                    fontSize: 11,
+                                    color: theme === 'dark' ? '#9ca3af' : '#6b7280',
+                                    fontFamily: FONT,
+                                    fontWeight: 400,
+                                }}>
+                                    Difficulty
+                                </span>
+
+                                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                    <select
+                                        value={selectedDifficulty}
+                                        onChange={(e) => {
+                                            setSelectedDifficulty(e.target.value);
+                                            if (e.target.value !== 'all') jumpToDifficulty(e.target.value);
+                                        }}
+                                        style={{
+                                            appearance: 'none',
+                                            WebkitAppearance: 'none',
+                                            height: 28,
+                                            padding: '0 28px 0 10px',
+                                            borderRadius: 99,
+                                            border: `1px solid ${selectedDifficulty === 'easy' ? '#16a34a' :
+                                                selectedDifficulty === 'medium' ? '#d97706' :
+                                                    selectedDifficulty === 'hard' ? '#dc2626' :
+                                                        (theme === 'dark' ? '#374151' : '#d1d5db')
+                                                }`,
+                                            background: theme === 'dark' ? '#1f2937' : '#ffffff',
+                                            color: selectedDifficulty === 'easy' ? '#16a34a' :
+                                                selectedDifficulty === 'medium' ? '#d97706' :
+                                                    selectedDifficulty === 'hard' ? '#dc2626' :
+                                                        (theme === 'dark' ? '#9ca3af' : '#6b7280'),
+                                            fontFamily: FONT,
+                                            fontSize: 12,
+                                            fontWeight: 500,
+                                            cursor: 'pointer',
+                                            outline: 'none',
+                                            transition: 'border-color 0.15s, color 0.15s',
+                                        }}
+                                    >
+                                        <option value="all">All difficulties</option>
+                                        {availableDifficulties.map((diff) => {
+                                            const label = diff.charAt(0).toUpperCase() + diff.slice(1);
+                                            const count = difficultyMap[diff].count;
+                                            return (
+                                                <option key={diff} value={diff}>
+                                                    {label} ({count})
+                                                </option>
+                                            );
+                                        })}
+                                    </select>
+
+                                    {/* Custom chevron */}
+                                    <svg
+                                        viewBox="0 0 12 12"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="1.5"
+                                        style={{
+                                            position: 'absolute',
+                                            right: 9,
+                                            pointerEvents: 'none',
+                                            width: 12,
+                                            height: 12,
+                                            color: selectedDifficulty === 'easy' ? '#16a34a' :
+                                                selectedDifficulty === 'medium' ? '#d97706' :
+                                                    selectedDifficulty === 'hard' ? '#dc2626' :
+                                                        (theme === 'dark' ? '#9ca3af' : '#6b7280'),
+                                        }}
+                                    >
+                                        <path d="M2 4l4 4 4-4" />
+                                    </svg>
+                                </div>
+
+                            </>
+                        )}
+                    </div>
 
                     {/* In the main render, around line ~1430 */}
                     {isAssessmentMode && hasStarted && securitySettings.screenRecordingEnabled && (
@@ -3071,13 +3802,15 @@ function solve() {
                     )}
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2" style={{ justifyContent: 'flex-end' }}>
                     {/* {isAssessmentMode && hasStarted && tabSwitchCount > 0 && (
                         <div className="flex items-center gap-1 px-2 py-1 bg-yellow-900/50 rounded text-xs">
                             <AlertTriangle className="w-3 h-3" />
                             Tab Switches: {tabSwitchCount}/3
                         </div>
                     )} */}
+
+
 
                     {/* Language Selector */}
                     {/* Language Selector */}
@@ -3095,15 +3828,7 @@ function solve() {
                         ))}
                     </select>
 
-                    <button
-                        onClick={() => setShowTerminal(true)}
-                        className={`h-7 px-2 text-xs border rounded flex items-center gap-1 ${theme === 'dark' ? 'border-gray-600 hover:bg-gray-700 text-gray-300' : 'border-gray-300 hover:bg-gray-200 text-gray-700'}`}
-                    >
-                        <Terminal className="w-3 h-3" />
-                        Console
-                    </button>
-
-                    {/* Add the Exit button right after the Console button */}
+                    {/* Add the Exit button */}
                     {isAssessmentMode && hasStarted && (
                         <button
                             onClick={() => {
@@ -3119,25 +3844,68 @@ function solve() {
                         </button>
                     )}
 
-                    <button
+                    {/* ── Prev / Submit / Next ── */}
+                    {/* {problems.length > 1 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, borderLeft: `1px solid ${theme === 'dark' ? '#374151' : '#e5e7eb'}`, paddingLeft: 8 }}>
+                            {currentProblemIndex > 0 ? (
+                                <button onClick={prevProblem} style={{ display: 'flex', alignItems: 'center', gap: 3, height: 28, padding: '0 10px', fontSize: 12, fontFamily: FONT, fontWeight: 500, borderRadius: 6, border: `1px solid ${theme === 'dark' ? '#374151' : '#d1d5db'}`, background: theme === 'dark' ? '#1f2937' : '#fff', color: theme === 'dark' ? '#d1d5db' : '#374151', cursor: 'pointer' }}>
+                                    <ChevronLeft style={{ width: 13, height: 13 }} />Prev
+                                </button>
+                            ) : (
+                                <div style={{ width: 64 }} /> 
+                            )}
+
+                            <button
+                                onClick={submitCode}
+                                disabled={isRunning || (exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1))}
+                                style={{ display: 'flex', alignItems: 'center', gap: 3, height: 28, padding: '0 14px', fontSize: 12, fontFamily: FONT, fontWeight: 600, borderRadius: 6, border: 'none', background: (exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1)) ? '#9ca3af' : '#22c55e', color: '#fff', cursor: isRunning ? 'not-allowed' : 'pointer', opacity: isRunning ? 0.7 : 1 }}
+                            >
+                                {isRunning ? <Loader2 style={{ width: 12, height: 12 }} className="animate-spin" /> : <CheckCircle style={{ width: 12, height: 12 }} />}
+                                {(exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1)) ? 'Limit' : 'Submit'}
+                            </button>
+
+                            {currentProblemIndex < problems.length - 1 && (isFreeFlow || solvedQuestions.has(currentProblemIndex)) ? (
+                                <button onClick={nextProblem} style={{ display: 'flex', alignItems: 'center', gap: 3, height: 28, padding: '0 10px', fontSize: 12, fontFamily: FONT, fontWeight: 500, borderRadius: 6, border: `1px solid ${theme === 'dark' ? '#374151' : '#d1d5db'}`, background: theme === 'dark' ? '#1f2937' : '#fff', color: theme === 'dark' ? '#d1d5db' : '#374151', cursor: 'pointer' }}>
+                                    Next<ChevronRight style={{ width: 13, height: 13 }} />
+                                </button>
+                            ) : (
+                                <div style={{ width: 64 }} /> 
+                        </div>
+                    )} */}
+
+
+                    {/* CENTER — Submit + Run */}
+                    {/* CENTER — Run only */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}>
+                        <button
+                            onClick={runCode}
+                            disabled={isRunning}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: 4,
+                                height: 30, padding: '0 16px',
+                                fontSize: 12, fontFamily: FONT, fontWeight: 600,
+                                borderRadius: 6, border: 'none',
+                                background: '#3b82f6', color: '#fff',
+                                cursor: isRunning ? 'not-allowed' : 'pointer',
+                                opacity: isRunning ? 0.7 : 1,
+                            }}
+                        >
+                            {isRunning ? <Loader2 style={{ width: 13, height: 13 }} className="animate-spin" /> : <Play style={{ width: 13, height: 13 }} />}
+                            Run
+                        </button>
+                    </div>
+                    <div style={{ width: 1, height: 18, background: theme === 'dark' ? '#374151' : '#e5e7eb' }} />
+
+                    {/* <button
                         onClick={runCode}
                         disabled={isRunning}
                         className="h-7 px-2 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 flex items-center gap-1"
+                        style={{ fontFamily: FONT }}
                     >
                         {isRunning ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
                         Run
-                    </button>
+                    </button> */}
 
-                    <button
-                        onClick={submitCode}
-                        disabled={isRunning || (exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1))}
-                        className="h-7 px-2 text-xs bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50 flex items-center gap-1 disabled:cursor-not-allowed"
-                    >
-                        {isRunning ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle className="w-3 h-3" />}
-                        {exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1)
-                            ? "Limit Reached"
-                            : "Submit"}
-                    </button>
                     <button
                         onClick={toggleFullscreen}
                         className={`w-7 h-7 flex items-center justify-center border rounded ${theme === 'dark' ? 'border-gray-600 bg-gray-800 hover:bg-gray-700 text-gray-300' : 'border-gray-300 bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
@@ -3248,30 +4016,40 @@ function solve() {
                                                 ? (theme === 'dark' ? 'bg-blue-900/20 border-l-2 border-l-blue-500' : 'bg-blue-50 border-l-2 border-l-blue-500')
                                                 : (theme === 'dark' ? 'hover:bg-gray-800' : 'hover:bg-gray-50')}`}
                                         >
-                                            <div className="flex justify-between items-start">
-                                                <div className="flex-1">
-                                                    <div className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                                                        {originalIndex + 1}. {p.title}
-                                                    </div>
-                                                    <div className="flex gap-2 mt-1 items-center">
-                                                        <span className={`text-[10px] px-1.5 py-0.5 rounded ${p.difficulty === 'Easy'
-                                                            ? (theme === 'dark' ? 'bg-green-900/30 text-green-300' : 'bg-green-100 text-green-800')
-                                                            : p.difficulty === 'Medium'
-                                                                ? (theme === 'dark' ? 'bg-yellow-900/30 text-yellow-300' : 'bg-yellow-100 text-yellow-800')
-                                                                : (theme === 'dark' ? 'bg-red-900/30 text-red-300' : 'bg-red-100 text-red-800')}`}>
-                                                            {p.difficulty}
-                                                        </span>
-                                                        {solvedQuestions.has(originalIndex) && (
-                                                            <CheckCircle className="w-3.5 h-3.5 text-green-500" />
-                                                        )}
-                                                        {skippedQuestions.has(originalIndex) && (
-                                                            <span className={`text-[10px] px-1.5 py-0.5 rounded ${theme === 'dark' ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-600'}`}>
-                                                                Skipped
-                                                            </span>
-                                                        )}
-                                                    </div>
+                                            <div className="flex items-center justify-between gap-2">
+                                                {/* Left: number + title */}
+                                                <div className={`text-sm font-medium truncate flex-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                                                    {originalIndex + 1}. {p.title}
                                                 </div>
-                                                <ChevronRight className="w-4 h-4 text-gray-400" />
+                                                {/* Right: badges */}
+                                                <div className="flex items-center gap-1.5 flex-shrink-0">
+                                                    {/* Difficulty */}
+                                                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${p.difficulty === 'Easy' ? (theme === 'dark' ? 'bg-green-900/30 text-green-300' : 'bg-green-100 text-green-800') : p.difficulty === 'Medium' ? (theme === 'dark' ? 'bg-yellow-900/30 text-yellow-300' : 'bg-yellow-100 text-yellow-800') : (theme === 'dark' ? 'bg-red-900/30 text-red-300' : 'bg-red-100 text-red-800')}`}>
+                                                        {p.difficulty}
+                                                    </span>
+                                                    {/* Marks badge — hidden for non-graded */}
+                                                    {exercise?.isGraded !== false && (() => {
+                                                        const qMarks = exercise?.questions?.[originalIndex]?.score ?? exercise?.questions?.[originalIndex]?.points ?? null;
+                                                        if (qMarks == null) return null;
+                                                        return (
+                                                            <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 99, background: theme === 'dark' ? '#1a3a2a' : '#dcfce7', color: theme === 'dark' ? '#86efac' : '#15803d', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                                                                {qMarks} {qMarks === 1 ? 'mark' : 'marks'}
+                                                            </span>
+                                                        );
+                                                    })()}
+                                                    {/* Submitted badge — only after submission */}
+                                                    {solvedQuestions.has(originalIndex) && (
+                                                        <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 99, background: theme === 'dark' ? '#14532d' : '#dcfce7', color: theme === 'dark' ? '#4ade80' : '#166534', fontWeight: 600, border: `1px solid ${theme === 'dark' ? '#166534' : '#86efac'}`, whiteSpace: 'nowrap' }}>
+                                                            Submitted
+                                                        </span>
+                                                    )}
+                                                    {/* Skipped badge */}
+                                                    {skippedQuestions.has(originalIndex) && (
+                                                        <span className={`text-[10px] px-1.5 py-0.5 rounded ${theme === 'dark' ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-600'}`}>
+                                                            Skipped
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
                                         </button>
                                     );
@@ -3284,11 +4062,55 @@ function solve() {
                     <div className="flex-1 overflow-y-auto custom-scrollbar">
                         <div className={`p-5 space-y-6 ${theme === 'dark' ? 'bg-gray-900' : 'bg-white'}`}>
                             <div>
-                                <h1 className={`text-xl font-semibold mb-1.5 ${theme === 'dark' ? 'text-white' : 'text-gray-700'}`}>{problem?.title || "Problem"}</h1>
-                                <div className="flex items-center gap-2">
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+                                    <span style={{
+                                        fontSize: 11, fontWeight: 600,
+                                        padding: '2px 8px', borderRadius: 99,
+                                        background: theme === 'dark' ? '#1e3a5f' : '#dbeafe',
+                                        color: theme === 'dark' ? '#93c5fd' : '#1d4ed8',
+                                        fontFamily: FONT,
+                                        whiteSpace: 'nowrap',
+                                    }}>
+                                        Q {currentProblemIndex + 1} / {problems.length}
+                                    </span>
+                                    <span style={{
+                                        fontSize: 11, fontWeight: 500,
+                                        padding: '2px 8px', borderRadius: 99,
+                                        background: theme === 'dark' ? '#1f2937' : '#f3f4f6',
+                                        color: theme === 'dark' ? '#9ca3af' : '#4b5563',
+                                        fontFamily: 'ui-monospace, monospace',
+                                        whiteSpace: 'nowrap',
+                                    }}>
+                                        {formatLanguageName(selectedLanguage)}
+                                    </span>
+                                </div>
+                                <h1 style={{ fontFamily: FONT }} className={`text-xl font-semibold mb-1.5 ${theme === 'dark' ? 'text-white' : 'text-gray-700'}`}>{problem?.title || "Problem"}</h1>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    {/* Difficulty badge */}
                                     <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${problem?.difficulty === "Easy" ? (theme === 'dark' ? 'bg-green-900/30 text-green-300' : 'bg-green-100 text-green-800') : problem?.difficulty === "Medium" ? (theme === 'dark' ? 'bg-yellow-900/30 text-yellow-300' : 'bg-yellow-100 text-yellow-800') : (theme === 'dark' ? 'bg-red-900/30 text-red-300' : 'bg-red-100 text-red-800')}`}>
                                         {problem?.difficulty || "Easy"}
                                     </span>
+                                    {/* Marks badge — hidden for non-graded */}
+                                    {exercise?.isGraded !== false && (() => {
+                                        const currentQ = currentQuestion ?? exercise?.questions?.[currentProblemIndex];
+                                        const ss = exercise?.questionConfiguration?.programmingQuestionConfiguration?.scoreSettings;
+                                        const diff = (currentQ?.difficulty || '').toLowerCase() as 'easy' | 'medium' | 'hard';
+                                        let m: number | null = null;
+                                        if (ss?.scoreType === 'evenMarks') m = ss.evenMarks ?? null;
+                                        else if (ss?.scoreType === 'levelBasedMarks' && ss.levelBasedMarks === 'level_specific') {
+                                            const lc = ss.levelScoringConfiguration?.[diff];
+                                            m = lc?.marksPerQuestion ?? lc?.totalMarks ?? null;
+                                        } else {
+                                            m = currentQ?.score ?? currentQ?.points ?? null;
+                                        }
+                                        if (m == null) return null;
+                                        return (
+                                            <span style={{ fontSize: 11, fontFamily: FONT, fontWeight: 600, padding: '2px 9px', borderRadius: 99, background: theme === 'dark' ? '#1a3a2a' : '#dcfce7', color: theme === 'dark' ? '#86efac' : '#15803d', whiteSpace: 'nowrap' }}>
+                                                {m} {m === 1 ? 'mark' : 'marks'}
+                                            </span>
+                                        );
+                                    })()}
+                                    {/* Attempts badge */}
                                     {exercise?.questionBehavior?.attemptLimitEnabled && (
                                         <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border flex items-center gap-1 ${userAttempts >= (exercise.questionBehavior.maxAttempts || 1) ? (theme === 'dark' ? 'bg-red-900/30 text-red-300 border-red-800' : 'bg-red-100 text-red-800 border-red-200') : (theme === 'dark' ? 'bg-blue-900/30 text-blue-300 border-blue-800' : 'bg-blue-100 text-blue-800 border-blue-200')}`}>
                                             {userAttempts >= (exercise.questionBehavior.maxAttempts || 1) && <AlertTriangle className="w-3 h-3" />}
@@ -3364,6 +4186,7 @@ function solve() {
                             )}
                         </div>
                     </div>
+
                 </div>
 
                 {!showSidebar && (
@@ -3376,8 +4199,10 @@ function solve() {
                     </div>
                 )}
 
-                <div className="flex flex-col flex-1 min-w-0 h-full custom-scrollbar" style={{ width: `${100 - leftPanelWidth}%` }}>
-                    <div className="flex flex-col" style={{ height: `75%`, minHeight: `75%`, position: 'relative' }}>
+                <div className="flex flex-col flex-1 min-w-0 h-full" style={{ width: `${100 - leftPanelWidth}%` }}>
+
+                    {/* ── Editor (top, resizable) ── */}
+                    <div className="flex flex-col" style={{ height: `${rightPanelSplit}%`, minHeight: 0 }}>
                         <div className={`flex items-center justify-between p-2 border-b ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-gray-50'}`}>
                             <div className="flex items-center gap-1.5">
                                 <Code className={`w-4 h-4 ${theme === 'dark' ? 'text-blue-400' : 'text-blue-500'}`} />
@@ -3400,12 +4225,359 @@ function solve() {
                                 options={{
                                     minimap: { enabled: true },
                                     fontSize: 14,
+                                    fontFamily: FONT,
                                     readOnly: isAssessmentMode && !hasStarted
                                 }}
                             />
                         </div>
                     </div>
+
+                    {/* ── Drag handle ── */}
+                    <div
+                        className={`h-2 flex items-center justify-center cursor-row-resize flex-shrink-0 transition-colors ${theme === 'dark' ? 'hover:bg-blue-900/40 bg-gray-800' : 'hover:bg-blue-100 bg-gray-100'}`}
+                        onMouseDown={(e) => { setIsHorizontalResizing(true); e.preventDefault(); }}
+                    >
+                        <div className={`w-12 h-1 rounded-full ${theme === 'dark' ? 'bg-gray-600' : 'bg-gray-300'}`} />
+                    </div>
+
+                    {/* ── Console / Output (bottom, resizable) ── */}
+                    <div className="flex flex-col flex-1 min-h-0" style={{ height: `${100 - rightPanelSplit}%` }}>
+                        {/* Tab bar */}
+                        <div className={`flex items-center justify-between gap-0 border-b flex-shrink-0 ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-gray-50'}`}>
+                            {/* Left side - Tabs */}
+                            <div className="flex items-center gap-0">
+                                <div className={`flex items-center gap-1.5 px-3 py-1.5 border-b-2 border-blue-500 ${theme === 'dark' ? 'text-blue-400' : 'text-blue-600'}`}>
+                                    <Terminal className="w-3.5 h-3.5" />
+                                    <span className="text-xs font-medium">Console</span>
+                                    {isRunning && <Loader2 className="w-3 h-3 animate-spin" />}
+                                </div>
+                                {/* Add more tabs here if needed */}
+                            </div>
+
+                            {/* Right side - Buttons */}
+                            <div className="flex items-center gap-2 mr-2">
+                                {/* Submit Button - Normal question submission (not final test) */}
+                                <button
+                                    onClick={async () => {
+                                        // ── Attempt limit check ──
+                                        if (exercise?.questionBehavior?.attemptLimitEnabled) {
+                                            const max = exercise.questionBehavior.maxAttempts || 1;
+                                            if (userAttempts >= max) {
+                                                showToast({
+                                                    type: 'error',
+                                                    title: 'Limit Reached',
+                                                    message: `Maximum attempts reached (${userAttempts}/${max}). You cannot submit again.`,
+                                                    duration: 4000
+                                                });
+                                                return;
+                                            }
+                                        }
+
+                                        try {
+                                            if (currentQuestion) {
+                                                const liveQuestion = exercise?.questions?.[currentProblemIndex];
+
+                                                // Submit with isTestSubmission = false for normal question submission
+                                                await submitProgressToBackend(
+                                                    liveQuestion?._id || currentQuestion._id,
+                                                    'submitted',
+                                                    0,
+                                                    false  // ← false = normal question submission, not test completion
+                                                );
+                                            }
+
+                                            // Mark current question as solved
+                                            setSolvedQuestions(prev => {
+                                                const newSet = new Set(prev);
+                                                newSet.add(currentProblemIndex);
+                                                return newSet;
+                                            });
+
+                                            showToast({
+                                                type: 'success',
+                                                title: 'Question Submitted',
+                                                message: `Question ${currentProblemIndex + 1} submitted successfully.`,
+                                                duration: 3000
+                                            });
+
+                                            // Auto-navigate to next question if free flow and not last question
+                                            if (isFreeFlow && currentProblemIndex < problems.length - 1) {
+                                                setTimeout(() => {
+                                                    setCurrentProblemIndex(currentProblemIndex + 1);
+                                                    addTerminalLog('system', '➡️ Moving to next question...');
+                                                }, 1500);
+                                            }
+
+                                        } catch (error: any) {
+                                            showToast({
+                                                type: 'error',
+                                                title: 'Submission Failed',
+                                                message: error.message || 'Could not submit question.',
+                                                duration: 4000
+                                            });
+                                        }
+                                    }}
+                                    disabled={isRunning || (exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1))}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: 4,
+                                        height: 30, padding: '0 18px',
+                                        fontSize: 12, fontFamily: FONT, fontWeight: 600,
+                                        borderRadius: 6, border: 'none',
+                                        background: (exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1))
+                                            ? '#9ca3af' : '#22c55e',
+                                        color: '#fff',
+                                        cursor: isRunning ? 'not-allowed' : 'pointer',
+                                        opacity: isRunning ? 0.7 : 1,
+                                    }}
+                                >
+                                    {isRunning
+                                        ? <Loader2 style={{ width: 13, height: 13 }} className="animate-spin" />
+                                        : <CheckCircle style={{ width: 13, height: 13 }} />}
+                                    {(exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1))
+                                        ? 'Limit Reached' : 'Submit Question'}
+                                </button>
+
+                                {/* Clear button */}
+                                <button
+                                    onClick={clearTerminal}
+                                    className={`flex items-center gap-1 px-2 py-1 text-[10px] rounded transition-colors ${theme === 'dark' ? 'text-gray-500 hover:text-gray-300 hover:bg-gray-700' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-200'}`}
+                                    title="Clear console"
+                                >
+                                    <Trash2 className="w-3 h-3" /> Clear
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Log output area */}
+                        <div
+                            className={`flex-1 overflow-y-auto p-3 font-mono text-xs custom-scrollbar ${theme === 'dark' ? 'bg-gray-950 text-slate-300' : 'bg-white text-gray-800'}`}
+                        >
+                            {terminalLogs.length === 0 && !isRunning && (
+                                <span className={`italic ${theme === 'dark' ? 'text-gray-600' : 'text-gray-400'}`}>
+                                    Run code to see output here...
+                                </span>
+                            )}
+
+                            {terminalLogs.map((log) => (
+                                <div key={log.id} className="whitespace-pre-wrap leading-relaxed break-all mb-0.5">
+                                    {log.type === 'stdout' && <span className={theme === 'dark' ? 'text-slate-300' : 'text-gray-800'}>{log.content}</span>}
+                                    {log.type === 'stderr' && <span className="text-red-500">{log.content}</span>}
+                                    {log.type === 'error' && <span className="text-red-500">{log.content}</span>}
+                                    {log.type === 'system' && <span className={theme === 'dark' ? 'text-emerald-400 italic' : 'text-green-600 italic'}>➜ {log.content}</span>}
+                                    {log.type === 'success' && <span className="text-green-500">{log.content}</span>}
+                                    {log.type === 'info' && <span className="text-blue-500">{log.content}</span>}
+                                    {log.type === 'warning' && <span className="text-yellow-500">{log.content}</span>}
+                                    {log.type === 'stdin' && <span className={theme === 'dark' ? 'text-amber-400' : 'text-amber-600'}>$ {log.content}</span>}
+                                </div>
+                            ))}
+
+                            {isRunning && (
+                                <div className="flex items-center gap-2 mt-1">
+                                    <Loader2 className="w-3 h-3 animate-spin text-emerald-500" />
+                                    <span className={theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}>Executing...</span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
                 </div>
+                {/* ── Exercise Info Right Panel ── */}
+                {/* {showExerciseInfo && exercise && (
+                    <div style={{
+                        width: 320,
+                        borderLeft: `1px solid ${theme === 'dark' ? '#374151' : '#e5e7eb'}`,
+                        background: theme === 'dark' ? '#0f172a' : '#fefce8',
+                        display: 'flex', flexDirection: 'column',
+                        overflow: 'hidden', flexShrink: 0,
+                    }}>
+                        <div style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                            padding: '14px 20px',
+                            borderBottom: `1px solid ${theme === 'dark' ? '#334155' : '#e2e8f0'}`,
+                            flexShrink: 0,
+                            background: theme === 'dark' ? '#1e293b' : '#ffffff',
+                        }}>
+                            <span style={{ fontSize: 15, fontWeight: 600, color: theme === 'dark' ? '#f1f5f9' : '#0f172a' }}>
+                                📋 Exercise Information
+                            </span>
+                            <button
+                                onClick={() => setShowExerciseInfo(false)}
+                                style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    color: theme === 'dark' ? '#94a3b8' : '#64748b',
+                                    padding: 4,
+                                    borderRadius: 6,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                }}
+                            >
+                                <X style={{ width: 16, height: 16 }} />
+                            </button>
+                        </div>
+
+                        <div className="custom-scrollbar" style={{ flex: 1, overflowY: 'auto', padding: 0 }}>
+
+                            <div style={{ padding: '20px', background: theme === 'dark' ? '#1e293b' : '#f8fafc', borderBottom: `1px solid ${theme === 'dark' ? '#334155' : '#e2e8f0'}` }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                                    <span style={{ fontSize: 16 }}>📖</span>
+                                    <span style={{ fontSize: 12, fontWeight: 700, color: theme === 'dark' ? '#94a3b8' : '#64748b', letterSpacing: '0.6px', textTransform: 'uppercase' }}>Exercise Overview</span>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                    <InfoRow label="Name" value={exercise.exerciseInformation?.exerciseName} theme={theme} />
+                                    <InfoRow label="Level" value={exercise.exerciseInformation?.exerciseLevel ? exercise.exerciseInformation.exerciseLevel.charAt(0).toUpperCase() + exercise.exerciseInformation.exerciseLevel.slice(1) : undefined} theme={theme} />
+                                    {exercise.exerciseInformation?.totalDuration != null && (
+                                        <InfoRow label="Duration" value={`${exercise.exerciseInformation.totalDuration} min`} theme={theme} />
+                                    )}
+                                    {(() => {
+                                        const tm = exercise.exerciseInformation?.totalMarksProgramming ?? exercise.exerciseInformation?.totalMarks ?? exercise.exerciseInformation?.totalPoints;
+                                        return tm != null ? <InfoRow label="Total Marks" value={`${tm}`} theme={theme} /> : null;
+                                    })()}
+                                    <InfoRow label="Questions" value={`${exercise.questions?.length ?? 0}`} theme={theme} />
+                                    {exercise.programmingSettings?.selectedLanguages?.length > 0 && (
+                                        <InfoRow label="Languages" value={exercise.programmingSettings.selectedLanguages.map((l: string) => l.charAt(0).toUpperCase() + l.slice(1)).join(', ')} theme={theme} />
+                                    )}
+                                    {exercise.availabilityPeriod?.startDate && (
+                                        <InfoRow label="From" value={new Date(exercise.availabilityPeriod.startDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })} theme={theme} />
+                                    )}
+                                    {exercise.availabilityPeriod?.endDate && (
+                                        <InfoRow label="Until" value={new Date(exercise.availabilityPeriod.endDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })} theme={theme} />
+                                    )}
+                                </div>
+                            </div>
+
+                            {(() => {
+                                const qConfig = exercise.questionConfiguration?.programmingQuestionConfiguration;
+                                const configType = qConfig?.questionConfigType ?? 'general';
+                                const ss = qConfig?.scoreSettings;
+                                const isLevelBased = configType === 'levelBased' || configType === 'selectionLevel';
+
+                                return (
+                                    <div style={{ padding: '20px', background: theme === 'dark' ? '#0f172a' : '#ffffff', borderBottom: `1px solid ${theme === 'dark' ? '#1e293b' : '#e2e8f0'}` }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                                            <span style={{ fontSize: 16 }}>🗂️</span>
+                                            <span style={{ fontSize: 12, fontWeight: 700, color: theme === 'dark' ? '#94a3b8' : '#64748b', letterSpacing: '0.6px', textTransform: 'uppercase' }}>Questions Quota</span>
+                                        </div>
+
+                                        {!isLevelBased ? (
+                                            <div style={{
+                                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                                padding: '10px 14px', borderRadius: 8,
+                                                background: theme === 'dark' ? '#1e293b' : '#f1f5f9',
+                                                border: `1px solid ${theme === 'dark' ? '#334155' : '#e2e8f0'}`,
+                                            }}>
+                                                <span style={{ fontSize: 12, color: theme === 'dark' ? '#94a3b8' : '#64748b', fontWeight: 500 }}>Total Questions</span>
+                                                <span style={{ fontSize: 18, fontWeight: 700, color: theme === 'dark' ? '#f1f5f9' : '#0f172a' }}>
+                                                    {exercise.questions?.length ?? 0}
+                                                </span>
+                                            </div>
+                                        ) : (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                                {(['easy', 'medium', 'hard'] as const).map(diff => {
+                                                    const entry = difficultyMap[diff];
+                                                    if (!entry) return null;
+                                                    const lsc = ss?.levelScoringConfiguration?.[diff];
+                                                    const marksPerQ = lsc?.marksPerQuestion ?? ss?.evenMarks ?? null;
+                                                    const totalForDiff = lsc?.totalMarks ?? (marksPerQ != null ? marksPerQ * entry.count : null);
+
+                                                    const colors = {
+                                                        easy: { bg: theme === 'dark' ? '#052e16' : '#f0fdf4', border: theme === 'dark' ? '#166534' : '#bbf7d0', label: theme === 'dark' ? '#4ade80' : '#15803d', dot: '#16a34a' },
+                                                        medium: { bg: theme === 'dark' ? '#1c1300' : '#fffbeb', border: theme === 'dark' ? '#78350f' : '#fde68a', label: theme === 'dark' ? '#fbbf24' : '#92400e', dot: '#d97706' },
+                                                        hard: { bg: theme === 'dark' ? '#1f0a0a' : '#fff1f2', border: theme === 'dark' ? '#7f1d1d' : '#fecaca', label: theme === 'dark' ? '#f87171' : '#991b1b', dot: '#dc2626' },
+                                                    }[diff];
+
+                                                    return (
+                                                        <div key={diff} style={{
+                                                            display: 'flex', alignItems: 'center',
+                                                            padding: '10px 14px', borderRadius: 8,
+                                                            background: colors.bg,
+                                                            border: `1px solid ${colors.border}`,
+                                                            gap: 10,
+                                                        }}>
+                                                            <div style={{ width: 8, height: 8, borderRadius: '50%', background: colors.dot, flexShrink: 0 }} />
+                                                            <span style={{ fontSize: 12, fontWeight: 600, color: colors.label, flex: 1, textTransform: 'capitalize' }}>{diff}</span>
+                                                            <span style={{ fontSize: 13, fontWeight: 700, color: theme === 'dark' ? '#f1f5f9' : '#0f172a' }}>
+                                                                {entry.count} Q
+                                                            </span>
+                                                            {marksPerQ != null && (
+                                                                <span style={{ fontSize: 11, color: theme === 'dark' ? '#64748b' : '#94a3b8', fontFamily: 'ui-monospace, monospace' }}>
+                                                                    × {marksPerQ} = {totalForDiff} marks
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                                {(() => {
+                                                    const tm = exercise.exerciseInformation?.totalMarksProgramming ?? exercise.exerciseInformation?.totalMarks ?? exercise.exerciseInformation?.totalPoints;
+                                                    if (!tm) return null;
+                                                    return (
+                                                        <div style={{
+                                                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                                            padding: '8px 14px', borderRadius: 8, marginTop: 4,
+                                                            background: theme === 'dark' ? '#1e293b' : '#f8fafc',
+                                                            border: `1px solid ${theme === 'dark' ? '#334155' : '#e2e8f0'}`,
+                                                        }}>
+                                                            <span style={{ fontSize: 12, fontWeight: 600, color: theme === 'dark' ? '#94a3b8' : '#64748b' }}>Total</span>
+                                                            <span style={{ fontSize: 14, fontWeight: 700, color: theme === 'dark' ? '#f1f5f9' : '#0f172a' }}>{tm} marks</span>
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })()}
+                            {(() => {
+                                const ss = exercise.questionConfiguration?.programmingQuestionConfiguration?.scoreSettings;
+                                if (!ss?.scoreType) return null;
+                                const isEven = ss.scoreType === 'evenMarks';
+                                if (!isEven) return null;
+                                return (
+                                    <div style={{ padding: '20px', background: theme === 'dark' ? '#0c1a2e' : '#eff6ff', borderBottom: `1px solid ${theme === 'dark' ? '#1e3a5f' : '#bfdbfe'}` }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                                            <span style={{ fontSize: 16 }}>🎯</span>
+                                            <span style={{ fontSize: 12, fontWeight: 700, color: theme === 'dark' ? '#93c5fd' : '#1d4ed8', letterSpacing: '0.6px', textTransform: 'uppercase' }}>Marking Scheme</span>
+                                        </div>
+                                        <div style={{
+                                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                            padding: '10px 14px', borderRadius: 8,
+                                            background: theme === 'dark' ? '#1e3a5f' : '#dbeafe',
+                                            border: `1px solid ${theme === 'dark' ? '#2563eb' : '#93c5fd'}`,
+                                        }}>
+                                            <span style={{ fontSize: 12, color: theme === 'dark' ? '#93c5fd' : '#1d4ed8', fontWeight: 500 }}>Marks per question</span>
+                                            <span style={{ fontSize: 18, fontWeight: 700, color: theme === 'dark' ? '#dbeafe' : '#1e40af' }}>{ss.evenMarks ?? '—'}</span>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            {exercise.evaluationSettings && (
+                                <div style={{ padding: '20px', background: theme === 'dark' ? '#0f172a' : '#f8fafc' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                                        <span style={{ fontSize: 16 }}>⚙️</span>
+                                        <span style={{ fontSize: 12, fontWeight: 700, color: theme === 'dark' ? '#94a3b8' : '#64748b', letterSpacing: '0.6px', textTransform: 'uppercase' }}>Evaluation</span>
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                        <InfoRow label="Practice Mode" value={exercise.evaluationSettings.practiceMode ? 'Yes' : 'No'} theme={theme} />
+                                        <InfoRow label="AI Evaluation" value={exercise.evaluationSettings.aiEvaluation ? 'Enabled' : 'Disabled'} theme={theme} />
+                                        <InfoRow label="Auto Evaluation" value={exercise.evaluationSettings.automationEvaluation ? 'Enabled' : 'Disabled'} theme={theme} />
+                                        {exercise.evaluationSettings.manualEvaluation?.enabled && (
+                                            <InfoRow label="Manual Evaluation" value={exercise.evaluationSettings.manualEvaluation.submissionNeeded ? 'Submission required' : 'Enabled'} theme={theme} />
+                                        )}
+                                        {exercise.evaluationSettings.passingScore != null && (
+                                            <InfoRow label="Passing Score" value={`${exercise.evaluationSettings.passingScore}%`} theme={theme} />
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )} */}
+
+
+
             </div>
 
             {/* Toast Notifications */}
@@ -3429,14 +4601,258 @@ function solve() {
                 ))}
             </div>
 
+
             {/* Image Modal */}
-            <ImageModal 
-                image={modalImage} 
-                onClose={() => setModalImage(null)} 
-                theme={theme} 
+            <ImageModal
+                image={modalImage}
+                onClose={() => setModalImage(null)}
+                theme={theme}
             />
 
+
+            {/* Exercise Info + Score/Question Overview Modals (MCQ-style) */}
+            {exData && (
+                <ExerciseInfoModals
+                    exercise={exData}
+                    showDetailsModal={showDetailsModal}
+                    setShowDetailsModal={setShowDetailsModal}
+                    showOverviewModal={showOverviewModal}
+                    setShowOverviewModal={setShowOverviewModal}
+                    solvedQuestions={solvedQuestions}
+                />
+            )}
+
+            {/* Exercise Details Modal — LEGACY INLINE (kept commented for reference) */}
+            {false && showDetailsModal && exercise && (
+                <div
+                    style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
+                    onClick={e => { if (e.target === e.currentTarget) setShowDetailsModal(false); }}>
+                    <div style={{ background: '#fff', borderRadius: 14, boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 360, maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1.5px solid #e4e4ed', fontFamily: FONT }}>
+                        <div style={{ padding: '13px 16px', borderBottom: '1.5px solid #e4e4ed', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f7f7fb', flexShrink: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                                <FileText size={14} style={{ color: '#3a3a52' }} />
+                                <span style={{ fontFamily: FONT, fontSize: 13, fontWeight: 700, color: '#1a1a2e' }}>Exercise Details</span>
+                            </div>
+                            <button type="button" onClick={() => setShowDetailsModal(false)}
+                                style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9a9ab0', display: 'flex', padding: 4, borderRadius: 6 }}>
+                                <X size={15} />
+                            </button>
+                        </div>
+                        <div style={{ flex: 1, overflowY: 'auto', padding: '4px 0' }}>
+                            {exercise.exerciseInformation?.exerciseName && (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 16px', borderBottom: '1px solid #f0f0f7' }}>
+                                    <span style={{ fontSize: 12, fontWeight: 600, color: '#3a3a52', fontFamily: FONT }}>Exercise Name</span>
+                                    <span style={{ fontSize: 11, fontWeight: 700, color: '#F27757', fontFamily: FONT, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{exercise.exerciseInformation.exerciseName}</span>
+                                </div>
+                            )}
+                            {exercise.exerciseInformation?.exerciseLevel && (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 16px', borderBottom: '1px solid #f0f0f7' }}>
+                                    <span style={{ fontSize: 12, fontWeight: 600, color: '#3a3a52', fontFamily: FONT }}>Level</span>
+                                    <span style={{ fontSize: 11, fontWeight: 700, color: '#1a1a2e', fontFamily: FONT, textTransform: 'capitalize' }}>{exercise.exerciseInformation.exerciseLevel}</span>
+                                </div>
+                            )}
+                            {exercise.exerciseInformation?.totalDuration != null && (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 16px', borderBottom: '1px solid #f0f0f7' }}>
+                                    <span style={{ fontSize: 12, fontWeight: 600, color: '#3a3a52', fontFamily: FONT }}>Duration</span>
+                                    <span style={{ fontSize: 11, fontWeight: 700, color: '#1a1a2e', fontFamily: FONT }}>{exercise.exerciseInformation.totalDuration} min</span>
+                                </div>
+                            )}
+                            {(() => {
+                                const tm = exercise.exerciseInformation?.totalMarksProgramming ?? exercise.exerciseInformation?.totalMarks ?? exercise.exerciseInformation?.totalPoints;
+                                return tm != null ? (
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 16px', borderBottom: '1px solid #f0f0f7' }}>
+                                        <span style={{ fontSize: 12, fontWeight: 600, color: '#3a3a52', fontFamily: FONT }}>Total Marks</span>
+                                        <span style={{ fontSize: 11, fontWeight: 700, color: '#1a1a2e', fontFamily: FONT }}>{tm}</span>
+                                    </div>
+                                ) : null;
+                            })()}
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 16px', borderBottom: '1px solid #f0f0f7' }}>
+                                <span style={{ fontSize: 12, fontWeight: 600, color: '#3a3a52', fontFamily: FONT }}>Questions</span>
+                                <span style={{ fontSize: 11, fontWeight: 700, color: '#1a1a2e', fontFamily: FONT }}>{exercise.questions?.length ?? 0}</span>
+                            </div>
+                            {exercise.exerciseType && (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 16px', borderBottom: '1px solid #f0f0f7' }}>
+                                    <span style={{ fontSize: 12, fontWeight: 600, color: '#3a3a52', fontFamily: FONT }}>Exercise Type</span>
+                                    <span style={{ fontSize: 11, fontWeight: 700, color: '#1a1a2e', fontFamily: FONT, textTransform: 'capitalize' }}>{exercise.exerciseType}</span>
+                                </div>
+                            )}
+                            {exercise.programmingSettings?.selectedLanguages?.length > 0 && (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 16px', borderBottom: '1px solid #f0f0f7' }}>
+                                    <span style={{ fontSize: 12, fontWeight: 600, color: '#3a3a52', fontFamily: FONT }}>Languages</span>
+                                    <span style={{ fontSize: 11, fontWeight: 700, color: '#1a1a2e', fontFamily: FONT }}>{exercise.programmingSettings.selectedLanguages.map((l: string) => l.charAt(0).toUpperCase() + l.slice(1)).join(', ')}</span>
+                                </div>
+                            )}
+                            {exercise.evaluationSettings && (
+                                <>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 16px', borderBottom: '1px solid #f0f0f7' }}>
+                                        <span style={{ fontSize: 12, fontWeight: 600, color: '#3a3a52', fontFamily: FONT }}>Practice Mode</span>
+                                        <span style={{ fontSize: 11, fontWeight: 700, color: exercise.evaluationSettings.practiceMode ? '#16a34a' : '#e53e3e', fontFamily: FONT }}>{exercise.evaluationSettings.practiceMode ? 'Yes' : 'No'}</span>
+                                    </div>
+                                    {exercise.evaluationSettings.passingScore != null && (
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 16px', borderBottom: '1px solid #f0f0f7' }}>
+                                            <span style={{ fontSize: 12, fontWeight: 600, color: '#3a3a52', fontFamily: FONT }}>Passing Score</span>
+                                            <span style={{ fontSize: 11, fontWeight: 700, color: '#1a1a2e', fontFamily: FONT }}>{exercise.evaluationSettings.passingScore}%</span>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                            {exercise.availabilityPeriod?.startDate && (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 16px', borderBottom: '1px solid #f0f0f7' }}>
+                                    <span style={{ fontSize: 12, fontWeight: 600, color: '#3a3a52', fontFamily: FONT }}>From</span>
+                                    <span style={{ fontSize: 11, fontWeight: 700, color: '#1a1a2e', fontFamily: FONT }}>{new Date(exercise.availabilityPeriod.startDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                                </div>
+                            )}
+                            {exercise.availabilityPeriod?.endDate && (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 16px' }}>
+                                    <span style={{ fontSize: 12, fontWeight: 600, color: '#3a3a52', fontFamily: FONT }}>Until</span>
+                                    <span style={{ fontSize: 11, fontWeight: 700, color: '#1a1a2e', fontFamily: FONT }}>{new Date(exercise.availabilityPeriod.endDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                                </div>
+                            )}
+                        </div>
+                        <div style={{ padding: '10px 16px', borderTop: '1.5px solid #e4e4ed', display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
+                            <button type="button" onClick={() => setShowDetailsModal(false)}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 16px', borderRadius: 10, fontFamily: FONT, fontSize: 12, fontWeight: 600, border: '1.5px solid #e4e4ed', background: '#f7f7fb', color: '#3a3a52', cursor: 'pointer' }}>
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Exercise Overview Modal — LEGACY INLINE (disabled, replaced by ExerciseInfoModals above) */}
+            {false && showOverviewModal && exercise && (() => {
+                const configuredDiffs = (['easy', 'medium', 'hard'] as const).filter(d => difficultyMap[d]);
+                const totalSlotsAll = configuredDiffs.length > 0
+                    ? configuredDiffs.reduce((s, d) => s + (difficultyMap[d]?.count ?? 0), 0)
+                    : problems.length;
+                const solvedAll = solvedQuestions.size;
+                const remainingAll = Math.max(0, totalSlotsAll - solvedAll);
+                const totalMarksAll = exercise.exerciseInformation?.totalMarksProgramming ?? exercise.exerciseInformation?.totalMarks ?? exercise.exerciseInformation?.totalPoints ?? 0;
+                const qConfig = exercise.questionConfiguration?.programmingQuestionConfiguration;
+                const ss = qConfig?.scoreSettings;
+                const isGeneral = !configuredDiffs.length || qConfig?.questionConfigType === 'general';
+
+                return (
+                    <div
+                        style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
+                        onClick={e => { if (e.target === e.currentTarget) setShowOverviewModal(false); }}>
+                        <div style={{ background: '#fff', borderRadius: 14, boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 400, maxHeight: '86vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1.5px solid #e4e4ed', fontFamily: FONT }}>
+                            <div style={{ padding: '13px 16px', borderBottom: '1.5px solid #e4e4ed', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#eff6ff', flexShrink: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                                    <BarChart3 size={14} style={{ color: '#2563eb' }} />
+                                    <span style={{ fontFamily: FONT, fontSize: 13, fontWeight: 700, color: '#1a1a2e' }}>Question and Marks details</span>
+                                </div>
+                                <button type="button" onClick={() => setShowOverviewModal(false)}
+                                    style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9a9ab0', display: 'flex', padding: 4, borderRadius: 6 }}>
+                                    <X size={15} />
+                                </button>
+                            </div>
+                            <div style={{ flex: 1, overflowY: 'auto' }}>
+                                {/* Overall Questions */}
+                                <div style={{ padding: '12px 16px', borderBottom: '1.5px solid #e4e4ed' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                                        <span style={{ fontSize: 11, fontWeight: 700, color: '#F27757', textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: FONT }}>Overall Questions</span>
+                                    </div>
+                                    {[
+                                        { label: 'Total Questions', value: totalSlotsAll, color: '#1a1a2e' },
+                                        { label: 'Solved', value: solvedAll, denom: totalSlotsAll, color: '#7c3aed' },
+                                        { label: 'Remaining', value: remainingAll, color: remainingAll === 0 ? '#16a34a' : '#d97706' },
+                                    ].map(({ label, value, denom, color }) => (
+                                        <div key={label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '3px 0' }}>
+                                            <span style={{ fontSize: 12, fontWeight: 600, color: '#3a3a52', fontFamily: FONT }}>{label}</span>
+                                            <span style={{ fontSize: 12, fontWeight: 700, color, fontFamily: FONT }}>
+                                                {value}{denom != null ? <span style={{ color: '#9a9ab0', fontWeight: 400, fontSize: 10 }}>/{denom}</span> : ''}
+                                            </span>
+                                        </div>
+                                    ))}
+                                    {totalSlotsAll > 0 && (
+                                        <div style={{ height: 6, background: '#f0f0f7', borderRadius: 3, overflow: 'hidden', marginTop: 8 }}>
+                                            <div style={{ height: '100%', borderRadius: 3, background: remainingAll === 0 ? '#16a34a' : '#F27757', width: `${Math.min(100, (solvedAll / totalSlotsAll) * 100)}%`, transition: 'width 0.4s' }} />
+                                        </div>
+                                    )}
+                                    {/* Per-difficulty breakdown */}
+                                    {!isGeneral && configuredDiffs.length > 0 && (
+                                        <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                            {configuredDiffs.map(d => {
+                                                const count = difficultyMap[d]?.count ?? 0;
+                                                const solvedD = [...solvedQuestions].filter(idx => (exercise.questions?.[idx]?.difficulty || '').toLowerCase() === d).length;
+                                                const rem = count - solvedD;
+                                                const diffColor = d === 'easy' ? '#16a34a' : d === 'medium' ? '#d97706' : '#e53e3e';
+                                                return (
+                                                    <div key={d} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 8, borderLeft: `2px solid ${diffColor}`, marginBottom: 2 }}>
+                                                        <span style={{ fontSize: 12, fontWeight: 600, color: diffColor, textTransform: 'capitalize', fontFamily: FONT }}>{d}</span>
+                                                        <span style={{ fontSize: 11, fontWeight: 700, fontFamily: FONT }}>
+                                                            <span style={{ color: '#7c3aed' }}>{solvedD}</span>
+                                                            <span style={{ color: '#9a9ab0', fontWeight: 400 }}>/{count}</span>
+                                                            <span style={{ color: rem <= 0 ? '#16a34a' : '#9a9ab0', fontSize: 10, marginLeft: 6, fontWeight: 500 }}>{rem <= 0 ? '✓' : `${rem} left`}</span>
+                                                        </span>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Overall Marks */}
+                                {totalMarksAll > 0 && (
+                                    <div style={{ padding: '12px 16px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                                            <Award size={12} style={{ color: '#7c3aed' }} />
+                                            <span style={{ fontSize: 11, fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: FONT }}>Overall Marks</span>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '3px 0' }}>
+                                            <span style={{ fontSize: 12, fontWeight: 600, color: '#3a3a52', fontFamily: FONT }}>Total Marks</span>
+                                            <span style={{ fontSize: 12, fontWeight: 700, color: '#7c3aed', fontFamily: FONT }}>{totalMarksAll}</span>
+                                        </div>
+                                        {/* Per-difficulty marks */}
+                                        {!isGeneral && configuredDiffs.length > 0 && (
+                                            <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                                {configuredDiffs.map(d => {
+                                                    const lsc = ss?.levelScoringConfiguration?.[d];
+                                                    const count = difficultyMap[d]?.count ?? 0;
+                                                    const perQ = lsc?.marksPerQuestion ?? ss?.evenMarks ?? null;
+                                                    const total = lsc?.totalMarks ?? (perQ != null ? perQ * count : null);
+                                                    const diffColor = d === 'easy' ? '#16a34a' : d === 'medium' ? '#d97706' : '#e53e3e';
+                                                    return (
+                                                        <div key={d} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 8, borderLeft: `2px solid ${diffColor}`, marginBottom: 2 }}>
+                                                            <span style={{ fontSize: 12, fontWeight: 600, color: diffColor, textTransform: 'capitalize', fontFamily: FONT }}>{d}</span>
+                                                            <span style={{ fontSize: 11, fontWeight: 700, fontFamily: FONT, color: '#1a1a2e' }}>
+                                                                {total != null ? `${total} marks` : '—'}
+                                                                {perQ != null && <span style={{ color: '#9a9ab0', fontSize: 10, marginLeft: 6 }}>{perQ}/q</span>}
+                                                            </span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                        {/* Even marks scheme */}
+                                        {ss?.scoreType === 'evenMarks' && ss.evenMarks != null && (
+                                            <div style={{ marginTop: 8, padding: '8px 12px', borderRadius: 8, background: '#eff6ff', border: '1.5px solid #bfdbfe' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                    <span style={{ fontSize: 12, color: '#2563eb', fontWeight: 600, fontFamily: FONT }}>Marks per question</span>
+                                                    <span style={{ fontSize: 14, fontWeight: 700, color: '#1e40af', fontFamily: FONT }}>{ss.evenMarks}</span>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                            <div style={{ padding: '10px 16px', borderTop: '1.5px solid #e4e4ed', display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
+                                <button type="button" onClick={() => setShowOverviewModal(false)}
+                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 16px', borderRadius: 10, fontFamily: FONT, fontSize: 12, fontWeight: 600, border: '1.5px solid #e4e4ed', background: '#f7f7fb', color: '#3a3a52', cursor: 'pointer' }}>
+                                    Close
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
+
+
+            {/* ← ADD THIS */}
+
             <style jsx global>{`
+                @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
                 .custom-scrollbar { scrollbar-width: thin; scrollbar-color: ${theme === 'dark' ? '#4b5563 transparent' : '#9ca3af transparent'}; }
                 .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
                 .custom-scrollbar::-webkit-scrollbar-thumb { background-color: ${theme === 'dark' ? '#4b5563' : '#9ca3af'}; border-radius: 4px; }

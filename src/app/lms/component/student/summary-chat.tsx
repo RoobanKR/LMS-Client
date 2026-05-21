@@ -22,6 +22,7 @@ import 'shepherd.js/dist/css/shepherd.css'
 interface SummaryChatProps {
     isOpen: boolean
     onClose: () => void
+    embedded?: boolean
     context: {
         topicTitle?: string
         fileName?: string
@@ -77,8 +78,8 @@ interface NavigationStep {
 type SummaryLevel = "module" | "submodule" | "topic" | "subtopic" | "auto"
 
 
-const GEMINI_API_KEY = "AIzaSyCL0ui5QXP3OEsxf7l4Wv4wjq7L_MA4Hlg";
-const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
+const GEMINI_API_KEY = "AIzaSyDXTexkHW8M62kXYXGuNgwV_n1pBwsWANs";
+const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 const GEMINI_API_URL_FALLBACK = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
 
@@ -104,7 +105,7 @@ const isWelcomeMessage = (content: string): boolean => {
 };
 
 
-export default function SummaryChat({ isOpen, onClose, context }: SummaryChatProps) {
+export default function SummaryChat({ isOpen, onClose, embedded = false, context }: SummaryChatProps) {
     const [messages, setMessages] = useState<Message[]>([])
     const [input, setInput] = useState("")
     const [isLoading, setIsLoading] = useState(false)
@@ -3821,10 +3822,10 @@ Format with clear headings, bullet points, and proper spacing for easy reading.`
     if (!isOpen) return null
 
     return (
-        <div className={`fixed bg-white border-l border-gray-200 shadow-xl z-[100] flex flex-col ${isFullscreen
-            ? "inset-0 z-[100]"
-            : "inset-y-0 right-0 w-96"
-            }`}>
+        <div className={embedded
+            ? "relative w-full h-full bg-white flex flex-col overflow-hidden"
+            : `fixed bg-white border-l border-gray-200 shadow-xl z-[100] flex flex-col ${isFullscreen ? "inset-0 z-[100]" : "inset-y-0 right-0 w-96"}`
+        }>
             {/* Header - Clean design */}
             {/* Header - Clean design */}
             <div className="flex items-center justify-between p-3 border-b border-gray-200 bg-white">

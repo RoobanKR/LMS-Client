@@ -8,7 +8,8 @@ import MCQQuestionForm from './mcq/MCQQuestionForm';
 import QuestionBankSelector from './mcq/QuestionBankSelector';
 import OthersAddQuestionForm from './others/OthersAddQuestionForm';
 import { toast } from 'react-toastify';
-
+import ExerciseSettings from '../../component/ExerciseSettings'; // adjust path if needed
+import { exerciseApi } from '@/apiServices/exercise'; // add this
 // ─── Types ─────────────────────────────────────────────────────────────────────
 interface AddQuestionFormProps {
   exerciseData: any;
@@ -28,15 +29,50 @@ interface AddQuestionFormProps {
   remainingQuestions?: number;
   marksPerQuestion?: number;
   shouldRefreshOnMount?: boolean;
+  // Optional — only provided for section-based assessments. When present,
+  // child forms render a "Section Details" button in their sidebar.
+  sectionData?: any;
 }
 
 // ─── Difficulty styles ─────────────────────────────────────────────────────────
 const DStyle: Record<string, any> = {
-  easy: { bg: 'bg-emerald-50', border: 'border-emerald-300', text: 'text-emerald-700', badge: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500', hoverBg: 'hover:bg-emerald-100', hoverBorder: 'hover:border-emerald-400' },
-  medium: { bg: 'bg-amber-50', border: 'border-amber-300', text: 'text-amber-700', badge: 'bg-amber-100 text-amber-700', dot: 'bg-amber-500', hoverBg: 'hover:bg-amber-100', hoverBorder: 'hover:border-amber-400' },
-  hard: { bg: 'bg-rose-50', border: 'border-rose-300', text: 'text-rose-700', badge: 'bg-rose-100 text-rose-700', dot: 'bg-rose-500', hoverBg: 'hover:bg-rose-100', hoverBorder: 'hover:border-rose-400' },
+  easy: { 
+    bg: 'bg-gray-50', 
+    border: 'border-gray-200', 
+    text: 'text-gray-700', 
+    badge: 'bg-gray-100 text-gray-600', 
+    dot: 'bg-gray-400', 
+    hoverBg: 'hover:bg-emerald-50', 
+    hoverBorder: 'hover:border-emerald-400',
+    hoverText: 'group-hover:text-emerald-700',
+    hoverDot: 'group-hover:bg-emerald-500',
+    hoverBadge: 'group-hover:bg-emerald-100 group-hover:text-emerald-700'
+  },
+  medium: { 
+    bg: 'bg-gray-50', 
+    border: 'border-gray-200', 
+    text: 'text-gray-700', 
+    badge: 'bg-gray-100 text-gray-600', 
+    dot: 'bg-gray-400', 
+    hoverBg: 'hover:bg-amber-50', 
+    hoverBorder: 'hover:border-amber-400',
+    hoverText: 'group-hover:text-amber-700',
+    hoverDot: 'group-hover:bg-amber-500',
+    hoverBadge: 'group-hover:bg-amber-100 group-hover:text-amber-700'
+  },
+  hard: { 
+    bg: 'bg-gray-50', 
+    border: 'border-gray-200', 
+    text: 'text-gray-700', 
+    badge: 'bg-gray-100 text-gray-600', 
+    dot: 'bg-gray-400', 
+    hoverBg: 'hover:bg-rose-50', 
+    hoverBorder: 'hover:border-rose-400',
+    hoverText: 'group-hover:text-rose-700',
+    hoverDot: 'group-hover:bg-rose-500',
+    hoverBadge: 'group-hover:bg-rose-100 group-hover:text-rose-700'
+  },
 };
-
 // ─────────────────────────────────────────────────────────────────────────────
 // COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
@@ -55,6 +91,7 @@ const AddQuestionForm: React.FC<AddQuestionFormProps> = ({
   showTypeSelector,
   onEditExercise,
   shouldRefreshOnMount,
+  sectionData,
 }) => {
   // ── State ──────────────────────────────────────────────────────────────────
   const [selectedType, setSelectedType] = useState<'mcq' | 'programming' | null>(null);
@@ -64,24 +101,35 @@ const AddQuestionForm: React.FC<AddQuestionFormProps> = ({
   // Difficulty popup (level / selectionLevel only — NOT general)
   const [showDiffPopup, setShowDiffPopup] = useState(false);
   const [lockedDiff, setLockedDiff] = useState<'easy' | 'medium' | 'hard' | null>(null);
+const [diffRefreshTrigger, setDiffRefreshTrigger] = useState(0);
 
   // Combined limits
   const [qCounts, setQCounts] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Save state
   const [isSaving, setIsSaving] = useState(false);
   const [saveProgress, setSaveProgress] = useState(0);
   const [saveMessage, setSaveMessage] = useState('');
   const [showOverlay, setShowOverlay] = useState(false);
+  const [localExerciseData, setLocalExerciseData] = useState(exerciseData);
+  const [showExerciseSettings, setShowExerciseSettings] = useState(false);
+  const localExerciseDataRef = useRef(exerciseData); // ← ADD THIS
+  const settingsSaveInProgress = useRef(false); // guards against double-fetch when save path calls onClose then onSave
 
+  useEffect(() => {
+    localExerciseDataRef.current = localExerciseData;
+  }, [localExerciseData]);
   // ✅ Track whether we are mid Save-and-Next flow — use ref so it survives
   // re-renders without causing them, and is NOT reset by state updates
   const isInSaveAndContinueFlow = useRef(false);
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (saveTimer.current) clearTimeout(saveTimer.current); }, []);
-
+  useEffect(() => {
+    setLocalExerciseData(exerciseData);
+  }, [exerciseData.exerciseId]);
   // ── Exercise config ────────────────────────────────────────────────────────
   const fullEx = exerciseData.fullExerciseData;
   const progCfg = fullEx?.questionConfiguration?.programmingQuestionConfiguration;
@@ -262,12 +310,17 @@ const AddQuestionForm: React.FC<AddQuestionFormProps> = ({
       let mcqReason = '';
 
       if (mcqCfg) {
-        if (mcqCount >= mcqCfg.totalMcqQuestions) {
+        const maxMcq = mcqCfg.totalMcqQuestions || 0;
+        const maxMcqMarks = mcqCfg.mcqTotalMarks || 0;
+        if (maxMcq > 0 && mcqCount >= maxMcq) {
           mcqCanAdd = false;
-          mcqReason = `MCQ limit reached (${mcqCount}/${mcqCfg.totalMcqQuestions})`;
-        } else if (mcqTotalScore >= mcqCfg.mcqTotalMarks) {
+          mcqReason = `MCQ limit reached (${mcqCount}/${maxMcq})`;
+        } else if (maxMcqMarks > 0 && mcqTotalScore >= maxMcqMarks) {
+          // Only enforce the marks cap when one is actually configured.
+          // Non-graded MCQs have mcqTotalMarks=0 — slot availability alone
+          // decides whether another question can be added.
           mcqCanAdd = false;
-          mcqReason = `MCQ marks limit reached (${mcqTotalScore}/${mcqCfg.mcqTotalMarks})`;
+          mcqReason = `MCQ marks limit reached (${mcqTotalScore}/${maxMcqMarks})`;
         }
       }
 
@@ -353,229 +406,311 @@ const AddQuestionForm: React.FC<AddQuestionFormProps> = ({
       isInSaveAndContinueFlow.current = false;
     };
   }, []);
-
+// Auto-select type when in Manage Test mode with Combined section
+useEffect(() => {
+  // If we're in Manage Test (sectionData exists) and it's a Combined section
+  if (sectionData && sectionData.exerciseType === 'Combined' && !selectedType && !isEditing) {
+    // Default to MCQ when in Manage Test
+    setSelectedType('mcq');
+  }
+}, [sectionData, selectedType, isEditing]);
   // ── Difficulty options for popup ───────────────────────────────────────────
-  const getDiffOptions = () => {
-    const progQs = (fullEx?.questions || []).filter((q: any) => q.questionType === 'programming');
-    const counts = cfgType === 'levelBased'
-      ? progCfg?.levelBasedCounts
-      : progCfg?.selectionLevelCounts;
-
-    return (['easy', 'medium', 'hard'] as const)
-      .filter(d => (counts?.[d] || 0) > 0)
-      .map(d => {
-        const total = counts?.[d] || 0;
-        const created = progQs.filter((q: any) => q.difficulty === d).length;
-        const remaining = Math.max(0, total - created);
-        return { level: d, remaining, total, canAdd: remaining > 0 };
-      });
-  };
+ // Replace your existing getDiffOptions with this useCallback version
+const getDiffOptions = useCallback(() => {
+  // Use localExerciseData instead of exerciseData for latest data
+  const currentFullEx = localExerciseData?.fullExerciseData || exerciseData?.fullExerciseData;
+  const currentProgCfg = currentFullEx?.questionConfiguration?.programmingQuestionConfiguration;
+  const currentCfgType = currentProgCfg?.questionConfigType || 'general';
+  const currentCounts = currentCfgType === 'levelBased'
+    ? currentProgCfg?.levelBasedCounts
+    : currentProgCfg?.selectionLevelCounts;
+  
+  const progQs = (currentFullEx?.questions || []).filter((q: any) => q.questionType === 'programming');
+  
+  return (['easy', 'medium', 'hard'] as const)
+    .filter(d => (currentCounts?.[d] || 0) > 0)
+    .map(d => {
+      const total = currentCounts?.[d] || 0;
+      const created = progQs.filter((q: any) => q.difficulty === d).length;
+      const remaining = Math.max(0, total - created);
+      return { level: d, remaining, total, canAdd: remaining > 0 };
+    });
+}, [localExerciseData, exerciseData, diffRefreshTrigger]); // Add diffRefreshTrigger as dependency
 
   // ── handleSubmit ─────────────────────────────────────────────────────────────────────────
-  const handleSubmit = async (questionData: any): Promise<any> => {
-    const isFormData = typeof FormData !== 'undefined' && questionData instanceof FormData;
+ const handleSubmit = async (questionData: any): Promise<any> => {
+  // Child form (e.g. OthersAddQuestionForm) already saved the question — skip API, just close
+  if (questionData?.__skipApiCall) {
+    onSave(questionData);
+    onClose();
+    return questionData;
+  }
 
-    const isSaveAndNext = !isFormData && questionData.__saveAndNext === true;
+  const isFormData = typeof FormData !== 'undefined' && questionData instanceof FormData;
 
-    const cleanData = isFormData
-      ? questionData
-      : (() => { const { __saveAndNext: _a, __editLocalId: _b, ...rest } = questionData; return rest; })();
+  const isSaveAndNext = !isFormData && questionData.__saveAndNext === true;
+
+  const cleanData = isFormData
+    ? questionData
+    : (() => { const { __saveAndNext: _a, __editLocalId: _b, ...rest } = questionData; return rest; })();
+
+  if (isSaveAndNext) {
+    isInSaveAndContinueFlow.current = true;
+  }
+
+  const isMCQSave =
+    isFormData ||
+    cleanData.questionType === 'mcq' ||
+    questionData.questionType === 'mcq' ||
+    !!cleanData.mcqQuestionTitle ||
+    !!questionData.mcqQuestionTitle ||
+    getModuleType() === 'mcq';
+
+  const isServerEdit = !!(isEditing || initialData?._id || questionData._id || questionData.__questionId);
+  
+  setIsSaving(true);
+  if (!isSaveAndNext) setShowOverlay(true);
+  setSaveMessage(isServerEdit ? 'Updating question…' : 'Saving question…');
+  setSaveProgress(20);
+
+  try {
+    setSaveProgress(50);
+    let result: any;
+    const questionId = initialData?._id || questionData._id || questionData.__questionId;
+
+    if (isServerEdit && questionId) {
+      // UPDATE existing question
+      result = await questionApi.updateQuestion(
+        entityType,
+        exerciseData.nodeId,
+        exerciseData.exerciseId,
+        questionId,
+        cleanData,
+        tabType,
+        exerciseData.subcategory || 'Practical'
+      );
+      setSaveMessage('Question updated!');
+    } else if (isMCQSave) {
+      // ADD new MCQ question
+      const mcqData = isFormData
+        ? cleanData
+        : { ...cleanData, questionType: 'mcq' };
+      result = await questionApi.addQuestion(
+        entityType,
+        exerciseData.nodeId,
+        exerciseData.exerciseId,
+        mcqData,
+        tabType,
+        exerciseData.subcategory || 'Practical'
+      );
+      setSaveMessage('Question saved!');
+    } else {
+      // ADD new Programming/Frontend/Database question
+      result = await questionApi.addQuestion(
+        entityType,
+        exerciseData.nodeId,
+        exerciseData.exerciseId,
+        cleanData,
+        tabType,
+        exerciseData.subcategory || 'Practical'
+      );
+      setSaveMessage('Question saved!');
+    }
+
+    setSaveProgress(90);
+
+    // ✅ CRITICAL FIX: Refresh exercise data after successful save
+    // This ensures fullEx?.questions has the latest data for difficulty slot calculations
+    await refreshExerciseData();
+    
+    // ✅ Force difficulty popup to recalculate remaining slots
+    setDiffRefreshTrigger(prev => prev + 1);
+
+    const saved =
+      result?.question ??
+      result?.data?.question ??
+      result?.data?.addedQuestions?.[0]?.question ??
+      result?.data?.addedQuestions?.[0] ??
+      result?.data ??
+      result;
+
+    const enriched = {
+      ...saved,
+      exerciseId: exerciseData.exerciseId,
+      savedAt: new Date().toISOString(),
+      _id: saved?._id || questionId,
+    };
+
+    setSaveProgress(100);
 
     if (isSaveAndNext) {
-      isInSaveAndContinueFlow.current = true;
+      // Notify parent (QuestionsView) — it just shows a toast, does NOT remount
+      onSave({
+        ...enriched,
+        __saveAndNext: true,
+        __isUpdate: isServerEdit,
+        __questionId: enriched._id,
+      });
+
+      // ✅ Return enriched so child forms can update their local state
+      return enriched;
+
+    } else {
+      const preventClose = !isFormData && questionData.__preventClose === true;
+
+      saveTimer.current = setTimeout(() => {
+        // ✅ Only notify parent if we're actually closing
+        // When preventClose=true (plain Save button), skip onSave+onClose
+        // so QuestionsView doesn't remount this form
+        if (!preventClose) {
+          onSave(enriched);
+          onClose();
+          isInSaveAndContinueFlow.current = false;
+          setSelectedType(null);
+        }
+        // When preventClose=true, child forms handle their own state update
+      }, 700);
+
+      return enriched;
     }
-
-    const isMCQSave =
-      isFormData ||
-      cleanData.questionType === 'mcq' ||
-      questionData.questionType === 'mcq' ||
-      !!cleanData.mcqQuestionTitle ||
-      !!questionData.mcqQuestionTitle ||
-      getModuleType() === 'mcq';
-
-    const isServerEdit = !!(isEditing || initialData?._id || questionData._id || questionData.__questionId);
-    setIsSaving(true);
-    if (!isSaveAndNext) setShowOverlay(true);
-    setSaveMessage(isServerEdit ? 'Updating question…' : 'Saving question…');
-    setSaveProgress(20);
-
-    try {
-      setSaveProgress(50);
-      let result: any;
-      const questionId = initialData?._id || questionData._id || questionData.__questionId;
-
-      if (isServerEdit && questionId) {
-        result = await questionApi.updateQuestion(
-          entityType,
-          exerciseData.nodeId,
-          exerciseData.exerciseId,
-          questionId,
-          cleanData,
-          tabType,
-          exerciseData.subcategory || 'Practical'
-        );
-        setSaveMessage('Question updated!');
-      } else if (isMCQSave) {
-        const mcqData = isFormData
-          ? cleanData
-          : { ...cleanData, questionType: 'mcq' };
-        result = await questionApi.addQuestion(
-          entityType,
-          exerciseData.nodeId,
-          exerciseData.exerciseId,
-          mcqData,
-          tabType,
-          exerciseData.subcategory || 'Practical'
-        );
-        setSaveMessage('Question saved!');
-      } else {
-        result = await questionApi.addQuestion(
-          entityType,
-          exerciseData.nodeId,
-          exerciseData.exerciseId,
-          cleanData,
-          tabType,
-          exerciseData.subcategory || 'Practical'
-        );
-        setSaveMessage('Question saved!');
-      }
-
-      setSaveProgress(90);
-
-      const saved =
-        result?.question ??
-        result?.data?.question ??
-        result?.data?.addedQuestions?.[0]?.question ??
-        result?.data?.addedQuestions?.[0] ??
-        result?.data ??
-        result;
-
-      const enriched = {
-        ...saved,
-        exerciseId: exerciseData.exerciseId,
-        savedAt: new Date().toISOString(),
-        _id: saved?._id || questionId,
+  } catch (err: any) {
+    console.error('handleSubmit error:', err);
+    const msg =
+      err?.response?.data?.message?.[0]?.value ||
+      err?.message ||
+      'Please try again.';
+    toast.error(`Failed to ${isServerEdit ? 'update' : 'save'} question: ${msg}`);
+    isInSaveAndContinueFlow.current = false;
+    throw err; // re-throw so child forms can catch it
+  } finally {
+    setIsSaving(false);
+    if (!isSaveAndNext) {
+      setTimeout(() => setShowOverlay(false), 800);
+    }
+  }
+};
+const refreshExerciseData = useCallback(async () => {
+  try {
+    const exerciseId = exerciseData.exerciseId || exerciseData._id;
+    const freshResponse = await exerciseApi.getExerciseById(exerciseId);
+    const freshExercise = freshResponse?.data?.exercise || freshResponse?.data || freshResponse;
+    
+    if (freshExercise) {
+      const updatedExerciseData = {
+        ...exerciseData,
+        fullExerciseData: freshExercise,
+        exerciseType: freshExercise.exerciseType || exerciseData.exerciseType,
+        programmingSettings: freshExercise.programmingSettings || exerciseData.programmingSettings,
       };
-
-      setSaveProgress(100);
-
-      if (isSaveAndNext) {
-        // Notify parent (QuestionsView) — it just shows a toast, does NOT remount
-        onSave({
-          ...enriched,
-          __saveAndNext: true,
-          __isUpdate: isServerEdit,
-          __questionId: enriched._id,
-        });
-
-        // ✅ KEY FIX: return enriched so ProgrammingQuestionForm.handleSaveAndContinue
-        // can update its flowQuestions with the real DB _id.
-        // Without this, "Previous → re-save" would ADD a duplicate instead of UPDATE.
-        return enriched;
-
-      } else {
-        const preventClose = !isFormData && questionData.__preventClose === true;
-
-        saveTimer.current = setTimeout(() => {
-          // ✅ Only notify parent if we're actually closing
-          // When preventClose=true (plain Save button), skip onSave+onClose
-          // so QuestionsView doesn't remount this form
-          if (!preventClose) {
-            onSave(enriched);
-            onClose();
-            isInSaveAndContinueFlow.current = false;
-            setSelectedType(null);
-          }
-          // When preventClose=true, ProgrammingQuestionForm handles its own
-          // state update via the return value from executeSave
-        }, 700);
-
-        return enriched;
-      }
-    } catch (err: any) {
-      console.error('handleSubmit error:', err);
-      const msg =
-        err?.response?.data?.message?.[0]?.value ||
-        err?.message ||
-        'Please try again.';
-      alert(`Failed to ${isServerEdit ? 'update' : 'save'} question: ${msg}`);
-      isInSaveAndContinueFlow.current = false;
-      throw err; // re-throw so ProgrammingQuestionForm.handleSaveAndContinue catches it
-    } finally {
-      setIsSaving(false);
-      if (!isSaveAndNext) {
-        setTimeout(() => setShowOverlay(false), 800);
-      }
+      localExerciseDataRef.current = updatedExerciseData;
+      setLocalExerciseData(updatedExerciseData);
+      setRefreshKey(k => k + 1);
+      setDiffRefreshTrigger(prev => prev + 1); // ✅ Trigger diff options refresh
     }
-  };
+  } catch (err) {
+    console.warn('Refetch failed:', err);
+    setRefreshKey(k => k + 1);
+    setDiffRefreshTrigger(prev => prev + 1);
+  }
+}, [exerciseData]);
+// Called by ExerciseSettings X button — always re-fetch so any step-saves are reflected.
+// Guard flag prevents a double-fetch when the save path calls onClose then onSave.
+const handleExerciseSettingsClose = useCallback(async () => {
+  setShowExerciseSettings(false);
+  if (settingsSaveInProgress.current) {
+    settingsSaveInProgress.current = false;
+    return; // onSave will handle the refresh
+  }
+  await refreshExerciseData();
+}, [refreshExerciseData]);
 
+// Called only when the user completes the full save flow inside ExerciseSettings.
+const handleExerciseSettingsSave = useCallback(async (_updatedPayload: any) => {
+  settingsSaveInProgress.current = true; // signal handleExerciseSettingsClose to skip
+  setShowExerciseSettings(false);
+  await refreshExerciseData();
+}, [refreshExerciseData]);
   // ─── DIFFICULTY POPUP ──────────────────────────────────────────────────────
-  const DiffPopup = () => {
-    const opts = getDiffOptions();
-    return (
-      <div className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden border border-gray-100">
-          <div className="px-6 py-4 border-b border-gray-100">
-            <div className="flex items-center justify-between mb-1">
-              <h2 className="text-sm font-bold text-gray-900">Select Difficulty Level</h2>
-              <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg">
-                <X size={14} className="text-gray-500" />
-              </button>
-            </div>
-            <p className="text-xs text-gray-500">Each difficulty has its own slot quota. Choose which level to add for.</p>
+const DiffPopup = () => {
+  const opts = getDiffOptions();
+  
+  // ✅ If all slots are filled, close popup automatically
+  useEffect(() => {
+    const hasRemainingSlots = opts.some(opt => opt.canAdd);
+    if (!hasRemainingSlots && opts.length > 0) {
+      // All slots filled, close popup
+      setShowDiffPopup(false);
+    }
+  }, [opts]);
+  
+  return (
+    <div className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden border border-gray-100">
+        <div className="px-6 py-4 border-b border-gray-100">
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="text-sm font-bold text-gray-900">Select Difficulty Level</h2>
+            <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg">
+              <X size={14} className="text-gray-500" />
+            </button>
           </div>
+          <p className="text-xs text-gray-500">Each difficulty has its own slot quota. Choose which level to add for.</p>
+        </div>
 
-          <div className="p-4 space-y-2">
-            {opts.length === 0 && (
-              <p className="text-sm text-center text-gray-400 py-4">No difficulty levels configured.</p>
-            )}
-            {opts.map(({ level, remaining, total, canAdd }) => {
-              const s = DStyle[level];
-              return (
-                <button
-                  key={level}
-                  type="button"
-                  disabled={!canAdd}
-                  onClick={() => { setLockedDiff(level); setShowDiffPopup(false); }}
-                  className={`w-full flex items-center justify-between p-3.5 rounded-xl border-2 transition-all group
-                    ${!canAdd
-                      ? 'bg-gray-50 border-gray-200 cursor-not-allowed opacity-55'
-                      : `${s.bg} ${s.border} ${s.hoverBg} ${s.hoverBorder} cursor-pointer`
-                    }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-3 h-3 rounded-full ${!canAdd ? 'bg-gray-300' : s.dot}`} />
-                    <div className="text-left">
-                      <div className={`text-sm font-bold capitalize ${!canAdd ? 'text-gray-400' : s.text}`}>{level}</div>
-                      <div className="text-[10px] text-gray-500 mt-0.5">
-                        {!canAdd ? '✓ All slots filled' : `${remaining} of ${total} slots remaining`}
-                      </div>
+        <div className="p-4 space-y-2">
+          {opts.length === 0 && (
+            <p className="text-sm text-center text-gray-400 py-4">No difficulty levels configured.</p>
+          )}
+          {opts.map(({ level, remaining, total, canAdd }) => {
+            const s = DStyle[level];
+            return (
+              <button
+                key={level}
+                type="button"
+                disabled={!canAdd}
+                onClick={() => { setLockedDiff(level); setShowDiffPopup(false); }}
+                className={`w-full flex items-center justify-between p-3.5 rounded-xl border-2 transition-all group
+                  ${!canAdd
+                    ? 'bg-gray-50 border-gray-200 cursor-not-allowed opacity-55'
+                    : `${s.bg} ${s.border} hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] cursor-pointer
+                       hover:${s.hoverBg} hover:${s.hoverBorder}`
+                  }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`w-3 h-3 rounded-full ${!canAdd ? 'bg-gray-300' : s.dot}`} />
+                  <div className="text-left">
+                    <div className={`text-sm font-bold capitalize ${!canAdd ? 'text-gray-400' : s.text}`}>{level}</div>
+                    <div className="text-[10px] text-gray-500 mt-0.5">
+                      {!canAdd ? '✓ All slots filled' : `${remaining} of ${total} questions remaining`}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {!canAdd
-                      ? <span className="text-[10px] px-2 py-0.5 bg-gray-100 text-gray-400 rounded-full flex items-center gap-1"><Check size={8} /> Done</span>
-                      : <span className={`text-[10px] px-2.5 py-1 rounded-full font-semibold ${s.badge}`}>{remaining} left</span>
-                    }
-                    {canAdd && (
-                      <ChevronRight size={13} className={`${s.text} opacity-0 group-hover:opacity-100 transition-opacity`} />
-                    )}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {!canAdd
+                    ? <span className="text-[10px] px-2 py-0.5 bg-gray-100 text-gray-400 rounded-full flex items-center gap-1"><Check size={8} /> Done</span>
+                    : <>
+                        <span className={`text-[10px] px-2.5 py-1 rounded-full font-semibold ${s.badge}`}>{remaining} left</span>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                          <span className="text-[10px] font-medium text-gray-500">Select</span>
+                          <ChevronRight size={13} className={s.text} />
+                        </div>
+                      </>
+                  }
+                </div>
+              </button>
+            );
+          })}
+        </div>
 
-          <div className="px-6 py-3 bg-gray-50 border-t border-gray-100">
-            <div className="flex items-center gap-2 text-[11px] text-gray-500">
-              <Info size={11} className="text-gray-400 shrink-0" />
-              <span>Mode: {cfgType === 'levelBased' ? 'Level Based' : 'Selection Level'} — each difficulty has its own quota.</span>
-            </div>
+        <div className="px-6 py-3 bg-gray-50 border-t border-gray-100">
+          <div className="flex items-center gap-2 text-[11px] text-gray-500">
+            <Info size={11} className="text-gray-400 shrink-0" />
+            <span>Mode: {cfgType === 'levelBased' ? 'Level Based' : 'Selection Level'} — each difficulty has its own quota.</span>
           </div>
         </div>
       </div>
-    );
-  };
+    </div>
+  );
+};
   // Add this useEffect in AddQuestionForm for debugging (remove in production)
   useEffect(() => {
     if (isEditing && initialData) {
@@ -636,7 +771,9 @@ const AddQuestionForm: React.FC<AddQuestionFormProps> = ({
                   </div>
                   {!mcqOk
                     ? <p className="text-xs text-red-500 mt-0.5">{qCounts?.mcq.reason}</p>
-                    : <p className="text-xs text-gray-500 mt-0.5">{qCounts?.mcq.totalScore ?? 0}/{qCounts?.mcq.maxMarks ?? 0} marks used</p>
+                    : (qCounts?.mcq.maxMarks ?? 0) > 0
+                      ? <p className="text-xs text-gray-500 mt-0.5">{qCounts?.mcq.totalScore ?? 0}/{qCounts?.mcq.maxMarks ?? 0} marks used</p>
+                      : <p className="text-xs text-gray-500 mt-0.5">Non-graded</p>
                   }
                 </div>
               </div>
@@ -797,10 +934,10 @@ const AddQuestionForm: React.FC<AddQuestionFormProps> = ({
       />
     );
   }
-
-  if (isCombined && !isEditing && !selectedType && !isInSaveAndContinueFlow.current) {
-    return <CombinedSelector />;
-  }
+// Skip CombinedSelector when we're in Manage Test (sectionData provided)
+if (isCombined && !isEditing && !selectedType && !isInSaveAndContinueFlow.current && !sectionData) {
+  return <CombinedSelector />;
+}
 
   // ─── Delete question handler ───────────────────────────────────────────────
   const handleDeleteProgrammingQuestion = async (questionId: string): Promise<any> => {
@@ -818,51 +955,55 @@ const AddQuestionForm: React.FC<AddQuestionFormProps> = ({
 
   // ─── Build form props ──────────────────────────────────────────────────────
   const formProps = {
-    exerciseData,
+    exerciseData: localExerciseDataRef.current,
     tabType,
     initialData,
     isEditing,
     onClose,
-    // ✅ onSave is now typed as (data) => Promise<any> in ProgrammingQuestionForm
-    // handleSubmit returns Promise<any> to satisfy that contract
     onSave: handleSubmit,
     isSaving,
     saveProgress,
     saveMessage,
-  };
-
+    sectionData,
+  }
   const renderForm = () => {
     if (isMCQ) return (
       <MCQQuestionForm
         breadcrumbs={breadcrumbs}
         initialQuestionId={initialQuestionId}
         {...formProps}
+        onEditExercise={() => setShowExerciseSettings(true)}
       />
     );
     if (isOthers) return (
       <OthersAddQuestionForm
         breadcrumbs={breadcrumbs}
         initialQuestionId={initialQuestionId}
+        initialData={initialData}  // ← ADD THIS LINE
+        isEditing={isEditing}       // ← ADD THIS LINE
         {...formProps}
+        onEditExercise={() => setShowExerciseSettings(true)}
       />
     );
+
     if (isFrontend) return <FrontendQuestionForm {...formProps}
       lockedDifficulty={isLevelMode ? (lockedDiff ?? undefined) : undefined}
-      onEditExercise={onEditExercise}
+      onEditExercise={() => setShowExerciseSettings(true)}
     />;
     if (isDatabase) return <DatabaseQuestionForm {...formProps}
       onEditExercise={onEditExercise}
       onDeleteQuestion={handleDeleteProgrammingQuestion}
       lockedDifficulty={isLevelMode ? (lockedDiff ?? undefined) : undefined}
     />;
-    return (
-      <ProgrammingQuestionForm
-        {...formProps}
-        onDeleteQuestion={handleDeleteProgrammingQuestion}
-        lockedDifficulty={isLevelMode ? (lockedDiff ?? undefined) : undefined}
-        onEditExercise={onEditExercise}
-      />
-    );
+   return (
+  <ProgrammingQuestionForm
+    key={`prog-form-${refreshKey}`}  // ← prefixed, never collides with numeric 0
+    {...formProps}
+    onDeleteQuestion={handleDeleteProgrammingQuestion}
+    lockedDifficulty={isLevelMode ? (lockedDiff ?? undefined) : undefined}
+    onEditExercise={() => setShowExerciseSettings(true)}
+  />
+);
   };
   return (
     <>
@@ -890,6 +1031,22 @@ const AddQuestionForm: React.FC<AddQuestionFormProps> = ({
         </div>
       )}
       {renderForm()}
+
+      {showExerciseSettings && (
+        <ExerciseSettings
+          hierarchyData={localExerciseData.fullExerciseData?.hierarchyData || {}}
+          nodeId={exerciseData.nodeId}
+          nodeName={exerciseData.nodeName}
+          nodeType={exerciseData.nodeType}
+          subcategory={exerciseData.subcategory || ''}
+          tabType={tabType as any}
+          isEditing={true}
+          initialData={localExerciseData.fullExerciseData}
+          exercise_Id={exerciseData.exerciseId || exerciseData._id}
+          onSave={handleExerciseSettingsSave}
+          onClose={handleExerciseSettingsClose}
+        />
+      )}
     </>
   );
 };

@@ -131,7 +131,7 @@ const CourseCard = ({ course, isStudent, onStart, viewMode, isDark }: { course: 
   if (viewMode === 'list') {
     return (
       <motion.div layout variants={cardV}
-        className="group flex items-center gap-4 p-3.5 rounded-xl cursor-pointer transition-all"
+        className="group flex items-center gap-4 p-3.5 rounded-xl  transition-all"
         style={{ background: isDark ? T.dark.card : T.bg, border: `1px solid ${isDark ? T.dark.border : T.border}` }}
         onClick={() => onStart(course._id)}
         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = T.orange; (e.currentTarget as HTMLElement).style.boxShadow = `0 4px 16px ${T.orangeGlow}` }}
@@ -229,7 +229,7 @@ const CourseCard = ({ course, isStudent, onStart, viewMode, isDark }: { course: 
         <div className="mt-auto">
           <button
             onClick={() => onStart(course._id)}
-            className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-[13px] font-bold text-white transition-all"
+            className="w-full flex items-center cursor-pointer justify-center gap-1.5 py-2.5 rounded-lg text-[13px] font-bold text-white transition-all"
             style={{ background: T.orange, boxShadow: `0 3px 10px ${T.orangeGlow}` }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = T.orangeDark }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.orange }}

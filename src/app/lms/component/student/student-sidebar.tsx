@@ -231,7 +231,7 @@ export function StudentSidebar({ isOpen = true, onClose, activeRoute }: StudentS
 
   const getDefaultSidebarItems = (analytics: any): SidebarItem[] => [
     { icon: LayoutDashboard, label: "Dashboard", href: `${BASE_PATH}dashboard`, count: 0, progress: analytics.overallProgress },
-    { icon: BookOpen, label: "My Courses", href: `${BASE_PATH}courses`, count: analytics.enrolledCourses, progress: analytics.overallProgress },
+    { icon: BookOpen, label: "My Courses", href: `${BASE_PATH}courses`,progress: analytics.overallProgress },
     { icon: ClipboardCheck, label: "Assignments", href: `${BASE_PATH}assignments`, count: analytics.attemptedExercises, progress: 0 },
     { icon: Trophy, label: "Grades", href: `${BASE_PATH}grades`, count: analytics.completedCourses, progress: analytics.overallProgress },
     { icon: Bell, label: "Notifications", href: `${BASE_PATH}notifications`, count: 0, progress: 0 },

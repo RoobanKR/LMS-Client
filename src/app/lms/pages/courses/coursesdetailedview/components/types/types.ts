@@ -1,15 +1,30 @@
 // types.ts
 export interface PedagogyLink { _id?:string; name:string; url:string; uploadedAt?:string }
+// types.ts - UPDATED PedagogyFile interface
 export interface PedagogyFile {
-  _id?:string; fileName:string; fileType:string; size:string; uploadedAt?:string;
-  fileUrl: string|{base?:string;[k:string]:string|undefined};
-  isReference?:boolean; isVideo?:boolean; isArchive?:boolean;
-  availableResolutions?:string[];
-  fileSettings?:{showToStudents:boolean;allowDownload:boolean;lastModified?:string};
-  tags?:Array<{tagName:string;tagColor:string}>;
+  _id?: string;
+  fileName: string;
+  fileType: string;
+  size: string;
+  uploadedAt?: string;
+  fileUrl: string | { base?: string; [k: string]: string | undefined };
+  isReference?: boolean;
+  isVideo?: boolean;
+  isArchive?: boolean;
+  availableResolutions?: string[];
+  fileSettings?: { showToStudents: boolean; allowDownload: boolean; lastModified?: string };
+  tags?: Array<{ tagName: string; tagColor: string }>;
+  // Add these group properties
+  groupId?: string;           // Which group this file belongs to
+  groupName?: string;         // Display name of the group
+  parentGroupId?: string;     // If this file is inside a group folder
+  folderId?: string;          // Which folder contains this file
 }
-export interface PedagogyFolder { _id?:string; name:string; files:PedagogyFile[]; subfolders?:PedagogyFolder[]; uploadedAt?:string; tags?:Array<{tagName:string;tagColor:string}> }
-export interface PedagogyPage { _id:string; title:string; combinedCode:string; pageCount?:number; createdAt?:string; isMultiPage?:boolean }
+export interface PedagogyFolder { _id?:string; name:string; files:PedagogyFile[]; subfolders?:PedagogyFolder[]; uploadedAt?:string; tags?:Array<{tagName:string;tagColor:string}> ; groupName?: string;       
+  parentGroupId?: string;    
+  parentId?: string;         
+  folderPath?: string;   }
+export interface PedagogyPage { _id:string; title:string; combinedCode:string; pageCount?:number; createdAt?:string; isMultiPage?:boolean; groupId?:string; groupName?:string; }
 export interface PedagogyItem { description?:string; files?:PedagogyFile[]; folders?:PedagogyFolder[]; links?:PedagogyLink[]; pages?:PedagogyPage[]; _id?:string }
 export interface Pedagogy { I_Do?:Record<string,PedagogyItem>|string[]; We_Do?:Record<string,PedagogyItem>|string[]; You_Do?:Record<string,PedagogyItem>|string[]; _id?:string }
 export interface SubTopic { _id:string; title:string; description:string; duration?:string; level?:string; subTopics?:SubTopic[]; pedagogy?:Pedagogy }
@@ -31,7 +46,7 @@ export interface CourseData {
   }>
 }
 
-export type ResourceType = "video"|"pdf"|"ppt"|"zip"|"link"|"reference"|"page"
+export type ResourceType = "video"|"pdf"|"ppt"|"zip"|"link"|"reference"|"page"|"image"|"word"|"txt"
 export interface Resource {
   id:string; title:string; type:ResourceType;
   fileUrl?:string|{base?:string;[k:string]:string|undefined}; 
@@ -43,7 +58,9 @@ export interface Resource {
   availableResolutions?: string[];
   fileUrlMap?: Record<string, string>;
   _combinedCode?:string; _pageCount?:number; originalFolder?:string; folderName?:string;
-  tags?: Array<{tagName:string; tagColor:string}>
+  tags?: Array<{tagName:string; tagColor:string}>;
+  groupId?: string;
+  groupName?: string;
 }
 export interface PedagogySubItem { key:string; name:string; description:string; files:PedagogyFile[]; folders?:PedagogyFolder[]; links?:PedagogyLink[] }
 export type LearningElementType = "i-do"|"we-do"|"you-do"

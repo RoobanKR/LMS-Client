@@ -99,65 +99,65 @@ export default function NotesPanel({ isOpen, onClose, isDraggable = false, initi
 
 
   // Add this useEffect near your other useEffect hooks in NotesPanel (around line 50-70)
-useEffect(() => {
-  const handleOpenNotesPanel = () => {
-    console.log('Received open-notes-panel event');
-    
-    // This will trigger the parent to open the panel
-    // We'll dispatch an event that the parent component can listen to
-    window.dispatchEvent(new CustomEvent('notes-panel-should-open'));
-    
-    // Always show sidebar when opened from toast
-    setShowNotesSidebar(true);
-    
-    // Refresh notes data
-    if (token) {
-      queryClient.invalidateQueries({ queryKey: ['notes'] });
-      refetchNotes();
-    }
-  };
+  useEffect(() => {
+    const handleOpenNotesPanel = () => {
+      console.log('Received open-notes-panel event');
 
-  // Listen for the event from SummaryChat toast
-  window.addEventListener('open-notes-panel', handleOpenNotesPanel);
+      // This will trigger the parent to open the panel
+      // We'll dispatch an event that the parent component can listen to
+      window.dispatchEvent(new CustomEvent('notes-panel-should-open'));
 
-  return () => {
-    window.removeEventListener('open-notes-panel', handleOpenNotesPanel);
-  };
-}, [token, queryClient, refetchNotes]);
+      // Always show sidebar when opened from toast
+      setShowNotesSidebar(true);
 
-// Add this useEffect to handle specific note selection
-useEffect(() => {
-  const handleNotesDataUpdated = (event: CustomEvent) => {
-    const { noteId } = event.detail || {};
-    
-    if (noteId) {
-      console.log('Received notes-data-updated event for note:', noteId);
-      
-      // Delay slightly to ensure notes are loaded
-      setTimeout(() => {
-        const note = notes.find(n => n._id === noteId);
-        if (note) {
-          // Select the specific note that was just created
-          setCurrentNote(note);
-          setEditTitle(note.title);
-          setEditContent(note.content || "");
-          setIsEditing(true);
-          setHasUnsavedChanges(false);
-          setShowNotesSidebar(true);
-        }
-        
-        // Refresh notes list
+      // Refresh notes data
+      if (token) {
         queryClient.invalidateQueries({ queryKey: ['notes'] });
-      }, 1000);
-    }
-  };
+        refetchNotes();
+      }
+    };
 
-  window.addEventListener('notes-data-updated', handleNotesDataUpdated as EventListener);
+    // Listen for the event from SummaryChat toast
+    window.addEventListener('open-notes-panel', handleOpenNotesPanel);
 
-  return () => {
-    window.removeEventListener('notes-data-updated', handleNotesDataUpdated as EventListener);
-  };
-}, [notes, queryClient]);
+    return () => {
+      window.removeEventListener('open-notes-panel', handleOpenNotesPanel);
+    };
+  }, [token, queryClient, refetchNotes]);
+
+  // Add this useEffect to handle specific note selection
+  useEffect(() => {
+    const handleNotesDataUpdated = (event: CustomEvent) => {
+      const { noteId } = event.detail || {};
+
+      if (noteId) {
+        console.log('Received notes-data-updated event for note:', noteId);
+
+        // Delay slightly to ensure notes are loaded
+        setTimeout(() => {
+          const note = notes.find(n => n._id === noteId);
+          if (note) {
+            // Select the specific note that was just created
+            setCurrentNote(note);
+            setEditTitle(note.title);
+            setEditContent(note.content || "");
+            setIsEditing(true);
+            setHasUnsavedChanges(false);
+            setShowNotesSidebar(true);
+          }
+
+          // Refresh notes list
+          queryClient.invalidateQueries({ queryKey: ['notes'] });
+        }, 1000);
+      }
+    };
+
+    window.addEventListener('notes-data-updated', handleNotesDataUpdated as EventListener);
+
+    return () => {
+      window.removeEventListener('notes-data-updated', handleNotesDataUpdated as EventListener);
+    };
+  }, [notes, queryClient]);
   // Drag handlers - only used when isDraggable is true
   const handleMouseDown = (e: React.MouseEvent) => {
     if (!isDraggable) return;
@@ -373,84 +373,84 @@ useEffect(() => {
   // Focus save title input when save confirm modal opens
 
   // Add this useEffect to handle opening from toast for all viewers
-useEffect(() => {
-  const handleOpenFromToast = () => {
-    console.log('Opening notes panel from toast in viewer context');
-    
-    // Force the notes panel to open
-    window.dispatchEvent(new CustomEvent('force-open-notes-in-viewer'));
-    
-    // Show sidebar when opened from toast
-    setShowNotesSidebar(true);
-    
-    // Refresh notes data
-    if (token) {
-      queryClient.invalidateQueries({ queryKey: ['notes'] });
-      refetchNotes();
-    }
-  };
+  useEffect(() => {
+    const handleOpenFromToast = () => {
+      console.log('Opening notes panel from toast in viewer context');
 
-  // Listen for the event from the toast
-  window.addEventListener('open-notes-panel-from-toast', handleOpenFromToast);
+      // Force the notes panel to open
+      window.dispatchEvent(new CustomEvent('force-open-notes-in-viewer'));
 
-  return () => {
-    window.removeEventListener('open-notes-panel-from-toast', handleOpenFromToast);
-  };
-}, [token, queryClient, refetchNotes]);
+      // Show sidebar when opened from toast
+      setShowNotesSidebar(true);
 
-// Update the existing useEffect for notes-data-updated to work in all viewer contexts
-useEffect(() => {
-  const handleNotesDataUpdated = (event: CustomEvent) => {
-    const { noteId } = event.detail || {};
-    
-    if (noteId) {
-      console.log('Received notes-data-updated event for note:', noteId);
-      
-      // Check if we're in any viewer context (PDF, PPT, Video)
-      const isInViewer = window.location.pathname.includes('pdf') || 
-                         window.location.pathname.includes('ppt') || 
-                         window.location.pathname.includes('video') ||
-                         document.querySelector('.pdf-viewer') ||
-                         document.querySelector('.ppt-viewer') ||
-                         document.querySelector('.video-player') ||
-                         document.querySelector('[class*="pdf-viewer"]') ||
-                         document.querySelector('[class*="ppt-viewer"]') ||
-                         document.querySelector('[class*="video-player"]');
-      
-      if (isInViewer) {
-        // Wait a bit for notes to load
-        setTimeout(() => {
-          const note = notes.find(n => n._id === noteId);
-          if (note) {
-            console.log('Found note in viewer context:', note.title);
-            // Select the specific note that was just created
-            setCurrentNote(note);
-            setEditTitle(note.title);
-            setEditContent(note.content || "");
-            setIsEditing(true);
-            setHasUnsavedChanges(false);
-            setShowNotesSidebar(true);
-            
-            // Scroll to the note in the sidebar if it exists
-            const noteElement = document.querySelector(`[data-note-id="${noteId}"]`);
-            if (noteElement) {
-              noteElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
-          }
-          
-          // Refresh notes list
-          queryClient.invalidateQueries({ queryKey: ['notes'] });
-        }, 800);
+      // Refresh notes data
+      if (token) {
+        queryClient.invalidateQueries({ queryKey: ['notes'] });
+        refetchNotes();
       }
-    }
-  };
+    };
 
-  window.addEventListener('notes-data-updated', handleNotesDataUpdated as EventListener);
+    // Listen for the event from the toast
+    window.addEventListener('open-notes-panel-from-toast', handleOpenFromToast);
 
-  return () => {
-    window.removeEventListener('notes-data-updated', handleNotesDataUpdated as EventListener);
-  };
-}, [notes, queryClient]);
+    return () => {
+      window.removeEventListener('open-notes-panel-from-toast', handleOpenFromToast);
+    };
+  }, [token, queryClient, refetchNotes]);
+
+  // Update the existing useEffect for notes-data-updated to work in all viewer contexts
+  useEffect(() => {
+    const handleNotesDataUpdated = (event: CustomEvent) => {
+      const { noteId } = event.detail || {};
+
+      if (noteId) {
+        console.log('Received notes-data-updated event for note:', noteId);
+
+        // Check if we're in any viewer context (PDF, PPT, Video)
+        const isInViewer = window.location.pathname.includes('pdf') ||
+          window.location.pathname.includes('ppt') ||
+          window.location.pathname.includes('video') ||
+          document.querySelector('.pdf-viewer') ||
+          document.querySelector('.ppt-viewer') ||
+          document.querySelector('.video-player') ||
+          document.querySelector('[class*="pdf-viewer"]') ||
+          document.querySelector('[class*="ppt-viewer"]') ||
+          document.querySelector('[class*="video-player"]');
+
+        if (isInViewer) {
+          // Wait a bit for notes to load
+          setTimeout(() => {
+            const note = notes.find(n => n._id === noteId);
+            if (note) {
+              console.log('Found note in viewer context:', note.title);
+              // Select the specific note that was just created
+              setCurrentNote(note);
+              setEditTitle(note.title);
+              setEditContent(note.content || "");
+              setIsEditing(true);
+              setHasUnsavedChanges(false);
+              setShowNotesSidebar(true);
+
+              // Scroll to the note in the sidebar if it exists
+              const noteElement = document.querySelector(`[data-note-id="${noteId}"]`);
+              if (noteElement) {
+                noteElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
+            }
+
+            // Refresh notes list
+            queryClient.invalidateQueries({ queryKey: ['notes'] });
+          }, 800);
+        }
+      }
+    };
+
+    window.addEventListener('notes-data-updated', handleNotesDataUpdated as EventListener);
+
+    return () => {
+      window.removeEventListener('notes-data-updated', handleNotesDataUpdated as EventListener);
+    };
+  }, [notes, queryClient]);
   useEffect(() => {
     if (showSaveConfirm && saveTitleInputRef.current) {
       setTimeout(() => {
@@ -790,59 +790,59 @@ useEffect(() => {
     }
   })
 
-// Reset internal state when panel closes
-useEffect(() => {
-  if (!isOpen) {
-    // Clear localStorage when panel closes
-    localStorage.removeItem('lastCreatedNote');
-    localStorage.removeItem('lastCreatedNoteId');
-    
-    // Reset all state
-    setCurrentNote(null);
-    setIsEditing(true);
-    setOpenDropdownId(null);
-    setEditContent("");
-    setEditTitle("Untitled Note");
-    setSearchQuery("");
-    setError(null);
-    setEditorKey(0);
-    setIsEditorReady(false);
-    setToolbarUpdate(0);
-    setShowNotesSidebar(false);
-    setHasUnsavedChanges(false);
-    setShowSaveConfirm(false);
-    setPendingClose(false);
-    setSelectedNotes([]);
-    setIsSelecting(false);
-    setSaveNoteTitle("");
-    
-    // Reset delete confirmation state
-    setShowDeleteConfirm(false);
-    setNotesToDelete([]);
-    setDeleteConfirmTitle("");
-    setShowSaveToast(false);
-    setShowDeleteToast(false);
-    setDeletedNoteTitle("");
-    
-    // Reset copy/paste states
-    setCopied(false);
-    setPasted(false);
-    
-    // Reset drag-related states (if draggable)
-    if (isDraggable) {
-      setPosition({ x: 0, y: 0 });
-      setIsDragging(false);
-      setDragStart({ x: 0, y: 0 });
-      setIsResizing(false);
-      setSize({ width: 400, height: 600 });
+  // Reset internal state when panel closes
+  useEffect(() => {
+    if (!isOpen) {
+      // Clear localStorage when panel closes
+      localStorage.removeItem('lastCreatedNote');
+      localStorage.removeItem('lastCreatedNoteId');
+
+      // Reset all state
+      setCurrentNote(null);
+      setIsEditing(true);
+      setOpenDropdownId(null);
+      setEditContent("");
+      setEditTitle("Untitled Note");
+      setSearchQuery("");
+      setError(null);
+      setEditorKey(0);
+      setIsEditorReady(false);
+      setToolbarUpdate(0);
+      setShowNotesSidebar(false);
+      setHasUnsavedChanges(false);
+      setShowSaveConfirm(false);
+      setPendingClose(false);
+      setSelectedNotes([]);
+      setIsSelecting(false);
+      setSaveNoteTitle("");
+
+      // Reset delete confirmation state
+      setShowDeleteConfirm(false);
+      setNotesToDelete([]);
+      setDeleteConfirmTitle("");
+      setShowSaveToast(false);
+      setShowDeleteToast(false);
+      setDeletedNoteTitle("");
+
+      // Reset copy/paste states
+      setCopied(false);
+      setPasted(false);
+
+      // Reset drag-related states (if draggable)
+      if (isDraggable) {
+        setPosition({ x: 0, y: 0 });
+        setIsDragging(false);
+        setDragStart({ x: 0, y: 0 });
+        setIsResizing(false);
+        setSize({ width: 400, height: 600 });
+      }
+
+      // Clean up editor
+      if (editor && !editor.isDestroyed) {
+        editor.commands.clearContent();
+      }
     }
-    
-    // Clean up editor
-    if (editor && !editor.isDestroyed) {
-      editor.commands.clearContent();
-    }
-  }
-}, [isOpen, isDraggable, editor])
+  }, [isOpen, isDraggable, editor])
 
   // Data update listener for real-time updates
   useEffect(() => {
@@ -915,86 +915,86 @@ useEffect(() => {
   }
 
   // Handle close with save confirmation
- const handleClose = () => {
-  const isEmptyNote = !editContent.trim() && editTitle === "Untitled Note";
+  const handleClose = () => {
+    const isEmptyNote = !editContent.trim() && editTitle === "Untitled Note";
 
-  // Clear localStorage when closing
-  localStorage.removeItem('lastCreatedNote');
-  localStorage.removeItem('lastCreatedNoteId');
+    // Clear localStorage when closing
+    localStorage.removeItem('lastCreatedNote');
+    localStorage.removeItem('lastCreatedNoteId');
 
-  // For existing notes with unsaved changes
-  if (currentNote && hasUnsavedChanges) {
-    setShowSaveConfirm(true);
-    setPendingClose(true);
-    setSaveNoteTitle(currentNote.title);
-  }
-  // For new notes that have content
-  else if (!currentNote && !isEmptyNote) {
-    setShowSaveConfirm(true);
-    setPendingClose(true);
-    setSaveNoteTitle("");
-  }
-  // For empty notes or no unsaved changes, close directly
-  else {
-    onClose();
-  }
-};
- const closeWithoutSaving = () => {
-  setShowSaveConfirm(false);
-  
-  // Clear localStorage when closing without saving
-  localStorage.removeItem('lastCreatedNote');
-  localStorage.removeItem('lastCreatedNoteId');
+    // For existing notes with unsaved changes
+    if (currentNote && hasUnsavedChanges) {
+      setShowSaveConfirm(true);
+      setPendingClose(true);
+      setSaveNoteTitle(currentNote.title);
+    }
+    // For new notes that have content
+    else if (!currentNote && !isEmptyNote) {
+      setShowSaveConfirm(true);
+      setPendingClose(true);
+      setSaveNoteTitle("");
+    }
+    // For empty notes or no unsaved changes, close directly
+    else {
+      onClose();
+    }
+  };
+  const closeWithoutSaving = () => {
+    setShowSaveConfirm(false);
 
-  if (pendingClose) {
-    setHasUnsavedChanges(false);
-    onClose();
-  }
-}
+    // Clear localStorage when closing without saving
+    localStorage.removeItem('lastCreatedNote');
+    localStorage.removeItem('lastCreatedNoteId');
 
-const cancelClose = () => {
-  setShowSaveConfirm(false);
-  setPendingClose(false);
-}
-
-const saveWithTitle = () => {
-  if (!editor) return;
-
-  const finalContent = editor.getHTML();
-  const finalTitle = saveNoteTitle.trim() || "Untitled Note";
-
-  if (currentNote) {
-    // Update existing note
-    const noteData = {
-      title: finalTitle,
-      content: finalContent,
-      tags: currentNote.tags,
-      isPinned: currentNote.isPinned,
-      color: currentNote.color
-    };
-    updateNoteMutation.mutate({ noteId: currentNote._id, noteData });
-  } else {
-    // Create new note
-    const newNoteData = {
-      title: finalTitle,
-      content: finalContent,
-      tags: [],
-      isPinned: false,
-      color: "#ffffff"
-    };
-    createNoteMutation.mutate(newNoteData);
+    if (pendingClose) {
+      setHasUnsavedChanges(false);
+      onClose();
+    }
   }
 
-  setShowSaveConfirm(false);
-  
-  // Clear localStorage after saving
-  localStorage.removeItem('lastCreatedNote');
-  localStorage.removeItem('lastCreatedNoteId');
-
-  if (pendingClose) {
-    setTimeout(() => onClose(), 100)
+  const cancelClose = () => {
+    setShowSaveConfirm(false);
+    setPendingClose(false);
   }
-}
+
+  const saveWithTitle = () => {
+    if (!editor) return;
+
+    const finalContent = editor.getHTML();
+    const finalTitle = saveNoteTitle.trim() || "Untitled Note";
+
+    if (currentNote) {
+      // Update existing note
+      const noteData = {
+        title: finalTitle,
+        content: finalContent,
+        tags: currentNote.tags,
+        isPinned: currentNote.isPinned,
+        color: currentNote.color
+      };
+      updateNoteMutation.mutate({ noteId: currentNote._id, noteData });
+    } else {
+      // Create new note
+      const newNoteData = {
+        title: finalTitle,
+        content: finalContent,
+        tags: [],
+        isPinned: false,
+        color: "#ffffff"
+      };
+      createNoteMutation.mutate(newNoteData);
+    }
+
+    setShowSaveConfirm(false);
+
+    // Clear localStorage after saving
+    localStorage.removeItem('lastCreatedNote');
+    localStorage.removeItem('lastCreatedNoteId');
+
+    if (pendingClose) {
+      setTimeout(() => onClose(), 100)
+    }
+  }
 
 
 
@@ -1328,9 +1328,8 @@ const saveWithTitle = () => {
     (editContent.trim() || (editTitle.trim() && editTitle !== "Untitled Note"));
 
   // Render Tiptap toolbar
-  const renderTiptapToolbar = () => {
-    if (!editor || !isEditorReady) return null
-
+const renderTiptapToolbar = () => {
+  if (!editor) return null
     return (
       <div className="tiptap-toolbar">
         {/* Font Family */}
@@ -2029,14 +2028,14 @@ const saveWithTitle = () => {
             )}
 
             {/* Close Button */}
-            <button
+            {/* <button
               onClick={handleClose}
               className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-[#64B5F6] focus:ring-offset-1 ml-1 btn-smooth"
               aria-label="Close notes"
               title="Close"
             >
               <X className="w-4 h-4 text-gray-600" />
-            </button>
+            </button> */}
           </div>
         </div>
 
@@ -2046,7 +2045,7 @@ const saveWithTitle = () => {
             <div className="tiptap-editor-container">
               {renderTiptapToolbar()}
               <div className="tiptap-editor notes-scrollbar">
-                {editor && isEditorReady ? (
+                {editor ? (
                   <EditorContent editor={editor} />
                 ) : (
                   <div className="flex items-center justify-center h-full">
@@ -2475,7 +2474,7 @@ const saveWithTitle = () => {
                 <div className="tiptap-editor-container">
                   {renderTiptapToolbar()}
                   <div className="tiptap-editor notes-scrollbar">
-                    {editor && isEditorReady ? (
+                    {editor  ? (
                       <EditorContent editor={editor} />
                     ) : (
                       <div className="flex items-center justify-center h-full">

@@ -4,14 +4,10 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
-import { Upload, X, CheckCircle, XCircle, Download, Loader2, AlertTriangle, Search } from "lucide-react"
+import { Upload, X, CheckCircle, XCircle, Download, Loader2, AlertTriangle } from "lucide-react"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { toast } from "react-toastify"
 import { bulkUploadUsers } from "@/apiServices/userService"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ScrollArea } from "@/components/ui/scroll-area" // Add this import
 import { courseStructureApi } from "@/apiServices/createCourseStucture"
 
 interface UploadResults {
@@ -68,9 +64,6 @@ const BulkUploadModal: React.FC<BulkUploadModalProps> = ({ isOpen, onClose, onSu
     stage: 'upload',
     message: ''
   })
-  const [batch, setBatch] = useState<string>("")
-  const [selectedCourses, setSelectedCourses] = useState<string[]>([])
-  const [courseSearch, setCourseSearch] = useState<string>("")
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Fetch course structures - FIXED: Use the correct useQuery syntax
@@ -88,21 +81,6 @@ const BulkUploadModal: React.FC<BulkUploadModalProps> = ({ isOpen, onClose, onSu
   })
 
   console.log("courseStructures", courseStructures);
-
-  // Map course structures for multi-select component
-  const courseOptions = Array.isArray(courseStructures) ? courseStructures.map((course: CourseStructure) => ({
-    value: course._id,
-    label: course.courseName + (course.courseCode ? ` (${course.courseCode})` : ""),
-    name: course.courseName,
-    code: course.courseCode
-  })) : []
-
-  // Filter courses based on search
-  const filteredCourseOptions = courseOptions.filter(course => 
-    course.label.toLowerCase().includes(courseSearch.toLowerCase()) ||
-    course.name.toLowerCase().includes(courseSearch.toLowerCase()) ||
-    (course.code && course.code.toLowerCase().includes(courseSearch.toLowerCase()))
-  )
 
   useEffect(() => {
     if (coursesError) {
@@ -289,17 +267,6 @@ const BulkUploadModal: React.FC<BulkUploadModalProps> = ({ isOpen, onClose, onSu
       return
     }
 
-    // Validate additional fields if needed
-    if (selectedCourses.length === 0) {
-      toast.error("Please select at least one course")
-      return
-    }
-
-    if (!batch.trim()) {
-      toast.error("Please enter a batch name")
-      return
-    }
-
     setUploadProgress({
       percentage: 0,
       status: 'uploading',
@@ -310,12 +277,6 @@ const BulkUploadModal: React.FC<BulkUploadModalProps> = ({ isOpen, onClose, onSu
     const formData = new FormData()
     formData.append('file', file)
     formData.append('notificationMethod', 'email')
-    formData.append('batch', batch)
-    
-    // Append selected courses as array
-    selectedCourses.forEach((courseId, index) => {
-      formData.append(`courses[${index}]`, courseId)
-    })
 
     uploadMutation.mutate(formData)
   }
@@ -323,9 +284,6 @@ const BulkUploadModal: React.FC<BulkUploadModalProps> = ({ isOpen, onClose, onSu
   const handleClose = (): void => {
     setFile(null)
     setUploadResults(null)
-    setBatch("")
-    setSelectedCourses([])
-    setCourseSearch("")
     setUploadProgress({
       percentage: 0,
       status: 'idle',
@@ -355,9 +313,6 @@ const BulkUploadModal: React.FC<BulkUploadModalProps> = ({ isOpen, onClose, onSu
   const handleUploadAnotherFile = (): void => {
     setFile(null)
     setUploadResults(null)
-    setBatch("")
-    setSelectedCourses([])
-    setCourseSearch("")
     setUploadProgress({
       percentage: 0,
       status: 'idle',
@@ -431,107 +386,6 @@ const BulkUploadModal: React.FC<BulkUploadModalProps> = ({ isOpen, onClose, onSu
               </Button>
             </div>
           </div>
-
-          {/* Additional Fields Section */}
-          {!uploadResults && uploadProgress.status === 'idle' && (
-            <div className="grid grid-cols-2 gap-4">
-              {/* Batch Input */}
-              <div className="space-y-2">
-                <Label htmlFor="batch" className="text-sm">
-                  Batch <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="batch"
-                  value={batch}
-                  onChange={(e) => setBatch(e.target.value)}
-                  placeholder="Enter batch name (e.g., 2024-2025)"
-                  className="h-9 text-sm"
-                />
-                <p className="text-xs text-gray-500">All users will be assigned to this batch</p>
-              </div>
-
-              {/* Courses Multi-select */}
-              <div className="space-y-2">
-                <Label htmlFor="courses" className="text-sm">
-                  Courses <span className="text-red-500">*</span>
-                </Label>
-                {coursesLoading ? (
-                  <div className="h-9 flex items-center justify-center border rounded-md">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  </div>
-                ) : (
-                  <Select 
-                    value={selectedCourses.length > 0 ? selectedCourses[0] : ""} 
-                    onValueChange={(value) => {
-                      if (!selectedCourses.includes(value)) {
-                        setSelectedCourses([...selectedCourses, value])
-                      }
-                    }}
-                  >
-                    <SelectTrigger className="h-9 text-sm">
-                      <SelectValue placeholder="Select courses" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-80">
-                      {/* Search input inside dropdown */}
-                      <div className="sticky top-0 z-10 bg-white border-b p-2">
-                        <div className="relative">
-                          <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
-                          <Input
-                            type="text"
-                            placeholder="Search courses..."
-                            value={courseSearch}
-                            onChange={(e) => setCourseSearch(e.target.value)}
-                            className="pl-8 pr-2 h-8 text-xs border-gray-300 focus:border-blue-500 w-full"
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        </div>
-                      </div>
-                      
-                      {/* Scrollable courses list */}
-                      <ScrollArea className="h-64">
-                        {filteredCourseOptions.length > 0 ? (
-                          filteredCourseOptions.map((course) => (
-                            <SelectItem key={course.value} value={course.value} className="py-2">
-                              {course.label}
-                            </SelectItem>
-                          ))
-                        ) : (
-                          <div className="p-4 text-center text-sm text-gray-500">
-                            No courses found
-                          </div>
-                        )}
-                      </ScrollArea>
-                      
-                      {/* Course count */}
-                      <div className="sticky bottom-0 bg-gray-50 border-t px-3 py-1.5 text-xs text-gray-500">
-                        {filteredCourseOptions.length} course{filteredCourseOptions.length !== 1 ? 's' : ''} found
-                      </div>
-                    </SelectContent>
-                  </Select>
-                )}
-                {selectedCourses.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    {selectedCourses.map((courseId) => {
-                      const course = courseStructures.find((c: CourseStructure) => c._id === courseId) as CourseStructure | undefined
-                      return (
-                        <Badge key={courseId} variant="secondary" className="text-xs px-2 py-1">
-                          {course?.courseName || "Unknown Course"}
-                          <button
-                            type="button"
-                            onClick={() => setSelectedCourses(selectedCourses.filter(id => id !== courseId))}
-                            className="ml-1 hover:text-red-500"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </Badge>
-                      )
-                    })}
-                  </div>
-                )}
-                <p className="text-xs text-gray-500">Select courses to assign to all users</p>
-              </div>
-            </div>
-          )}
 
           {/* File Upload Section */}
           {!uploadResults && uploadProgress.status === 'idle' && (
@@ -652,12 +506,6 @@ const BulkUploadModal: React.FC<BulkUploadModalProps> = ({ isOpen, onClose, onSu
                 <CheckCircle className="h-12 w-12 text-green-500 mx-auto" />
                 <h3 className="font-semibold text-lg text-green-600">Upload Complete!</h3>
                 <p className="text-sm text-gray-600">Your file has been processed successfully.</p>
-                {batch && (
-                  <div className="inline-flex items-center gap-2 bg-blue-50 px-3 py-1 rounded-full">
-                    <span className="text-xs font-medium">Batch:</span>
-                    <span className="text-xs text-blue-600">{batch}</span>
-                  </div>
-                )}
               </div>
               
               {/* Summary Cards */}
@@ -751,7 +599,7 @@ const BulkUploadModal: React.FC<BulkUploadModalProps> = ({ isOpen, onClose, onSu
               {!uploadResults && file && uploadProgress.status === 'idle' && (
                 <Button
                   onClick={handleUpload}
-                  disabled={isUploadInProgress || !batch.trim() || selectedCourses.length === 0}
+                  disabled={isUploadInProgress}
                   size="sm"
                   className="bg-blue-600 hover:bg-blue-700"
                 >

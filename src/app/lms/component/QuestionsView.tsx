@@ -192,7 +192,7 @@ useEffect(() => {
     }
     return q.title || q.questionTitle || 'Untitled Question';
   };  const getDesc  = (q: Question) => {
-    if (q.questionType === 'mcq') return q.mcqQuestionDescription || 'Multiple Choice Question';
+    if (q.questionType === 'mcq') return q.mcqQuestionDescription || '';
     if (q.description) {
       if (typeof q.description === 'string') return q.description.replace(/<[^>]*>/g, '').substring(0, 120);
       // Pure array format: [{ type:'text', value:'...' }, ...]
@@ -206,7 +206,7 @@ useEffect(() => {
     return 'No description provided';
   };
   const getDiff  = (q: Question) => q.questionType === 'mcq' ? q.mcqQuestionDifficulty || 'medium' : q.difficulty || 'medium';
-  const getScore = (q: Question) => q.questionType === 'mcq' ? q.mcqQuestionScore || 0 : q.score || q.points || 0;
+const getScore = (q: Question) => Math.round(q.questionType === 'mcq' ? q.mcqQuestionScore || 0 : q.score || q.points || 0);
   const getOptDisplay = (q: Question) => {
     if (q.questionType !== 'mcq' || !q.mcqQuestionOptions) return [];
     return q.mcqQuestionOptions.map(o => { const t = o.text.replace(/<[^>]*>/g, '').trim(); return t.length > 18 ? t.substring(0, 18) + '…' : t; });
@@ -244,15 +244,19 @@ useEffect(() => {
   };
 
   // ── Slot helpers ──────────────────────────────────────────────────────────
+  // Always use freshly fetched fullExData when available so quota display stays
+  // in sync after exercise settings are changed without a browser reload.
+  const effectiveQConfig = fullExData?.questionConfiguration ?? exercise?.questionConfiguration;
+
   const calcRemaining = () => {
-    const mc = exercise?.questionConfiguration?.mcqQuestionConfiguration;
+    const mc = effectiveQConfig?.mcqQuestionConfiguration;
     if (!mc || (mc.scoringType || 'equalDistribution') !== 'equalDistribution') return -1;
     return Math.max(0, (mc.totalMcqQuestions || 0) - questions.filter(q => q.questionType === 'mcq').length);
   };
-  const calcMarksPerQ = () => exercise?.questionConfiguration?.mcqQuestionConfiguration?.marksPerQuestion || 0;
+  const calcMarksPerQ = () => effectiveQConfig?.mcqQuestionConfiguration?.marksPerQuestion || 0;
 
   const isMcqAddDisabled = () => {
-    const mc = exercise?.questionConfiguration?.mcqQuestionConfiguration;
+    const mc = effectiveQConfig?.mcqQuestionConfiguration;
     if (!mc) return false;
     const st = mc.scoringType || 'equalDistribution';
     const mqQs = questions.filter(q => q.questionType === 'mcq');
@@ -263,7 +267,7 @@ useEffect(() => {
 
   // ── FIXED: isProgGeneralFull now handles selectionLevel ──────────────────
   const isProgGeneralFull = () => {
-    const pc = exercise?.questionConfiguration?.programmingQuestionConfiguration;
+    const pc = effectiveQConfig?.programmingQuestionConfiguration;
     if (!pc) return false;
     const configType = pc.questionConfigType || 'general';
 
@@ -300,9 +304,26 @@ useEffect(() => {
     return false;
   };
 
+
+  const isOthersFull = (): boolean => {
+  if (exercise.exerciseType !== 'Other') return false;
+  const oc = effectiveQConfig?.othersQuestionConfiguration;
+  if (!oc) return false;
+  const cfgType = oc.questionConfigType || 'general';
+  const othersQs = questions.filter(q => q.questionType === 'others');
+
+  if (cfgType === 'general') {
+    const total = oc.generalQuestionCount || 0;
+    return total > 0 && othersQs.length >= total;
+  }
+  // levelBased / selectionLevel
+  const counts = oc.levelBasedCounts || oc.selectionLevelCounts || {};
+  const total = (counts.easy || 0) + (counts.medium || 0) + (counts.hard || 0);
+  return total > 0 && othersQs.length >= total;
+};
   // ── NEW: per-difficulty full check for selectionLevel ────────────────────
   const isSelectionLevelDiffFull = (diff: 'easy' | 'medium' | 'hard'): boolean => {
-    const pc = exercise?.questionConfiguration?.programmingQuestionConfiguration;
+    const pc = effectiveQConfig?.programmingQuestionConfiguration;
     if (!pc || pc.questionConfigType !== 'selectionLevel') return false;
     const quota = (pc.selectionLevelCounts || {})[diff] || 0;
     if (!quota) return false;
@@ -320,7 +341,7 @@ useEffect(() => {
     total: number;
     byDifficulty?: Record<string, { used: number; total: number }>;
   } => {
-    const pc = exercise?.questionConfiguration?.programmingQuestionConfiguration;
+    const pc = effectiveQConfig?.programmingQuestionConfiguration;
     if (!pc) return { used: 0, total: 0 };
     const configType = pc.questionConfigType || 'general';
     const progQs = questions.filter(q => q.questionType !== 'mcq' && q.isActive !== false);
@@ -583,9 +604,9 @@ const handleAction = async (type: string, q: Question) => {
   };
 
   const getEvalSettings = () => ({
-    practiceMode: exercise.questionConfiguration?.programmingQuestionConfiguration?.allowCodeExecution || false,
+    practiceMode: effectiveQConfig?.programmingQuestionConfiguration?.allowCodeExecution || false,
     manualEvaluation: { enabled: false }, aiEvaluation: false,
-    automationEvaluation: exercise.questionConfiguration?.programmingQuestionConfiguration?.enableTestCases || false,
+    automationEvaluation: effectiveQConfig?.programmingQuestionConfiguration?.enableTestCases || false,
   });
 
   // ── Filtering & Pagination ─────────────────────────────────────────────────
@@ -606,23 +627,29 @@ const handleAction = async (type: string, q: Question) => {
   // ── Exercise type ─────────────────────────────────────────────────────────
   const isCombined = exercise.exerciseType?.toLowerCase() === 'combined' || exercise.configurationType?.combinedMode === true;
   const isPureMCQ  = !isCombined && (exercise.exerciseType?.toLowerCase() === 'mcq' || (exercise.configurationType?.mcqMode === true && !exercise.configurationType?.programmingMode));
-  const isPureProg = !isCombined && (exercise.exerciseType?.toLowerCase() === 'programming' || exercise.exerciseType?.toLowerCase() === 'other' || (exercise.configurationType?.programmingMode === true && !exercise.configurationType?.mcqMode));
+const isPureProg = !isCombined && (
+  exercise.exerciseType?.toLowerCase() === 'programming' ||
+  // REMOVE: exercise.exerciseType?.toLowerCase() === 'other' ||
+  (exercise.configurationType?.programmingMode === true && !exercise.configurationType?.mcqMode)
+);
 
+const isPureOthers = !isCombined && exercise.exerciseType?.toLowerCase() === 'other';
+  const isExerciseGraded = fullExData?.isGraded !== false;
   const progGenFull = isProgGeneralFull();
   const mcqDisabled = isMcqAddDisabled();
   const progSlot    = getProgSlotInfo();
   const progFull    = progSlot.total > 0 && progSlot.used >= progSlot.total;
 
-  const addBtnDisabled = isAddingQuestions || (() => {
-    if (isCombined)  return mcqDisabled && progFull;
-    if (isPureMCQ)   return mcqDisabled;
-    if (isPureProg)  return progGenFull;
-    return false;
-  })();
-
+const addBtnDisabled = isAddingQuestions || (() => {
+  if (isCombined)    return mcqDisabled && progFull;
+  if (isPureMCQ)     return mcqDisabled;
+  if (isPureProg)    return progGenFull;
+  if (isPureOthers)  return isOthersFull();
+  return false;
+})();
   const getMcqBannerText = (): string | null => {
     if (!mcqDisabled) return null;
-    const mc = exercise?.questionConfiguration?.mcqQuestionConfiguration; if (!mc) return null;
+    const mc = effectiveQConfig?.mcqQuestionConfiguration; if (!mc) return null;
     const st = mc.scoringType || 'equalDistribution';
     if (st === 'equalDistribution') { const t = mc.totalMcqQuestions || 0, u = questions.filter(q => q.questionType === 'mcq').length; return `All ${t} MCQ slots filled (${u}/${t}). Delete a question to add a new one.`; }
     if (st === 'questionSpecific')  { const t = mc.mcqTotalMarks || 0, u = questions.filter(q => q.questionType === 'mcq').reduce((s, q) => s + (q.mcqQuestionScore || 0), 0); return `All ${t} marks allocated (${u}/${t} used). Delete or reduce marks to add more.`; }
@@ -630,7 +657,7 @@ const handleAction = async (type: string, q: Question) => {
   };
 
   // Combined banner pills
-  const mcqCfg         = exercise?.questionConfiguration?.mcqQuestionConfiguration;
+  const mcqCfg         = effectiveQConfig?.mcqQuestionConfiguration;
   const mcqScoringType = mcqCfg?.scoringType || 'equalDistribution';
   const mcqQsForBanner = questions.filter(q => q.questionType === 'mcq');
   const mcqTotal       = mcqScoringType === 'questionSpecific' ? mcqCfg?.mcqTotalMarks || 0 : mcqCfg?.totalMcqQuestions || 0;
@@ -855,33 +882,21 @@ const handleAction = async (type: string, q: Question) => {
       <ArrowLeft size={15} />
     </button>
 
-    {/* Icon */}
-    <div className="flex-shrink-0 h-8 w-8 flex items-center justify-center rounded-lg"
-      style={{ background: 'rgba(242,119,87,0.1)', border: '1px solid rgba(242,119,87,0.2)' }}>
-      <Code2 size={15} style={{ color: '#F27757' }} />
-    </div>
-
-    {/* Title + ID (Two-line with labeled fields) */}
-    <div className="min-w-0">
-      <div className="flex items-center gap-1.5 mb-0.5">
-        <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#8b8b9e', letterSpacing: '0.06em' }}>Exercise name</span>
-        <span className="inline-flex items-center text-[10px] font-medium px-1.5 py-0 rounded-full"
-          style={{
-            background: exercise.exerciseType === 'MCQ' ? 'rgba(168,85,247,0.08)' : exercise.exerciseType === 'Combined' ? 'rgba(8,145,178,0.08)' : exercise.exerciseType === 'Other' ? 'rgba(22,163,74,0.08)' : 'rgba(59,130,246,0.08)',
-            color: exercise.exerciseType === 'MCQ' ? '#9333ea' : exercise.exerciseType === 'Combined' ? '#0891b2' : exercise.exerciseType === 'Other' ? '#16a34a' : '#3b82f6',
-            border: `1px solid ${exercise.exerciseType === 'MCQ' ? 'rgba(168,85,247,0.15)' : exercise.exerciseType === 'Combined' ? 'rgba(8,145,178,0.15)' : exercise.exerciseType === 'Other' ? 'rgba(22,163,74,0.15)' : 'rgba(59,130,246,0.15)'}`,
-          }}>
-          {exercise.exerciseType || 'Programming'}
+    {/* Title + ID — single row */}
+    <div className="flex items-center gap-3 min-w-0 flex-wrap">
+      <span className="text-[11px] font-medium flex-shrink-0" style={{ color: '#8b8b9e', ...JKT }}>
+        Id: <span style={{ color: '#1a1a2e', fontWeight: 600 }}>{exercise.exerciseInformation.exerciseId || exercise._id}</span>
+      </span>
+      <span style={{ color: '#d4d4de', flexShrink: 0 }}>·</span>
+      <span className="text-[11px] font-medium flex-shrink-0" style={{ color: '#8b8b9e', ...JKT }}>
+        Exercise name: <span style={{ color: '#1a1a2e', fontWeight: 600 }}>{exercise.exerciseInformation.exerciseName}</span>
+      </span>
+      <span style={{ color: '#d4d4de', flexShrink: 0 }}>·</span>
+      <span className="text-[11px] font-medium flex-shrink-0" style={{ color: '#8b8b9e', ...JKT }}>
+        Exercise type: <span style={{ color: '#1a1a2e', fontWeight: 600 }}>
+          {isCombined ? 'Combined' : isPureMCQ ? 'MCQ' : isPureProg ? 'Programming' : isPureOthers ? 'Other' : (exercise.exerciseType || '')}
         </span>
-      </div>
-      <div className="flex items-baseline gap-2">
-        <h1 className="text-[14px] font-semibold leading-tight truncate" style={{ color: '#1a1a2e' }}>
-          {exercise.exerciseInformation.exerciseName}
-        </h1>
-        <span className="text-[10px] flex-shrink-0 font-mono" style={{ color: '#bcbccc' }}>
-          {exercise.exerciseInformation.exerciseId || exercise._id}
-        </span>
-      </div>
+      </span>
     </div>
   </div>
 
@@ -941,15 +956,19 @@ const handleAction = async (type: string, q: Question) => {
             {filterDifficulty === d && <CheckCircle size={10} className="ml-auto" style={{ color: '#F27757' }} />}
           </DropdownMenuItem>
         ))}
-        <DropdownMenuSeparator style={{ background: '#e4e4ed' }} />
-        <DropdownMenuLabel className="text-[10px] uppercase tracking-wide" style={{ color: '#8b8b9e' }}>Type</DropdownMenuLabel>
-        {(['all', 'mcq', 'programming', 'frontend', 'database'] as const).map(t => (
-          <DropdownMenuItem key={t} className="text-xs" style={{ color: filterType === t ? '#F27757' : '#1a1a2e', fontWeight: filterType === t ? '600' : '400', cursor: 'pointer' }}
-            onClick={() => { setFilterType(t); setCurrentPage(1); }}>
-            {t === 'all' ? 'All Types' : t.charAt(0).toUpperCase() + t.slice(1)}
-            {filterType === t && <CheckCircle size={10} className="ml-auto" style={{ color: '#F27757' }} />}
-          </DropdownMenuItem>
-        ))}
+        {isCombined && (
+          <>
+            <DropdownMenuSeparator style={{ background: '#e4e4ed' }} />
+            <DropdownMenuLabel className="text-[10px] uppercase tracking-wide" style={{ color: '#8b8b9e' }}>Type</DropdownMenuLabel>
+            {(['all', 'mcq', 'programming', 'frontend', 'database'] as const).map(t => (
+              <DropdownMenuItem key={t} className="text-xs" style={{ color: filterType === t ? '#F27757' : '#1a1a2e', fontWeight: filterType === t ? '600' : '400', cursor: 'pointer' }}
+                onClick={() => { setFilterType(t); setCurrentPage(1); }}>
+                {t === 'all' ? 'All Types' : t.charAt(0).toUpperCase() + t.slice(1)}
+                {filterType === t && <CheckCircle size={10} className="ml-auto" style={{ color: '#F27757' }} />}
+              </DropdownMenuItem>
+            ))}
+          </>
+        )}
         {(filterDifficulty !== 'all' || filterType !== 'all') && (
           <>
             <DropdownMenuSeparator style={{ background: '#e4e4ed' }} />
@@ -1022,7 +1041,7 @@ const handleAction = async (type: string, q: Question) => {
 
           <div className="p-3 space-y-3">
             {(isCombined || isPureMCQ) && (() => {
-              const mc = exercise?.questionConfiguration?.mcqQuestionConfiguration;
+              const mc = effectiveQConfig?.mcqQuestionConfiguration;
               const st = mc?.scoringType || 'equalDistribution';
               const mqQs = questions.filter(q => q.questionType === 'mcq');
               const used = st === 'questionSpecific' ? mqQs.reduce((s, q) => s + (q.mcqQuestionScore || 0), 0) : mqQs.length;
@@ -1055,7 +1074,7 @@ const handleAction = async (type: string, q: Question) => {
 
             {(isCombined || isPureProg) && (() => {
               const { used, total, byDifficulty } = getProgSlotInfo();
-              const pc = exercise?.questionConfiguration?.programmingQuestionConfiguration;
+              const pc = effectiveQConfig?.programmingQuestionConfiguration;
               const configType = pc?.questionConfigType || 'general';
               const isFull = total > 0 && used >= total;
               const configBadge = configType === 'levelBased'
@@ -1107,6 +1126,35 @@ const handleAction = async (type: string, q: Question) => {
                 </div>
               );
             })()}
+
+  {isPureOthers  && (() => {
+    const oc = effectiveQConfig?.othersQuestionConfiguration;
+    const cfgType = oc?.questionConfigType || 'general';
+    const othersQs = questions.filter(q => q.questionType === 'others');
+    const used = othersQs.length;
+    const total = cfgType === 'general'
+      ? (oc?.generalQuestionCount || 0)
+      : ((oc?.levelBasedCounts?.easy || 0) + (oc?.levelBasedCounts?.medium || 0) + (oc?.levelBasedCounts?.hard || 0))
+        || ((oc?.selectionLevelCounts?.easy || 0) + (oc?.selectionLevelCounts?.medium || 0) + (oc?.selectionLevelCounts?.hard || 0));
+    const isFull = total > 0 && used >= total;
+
+    return (
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[12px] font-semibold" style={{ color: '#1a1a2e' }}>Others</span>
+          {total > 0
+            ? <span className="text-[11px] font-medium" style={{ color: isFull ? '#ef4444' : '#6b6b7e' }}>{used}/{total} questions</span>
+            : <span className="text-[11px]" style={{ color: '#8b8b9e' }}>{used} questions</span>}
+        </div>
+        {total > 0 && (
+          <div className="h-1.5 rounded-full overflow-hidden mb-2" style={{ background: '#f0f0f5' }}>
+            <div className="h-full rounded-full transition-all"
+              style={{ width: `${Math.min(100, (used / total) * 100)}%`, background: isFull ? '#ef4444' : '#16a34a' }} />
+          </div>
+        )}
+      </div>
+    );
+  })()}
 
             <p className="text-[10px] pt-1 font-medium" style={{ color: addBtnDisabled ? '#d97706' : '#F27757', borderTop: '1px solid #f0f0f5' }}>
               {addBtnDisabled ? '⚠ Delete a question to free up a slot' : '→ Click to add question'}
@@ -1170,19 +1218,19 @@ const handleAction = async (type: string, q: Question) => {
           <table className="w-full border-collapse text-sm table-fixed">
             {/* ── thead ── */}
             <thead>
-              <tr style={{ background: '#f5f5f5' }}>
+              <tr style={{ background: '#fafbfc', borderBottom: '1px solid #eef0f4' }}>
                 {[
                   { label: '#',          cls: 'w-10 pl-4 pr-2' },
                   { label: 'Question',   cls: 'w-[28%] px-3' },
                   ...(showMcqCol ? [{ label: 'Options', cls: 'w-[22%] px-3' }] : []),
-                  { label: 'Type',       cls: 'w-20 px-3' },
+                  ...((isCombined || isPureOthers) ? [{ label: 'Type', cls: 'w-20 px-3' }] : []),
                   { label: 'Difficulty', cls: 'w-20 px-3' },
-                  { label: 'Marks',      cls: 'w-16 px-3 text-center' },
+                  ...(isExerciseGraded ? [{ label: 'Marks', cls: 'w-16 px-3 text-center' }] : []),
                   { label: 'Actions',    cls: 'w-14 px-3 text-center' },
                 ].map(h => (
                   <th key={h.label}
-                    className={`py-2.5 text-[10px] uppercase tracking-wider font-bold text-left select-none ${h.cls}`}
-                    style={{ color: '#4a4a4a', letterSpacing: '0.06em', ...JKT }}>
+                    className={`py-2.5 text-left select-none ${h.cls}`}
+                    style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.04em', color: '#64748B', ...JKT }}>
                     {h.label}
                   </th>
                 ))}
@@ -1208,7 +1256,7 @@ const handleAction = async (type: string, q: Question) => {
                       borderBottom: '1px solid #f0f0f5',
                       background: isHovered
                         ? 'linear-gradient(90deg, rgba(242,119,87,0.06) 0%, rgba(242,119,87,0.03) 100%)'
-                        : isEven ? '#fdfcfb' : '#ffffff',
+                        : '#ffffff',
                       transition: 'background 0.15s ease, box-shadow 0.15s ease',
                       boxShadow: isHovered ? 'inset 3px 0 0 #F27757' : 'none',
                       cursor: 'default',
@@ -1268,18 +1316,18 @@ const handleAction = async (type: string, q: Question) => {
                       </td>
                     )}
 
-                    <td className="px-3 py-2.5 align-middle"><TypeBadge type={q.questionType} /></td>
+                    {(isCombined || isPureOthers) && (
+                      <td className="px-3 py-2.5 align-middle"><TypeBadge type={q.questionType} /></td>
+                    )}
                     <td className="px-3 py-2.5 align-middle"><DiffBadge level={diff} /></td>
 
-                    <td className="px-3 py-2.5 align-middle text-center">
-                      {score > 0
-                        ? <span className="text-[11px] font-bold px-2 py-0.5 rounded-full"
-                            style={{ background: isHovered ? 'rgba(242,119,87,0.12)' : '#f5f5f8', color: isHovered ? '#e0623f' : '#2d2d3d', transition: 'all 0.15s' }}>
-                            {score}
-                          </span>
-                        : <span className="text-[10px]" style={{ color: '#e4e4ed' }}>—</span>
-                      }
-                    </td>
+                    {isExerciseGraded && (
+                      <td className="px-3 py-2.5 align-middle text-center">
+                        <span className="block text-center text-[11px] font-medium" style={{ color: score > 0 ? '#1a1a2e' : '#e4e4ed', ...JKT }}>
+                          {score > 0 ? Math.round(score) : '—'}
+                        </span>
+                      </td>
+                    )}
 
                     {/* Actions */}
                     <td className="px-3 py-2.5 align-middle text-center">
@@ -1432,7 +1480,7 @@ const handleAction = async (type: string, q: Question) => {
             exerciseType: exercise.exerciseType, programmingSettings: exercise.programmingSettings, subcategoryLabel: subcategory,
           }}
           breadcrumbs={breadcrumbs} tabType={tabType}
-          onClose={async () => { await fetchQuestions(); setShowAddQuestion(false); }}
+          onClose={async () => { await Promise.all([fetchQuestions(), refreshFullExData()]); setShowAddQuestion(false); }}
           onSave={handleQuestionSaved} onOpenQuestionBank={() => { setShowAddQuestion(false); setShowQuestionBank(true); }}
           onOpenDocumentUpload={() => { setShowAddQuestion(false); setShowDocumentUpload(true); }}
           onMCQBankSelect={async (qs) => { setShowAddQuestion(false); await handleBankSelect(qs); }}

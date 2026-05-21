@@ -75,6 +75,8 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import StaffFrontendReview from './components/StaffFrontendReview';
+import StaffCodeReview from './components/StaffCodeReview';
+import { NotionPagesViewer, PageData as NotionPageData } from '@/app/lms/component/student/OthersNotionEditor';
 
 // Dynamically Import Monaco Editor
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
@@ -134,6 +136,41 @@ interface ExerciseQuestion {
   mcqQuestionCorrectAnswers?: string[];
   mcqQuestionTimeLimit?: number;
   mcqQuestionScore?: number;
+  // Others question fields
+  othersQuestionType?: 'notion' | 'file-upload';
+  notionSettings?: {
+    allowBold?: boolean;
+    allowItalic?: boolean;
+    allowUnderline?: boolean;
+    allowOrderedList?: boolean;
+    allowUnorderedList?: boolean;
+    allowHeading?: boolean;
+    allowLink?: boolean;
+    allowImage?: boolean;
+  };
+  fileUploadSettings?: {
+    allowedTypes?: string[];
+    maxFiles?: number;
+    maxFileSizeMB?: number;
+  };
+  othersDescription?: {
+    text?: string;
+    html?: string;
+    images?: Array<string | { url: string; alt?: string; alignment?: string; sizePercent?: number }>;
+    attachments?: Array<{ name: string; url: string; mimeType: string }>;
+  };
+  // content blocks system (new)
+  questionContent?: Array<{
+    id: string; type: 'text' | 'image';
+    value?: string; url?: string;
+    alignment?: 'left' | 'center' | 'right'; sizePercent?: number;
+  }>;
+  // top-level attachments (mirrors othersDescription.attachments)
+  attachments?: Array<{ name: string; url: string; mimeType: string }>;
+  // legacy image fields (backward compat)
+  descriptionImageUrl?: string;
+  descriptionImageAlignment?: 'left' | 'center' | 'right';
+  descriptionImageSizePercent?: number;
 }
 
 interface Exercise {
@@ -187,7 +224,7 @@ interface Exercise {
     };
   };
   questions: ExerciseQuestion[];
-  exerciseType?: 'MCQ' | 'Programming' | 'Combined';
+  exerciseType?: 'MCQ' | 'Programming' | 'Combined' | 'Other';
   nodeType?: string;
   createdAt: string;
   questionConfiguration?: {
@@ -209,6 +246,8 @@ interface Exercise {
   _moduleId?: string;
   _subModuleId?: string;
   _subTopicId?: string;
+  isGraded?: boolean;
+
 }
 
 interface SubmissionQuestion {
@@ -226,6 +265,7 @@ interface SubmissionQuestion {
   timeTaken?: number;
   memoryUsed?: number;
   attemptCount?: number;
+  nodeType?: string;
   files?: Array<{
     id: string;
     filename: string;
@@ -242,6 +282,11 @@ interface SubmissionQuestion {
     parentPath: string;
     depth: number;
   }>;
+  othersFiles?: Array<{
+    name: string;
+    url: string;
+    mimeType: string;
+  }>;
 }
 
 interface ExerciseAnswer {
@@ -253,6 +298,10 @@ interface ExerciseAnswer {
   nodeType: string;
   subcategory: string;
   createdAt: string;
+  lateSubmission?: boolean;
+  lastTestSubmittedAt?: string;
+  userAttempts?: number;
+  testSubmissions?: number;
 }
 
 interface UserCourse {
@@ -367,6 +416,8 @@ interface FrontendSubmissionData {
   attemptCount: number;
   participantName?: string;
   participantEmail?: string;
+  lateSubmission?: boolean;
+  lastTestSubmittedAt?: string;
 }
 
 // --- HELPER FUNCTIONS ---
@@ -480,7 +531,7 @@ const getQuestionMaxScore = (exercise: Exercise, question: ExerciseQuestion): nu
 
 const getDynamicExerciseTotal = (exercise: Exercise | null): number => {
   if (!exercise || !exercise.questions || exercise.questions.length === 0) return 0;
-  
+
   if (exercise.scoreSettings) {
     const { scoreType, totalMarks, evenMarks, levelBasedMarks, levelScoringConfiguration } = exercise.scoreSettings;
     if (totalMarks && totalMarks > 0) return totalMarks;
@@ -504,13 +555,13 @@ const getDynamicExerciseTotal = (exercise: Exercise | null): number => {
       return total;
     }
   }
-  
+
   if (exercise.questionConfiguration?.mcqQuestionConfiguration) {
     const mcqConfig = exercise.questionConfiguration.mcqQuestionConfiguration;
     if (mcqConfig.mcqTotalMarks && mcqConfig.mcqTotalMarks > 0) return mcqConfig.mcqTotalMarks;
     if (mcqConfig.scoringType === 'equalDistribution' && mcqConfig.marksPerQuestion) return mcqConfig.marksPerQuestion * exercise.questions.length;
   }
-  
+
   return exercise.questions.reduce((acc, q) => acc + getQuestionMaxScore(exercise, q), 0);
 };
 
@@ -519,28 +570,73 @@ const isQuestionMCQ = (q: ExerciseQuestion | null): boolean => {
   return q.questionType === 'MCQ' || (!q.title && !!q.mcqQuestionTitle);
 };
 
-const isFrontendQuestion = (question: ExerciseQuestion, submission?: SubmissionQuestion | null): boolean => {
+// Returns true ONLY when this is a real frontend (HTML/CSS/JS) submission.
+// Multi-file Core Programming (Python, etc.) ALSO has a `files` array, so we
+// must inspect the exercise's selectedModule + the actual file languages.
+const isFrontendQuestion = (
+  question: ExerciseQuestion,
+  submission?: SubmissionQuestion | null,
+  exercise?: ExerciseData | null,
+): boolean => {
   if (!question) return false;
-  
+
+  const selectedModule = (exercise?.programmingSettings?.selectedModule || '').toLowerCase();
+  // Hard exclusion: Core Programming is NEVER frontend, even if it has files[].
+  if (selectedModule === 'core programming' || selectedModule === 'database') return false;
+
   if (submission && submission.files && submission.files.length > 0) {
-    return true;
+    // Verify at least one file is a frontend language before classifying as frontend.
+    const FRONTEND_LANGS = new Set(['html', 'css', 'javascript', 'typescript']);
+    const FRONTEND_EXTS = new Set(['html', 'htm', 'css', 'js', 'jsx', 'ts', 'tsx']);
+    const hasFrontendFile = submission.files.some((f: any) => {
+      const lang = String(f.language || '').toLowerCase();
+      if (FRONTEND_LANGS.has(lang)) return true;
+      const ext = (f.filename || '').split('.').pop()?.toLowerCase() || '';
+      return FRONTEND_EXTS.has(ext);
+    });
+    if (hasFrontendFile) return true;
+    // files[] present but none are frontend → not a frontend submission
+    return false;
   }
-  
+
+  // No submission yet — fall back to question metadata heuristics
+  if (selectedModule === 'frontend') return true;
+
   const title = (question.title || '').toLowerCase();
   const description = (getQuestionDescription(question) || '').toLowerCase();
-  
   const frontendKeywords = ['html', 'css', 'javascript', 'frontend', 'web', 'react', 'vue', 'angular', 'ui', 'interface', 'website', 'page'];
-  const hasFrontendKeyword = frontendKeywords.some(keyword => 
+  const hasFrontendKeyword = frontendKeywords.some(keyword =>
     title.includes(keyword) || description.includes(keyword)
   );
-  
+
   if (question.solutions?.language) {
     const lang = question.solutions.language.toLowerCase();
     const frontendLangs = ['html', 'css', 'javascript', 'typescript', 'react', 'vue', 'angular'];
     if (frontendLangs.includes(lang)) return true;
   }
-  
+
   return hasFrontendKeyword;
+};
+
+// True when this is a Core Programming multi-file submission (e.g. Python).
+// We treat this as a CODE review (not frontend preview).
+const isCoreProgrammingMultiFileQuestion = (
+  submission?: SubmissionQuestion | null,
+  exercise?: ExerciseData | null,
+): boolean => {
+  const selectedModule = (exercise?.programmingSettings?.selectedModule || '').toLowerCase();
+  if (selectedModule !== 'core programming') return false;
+  if (!submission?.files || submission.files.length === 0) return false;
+  return true;
+};
+
+const isOthersQuestion = (question: ExerciseQuestion | null, submission?: SubmissionQuestion | null): boolean => {
+  if (!question) return false;
+  // Only "notion" and "file-upload" are real Others types; "text" is a programming question default
+  if (question.othersQuestionType === 'notion' || question.othersQuestionType === 'file-upload') return true;
+  if (submission?.nodeType === 'others_notion' || submission?.nodeType === 'others_file') return true;
+  if (submission?.othersFiles && submission.othersFiles.length > 0) return true;
+  return false;
 };
 
 const isStudent = (user: User): boolean => {
@@ -613,6 +709,386 @@ const InteractiveTerminal = ({ isOpen, onClose, logs, isWaitingForInput, onInput
   );
 };
 
+// --- OTHERS REVIEW PANEL ---
+const OthersReviewPanel = ({
+  question,
+  submission,
+  montserrat,
+  inter,
+}: {
+  question: ExerciseQuestion;
+  submission: SubmissionQuestion | null;
+  montserrat: any;
+  inter: any;
+}) => {
+  const [textContent, setTextContent] = useState<string | null>(null);
+  const [textLoading, setTextLoading] = useState(false);
+
+  const othersType = question.othersQuestionType ||
+    (submission?.nodeType === 'others_notion' ? 'notion' : submission?.nodeType === 'others_file' ? 'file-upload' : null);
+
+  const hasFiles = submission?.othersFiles && submission.othersFiles.length > 0;
+  const hasNotionAnswer = othersType === 'notion' && submission?.codeAnswer;
+
+  // Parse multi-page notion answer if present
+  const notionPages: NotionPageData[] | null = (() => {
+    if (!submission?.codeAnswer) return null;
+    const raw = submission.codeAnswer;
+    if (typeof raw !== 'string' || !raw.startsWith('{')) return null;
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed.type === 'notionPages' && Array.isArray(parsed.pages)) return parsed.pages as NotionPageData[];
+    } catch { /* not JSON */ }
+    return null;
+  })();
+
+  // For text/csv files, fetch content
+  const fetchTextContent = async (url: string) => {
+    setTextLoading(true);
+    try {
+      const res = await fetch(url);
+      const text = await res.text();
+      setTextContent(text);
+    } catch {
+      setTextContent('Unable to load file content.');
+    } finally {
+      setTextLoading(false);
+    }
+  };
+
+  const renderFileViewer = (file: { name: string; url: string; mimeType: string }, idx: number) => {
+    const mime = file.mimeType?.toLowerCase() || '';
+    const name = file.name?.toLowerCase() || '';
+
+    const isPdf = mime.includes('pdf') || name.endsWith('.pdf');
+    const isImage = mime.startsWith('image/');
+    const isDocx = mime.includes('wordprocessingml') || name.endsWith('.docx') || name.endsWith('.doc');
+    const isXlsx = mime.includes('spreadsheetml') || name.endsWith('.xlsx') || name.endsWith('.xls');
+    const isPptx = mime.includes('presentationml') || name.endsWith('.pptx') || name.endsWith('.ppt');
+    const isOffice = isDocx || isXlsx || isPptx;
+    const isText = mime.includes('text/plain') || name.endsWith('.txt') || name.endsWith('.csv') || mime.includes('text/csv');
+
+    return (
+      <div key={idx} className="mb-6">
+        <div className="flex items-center justify-between mb-2">
+          <span className={`text-xs font-semibold text-slate-700 ${montserrat.className}`}>{file.name}</span>
+          <a
+            href={file.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 uppercase tracking-wide flex items-center gap-1"
+          >
+            ↗ Open
+          </a>
+        </div>
+        {isPdf && (
+          <iframe
+            src={file.url}
+            className="w-full rounded-lg border border-slate-200"
+            style={{ height: 520 }}
+            title={file.name}
+          />
+        )}
+        {isImage && (
+          <img
+            src={file.url}
+            alt={file.name}
+            className="max-w-full rounded-lg border border-slate-200 object-contain"
+            style={{ maxHeight: 480 }}
+          />
+        )}
+        {isOffice && (
+          <iframe
+            src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(file.url)}`}
+            className="w-full rounded-lg border border-slate-200"
+            style={{ height: 520 }}
+            title={file.name}
+          />
+        )}
+        {isText && (
+          <div>
+            {textContent === null && !textLoading && (
+              <button
+                onClick={() => fetchTextContent(file.url)}
+                className="text-xs text-indigo-600 hover:underline"
+              >
+                Load file content
+              </button>
+            )}
+            {textLoading && <div className="text-xs text-slate-500">Loading...</div>}
+            {textContent !== null && (
+              <pre className="bg-slate-900 text-slate-200 text-xs p-4 rounded-lg overflow-auto max-h-80 font-mono">
+                {textContent}
+              </pre>
+            )}
+          </div>
+        )}
+        {!isPdf && !isImage && !isOffice && !isText && (
+          <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
+            <div className="w-10 h-10 bg-slate-200 rounded-lg flex items-center justify-center">
+              <FileCode className="h-5 w-5 text-slate-500" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-slate-700">{file.name}</p>
+              <p className="text-xs text-slate-500">{file.mimeType || 'Unknown type'}</p>
+            </div>
+            <a
+              href={file.url}
+              download={file.name}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="ml-auto text-xs font-bold text-white bg-slate-900 hover:bg-indigo-600 px-3 py-1.5 rounded-md transition-colors"
+            >
+              Download
+            </a>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const [showDetailModal, setShowDetailModal] = useState(false);
+
+  // Collect all attachments from both top-level and othersDescription
+  const allAttachments = (() => {
+    const combined = [
+      ...(question.attachments || []),
+      ...(question.othersDescription?.attachments || []),
+    ];
+    return combined.filter((a, i, arr) => arr.findIndex(x => x.url === a.url) === i);
+  })();
+
+  // Check whether there's any content to show in the modal
+  const hasDescription = !!(
+    (question.questionContent && question.questionContent.length > 0) ||
+    question.othersDescription?.html ||
+    question.othersDescription?.text ||
+    (question.othersDescription?.images && question.othersDescription.images.length > 0) ||
+    question.descriptionImageUrl
+  );
+  const hasViewMore = hasDescription || allAttachments.length > 0;
+
+  const getAttachmentIcon = (mime: string) => {
+    if (!mime) return '📎';
+    if (mime.includes('pdf')) return '📄';
+    if (mime.includes('word') || mime.includes('doc')) return '📝';
+    if (mime.includes('excel') || mime.includes('sheet')) return '📊';
+    if (mime.includes('powerpoint') || mime.includes('presentation')) return '📋';
+    if (mime.startsWith('image/')) return '🖼️';
+    if (mime.startsWith('video/')) return '🎥';
+    return '📎';
+  };
+
+  return (
+    <div className="h-full overflow-y-auto custom-scrollbar px-6 py-5 space-y-5">
+      {/* Question header — title only + View More button */}
+      <div className="bg-orange-50 rounded-xl p-5 border border-orange-200">
+        <span className={`text-[9px] font-bold text-orange-500 uppercase tracking-widest mb-2 block ${montserrat.className}`}>
+          {othersType === 'notion' ? 'Written Response' : othersType === 'file-upload' ? 'File Upload' : 'Others'} • {question.points || question.score || 10} Mark
+        </span>
+        <div className="flex items-start justify-between gap-3">
+          <h2 className={`text-sm font-semibold text-slate-800 leading-relaxed flex-1 ${inter.className}`}>
+            {question.title || 'Question'}
+          </h2>
+          {hasViewMore && (
+            <button
+              onClick={() => setShowDetailModal(true)}
+              className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wide transition-all bg-orange-100 hover:bg-orange-200 text-orange-700 border border-orange-200 hover:border-orange-300 ${montserrat.className}`}
+            >
+              <Layers className="w-3 h-3" />
+              View More
+            </button>
+          )}
+        </div>
+        {allAttachments.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-3">
+            {allAttachments.map((att, i) => (
+              <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-100 border border-orange-200 text-[10px] font-semibold text-orange-700">
+                <span>{getAttachmentIcon(att.mimeType)}</span>
+                <span className="max-w-[100px] truncate">{att.name}</span>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Question Detail Modal */}
+      <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
+        <DialogContent className={`max-w-2xl rounded-2xl border-none shadow-2xl p-0 overflow-hidden bg-white ${inter.className}`}>
+          <DialogHeader className="px-6 pt-5 pb-4 border-b border-slate-100 bg-slate-50">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <span className={`text-[9px] font-bold text-orange-500 uppercase tracking-widest block mb-1 ${montserrat.className}`}>
+                  {othersType === 'notion' ? 'Written Response' : othersType === 'file-upload' ? 'File Upload' : 'Others'} • {question.points || question.score || 10} points
+                </span>
+                <DialogTitle className={`text-sm font-bold text-slate-900 leading-snug ${montserrat.className}`}>
+                  {question.title || 'Question'}
+                </DialogTitle>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => setShowDetailModal(false)}
+                className="h-8 w-8 p-0 rounded-full hover:bg-slate-200 shrink-0">
+                <X className="h-4 w-4 text-slate-500" />
+              </Button>
+            </div>
+          </DialogHeader>
+
+          <ScrollArea className="max-h-[70vh]">
+            <div className="px-6 py-5 space-y-5">
+
+              {/* Description + Images */}
+              {hasDescription && (
+                <div>
+                  <p className={`text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-3 ${montserrat.className}`}>
+                    Description
+                  </p>
+                  <div className="space-y-3">
+                    {question.questionContent && question.questionContent.length > 0 ? (
+                      question.questionContent.map((cb, i) => {
+                        if (cb.type === 'text' && cb.value) {
+                          return (
+                            <div key={cb.id || i}
+                              className="text-sm text-slate-700 leading-relaxed prose prose-sm max-w-none"
+                              dangerouslySetInnerHTML={{ __html: cb.value }}
+                            />
+                          );
+                        }
+                        if (cb.type === 'image' && cb.url) {
+                          const justify = cb.alignment === 'left' ? 'flex-start' : cb.alignment === 'right' ? 'flex-end' : 'center';
+                          return (
+                            <div key={cb.id || i} style={{ display: 'flex', justifyContent: justify }}>
+                              <img src={cb.url} alt=""
+                                style={{ width: `${cb.sizePercent || 60}%`, height: 'auto', borderRadius: 10, border: '1.5px solid #e2e8f0', display: 'block' }}
+                              />
+                            </div>
+                          );
+                        }
+                        return null;
+                      })
+                    ) : (
+                      <>
+                        {question.othersDescription?.html && (
+                          <div className="text-sm text-slate-700 leading-relaxed prose prose-sm max-w-none"
+                            dangerouslySetInnerHTML={{ __html: question.othersDescription.html }} />
+                        )}
+                        {question.othersDescription?.text && !question.othersDescription?.html && (
+                          <p className="text-sm text-slate-700 leading-relaxed">{question.othersDescription.text}</p>
+                        )}
+                        {question.othersDescription?.images && question.othersDescription.images.length > 0 && (
+                          <div className="flex flex-col gap-3">
+                            {question.othersDescription.images.map((entry, i) => {
+                              const imgUrl = typeof entry === 'string' ? entry : entry.url;
+                              const imgSize = typeof entry === 'object' && typeof entry.sizePercent === 'number' ? entry.sizePercent : 60;
+                              const imgAlign = typeof entry === 'object' ? (entry.alignment || 'center') : 'center';
+                              const justify = imgAlign === 'left' ? 'flex-start' : imgAlign === 'right' ? 'flex-end' : 'center';
+                              return (
+                                <div key={i} style={{ display: 'flex', justifyContent: justify }}>
+                                  <img src={imgUrl} alt=""
+                                    style={{ width: `${imgSize}%`, height: 'auto', borderRadius: 10, border: '1.5px solid #e2e8f0', display: 'block', objectFit: 'contain' }} />
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                        {question.descriptionImageUrl && (
+                          <div style={{
+                            display: 'flex',
+                            justifyContent: question.descriptionImageAlignment === 'left' ? 'flex-start'
+                              : question.descriptionImageAlignment === 'right' ? 'flex-end' : 'center',
+                          }}>
+                            <img src={question.descriptionImageUrl} alt=""
+                              style={{ width: `${question.descriptionImageSizePercent || 60}%`, height: 'auto', borderRadius: 10, border: '1.5px solid #e2e8f0', display: 'block' }}
+                            />
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Attachments */}
+              {allAttachments.length > 0 && (
+                <div>
+                  <p className={`text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-3 ${montserrat.className}`}>
+                    Attachments
+                  </p>
+                  <div className="flex flex-col gap-2">
+                    {allAttachments.map((att, i) => (
+                      <a key={i} href={att.url} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 transition-all group no-underline">
+                        <span className="text-xl shrink-0">{getAttachmentIcon(att.mimeType)}</span>
+                        <span className="flex-1 text-xs font-semibold text-slate-700 group-hover:text-indigo-700 truncate">{att.name}</span>
+                        <span className={`text-[10px] font-bold text-indigo-500 uppercase tracking-wide shrink-0 ${montserrat.className}`}>Open ↗</span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+            </div>
+          </ScrollArea>
+
+          <div className="px-6 py-3 bg-slate-50 border-t border-slate-100 flex justify-end">
+            <Button onClick={() => setShowDetailModal(false)}
+              className={`bg-slate-900 text-white font-bold text-[10px] uppercase tracking-wide px-5 rounded-lg h-9 hover:bg-indigo-600 transition-colors ${montserrat.className}`}>
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Student Response */}
+      <div>
+        <h3 className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 ${montserrat.className}`}>
+          Student Response
+        </h3>
+
+        {!submission ? (
+          <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
+            <AlertCircle className="h-4 w-4 text-slate-400" />
+            <span className="text-xs text-slate-500 font-medium">Student has not submitted a response for this question.</span>
+          </div>
+        ) : othersType === 'notion' || hasNotionAnswer ? (
+          /* Notion answer — either multi-page or plain HTML */
+          notionPages ? (
+            /* Multi-page Notion answer — Word-like page cards */
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest bg-indigo-50 px-2 py-1 rounded-full border border-indigo-100">
+                  📄 {notionPages.length} Page{notionPages.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+              <NotionPagesViewer pages={notionPages} isDark={false} />
+            </div>
+          ) : (
+            /* Plain HTML notion answer (legacy simple editor) */
+            <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+              {submission.codeAnswer ? (
+                <div
+                  className="text-sm text-slate-800 leading-relaxed prose prose-sm max-w-none"
+                  dangerouslySetInnerHTML={{ __html: submission.codeAnswer }}
+                />
+              ) : (
+                <p className="text-xs text-slate-400 italic">No content written.</p>
+              )}
+            </div>
+          )
+        ) : hasFiles ? (
+          /* File upload — render each file inline */
+          <div>
+            {submission.othersFiles!.map((file, idx) => renderFileViewer(file, idx))}
+          </div>
+        ) : (
+          <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
+            <AlertCircle className="h-4 w-4 text-slate-400" />
+            <span className="text-xs text-slate-500 font-medium">No response data found.</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 // --- MAIN COMPONENT ---
 export default function EnhancedSubmissionReview() {
   const searchParams = useSearchParams();
@@ -657,8 +1133,13 @@ export default function EnhancedSubmissionReview() {
   const pyodideRef = useRef<any>(null);
 
   const [isFrontendReview, setIsFrontendReview] = useState(false);
+  const [isCodeMultiFileReview, setIsCodeMultiFileReview] = useState(false);
   const [frontendSubmissionData, setFrontendSubmissionData] = useState<FrontendSubmissionData | null>(null);
-
+  const [isOthersReview, setIsOthersReview] = useState(false);
+const isNonGraded = !!(
+  selectedExercise?.isGraded === false ||  // Now this will detect isGraded: false
+  getDynamicExerciseTotal(selectedExercise) === 0
+);
   // --- HELPER: Map Language for Monaco ---
   const getMonacoLanguage = (lang: string) => {
     const languageMap: { [key: string]: string } = {
@@ -685,7 +1166,7 @@ export default function EnhancedSubmissionReview() {
 
   const extractFrontendSubmissionFromAnswers = (participant: Participant, questionId: string): FrontendSubmissionData | null => {
     const answers = getExerciseAnswersForSelectedExercise(participant);
-    
+
     for (const answer of answers) {
       const submission = answer.questions.find(q => q.questionId === questionId);
       if (submission && submission.files && submission.files.length > 0) {
@@ -699,13 +1180,34 @@ export default function EnhancedSubmissionReview() {
           score: submission.score,
           feedback: submission.feedback,
           submittedAt: submission.submittedAt,
-          attemptCount: submission.attemptCount || 1,
+          attemptCount: answer.userAttempts || submission.attemptCount || 1,
           participantName: `${participant.user.firstName} ${participant.user.lastName}`,
-          participantEmail: participant.user.email
+          participantEmail: participant.user.email,
+          lateSubmission: !!answer.lateSubmission,
+          lastTestSubmittedAt: answer.lastTestSubmittedAt,
         };
       }
     }
-    
+
+    return null;
+  };
+
+  // Look up the exercise-level late flag for the currently selected participant+exercise
+  // (used by the single-file standard code view, which has no FrontendSubmissionData).
+  const getCurrentAnswerMeta = (): { attemptCount: number; submittedAt?: string; lateSubmission: boolean; lastTestSubmittedAt?: string } | null => {
+    if (!selectedParticipant || !selectedQuestion) return null;
+    const answers = getExerciseAnswersForSelectedExercise(selectedParticipant);
+    for (const answer of answers) {
+      const submission = answer.questions.find(q => q.questionId === selectedQuestion._id);
+      if (submission) {
+        return {
+          attemptCount: answer.userAttempts || submission.attemptCount || 1,
+          submittedAt: submission.submittedAt,
+          lateSubmission: !!answer.lateSubmission,
+          lastTestSubmittedAt: answer.lastTestSubmittedAt,
+        };
+      }
+    }
     return null;
   };
 
@@ -728,39 +1230,41 @@ export default function EnhancedSubmissionReview() {
 
       list.forEach((ex: any) => {
         const exerciseWithMeta: Exercise = {
-          _id: ex._id || Math.random().toString(),
-          exerciseInformation: {
-            exerciseId: ex.exerciseInformation?.exerciseId || ex._id || "EX_UNKNOWN",
-            exerciseName: ex.exerciseInformation?.exerciseName || "Unnamed Exercise",
-            description: ex.exerciseInformation?.description || ex.description || "",
-            exerciseLevel: ex.exerciseInformation?.exerciseLevel || 'intermediate',
-            totalPoints: ex.exerciseInformation?.totalPoints || ex.totalPoints || 0,
-            totalQuestions: ex.questions?.length || 0,
-            estimatedTime: ex.exerciseInformation?.estimatedTime || ex.totalDuration || 60,
-            totalMarksMCQ: ex.exerciseInformation?.totalMarksMCQ || 0,
-            totalMarksProgramming: ex.exerciseInformation?.totalMarksProgramming || 0,
-            totalMarks: ex.exerciseInformation?.totalMarks || 0
-          },
-          programmingSettings: ex.programmingSettings || {
-            selectedModule: 'Core Programming',
-            selectedLanguages: ['Python'],
-            levelConfiguration: {
-              levelType: 'general',
-              general: 0
-            }
-          },
-          scoreSettings: ex.scoreSettings || ex.questionConfiguration?.programmingQuestionConfiguration?.scoreSettings,
-          questionConfiguration: ex.questionConfiguration,
-          questions: ex.questions || [],
-          nodeType: ex.nodeType || 'exercise',
-          createdAt: ex.createdAt || new Date().toISOString(),
-          _category: cat,
-          _subcategory: sub,
-          _moduleId: moduleId,
-          _subModuleId: subModuleId,
-          _topicId: topicId,
-          _subTopicId: subTopicId
-        };
+  _id: ex._id || Math.random().toString(),
+  exerciseInformation: {
+    exerciseId: ex.exerciseInformation?.exerciseId || ex._id || "EX_UNKNOWN",
+    exerciseName: ex.exerciseInformation?.exerciseName || "Unnamed Exercise",
+    description: ex.exerciseInformation?.description || ex.description || "",
+    exerciseLevel: ex.exerciseInformation?.exerciseLevel || 'intermediate',
+    totalPoints: ex.exerciseInformation?.totalPoints || ex.totalPoints || 0,
+    totalQuestions: ex.questions?.length || 0,
+    estimatedTime: ex.exerciseInformation?.estimatedTime || ex.totalDuration || 60,
+    totalMarksMCQ: ex.exerciseInformation?.totalMarksMCQ || 0,
+    totalMarksProgramming: ex.exerciseInformation?.totalMarksProgramming || 0,
+    totalMarks: ex.exerciseInformation?.totalMarks || 0
+  },
+  programmingSettings: ex.programmingSettings || {
+    selectedModule: 'Core Programming',
+    selectedLanguages: ['Python'],
+    levelConfiguration: {
+      levelType: 'general',
+      general: 0
+    }
+  },
+  scoreSettings: ex.scoreSettings || ex.questionConfiguration?.programmingQuestionConfiguration?.scoreSettings,
+  questionConfiguration: ex.questionConfiguration,
+  questions: ex.questions || [],
+  nodeType: ex.nodeType || 'exercise',
+  createdAt: ex.createdAt || new Date().toISOString(),
+  _category: cat,
+  _subcategory: sub,
+  _moduleId: moduleId,
+  _subModuleId: subModuleId,
+  _topicId: topicId,
+  _subTopicId: subTopicId,
+  exerciseType: ex.exerciseType || 'Programming',  // Add this line
+  isGraded: ex.isGraded !== undefined ? ex.isGraded : true  // ADD THIS LINE - default to true
+};
         allExercises.push(exerciseWithMeta);
       });
     };
@@ -900,7 +1404,7 @@ export default function EnhancedSubmissionReview() {
       questions: ex.questions?.length,
       totalMarks: getDynamicExerciseTotal(ex)
     })));
-    
+
     return allExercises;
   };
 
@@ -937,7 +1441,7 @@ export default function EnhancedSubmissionReview() {
         // Check for topic
         if (exercise._topicId) {
           let topic = null;
-          
+
           if (exercise._subModuleId) {
             const subModule = module.subModules?.find(sm => sm._id === exercise._subModuleId);
             if (subModule && subModule.topics) {
@@ -946,7 +1450,7 @@ export default function EnhancedSubmissionReview() {
           } else if (module.topics) {
             topic = module.topics.find(t => t._id === exercise._topicId);
           }
-          
+
           if (topic) {
             breadcrumbItems.push(
               { title: topic.title, icon: <FileCode className="h-3.5 w-3.5" />, type: 'topic' }
@@ -957,11 +1461,11 @@ export default function EnhancedSubmissionReview() {
         // Check for subtopic
         if (exercise._subTopicId) {
           let subTopic = null;
-          
+
           // Find subtopic in the hierarchy
           if (exercise._topicId) {
             let topic = null;
-            
+
             if (exercise._subModuleId) {
               const subModule = module.subModules?.find(sm => sm._id === exercise._subModuleId);
               if (subModule && subModule.topics) {
@@ -970,12 +1474,12 @@ export default function EnhancedSubmissionReview() {
             } else if (module.topics) {
               topic = module.topics.find(t => t._id === exercise._topicId);
             }
-            
+
             if (topic && topic.subTopics) {
               subTopic = topic.subTopics.find(st => st._id === exercise._subTopicId);
             }
           }
-          
+
           if (subTopic) {
             breadcrumbItems.push(
               { title: subTopic.title, icon: <FileCode className="h-3.5 w-3.5" />, type: 'subtopic' }
@@ -1448,21 +1952,23 @@ export default function EnhancedSubmissionReview() {
     setSaveSuccess(false);
     setSelectedParticipant(participant);
     setIsFrontendReview(false);
+    setIsCodeMultiFileReview(false);
     setFrontendSubmissionData(null);
-    
+    setIsOthersReview(false);
+
     if (!selectedExercise) return;
-    
+
     const answers = getExerciseAnswersForSelectedExercise(participant);
-    
+
     let targetQuestion = selectedExercise.questions[0];
     let submissionFound: SubmissionQuestion | null = null;
     let activeAnswerGroup: ExerciseAnswer | null = null;
-    
+
     if (answers.length > 0) {
       for (const question of selectedExercise.questions) {
         for (const ans of answers) {
           const sub = ans.questions?.find(q =>
-            q.questionId === question._id && (q.codeAnswer || q.isCorrect !== undefined)
+            q.questionId === question._id && (q.codeAnswer || q.isCorrect !== undefined || (q.othersFiles && q.othersFiles.length > 0))
           );
           if (sub) {
             targetQuestion = question;
@@ -1473,7 +1979,7 @@ export default function EnhancedSubmissionReview() {
         }
         if (submissionFound) break;
       }
-      
+
       if (!submissionFound && targetQuestion) {
         for (const ans of answers) {
           const sub = ans.questions?.find(q => q.questionId === targetQuestion._id);
@@ -1485,13 +1991,13 @@ export default function EnhancedSubmissionReview() {
         }
       }
     }
-    
+
     if (targetQuestion) {
       const initMax = getQuestionMaxScore(selectedExercise, targetQuestion);
       const initScore = submissionFound
         ? (isQuestionMCQ(targetQuestion) && submissionFound.status !== 'evaluated'
-            ? (submissionFound.isCorrect ? initMax : 0)
-            : Math.min(submissionFound.score || 0, initMax))
+          ? (submissionFound.isCorrect ? initMax : 0)
+          : Math.min(submissionFound.score || 0, initMax))
         : 0;
       setSelectedAnswer(activeAnswerGroup || answers[0] || null);
       setSubmissionQuestion(submissionFound);
@@ -1500,8 +2006,16 @@ export default function EnhancedSubmissionReview() {
       setMaxScore(initMax);
       setFeedbackText(submissionFound?.feedback || '');
       setCurrentQuestionIndex(selectedExercise.questions.findIndex(q => q._id === targetQuestion._id));
-      
-      if (isFrontendQuestion(targetQuestion, submissionFound) && submissionFound) {
+
+      if (isOthersQuestion(targetQuestion, submissionFound)) {
+        setIsOthersReview(true);
+      } else if (isCoreProgrammingMultiFileQuestion(submissionFound, selectedExercise) && submissionFound) {
+        const codeData = extractFrontendSubmissionFromAnswers(participant, targetQuestion._id);
+        if (codeData) {
+          setFrontendSubmissionData(codeData);
+          setIsCodeMultiFileReview(true);
+        }
+      } else if (isFrontendQuestion(targetQuestion, submissionFound, selectedExercise) && submissionFound) {
         const frontendData = extractFrontendSubmissionFromAnswers(participant, targetQuestion._id);
         if (frontendData) {
           setFrontendSubmissionData(frontendData);
@@ -1509,7 +2023,7 @@ export default function EnhancedSubmissionReview() {
         }
       }
     }
-    
+
     setViewMode('grading');
   };
 
@@ -1546,17 +2060,19 @@ export default function EnhancedSubmissionReview() {
     setSelectedQuestion(question);
     setCurrentQuestionIndex(index);
     setIsFrontendReview(false);
+    setIsCodeMultiFileReview(false);
     setFrontendSubmissionData(null);
-    
+    setIsOthersReview(false);
+
     if (selectedExercise) {
       const allowedMax = getQuestionMaxScore(selectedExercise, question);
       setMaxScore(allowedMax);
-      
+
       const submission = getSubmissionForQuestion(question._id);
-      
+
       if (submission) {
         setSubmissionQuestion(submission);
-        
+
         if (isQuestionMCQ(question)) {
           const autoScore = submission.isCorrect ? allowedMax : 0;
           setScore(autoScore);
@@ -1564,10 +2080,18 @@ export default function EnhancedSubmissionReview() {
           const existingScore = Math.min(submission.score || 0, allowedMax);
           setScore(existingScore);
         }
-        
+
         setFeedbackText(submission.feedback || '');
-        
-        if (isFrontendQuestion(question, submission) && selectedParticipant) {
+
+        if (isOthersQuestion(question, submission)) {
+          setIsOthersReview(true);
+        } else if (isCoreProgrammingMultiFileQuestion(submission, selectedExercise) && selectedParticipant) {
+          const codeData = extractFrontendSubmissionFromAnswers(selectedParticipant, question._id);
+          if (codeData) {
+            setFrontendSubmissionData(codeData);
+            setIsCodeMultiFileReview(true);
+          }
+        } else if (isFrontendQuestion(question, submission, selectedExercise) && selectedParticipant) {
           const frontendData = extractFrontendSubmissionFromAnswers(selectedParticipant, question._id);
           if (frontendData) {
             setFrontendSubmissionData(frontendData);
@@ -1578,6 +2102,10 @@ export default function EnhancedSubmissionReview() {
         setSubmissionQuestion(null);
         setScore(0);
         setFeedbackText('');
+        // Check if question itself is Others type even without submission
+        if (isOthersQuestion(question, null)) {
+          setIsOthersReview(true);
+        }
       }
     }
   };
@@ -1593,7 +2121,7 @@ export default function EnhancedSubmissionReview() {
   const getStatusDot = (sub: SubmissionQuestion | null) =>
     !sub ? 'bg-slate-300' :
       sub.status === 'evaluated' ? 'bg-emerald-500' :
-        sub.codeAnswer ? 'bg-amber-500' :
+        (sub.codeAnswer || (sub.othersFiles && sub.othersFiles.length > 0)) ? 'bg-amber-500' :
           'bg-slate-300';
 
   const saveGrade = async (): Promise<boolean> => {
@@ -1602,15 +2130,15 @@ export default function EnhancedSubmissionReview() {
         toast.error('Missing required data');
         return false;
       }
-      
+
       setIsSaving(true);
       setSaveSuccess(false);
-      
+
       try {
         const token = localStorage.getItem('smartcliff_token') || '';
         const categoryToSend = selectedExercise._category || 'We_Do';
         const subcategoryToSend = selectedExercise._subcategory || 'assignments';
-        
+
         const payload = {
           courseId,
           exerciseId: selectedExercise._id,
@@ -1626,7 +2154,7 @@ export default function EnhancedSubmissionReview() {
           category: categoryToSend,
           subcategory: subcategoryToSend
         };
-        
+
         const response = await fetch(`${BACKEND_API_URL}/users/update/submission-score`, {
           method: 'POST',
           headers: {
@@ -1635,26 +2163,26 @@ export default function EnhancedSubmissionReview() {
           },
           body: JSON.stringify(payload)
         });
-        
+
         const result = await response.json();
-        
+
         if (!response.ok && !result.success) {
           throw new Error(result.message || 'Failed to save feedback');
         }
-        
+
         const updatedParticipants = [...participants];
         const pIdx = updatedParticipants.findIndex(p => p._id === selectedParticipant._id);
-        
+
         if (pIdx !== -1) {
           const participant = updatedParticipants[pIdx];
           const answers = getExerciseAnswers(participant);
           const ansIdx = selectedAnswer ?
             answers.findIndex(a => a._id === selectedAnswer._id) : -1;
-          
+
           if (ansIdx !== -1) {
             const answer = answers[ansIdx];
             const qIdx = answer.questions.findIndex(q => q.questionId === selectedQuestion._id);
-            
+
             if (qIdx !== -1) {
               answer.questions[qIdx] = {
                 ...answer.questions[qIdx],
@@ -1665,7 +2193,7 @@ export default function EnhancedSubmissionReview() {
             setParticipants(updatedParticipants);
           }
         }
-        
+
         setSaveSuccess(true);
         toast.success('Feedback saved successfully');
         return true;
@@ -1677,7 +2205,7 @@ export default function EnhancedSubmissionReview() {
         setIsSaving(false);
       }
     }
-    
+
     if (!selectedQuestion || !selectedParticipant || !selectedExercise) {
       toast.error('Missing required data');
       return false;
@@ -1840,16 +2368,16 @@ export default function EnhancedSubmissionReview() {
         pyodideRef.current.setStderr({ batched: (msg: string) => addLog('stderr', msg) });
 
         const preamble = `
-          import js
-          import asyncio
-          import builtins
-          
-          async def _async_input(prompt=""):
-            if prompt: print(prompt, end="")
-            return await js.getReactInput()
-          
-          builtins.input = _async_input
-        `;
+import js
+import asyncio
+import builtins
+
+async def _async_input(prompt=""):
+    if prompt: print(prompt, end="")
+    return await js.getReactInput()
+
+builtins.input = _async_input
+`;
 
         await pyodideRef.current.runPythonAsync(
           preamble + "\n" + submissionQuestion.codeAnswer.replace(/input\s*\(/g, "await input(")
@@ -1940,8 +2468,8 @@ export default function EnhancedSubmissionReview() {
     return difficultyFilter === 'all'
       ? selectedExercise.questions
       : selectedExercise.questions.filter(q =>
-          getQuestionDisplayDifficulty(q) === difficultyFilter.toLowerCase()
-        );
+        getQuestionDisplayDifficulty(q) === difficultyFilter.toLowerCase()
+      );
   }, [selectedExercise, difficultyFilter]);
 
   // Calculate stats for display
@@ -2136,16 +2664,16 @@ export default function EnhancedSubmissionReview() {
                       }
                       return null;
                     };
-                    
+
                     const answers = getExerciseAnswersForSelectedExercise(participant);
                     const hasSubmissions = answers.length > 0;
-                    
+
                     let totalScore = 0;
                     let totalAnsweredQuestions = 0;
                     let allQuestionsAnswered = true;
-                    
+
                     const allQuestions = selectedExercise.questions;
-                    
+
                     allQuestions.forEach(question => {
                       const submission = getSubmissionForParticipantQuestion(participant, question._id);
                       if (submission && (submission.codeAnswer || submission.files?.length)) {
@@ -2160,13 +2688,13 @@ export default function EnhancedSubmissionReview() {
                         allQuestionsAnswered = false;
                       }
                     });
-                    
+
                     const max = getDynamicExerciseTotal(selectedExercise);
-                    
-                    const isPureMCQ = selectedExercise.exerciseType === 'MCQ' || 
-                                     (selectedExercise.questions.length > 0 && 
-                                      selectedExercise.questions.every(q => isQuestionMCQ(q)));
-                    
+
+                    const isPureMCQ = selectedExercise.exerciseType === 'MCQ' ||
+                      (selectedExercise.questions.length > 0 &&
+                        selectedExercise.questions.every(q => isQuestionMCQ(q)));
+
                     let isEvaluated = false;
                     if (isPureMCQ) {
                       isEvaluated = allQuestionsAnswered && hasSubmissions;
@@ -2187,13 +2715,13 @@ export default function EnhancedSubmissionReview() {
                       });
                       isEvaluated = allProgrammingEvaluated && allQuestionsAnswered;
                     }
-                    
+
                     let passFailStatus: 'pass' | 'fail' | 'pending' = 'pending';
                     if (hasSubmissions && allQuestionsAnswered) {
                       const percentage = (totalScore / max) * 100;
                       passFailStatus = percentage >= 50 ? 'pass' : 'fail';
                     }
-                    
+
                     return (
                       <TableRow key={participant._id} className="border-b border-slate-50 hover:bg-slate-50/40 transition-colors group">
                         <TableCell className="px-4 py-3 text-center">
@@ -2411,7 +2939,7 @@ export default function EnhancedSubmissionReview() {
                       {filteredQuestions.map((question, index) => {
                         const submission = getSubmissionForQuestion(question._id);
                         const isCurrent = selectedQuestion?._id === question._id;
-                        const hasSubmission = !!(submission?.codeAnswer || submission?.files?.length);
+                        const hasSubmission = !!(submission?.codeAnswer || submission?.files?.length || submission?.othersFiles?.length);
                         const allowedMax = selectedExercise ? getQuestionMaxScore(selectedExercise, question) : question.points || 10;
 
                         const getDiffStyle = (diff: string) => {
@@ -2426,6 +2954,7 @@ export default function EnhancedSubmissionReview() {
                         const qDiff = getQuestionDisplayDifficulty(question);
                         const qLabel = getQuestionLabel(question);
                         const isFrontend = isFrontendQuestion(question, submission);
+                        const qIsOthers = isOthersQuestion(question, submission);
 
                         return (
                           <div key={question._id} onClick={() => handleQuestionClick(question, index)} className={`group flex items-center justify-between gap-3 px-4 py-3 cursor-pointer border-b border-slate-100 last:border-0 transition-colors ${isCurrent ? 'bg-indigo-50' : 'hover:bg-slate-50'} ${!hasSubmission ? 'opacity-90' : ''}`}>
@@ -2434,8 +2963,8 @@ export default function EnhancedSubmissionReview() {
                               <div className="flex flex-col gap-0.5 min-w-0">
                                 <div className="flex items-center gap-2">
                                   <span className={`text-xs font-bold ${montserrat.className} ${isCurrent ? 'text-indigo-600' : 'text-slate-400'}`}>{index + 1}.</span>
-                                  <span className={`px-1.5 py-0 rounded text-[9px] font-bold uppercase tracking-wide ${isFrontend ? 'bg-emerald-100 text-emerald-600' : qIsMCQ ? 'bg-violet-100 text-violet-600' : 'bg-slate-100 text-slate-500'}`}>
-                                    {isFrontend ? 'Frontend' : qIsMCQ ? 'MCQ' : 'Code'}
+                                  <span className={`px-1.5 py-0 rounded text-[9px] font-bold uppercase tracking-wide ${qIsOthers ? 'bg-orange-100 text-orange-600' : isFrontend ? 'bg-emerald-100 text-emerald-600' : qIsMCQ ? 'bg-violet-100 text-violet-600' : 'bg-slate-100 text-slate-500'}`}>
+                                    {qIsOthers ? 'Others' : isFrontend ? 'Frontend' : qIsMCQ ? 'MCQ' : 'Code'}
                                   </span>
                                 </div>
                                 <span className={`text-xs font-medium truncate ${isCurrent ? 'text-indigo-900' : 'text-slate-700'}`}>{qLabel}</span>
@@ -2443,9 +2972,11 @@ export default function EnhancedSubmissionReview() {
                             </div>
                             <div className="flex items-center gap-2 shrink-0">
                               {qDiff && <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${getDiffStyle(qDiff)}`}>{qDiff}</span>}
-                              <span className={`text-[10px] font-bold ${submission?.score ? 'text-indigo-600' : 'text-slate-400'} ${montserrat.className}`}>
-                                {submission?.score || 0} / {allowedMax}
-                              </span>
+                              {!isNonGraded && (
+                                <span className={`text-[10px] font-bold ${submission?.score ? 'text-indigo-600' : 'text-slate-400'} ${montserrat.className}`}>
+                                  {submission?.score || 0} / {allowedMax}
+                                </span>
+                              )}
                             </div>
                           </div>
                         );
@@ -2459,7 +2990,7 @@ export default function EnhancedSubmissionReview() {
                     </Button>
                     {selectedExercise?.questions.map((_, index) => {
                       const submission = getSubmissionForQuestion(selectedExercise.questions[index]._id);
-                      const hasSubmission = !!(submission?.codeAnswer || submission?.files?.length);
+                      const hasSubmission = !!(submission?.codeAnswer || submission?.files?.length || submission?.othersFiles?.length);
                       const isCurrent = selectedQuestion?._id === selectedExercise.questions[index]._id;
                       return (
                         <div key={index} onClick={() => handleQuestionClick(selectedExercise.questions[index], index)} className={`w-8 h-8 flex items-center justify-center rounded-md text-[10px] font-bold transition-all cursor-pointer ${montserrat.className} ${isCurrent ? 'bg-indigo-600 text-white' : !hasSubmission ? 'bg-rose-50 text-rose-300 border border-rose-100' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}>
@@ -2473,7 +3004,18 @@ export default function EnhancedSubmissionReview() {
 
               {/* CENTRAL AREA */}
               <div className="flex-1 overflow-hidden">
-                {isFrontendReview && frontendSubmissionData && selectedQuestion ? (
+                {isCodeMultiFileReview && frontendSubmissionData && selectedQuestion ? (
+                  <StaffCodeReview
+                    key={selectedQuestion._id}
+                    files={frontendSubmissionData.files}
+                    folders={frontendSubmissionData.folders}
+                    questionTitle={getQuestionTitle(selectedQuestion)}
+                    submittedAt={frontendSubmissionData.submittedAt}
+                    attemptCount={frontendSubmissionData.attemptCount}
+                    lateSubmission={frontendSubmissionData.lateSubmission}
+                    lastTestSubmittedAt={frontendSubmissionData.lastTestSubmittedAt}
+                  />
+                ) : isFrontendReview && frontendSubmissionData && selectedQuestion ? (
                   <StaffFrontendReview
                     key={selectedQuestion._id}
                     onBack={() => {
@@ -2505,6 +3047,14 @@ export default function EnhancedSubmissionReview() {
                     participantId={selectedParticipant?.user?._id}
                     category={selectedExercise?._category}
                     subcategory={selectedExercise?._subcategory}
+                  />
+                ) : isOthersReview && selectedQuestion ? (
+                  /* OTHERS QUESTION REVIEW */
+                  <OthersReviewPanel
+                    question={selectedQuestion}
+                    submission={submissionQuestion}
+                    montserrat={montserrat}
+                    inter={inter}
                   />
                 ) : isQuestionMCQ(selectedQuestion) ? (
                   /* MCQ QUESTION VIEW */
@@ -2593,9 +3143,96 @@ export default function EnhancedSubmissionReview() {
                   </div>
                 ) : (
                   /* STANDARD MONACO EDITOR VIEW */
-                  <>
+                  <div className="h-full flex flex-col">
+                    {/* Submission meta strip — Attempt · Submitted · LATE */}
+                    {(() => {
+                      const meta = getCurrentAnswerMeta();
+                      if (!meta) return null;
+                      return (
+                        <div className="flex items-center justify-end gap-2 px-4 py-2 border-b shrink-0" style={{ background: "#f8f9fa", borderColor: "#e5e7eb" }}>
+                          <span className="px-2 py-0.5 rounded text-[11px] font-semibold" style={{ background: "#f3f4f6", color: "#374151" }}>
+                            Attempt {meta.attemptCount}
+                          </span>
+                          {meta.submittedAt && (
+                            <span className="px-2 py-0.5 rounded text-[11px]" style={{ background: "#f3f4f6", color: "#6b7280" }}>
+                              Submitted {new Date(meta.submittedAt).toLocaleString()}
+                            </span>
+                          )}
+                          {meta.lateSubmission && (
+                            <span
+                              className="px-2 py-0.5 rounded text-[11px] font-bold flex items-center gap-1 animate-pulse"
+                              style={{ background: "#fee2e2", color: "#b91c1c", border: "1px solid #fca5a5" }}
+                              title={meta.lastTestSubmittedAt ? `Submitted late at ${new Date(meta.lastTestSubmittedAt).toLocaleString()}` : "Late submission"}
+                            >
+                              ⚠ LATE SUBMISSION
+                              {meta.lastTestSubmittedAt && (
+                                <span className="font-medium ml-1" style={{ color: "#7f1d1d" }}>
+                                  {new Date(meta.lastTestSubmittedAt).toLocaleString()}
+                                </span>
+                              )}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
+                    {/* Toolbar */}
+                    <div className="flex items-center justify-between px-4 py-2 border-b border-slate-800 bg-slate-900 shrink-0">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] font-bold text-slate-400 uppercase tracking-widest ${montserrat.className}`}>
+                          {submissionQuestion?.language || 'Code'}
+                        </span>
+                        {submissionQuestion?.language && (
+                          <span className={`px-2 py-0.5 rounded text-[9px] font-bold bg-slate-800 text-slate-500 uppercase ${montserrat.className}`}>
+                            {submissionQuestion.language}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {submissionQuestion?.codeAnswer && (
+                          <Button
+                            size="sm"
+                            onClick={initiateRunCode}
+                            disabled={isExecuting}
+                            className={`h-7 px-3 text-[10px] font-bold uppercase tracking-wide bg-emerald-600 hover:bg-emerald-500 text-white rounded-md transition-all ${montserrat.className}`}
+                          >
+                            {isExecuting ? (
+                              <><Loader2 className="w-3 h-3 mr-1.5 animate-spin" />Running...</>
+                            ) : (
+                              <><Play className="w-3 h-3 mr-1.5" />Run Code</>
+                            )}
+                          </Button>
+                        )}
+                        {showTerminal ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setShowTerminal(false)}
+                            className={`h-7 px-3 text-[10px] font-bold text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded-md ${montserrat.className}`}
+                          >
+                            <X className="w-3 h-3 mr-1.5" />Console
+                          </Button>
+                        ) : terminalLogs.length > 0 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setShowTerminal(true)}
+                            className={`h-7 px-3 text-[10px] font-bold text-slate-400 hover:text-emerald-400 hover:bg-slate-800 rounded-md ${montserrat.className}`}
+                          >
+                            <Terminal className="w-3 h-3 mr-1.5" />Console
+                          </Button>
+                        )}
+                        <div className="flex items-center gap-2 ml-2 pl-2 border-l border-slate-800">
+                          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                          <span className={`text-[9px] font-bold text-slate-500 uppercase tracking-widest ${montserrat.className}`}>Ready</span>
+                          <Separator orientation="vertical" className="h-3 bg-slate-800" />
+                          <span className={`text-[9px] font-bold text-indigo-400 uppercase tracking-widest ${montserrat.className}`}>UTF-8</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Editor or empty state */}
                     {submissionQuestion?.codeAnswer ? (
-                      <div className="h-full w-full">
+                      <div className="flex-1 w-full">
                         <MonacoEditor
                           height="100%"
                           language={getMonacoLanguage(submissionQuestion.language || 'javascript')}
@@ -2615,7 +3252,7 @@ export default function EnhancedSubmissionReview() {
                         />
                       </div>
                     ) : (
-                      <div className="flex flex-col items-center justify-center h-full text-center">
+                      <div className="flex-1 flex flex-col items-center justify-center text-center">
                         <div className="w-12 h-12 bg-slate-900 rounded-lg flex items-center justify-center mb-4 border border-slate-800">
                           <Code className="h-6 w-6 text-slate-600" />
                         </div>
@@ -2627,205 +3264,236 @@ export default function EnhancedSubmissionReview() {
                         </p>
                       </div>
                     )}
-
-                    <div className="absolute bottom-4 right-6 flex items-center gap-3 pointer-events-none">
-                      <div className="bg-slate-900/90 backdrop-blur-md px-3 py-1 rounded-full border border-slate-800 flex items-center gap-3">
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
-                          <span className={`text-[9px] font-bold text-slate-400 uppercase tracking-widest ${montserrat.className}`}>Ready</span>
-                        </div>
-                        <Separator orientation="vertical" className="h-3 bg-slate-800" />
-                        <span className={`text-[9px] font-bold text-indigo-400 uppercase tracking-widest ${montserrat.className}`}>UTF-8</span>
-                      </div>
-                    </div>
-                  </>
+                  </div>
                 )}
               </div>
 
-              {/* GRADING SIDEBAR */}
-              <div className="w-72 flex flex-col bg-white">
-                <div className="p-5 h-full flex flex-col gap-6">
-                  <div>
-                    <h3 className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2 ${montserrat.className}`}>
-                      <Award className="h-3.5 w-3.5 text-amber-500" />
-                      Grading
-                    </h3>
-                    
-                    {isQuestionMCQ(selectedQuestion) && submissionQuestion && (
-                      <div className={`mb-3 p-4 rounded-lg border ${submissionQuestion.isCorrect ? 'bg-emerald-50 border-emerald-200' : submissionQuestion.codeAnswer ? 'bg-rose-50 border-rose-200' : 'bg-slate-50 border-slate-200'} ${montserrat.className}`}>
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            {submissionQuestion.isCorrect ? <CheckCircle className="h-4 w-4 text-emerald-600" /> : <XCircle className="h-4 w-4 text-rose-600" />}
-                            <span className="text-xs font-semibold">
-                              {submissionQuestion.isCorrect ? 'Auto-graded: Correct' : submissionQuestion.codeAnswer ? 'Auto-graded: Incorrect' : 'Not answered'}
-                            </span>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-lg font-bold">{submissionQuestion.isCorrect ? maxScore : 0}<span className="text-xs text-slate-500 font-normal"> / {maxScore}</span></div>
-                            <div className="text-[10px] text-slate-500">{((submissionQuestion.isCorrect ? maxScore : 0) / maxScore * 100).toFixed(0)}% of total</div>
-                          </div>
-                        </div>
-                        {submissionQuestion.codeAnswer && (
-                          <div className="mt-3 pt-2 border-t border-slate-200">
-                            <div className="text-[10px] text-slate-500 mb-1">Student's Answer:</div>
-                            <div className="text-xs font-medium text-slate-700 bg-white p-2 rounded border border-slate-200">
-                              "{submissionQuestion.codeAnswer}"
-                            </div>
-                          </div>
-                        )}
-                        <div className="mt-3 text-[10px] text-slate-400 italic flex items-center gap-1">
-                          <Lock className="h-3 w-3" />
-                          MCQ scores are auto-calculated based on answer correctness
-                        </div>
-                      </div>
-                    )}
-                    
-                    {!isQuestionMCQ(selectedQuestion) && !isFrontendReview && (
-                      <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                        <div className="space-y-1">
-                          <div className="flex items-center justify-between mb-2">
-                            <Label className={`text-xs font-bold text-slate-700 ${montserrat.className}`}>Score Awarded</Label>
-                            <span className={`text-[10px] font-semibold text-slate-500 ${montserrat.className}`}>Max: {maxScore}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Input
-                              type="number"
-                              min="0"
-                              max={maxScore}
-                              value={score}
-                              onChange={(e) => {
-                                const val = e.target.value === '' ? 0 : parseInt(e.target.value);
-                                setScore(Math.min(maxScore, Math.max(0, val)));
-                              }}
-                              className={`h-9 bg-white border-slate-300 text-sm font-bold text-slate-900 ${montserrat.className}`}
-                            />
-                            <div className="h-9 w-9 flex items-center justify-center bg-white border border-slate-200 rounded-md text-slate-400">
-                              <Award className="h-4 w-4" />
-                            </div>
-                          </div>
-                          <div className="mt-2 text-center">
-                            <div className="text-[10px] text-slate-500">{((score / maxScore) * 100).toFixed(0)}% of total points</div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Frontend grading section */}
-                    {isFrontendReview && frontendSubmissionData && (
-                      <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                        <div className="space-y-1">
-                          <div className="flex items-center justify-between mb-2">
-                            <Label className={`text-xs font-bold text-slate-700 ${montserrat.className}`}>Score Awarded</Label>
-                            <span className={`text-[10px] font-semibold text-slate-500 ${montserrat.className}`}>Max: {maxScore}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Input
-                              type="number"
-                              min="0"
-                              max={maxScore}
-                              value={score}
-                              onChange={(e) => {
-                                const val = e.target.value === '' ? 0 : parseInt(e.target.value);
-                                setScore(Math.min(maxScore, Math.max(0, val)));
-                              }}
-                              className={`h-9 bg-white border-slate-300 text-sm font-bold text-slate-900 ${montserrat.className}`}
-                            />
-                            <div className="h-9 w-9 flex items-center justify-center bg-white border border-slate-200 rounded-md text-slate-400">
-                              <Award className="h-4 w-4" />
-                            </div>
-                          </div>
-                          <div className="mt-2 text-center">
-                            <div className="text-[10px] text-slate-500">{((score / maxScore) * 100).toFixed(0)}% of total points</div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+             {/* GRADING SIDEBAR - Only show when exercise is graded */}
+{!isNonGraded && (
+  <div className="w-72 flex flex-col bg-white">
+    <div className="p-5 h-full flex flex-col gap-6">
+      {/* Grading Header */}
+      <div>
+        <h3 className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2 ${montserrat.className}`}>
+          <Award className="h-3.5 w-3.5 text-amber-500" />
+          Grading
+        </h3>
 
-                  {/* Feedback Section */}
-                  <div className="flex-1 flex flex-col min-h-0">
-                    <h3 className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2 ${montserrat.className}`}>
-                      <MessageSquare className="h-3.5 w-3.5 text-indigo-500" />
-                      Feedback
-                    </h3>
-                    <Textarea
-                      placeholder="Enter your observations or corrections here..."
-                      value={feedbackText}
-                      onChange={(e) => setFeedbackText(e.target.value)}
-                      className="flex-1 bg-slate-50 border-slate-200 rounded-lg p-3 text-xs font-medium text-slate-700 resize-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all custom-scrollbar"
-                    />
-                  </div>
-
-                  {/* Save Buttons */}
-                  {!isQuestionMCQ(selectedQuestion) && (
-                    <div className="pt-4 border-t border-slate-50 relative">
-                      {saveSuccess && (
-                        <div className="absolute -top-3 left-0 right-0 flex justify-center animate-in slide-in-from-bottom-2 fade-in duration-300 pointer-events-none">
-                          <div className="bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full flex items-center gap-1.5 shadow-sm border border-emerald-100">
-                            <Check className="h-3 w-3" />
-                            <span className={`text-[10px] font-bold uppercase tracking-wide ${montserrat.className}`}>Saved</span>
-                          </div>
-                        </div>
-                      )}
-                      <div className="flex items-center gap-2">
-                        <Button 
-                          variant="outline" 
-                          onClick={isFrontendReview && frontendSubmissionData 
-                            ? () => saveFrontendGrade(score, feedbackText)
-                            : () => saveGrade()
-                          } 
-                          disabled={isSaving} 
-                          className={`flex-1 h-10 text-[10px] font-bold uppercase tracking-wide border-slate-200 text-slate-600 rounded-md hover:bg-slate-50 ${montserrat.className}`}
-                        >
-                          {isSaving ? 'Saving...' : 'Save'}
-                        </Button>
-                        <Button 
-                          onClick={async () => {
-                            const success = isFrontendReview && frontendSubmissionData 
-                              ? await saveFrontendGrade(score, feedbackText)
-                              : await saveGrade();
-                            if (success) {
-                              setTimeout(() => {
-                                if (selectedExercise && currentQuestionIndex < selectedExercise.questions.length - 1) {
-                                  handleQuestionClick(
-                                    selectedExercise.questions[currentQuestionIndex + 1],
-                                    currentQuestionIndex + 1
-                                  );
-                                } else if (getCurrentStudentIndex() < getTotalStudents() - 1) {
-                                  handleNextStudent();
-                                } else {
-                                  toast.success('All graded!');
-                                  setViewMode('list');
-                                }
-                              }, 800);
-                            }
-                          }} 
-                          disabled={isSaving} 
-                          className={`flex-1 h-10 text-[10px] font-bold uppercase tracking-wide bg-slate-900 hover:bg-indigo-600 text-white rounded-md shadow-sm transition-all ${montserrat.className}`}
-                        >
-                          {isSaving ? <><Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> Saving...</> : 'Save & Next'}
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {isQuestionMCQ(selectedQuestion) && (
-                    <div className="pt-4 border-t border-slate-50">
-                      <div className="bg-slate-100 rounded-lg p-3 text-center">
-                        <div className="text-[10px] text-slate-500 font-medium">
-                          <CheckCircle className="h-3 w-3 inline mr-1 text-emerald-500" />
-                          MCQ questions are auto-graded
-                        </div>
-                        <div className="text-[9px] text-slate-400 mt-1">Score is automatically calculated based on answer correctness</div>
-                        <div className="text-[9px] text-slate-400 mt-2 pt-1 border-t border-slate-200">
-                          <MessageSquare className="h-3 w-3 inline mr-1" />
-                          You can still add feedback above
-                        </div>
-                      </div>
-                    </div>
-                  )}
+        {/* MCQ Question Grading */}
+        {isQuestionMCQ(selectedQuestion) && submissionQuestion && (
+          <div className={`mb-3 p-4 rounded-lg border ${submissionQuestion.isCorrect ? 'bg-emerald-50 border-emerald-200' : submissionQuestion.codeAnswer ? 'bg-rose-50 border-rose-200' : 'bg-slate-50 border-slate-200'} ${montserrat.className}`}>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                {submissionQuestion.isCorrect ? <CheckCircle className="h-4 w-4 text-emerald-600" /> : <XCircle className="h-4 w-4 text-rose-600" />}
+                <span className="text-xs font-semibold">
+                  {submissionQuestion.isCorrect ? 'Auto-graded: Correct' : submissionQuestion.codeAnswer ? 'Auto-graded: Incorrect' : 'Not answered'}
+                </span>
+              </div>
+              <div className="text-right">
+                <div className="text-lg font-bold">{submissionQuestion.isCorrect ? maxScore : 0}<span className="text-xs text-slate-500 font-normal"> / {maxScore}</span></div>
+                <div className="text-[10px] text-slate-500">{((submissionQuestion.isCorrect ? maxScore : 0) / maxScore * 100).toFixed(0)}% of total</div>
+              </div>
+            </div>
+            {submissionQuestion.codeAnswer && (
+              <div className="mt-3 pt-2 border-t border-slate-200">
+                <div className="text-[10px] text-slate-500 mb-1">Student's Answer:</div>
+                <div className="text-xs font-medium text-slate-700 bg-white p-2 rounded border border-slate-200">
+                  "{submissionQuestion.codeAnswer}"
                 </div>
               </div>
+            )}
+            <div className="mt-3 text-[10px] text-slate-400 italic flex items-center gap-1">
+              <Lock className="h-3 w-3" />
+              MCQ scores are auto-calculated based on answer correctness
+            </div>
+          </div>
+        )}
+
+        {/* Programming/Others Question Score Input */}
+        {!isQuestionMCQ(selectedQuestion) && !isFrontendReview && !isCodeMultiFileReview && !isOthersReview && (
+          <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+            <div className="space-y-1">
+              <div className="flex items-center justify-between mb-2">
+                <Label className={`text-xs font-bold text-slate-700 ${montserrat.className}`}>Score Awarded</Label>
+                <span className={`text-[10px] font-semibold text-slate-500 ${montserrat.className}`}>Max: {maxScore}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min="0"
+                  max={maxScore}
+                  value={score}
+                  onChange={(e) => {
+                    const val = e.target.value === '' ? 0 : parseInt(e.target.value);
+                    setScore(Math.min(maxScore, Math.max(0, val)));
+                  }}
+                  className={`h-9 bg-white border-slate-300 text-sm font-bold text-slate-900 ${montserrat.className}`}
+                />
+                <div className="h-9 w-9 flex items-center justify-center bg-white border border-slate-200 rounded-md text-slate-400">
+                  <Award className="h-4 w-4" />
+                </div>
+              </div>
+              <div className="mt-2 text-center">
+                <div className="text-[10px] text-slate-500">{((score / maxScore) * 100).toFixed(0)}% of total marks</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Frontend / Code multi-file Review Score Input */}
+        {(isFrontendReview || isCodeMultiFileReview) && frontendSubmissionData && (
+          <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+            <div className="space-y-1">
+              <div className="flex items-center justify-between mb-2">
+                <Label className={`text-xs font-bold text-slate-700 ${montserrat.className}`}>Score Awarded</Label>
+                <span className={`text-[10px] font-semibold text-slate-500 ${montserrat.className}`}>Max: {maxScore}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min="0"
+                  max={maxScore}
+                  value={score}
+                  onChange={(e) => {
+                    const val = e.target.value === '' ? 0 : parseInt(e.target.value);
+                    setScore(Math.min(maxScore, Math.max(0, val)));
+                  }}
+                  className={`h-9 bg-white border-slate-300 text-sm font-bold text-slate-900 ${montserrat.className}`}
+                />
+                <div className="h-9 w-9 flex items-center justify-center bg-white border border-slate-200 rounded-md text-slate-400">
+                  <Award className="h-4 w-4" />
+                </div>
+              </div>
+              <div className="mt-2 text-center">
+                <div className="text-[10px] text-slate-500">{((score / maxScore) * 100).toFixed(0)}% of total marks</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Others Review Score Input */}
+        {isOthersReview && (
+          <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
+            <div className="flex items-center gap-2 mb-3">
+              <span className={`text-[9px] font-bold text-orange-600 uppercase tracking-widest ${montserrat.className}`}>
+                {selectedQuestion?.othersQuestionType === 'notion' ? 'Written Response' : 'File Upload'} • Manual Grading
+              </span>
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center justify-between mb-2">
+                <Label className={`text-xs font-bold text-slate-700 ${montserrat.className}`}>Score Awarded</Label>
+                <span className={`text-[10px] font-semibold text-slate-500 ${montserrat.className}`}>Max: {maxScore}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min="0"
+                  max={maxScore}
+                  value={score}
+                  onChange={(e) => {
+                    const val = e.target.value === '' ? 0 : parseInt(e.target.value);
+                    setScore(Math.min(maxScore, Math.max(0, val)));
+                  }}
+                  className={`h-9 bg-white border-slate-300 text-sm font-bold text-slate-900 ${montserrat.className}`}
+                />
+                <div className="h-9 w-9 flex items-center justify-center bg-white border border-orange-200 rounded-md text-orange-400">
+                  <Award className="h-4 w-4" />
+                </div>
+              </div>
+              <div className="mt-2 text-center">
+                <div className="text-[10px] text-slate-500">{maxScore > 0 ? ((score / maxScore) * 100).toFixed(0) : 0}% of total marks</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Feedback Section */}
+        <div className="flex-1 flex flex-col min-h-0">
+          <h3 className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2 ${montserrat.className}`}>
+            <MessageSquare className="h-3.5 w-3.5 text-indigo-500" />
+            Feedback
+          </h3>
+          <Textarea
+            placeholder="Enter your observations or corrections here..."
+            value={feedbackText}
+            onChange={(e) => setFeedbackText(e.target.value)}
+            className="flex-1 bg-slate-50 border-slate-200 rounded-lg p-3 text-xs font-medium text-slate-700 resize-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all custom-scrollbar"
+          />
+        </div>
+
+        {/* Save Buttons - Only for non-MCQ questions */}
+        {!isQuestionMCQ(selectedQuestion) && (
+          <div className="pt-4 border-t border-slate-50 relative">
+            {saveSuccess && (
+              <div className="absolute -top-3 left-0 right-0 flex justify-center animate-in slide-in-from-bottom-2 fade-in duration-300 pointer-events-none">
+                <div className="bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full flex items-center gap-1.5 shadow-sm border border-emerald-100">
+                  <Check className="h-3 w-3" />
+                  <span className={`text-[10px] font-bold uppercase tracking-wide ${montserrat.className}`}>Saved</span>
+                </div>
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={(isFrontendReview || isCodeMultiFileReview) && frontendSubmissionData
+                  ? () => saveFrontendGrade(score, feedbackText)
+                  : () => saveGrade()
+                }
+                disabled={isSaving}
+                className={`flex-1 h-10 text-[10px] font-bold uppercase tracking-wide border-slate-200 text-slate-600 rounded-md hover:bg-slate-50 ${montserrat.className}`}
+              >
+                {isSaving ? 'Saving...' : 'Save'}
+              </Button>
+              <Button
+                onClick={async () => {
+                  const success = (isFrontendReview || isCodeMultiFileReview) && frontendSubmissionData
+                    ? await saveFrontendGrade(score, feedbackText)
+                    : await saveGrade();
+                  if (success) {
+                    setTimeout(() => {
+                      if (selectedExercise && currentQuestionIndex < selectedExercise.questions.length - 1) {
+                        handleQuestionClick(
+                          selectedExercise.questions[currentQuestionIndex + 1],
+                          currentQuestionIndex + 1
+                        );
+                      } else if (getCurrentStudentIndex() < getTotalStudents() - 1) {
+                        handleNextStudent();
+                      } else {
+                        toast.success('All graded!');
+                        setViewMode('list');
+                      }
+                    }, 800);
+                  }
+                }}
+                disabled={isSaving}
+                className={`flex-1 h-10 text-[10px] font-bold uppercase tracking-wide bg-slate-900 hover:bg-indigo-600 text-white rounded-md shadow-sm transition-all ${montserrat.className}`}
+              >
+                {isSaving ? <><Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> Saving...</> : 'Save & Next'}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* MCQ Info Message */}
+        {isQuestionMCQ(selectedQuestion) && (
+          <div className="pt-4 border-t border-slate-50">
+            <div className="bg-slate-100 rounded-lg p-3 text-center">
+              <div className="text-[10px] text-slate-500 font-medium">
+                <CheckCircle className="h-3 w-3 inline mr-1 text-emerald-500" />
+                MCQ questions are auto-graded
+              </div>
+              <div className="text-[9px] text-slate-400 mt-1">Score is automatically calculated based on answer correctness</div>
+              <div className="text-[9px] text-slate-400 mt-2 pt-1 border-t border-slate-200">
+                <MessageSquare className="h-3 w-3 inline mr-1" />
+                You can still add feedback above
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  </div>
+)}
             </div>
           </div>
         )}
