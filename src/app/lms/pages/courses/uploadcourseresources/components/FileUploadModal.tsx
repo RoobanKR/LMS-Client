@@ -1081,7 +1081,7 @@ export const FileUploadModal: React.FC<FileUploadModalProps> = ({
               {/* Name */}
               <div>
                 <label style={{ display: "block", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.04em", color: T.textFaint, marginBottom: 5, textTransform: "uppercase" as React.CSSProperties["textTransform"], fontFamily: T.font }}>
-                  {isGroup ? "Group Name" : "File Name"} <span style={{ color: T.red }}>*</span>
+                  {isGroup ? "Name" : "Name"} <span style={{ color: T.red }}>*</span>
                 </label>
                 <input
                   className="fum-input"
