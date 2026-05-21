@@ -1087,7 +1087,7 @@ export const FileUploadModal: React.FC<FileUploadModalProps> = ({
                   className="fum-input"
                   type="text" value={fileName}
                   onChange={e => { setFileName(e.target.value); if (nameError) setNameError(""); }}
-                  placeholder={isGroup ? "Enter group name…" : "Enter file name…"}
+                  placeholder={isGroup ? "Enter  name…" : "Enter name…"}
                   disabled={busy}
                   style={{
                     width: "100%", padding: "7px 10px", fontSize: 13, fontWeight: 500,
