@@ -575,14 +575,14 @@ const subcategories = useMemo(() => {
 
   const refreshCourseData = useCallback(() => {
     if (!courseId) return
-    fetch(`http://localhost:5533/getAll/courses-data/${courseId}`)
+    fetch(`https://lms-server-ym1q.onrender.com/getAll/courses-data/${courseId}`)
       .then(r => r.json()).then(d => { setCourseData(d.data || d) })
       .catch(() => { })
   }, [courseId])
 
   useEffect(() => {
     if (!courseId) { setError("No course ID."); setIsLoading(false); return }
-    fetch(`http://localhost:5533/getAll/courses-data/${courseId}`)
+    fetch(`https://lms-server-ym1q.onrender.com/getAll/courses-data/${courseId}`)
       .then(r => r.json()).then(d => {
         const info = d.data || d
         setCourseData(info)
@@ -1148,7 +1148,7 @@ const getExercisesForActivity = (): any[] => {
       setExerciseResetProgress(options?.resetProgress ?? false)
       try {
         const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || ''
-        const res = await fetch(`http://localhost:5533/exercise/${exercise._id}`, {
+        const res = await fetch(`https://lms-server-ym1q.onrender.com/exercise/${exercise._id}`, {
           headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
         })
         if (res.ok) {

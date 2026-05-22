@@ -423,7 +423,7 @@ export default function PPTViewer({
         formData.append('file', blob, `presentation.${ext}`)
         formData.append('pptUrl', pptUrl)
 
-        const res = await fetch('http://localhost:5533/api/ppt/convert', {
+        const res = await fetch('https://lms-server-ym1q.onrender.com/api/ppt/convert', {
           method: 'POST',
           body: formData,
         })

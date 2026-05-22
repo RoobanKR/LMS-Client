@@ -282,7 +282,7 @@ export default function MultiFileCodeEditor({
     setFullExercise(exercise || null)
     if (!exercise?._id) return
     const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || ''
-    fetch(`http://localhost:5533/exercise/${exercise._id}`, {
+    fetch(`https://lms-server-ym1q.onrender.com/exercise/${exercise._id}`, {
       headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
     })
       .then(r => r.ok ? r.json() : null)
@@ -346,7 +346,7 @@ export default function MultiFileCodeEditor({
       try {
         const token = localStorage.getItem("smartcliff_token") || localStorage.getItem("token") || ""
         const res = await fetch(
-          `http://localhost:5533/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseId}&questionId=${questionId}&category=${category}`,
+          `https://lms-server-ym1q.onrender.com/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseId}&questionId=${questionId}&category=${category}`,
           { headers: { Authorization: `Bearer ${token}` } },
         )
         if (!res.ok) throw new Error("no-previous")
@@ -529,7 +529,7 @@ runpy.run_path(${JSON.stringify(`/workspace${entry.path}`)}, run_name="__main__"
       isTestSubmission,
     }
     const res = await axios.post(
-      "http://localhost:5533/courses/answers/submit-multiple-files",
+      "https://lms-server-ym1q.onrender.com/courses/answers/submit-multiple-files",
       payload,
       { headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` } },
     )

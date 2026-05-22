@@ -264,7 +264,7 @@ export default function WordViewer({
         formData.append('file', blob, `presentation.${ext}`)
         formData.append('pptUrl', fileUrl)
 
-        const res = await fetch('http://localhost:5533/api/ppt/convert', {
+        const res = await fetch('https://lms-server-ym1q.onrender.com/api/ppt/convert', {
           method: 'POST',
           body: formData,
         })

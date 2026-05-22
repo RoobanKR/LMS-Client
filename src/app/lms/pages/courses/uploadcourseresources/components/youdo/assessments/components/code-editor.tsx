@@ -1316,7 +1316,7 @@ function solve() {
                 subcategory: subcategory || ""
             });
 
-            const response = await fetch(`http://localhost:5533/courses/answers/single?${params.toString()}`, {
+            const response = await fetch(`https://lms-server-ym1q.onrender.com/courses/answers/single?${params.toString()}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
 
@@ -2049,7 +2049,7 @@ function solve() {
             // Save recording URL to backend
             try {
                 const token = localStorage.getItem('smartcliff_token') || '';
-                const saveResponse = await fetch('http://localhost:5533/assessment/recording', {
+                const saveResponse = await fetch('https://lms-server-ym1q.onrender.com/assessment/recording', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -2238,7 +2238,7 @@ function solve() {
                 formData.append('screenRecording', screenRecordingBlob, filename);
             }
 
-            await fetch('http://localhost:5533/exercise/lock', {
+            await fetch('https://lms-server-ym1q.onrender.com/exercise/lock', {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`
@@ -2542,7 +2542,7 @@ function solve() {
             || localStorage.getItem('token') 
             || '';
 
-        const response = await fetch('http://localhost:5533/courses/answers/submit', {
+        const response = await fetch('https://lms-server-ym1q.onrender.com/courses/answers/submit', {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}` },
             body: formData,
@@ -3033,7 +3033,7 @@ function solve() {
 
             try {
                 const token = localStorage.getItem('smartcliff_token') || '';
-                const response = await fetch(`http://localhost:5533/exercise/status?courseId=${courseId}&exerciseId=${exercise._id}&category=You_Do&subcategory=${subcategory}`, {
+                const response = await fetch(`https://lms-server-ym1q.onrender.com/exercise/status?courseId=${courseId}&exerciseId=${exercise._id}&category=You_Do&subcategory=${subcategory}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
 

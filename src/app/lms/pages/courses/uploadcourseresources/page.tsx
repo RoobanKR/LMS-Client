@@ -1341,7 +1341,7 @@ const refreshContentData = useCallback(async (node: CourseNode, backendData?: an
     setIsContentLoading(true);
 
     try {
-      const BASE_URL = "http://localhost:5533";
+      const BASE_URL = "https://lms-server-ym1q.onrender.com";
       const token = typeof window !== "undefined" ? localStorage.getItem("smartcliff_token") : null;
 
       const courseRes = await fetch(`${BASE_URL}/getAll/courses-data/${courseId}`, {
@@ -1429,7 +1429,7 @@ const refreshContentData = useCallback(async (node: CourseNode, backendData?: an
     setIsContentLoading(true);
 
     try {
-      const BASE_URL = "http://localhost:5533";
+      const BASE_URL = "https://lms-server-ym1q.onrender.com";
       const token = typeof window !== "undefined" ? localStorage.getItem("smartcliff_token") : null;
 
       const courseRes = await fetch(`${BASE_URL}/getAll/courses-data/${courseId}`, {
@@ -5528,7 +5528,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
     tabType={activeTab || ""} 
     subcategory={activeSubcategory || ""} 
     folderPath={getCurrentNavState().currentFolderPath} 
-    apiBaseUrl="http://localhost:5533" 
+    apiBaseUrl="https://lms-server-ym1q.onrender.com" 
     onClose={() => { 
       setShowPDFViewer(false); 
       setCurrentPDFUrl(""); 
@@ -5565,7 +5565,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
     tabType={toBackendTab(activeTab)} 
     subcategory={activeSubcategory} 
     folderPath={getCurrentNavState().currentFolderPath} 
-    apiBaseUrl="http://localhost:5533" 
+    apiBaseUrl="https://lms-server-ym1q.onrender.com" 
     isTeacher={true}
     breadcrumbs={breadcrumbs}  // ← ADD THIS
     currentCourseName={courseStructureResponse?.data?.courseName || "Course"}  // ← ADD THIS
@@ -5625,7 +5625,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
       setImagePlaylist([]);
       setCurrentImageIndex(0);
     }}
-    apiBaseUrl="http://localhost:5533"
+    apiBaseUrl="https://lms-server-ym1q.onrender.com"
     isTeacher={true}
     allImages={imagePlaylist}
     currentImageIndex={currentImageIndex}
@@ -5676,7 +5676,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
             setCurrentVideoIndex(0);
             setCurrentVideoFileId("");
           }}
-          apiBaseUrl="http://localhost:5533"
+          apiBaseUrl="https://lms-server-ym1q.onrender.com"
           isTeacher={true}
         />
       )}

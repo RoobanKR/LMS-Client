@@ -578,7 +578,7 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
         };
 
         await axios.post(
-          'http://localhost:5533/courses/answers/submit-multiple-files',
+          'https://lms-server-ym1q.onrender.com/courses/answers/submit-multiple-files',
           savePayload,
           {
             headers: {
@@ -1865,7 +1865,7 @@ console.log('Project utilities available at window.projectUtils');`,
       try {
         const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
 
-        await axios.post('http://localhost:5533/exercise/lock', {
+        await axios.post('https://lms-server-ym1q.onrender.com/exercise/lock', {
           courseId,
           exerciseId,
           category,
@@ -1962,7 +1962,7 @@ console.log('Project utilities available at window.projectUtils');`,
 
     try {
       const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
-      await axios.post('http://localhost:5533/exercise/lock', {
+      await axios.post('https://lms-server-ym1q.onrender.com/exercise/lock', {
         courseId,
         exerciseId,
         category,
@@ -2331,7 +2331,7 @@ console.log('Project utilities available at window.projectUtils');`,
 
       try {
         const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
-        const response = await axios.get('http://localhost:5533/exercise/status', {
+        const response = await axios.get('https://lms-server-ym1q.onrender.com/exercise/status', {
           params: { courseId, exerciseId, category, subcategory },
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -2381,7 +2381,7 @@ console.log('Project utilities available at window.projectUtils');`,
   //     }
 
   //     const response = await fetch(
-  //       `http://localhost:5533/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseId}&questionId=${questionId}&category=${category}`,
+  //       `https://lms-server-ym1q.onrender.com/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseId}&questionId=${questionId}&category=${category}`,
   //       {
   //         headers: {  
   //           'Authorization': `Bearer ${token}`,
@@ -3925,7 +3925,7 @@ document.addEventListener('DOMContentLoaded', init${name.charAt(0).toUpperCase()
       };
 
       const response = await axios.post(
-        'http://localhost:5533/courses/answers/submit-multiple-files',
+        'https://lms-server-ym1q.onrender.com/courses/answers/submit-multiple-files',
         payload,
         {
           headers: {

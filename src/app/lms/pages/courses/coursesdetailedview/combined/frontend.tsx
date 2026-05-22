@@ -1311,7 +1311,7 @@ console.log('${fileName} loaded');
       }
 
       const response = await fetch(
-        `http://localhost:5533/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseId}&questionId=${question._id}&category=${category}`,
+        `https://lms-server-ym1q.onrender.com/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseId}&questionId=${question._id}&category=${category}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -2122,7 +2122,7 @@ console.log('${fileName} loaded');
       formData.append('nodeType', 'frontend');
       formData.append('language', 'html');
 
-      const response = await fetch('http://localhost:5533/courses/answers/submit', {
+      const response = await fetch('https://lms-server-ym1q.onrender.com/courses/answers/submit', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData,

@@ -1,7 +1,7 @@
 
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:5533';
+const API_BASE_URL = 'https://lms-server-ym1q.onrender.com';
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -351,7 +351,7 @@ export const getCacheInfo = () => ({
 
 export const addParticipantsToCourse = async (courseId: string, participantIds: string[], institutionId: string, token: string, enrollmentData: any = {}) => {
   try {
-    const response = await fetch(`http://localhost:5533/add-participants/${courseId}`, {
+    const response = await fetch(`https://lms-server-ym1q.onrender.com/add-participants/${courseId}`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -381,7 +381,7 @@ export const addParticipantsToCourse = async (courseId: string, participantIds: 
 
 export const updateParticipantEnrollment = async (courseId: string, userId: string, enrollmentData: any, institutionId: string, token: string) => {
   try {
-    const response = await fetch(`http://localhost:5533/update-enrollment/${courseId}/${userId}`, {
+    const response = await fetch(`https://lms-server-ym1q.onrender.com/update-enrollment/${courseId}/${userId}`, {
       method: 'PUT',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -411,7 +411,7 @@ export const removeParticipantFromCourse = async (
 ) => {
   try {
     const response = await fetch(
-      `http://localhost:5533/delete/participant/${courseId}/${userId}`,
+      `https://lms-server-ym1q.onrender.com/delete/participant/${courseId}/${userId}`,
       {
         method: 'DELETE',
         headers: {
@@ -450,7 +450,7 @@ export const removeMultipleParticipantsFromCourse = async (
 
     // First, debug the course structure
     const debugResponse = await fetch(
-      `http://localhost:5533/api/debug/course/${courseId}`,
+      `https://lms-server-ym1q.onrender.com/api/debug/course/${courseId}`,
       {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -467,7 +467,7 @@ export const removeMultipleParticipantsFromCourse = async (
 
     // Now attempt to delete
     const response = await fetch(
-      `http://localhost:5533/delete-participants/multiple/${courseId}`,
+      `https://lms-server-ym1q.onrender.com/delete-participants/multiple/${courseId}`,
       {
         method: 'DELETE',
         headers: {
@@ -683,7 +683,7 @@ export const getGroupDetails = async (groupId: any, institutionId: any, token: a
 export const fetchGroupsCourseData = async (courseId: string, institutionId: string, token: string) => {
   try {
     const response = await fetch(
-      `http://localhost:5533/getAll/groups/courses-data/${courseId}`,
+      `https://lms-server-ym1q.onrender.com/getAll/groups/courses-data/${courseId}`,
       {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -724,7 +724,7 @@ export const removeGroupLeader = async (
   token: string
 ): Promise<RemoveGroupLeaderResponse> => {
   const response = await fetch(
-    `http://localhost:5533/remove-group-leader/${groupId}/${institution}`,
+    `https://lms-server-ym1q.onrender.com/remove-group-leader/${groupId}/${institution}`,
     {
       method: "PUT",
       headers: {

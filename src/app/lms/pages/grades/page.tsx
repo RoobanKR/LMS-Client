@@ -300,7 +300,7 @@ export default function GradePage() {
             setCoursesError(null);
             
             try {
-                const response = await fetch('http://localhost:5533/courses-structure/getAll', {
+                const response = await fetch('https://lms-server-ym1q.onrender.com/courses-structure/getAll', {
                     method: 'GET',
                     headers: {
                         'Authorization': `Bearer ${authToken}`,
@@ -414,7 +414,7 @@ export default function GradePage() {
                 setCoursesError(null);
                 
                 try {
-                    const response = await fetch('http://localhost:5533/courses-structure/getAll', {
+                    const response = await fetch('https://lms-server-ym1q.onrender.com/courses-structure/getAll', {
                         method: 'GET',
                         headers: {
                             'Authorization': `Bearer ${authToken}`,
