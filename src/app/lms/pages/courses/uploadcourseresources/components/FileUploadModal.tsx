@@ -490,7 +490,7 @@ export const FileUploadModal: React.FC<FileUploadModalProps> = ({
 
     if (!editMode && !assignedFiles.length && !hasFolders) return;
     if (!fileName.trim()) {
-      setNameError(editMode ? "Name is required." : (hasFolders || assignedFiles.length > 1 ? "Group name required." : "File name required."));
+      setNameError(editMode ? "Name is required." : (hasFolders || assignedFiles.length > 1 ? "Group name required." : "name required."));
       return;
     }
 
@@ -1092,13 +1092,13 @@ export const FileUploadModal: React.FC<FileUploadModalProps> = ({
               {/* Name */}
               <div>
                 <label style={{ display: "block", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.04em", color: T.textFaint, marginBottom: 5, textTransform: "uppercase" as React.CSSProperties["textTransform"], fontFamily: T.font }}>
-                  {isGroup ? "Group Name" : "File Name"} <span style={{ color: T.red }}>*</span>
+                  {isGroup ? "Name" : "Name"} <span style={{ color: T.red }}>*</span>
                 </label>
                 <input
                   className="fum-input"
                   type="text" value={fileName}
                   onChange={e => { setFileName(e.target.value); if (nameError) setNameError(""); }}
-                  placeholder={isGroup ? "Enter group name…" : "Enter file name…"}
+                  placeholder={isGroup ? "Enter name…" : "Enter name…"}
                   disabled={busy}
                   style={{
                     width: "100%", padding: "7px 10px", fontSize: 13, fontWeight: 500,
