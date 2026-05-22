@@ -177,6 +177,7 @@ export interface UploadOptions {
   parentGroupId?: string;
   groupName?: string;
   groupDescription?: string;
+  outerGroupId?: string;
 }
 
 export interface FileUploadModalProps {
@@ -539,22 +540,32 @@ export const FileUploadModal: React.FC<FileUploadModalProps> = ({
     const validParentGroupId = typeof parentGroupId === "string" && parentGroupId.length > 0 ? parentGroupId : undefined;
     const isAddingToExisting = !!validParentGroupId;
     const isGroupScenario = hasFolders || assignedFiles.length > 1;
-    const effectiveGroupId = validParentGroupId ?? (isGroupScenario && capturedGroupName ? crypto.randomUUID() : undefined);
+    // When multiple files/folders are added to an existing group, create a NEW
+    // sub-group instead of dumping them all directly into the parent group.
+    const isSubGroupScenario = isAddingToExisting && isGroupScenario && !!capturedGroupName;
+    const effectiveGroupId = isSubGroupScenario
+      ? crypto.randomUUID()
+      : (validParentGroupId ?? (isGroupScenario && capturedGroupName ? crypto.randomUUID() : undefined));
 
     // groupName resolution:
-    //   - isAddingToExisting (Add Files to this Group): stamp the EXISTING
-    //     group's name (parentGroupName) so the new file shares the same
-    //     groupName as the rest of the group and the bucket name stays stable.
+    //   - isSubGroupScenario: the user-typed name becomes the sub-group name.
+    //   - isAddingToExisting (single file): stamp the EXISTING group's name so
+    //     the new file shares the same groupName as the rest of the group.
     //   - new group scenario: use the user-typed name as the new group's name.
     //   - single-file standalone: no groupName.
     const uploadOptions: UploadOptions = {
       showToStudent, allowDownload,
       createdAt: new Date().toISOString(),
       parentGroupId: effectiveGroupId,
-      groupName: isAddingToExisting
-        ? (parentGroupName || undefined)
-        : (isGroupScenario ? (capturedGroupName || undefined) : undefined),
-      groupDescription: isAddingToExisting || !isGroupScenario ? undefined : capturedDescription || undefined,
+      groupName: isSubGroupScenario
+        ? capturedGroupName
+        : (isAddingToExisting
+          ? (parentGroupName || undefined)
+          : (isGroupScenario ? (capturedGroupName || undefined) : undefined)),
+      groupDescription: isSubGroupScenario
+        ? (capturedDescription || undefined)
+        : (isAddingToExisting || !isGroupScenario ? undefined : capturedDescription || undefined),
+      outerGroupId: isSubGroupScenario ? validParentGroupId : undefined,
     };
 
     const totalTasks = capturedFolderPaths.length + capturedFileGroups.length;
@@ -1081,13 +1092,13 @@ export const FileUploadModal: React.FC<FileUploadModalProps> = ({
               {/* Name */}
               <div>
                 <label style={{ display: "block", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.04em", color: T.textFaint, marginBottom: 5, textTransform: "uppercase" as React.CSSProperties["textTransform"], fontFamily: T.font }}>
-                  {isGroup ? "Name" : "Name"} <span style={{ color: T.red }}>*</span>
+                  {isGroup ? "Group Name" : "File Name"} <span style={{ color: T.red }}>*</span>
                 </label>
                 <input
                   className="fum-input"
                   type="text" value={fileName}
                   onChange={e => { setFileName(e.target.value); if (nameError) setNameError(""); }}
-                  placeholder={isGroup ? "Enter  name…" : "Enter name…"}
+                  placeholder={isGroup ? "Enter group name…" : "Enter file name…"}
                   disabled={busy}
                   style={{
                     width: "100%", padding: "7px 10px", fontSize: 13, fontWeight: 500,

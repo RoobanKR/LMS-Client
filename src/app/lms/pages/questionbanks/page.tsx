@@ -310,8 +310,8 @@ const handleMCQSave = async (formData: FormData) => {
     
     // For updates, use the specific question ID
     const endpoint = isEditingQuestion && editingQuestion._id
-      ? `https://lms-server-ym1q.onrender.com/update/question-bank/${editingQuestion._id}`
-      : 'https://lms-server-ym1q.onrender.com/create/question-bank';
+      ? `http://localhost:5533/update/question-bank/${editingQuestion._id}`
+      : 'http://localhost:5533/create/question-bank';
     
     const method = isEditingQuestion ? 'PUT' : 'POST';
 

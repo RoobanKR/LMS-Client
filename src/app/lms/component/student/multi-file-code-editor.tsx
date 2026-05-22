@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useMemo, useCallback } from "react"
+import ExerciseInfoModals, { ExerciseInfoButtons } from './ExerciseInfoModals'
 import dynamic from "next/dynamic"
 import Script from "next/script"
 import axios from "axios"
@@ -74,6 +75,8 @@ const detectLanguage = (filename: string): "python" | "text" =>
 
 const uid = (prefix: string): string =>
   `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+
+const FONT = "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif"
 
 const formatExerciseTime = (seconds: number | null): string => {
   if (seconds === null) return "--:--"
@@ -273,6 +276,25 @@ export default function MultiFileCodeEditor({
   const [renameValue, setRenameValue] = useState("")
   const [ctxMenu, setCtxMenu] = useState<null | { x: number; y: number; target: { type: "file" | "folder"; id: string } | { type: "root" } }>(null)
 
+  // ─── Full exercise (re-fetched to get totalMarks etc.) ──────────────────────
+  const [fullExercise, setFullExercise] = useState<any>(exercise || null)
+  useEffect(() => {
+    setFullExercise(exercise || null)
+    if (!exercise?._id) return
+    const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || ''
+    fetch(`http://localhost:5533/exercise/${exercise._id}`, {
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data) return
+        const full = data.data || data.exercise || data
+        if (full?._id) setFullExercise({ ...full, questions: exercise.questions ?? full.questions })
+      })
+      .catch(() => {})
+  }, [exercise?._id])
+  const exData = fullExercise ?? exercise
+
   // ─── Timer ──────────────────────────────────────────────────────────────────
   const [exerciseTimeLeft, setExerciseTimeLeft] = useState<number | null>(null)
 
@@ -296,7 +318,7 @@ export default function MultiFileCodeEditor({
 
   // ─── Timer effect (totalDuration in minutes) ────────────────────────────────
   useEffect(() => {
-    const totalDuration = exercise?.exerciseInformation?.totalDuration
+    const totalDuration = exData?.exerciseInformation?.totalDuration
     if (!totalDuration || totalDuration <= 0) { setExerciseTimeLeft(null); return }
     setExerciseTimeLeft(totalDuration * 60)
     const timer = setInterval(() => {
@@ -306,7 +328,7 @@ export default function MultiFileCodeEditor({
       })
     }, 1000)
     return () => clearInterval(timer)
-  }, [exercise?.exerciseInformation?.totalDuration])
+  }, [exData?.exerciseInformation?.totalDuration])
 
   // ═════════════════════════════════════════════════════════════════════════════
   // Load previous submission on mount / question change
@@ -324,7 +346,7 @@ export default function MultiFileCodeEditor({
       try {
         const token = localStorage.getItem("smartcliff_token") || localStorage.getItem("token") || ""
         const res = await fetch(
-          `https://lms-server-ym1q.onrender.com/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseId}&questionId=${questionId}&category=${category}`,
+          `http://localhost:5533/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseId}&questionId=${questionId}&category=${category}`,
           { headers: { Authorization: `Bearer ${token}` } },
         )
         if (!res.ok) throw new Error("no-previous")
@@ -507,7 +529,7 @@ runpy.run_path(${JSON.stringify(`/workspace${entry.path}`)}, run_name="__main__"
       isTestSubmission,
     }
     const res = await axios.post(
-      "https://lms-server-ym1q.onrender.com/courses/answers/submit-multiple-files",
+      "http://localhost:5533/courses/answers/submit-multiple-files",
       payload,
       { headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` } },
     )
@@ -739,7 +761,7 @@ runpy.run_path(${JSON.stringify(`/workspace${entry.path}`)}, run_name="__main__"
             style={{
               paddingLeft: 8 + depth * 12,
               color: isActiveTarget ? "#92400e" : "#374151",
-              fontFamily: "Poppins, sans-serif",
+              fontFamily: FONT,
               borderLeft: isActiveTarget ? "2px solid #f59e0b" : "2px solid transparent",
             }}
             onClick={() => {
@@ -783,7 +805,7 @@ runpy.run_path(${JSON.stringify(`/workspace${entry.path}`)}, run_name="__main__"
         className={`flex items-center gap-1 px-2 py-1 text-xs cursor-pointer group ${
           isActive ? "bg-blue-50 text-blue-700" : "hover:bg-gray-100 text-gray-700"
         }`}
-        style={{ paddingLeft: 8 + depth * 12 + 12, fontFamily: "Poppins, sans-serif" }}
+        style={{ paddingLeft: 8 + depth * 12 + 12, fontFamily: FONT }}
         onClick={() => {
           setActiveFolderPath(node.file.folderPath)
           openFile(node.file.id)
@@ -840,7 +862,7 @@ runpy.run_path(${JSON.stringify(`/workspace${entry.path}`)}, run_name="__main__"
         style={{
           background: "#fff",
           color: "#111827",
-          fontFamily: "Poppins, sans-serif",
+          fontFamily: FONT,
           userSelect: resizing.current ? "none" : "auto",
         }}
       >
@@ -873,7 +895,7 @@ runpy.run_path(${JSON.stringify(`/workspace${entry.path}`)}, run_name="__main__"
               <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap", flex: 1, minWidth: 0 }}>
                 <button
                   onClick={() => setPendingNavLevel("course")}
-                  style={{ fontFamily: "Poppins, sans-serif", fontSize: 12.5, fontWeight: 500, color: "#2563eb", background: "none", border: "none", cursor: "pointer", padding: 0, whiteSpace: "nowrap" }}
+                  style={{ fontFamily: FONT, fontSize: 12.5, fontWeight: 500, color: "#2563eb", background: "none", border: "none", cursor: "pointer", padding: 0, whiteSpace: "nowrap" }}
                 >
                   {courseName || "Course"}
                 </button>
@@ -882,7 +904,7 @@ runpy.run_path(${JSON.stringify(`/workspace${entry.path}`)}, run_name="__main__"
                     <ChevronRight style={{ width: 12, height: 12, color: "#c0c4cc", flexShrink: 0 }} />
                     <button
                       onClick={() => setPendingNavLevel("hierarchy")}
-                      style={{ fontFamily: "Poppins, sans-serif", fontSize: 12.5, fontWeight: 500, color: "#2563eb", background: "none", border: "none", cursor: "pointer", padding: 0, whiteSpace: "nowrap" }}
+                      style={{ fontFamily: FONT, fontSize: 12.5, fontWeight: 500, color: "#2563eb", background: "none", border: "none", cursor: "pointer", padding: 0, whiteSpace: "nowrap" }}
                     >
                       {seg}
                     </button>
@@ -893,7 +915,7 @@ runpy.run_path(${JSON.stringify(`/workspace${entry.path}`)}, run_name="__main__"
                     <ChevronRight style={{ width: 12, height: 12, color: "#c0c4cc", flexShrink: 0 }} />
                     <button
                       onClick={() => setPendingNavLevel("category")}
-                      style={{ fontFamily: "Poppins, sans-serif", fontSize: 12.5, fontWeight: 500, color: "#2563eb", background: "none", border: "none", cursor: "pointer", padding: 0, whiteSpace: "nowrap" }}
+                      style={{ fontFamily: FONT, fontSize: 12.5, fontWeight: 500, color: "#2563eb", background: "none", border: "none", cursor: "pointer", padding: 0, whiteSpace: "nowrap" }}
                     >
                       {category === "We_Do" ? "We Do" : category === "I_Do" ? "I Do" : category === "You_Do" ? "You Do" : category}
                     </button>
@@ -901,7 +923,7 @@ runpy.run_path(${JSON.stringify(`/workspace${entry.path}`)}, run_name="__main__"
                 )}
                 <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
                   <ChevronRight style={{ width: 12, height: 12, color: "#c0c4cc", flexShrink: 0 }} />
-                  <span style={{ fontFamily: "Poppins, sans-serif", fontSize: 12.5, fontWeight: 600, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  <span style={{ fontFamily: FONT, fontSize: 12.5, fontWeight: 600, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                     {exercise?.exerciseInformation?.exerciseName || "Exercise"}
                   </span>
                 </span>
@@ -954,7 +976,7 @@ runpy.run_path(${JSON.stringify(`/workspace${entry.path}`)}, run_name="__main__"
               <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                 {availableDifficulties.length > 0 && (
                   <>
-                    <span style={{ fontSize: 11, color: "#6b7280", fontFamily: "Poppins, sans-serif", fontWeight: 400 }}>
+                    <span style={{ fontSize: 11, color: "#6b7280", fontFamily: FONT, fontWeight: 400 }}>
                       Difficulty
                     </span>
                     <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
@@ -976,7 +998,7 @@ runpy.run_path(${JSON.stringify(`/workspace${entry.path}`)}, run_name="__main__"
                           color: selectedDifficulty === "easy" ? "#16a34a" :
                             selectedDifficulty === "medium" ? "#d97706" :
                             selectedDifficulty === "hard" ? "#dc2626" : "#6b7280",
-                          fontFamily: "Poppins, sans-serif", fontSize: 12, fontWeight: 500,
+                          fontFamily: FONT, fontSize: 12, fontWeight: 500,
                           cursor: "pointer", outline: "none",
                           transition: "border-color 0.15s, color 0.15s",
                         }}
@@ -1003,17 +1025,28 @@ runpy.run_path(${JSON.stringify(`/workspace${entry.path}`)}, run_name="__main__"
                     </div>
                   </>
                 )}
-                {exercise?.isGraded !== false && (() => {
-                  const totalMarks =
-                    exercise.exerciseInformation?.totalMarksProgramming ??
-                    exercise.exerciseInformation?.totalMarks ??
-                    exercise.exerciseInformation?.totalPoints ?? null
-                  if (totalMarks == null) return null
+                {exData?.isGraded !== false && (() => {
+                  const _ss = exData?.questionConfiguration?.programmingQuestionConfiguration?.scoreSettings
+                  const _progCalc = _ss
+                    ? _ss.scoreType === 'evenMarks' && _ss.evenMarks
+                      ? _ss.evenMarks * (questions.length || 1)
+                      : (['easy', 'medium', 'hard'] as const).reduce(
+                          (s, d) => s + ((_ss.levelScoringConfiguration as any)?.[d]?.totalMarks || 0), 0
+                        )
+                    : 0
+                  const tm =
+                    exData?.exerciseInformation?.totalMarksProgramming ||
+                    exData?.exerciseInformation?.totalMarks ||
+                    exData?.exerciseInformation?.totalPoints ||
+                    exData?.questionConfiguration?.mcqQuestionConfiguration?.mcqTotalMarks ||
+                    _progCalc || 0
                   return (
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "2px 10px", borderRadius: 99, background: "#dcfce7" }}>
-                      <Award style={{ width: 12, height: 12, color: "#15803d" }} />
-                      <span style={{ fontSize: 11, fontWeight: 600, color: "#15803d" }}>{totalMarks} total marks</span>
-                    </div>
+                    <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 99,
+                      background: '#dcfce7', color: '#15803d',
+                      display: 'flex', alignItems: 'center', gap: 4, fontFamily: FONT, whiteSpace: 'nowrap' }}>
+                      <Award style={{ width: 12, height: 12 }} />
+                      Total marks: {tm}
+                    </span>
                   )
                 })()}
                 <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "2px 10px", borderRadius: 99, background: "#eff6ff" }}>
@@ -1023,57 +1056,39 @@ runpy.run_path(${JSON.stringify(`/workspace${entry.path}`)}, run_name="__main__"
               </div>
 
               {/* Center — Details + Overview */}
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <button
-                  onClick={() => setShowDetailsModal(true)}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 6,
-                    padding: "6px 14px", borderRadius: 8,
-                    fontSize: 13, fontWeight: 500, fontFamily: "Poppins, sans-serif",
-                    border: "1px solid #3b82f6", background: "transparent", color: "#3b82f6",
-                    cursor: "pointer", transition: "all 0.2s ease", whiteSpace: "nowrap",
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(59, 130, 246, 0.1)" }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent" }}
-                  title="View Exercise Details"
-                >
-                  <FileText style={{ width: 14, height: 14 }} />
-                  Exercise Details
-                </button>
-
-                <button
-                  onClick={() => setShowOverviewModal(true)}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 6,
-                    padding: "6px 14px", borderRadius: 8,
-                    fontSize: 13, fontWeight: 500, fontFamily: "Poppins, sans-serif",
-                    border: "1px solid #10b981", background: "transparent", color: "#10b981",
-                    cursor: "pointer", transition: "all 0.2s ease", whiteSpace: "nowrap",
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(16, 185, 129, 0.1)" }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent" }}
-                  title="View Question and Marks Details"
-                >
-                  <BarChart3 style={{ width: 14, height: 14 }} />
-                  Question and mark details
-                </button>
-              </div>
+              <ExerciseInfoButtons
+                onDetailsClick={() => setShowDetailsModal(true)}
+                onOverviewClick={() => setShowOverviewModal(true)}
+                isGraded={exData?.isGraded !== false}
+                detailsActive={showDetailsModal}
+                overviewActive={showOverviewModal}
+              />
 
               {/* Right — Timer */}
               <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                {exerciseTimeLeft !== null && (
-                  <span style={{
-                    fontSize: 11, fontWeight: 600,
-                    padding: "2px 8px", borderRadius: 99,
-                    fontFamily: "ui-monospace, monospace",
-                    background: exerciseTimeLeft < 300 ? "#fee2e2" : "#f3f4f6",
-                    color: exerciseTimeLeft < 300 ? "#dc2626" : "#4b5563",
-                    display: "flex", alignItems: "center", gap: 4,
-                  }}>
-                    <Clock style={{ width: 11, height: 11 }} />
-                    {formatExerciseTime(exerciseTimeLeft)}
-                  </span>
-                )}
+                {exerciseTimeLeft !== null && (exData?.exerciseInformation?.totalDuration || 0) > 0 && (() => {
+                  const totalSecs = (exData?.exerciseInformation?.totalDuration || 0) * 60
+                  const pct = totalSecs > 0 ? Math.max(0, (exerciseTimeLeft / totalSecs) * 100) : 0
+                  const isDanger = exerciseTimeLeft < 60
+                  const isWarning = exerciseTimeLeft < 300 && !isDanger
+                  const tcol = isDanger ? '#ef4444' : isWarning ? '#f59e0b' : '#F27757'
+                  return (
+                    <div style={{ minWidth: 130 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <Clock style={{ width: 12, height: 12, color: tcol }} />
+                          <span style={{ fontSize: 11, color: '#9b9bae', fontWeight: 600, fontFamily: FONT }}>Time Left</span>
+                        </div>
+                        <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: 14, fontWeight: 800, color: tcol, animation: isDanger ? 'pulse 1s ease-in-out infinite' : 'none' }}>
+                          {formatExerciseTime(exerciseTimeLeft)}
+                        </span>
+                      </div>
+                      <div style={{ height: 4, borderRadius: 99, background: '#f4f4f7', overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${pct}%`, background: tcol, borderRadius: 99, transition: 'width 1s linear' }} />
+                      </div>
+                    </div>
+                  )
+                })()}
               </div>
             </div>
 
@@ -1537,7 +1552,7 @@ runpy.run_path(${JSON.stringify(`/workspace${entry.path}`)}, run_name="__main__"
                     style={{
                       display: "flex", alignItems: "center", gap: 4,
                       height: 26, padding: "0 12px",
-                      fontSize: 11, fontFamily: "Poppins, sans-serif", fontWeight: 600,
+                      fontSize: 11, fontFamily: FONT, fontWeight: 600,
                       borderRadius: 6, border: "none",
                       background: (isRunning || isSubmittingQuestion || isSubmitting) ? "#9ca3af" : "#22c55e",
                       color: "#fff",
@@ -1591,23 +1606,23 @@ runpy.run_path(${JSON.stringify(`/workspace${entry.path}`)}, run_name="__main__"
         {showBackConfirm && (
           <div style={{ position: "fixed", inset: 0, zIndex: 99999, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <div style={{ background: "#fff", borderRadius: 12, padding: "28px 32px", width: 360, boxShadow: "0 20px 60px rgba(0,0,0,0.3)", border: "1px solid #e5e7eb" }}>
-              <p style={{ fontFamily: "Montserrat, sans-serif", fontSize: 16, fontWeight: 700, color: "#111827", marginBottom: 8 }}>Leave Exercise?</p>
-              <p style={{ fontFamily: "Poppins, sans-serif", fontSize: 13, color: "#6b7280", marginBottom: 24, lineHeight: 1.6 }}>
+              <p style={{ fontFamily: FONT, fontSize: 16, fontWeight: 700, color: "#111827", marginBottom: 8 }}>Leave Exercise?</p>
+              <p style={{ fontFamily: FONT, fontSize: 13, color: "#6b7280", marginBottom: 24, lineHeight: 1.6 }}>
                 Your code is saved, but unsaved progress may be lost. Where would you like to go?
               </p>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <button onClick={() => { setShowBackConfirm(false); onNavigateToBreadcrumb?.("category") }} style={{ fontFamily: "Poppins, sans-serif", fontSize: 13, fontWeight: 600, padding: "9px 16px", borderRadius: 8, border: "none", background: "#3b82f6", color: "#fff", cursor: "pointer", textAlign: "left" }}>
+                <button onClick={() => { setShowBackConfirm(false); onNavigateToBreadcrumb?.("category") }} style={{ fontFamily: FONT, fontSize: 13, fontWeight: 600, padding: "9px 16px", borderRadius: 8, border: "none", background: "#3b82f6", color: "#fff", cursor: "pointer", textAlign: "left" }}>
                   Back to {category === "We_Do" ? "We Do" : category === "I_Do" ? "I Do" : category === "You_Do" ? "You Do" : "exercise list"}
                 </button>
                 {hierarchy.length > 0 && (
-                  <button onClick={() => { setShowBackConfirm(false); onNavigateToBreadcrumb?.("hierarchy") }} style={{ fontFamily: "Poppins, sans-serif", fontSize: 13, fontWeight: 500, padding: "9px 16px", borderRadius: 8, border: "1px solid #e5e7eb", background: "none", color: "#374151", cursor: "pointer", textAlign: "left" }}>
+                  <button onClick={() => { setShowBackConfirm(false); onNavigateToBreadcrumb?.("hierarchy") }} style={{ fontFamily: FONT, fontSize: 13, fontWeight: 500, padding: "9px 16px", borderRadius: 8, border: "1px solid #e5e7eb", background: "none", color: "#374151", cursor: "pointer", textAlign: "left" }}>
                     Back to {hierarchy.slice(-1)[0] || "Topic"}
                   </button>
                 )}
-                <button onClick={() => { setShowBackConfirm(false); onNavigateToBreadcrumb?.("course") }} style={{ fontFamily: "Poppins, sans-serif", fontSize: 13, fontWeight: 500, padding: "9px 16px", borderRadius: 8, border: "1px solid #e5e7eb", background: "none", color: "#374151", cursor: "pointer", textAlign: "left" }}>
+                <button onClick={() => { setShowBackConfirm(false); onNavigateToBreadcrumb?.("course") }} style={{ fontFamily: FONT, fontSize: 13, fontWeight: 500, padding: "9px 16px", borderRadius: 8, border: "1px solid #e5e7eb", background: "none", color: "#374151", cursor: "pointer", textAlign: "left" }}>
                   Back to {courseName || "Course"}
                 </button>
-                <button onClick={() => setShowBackConfirm(false)} style={{ fontFamily: "Poppins, sans-serif", fontSize: 12, fontWeight: 500, padding: "8px 16px", borderRadius: 8, border: "none", background: "none", color: "#9ca3af", cursor: "pointer" }}>
+                <button onClick={() => setShowBackConfirm(false)} style={{ fontFamily: FONT, fontSize: 12, fontWeight: 500, padding: "8px 16px", borderRadius: 8, border: "none", background: "none", color: "#9ca3af", cursor: "pointer" }}>
                   Stay in Exercise
                 </button>
               </div>
@@ -1619,15 +1634,15 @@ runpy.run_path(${JSON.stringify(`/workspace${entry.path}`)}, run_name="__main__"
         {pendingNavLevel !== null && (
           <div style={{ position: "fixed", inset: 0, zIndex: 99999, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <div style={{ background: "#fff", borderRadius: 12, padding: "28px 32px", width: 360, boxShadow: "0 20px 60px rgba(0,0,0,0.35)", border: "1px solid #e5e7eb" }}>
-              <p style={{ fontFamily: "Montserrat, sans-serif", fontSize: 16, fontWeight: 700, color: "#111827", marginBottom: 8 }}>Leave Exercise?</p>
-              <p style={{ fontFamily: "Poppins, sans-serif", fontSize: 13, color: "#6b7280", marginBottom: 24, lineHeight: 1.6 }}>
+              <p style={{ fontFamily: FONT, fontSize: 16, fontWeight: 700, color: "#111827", marginBottom: 8 }}>Leave Exercise?</p>
+              <p style={{ fontFamily: FONT, fontSize: 13, color: "#6b7280", marginBottom: 24, lineHeight: 1.6 }}>
                 Your progress may not be saved if you leave now.
               </p>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                <button onClick={() => setPendingNavLevel(null)} style={{ fontFamily: "Poppins, sans-serif", fontSize: 13, fontWeight: 700, padding: "11px 16px", borderRadius: 8, border: "none", background: "#111827", color: "#fff", cursor: "pointer", textAlign: "center" }}>
+                <button onClick={() => setPendingNavLevel(null)} style={{ fontFamily: FONT, fontSize: 13, fontWeight: 700, padding: "11px 16px", borderRadius: 8, border: "none", background: "#111827", color: "#fff", cursor: "pointer", textAlign: "center" }}>
                   Stay in Exercise
                 </button>
-                <button onClick={() => { onNavigateToBreadcrumb?.(pendingNavLevel); setPendingNavLevel(null) }} style={{ fontFamily: "Poppins, sans-serif", fontSize: 13, fontWeight: 500, padding: "10px 16px", borderRadius: 8, border: "1px solid #d1d5db", background: "none", color: "#6b7280", cursor: "pointer", textAlign: "center" }}>
+                <button onClick={() => { onNavigateToBreadcrumb?.(pendingNavLevel); setPendingNavLevel(null) }} style={{ fontFamily: FONT, fontSize: 13, fontWeight: 500, padding: "10px 16px", borderRadius: 8, border: "1px solid #d1d5db", background: "none", color: "#6b7280", cursor: "pointer", textAlign: "center" }}>
                   Leave
                 </button>
               </div>
@@ -1635,13 +1650,24 @@ runpy.run_path(${JSON.stringify(`/workspace${entry.path}`)}, run_name="__main__"
           </div>
         )}
 
-        {/* Exercise Details Modal */}
-        {showDetailsModal && exercise && (
+        {/* Exercise Details + Overview Modals */}
+        {exData && (
+          <ExerciseInfoModals
+            exercise={exData}
+            showDetailsModal={showDetailsModal}
+            setShowDetailsModal={setShowDetailsModal}
+            showOverviewModal={showOverviewModal}
+            setShowOverviewModal={setShowOverviewModal}
+            solvedQuestions={solvedQuestions}
+          />
+        )}
+
+        {false && showDetailsModal && exercise && (
           <div
             style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(15,15,30,0.45)", backdropFilter: "blur(2px)" }}
             onClick={(e) => { if (e.target === e.currentTarget) setShowDetailsModal(false) }}
           >
-            <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 20px 56px rgba(0,0,0,0.20)", width: 360, maxHeight: "80vh", display: "flex", flexDirection: "column", overflow: "hidden", border: "1.5px solid #e4e4ed", fontFamily: "Poppins, sans-serif" }}>
+            <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 20px 56px rgba(0,0,0,0.20)", width: 360, maxHeight: "80vh", display: "flex", flexDirection: "column", overflow: "hidden", border: "1.5px solid #e4e4ed", fontFamily: FONT }}>
               <div style={{ padding: "13px 16px", borderBottom: "1.5px solid #e4e4ed", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#f7f7fb", flexShrink: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
                   <FileText size={14} style={{ color: "#3a3a52" }} />
@@ -1682,7 +1708,7 @@ runpy.run_path(${JSON.stringify(`/workspace${entry.path}`)}, run_name="__main__"
         )}
 
         {/* Question and Marks Overview Modal — matches code-editor.tsx */}
-        {showOverviewModal && exercise && (() => {
+        {false && showOverviewModal && exercise && (() => {
           const configuredDiffs = (["easy", "medium", "hard"] as const).filter((d) => difficultyMap[d])
           const totalSlotsAll = configuredDiffs.length > 0
             ? configuredDiffs.reduce((s, d) => s + (difficultyMap[d]?.count ?? 0), 0)
@@ -1702,11 +1728,11 @@ runpy.run_path(${JSON.stringify(`/workspace${entry.path}`)}, run_name="__main__"
               style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(15,15,30,0.45)", backdropFilter: "blur(2px)" }}
               onClick={(e) => { if (e.target === e.currentTarget) setShowOverviewModal(false) }}
             >
-              <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 20px 56px rgba(0,0,0,0.20)", width: 400, maxHeight: "86vh", display: "flex", flexDirection: "column", overflow: "hidden", border: "1.5px solid #e4e4ed", fontFamily: "Poppins, sans-serif" }}>
+              <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 20px 56px rgba(0,0,0,0.20)", width: 400, maxHeight: "86vh", display: "flex", flexDirection: "column", overflow: "hidden", border: "1.5px solid #e4e4ed", fontFamily: FONT }}>
                 <div style={{ padding: "13px 16px", borderBottom: "1.5px solid #e4e4ed", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#eff6ff", flexShrink: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
                     <BarChart3 size={14} style={{ color: "#2563eb" }} />
-                    <span style={{ fontFamily: "Poppins, sans-serif", fontSize: 13, fontWeight: 700, color: "#1a1a2e" }}>Question and Marks details</span>
+                    <span style={{ fontFamily: FONT, fontSize: 13, fontWeight: 700, color: "#1a1a2e" }}>Question and Marks details</span>
                   </div>
                   <button type="button" onClick={() => setShowOverviewModal(false)} style={{ border: "none", background: "none", cursor: "pointer", color: "#9a9ab0", display: "flex", padding: 4, borderRadius: 6 }}>
                     <X size={15} />
@@ -1717,7 +1743,7 @@ runpy.run_path(${JSON.stringify(`/workspace${entry.path}`)}, run_name="__main__"
                   {/* Overall Questions */}
                   <div style={{ padding: "12px 16px", borderBottom: "1.5px solid #e4e4ed" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: "#F27757", textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "Poppins, sans-serif" }}>Overall Questions</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: "#F27757", textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: FONT }}>Overall Questions</span>
                     </div>
                     {[
                       { label: "Total Questions", value: totalSlotsAll, denom: undefined as number | undefined, color: "#1a1a2e" },
@@ -1725,8 +1751,8 @@ runpy.run_path(${JSON.stringify(`/workspace${entry.path}`)}, run_name="__main__"
                       { label: "Remaining", value: remainingAll, denom: undefined as number | undefined, color: remainingAll === 0 ? "#16a34a" : "#d97706" },
                     ].map(({ label, value, denom, color }) => (
                       <div key={label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "3px 0" }}>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: "#3a3a52", fontFamily: "Poppins, sans-serif" }}>{label}</span>
-                        <span style={{ fontSize: 12, fontWeight: 700, color, fontFamily: "Poppins, sans-serif" }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: "#3a3a52", fontFamily: FONT }}>{label}</span>
+                        <span style={{ fontSize: 12, fontWeight: 700, color, fontFamily: FONT }}>
                           {value}{denom != null ? <span style={{ color: "#9a9ab0", fontWeight: 400, fontSize: 10 }}>/{denom}</span> : ""}
                         </span>
                       </div>
@@ -1745,8 +1771,8 @@ runpy.run_path(${JSON.stringify(`/workspace${entry.path}`)}, run_name="__main__"
                           const diffColor = d === "easy" ? "#16a34a" : d === "medium" ? "#d97706" : "#e53e3e"
                           return (
                             <div key={d} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingLeft: 8, borderLeft: `2px solid ${diffColor}`, marginBottom: 2 }}>
-                              <span style={{ fontSize: 12, fontWeight: 600, color: diffColor, textTransform: "capitalize", fontFamily: "Poppins, sans-serif" }}>{d}</span>
-                              <span style={{ fontSize: 11, fontWeight: 700, fontFamily: "Poppins, sans-serif" }}>
+                              <span style={{ fontSize: 12, fontWeight: 600, color: diffColor, textTransform: "capitalize", fontFamily: FONT }}>{d}</span>
+                              <span style={{ fontSize: 11, fontWeight: 700, fontFamily: FONT }}>
                                 <span style={{ color: "#7c3aed" }}>{solvedD}</span>
                                 <span style={{ color: "#9a9ab0", fontWeight: 400 }}>/{count}</span>
                                 <span style={{ color: rem <= 0 ? "#16a34a" : "#9a9ab0", fontSize: 10, marginLeft: 6, fontWeight: 500 }}>{rem <= 0 ? "✓" : `${rem} left`}</span>
@@ -1763,11 +1789,11 @@ runpy.run_path(${JSON.stringify(`/workspace${entry.path}`)}, run_name="__main__"
                     <div style={{ padding: "12px 16px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
                         <Award size={12} style={{ color: "#7c3aed" }} />
-                        <span style={{ fontSize: 11, fontWeight: 700, color: "#7c3aed", textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "Poppins, sans-serif" }}>Overall Marks</span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: "#7c3aed", textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: FONT }}>Overall Marks</span>
                       </div>
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "3px 0" }}>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: "#3a3a52", fontFamily: "Poppins, sans-serif" }}>Total Marks</span>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: "#7c3aed", fontFamily: "Poppins, sans-serif" }}>{totalMarksAll}</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: "#3a3a52", fontFamily: FONT }}>Total Marks</span>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: "#7c3aed", fontFamily: FONT }}>{totalMarksAll}</span>
                       </div>
                       {!isGeneral && configuredDiffs.length > 0 && (
                         <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 2 }}>
@@ -1779,8 +1805,8 @@ runpy.run_path(${JSON.stringify(`/workspace${entry.path}`)}, run_name="__main__"
                             const diffColor = d === "easy" ? "#16a34a" : d === "medium" ? "#d97706" : "#e53e3e"
                             return (
                               <div key={d} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingLeft: 8, borderLeft: `2px solid ${diffColor}`, marginBottom: 2 }}>
-                                <span style={{ fontSize: 12, fontWeight: 600, color: diffColor, textTransform: "capitalize", fontFamily: "Poppins, sans-serif" }}>{d}</span>
-                                <span style={{ fontSize: 11, fontWeight: 700, fontFamily: "Poppins, sans-serif", color: "#1a1a2e" }}>
+                                <span style={{ fontSize: 12, fontWeight: 600, color: diffColor, textTransform: "capitalize", fontFamily: FONT }}>{d}</span>
+                                <span style={{ fontSize: 11, fontWeight: 700, fontFamily: FONT, color: "#1a1a2e" }}>
                                   {total != null ? `${total} marks` : "—"}
                                   {perQ != null && <span style={{ color: "#9a9ab0", fontSize: 10, marginLeft: 6 }}>{perQ}/q</span>}
                                 </span>
@@ -1792,8 +1818,8 @@ runpy.run_path(${JSON.stringify(`/workspace${entry.path}`)}, run_name="__main__"
                       {ss?.scoreType === "evenMarks" && ss.evenMarks != null && (
                         <div style={{ marginTop: 8, padding: "8px 12px", borderRadius: 8, background: "#eff6ff", border: "1.5px solid #bfdbfe" }}>
                           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                            <span style={{ fontSize: 12, color: "#2563eb", fontWeight: 600, fontFamily: "Poppins, sans-serif" }}>Marks per question</span>
-                            <span style={{ fontSize: 14, fontWeight: 700, color: "#1e40af", fontFamily: "Poppins, sans-serif" }}>{ss.evenMarks}</span>
+                            <span style={{ fontSize: 12, color: "#2563eb", fontWeight: 600, fontFamily: FONT }}>Marks per question</span>
+                            <span style={{ fontSize: 14, fontWeight: 700, color: "#1e40af", fontFamily: FONT }}>{ss.evenMarks}</span>
                           </div>
                         </div>
                       )}
@@ -1802,7 +1828,7 @@ runpy.run_path(${JSON.stringify(`/workspace${entry.path}`)}, run_name="__main__"
                 </div>
 
                 <div style={{ padding: "10px 16px", borderTop: "1.5px solid #e4e4ed", display: "flex", justifyContent: "flex-end", flexShrink: 0 }}>
-                  <button type="button" onClick={() => setShowOverviewModal(false)} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 16px", borderRadius: 10, fontFamily: "Poppins, sans-serif", fontSize: 12, fontWeight: 600, border: "1.5px solid #e4e4ed", background: "#f7f7fb", color: "#3a3a52", cursor: "pointer" }}>
+                  <button type="button" onClick={() => setShowOverviewModal(false)} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 16px", borderRadius: 10, fontFamily: FONT, fontSize: 12, fontWeight: 600, border: "1.5px solid #e4e4ed", background: "#f7f7fb", color: "#3a3a52", cursor: "pointer" }}>
                     Close
                   </button>
                 </div>

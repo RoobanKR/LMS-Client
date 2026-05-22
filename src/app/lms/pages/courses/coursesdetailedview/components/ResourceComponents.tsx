@@ -234,13 +234,24 @@ export const ResourceItem = ({
 // ─── ResourceGroupRow ────────────────────────────────────────────────────────
 // Renders a group with chevron expand/collapse. The group's nested files are
 // shown only when expanded. Files already filtered by isResourceVisible.
+// Sub-groups (passed via `subGroups`) render as nested accordions below the items,
+// supporting unlimited nesting depth (group inside group inside group...).
+export interface ResourceSubGroup {
+  groupId: string
+  groupName: string
+  items: Resource[]
+  subGroups: ResourceSubGroup[]
+}
+
 export const ResourceGroupRow = ({
-  groupId, groupName, items, index, onClick, onDownload, animType = "resource", defaultExpanded = false,
+  groupId, groupName, items, subGroups = [], index, depth = 0, onClick, onDownload, animType = "resource", defaultExpanded = false,
 }: {
   groupId: string
   groupName: string
   items: Resource[]
+  subGroups?: ResourceSubGroup[]
   index: number
+  depth?: number
   onClick: (r: Resource) => void
   onDownload?: (r: Resource, e: React.MouseEvent) => void
   animType?: "resource" | "wedo" | "none"
@@ -249,11 +260,12 @@ export const ResourceGroupRow = ({
   const [expanded, setExpanded] = useState(defaultExpanded)
   ensureAnimStyle()
 
-  if (!items.length) return null
+  // A group is empty (and should not render) only when it has NO items AND no sub-groups.
+  if (!items.length && !subGroups.length) return null
 
   const DELAY = Math.min(index * 55, 500)
   const animName = animType === "wedo" ? "weDoItemIn" : animType === "resource" ? "resItemIn" : "none"
-  const animStyle: React.CSSProperties = animType !== "none"
+  const animStyle: React.CSSProperties = depth === 0 && animType !== "none"
     ? { animation: `${animName} 0.32s cubic-bezier(0.22,1,0.36,1) ${DELAY}ms both` }
     : {}
 
@@ -270,11 +282,21 @@ export const ResourceGroupRow = ({
     }
     catch { return '—' }
   }
-  const latest = items.reduce((acc, it) => {
+  // Recursively collect all items in this group + its nested sub-groups
+  // for accurate aggregate size and "latest update" timestamps on the header.
+  const collectAll = (its: Resource[], subs: ResourceSubGroup[]): Resource[] => {
+    const out = [...its]
+    subs.forEach(sg => out.push(...collectAll(sg.items, sg.subGroups)))
+    return out
+  }
+  const allItems = collectAll(items, subGroups)
+  const latest = allItems.reduce((acc, it) => {
     const t = it.uploadedAt ? new Date(it.uploadedAt).getTime() : 0
     return t > acc ? t : acc
   }, 0)
-  const groupTotalBytes = items.reduce((sum, r) => sum + (parseInt((r as any).fileSize || "0") || 0), 0)
+  const groupTotalBytes = allItems.reduce((sum, r) => sum + (parseInt((r as any).fileSize || "0") || 0), 0)
+  // Each depth level adds 28px of left padding so nesting is visually obvious.
+  const headerIndent = 20 + depth * 28
 
   return (
     <>
@@ -282,12 +304,12 @@ export const ResourceGroupRow = ({
         onClick={() => setExpanded(v => !v)}
         style={{
           display: 'flex', alignItems: 'center',
-          padding: '8px 20px',
+          padding: `8px 20px 8px ${headerIndent}px`,
           minHeight: 40,
           cursor: 'pointer',
           background: '#ffffff',
           borderBottom: '1px solid #eef0f4',
-          borderLeft: '3px solid #f97316',
+          borderLeft: depth === 0 ? '3px solid #f97316' : '3px solid #fed7aa',
           transition: 'background 0.15s ease',
           fontFamily: "'Inter','Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
           WebkitFontSmoothing: 'antialiased',
@@ -345,7 +367,8 @@ export const ResourceGroupRow = ({
       </div>
 
       {expanded && items.map((r, i) => {
-        const isLast = i === items.length - 1
+        const isLast = i === items.length - 1 && subGroups.length === 0
+        const connectorIndent = headerIndent
         return (
           <div
             key={r.id}
@@ -358,30 +381,27 @@ export const ResourceGroupRow = ({
             }}
           >
             {/* Tree connector column */}
-            <div style={{ width: 44, flexShrink: 0, position: 'relative' }}>
-              {/* Vertical line — runs full height for non-last, half height for last */}
+            <div style={{ width: connectorIndent + 24, flexShrink: 0, position: 'relative' }}>
               <div style={{
                 position: 'absolute',
-                left: 20,
+                left: connectorIndent,
                 top: 0,
                 height: isLast ? '50%' : '100%',
                 width: 1.5,
                 background: '#fdba74',
               }} />
-              {/* Horizontal branch */}
               <div style={{
                 position: 'absolute',
-                left: 20,
+                left: connectorIndent,
                 top: '50%',
                 transform: 'translateY(-0.75px)',
                 width: 18,
                 height: 1.5,
                 background: '#fdba74',
               }} />
-              {/* Junction dot */}
               <div style={{
                 position: 'absolute',
-                left: 16,
+                left: connectorIndent - 4,
                 top: '50%',
                 transform: 'translateY(-50%)',
                 width: 6,
@@ -404,6 +424,22 @@ export const ResourceGroupRow = ({
           </div>
         )
       })}
+      {/* Nested sub-groups (recursive — supports unlimited depth) */}
+      {expanded && subGroups.map((sg, i) => (
+        <ResourceGroupRow
+          key={`sg-${sg.groupId}`}
+          groupId={sg.groupId}
+          groupName={sg.groupName}
+          items={sg.items}
+          subGroups={sg.subGroups}
+          index={i}
+          depth={depth + 1}
+          onClick={onClick}
+          onDownload={onDownload}
+          animType="none"
+          defaultExpanded={false}
+        />
+      ))}
     </>
   )
 }

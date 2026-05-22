@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const BASE_URL = 'https://lms-server-ym1q.onrender.com';
+const BASE_URL = 'http://localhost:5533';
 
 // Interfaces
 export interface HintData {

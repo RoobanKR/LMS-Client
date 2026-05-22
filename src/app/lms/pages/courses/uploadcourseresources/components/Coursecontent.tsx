@@ -107,7 +107,7 @@ interface CourseContentProps {
   onDeleteFile: (fileId: string, name: string) => void;
   onDeletePage?: (pageId: string, name: string) => void;
   onUpdateFile: (file: UploadedFile, tab: "I_Do" | "We_Do" | "You_Do", sub: string) => void;
-  onEditGroup?: (group: { groupId: string; groupName: string; groupDescription?: string; folders: FolderItem[]; files: UploadedFile[] }) => void;
+  onEditGroup?: (group: { groupId: string; groupName: string; groupDescription?: string; folders: FolderItem[]; files: UploadedFile[]; subGroups?: SubGroupSeed[] }) => void;
   getParentNodeName: (node: CourseNode, type: string) => string;
   getFolderItemCount: (folderId: string) => number;
   getFolderTotalSize: (folderId: string) => number;
@@ -116,9 +116,20 @@ interface CourseContentProps {
 }
 
 // ─── Combined Item Type for ordered rendering ──────────────────────────────────
-type CombinedItem = 
+type CombinedItem =
   | { type: 'folder'; data: FolderItem; sortDate: string }
   | { type: 'file'; data: UploadedFile; sortDate: string };
+
+// Recursive sub-group tree node — used when passing nested sub-groups to the
+// edit modal so the full group-inside-group structure is visible.
+export type SubGroupSeed = {
+  groupId: string;
+  groupName: string;
+  description: string;
+  files: UploadedFile[];
+  folders: FolderItem[];
+  subGroups: SubGroupSeed[];
+};
 
 // ─── Folder Breadcrumb Component ───────────────────────────────────────────────
 const FolderBreadcrumbBar: React.FC<{
@@ -1362,7 +1373,7 @@ const FileList: React.FC<{
   onDeleteFolder: (f: FolderItem) => void;
   onDeleteFile: (id: string, name: string) => void;
   onUpdateFile: (file: UploadedFile, tab: "I_Do" | "We_Do" | "You_Do", sub: string) => void;
-  onEditGroup?: (group: { groupId: string; groupName: string; groupDescription?: string; folders: FolderItem[]; files: UploadedFile[] }) => void;
+  onEditGroup?: (group: { groupId: string; groupName: string; groupDescription?: string; folders: FolderItem[]; files: UploadedFile[]; subGroups?: SubGroupSeed[] }) => void;
   onNavigateUp: () => void;
   folderNavState: FolderNavState;
   onDeletePage?: (pageId: string, name: string) => void;
@@ -1459,11 +1470,12 @@ const FileList: React.FC<{
     const groupedNormalFiles = normal.filter(f => !!f.groupId);
 
     // Build the group map from both group-bound files AND group-bound pages.
-    const fileGroupMap: Record<string, { groupId: string; groupName: string; description: string; files: UploadedFile[] }> = {};
+    const fileGroupMap: Record<string, { groupId: string; groupName: string; description: string; files: UploadedFile[]; parentGroupId?: string }> = {};
     const seedGroup = (gid: string, src: UploadedFile) => {
       if (!fileGroupMap[gid]) fileGroupMap[gid] = { groupId: gid, groupName: "", description: "", files: [] };
       if (!fileGroupMap[gid].groupName && src.groupName) fileGroupMap[gid].groupName = src.groupName;
       if (!fileGroupMap[gid].description && (src as any).description) fileGroupMap[gid].description = (src as any).description;
+      if (!fileGroupMap[gid].parentGroupId && src.parentGroupId) fileGroupMap[gid].parentGroupId = src.parentGroupId;
     };
     groupedNormalFiles.forEach(file => {
       const gid = file.groupId!;
@@ -1478,6 +1490,16 @@ const FileList: React.FC<{
     // Apply the fallback label only when no entry in the group carried a name
     Object.values(fileGroupMap).forEach(g => { if (!g.groupName) g.groupName = "Untitled group"; });
     const fileGroupList = Object.values(fileGroupMap);
+
+    // Separate top-level groups from sub-groups (groups nested inside another group).
+    // Sub-groups have parentGroupId set; top-level groups don't.
+    const topLevelGroupList = fileGroupList.filter(g => !g.parentGroupId);
+    const subGroupsByParent = new Map<string, typeof fileGroupList>();
+    fileGroupList.filter(g => !!g.parentGroupId).forEach(g => {
+      const pid = g.parentGroupId!;
+      if (!subGroupsByParent.has(pid)) subGroupsByParent.set(pid, []);
+      subGroupsByParent.get(pid)!.push(g);
+    });
 
     const empty = folders.length === 0 && files.length === 0;
 
@@ -1494,7 +1516,7 @@ const FileList: React.FC<{
     const allIds = [
       ...uniquePages.map(f => `page-${f.id}`),
       ...folders.map(f => `folder-${f.id}`),
-      ...fileGroupList.map(g => `group-${g.groupId}`),
+      ...topLevelGroupList.map(g => `group-${g.groupId}`),
       ...standaloneFiles.map(f => `file-${f.id}`),
     ];
     const allSelected = allIds.length > 0 && allIds.every(id => selected.has(id));
@@ -1570,7 +1592,14 @@ const FileList: React.FC<{
         } else if (id.startsWith("group-")) {
           const groupId = id.replace("group-", "");
           const group = fileGroupList.find(g => g.groupId === groupId);
-          if (group) group.files.forEach(f => items.push({ type: "file", id: f.id, name: f.name }));
+          if (group) {
+            const collectGroup = (gid: string, files: UploadedFile[]) => {
+              files.forEach(f => items.push({ type: "file", id: f.id, name: f.name }));
+              (folderGroupMap[gid] || []).forEach(fo => items.push({ type: "folder", id: fo.id, name: fo.name, folderItem: fo }));
+              (subGroupsByParent.get(gid) || []).forEach(sg => collectGroup(sg.groupId, sg.files));
+            };
+            collectGroup(groupId, group.files);
+          }
         } else {
           const realId = id.replace("file-", "");
           const file = standaloneFiles.find(f => f.id === realId);
@@ -1977,6 +2006,264 @@ const renderFileRow = (file: UploadedFile, isPage: boolean = false, extraRowStyl
   </div>
 );
 
+    // Recursive sub-group renderer. depth=1 for the first level inside a top-level group,
+    // 2 for groups inside that, and so on. Each level adds 28px of left padding so the
+    // nesting is visually obvious. Each sub-group has its own "+ Add resource to this group"
+    // button so the user can keep nesting groups inside groups.
+    // Recursively builds a tree of sub-groups under `gid` so the edit modal
+    // can show the full group-inside-group structure.
+    const buildSubGroupTree = (gid: string): SubGroupSeed[] =>
+      (subGroupsByParent.get(gid) || []).map(sg => ({
+        groupId: sg.groupId,
+        groupName: sg.groupName,
+        description: sg.description,
+        files: sg.files,
+        folders: folderGroupMap[sg.groupId] || [],
+        subGroups: buildSubGroupTree(sg.groupId),
+      }));
+
+    const renderSubGroup = (subGroup: typeof fileGroupList[number], depth: number): React.ReactNode => {
+      const isSubExpanded = expandedGroups.has(subGroup.groupId);
+      const subFolders = folderGroupMap[subGroup.groupId] || [];
+      const nestedSubGroups = subGroupsByParent.get(subGroup.groupId) || [];
+      const subTotalSize = subGroup.files.reduce((s, f) => s + (Number(f.size) || 0), 0)
+        + subFolders.reduce((s, f) => s + getFolderTotalSize(f.id), 0)
+        + nestedSubGroups.reduce((s, ng) =>
+            s + ng.files.reduce((ss, f) => ss + (Number(f.size) || 0), 0)
+              + (folderGroupMap[ng.groupId] || []).reduce((ss, f) => ss + getFolderTotalSize(f.id), 0),
+            0,
+          );
+      const subDate = [...subGroup.files.map((x: any) => x.updatedAt || x.createdAt || ""), ...subFolders.map((x: any) => x.updatedAt || x.createdAt || "")]
+        .filter(Boolean)
+        .reduce((latest, cur) => { const a = new Date(latest).getTime(), b = new Date(cur).getTime(); return isNaN(b) ? latest : (isNaN(a) || b > a ? cur : latest); }, "");
+
+      const headerPad = 24 + 28 * depth;       // depth 1 → 52, depth 2 → 80
+      const contentPad = headerPad + 28;        // depth 1 → 80, depth 2 → 108
+
+      return (
+        <div key={subGroup.groupId}>
+          {/* Sub-group header row */}
+          <div
+            className="cursor-pointer"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "28px minmax(0,1fr) 90px 110px 90px 80px",
+              gap: 14, alignItems: "center",
+              borderBottom: `1px solid ${T.border}`,
+              padding: `6px 20px 6px ${headerPad}px`,
+              background: T.bg, minHeight: 36,
+              fontFamily: "'Inter','Plus Jakarta Sans',-apple-system,sans-serif",
+            }}
+            onClick={e => { e.stopPropagation(); toggleGroup(subGroup.groupId); }}
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "#f8fafc"}
+            onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = T.bg}
+          >
+            <div />
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div style={{ fontSize: 9, color: T.textHint, flexShrink: 0, marginRight: -4 }}>├</div>
+              <div style={{ width: 20, height: 20, borderRadius: 5, flexShrink: 0, background: T.orangeLight, border: `1px solid ${T.orange}30`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Folder size={11} style={{ color: T.orange }} strokeWidth={1.8} />
+              </div>
+              <div style={{ transform: isSubExpanded ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.2s cubic-bezier(0.4,0,0.2,1)", color: isSubExpanded ? T.orange : T.textHint, flexShrink: 0 }}>
+                <ChevronRight size={13} strokeWidth={2.2} />
+              </div>
+              <span style={{ fontSize: 12.5, fontWeight: 600, color: isSubExpanded ? T.orange : T.textMain, letterSpacing: "-0.005em" }}>
+                {subGroup.groupName}
+              </span>
+            </div>
+            <div className="flex items-center">
+              <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 7px", borderRadius: 5, textTransform: "uppercase" as const, letterSpacing: "0.05em", background: "transparent", color: T.textHint, border: `1px solid ${T.border}`, whiteSpace: "nowrap" as const }}>
+                Group
+              </span>
+            </div>
+            <div style={{ fontSize: 11.5, fontWeight: 600, color: T.textMuted }}>
+              {formatDateTime(subDate)}
+            </div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: T.textMuted }}>
+              {fmtFolderSize(subTotalSize)}
+            </div>
+            {/* Three-dots menu for sub-group — same Open/Edit/Delete as top-level groups */}
+            <div className="flex items-center justify-center relative dd-w" onClick={e => e.stopPropagation()}>
+              <button
+                type="button"
+                onClick={e => tog(`group-menu-${subGroup.groupId}`, e)}
+                className="p-1.5 rounded-lg"
+                style={{ color: T.textHint, transition: "all 0.13s" }}
+                onMouseEnter={e => {
+                  (e.currentTarget as HTMLElement).style.background = T.orangeLight;
+                  (e.currentTarget as HTMLElement).style.color = T.orange;
+                }}
+                onMouseLeave={e => {
+                  (e.currentTarget as HTMLElement).style.background = "transparent";
+                  (e.currentTarget as HTMLElement).style.color = T.textHint;
+                }}
+              >
+                <MoreVertical size={14} />
+              </button>
+              {openDrop === `group-menu-${subGroup.groupId}` && (
+                <DropMenu upward={dropUpward} fixedPos={dropPosition ?? undefined}>
+                  <DropItem
+                    icon={isSubExpanded ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+                    label={isSubExpanded ? "Close" : "Open"}
+                    onClick={() => { toggleGroup(subGroup.groupId); setOpenDrop(null); }}
+                  />
+                  <DropItem icon={<Edit2 size={12} />} label="Edit" onClick={() => {
+                    if (onEditGroup) {
+                      onEditGroup({
+                        groupId: subGroup.groupId,
+                        groupName: subGroup.groupName,
+                        groupDescription: subGroup.description,
+                        folders: subFolders,
+                        files: subGroup.files,
+                        subGroups: buildSubGroupTree(subGroup.groupId),
+                      });
+                    } else {
+                      setEditingGroup({
+                        groupId: subGroup.groupId,
+                        groupName: subGroup.groupName,
+                        files: subGroup.files,
+                        folders: subFolders,
+                      });
+                    }
+                    setOpenDrop(null);
+                  }} />
+                  <DropItem
+                    icon={<Trash2 size={12} />}
+                    label="Delete"
+                    color="#ef4444"
+                    divider
+                    onClick={() => {
+                      const items: Array<{ type: "file" | "folder" | "page"; id: string; name: string; folderItem?: FolderItem }> = [];
+                      const collectDeep = (gid: string, files: UploadedFile[], folders: FolderItem[]) => {
+                        folders.forEach(f => items.push({ type: "folder", id: f.id, name: f.name, folderItem: f }));
+                        files.forEach(f => items.push({ type: "file", id: f.id, name: f.name }));
+                        (subGroupsByParent.get(gid) || []).forEach(ng =>
+                          collectDeep(ng.groupId, ng.files, folderGroupMap[ng.groupId] || []),
+                        );
+                      };
+                      collectDeep(subGroup.groupId, subGroup.files, subFolders);
+                      setGroupDeleteConfirm({ groupId: subGroup.groupId, groupName: subGroup.groupName, items });
+                      setOpenDrop(null);
+                    }}
+                  />
+                </DropMenu>
+              )}
+            </div>
+          </div>
+          {/* Sub-group expanded content */}
+          {isSubExpanded && (
+            <div style={{ background: T.bg, borderBottom: `1px solid ${T.border}` }}>
+              {subFolders.map((folder) => (
+                <div
+                  key={folder.id}
+                  style={{
+                    display: "grid", gridTemplateColumns: "28px minmax(0,1fr) 90px 110px 90px 80px",
+                    gap: 14, alignItems: "center", borderBottom: `1px solid ${T.border}`,
+                    padding: `6px 20px 6px ${contentPad}px`, background: T.bg, minHeight: 36, cursor: "pointer",
+                  }}
+                  onClick={e => { e.stopPropagation(); onFolderClick(folder.id, folder.name); }}
+                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "#f8fafc"}
+                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = T.bg}
+                >
+                  <div />
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div style={{ fontSize: 9, color: T.textHint, flexShrink: 0, marginRight: -4 }}>├</div>
+                    <div style={{ width: 20, height: 20, borderRadius: 5, flexShrink: 0, background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.28)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <Folder size={11} style={{ color: "#F59E0B" }} strokeWidth={1.8} />
+                    </div>
+                    <span className="truncate" style={{ fontSize: 12.5, fontWeight: 600, color: T.textMain }}>{folder.name}/</span>
+                  </div>
+                  <div className="flex items-center"><span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 7px", borderRadius: 5, textTransform: "uppercase" as const, letterSpacing: "0.05em", background: "transparent", color: T.textHint, border: `1px solid ${T.border}` }}>Folder</span></div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: T.textMuted }}>{formatDateTime((folder as any).updatedAt || (folder as any).createdAt || "")}</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: T.textSub }}>{fmtFolderSize(getFolderTotalSize(folder.id))}</div>
+                  <div />
+                </div>
+              ))}
+              {/* Nested sub-groups inside this sub-group (recursive) */}
+              {nestedSubGroups.map(ng => renderSubGroup(ng, depth + 1))}
+              {subGroup.files.map((file, fi) => {
+                const isSubLast = fi === subGroup.files.length - 1;
+                const subMeta = getFileMeta(file.type || "", file.name, file.isReference === true || String(file.isReference) === "true") as any;
+                return (
+                  <div
+                    key={file.id}
+                    style={{
+                      display: "grid", gridTemplateColumns: "28px minmax(0,1fr) 90px 110px 90px 80px",
+                      gap: 14, alignItems: "center",
+                      borderBottom: `1px solid ${T.border}`,
+                      padding: `6px 20px 6px ${contentPad}px`,
+                      background: T.bg, minHeight: 36,
+                    }}
+                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "#f8fafc"}
+                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = T.bg}
+                  >
+                    <div />
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div style={{ fontSize: 9, color: T.textHint, flexShrink: 0, marginRight: -4 }}>{isSubLast ? "└" : "├"}</div>
+                      {subMeta.img ? (
+                        <div style={{ width: 20, height: 20, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <img src={subMeta.img} alt={subMeta.label} style={{ width: 18, height: 18, objectFit: "contain" }} />
+                        </div>
+                      ) : (
+                        <div style={{ width: 20, height: 20, borderRadius: 5, flexShrink: 0, background: `${subMeta.color}16`, border: `1px solid ${subMeta.color}28`, display: "flex", alignItems: "center", justifyContent: "center", color: subMeta.color }}>
+                          {React.cloneElement(subMeta.icon as React.ReactElement, { size: 11 })}
+                        </div>
+                      )}
+                      <span className="truncate" style={{ fontSize: 12.5, fontWeight: 600, color: T.textMain, cursor: "pointer" }}
+                        onClick={e => { e.stopPropagation(); onFileClick(file, activeTab, activeSubcategory); }}
+                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = subMeta.color}
+                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = T.textMain}
+                      >
+                        {file.name}
+                      </span>
+                    </div>
+                    <div className="flex items-center"><span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 7px", borderRadius: 5, textTransform: "uppercase" as const, letterSpacing: "0.05em", background: "transparent", color: T.textHint, border: `1px solid ${T.border}` }}>{subMeta.label}</span></div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: T.textMuted }}>{formatDateTime((file as any).updatedAt || (file as any).createdAt || (file as any).uploadedAt || "")}</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: T.textSub }}>{fmtSize(file.size || 0)}</div>
+                    <div className="flex items-center justify-center gap-1 relative dd-w">
+                      <button type="button" onClick={e => tog(`file-${file.id}`, e)} className="p-1.5 rounded-lg" style={{ color: T.textHint, transition: "all 0.13s" }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = `${subMeta.color}14`; (e.currentTarget as HTMLElement).style.color = subMeta.color; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = T.textHint; }}>
+                        <MoreVertical size={14} />
+                      </button>
+                      {openDrop === `file-${file.id}` && (
+                        <DropMenu upward={dropUpward} fixedPos={dropPosition ?? undefined}>
+                          <DropItem icon={<Eye size={12} />} label="Preview" onClick={() => { onFileClick(file, activeTab, activeSubcategory); setOpenDrop(null); }} />
+                          <DropItem icon={<Download size={12} />} label="Download" onClick={() => {
+                            const furl = typeof file.url === "string" ? file.url : (file.url as any)?.base || "";
+                            const a = document.createElement("a"); a.href = furl; a.download = file.name || "download"; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                            setOpenDrop(null);
+                          }} />
+                          <DropItem icon={<RefreshCw size={12} />} label="Update" color="#f97316" onClick={() => { onUpdateFile(file, activeTab || "I_Do", activeSubcategory); setOpenDrop(null); }} />
+                          <DropItem icon={<Trash2 size={12} />} label="Delete" color="#ef4444" divider onClick={() => { onDeleteFile(file.id, file.name); setOpenDrop(null); }} />
+                        </DropMenu>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              {/* Add resource to this sub-group — enables further nesting (group inside group). */}
+              <div style={{ padding: `8px 18px 10px ${contentPad - 2}px`, borderTop: `1px solid ${T.border}` }}>
+                <button
+                  type="button"
+                  onClick={e => { e.stopPropagation(); onResourceModalOpen(subGroup.groupId, subGroup.groupName); }}
+                  style={{
+                    fontSize: 11, fontWeight: 700, padding: "5px 12px", borderRadius: 7,
+                    background: T.orangeLight, color: T.orange, border: `1px solid ${T.orange}30`,
+                    cursor: "pointer", transition: "all 0.13s",
+                  }}
+                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = T.orangeMid}
+                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = T.orangeLight}
+                >
+                  + Add resource to this group
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    };
+
     // Helper to render a group accordion row
     const renderGroupRow = (group: { groupId: string; groupName: string; description: string; files: UploadedFile[]; folders?: FolderItem[] }) => {
       const isExpanded = expandedGroups.has(group.groupId);
@@ -1998,23 +2285,21 @@ const renderFileRow = (file: UploadedFile, isPage: boolean = false, extraRowStyl
           }, dateCandidates[0])
         : "";
 
-      // ── Total bytes across every file directly in the group AND every file inside
-      //    every folder member of the group, at every depth. ──
-      const groupTotalSize =
-        group.files.reduce((s, f) => s + (Number(f.size) || 0), 0) +
-        (group.folders || []).reduce(
-          (s, f) => s + getFolderTotalSize(f.id),
-          0,
-        );
-
-      // ── Total file count (files in group + recursive files inside each folder
-      //    member). Used for the count badge next to the group name. ──
-      const groupItemCount =
-        group.files.length +
-        (group.folders || []).reduce(
-          (s, f) => s + getFolderItemCount(f.id),
-          0,
-        );
+      // Recursively walk a group and all its nested sub-groups to compute
+      // total size / item count for the count + size badges.
+      const sumGroupRecursive = (gid: string, files: UploadedFile[], folders: FolderItem[]): { size: number; count: number } => {
+        let size = files.reduce((s, f) => s + (Number(f.size) || 0), 0)
+          + folders.reduce((s, f) => s + getFolderTotalSize(f.id), 0);
+        let count = files.length + folders.reduce((s, f) => s + getFolderItemCount(f.id), 0);
+        for (const ng of subGroupsByParent.get(gid) || []) {
+          const r = sumGroupRecursive(ng.groupId, ng.files, folderGroupMap[ng.groupId] || []);
+          size += r.size; count += r.count;
+        }
+        return { size, count };
+      };
+      const { size: groupTotalSize, count: groupItemCount } = sumGroupRecursive(
+        group.groupId, group.files, group.folders || [],
+      );
 
       return (
         <div key={group.groupId}>
@@ -2155,6 +2440,7 @@ const renderFileRow = (file: UploadedFile, isPage: boolean = false, extraRowStyl
               groupDescription: group.description,
               folders: group.folders || [],
               files: group.files,
+              subGroups: buildSubGroupTree(group.groupId),
             });
           } else {
             setEditingGroup({
@@ -2173,8 +2459,14 @@ const renderFileRow = (file: UploadedFile, isPage: boolean = false, extraRowStyl
           divider
           onClick={() => {
             const items: Array<{ type: "file" | "folder" | "page"; id: string; name: string; folderItem?: FolderItem }> = [];
-            (group.folders || []).forEach(f => items.push({ type: "folder", id: f.id, name: f.name, folderItem: f }));
-            group.files.forEach(f => items.push({ type: "file", id: f.id, name: f.name }));
+            const collectDeep = (gid: string, files: UploadedFile[], folders: FolderItem[]) => {
+              folders.forEach(f => items.push({ type: "folder", id: f.id, name: f.name, folderItem: f }));
+              files.forEach(f => items.push({ type: "file", id: f.id, name: f.name }));
+              (subGroupsByParent.get(gid) || []).forEach(sg =>
+                collectDeep(sg.groupId, sg.files, folderGroupMap[sg.groupId] || []),
+              );
+            };
+            collectDeep(group.groupId, group.files, group.folders || []);
             setGroupDeleteConfirm({ groupId: group.groupId, groupName: group.groupName, items });
             setOpenDrop(null);
           }}
@@ -2260,6 +2552,8 @@ const renderFileRow = (file: UploadedFile, isPage: boolean = false, extraRowStyl
                   </div>
                 );
               })}
+              {/* Sub-groups nested inside this group (recursive — supports unlimited depth) */}
+              {(subGroupsByParent.get(group.groupId) || []).map((subGroup) => renderSubGroup(subGroup, 1))}
               {group.files.map((file, fi) => {
                 const isLast = fi === group.files.length - 1;
                 const { color } = getFileMeta(file.type || "", file.name, file.isReference === true || String(file.isReference) === "true") as any;
@@ -2632,7 +2926,9 @@ const renderFileRow = (file: UploadedFile, isPage: boolean = false, extraRowStyl
                 const folder = item.data as FolderItem;
                 const gid = (folder as any).parentGroupId as string | undefined;
                 if (gid && isAtRootLevel) {
-                  // Folder belongs to a group — render the group accordion once
+                  // If this gid belongs to a sub-group, skip — it renders inside its parent group
+                  if (fileGroupMap[gid]?.parentGroupId) return null;
+                  // Folder belongs to a top-level group — render the group accordion once
                   if (seenGroups.has(gid)) return null;
                   seenGroups.add(gid);
                   const groupFolders = folderGroupMap[gid] || [];
@@ -2655,6 +2951,8 @@ const renderFileRow = (file: UploadedFile, isPage: boolean = false, extraRowStyl
               if (!file.groupId || !isAtRootLevel) {
                 return <React.Fragment key={`file-${file.id}-${index}`}>{renderFileRow(file, isPage)}</React.Fragment>;
               }
+              // Skip files whose group is a sub-group — they render inside their parent group
+              if (fileGroupMap[file.groupId]?.parentGroupId) return null;
               if (seenGroups.has(file.groupId)) return null;
               seenGroups.add(file.groupId);
               const group = fileGroupMap[file.groupId];

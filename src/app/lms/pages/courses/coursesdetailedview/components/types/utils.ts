@@ -91,60 +91,80 @@ export const isResourceVisible = (r: Resource) =>
   !r.fileSettings || r.fileSettings.showToStudents !== false
 
 // Group resources by groupId. Returns an ordered list where each entry is either:
-//  - { kind: "group", groupId, groupName, items: Resource[] } — all items share that groupId, filtered by visibility
-//  - { kind: "item",  resource: Resource }                    — a standalone visible resource
+//  - GroupRow — a group (which may contain its own nested sub-groups in `subGroups`)
+//  - { kind: "item", resource } — a standalone visible resource
 // Groups that have zero visible items after filtering are omitted entirely.
+// Sub-groups (groups with parentGroupId pointing at another group) render inside
+// their parent's `subGroups` array, not at the top level.
+export interface GroupRow {
+  kind: "group";
+  groupId: string;
+  groupName: string;
+  items: Resource[];
+  subGroups: GroupRow[];
+}
 export type GroupedResourceRow =
-  | { kind: "group"; groupId: string; groupName: string; items: Resource[] }
+  | GroupRow
   | { kind: "item"; resource: Resource };
 
-// utils.ts - COMPLETE FIXED groupResources function
+// utils.ts - COMPLETE groupResources function with nested sub-group support
 export const groupResources = (resources: Resource[]): GroupedResourceRow[] => {
   const rows: GroupedResourceRow[] = [];
   const seenGroups = new Set<string>();
-  
-  // Build buckets keyed by groupId — include ALL items (files AND folders)
-  const groupBuckets = new Map<string, { name: string; items: Resource[] }>();
-  
+
+  // Build buckets keyed by groupId — include ALL items (files AND folders).
+  // Each bucket tracks its parentGroupId so we can nest sub-groups later.
+  const groupBuckets = new Map<string, { name: string; items: Resource[]; parentGroupId?: string }>();
+
   // First pass: collect all items that belong to groups
   resources.forEach(r => {
-    // Skip items without groupId
     if (!r.groupId) return;
-    
-    // For files: check visibility
-    // For folders: always include (they're containers)
+    // Files: visibility-gated. Folders: always included (they're containers).
     if (!r.isFolder && !isResourceVisible(r)) return;
-    
+
     const bucket = groupBuckets.get(r.groupId) ?? { name: r.groupName || "", items: [] };
     if (!bucket.name && r.groupName) bucket.name = r.groupName;
+    if (!bucket.parentGroupId && r.parentGroupId) bucket.parentGroupId = r.parentGroupId;
     bucket.items.push(r);
     groupBuckets.set(r.groupId, bucket);
   });
 
-  // Second pass: build the final rows
+  // Build GroupRow nodes for every bucket
+  const groupRows = new Map<string, GroupRow>();
+  for (const [gid, bucket] of groupBuckets) {
+    groupRows.set(gid, {
+      kind: "group",
+      groupId: gid,
+      groupName: bucket.name || "Untitled group",
+      items: bucket.items,
+      subGroups: [],
+    });
+  }
+  // Attach each sub-group to its parent (if the parent exists).
+  // Orphans (parent missing) fall back to top-level rendering.
+  for (const [gid, bucket] of groupBuckets) {
+    if (bucket.parentGroupId && groupRows.has(bucket.parentGroupId)) {
+      groupRows.get(bucket.parentGroupId)!.subGroups.push(groupRows.get(gid)!);
+    }
+  }
+
+  // Second pass: build the final rows. Only top-level groups appear here;
+  // sub-groups are reached via their parent's `subGroups` field.
   for (const r of resources) {
-    // Skip invisible non-folder items
     if (!isResourceVisible(r) && !r.isFolder) continue;
-    
-    // Any resource (file OR folder) with a groupId belongs inside the group row
     if (r.groupId) {
-      if (seenGroups.has(r.groupId)) continue;
-      seenGroups.add(r.groupId);
       const bucket = groupBuckets.get(r.groupId);
       if (!bucket || bucket.items.length === 0) continue;
-      
-      rows.push({
-        kind: "group",
-        groupId: r.groupId,
-        groupName: bucket.name || "Untitled group",
-        items: bucket.items,
-      });
+      // Skip groups that are sub-groups (they render inside their parent)
+      if (bucket.parentGroupId && groupRows.has(bucket.parentGroupId)) continue;
+      if (seenGroups.has(r.groupId)) continue;
+      seenGroups.add(r.groupId);
+      rows.push(groupRows.get(r.groupId)!);
       continue;
     }
-    
     rows.push({ kind: "item", resource: r });
   }
-  
+
   return rows;
 };
 export const downloadFile = async (resource: Resource) => {

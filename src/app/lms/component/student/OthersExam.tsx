@@ -551,7 +551,7 @@ const FileUploadAnswerArea: React.FC<{
       const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
       const fd = new FormData();
       fd.append('file', file);
-      const res = await fetch('https://lms-server-ym1q.onrender.com/upload/question-file', {
+      const res = await fetch('http://localhost:5533/upload/question-file', {
         method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd,
       });
       const json = await res.json();
@@ -854,7 +854,7 @@ const OthersExam: React.FC<OthersExamProps> = ({
           fd.append('code', '');
           fd.append('othersFiles', JSON.stringify(ans.files || []));
         }
-        await fetch('https://lms-server-ym1q.onrender.com/courses/answers/submit', {
+        await fetch('http://localhost:5533/courses/answers/submit', {
           method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd,
         });
       }

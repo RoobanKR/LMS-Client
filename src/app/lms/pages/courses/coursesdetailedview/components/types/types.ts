@@ -61,6 +61,7 @@ export interface Resource {
   tags?: Array<{tagName:string; tagColor:string}>;
   groupId?: string;
   groupName?: string;
+  parentGroupId?: string;
 }
 export interface PedagogySubItem { key:string; name:string; description:string; files:PedagogyFile[]; folders?:PedagogyFolder[]; links?:PedagogyLink[] }
 export type LearningElementType = "i-do"|"we-do"|"you-do"

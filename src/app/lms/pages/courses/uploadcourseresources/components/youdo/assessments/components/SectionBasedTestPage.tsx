@@ -252,7 +252,7 @@ export default function SectionBasedTestPage({
 
     try {
       const token = localStorage.getItem("smartcliff_token") || localStorage.getItem("token") || ""
-      const res = await fetch("https://lms-server-ym1q.onrender.com/courses/answers/submit-section", {
+      const res = await fetch("http://localhost:5533/courses/answers/submit-section", {
         method:  "POST",
         headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
         body:    JSON.stringify(payload),

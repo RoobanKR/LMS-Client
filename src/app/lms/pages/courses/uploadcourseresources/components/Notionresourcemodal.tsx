@@ -206,9 +206,9 @@ export const NotionResourceModal: React.FC<NotionResourceModalProps> = ({
              Tells the user exactly where the new resource will be saved:
              Course > Module > … > Group > Folder > Subfolder.
              Read-only — no clicks, no styling per segment. */}
-          {pathCrumbs && pathCrumbs.length > 0 && (
+          {/* {pathCrumbs && pathCrumbs.length > 0 && (
             <PlainBreadcrumb crumbs={pathCrumbs} prefix="Saving to:" />
-          )}
+          )} */}
 
           {/* ── (Legacy) Pill breadcrumb — preserved for navigation only ─── */}
           {hierarchyInfo && onNavigateTo && (!pathCrumbs || pathCrumbs.length === 0) && (

@@ -172,7 +172,7 @@ function MCQQuestionForm({
   tabType, 
   subcategory, 
   folderPath = [], 
-  apiBaseUrl = "https://lms-server-ym1q.onrender.com" 
+  apiBaseUrl = "http://localhost:5533" 
 }) {
  const makeBlock = () => ({
   id: uid("block"),
@@ -1125,7 +1125,7 @@ export default function VideoViewer({
   subcategory = "",
   folderPath = [],
   onClose,
-  apiBaseUrl = "https://lms-server-ym1q.onrender.com",
+  apiBaseUrl = "http://localhost:5533",
   availableResolutions = [],       // e.g. ["360p","240p","base"]  ← resolution NAMES from backend
   fileUrlMap = {} as Record<string, string>, // e.g. { "360p": "https://...", "base": "https://..." }
   allVideos = [],

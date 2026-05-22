@@ -1,7 +1,7 @@
 // programCalendar.ts - API service for program calendar functionality
 import axios from 'axios';
 
-const API_BASE_URL = 'https://lms-server-ym1q.onrender.com';
+const API_BASE_URL = 'http://localhost:5533';
 
 // Configure axios instance
 const apiClient = axios.create({

@@ -737,6 +737,11 @@ export default function DynamicLMSCoordinator() {
   // Map of "<name>::<path>" → fileId for existing files, used to resolve which
   // server-side file corresponds to a row the user just removed in the modal.
   const editExistingFileIdMapRef = useRef<Record<string, string>>({});
+  // Map of virtual-folder pathKey → array of fileIds to cascade-delete when
+  // that virtual folder is removed in the edit modal. Sub-groups appear as
+  // virtual folders in the edit modal but don't exist as real folders on the
+  // server, so their deletion must be expressed as individual file deletions.
+  const editSubGroupCascadeRef = useRef<Map<string, string[]>>(new Map());
 
   const clearUploadModalEditState = () => {
     setUploadModalEditMode(false);
@@ -750,6 +755,7 @@ export default function DynamicLMSCoordinator() {
     editPendingDeletionsRef.current = [];
     editPendingFolderDeletionsRef.current = [];
     editExistingFileIdMapRef.current = {};
+    editSubGroupCascadeRef.current = new Map();
   };
   const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
@@ -1159,6 +1165,7 @@ export default function DynamicLMSCoordinator() {
                   isVideo: file.fileType?.includes("video") || false,
                   groupId: file.groupId || undefined,
                   groupName: file.groupName || undefined,
+                  parentGroupId: file.parentGroupId || undefined,
                 };
               }).filter(Boolean) as UploadedFile[];
 
@@ -1237,6 +1244,7 @@ export default function DynamicLMSCoordinator() {
               isVideo: fileType?.includes("video") || false,
               groupId: file.groupId || undefined,
               groupName: file.groupName || undefined,
+              parentGroupId: file.parentGroupId || undefined,
             };
           }).filter(Boolean) as UploadedFile[];
 
@@ -1333,7 +1341,7 @@ const refreshContentData = useCallback(async (node: CourseNode, backendData?: an
     setIsContentLoading(true);
 
     try {
-      const BASE_URL = "https://lms-server-ym1q.onrender.com";
+      const BASE_URL = "http://localhost:5533";
       const token = typeof window !== "undefined" ? localStorage.getItem("smartcliff_token") : null;
 
       const courseRes = await fetch(`${BASE_URL}/getAll/courses-data/${courseId}`, {
@@ -1421,7 +1429,7 @@ const refreshContentData = useCallback(async (node: CourseNode, backendData?: an
     setIsContentLoading(true);
 
     try {
-      const BASE_URL = "https://lms-server-ym1q.onrender.com";
+      const BASE_URL = "http://localhost:5533";
       const token = typeof window !== "undefined" ? localStorage.getItem("smartcliff_token") : null;
 
       const courseRes = await fetch(`${BASE_URL}/getAll/courses-data/${courseId}`, {
@@ -2935,6 +2943,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
     if (options?.createdAt) formData.append("createdAt", options.createdAt);
     if (description) formData.append("fileDescription", description);
     if (groupId) formData.append("groupId", groupId);
+    if (options?.outerGroupId) formData.append("parentGroupId", options.outerGroupId);
     // groupName for DB: use options.groupName (set for new groups only; undefined for existing groups)
     if (options?.groupName) formData.append("groupName", options.groupName);
     const fp = resolvedPath.join("/");
@@ -4057,9 +4066,43 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
                       };
                       (group.folders || []).forEach(f => walk(f, []));
 
+                      // Nested sub-groups (groups inside this group). Each sub-group
+                      // is surfaced as a virtual folder so the user can SEE the full
+                      // group-inside-group structure when editing. We also build a
+                      // cascade map keyed by virtual path so that deleting one of
+                      // these virtual folders fans out into individual file deletions
+                      // (sub-groups don't exist as real folders on the server).
+                      const subGroupCascade = new Map<string, string[]>();
+                      const collectFolderFileIds = (folder: any): string[] => {
+                        const ids: string[] = [];
+                        (folder.files || []).forEach((f: any) => { if (f.id) ids.push(f.id); });
+                        (folder.subfolders || []).forEach((sf: any) => ids.push(...collectFolderFileIds(sf)));
+                        return ids;
+                      };
+                      const collectSubGroupFileIds = (sg: any): string[] => {
+                        const ids: string[] = [];
+                        (sg.files || []).forEach((f: any) => { if (f.id) ids.push(f.id); });
+                        (sg.folders || []).forEach((f: any) => ids.push(...collectFolderFileIds(f)));
+                        (sg.subGroups || []).forEach((nsg: any) => ids.push(...collectSubGroupFileIds(nsg)));
+                        return ids;
+                      };
+                      const walkSubGroup = (sg: any, basePath: string[]) => {
+                        seedFolders.push({ name: sg.groupName, path: basePath });
+                        const newBase = [...basePath, sg.groupName];
+                        subGroupCascade.set(newBase.join("/"), collectSubGroupFileIds(sg));
+                        (sg.files || []).forEach((file: any) => {
+                          seedFiles.push({ name: file.name, size: file.size, path: newBase });
+                          idMap[`${file.name}::${newBase.join("/")}`] = file.id;
+                        });
+                        (sg.folders || []).forEach((f: any) => walk(f, newBase));
+                        (sg.subGroups || []).forEach((nsg: any) => walkSubGroup(nsg, newBase));
+                      };
+                      (group.subGroups || []).forEach((sg: any) => walkSubGroup(sg, []));
+
                       setUploadModalInitialFiles(seedFiles);
                       setUploadModalInitialFolders(seedFolders);
                       editExistingFileIdMapRef.current = idMap;
+                      editSubGroupCascadeRef.current = subGroupCascade;
                       editPendingDeletionsRef.current = [];
                       editPendingFolderDeletionsRef.current = [];
 
@@ -4239,6 +4282,21 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
           ];
         }}
         onDeleteFolder={(name, path) => {
+          // Sub-groups appear as virtual folders in the edit modal but don't
+          // exist as real folders on the server. If this (name, path) maps to
+          // a sub-group cascade entry, queue every descendant file for deletion
+          // individually instead of calling the folder-delete API (which would
+          // fail because no such folder exists).
+          const pathKey = [...path, name].join("/");
+          const cascadeIds = editSubGroupCascadeRef.current.get(pathKey);
+          if (cascadeIds && cascadeIds.length > 0) {
+            const newDeletions = cascadeIds.map(fileId => ({ name: "", path: [], fileId }));
+            editPendingDeletionsRef.current = [
+              ...editPendingDeletionsRef.current,
+              ...newDeletions,
+            ];
+            return;
+          }
           // Mirror of onDeleteFile but for an existing folder. We queue the
           // folder itself (parent path + name); the server's deleteFolder API
           // cascades to its contents on Save Changes — no need to queue every
@@ -5470,7 +5528,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
     tabType={activeTab || ""} 
     subcategory={activeSubcategory || ""} 
     folderPath={getCurrentNavState().currentFolderPath} 
-    apiBaseUrl="https://lms-server-ym1q.onrender.com" 
+    apiBaseUrl="http://localhost:5533" 
     onClose={() => { 
       setShowPDFViewer(false); 
       setCurrentPDFUrl(""); 
@@ -5507,7 +5565,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
     tabType={toBackendTab(activeTab)} 
     subcategory={activeSubcategory} 
     folderPath={getCurrentNavState().currentFolderPath} 
-    apiBaseUrl="https://lms-server-ym1q.onrender.com" 
+    apiBaseUrl="http://localhost:5533" 
     isTeacher={true}
     breadcrumbs={breadcrumbs}  // ← ADD THIS
     currentCourseName={courseStructureResponse?.data?.courseName || "Course"}  // ← ADD THIS
@@ -5567,7 +5625,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
       setImagePlaylist([]);
       setCurrentImageIndex(0);
     }}
-    apiBaseUrl="https://lms-server-ym1q.onrender.com"
+    apiBaseUrl="http://localhost:5533"
     isTeacher={true}
     allImages={imagePlaylist}
     currentImageIndex={currentImageIndex}
@@ -5618,7 +5676,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
             setCurrentVideoIndex(0);
             setCurrentVideoFileId("");
           }}
-          apiBaseUrl="https://lms-server-ym1q.onrender.com"
+          apiBaseUrl="http://localhost:5533"
           isTeacher={true}
         />
       )}

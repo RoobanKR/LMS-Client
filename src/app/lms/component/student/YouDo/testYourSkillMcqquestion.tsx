@@ -1932,7 +1932,7 @@ const StudentTestYourSkillsMCQQuestion: React.FC<YouDoMCQProps> = ({
         const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
         const entityTypeToPath: Record<string, string> = { topic: 'topics', subtopic: 'subtopics', submodule: 'submodules', module: 'modules' };
         const path = entityTypeToPath[nodeType] || 'topics';
-        const res = await fetch(`https://lms-server-ym1q.onrender.com/you-do/getAllQuestions/${path}/${nodeId}/you-do`, {
+        const res = await fetch(`http://localhost:5533/you-do/getAllQuestions/${path}/${nodeId}/you-do`, {
           headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);

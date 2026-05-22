@@ -44,6 +44,7 @@ export interface UploadedFile {
   fileDescription?: string;
   groupId?: string;
   groupName?: string;
+  parentGroupId?: string;
 }
 
 export interface FolderItem {
