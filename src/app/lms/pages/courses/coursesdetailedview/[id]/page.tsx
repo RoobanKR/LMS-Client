@@ -2515,7 +2515,7 @@ const getExercisesForActivity = (): any[] => {
                                   </button>
                                 )}
 
-                                <div className="h-9 rounded-lg border border-[#e3e8f2] bg-[#f8fafc] p-0.5 inline-flex items-center gap-0.5">
+                                {/* <div className="h-9 rounded-lg border border-[#e3e8f2] bg-[#f8fafc] p-0.5 inline-flex items-center gap-0.5">
                                   <button
                                     onClick={() => setResourceView("grid")}
                                     className="w-8 h-8 rounded-md inline-flex items-center justify-center border-none cursor-pointer touch-friendly mobile-touch-target"
@@ -2532,7 +2532,7 @@ const getExercisesForActivity = (): any[] => {
                                   >
                                     <List size={14} />
                                   </button>
-                                </div>
+                                </div> */}
 
                                 <div style={{ position: 'relative' } } ref={sortDropdownRef}>
                                   <button
