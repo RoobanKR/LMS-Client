@@ -496,7 +496,7 @@ export const SectionConfigurationStep = forwardRef<SectionConfigurationStepRef, 
           name: section.name,
           exerciseType: "",
           difficulty: 'medium',
-          totalMarks: 0,
+          totalMarks: section.totalMarks || 0,
           sectionNumber: idx + 1,
           mcqConfig: {
             generalQuestionCount: 0,
@@ -513,9 +513,9 @@ export const SectionConfigurationStep = forwardRef<SectionConfigurationStepRef, 
             levelBasedCounts: { easy: 0, medium: 0, hard: 0 },
             selectionLevelCounts: { easy: 0, medium: 0, hard: 0 },
             levelScoring: {
-              easy: { type: 'level_specific', marksPerQuestion: 2 },
-              medium: { type: 'level_specific', marksPerQuestion: 2 },
-              hard: { type: 'level_specific', marksPerQuestion: 2 }
+              easy: { type: 'level_specific', marksPerQuestion: 0 },
+              medium: { type: 'level_specific', marksPerQuestion: 0 },
+              hard: { type: 'level_specific', marksPerQuestion: 0 }
             },
             scoreSettings: { equalDistribution: 0 },
             questionFlow: 'freeFlow',
@@ -530,8 +530,8 @@ export const SectionConfigurationStep = forwardRef<SectionConfigurationStepRef, 
   });
 
   const calculateTotalSectionMarks = useCallback(() => {
-    return Object.values(sectionConfigs).reduce((sum, config) => sum + (config.totalMarks || 0), 0);
-  }, [sectionConfigs]);
+    return initialSections.reduce((sum, s) => sum + (s.totalMarks || 0), 0);
+  }, [initialSections]);
 
   const totalSectionMarks = calculateTotalSectionMarks();
   const isMarksMatch = totalAvailableMarks > 0 && Math.abs(totalSectionMarks - totalAvailableMarks) < 0.01;
@@ -802,9 +802,9 @@ export const SectionConfigurationStep = forwardRef<SectionConfigurationStepRef, 
               levelBasedCounts: { easy: 0, medium: 0, hard: 0 },
               selectionLevelCounts: { easy: 0, medium: 0, hard: 0 },
               levelScoring: {
-                easy: { type: 'level_specific', marksPerQuestion: 2 },
-                medium: { type: 'level_specific', marksPerQuestion: 2 },
-                hard: { type: 'level_specific', marksPerQuestion: 2 }
+                easy: { type: 'level_specific', marksPerQuestion: 0 },
+                medium: { type: 'level_specific', marksPerQuestion: 0 },
+                hard: { type: 'level_specific', marksPerQuestion: 0 }
               },
               scoreSettings: { equalDistribution: 0 },
               questionFlow: 'freeFlow',
@@ -1033,9 +1033,9 @@ export const SectionConfigurationStep = forwardRef<SectionConfigurationStepRef, 
         levelBasedCounts: { easy: 0, medium: 0, hard: 0 },
         selectionLevelCounts: { easy: 0, medium: 0, hard: 0 },
         levelScoring: {
-          easy: { type: 'level_specific', marksPerQuestion: 2 },
-          medium: { type: 'level_specific', marksPerQuestion: 2 },
-          hard: { type: 'level_specific', marksPerQuestion: 2 }
+          easy: { type: 'level_specific', marksPerQuestion: 0 },
+          medium: { type: 'level_specific', marksPerQuestion: 0 },
+          hard: { type: 'level_specific', marksPerQuestion: 0 }
         },
         scoreSettings: { equalDistribution: 0 },
         questionFlow: 'freeFlow',
@@ -1756,8 +1756,8 @@ useImperativeHandle(ref, () => ({
                               [level]: {
                                 type: e.target.value,
                                 ...(e.target.value === 'level_specific'
-                                  ? { marksPerQuestion: scoring?.marksPerQuestion || 2, totalMarks: undefined }
-                                  : { totalMarks: scoring?.totalMarks || 10, marksPerQuestion: undefined })
+                                  ? { marksPerQuestion: scoring?.marksPerQuestion || 0, totalMarks: undefined }
+                                  : { totalMarks: scoring?.totalMarks || 0, marksPerQuestion: undefined })
                               }
                             }
                           });
@@ -1766,8 +1766,8 @@ useImperativeHandle(ref, () => ({
                         className="w-full px-1 py-1 text-[10px] rounded border outline-none"
                         style={{ borderColor: D.border, background: '#fff', color: D.textMain }}
                       >
-                        <option value="level_specific">Per Q</option>
-                        <option value="question_specific">Total</option>
+                        <option value="level_specific">Per Q - level specific</option>
+                        <option value="question_specific">Question Specific</option>
                       </select>
                     </div>
                   );
@@ -1863,7 +1863,7 @@ useImperativeHandle(ref, () => ({
                               selectionLevelCounts: newCounts,
                               levelScoring: {
                                 ...section.programmingConfig?.levelScoring,
-                                [level]: e.target.checked ? { type: 'level_specific', marksPerQuestion: 2 } : undefined
+                                [level]: e.target.checked ? { type: 'level_specific', marksPerQuestion: 0 } : undefined
                               }
                             });
                           }}
@@ -1930,8 +1930,8 @@ useImperativeHandle(ref, () => ({
                                       [level]: {
                                         type: e.target.value,
                                         ...(e.target.value === 'level_specific'
-                                          ? { marksPerQuestion: scoring?.marksPerQuestion || 2, totalMarks: undefined }
-                                          : { totalMarks: scoring?.totalMarks || 10, marksPerQuestion: undefined })
+                                          ? { marksPerQuestion: scoring?.marksPerQuestion || 0, totalMarks: undefined }
+                                          : { totalMarks: scoring?.totalMarks || 0, marksPerQuestion: undefined })
                                       }
                                     }
                                   });
@@ -1939,8 +1939,8 @@ useImperativeHandle(ref, () => ({
                                 className="w-full px-1 py-1 text-[10px] rounded border outline-none"
                                 style={{ borderColor: D.border, background: '#fff', color: D.textMain }}
                               >
-                                <option value="level_specific">Per Q</option>
-                                <option value="question_specific">Total</option>
+                                <option value="level_specific">Per Q - level specific</option>
+                                <option value="question_specific">Question Specific</option>
                               </select>
                             </div>
                           );
@@ -2335,7 +2335,8 @@ const renderCombinedConfig = (section: Section) => {
               statusIcon = <div className="w-2 h-2 rounded-full" style={{ background: D.textMuted }} />;
             }
 
-            const exceedsTotal = totalAvailableMarks > 0 && section.totalMarks > totalAvailableMarks;
+            const allocatedForSection = initialSections.find(s => s.name === section.name)?.totalMarks ?? section.totalMarks;
+            const exceedsTotal = totalAvailableMarks > 0 && allocatedForSection > totalAvailableMarks;
 
             return (
               <button
@@ -2352,11 +2353,14 @@ const renderCombinedConfig = (section: Section) => {
                 <span className="max-w-[150px] truncate">
                   {section.name || `Section ${section.sectionNumber}`}
                 </span>
-                {section.totalMarks > 0 && (
-                  <span className="text-[10px]" style={{ color: exceedsTotal ? D.red : status === 'error' ? D.red : D.textMuted }}>
-                    ({formatDecimal(section.totalMarks)})
-                  </span>
-                )}
+                {(() => {
+                  const allocatedMarks = initialSections.find(s => s.name === section.name)?.totalMarks ?? section.totalMarks;
+                  return allocatedMarks > 0 ? (
+                    <span className="text-[10px]" style={{ color: exceedsTotal ? D.red : status === 'error' ? D.red : D.textMuted }}>
+                      ({formatDecimal(allocatedMarks)})
+                    </span>
+                  ) : null;
+                })()}
                 {exceedsTotal && (
                   <span className="ml-1 text-[8px] font-bold bg-red-100 text-red-600 px-1 rounded">OVER</span>
                 )}

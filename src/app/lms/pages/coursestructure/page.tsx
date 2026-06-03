@@ -1,4 +1,5 @@
 "use client"
+import { Loading } from "@/components/loading-ui/loading";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { PlusIcon, Search, X, Filter, ChevronUp, ChevronDown, ArrowUp, ArrowDown, ArrowUpDown, XCircle } from "lucide-react";
@@ -242,7 +243,7 @@ export default function CourseStructurePage() {
             <div className={`min-h-screen flex items-center justify-center ${
                 currentTheme === 'dark' ? 'bg-gray-950' : 'bg-gray-50'
             }`}>
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 dark:border-indigo-400"></div>
+                <Loading size="size-8" />
             </div>
         );
     }

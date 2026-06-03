@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { Loading } from "@/components/loading-ui/loading";
 import {
   Brain, Users, HelpCircle, FileText, Video, FileArchive,
   Link2, BookOpen, FolderPlus, Download, Eye, RefreshCw,
@@ -21,6 +22,7 @@ import {
 import { motion } from "framer-motion";
 import dynamic from "next/dynamic";
 import { getCurrentUser } from "@/apiServices/tokenVerify"
+import { postLogout } from "@/apiServices/activityLog"
 // import "react-quill/dist/quill.snow.css";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -43,6 +45,7 @@ import { CourseContent } from "./components/Coursecontent";
 import { NotionResourceModal } from "./components/Notionresourcemodal";
 import { FileUploadModal, type UploadOptions } from "./components/FileUploadModal";
 import { PlainBreadcrumb, type PlainCrumb } from "./components/PlainBreadcrumb";
+import { NotificationBell } from "@/app/lms/component/NotificationBell";
 
 import {
   CourseNode, FolderItem, UploadedFile, ContentData, SubcategoryData,
@@ -3546,6 +3549,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
   const handleLogout = async () => {
     setIsLoggingOut(true)
     try {
+      await postLogout()
       localStorage.clear()
       toast.success("Logged out successfully")
       router.push("/login")
@@ -3590,36 +3594,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
   // Add this loading component inside your DynamicLMSCoordinator (before the return)
   const LoadingSpinner = () => (
     <div className="flex flex-col items-center justify-center h-full w-full" style={{ background: T.bg }}>
-      <div className="relative">
-        {/* Main spinner */}
-        <div className="w-16 h-16 border-4 rounded-full" style={{ borderColor: `${T.orange}20`, borderTopColor: T.orange }}>
-          <div className="absolute inset-0 border-4 rounded-full animate-spin" style={{ borderColor: T.orange, borderTopColor: 'transparent' }} />
-        </div>
-
-        {/* Inner dot */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: T.orange }} />
-        </div>
-      </div>
-
-      <div className="mt-6 text-center">
-        <p className="text-[13px] font-semibold" style={{ color: T.textMain }}>Loading Course Content</p>
-        <p className="text-[11px] mt-1.5" style={{ color: T.textMuted }}>Please wait while we prepare your resources...</p>
-      </div>
-
-      {/* Animated dots */}
-      <div className="flex gap-1.5 mt-4">
-        {[0, 1, 2].map(i => (
-          <div
-            key={i}
-            className="w-1.5 h-1.5 rounded-full"
-            style={{
-              background: T.orange,
-              animation: `pulseDot 1.2s ease-in-out ${i * 0.2}s infinite`,
-            }}
-          />
-        ))}
-      </div>
+      <Loading size="size-16" color="orange" label="Loading Course Content" />
     </div>
   );
 
@@ -3747,6 +3722,11 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
                     activeTab={activeTab}
                     activeSubcategory={activeSubcategory}
                   />
+                </div>
+
+                {/* Notifications bell — reuses the existing notification system */}
+                <div className="flex-shrink-0 py-2">
+                  <NotificationBell />
                 </div>
 
                 {/* User menu on the right */}
@@ -3943,18 +3923,30 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
 
                     onTabChange={(tab) => { setActiveTabPersistent(tab); setActiveSubcategoryPersistent(""); updateURL({ activeTab: tab, activeSubcategory: "" }); updateNavState({ currentFolderPath: [], currentFolderId: null }); }}
                     onSubcategoryChange={(sub, comp) => { setActiveSubcategoryPersistent(sub); updateURL({ activeSubcategory: sub }); updateNavState({ currentFolderPath: [], currentFolderId: null }); }}
-                    onResourceModalOpen={(groupId, groupName) => {
+                    onResourceModalOpen={(groupId, groupName, opts) => {
                       const gid = typeof groupId === "string" && groupId ? groupId : undefined;
                       const gname = typeof groupName === "string" && groupName ? groupName : undefined;
-                      setUploadGroupId(gid);
-                      setUploadGroupName(gname);
-                      // When adding to an existing group, the target is ALWAYS the group's
-                      // root — never whatever folder the page happens to be parked in.
-                      // Reset the persistent nav state so the modal opens at a clean root
-                      // and `currentFolderPath=[]` flows through to the server as
-                      // `folderPath=""`. The file then lands at activity root with the
-                      // group's groupId, which is exactly where the rest of the group lives.
-                      if (gid) updateNavState({ currentFolderPath: [], currentFolderId: null });
+                      const displayOnly = opts?.displayOnly === true;
+                      if (displayOnly) {
+                        // Toolbar / empty-state "Add Resource" used while the user is
+                        // navigated INSIDE a group's folder. The new resource still
+                        // lands in the CURRENT folder (whose folderId already ties it
+                        // to the group on the server) — so we keep the folder path and
+                        // only surface the group name in the breadcrumb. Do NOT set the
+                        // group as the upload target and do NOT reset the folder path.
+                        setUploadGroupId(undefined);
+                        setUploadGroupName(gname);
+                      } else {
+                        setUploadGroupId(gid);
+                        setUploadGroupName(gname);
+                        // When adding to an existing group, the target is ALWAYS the group's
+                        // root — never whatever folder the page happens to be parked in.
+                        // Reset the persistent nav state so the modal opens at a clean root
+                        // and `currentFolderPath=[]` flows through to the server as
+                        // `folderPath=""`. The file then lands at activity root with the
+                        // group's groupId, which is exactly where the rest of the group lives.
+                        if (gid) updateNavState({ currentFolderPath: [], currentFolderId: null });
+                      }
                       clearUploadModalEditState(); // make sure modal opens fresh (not in edit mode)
                       setShowNotionModal(true);
                     }}

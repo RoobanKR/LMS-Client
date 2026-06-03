@@ -141,6 +141,8 @@ interface ProblemSolvingProps {
   nodeType: string;
   courseId: string;
   configuredLanguages?: { coreProgram?: string[]; frontend?: string[]; database?: string[] };
+  isHeaderHidden?: boolean;
+  onShowHeader?: () => void;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1505,7 +1507,7 @@ const ExerciseMockPreviewModal: React.FC<ExerciseMockPreviewModalProps> = ({
 
 const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
   const router = useRouter();
-  const { nodeId, nodeName, subcategory, subcategoryLabel, hierarchyData, activeTab, nodeType, courseId, configuredLanguages } = props;
+  const { nodeId, nodeName, subcategory, subcategoryLabel, hierarchyData, activeTab, nodeType, courseId, configuredLanguages, isHeaderHidden = false, onShowHeader } = props;
 
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -2687,6 +2689,30 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
       <option value="Completed">Completed</option>
       <option value="Incomplete">Incomplete</option>
     </select>
+
+    {/* Show Header — appears next to filters when TopBar is hidden */}
+    {isHeaderHidden && onShowHeader && (
+      <button
+        onClick={onShowHeader}
+        title="Show header"
+        style={{
+          width: 28, height: 28, borderRadius: 7, flexShrink: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          border: '1px solid #bbf7d0', background: '#f0fdf4',
+          color: '#16a34a', cursor: 'pointer', transition: 'all .15s',
+        }}
+        onMouseEnter={e => {
+          const el = e.currentTarget as HTMLElement;
+          el.style.background = '#dcfce7'; el.style.borderColor = '#86efac';
+        }}
+        onMouseLeave={e => {
+          const el = e.currentTarget as HTMLElement;
+          el.style.background = '#f0fdf4'; el.style.borderColor = '#bbf7d0';
+        }}
+      >
+        <Eye size={13} />
+      </button>
+    )}
 
     {/* Divider */}
     <div className="h-5 w-px flex-shrink-0" style={{ background: '#e4e4ed' }} />

@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import MCQ from '@/app/lms/component/student/mcq';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'react-toastify';
+import Loading from '@/components/loading-ui/loading';
 
 const MCQPageContent = () => {
   const router = useRouter();
@@ -120,7 +121,13 @@ const MCQPageContent = () => {
 
   const handleCloseExercise = () => {
     if (courseId) {
-      router.push(`/lms/pages/courses/coursesdetailedview/${courseId}?refresh=true`);
+      // Return to the EXACT spot: re-open the same node + tab + activity (exercise list).
+      const method = category === 'We_Do' ? 'we-do' : category === 'I_Do' ? 'i-do' : category === 'You_Do' ? 'you-do' : '';
+      const qp = new URLSearchParams();
+      if (nodeId) qp.set('restoreNodeId', nodeId);
+      if (method) qp.set('method', method);
+      if (subcategory) qp.set('activity', subcategory);
+      router.push(`/lms/pages/courses/coursesdetailedview/${courseId}?${qp.toString()}`);
     } else {
       router.back();
     }
@@ -144,10 +151,7 @@ const MCQPageContent = () => {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 text-gray-900 animate-spin mx-auto mb-4" />
-          <p className="text-gray-600">Loading assessment from server...</p>
-        </div>
+        <Loading size="size-12" color="blue" label="Loading assessment from server..." />
       </div>
     );
   }
@@ -231,7 +235,7 @@ export default function MCQPage() {
     <Suspense 
       fallback={
         <div className="min-h-screen bg-white flex items-center justify-center">
-          <Loader2 className="w-10 h-10 text-gray-900 animate-spin" />
+          <Loading size="size-10" color="blue" />
         </div>
       }
     >

@@ -120,6 +120,7 @@ interface FrontendQuestionProps {
   onNext: () => void;
   isLastQuestion: boolean;
   theme?: 'light' | 'dark';
+  registerSubmit?: (fn: () => void | Promise<void>) => void;
 }
 
 const FrontendQuestion: React.FC<FrontendQuestionProps> = ({
@@ -135,7 +136,8 @@ const FrontendQuestion: React.FC<FrontendQuestionProps> = ({
   onComplete,
   onNext,
   isLastQuestion,
-  theme = 'light'
+  theme = 'light',
+  registerSubmit
 }) => {
   // State
   const [files, setFiles] = useState<FileType[]>([]);
@@ -2147,6 +2149,11 @@ console.log('${fileName} loaded');
       setIsSubmitting(false);
     }
   };
+
+  // Expose submit to parent (combined page bottom-bar "Submit Question")
+  useEffect(() => {
+    registerSubmit?.(submitCode);
+  });
 
   // Terminal Component
   const InteractiveTerminal = () => {

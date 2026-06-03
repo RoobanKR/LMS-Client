@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Flag, AlertCircle, Info, CheckCircle2, ChevronDown, ChevronUp,
+  Flag, AlertCircle, Info, ChevronDown, ChevronUp,
   HelpCircle, Award, Grid3x3, ArrowLeft, ChevronRight, ChevronLeft,
   Timer, GraduationCap, GripVertical, Check, Hash, PenTool, XCircle
 } from 'lucide-react';
@@ -178,10 +178,26 @@ const InfoTooltip: React.FC<{ content: string; side?: 'top' | 'right' | 'bottom'
   );
 };
 
+// ── Option image (respects stored imageSizePercent + imageAlignment) ──────
+const OptionImage = ({ option, lbl }: { option: MCQOption; lbl: string }) => {
+  if (!option.imageUrl || !option.imageUrl.trim()) return null;
+  const justify = option.imageAlignment === 'left' ? 'flex-start' : option.imageAlignment === 'right' ? 'flex-end' : 'center';
+  const widthPct = option.imageSizePercent && option.imageSizePercent > 0 ? option.imageSizePercent : 60;
+  return (
+    <div style={{ marginTop: 8, display: 'flex', justifyContent: justify }}>
+      <img
+        src={option.imageUrl}
+        alt={`Option ${lbl}`}
+        style={{ width: `${widthPct}%`, height: 'auto', maxWidth: '100%', borderRadius: 8, border: `1px solid ${T.border}`, display: 'block' }}
+        onError={e => { e.currentTarget.style.display = 'none'; }}
+      />
+    </div>
+  );
+};
+
 // ── Radio Option (with image support) ────────────────────────────────────
 const RadioOption = ({ option, checked, onChange, index, disabled }: { option: MCQOption; checked: boolean; onChange: () => void; index: number; disabled?: boolean }) => {
   const lbl = String.fromCharCode(65 + index);
-  const hasImage = option.imageUrl && option.imageUrl.trim() !== '';
 
   return (
     <label
@@ -207,11 +223,7 @@ const RadioOption = ({ option, checked, onChange, index, disabled }: { option: M
           <span style={{ flexShrink: 0, width: 20, height: 20, borderRadius: 6, background: checked ? T.orange : T.pageBg, color: checked ? '#fff' : T.textMuted, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, transition: 'all 0.15s' }}>{lbl}</span>
           <span style={{ fontSize: 14, color: checked ? T.textMain : T.textSub, fontWeight: checked ? 600 : 400 }}>{option.text}</span>
         </div>
-        {hasImage && (
-          <div style={{ marginTop: 8, borderRadius: 8, overflow: 'hidden', border: `1px solid ${T.border}` }}>
-            <img src={option.imageUrl!} alt={`Option ${lbl}`} style={{ width: '100%', height: 96, objectFit: 'cover' }} onError={e => { e.currentTarget.style.display = 'none'; }} />
-          </div>
-        )}
+        <OptionImage option={option} lbl={lbl} />
       </div>
     </label>
   );
@@ -244,6 +256,7 @@ const CheckboxOption = ({ option, checked, onChange, index, disabled }: { option
           <span style={{ flexShrink: 0, width: 20, height: 20, borderRadius: 6, background: checked ? T.purple : T.pageBg, color: checked ? '#fff' : T.textMuted, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, transition: 'all 0.15s' }}>{lbl}</span>
           <span style={{ fontSize: 14, color: checked ? T.textMain : T.textSub, fontWeight: checked ? 600 : 400 }}>{option.text}</span>
         </div>
+        <OptionImage option={option} lbl={lbl} />
       </div>
     </label>
   );
@@ -509,7 +522,6 @@ const MCQQuestion: React.FC<MCQQuestionProps> = ({
   }, [selectedAnswer, question]);
 
   const diff = DIFFICULTY_COLORS[question.mcqQuestionDifficulty] ?? { text: T.textSub, bg: T.pageBg, dot: T.textMuted };
-  const qt = QTYPE_LABELS[question.mcqQuestionType] ?? { label: question.mcqQuestionType, color: T.textMuted, bg: T.pageBg };
 
   const handleFlagToggle = () => {
     if (disabled) return;
@@ -618,24 +630,6 @@ const MCQQuestion: React.FC<MCQQuestionProps> = ({
     return 'repeat(2, 1fr)';
   };
 
-  // Check if answer is selected (for the footer)
-  const hasAnswer = () => {
-    if (!selectedAnswer) return false;
-    if (selectedAnswer.optionId) return true;
-    if (selectedAnswer.booleanAnswer !== undefined) return true;
-    if (selectedAnswer.textAnswer?.trim()) return true;
-    if (selectedAnswer.numericAnswer !== undefined) return true;
-    return false;
-  };
-
-  // Get selected letter for display
-  const getSelectedLetter = () => {
-    if (!selectedAnswer?.optionId) return null;
-    const idx = question.mcqQuestionOptions.findIndex(opt => opt._id === selectedAnswer.optionId);
-    if (idx === -1) return null;
-    return String.fromCharCode(65 + idx);
-  };
-
   if (!isClient) {
     return <div style={{ minHeight: '100vh', background: T.pageBg }} />;
   }
@@ -668,14 +662,10 @@ const MCQQuestion: React.FC<MCQQuestionProps> = ({
                 <div style={{ width: 5, height: 5, borderRadius: '50%', background: diff.dot }} />
                 <span style={{ fontSize: 10, fontWeight: 700, color: diff.text, textTransform: 'capitalize' as const }}>{question.mcqQuestionDifficulty}</span>
               </div>
-              {/* Question type badge */}
-              <div style={{ padding: '4px 10px', borderRadius: 99, background: qt.bg }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: qt.color }}>{qt.label}</span>
-              </div>
               {/* Score badge */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '4px 10px', borderRadius: 99, background: T.amberLight }}>
                 <Award size={10} style={{ color: T.amber }} />
-                <span style={{ fontSize: 10, fontWeight: 700, color: T.amber }}>{question.mcqQuestionScore} pts</span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: T.amber }}>{question.mcqQuestionScore} marks</span>
               </div>
               {/* Required badge */}
               {question.mcqQuestionRequired && (
@@ -779,36 +769,6 @@ const MCQQuestion: React.FC<MCQQuestionProps> = ({
           )}
 
           <div style={{ height: 24 }} />
-        </div>
-
-        {/* ── Footer: Selected Answer Status ── */}
-        <div style={{ flexShrink: 0, padding: '14px 28px', background: T.bg, borderTop: `1px solid ${T.border}` }}>
-          {hasAnswer() ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <CheckCircle2 size={18} style={{ color: T.green, flexShrink: 0 }} />
-              <span style={{ fontSize: 13, fontWeight: 500, color: T.textSub }}>
-                Selected:{' '}
-                <span style={{ fontWeight: 700, color: T.greenDark }}>
-                  {selectedAnswer?.textAnswer ? (
-                    `"${selectedAnswer.textAnswer.substring(0, 50)}${selectedAnswer.textAnswer.length > 50 ? '…' : ''}"`
-                  ) : selectedAnswer?.booleanAnswer !== undefined ? (
-                    selectedAnswer.booleanAnswer ? 'True' : 'False'
-                  ) : selectedAnswer?.numericAnswer !== undefined ? (
-                    selectedAnswer.numericAnswer
-                  ) : getSelectedLetter() ? (
-                    <span style={{ background: T.orangeLight, padding: '2px 8px', borderRadius: 20, color: T.orange }}>Option {getSelectedLetter()}</span>
-                  ) : (
-                    'Answer recorded'
-                  )}
-                </span>
-              </span>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <AlertCircle size={14} style={{ color: T.textMuted }} />
-              <span style={{ fontSize: 13, fontWeight: 500, color: T.textMuted }}>Not answered yet</span>
-            </div>
-          )}
         </div>
       </div>
     </div>

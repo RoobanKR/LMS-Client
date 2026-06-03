@@ -129,6 +129,7 @@ interface SqlEditorProps {
     onQueryChange?: (query: string) => void
     onQueryRun?: (result: any) => void
     onSubmit?: (query: string, result: any) => void
+    registerSubmit?: (fn: () => void | Promise<void>) => void
     
     // Question-related props for sidebar
     question?: QuestionType
@@ -2358,7 +2359,8 @@ export default function SqlEditor({
     onBack,
     onCloseExercise,
     onResetExercise,
-    initialQuestionIdx = 0
+    initialQuestionIdx = 0,
+    registerSubmit
 }: SqlEditorProps) {
     const [currentTheme, setCurrentTheme] = useState<string>(theme)
     const [databases, setDatabases] = useState<BrowserDatabase[]>([])
@@ -2675,6 +2677,11 @@ export default function SqlEditor({
             })
         }
     }
+
+    // Expose submit to parent (combined page bottom-bar "Submit Question")
+    useEffect(() => {
+        registerSubmit?.(handleSubmit)
+    })
 
     const handleSelectDatabase = (name: string) => {
         const db = databases.find(d => d.name === name)

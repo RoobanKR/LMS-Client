@@ -74,10 +74,20 @@ export function StaffSidebar({ isOpen = true, onClose, activeRoute }: StaffSideb
   const calcStreak = (uc: any[]) => { const w = new Date(Date.now() - 7 * 864e5); return Math.min(uc.filter(c => new Date(c.lastAccessed || c.updatedAt || Date.now()) >= w).length, 7) }
 
   const buildItems = (u: UserData, a: any): SidebarItem[] => {
+    const logItem: SidebarItem = { icon: Activity, label: "Log Activity", href: `${BASE_PATH}logs`, count: 0, progress: 0 }
+    const isStudentRole = (u.role?.originalRole || u.role?.roleValue || '').toLowerCase().includes('student')
+
     if (!u?.permissions?.length) return defaultItems(a)
     const s = [...u.permissions].filter(p => p.isActive).sort((x, y) => (x.order || 0) - (y.order || 0))
     if (!s.length) return defaultItems(a)
-    return s.map(p => { const r = keyToRoute(p.permissionKey); const { count, progress } = dynData(p.permissionKey, a); return { icon: getIconByName(p.icon || "ShieldCheck"), label: p.permissionName, href: r, permissionKey: p.permissionKey, isActive: isActive(r), count, progress, color: p.color || "orange" } })
+    const items = s.map(p => { const r = keyToRoute(p.permissionKey); const { count, progress } = dynData(p.permissionKey, a); return { icon: getIconByName(p.icon || "ShieldCheck"), label: p.permissionName, href: r, permissionKey: p.permissionKey, isActive: isActive(r), count, progress, color: p.color || "orange" } })
+
+    // Always inject Log Activity for non-student roles if not already present
+    if (!isStudentRole && !items.some(i => i.href.includes('/logs'))) {
+      const profileIdx = items.findIndex(i => i.href.includes('profile'))
+      profileIdx >= 0 ? items.splice(profileIdx, 0, logItem) : items.push(logItem)
+    }
+    return items
   }
 
   const dynData = (k: string, a: any) => { const l = k.toLowerCase(); if (l.includes("dashboard")) return { count: 0, progress: a.overallProgress }; if (l.includes("course")) return { count: a.enrolledCourses, progress: a.overallProgress }; if (l.includes("assignment") || l.includes("task")) return { count: a.attemptedExercises, progress: 0 }; if (l.includes("progress") || l.includes("analytics")) return { count: a.completedCourses, progress: a.overallProgress }; if (l.includes("message") || l.includes("chat")) return { count: 3, progress: 0 }; if (l.includes("resource") || l.includes("material")) return { count: a.totalModules + a.totalTopics, progress: 0 }; if (l.includes("schedule") || l.includes("calendar")) return { count: 2, progress: 0 }; return { count: 0, progress: 0 } }
@@ -88,11 +98,12 @@ export function StaffSidebar({ isOpen = true, onClose, activeRoute }: StaffSideb
     { icon: Trophy, label: "Grades", href: `${BASE_PATH}grades`, count: 0, progress: 0 },
     { icon: Users, label: "Students", href: `${BASE_PATH}students`, count: 0, progress: 0 },
     { icon: BarChart3, label: "Analytics", href: `${BASE_PATH}analytics`, count: 0, progress: 0 },
+    { icon: Activity, label: "Log Activity", href: `${BASE_PATH}logs`, count: 0, progress: 0 },
     { icon: Settings2, label: "Settings", href: `${BASE_PATH}settings`, count: 0, progress: 0 },
     { icon: HelpCircle, label: "Help & Support", href: `${BASE_PATH}help`, count: 0, progress: 0 },
   ]
 
-  const keyToRoute = (k: string): string => { if (!k) return `${BASE_PATH}dashboard`; let r = k.toLowerCase().replace(/([A-Z])/g, "-$1").toLowerCase().replace(/^-/, "").replace(/[_\s]/g, "-"); const m: Record<string, string> = { "student-dashboard": "dashboard", dashboard: "dashboard", "course-overview": "courses", courses: "courses", "my-courses": "courses", "assignment-submission": "assignments", assignments: "assignments", "performance-analytics": "progress", analytics: "analytics", progress: "progress", grades: "grades", messages: "messages", "message-center": "messages", "resource-library": "resources", resources: "resources", "study-schedule": "schedule", schedule: "schedule", calendar: "schedule", "user-profile": "profile", profile: "profile", notifications: "notifications", alerts: "notifications", students: "students", settings: "settings", help: "help" }; if (m[r]) r = m[r]; return `${BASE_PATH}${r}` }
+  const keyToRoute = (k: string): string => { if (!k) return `${BASE_PATH}dashboard`; let r = k.toLowerCase().replace(/([A-Z])/g, "-$1").toLowerCase().replace(/^-/, "").replace(/[_\s]/g, "-"); const m: Record<string, string> = { "student-dashboard": "dashboard", dashboard: "dashboard", "course-overview": "courses", courses: "courses", "my-courses": "courses", "assignment-submission": "assignments", assignments: "assignments", "performance-analytics": "progress", analytics: "analytics", progress: "progress", grades: "grades", messages: "messages", "message-center": "messages", "resource-library": "resources", resources: "resources", "study-schedule": "schedule", schedule: "schedule", calendar: "schedule", "user-profile": "profile", profile: "profile", notifications: "notifications", alerts: "notifications", students: "students", settings: "settings", help: "help", logs: "logs", "log-activity": "logs", "activity-log": "logs" }; if (m[r]) r = m[r]; return `${BASE_PATH}${r}` }
 
   const { data: nData } = useQuery({ queryKey: notificationKeys.all, queryFn: () => notificationsService.fetchNotifications(), refetchOnWindowFocus: true, staleTime: 30000 })
   useEffect(() => { if (nData) { const u = nData.unreadCount || 0; setSidebarItems(p => p.map(i => { const n = i.label.toLowerCase().includes("notification") || i.permissionKey?.toLowerCase().includes("notification"); return n ? { ...i, badge: u > 0 ? u : undefined } : i })) } }, [nData])
@@ -105,55 +116,54 @@ export function StaffSidebar({ isOpen = true, onClose, activeRoute }: StaffSideb
   const CircProg = ({ value, size = 38 }: { value: number; size?: number }) => { const sw = 3, r = (size - sw) / 2, c = 2 * Math.PI * r; return (<svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="transform -rotate-90"><circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={isDark ? T.dark.border : "#f0f0f4"} strokeWidth={sw} /><circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={T.orange} strokeWidth={sw} strokeDasharray={c} strokeDashoffset={c - (value / 100) * c} strokeLinecap="round" className="transition-all duration-700" /></svg>) }
 
   if (loading) return (
-    <aside className={cn("sc-sb fixed left-0 top-0 z-50 h-screen w-[260px] flex flex-col", isDark ? "bg-[#1a1a2e] border-r border-[#2e2e4a]" : "bg-white border-r border-[#ecedf1]")}>
-      <div className={cn("flex items-center gap-3 px-6 h-[70px] border-b", isDark ? "border-[#2e2e4a]" : "border-[#ecedf1]")}><div className="w-10 h-10 rounded-xl bg-[#F27757]/10 animate-pulse" /><div className="w-28 h-5 bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse" /></div>
-      <div className="flex-1 px-4 py-6 space-y-2">{[...Array(7)].map((_, i) => <div key={i} className={cn("h-[44px] rounded-xl animate-pulse", isDark ? "bg-[#222240]" : "bg-gray-50")} style={{ animationDelay: `${i * 60}ms` }} />)}</div>
+    <aside className={cn("sc-sb fixed left-0 top-0 z-50 h-screen w-[220px] flex flex-col", isDark ? "bg-[#1a1a2e] border-r border-[#2e2e4a]" : "bg-white border-r border-[#ecedf1]")}>
+      <div className={cn("flex items-center gap-3 px-4 h-[60px] border-b", isDark ? "border-[#2e2e4a]" : "border-[#ecedf1]")}><div className="w-8 h-8 rounded-xl bg-[#F27757]/10 animate-pulse" /><div className="w-24 h-4 bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse" /></div>
+      <div className="flex-1 px-3 py-4 space-y-1">{[...Array(7)].map((_, i) => <div key={i} className={cn("h-[38px] rounded-xl animate-pulse", isDark ? "bg-[#222240]" : "bg-gray-50")} style={{ animationDelay: `${i * 60}ms` }} />)}</div>
     </aside>
   )
 
   return (
     <>
-      <style jsx global>{`@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap");.sc-sb,.sc-sb *{font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,sans-serif!important}`}</style>
+      <style jsx global>{`.sc-sb,.sc-sb *{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif!important}`}</style>
 
       {isOpen && <div className="fixed inset-0 z-40 md:hidden" style={{ background: isDark ? "rgba(0,0,0,0.5)" : "rgba(0,0,0,0.15)", backdropFilter: "blur(2px)" }} onClick={onClose} />}
 
-      <aside className={cn("sc-sb fixed left-0 top-0 z-50 h-screen w-[260px] flex flex-col transform transition-transform duration-300 ease-out", isDark ? "bg-[#1a1a2e] border-r border-[#2e2e4a]" : "bg-white border-r border-[#ecedf1]", isOpen ? "translate-x-0" : "-translate-x-full")}>
+      <aside className={cn("sc-sb fixed left-0 top-0 z-50 h-screen w-[220px] flex flex-col transform transition-transform duration-300 ease-out", isDark ? "bg-[#1a1a2e] border-r border-[#2e2e4a]" : "bg-white border-r border-[#ecedf1]", isOpen ? "translate-x-0" : "-translate-x-full")}>
 
         {/* Logo */}
-        <div className={cn("flex items-center gap-3 px-6 py-5 flex-shrink-0 border-b", isDark ? "border-[#2e2e4a]" : "border-[#ecedf1]")}>
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: T.orange, boxShadow: `0 4px 14px ${T.orangeGlow}` }}>
-            <CheckCircle className="w-5 h-5 text-white" strokeWidth={2.5} />
+        <div className={cn("flex items-center gap-2.5 px-4 py-3.5 flex-shrink-0 border-b", isDark ? "border-[#2e2e4a]" : "border-[#ecedf1]")}>
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: T.orange, boxShadow: `0 4px 12px ${T.orangeGlow}` }}>
+            <CheckCircle className="w-4 h-4 text-white" strokeWidth={2.5} />
           </div>
           <div>
-            <span className="text-[17px] font-extrabold tracking-[-0.03em] leading-none" style={{ color: isDark ? T.dark.textMain : T.textMain }}>Smart<span style={{ color: T.orange }}>Cliff</span></span>
-            <p className="text-[10.5px] font-medium mt-0.5 leading-none tracking-wide" style={{ color: isDark ? T.dark.textMuted : T.textHint }}>LMS Platform</p>
+            <span className="text-[15px] font-extrabold tracking-[-0.03em] leading-none" style={{ color: isDark ? T.dark.textMain : T.textMain }}>Smart<span style={{ color: T.orange }}>Cliff</span></span>
+            <p className="text-[9.5px] font-medium mt-0.5 leading-none tracking-wide" style={{ color: isDark ? T.dark.textMuted : T.textHint }}>LMS Platform</p>
           </div>
-          <button className={cn("ml-auto p-1.5 rounded-lg md:hidden transition-colors", isDark ? "text-gray-400 hover:bg-[#222240]" : "text-[#8b8b9e] hover:bg-[#FFF4F1] hover:text-[#F27757]")} onClick={onClose}><X className="w-4 h-4" /></button>
+          <button className={cn("ml-auto p-1 rounded-lg transition-colors", isDark ? "text-gray-400 hover:bg-[#222240]" : "text-[#8b8b9e] hover:bg-[#FFF4F1] hover:text-[#F27757]")} onClick={onClose}><X className="w-3.5 h-3.5" /></button>
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-5">
-          <ul className="space-y-1">
+        <nav className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-3.5">
+          <ul className="space-y-0.5">
             {sidebarItems.map(item => {
               const Icon = item.icon, active = item.isActive
               const badge = item.badge ?? (item.count && item.count > 0 ? item.count : undefined)
               return (
                 <li key={item.permissionKey || item.href}>
                   <button onClick={() => nav(item.href)}
-                    className="group w-full flex items-center gap-3.5 px-4 py-[11px] rounded-xl transition-all duration-150 text-left"
+                    className="group w-full flex items-center gap-2.5 px-3 py-[9px] rounded-xl transition-all duration-150 text-left"
                     style={active ? { background: isDark ? "rgba(242,119,87,0.12)" : T.orangeLight, borderLeft: `3px solid ${T.orange}` } : { background: "transparent", borderLeft: "3px solid transparent" }}
                     onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = isDark ? "rgba(255,255,255,0.04)" : "#fafafa" }}
                     onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = "transparent" }}
                   >
-                    {/* ✅ Icon is always orange — full #F27757 when active, soft rgba when inactive */}
                     <Icon
-                      className="flex-shrink-0 w-[18px] h-[18px]"
+                      className="flex-shrink-0 w-[15px] h-[15px]"
                       style={{ color: active ? T.orange : isDark ? T.orangeInactiveDark : T.orangeInactive }}
                       strokeWidth={active ? 2.3 : 1.8}
                     />
-                    <span className="flex-1 text-[14px] leading-none truncate" style={{ fontWeight: active ? 700 : 500, color: active ? T.orange : isDark ? T.dark.textSub : T.textSub }}>{item.label}</span>
+                    <span className="flex-1 text-[13px] leading-none truncate" style={{ fontWeight: active ? 700 : 500, color: active ? T.orange : isDark ? T.dark.textSub : T.textSub }}>{item.label}</span>
                     {badge !== undefined && Number(badge) > 0 && (
-                      <span className="flex-shrink-0 min-w-[22px] h-[22px] px-1.5 flex items-center justify-center rounded-full text-[11px] font-bold" style={{ background: active ? T.orange : isDark ? "rgba(242,119,87,0.15)" : T.orangeLight, color: active ? "#fff" : T.orange }}>{Number(badge) > 99 ? "99+" : badge}</span>
+                      <span className="flex-shrink-0 min-w-[20px] h-[20px] px-1 flex items-center justify-center rounded-full text-[10px] font-bold" style={{ background: active ? T.orange : isDark ? "rgba(242,119,87,0.15)" : T.orangeLight, color: active ? "#fff" : T.orange }}>{Number(badge) > 99 ? "99+" : badge}</span>
                     )}
                   </button>
                 </li>
@@ -163,16 +173,16 @@ export function StaffSidebar({ isOpen = true, onClose, activeRoute }: StaffSideb
         </nav>
 
         {/* Bottom */}
-        <div className={cn("px-5 py-4 flex-shrink-0 border-t", isDark ? "border-[#2e2e4a]" : "border-[#ecedf1]")} style={{ background: isDark ? "rgba(255,255,255,0.02)" : "#fafafa" }}>
-          <div className="flex items-center gap-3 mb-3">
-            <div className="relative flex-shrink-0"><CircProg value={studentInfo.overallProgress || 75} /></div>
-            <p className="flex-1 text-[13px] font-bold leading-tight" style={{ color: isDark ? T.dark.textMain : T.textMain }}>All Systems</p>
-            <span className="flex-shrink-0 min-w-[22px] h-[22px] px-1.5 flex items-center justify-center rounded-full text-[11px] font-bold" style={{ background: isDark ? "rgba(242,119,87,0.15)" : T.orangeLight, color: T.orange }}>{studentInfo.enrolledCourses || 4}</span>
+        {/* <div className={cn("px-4 py-3 flex-shrink-0 border-t", isDark ? "border-[#2e2e4a]" : "border-[#ecedf1]")} style={{ background: isDark ? "rgba(255,255,255,0.02)" : "#fafafa" }}>
+          <div className="flex items-center gap-2.5 mb-2">
+            <div className="relative flex-shrink-0"><CircProg value={studentInfo.overallProgress || 75} size={32} /></div>
+            <p className="flex-1 text-[12px] font-bold leading-tight" style={{ color: isDark ? T.dark.textMain : T.textMain }}>All Systems</p>
+            <span className="flex-shrink-0 min-w-[20px] h-[20px] px-1 flex items-center justify-center rounded-full text-[10px] font-bold" style={{ background: isDark ? "rgba(242,119,87,0.15)" : T.orangeLight, color: T.orange }}>{studentInfo.enrolledCourses || 4}</span>
           </div>
-          <div className="mb-3"><div className="h-[5px] w-full rounded-full overflow-hidden" style={{ background: isDark ? T.dark.border : "#ecedf1" }}><div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.min(studentInfo.overallProgress || 65, 100)}%`, background: `linear-gradient(90deg, ${T.orange}, #3b82f6)` }} /></div></div>
-          <div className="flex items-center gap-1.5 mb-3"><Flame className="w-3.5 h-3.5" style={{ color: T.orange }} /><span className="text-[11px] font-semibold" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>Streak - {studentInfo.streak || 4}.</span></div>
-          <p className="text-[10px] font-medium" style={{ color: isDark ? T.dark.textHint : T.textHint }}>© SmartCliff LMS v2.0</p>
-        </div>
+          <div className="mb-2"><div className="h-[4px] w-full rounded-full overflow-hidden" style={{ background: isDark ? T.dark.border : "#ecedf1" }}><div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.min(studentInfo.overallProgress || 65, 100)}%`, background: `linear-gradient(90deg, ${T.orange}, #3b82f6)` }} /></div></div>
+          <div className="flex items-center gap-1.5 mb-2"><Flame className="w-3 h-3" style={{ color: T.orange }} /><span className="text-[10px] font-semibold" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>Streak - {studentInfo.streak || 4}.</span></div>
+          <p className="text-[9px] font-medium" style={{ color: isDark ? T.dark.textHint : T.textHint }}>© SmartCliff LMS v2.0</p>
+        </div> */}
       </aside>
     </>
   )

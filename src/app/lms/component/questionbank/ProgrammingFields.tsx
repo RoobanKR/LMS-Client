@@ -1,62 +1,195 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Code, Info, Clock, Cpu, Eye, EyeOff, FileText, CheckSquare, Square } from 'lucide-react';
-import { Hint, TestCase, Solution } from '../../../../apiServices/type/question';
+import {
+  Plus, Trash2, Terminal, Layout, Database,
+  ChevronDown, Bold, Italic, Underline, Code2, Image,
+} from 'lucide-react';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+export type CategoryType = 'core' | 'frontend' | 'database';
+
+export interface Hint {
+  hintText: string;
+  isPublic: boolean;
+  sequence: number;
+}
+
+export interface TestCase {
+  input: string;
+  expectedOutput: string;
+  isSample: boolean;
+  isHidden: boolean;
+  explanation?: string;
+}
+
+export interface Solution {
+  startedCode?: string;
+  functionName?: string;
+  language?: string;
+}
+
+export interface ProgrammingData {
+  title: string;
+  description: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+  sampleInput: string;
+  sampleOutput: string;
+  score: number;
+  constraints: string[];
+  hints: Hint[];
+  testCases: TestCase[];
+  solutions?: Solution;
+  category?: CategoryType;
+  sampleQuery?: string;
+  expectedResult?: string;
+}
 
 interface ProgrammingFieldsProps {
-  data: {
-    title: string;
-    description: string;
-    difficulty: 'Easy' | 'Medium' | 'Hard';
-    sampleInput: string;
-    sampleOutput: string;
-    score: number;
-    constraints: string[];
-    hints: Hint[];
-    testCases: TestCase[];
-    solutions?: Solution;
-    timeLimit?: number;
-    memoryLimit?: number;
-  };
+  data: ProgrammingData;
   onChange: (field: string, value: any) => void;
 }
 
-const ProgrammingFields: React.FC<ProgrammingFieldsProps> = ({
-  data,
-  onChange,
-}) => {
-  const [newConstraint, setNewConstraint] = useState('');
-  const [expandedSection, setExpandedSection] = useState<string | null>('basic');
+// ─── Rich Text Toolbar ────────────────────────────────────────────────────────
+const RichToolbar: React.FC<{ onFormat?: (fmt: string) => void }> = ({ onFormat }) => (
+  <div style={{
+    display: 'flex', alignItems: 'center', gap: '2px',
+    padding: '6px 10px', borderBottom: '1px solid #e5e7eb', background: '#fff',
+  }}>
+    {[
+      { icon: <Bold size={13} />, cmd: 'bold' },
+      { icon: <Italic size={13} />, cmd: 'italic' },
+      { icon: <Underline size={13} />, cmd: 'underline' },
+    ].map(({ icon, cmd }) => (
+      <button key={cmd} type="button" onClick={() => onFormat?.(cmd)}
+        style={{ padding: '3px 6px', border: 'none', borderRadius: 4, background: 'transparent', cursor: 'pointer', color: '#374151', display: 'flex', alignItems: 'center' }}
+        onMouseOver={e => (e.currentTarget.style.background = '#f3f4f6')}
+        onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
+      >{icon}</button>
+    ))}
+    <div style={{ width: 1, height: 16, background: '#d1d5db', margin: '0 4px' }} />
+    {[
+      { icon: <Code2 size={13} />, cmd: 'code' },
+      { icon: <Image size={13} />, cmd: 'image' },
+    ].map(({ icon, cmd }) => (
+      <button key={cmd} type="button" onClick={() => onFormat?.(cmd)}
+        style={{ padding: '3px 6px', border: 'none', borderRadius: 4, background: 'transparent', cursor: 'pointer', color: '#374151', display: 'flex', alignItems: 'center' }}
+        onMouseOver={e => (e.currentTarget.style.background = '#f3f4f6')}
+        onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
+      >{icon}</button>
+    ))}
+  </div>
+);
 
-  // Toggle section expansion
-  const toggleSection = (section: string) => {
-    setExpandedSection(expandedSection === section ? null : section);
+// ─── Field Label ──────────────────────────────────────────────────────────────
+const FieldLabel: React.FC<{ children: React.ReactNode; required?: boolean }> = ({ children, required }) => (
+  <label style={{
+    display: 'block', fontSize: 11, fontWeight: 600,
+    letterSpacing: '0.06em', color: '#111827',
+    marginBottom: 8, textTransform: 'uppercase',
+  }}>
+    {children}{required && <span style={{ color: '#ef4444', marginLeft: 2 }}>*</span>}
+  </label>
+);
+
+// ─── Divider ──────────────────────────────────────────────────────────────────
+const Divider = () => (
+  <div style={{ borderTop: '2px solid #f97316', margin: '20px 0', opacity: 0.25 }} />
+);
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+const ProgrammingFields: React.FC<ProgrammingFieldsProps> = ({ data, onChange }) => {
+  const [newConstraint, setNewConstraint] = useState('');
+  const [newFrontendConstraint, setNewFrontendConstraint] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<CategoryType>(data.category || 'core');
+
+  // First test case always open by default
+  const [openTestCases, setOpenTestCases] = useState<boolean[]>(() => {
+    const len = data.testCases?.length ?? 0;
+    if (len === 0) return [true];
+    return data.testCases.map((_, i) => i === 0);
+  });
+
+  const categories = [
+    { value: 'core' as CategoryType, label: 'Core Programming', icon: <Terminal size={14} /> },
+    { value: 'frontend' as CategoryType, label: 'Frontend', icon: <Layout size={14} /> },
+    { value: 'database' as CategoryType, label: 'Database', icon: <Database size={14} /> },
+  ];
+
+  // ── Shared Styles ──
+  const inputBase: React.CSSProperties = {
+    width: '100%', boxSizing: 'border-box',
+    border: 'none', borderBottom: '2px solid #f97316',
+    padding: '8px 2px', fontSize: 14, color: '#111827',
+    background: 'transparent', outline: 'none', fontFamily: 'inherit',
   };
 
-  // Constraints Management
-  const handleAddConstraint = () => {
-    if (newConstraint.trim()) {
-      onChange('constraints', [...(data.constraints || []), newConstraint.trim()]);
-      setNewConstraint('');
+  const boxInput: React.CSSProperties = {
+    width: '100%', boxSizing: 'border-box',
+    border: '1px solid #e5e7eb', borderRadius: 8,
+    padding: '10px 14px', fontSize: 14, color: '#111827',
+    background: '#fff', outline: 'none', fontFamily: 'inherit',
+    transition: 'border-color 0.15s',
+  };
+
+  const richBox: React.CSSProperties = {
+    border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden',
+  };
+
+  // ── Helpers ──
+  const handleCategoryChange = (cat: CategoryType) => {
+    setSelectedCategory(cat);
+    onChange('category', cat);
+  };
+
+const addConstraint = (isFrontend = false) => {
+  const val = isFrontend ? newFrontendConstraint : newConstraint;
+  const field = isFrontend ? 'constraints' : 'constraints';
+
+    const existing = isFrontend ? data.constraints || [] : data.constraints || [];
+    if (val.trim()) {
+      onChange(field, [...existing, val.trim()]);
+      isFrontend ? setNewFrontendConstraint('') : setNewConstraint('');
     }
   };
 
-  const handleRemoveConstraint = (index: number) => {
-    const updated = [...(data.constraints || [])];
-    updated.splice(index, 1);
-    onChange('constraints', updated);
+  const removeConstraint = (index: number, isFrontend = false) => {
+    const field = isFrontend ? 'constraints' : 'constraints';
+    const list = [...(isFrontend ? data.constraints || [] : data.constraints || [])];
+    list.splice(index, 1);
+    onChange(field, list);
   };
 
-  // Hints Management
+  const handleAddTestCase = () => {
+    onChange('testCases', [
+      ...(data.testCases || []),
+      { input: '', expectedOutput: '', isSample: false, isHidden: false, explanation: '' },
+    ]);
+    setOpenTestCases(prev => [...prev, false]);
+  };
+
+  const handleTestCaseChange = (index: number, field: keyof TestCase, value: any) => {
+    const updated = [...(data.testCases || [])];
+    updated[index] = { ...updated[index], [field]: value };
+    onChange('testCases', updated);
+  };
+
+  const handleRemoveTestCase = (index: number) => {
+    const updated = [...(data.testCases || [])];
+    updated.splice(index, 1);
+    onChange('testCases', updated);
+    setOpenTestCases(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const toggleTestCase = (index: number) => {
+    setOpenTestCases(prev => prev.map((isOpen, i) => i === index ? !isOpen : isOpen));
+  };
+
   const handleAddHint = () => {
     const hintText = prompt('Enter hint text:');
     if (hintText?.trim()) {
-      const newHint: Hint = {
-        hintText: hintText.trim(),
-        pointsDeduction: 0,
-        isPublic: false,
-        sequence: (data.hints?.length || 0) + 1,
-      };
-      onChange('hints', [...(data.hints || []), newHint]);
+      onChange('hints', [
+        ...(data.hints || []),
+        { hintText: hintText.trim(), isPublic: false, sequence: (data.hints?.length || 0) + 1 },
+      ]);
     }
   };
 
@@ -66,552 +199,376 @@ const ProgrammingFields: React.FC<ProgrammingFieldsProps> = ({
     onChange('hints', updated);
   };
 
-  // Test Cases Management
-  const handleTestCaseChange = (index: number, field: keyof TestCase, value: any) => {
-    const updated = [...(data.testCases || [])];
-    updated[index] = { ...updated[index], [field]: value };
-    onChange('testCases', updated);
-  };
-
-  const handleAddTestCase = () => {
-    onChange('testCases', [
-      ...(data.testCases || []),
-      {
-        input: '',
-        expectedOutput: '',
-        isSample: false,
-        isHidden: false,
-        points: 10,
-        explanation: '',
-      },
-    ]);
-  };
-
-  const handleRemoveTestCase = (index: number) => {
-    const updated = [...(data.testCases || [])];
-    updated.splice(index, 1);
-    onChange('testCases', updated);
-  };
-
-  return (
-    <div className="space-y-4">
-      {/* Basic Information - Always Expanded */}
-      <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-          <div>
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Title *
-            </label>
-            <input
-              type="text"
-              value={data.title || ''}
-              onChange={(e) => onChange('title', e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Difficulty *
-            </label>
-            <select
-              value={data.difficulty || 'Medium'}
-              onChange={(e) => onChange('difficulty', e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-              required
-            >
-              <option value="Easy">Easy</option>
-              <option value="Medium">Medium</option>
-              <option value="Hard">Hard</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Score
-            </label>
-            <input
-              type="number"
-              value={data.score || 0}
-              onChange={(e) => onChange('score', parseInt(e.target.value) || 0)}
-              min="0"
-              max="100"
-              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-            />
-          </div>
+  // ── Constraints ──
+  const renderConstraints = (constraints: string[], isFrontend: boolean) => {
+    const newVal = isFrontend ? newFrontendConstraint : newConstraint;
+    const setVal = isFrontend ? setNewFrontendConstraint : setNewConstraint;
+    return (
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <FieldLabel>Constraints</FieldLabel>
+          <button type="button" onClick={() => addConstraint(isFrontend)} style={{
+            display: 'flex', alignItems: 'center', gap: 4,
+            padding: '5px 14px', borderRadius: 20,
+            border: '1.5px solid #f97316', background: '#fff',
+            color: '#f97316', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+          }}>
+            <Plus size={12} /> Add
+          </button>
         </div>
-
-        <div>
-          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Description *
-          </label>
-          <textarea
-            value={data.description || ''}
-            onChange={(e) => onChange('description', e.target.value)}
-            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-            rows={3}
-            required
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+          <input
+            type="text" value={newVal}
+            onChange={e => setVal(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && addConstraint(isFrontend)}
+            placeholder="Type constraint and press Enter or Add"
+            style={{ ...boxInput, marginBottom: 0 }}
+            onFocus={e => (e.currentTarget.style.borderColor = '#f97316')}
+            onBlur={e => (e.currentTarget.style.borderColor = '#e5e7eb')}
           />
         </div>
-      </div>
-
-      {/* Sample Input/Output */}
-      <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
-        <button
-          type="button"
-          onClick={() => toggleSection('sample')}
-          className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-        >
-          <div className="flex items-center">
-            <FileText size={16} className="mr-2 text-gray-600 dark:text-gray-400" />
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Sample Input/Output</span>
+        {constraints.map((c, i) => (
+          <div key={i} style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '7px 12px', marginBottom: 6,
+            background: '#fafafa', border: '1px solid #f3f4f6', borderRadius: 6,
+          }}>
+            <span style={{ color: '#f97316', fontWeight: 700, fontSize: 13 }}>•</span>
+            <input
+              type="text" value={c}
+              onChange={e => {
+                const updated = [...constraints];
+                updated[i] = e.target.value;
+                onChange(isFrontend ? 'constraints' : 'constraints', updated);
+              }}
+              style={{ flex: 1, border: 'none', background: 'transparent', fontSize: 13, color: '#374151', outline: 'none' }}
+            />
+            <button type="button" onClick={() => removeConstraint(i, isFrontend)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: 2 }}
+              onMouseOver={e => (e.currentTarget.style.color = '#ef4444')}
+              onMouseOut={e => (e.currentTarget.style.color = '#9ca3af')}
+            ><Trash2 size={13} /></button>
           </div>
-          <span className="text-xs text-gray-500 dark:text-gray-400">{expandedSection === 'sample' ? '▼' : '▶'}</span>
-        </button>
-        
-        {expandedSection === 'sample' && (
-          <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Sample Input *
-                </label>
-                <textarea
-                  value={data.sampleInput || ''}
-                  onChange={(e) => onChange('sampleInput', e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono"
-                  rows={2}
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Sample Output *
-                </label>
-                <textarea
-                  value={data.sampleOutput || ''}
-                  onChange={(e) => onChange('sampleOutput', e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono"
-                  rows={2}
-                  required
-                />
-              </div>
-            </div>
-          </div>
-        )}
+        ))}
       </div>
+    );
+  };
 
-      {/* Constraints */}
-      <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
-        <button
-          type="button"
-          onClick={() => toggleSection('constraints')}
-          className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-        >
-          <div className="flex items-center">
-            <Square size={16} className="mr-2 text-gray-600 dark:text-gray-400" />
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Constraints ({data.constraints?.length || 0})
+  // ── Test Cases ──
+  const renderTestCases = () => (
+    <div style={{ marginBottom: 24 }}>
+      <FieldLabel required>Test Cases</FieldLabel>
+      <p style={{ fontSize: 12, color: '#9ca3af', marginBottom: 12 }}>
+        Test Case 1 is the sample. Add hidden cases for grading.
+      </p>
+
+      {(data.testCases || []).map((tc, i) => (
+        <div key={i} style={{ border: '1px solid #e5e7eb', borderRadius: 10, overflow: 'hidden', marginBottom: 12 }}>
+          {/* Header */}
+          <div style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            padding: '10px 16px', background: '#f9fafb',
+            borderBottom: openTestCases[i] ? '1px solid #e5e7eb' : 'none',
+            cursor: 'pointer',
+          }} onClick={() => toggleTestCase(i)}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>
+              Test Case {i + 1}
+              {tc.isSample && <span style={{ marginLeft: 8, color: '#3b82f6', fontWeight: 500, fontSize: 11 }}>Sample</span>}
+              {tc.isHidden && <span style={{ marginLeft: 6, color: '#6b7280', fontWeight: 500, fontSize: 11 }}>Hidden</span>}
             </span>
-          </div>
-          <span className="text-xs text-gray-500 dark:text-gray-400">{expandedSection === 'constraints' ? '▼' : '▶'}</span>
-        </button>
-        
-        {expandedSection === 'constraints' && (
-          <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-            <div className="space-y-2">
-              {data.constraints?.map((constraint, index) => (
-                <div key={index} className="flex items-center space-x-2">
-                  <span className="text-gray-500 dark:text-gray-400 text-xs">•</span>
-                  <input
-                    type="text"
-                    value={constraint}
-                    onChange={(e) => {
-                      const updated = [...(data.constraints || [])];
-                      updated[index] = e.target.value;
-                      onChange('constraints', updated);
-                    }}
-                    className="flex-1 px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }} onClick={e => e.stopPropagation()}>
+              {[
+                { label: 'Sample', field: 'isSample' as keyof TestCase, val: tc.isSample },
+                { label: 'Hidden', field: 'isHidden' as keyof TestCase, val: tc.isHidden },
+              ].map(({ label, field, val }) => (
+                <label key={field} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#6b7280', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={!!val}
+                    onChange={e => handleTestCaseChange(i, field, e.target.checked)}
+                    style={{ accentColor: '#f97316' }}
                   />
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveConstraint(index)}
-                    className="p-1 text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400"
-                    title="Remove"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
+                  {label}
+                </label>
               ))}
-              
-              <div className="flex items-center space-x-2 pt-2">
-                <span className="text-gray-500 dark:text-gray-400 text-xs">•</span>
-                <input
-                  type="text"
-                  value={newConstraint}
-                  onChange={(e) => setNewConstraint(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleAddConstraint()}
-                  placeholder="Add new constraint..."
-                  className="flex-1 px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
-                />
-                <button
-                  type="button"
-                  onClick={handleAddConstraint}
-                  className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                >
-                  Add
-                </button>
-              </div>
+              <button type="button" onClick={() => handleRemoveTestCase(i)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: 2 }}
+                onMouseOver={e => (e.currentTarget.style.color = '#ef4444')}
+                onMouseOut={e => (e.currentTarget.style.color = '#9ca3af')}
+              ><Trash2 size={14} /></button>
+              <ChevronDown size={14} style={{
+                transform: openTestCases[i] ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform 0.2s', color: '#9ca3af',
+              }} />
             </div>
           </div>
-        )}
-      </div>
 
-      {/* Limits */}
-      <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
-        <button
-          type="button"
-          onClick={() => toggleSection('limits')}
-          className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-        >
-          <div className="flex items-center">
-            <Cpu size={16} className="mr-2 text-gray-600 dark:text-gray-400" />
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Limits</span>
-          </div>
-          <span className="text-xs text-gray-500 dark:text-gray-400">{expandedSection === 'limits' ? '▼' : '▶'}</span>
-        </button>
-        
-        {expandedSection === 'limits' && (
-          <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {/* Body */}
+          {openTestCases[i] && (
+            <div style={{ padding: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  <Clock size={14} className="inline mr-1" />
-                  Time Limit (ms)
+                <label style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', letterSpacing: '0.05em', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                  Input
                 </label>
-                <input
-                  type="number"
-                  value={data.timeLimit || ''}
-                  onChange={(e) => onChange('timeLimit', parseInt(e.target.value) || undefined)}
-                  min="0"
-                  placeholder="1000"
-                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+                <textarea value={tc.input}
+                  onChange={e => handleTestCaseChange(i, 'input', e.target.value)}
+                  rows={3}
+                  style={{ ...boxInput, fontFamily: 'monospace', fontSize: 12, resize: 'vertical' }}
+                  placeholder="stdin..."
+                  onFocus={e => (e.currentTarget.style.borderColor = '#f97316')}
+                  onBlur={e => (e.currentTarget.style.borderColor = '#e5e7eb')}
                 />
               </div>
-
               <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  <Cpu size={14} className="inline mr-1" />
-                  Memory Limit (MB)
+                <label style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', letterSpacing: '0.05em', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                  Expected Output
                 </label>
-                <input
-                  type="number"
-                  value={data.memoryLimit || ''}
-                  onChange={(e) => onChange('memoryLimit', parseInt(e.target.value) || undefined)}
-                  min="0"
-                  placeholder="256"
-                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+                <textarea value={tc.expectedOutput}
+                  onChange={e => handleTestCaseChange(i, 'expectedOutput', e.target.value)}
+                  rows={3}
+                  style={{ ...boxInput, fontFamily: 'monospace', fontSize: 12, resize: 'vertical' }}
+                  placeholder="expected stdout..."
+                  onFocus={e => (e.currentTarget.style.borderColor = '#f97316')}
+                  onBlur={e => (e.currentTarget.style.borderColor = '#e5e7eb')}
+                />
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', letterSpacing: '0.05em', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                  Explanation (Optional)
+                </label>
+                <input type="text" value={tc.explanation || ''}
+                  onChange={e => handleTestCaseChange(i, 'explanation', e.target.value)}
+                  style={boxInput} placeholder="Explain this test case..."
+                  onFocus={e => (e.currentTarget.style.borderColor = '#f97316')}
+                  onBlur={e => (e.currentTarget.style.borderColor = '#e5e7eb')}
                 />
               </div>
             </div>
-          </div>
-        )}
-      </div>
-
-      {/* Hints */}
-      <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
-        <div className="flex items-center justify-between px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-          <div className="flex items-center">
-            <Info size={16} className="mr-2 text-gray-600 dark:text-gray-400" />
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Hints ({data.hints?.length || 0})
-            </span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <button
-              type="button"
-              onClick={handleAddHint}
-              className="px-2 py-1 text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded hover:bg-green-200 dark:hover:bg-green-800/40 transition-colors"
-            >
-              <Plus size={14} className="inline mr-1" />
-              Add Hint
-            </button>
-            <button
-              type="button"
-              onClick={() => toggleSection('hints')}
-              className="text-xs text-gray-500 dark:text-gray-400"
-            >
-              {expandedSection === 'hints' ? '▼' : '▶'}
-            </button>
-          </div>
+          )}
         </div>
-        
-        {expandedSection === 'hints' && data.hints && data.hints.length > 0 && (
-          <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-            <div className="space-y-3">
-              {data.hints.map((hint, index) => (
-                <div key={index} className="p-3 border border-gray-200 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800">
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="flex items-center space-x-2">
-                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Hint #{hint.sequence}</span>
-                      {hint.isPublic && (
-                        <span className="px-1.5 py-0.5 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded">Public</span>
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveHint(index)}
-                      className="p-1 text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400"
-                      title="Remove hint"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                  <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">{hint.hintText}</p>
-                  <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-                    <span>Points: -{hint.pointsDeduction}</span>
-                    <label className="flex items-center space-x-1">
-                      <input
-                        type="checkbox"
-                        checked={hint.isPublic}
-                        onChange={(e) => {
-                          const updated = [...(data.hints || [])];
-                          updated[index].isPublic = e.target.checked;
-                          onChange('hints', updated);
-                        }}
-                        className="h-3 w-3 text-blue-600 dark:text-blue-400 rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700"
-                      />
-                      <span className="text-gray-600 dark:text-gray-400">Public</span>
-                    </label>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
+      ))}
 
-      {/* Test Cases */}
-      <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
-        <div className="flex items-center justify-between px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-          <div className="flex items-center">
-            <Code size={16} className="mr-2 text-gray-600 dark:text-gray-400" />
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Test Cases ({data.testCases?.length || 0})
-            </span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <button
-              type="button"
-              onClick={handleAddTestCase}
-              className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded hover:bg-blue-200 dark:hover:bg-blue-800/40 transition-colors"
-            >
-              <Plus size={14} className="inline mr-1" />
-              Add Test Case
-            </button>
-            <button
-              type="button"
-              onClick={() => toggleSection('testcases')}
-              className="text-xs text-gray-500 dark:text-gray-400"
-            >
-              {expandedSection === 'testcases' ? '▼' : '▶'}
-            </button>
-          </div>
-        </div>
-        
-        {expandedSection === 'testcases' && data.testCases && data.testCases.length > 0 && (
-          <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-            <div className="space-y-3">
-              {data.testCases.map((testCase, index) => (
-                <div key={index} className="p-3 border border-gray-200 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800">
-                  <div className="flex justify-between items-center mb-3">
-                    <div className="flex items-center space-x-3">
-                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Test #{index + 1}</span>
-                      <div className="flex items-center space-x-3">
-                        <label className="flex items-center space-x-1 text-xs">
-                          <input
-                            type="checkbox"
-                            checked={testCase.isSample}
-                            onChange={(e) =>
-                              handleTestCaseChange(index, 'isSample', e.target.checked)
-                            }
-                            className="h-3 w-3 text-blue-600 dark:text-blue-400 rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700"
-                          />
-                          <span className="text-gray-600 dark:text-gray-400">Sample</span>
-                        </label>
-                        <label className="flex items-center space-x-1 text-xs">
-                          <input
-                            type="checkbox"
-                            checked={testCase.isHidden}
-                            onChange={(e) =>
-                              handleTestCaseChange(index, 'isHidden', e.target.checked)
-                            }
-                            className="h-3 w-3 text-blue-600 dark:text-blue-400 rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700"
-                          />
-                          <span className="text-gray-600 dark:text-gray-400">Hidden</span>
-                        </label>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveTestCase(index)}
-                      className="p-1 text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400"
-                      title="Remove test case"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
+      {/* Bottom Add Button */}
+      <button type="button" onClick={handleAddTestCase} style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+        width: '100%', padding: '10px',
+        borderRadius: 8, marginTop: 4,
+        border: '1.5px dashed #93c5fd', background: '#eff6ff',
+        color: '#3b82f6', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+        transition: 'all 0.15s',
+      }}
+        onMouseOver={e => { e.currentTarget.style.background = '#dbeafe'; e.currentTarget.style.borderColor = '#3b82f6'; }}
+        onMouseOut={e => { e.currentTarget.style.background = '#eff6ff'; e.currentTarget.style.borderColor = '#93c5fd'; }}
+      >
+        <Plus size={14} /> Add Test Case
+      </button>
+    </div>
+  );
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                    <div>
-                      <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
-                        Input
-                      </label>
-                      <textarea
-                        value={testCase.input}
-                        onChange={(e) =>
-                          handleTestCaseChange(index, 'input', e.target.value)
-                        }
-                        className="w-full px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-md font-mono bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                        rows={2}
-                        placeholder="Input..."
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
-                        Expected Output
-                      </label>
-                      <textarea
-                        value={testCase.expectedOutput}
-                        onChange={(e) =>
-                          handleTestCaseChange(index, 'expectedOutput', e.target.value)
-                        }
-                        className="w-full px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-md font-mono bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                        rows={2}
-                        placeholder="Expected output..."
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
-                        Points
-                      </label>
-                      <input
-                        type="number"
-                        value={testCase.points}
-                        onChange={(e) =>
-                          handleTestCaseChange(index, 'points', parseInt(e.target.value) || 0)
-                        }
-                        className="w-full px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                        min="0"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
-                        Explanation
-                      </label>
-                      <input
-                        type="text"
-                        value={testCase.explanation || ''}
-                        onChange={(e) =>
-                          handleTestCaseChange(index, 'explanation', e.target.value)
-                        }
-                        className="w-full px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
-                        placeholder="Optional..."
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Solution Template */}
-      <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
-        <button
-          type="button"
-          onClick={() => toggleSection('solution')}
-          className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-        >
-          <div className="flex items-center">
-            <Code size={16} className="mr-2 text-gray-600 dark:text-gray-400" />
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Solution Template</span>
-          </div>
-          <span className="text-xs text-gray-500 dark:text-gray-400">{expandedSection === 'solution' ? '▼' : '▶'}</span>
+  // ── Hints ──
+  const renderHints = () => (
+    <div style={{ marginBottom: 24 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <FieldLabel>Hints (Optional)</FieldLabel>
+        <button type="button" onClick={handleAddHint} style={{
+          display: 'flex', alignItems: 'center', gap: 4,
+          padding: '5px 14px', borderRadius: 20,
+          border: '1.5px solid #10b981', background: '#fff',
+          color: '#10b981', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+        }}>
+          <Plus size={12} /> Add Hint
         </button>
-        
-        {expandedSection === 'solution' && (
-          <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Function Name
-                  </label>
-                  <input
-                    type="text"
-                    value={data.solutions?.functionName || ''}
-                    onChange={(e) =>
-                      onChange('solutions', {
-                        ...data.solutions,
-                        functionName: e.target.value,
-                      })
-                    }
-                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono placeholder-gray-400 dark:placeholder-gray-500"
-                    placeholder="solveProblem"
-                  />
-                </div>
+      </div>
+      {(data.hints || []).map((hint, i) => (
+        <div key={i} style={{
+          padding: '12px 14px', marginBottom: 8,
+          background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8,
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: '#065f46' }}>Hint #{hint.sequence || i + 1}</span>
+            <button type="button" onClick={() => handleRemoveHint(i)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af' }}
+              onMouseOver={e => (e.currentTarget.style.color = '#ef4444')}
+              onMouseOut={e => (e.currentTarget.style.color = '#9ca3af')}
+            ><Trash2 size={13} /></button>
+          </div>
+          <p style={{ fontSize: 13, color: '#374151', margin: '0 0 8px' }}>{hint.hintText}</p>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', fontSize: 11, color: '#6b7280' }}>
+            <input type="checkbox" checked={hint.isPublic}
+              onChange={e => {
+                const updated = [...(data.hints || [])];
+                updated[i] = { ...updated[i], isPublic: e.target.checked };
+                onChange('hints', updated);
+              }}
+              style={{ accentColor: '#10b981' }}
+            />
+            Public
+          </label>
+        </div>
+      ))}
+    </div>
+  );
 
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Language
-                  </label>
-                  <select
-                    value={data.solutions?.language || 'javascript'}
-                    onChange={(e) =>
-                      onChange('solutions', {
-                        ...data.solutions,
-                        language: e.target.value,
-                      })
-                    }
-                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                  >
-                    <option value="javascript">JavaScript</option>
-                    <option value="python">Python</option>
-                    <option value="java">Java</option>
-                    <option value="cpp">C++</option>
-                    <option value="c">C</option>
-                  </select>
-                </div>
-              </div>
+  // ─────────────────────────────────────────────────────────────────────────────
+  return (
+    <div style={{ fontFamily: "'Geist', 'Inter', sans-serif", color: '#111827' }}>
 
-              <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Starter Code
-                </label>
-                <textarea
-                  value={data.solutions?.startedCode || ''}
-                  onChange={(e) =>
-                    onChange('solutions', {
-                      ...data.solutions,
-                      startedCode: e.target.value,
-                    })
-                  }
-                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono placeholder-gray-400 dark:placeholder-gray-500"
-                  rows={5}
-                  placeholder="Enter starter code..."
-                />
-              </div>
+      {/* Category Selector */}
+      <div style={{ display: 'flex', gap: 10, marginBottom: 24 }}>
+        {categories.map(cat => {
+          const active = selectedCategory === cat.value;
+          return (
+            <button key={cat.value} type="button"
+              onClick={() => handleCategoryChange(cat.value)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 7,
+                padding: '8px 18px', borderRadius: 8, cursor: 'pointer',
+                border: active ? '2px solid #f97316' : '2px solid #e5e7eb',
+                background: active ? '#fff7ed' : '#fff',
+                color: active ? '#f97316' : '#6b7280',
+                fontWeight: 600, fontSize: 13, transition: 'all 0.15s',
+              }}
+            >
+              {cat.icon} {cat.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Difficulty */}
+      <div style={{ marginBottom: 24 }}>
+        <FieldLabel required>Difficulty</FieldLabel>
+        <div style={{ position: 'relative', maxWidth: '200px' }}>
+          <select
+            value={data.difficulty || 'medium'}
+            onChange={e => onChange('difficulty', e.target.value)}
+            style={{ ...boxInput, appearance: 'none', paddingRight: 32, fontWeight: 500, cursor: 'pointer' }}
+            onFocus={e => (e.currentTarget.style.borderColor = '#f97316')}
+            onBlur={e => (e.currentTarget.style.borderColor = '#e5e7eb')}
+          >
+            <option value="easy">Easy</option>
+            <option value="medium">Medium</option>
+            <option value="hard">Hard</option>
+          </select>
+          <ChevronDown size={14} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#9ca3af' }} />
+        </div>
+      </div>
+
+      {/* Problem Title */}
+      <div style={{ marginBottom: 24 }}>
+        <FieldLabel required>Problem Title</FieldLabel>
+        <input
+          type="text" value={data.title || ''}
+          onChange={e => onChange('title', e.target.value)}
+          placeholder={
+            selectedCategory === 'database' ? 'Enter database question title...' :
+            selectedCategory === 'frontend' ? 'Enter frontend challenge title...' :
+            'Type your problem title here...'
+          }
+          style={inputBase}
+        />
+      </div>
+
+      {/* Problem Description */}
+      <div style={{ marginBottom: 24 }}>
+        <FieldLabel required>Problem Description</FieldLabel>
+        <div style={richBox}>
+          <RichToolbar />
+          <textarea
+            value={data.description || ''}
+            onChange={e => onChange('description', e.target.value)}
+            rows={5}
+            placeholder={
+              selectedCategory === 'database'
+                ? 'Describe the database problem. Include table schemas, sample data, and expected query results.'
+                : selectedCategory === 'frontend'
+                ? 'Describe the frontend challenge. Include UI requirements, behaviour, and acceptance criteria.'
+                : 'Describe the problem clearly. Include input/output format and examples.'
+            }
+            style={{
+              width: '100%', boxSizing: 'border-box',
+              border: 'none', padding: '12px 14px',
+              fontSize: 14, color: '#374151',
+              background: '#fff', outline: 'none',
+              resize: 'vertical', fontFamily: 'inherit', minHeight: 120,
+            }}
+          />
+          <div style={{ borderTop: '1px solid #f3f4f6', padding: '6px 14px', background: '#fafafa' }} />
+        </div>
+      </div>
+
+      <Divider />
+
+      {/* ── Core Programming ── */}
+      {selectedCategory === 'core' && (
+        <>
+          {renderConstraints(data.constraints || [], false)}
+          <Divider />
+          {renderTestCases()}
+        </>
+      )}
+
+      {/* ── Frontend ── */}
+{selectedCategory === 'frontend' && (
+  <>
+    {renderConstraints(data.constraints || [], true)}
+  </>
+)}
+
+      {/* ── Database ── */}
+      {selectedCategory === 'database' && (
+        <>
+          {/* Sample Query */}
+           <div style={{ marginBottom: 24 }}>
+      <FieldLabel required>Sample Query</FieldLabel>
+      <textarea
+        value={data.sampleQuery || ''}
+        onChange={e => onChange('sampleQuery', e.target.value)}
+              rows={5}
+              placeholder={`-- Example:\nSELECT employee_id, name, department\nFROM employees\nWHERE salary > 50000;`}
+              style={{
+                width: '100%', boxSizing: 'border-box',
+                border: '1px solid #374151', borderRadius: 8,
+                padding: '12px 14px', fontSize: 13,
+                fontFamily: 'monospace', color: '#e5e7eb',
+                background: '#1e293b', outline: 'none',
+                resize: 'vertical', minHeight: 120,
+              }}
+              onFocus={e => (e.currentTarget.style.borderColor = '#f97316')}
+              onBlur={e => (e.currentTarget.style.borderColor = '#374151')}
+            />
+          </div>
+
+          {/* Expected Result */}
+ <div style={{ marginBottom: 24 }}>
+      <FieldLabel required>Expected Result</FieldLabel>
+      <div style={richBox}>
+        <RichToolbar />
+        <textarea
+          value={data.expectedResult || ''}
+          onChange={e => onChange('expectedResult', e.target.value)}
+                rows={4}
+                placeholder="Describe the expected result. Use table format or plain text."
+                style={{
+                  width: '100%', boxSizing: 'border-box',
+                  border: 'none', padding: '12px 14px',
+                  fontSize: 14, color: '#374151',
+                  background: '#fff', outline: 'none',
+                  resize: 'vertical', fontFamily: 'inherit',
+                }}
+              />
+              <div style={{ borderTop: '1px solid #f3f4f6', padding: '6px', background: '#fafafa' }} />
             </div>
           </div>
-        )}
-      </div>
+
+          <Divider />
+          {renderConstraints(data.constraints || [], false)}
+        </>
+      )}
+
+      <Divider />
+
+      {/* Hints — all categories */}
+      {renderHints()}
+
     </div>
   );
 };

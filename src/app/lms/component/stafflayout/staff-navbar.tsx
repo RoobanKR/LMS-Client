@@ -4,12 +4,14 @@ import {
   Bell, User, Settings, Menu, ChevronDown,
   LogOut, HelpCircle, Zap,
   Sun, Moon, UserCheck2, Sparkles,
-  CalendarDays, Clock,
+  CalendarDays, Clock, Search, X,
+  ArrowLeft, ChevronRight,
 } from "lucide-react"
 import { useState, useEffect, useRef } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import { notificationsService } from "@/apiServices/notifications"
+import { postLogout } from "@/apiServices/activityLog"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { notificationKeys } from "@/apiServices/notifications"
 import { getCurrentUser } from "@/apiServices/tokenVerify"
@@ -74,7 +76,41 @@ const formatTime = (d: Date) =>
 
 export function StaffTopBar({ onMenuClick, sidebarOpen }: StaffTopBarProps) {
   const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const queryClient = useQueryClient()
+
+  const isOnDashboard = !!(pathname?.includes('admindashboard') || pathname?.includes('studentdashboard'))
+  const isCoursesPage = pathname === '/lms/pages/courses'
+  const isLogsPage    = pathname === '/lms/pages/logs'
+  const isReportPage  = pathname === '/lms/pages/logs/report'
+  const reportHasStudent = isReportPage && !!searchParams?.get('student')
+  const showNavSearch = isCoursesPage
+
+  const searchPlaceholder = 'Search courses…'
+
+  const [navSearch, setNavSearch] = useState('')
+  const [currentLogsTab, setCurrentLogsTab] = useState<'login' | 'course'>('login')
+
+  // Sync search from URL on mount / navigation
+  useEffect(() => {
+    if (showNavSearch) {
+      const q = new URLSearchParams(window.location.search).get('q') || ''
+      setNavSearch(q)
+    }
+    if (isLogsPage) {
+      const t = new URLSearchParams(window.location.search).get('tab') || 'login'
+      setCurrentLogsTab(t as 'login' | 'course')
+    }
+  }, [pathname, showNavSearch, isLogsPage])
+
+  const handleNavSearch = (val: string) => {
+    setNavSearch(val)
+    const params = new URLSearchParams()
+    if (val) params.set('q', val)
+    const query = params.toString()
+    router.replace(pathname + (query ? '?' + query : ''), { scroll: false } as any)
+  }
 
   const [showNotifications, setShowNotifications] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
@@ -157,7 +193,7 @@ export function StaffTopBar({ onMenuClick, sidebarOpen }: StaffTopBarProps) {
 
   const handleLogout = async () => {
     setIsLoggingOut(true)
-    try { localStorage.clear(); toast.success("Logged out"); router.push("/login") }
+    try { await postLogout(); localStorage.clear(); toast.success("Logged out"); router.push("/login") }
     catch { toast.error("Logout failed") }
     finally { setIsLoggingOut(false) }
   }
@@ -245,15 +281,18 @@ export function StaffTopBar({ onMenuClick, sidebarOpen }: StaffTopBarProps) {
         }
       `}</style>
 
-      <div className="flex items-center justify-between gap-4 pb-5 mb-5">
+      <div className={cn(
+        "flex items-center justify-between gap-4",
+        isLogsPage ? "pb-0 mb-0" : "pb-3 mb-2"
+      )}>
 
-        {/* ── LEFT: hamburger + greeting card ── */}
-        <div className="flex items-center gap-3 flex-1">
+        {/* ── LEFT: hamburger + greeting card / tabs ── */}
+        <div className={cn("flex gap-3 flex-1", isLogsPage ? "items-end" : "items-center")}>
 
-          {/* Mobile hamburger */}
+          {/* Hamburger — always visible so sidebar can be reopened */}
           <button
             onClick={onMenuClick}
-            className="p-2 rounded-full transition-colors md:hidden flex-shrink-0"
+            className="p-2 rounded-full transition-colors flex-shrink-0 self-center"
             style={{
               color: isDark ? T.dark.textMuted : T.textMuted,
               background: isDark ? T.dark.surface : "#ffffff",
@@ -264,75 +303,200 @@ export function StaffTopBar({ onMenuClick, sidebarOpen }: StaffTopBarProps) {
             <Menu className="w-[18px] h-[18px]" strokeWidth={2} />
           </button>
 
-          {/* ── GREETING + DATE/TIME CARD ── */}
-          <div
-            className="flex items-center gap-4 flex-1 px-5 py-3 rounded-2xl"
-            style={{
-              background: isDark
-                ? `linear-gradient(120deg, rgba(242,119,87,0.10) 0%, ${T.dark.surface} 100%)`
-                : `linear-gradient(120deg, rgba(242,119,87,0.07) 0%, #ffffff 100%)`,
-              border: `1.5px solid ${isDark ? "rgba(242,119,87,0.18)" : "rgba(242,119,87,0.15)"}`,
-              boxShadow: isDark
-                ? `0 2px 12px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.04)`
-                : `0 2px 12px rgba(242,119,87,0.08), inset 0 1px 0 rgba(255,255,255,0.9)`,
-            }}
-          >
-            {/* Emoji badge */}
+          {/* ── LOGS PAGE: Tab switcher (replaces search bar) ── */}
+          {isLogsPage && (
+            <div className="flex items-end gap-0.5">
+              {([
+                { id: 'login'  as const, label: 'User Logs'   },
+                { id: 'course' as const, label: 'Course Logs' },
+              ]).map(({ id, label }) => {
+                const active = currentLogsTab === id;
+                return (
+                  <button
+                    key={id}
+                    onClick={() => {
+                      setCurrentLogsTab(id);
+                      const params = new URLSearchParams(window.location.search);
+                      params.set('tab', id);
+                      params.delete('q');
+                      router.replace(pathname + '?' + params.toString(), { scroll: false } as any);
+                    }}
+                    style={{
+                      padding: '10px 24px 11px',
+                      fontSize: active ? 14 : 13,
+                      fontWeight: active ? 700 : 500,
+                      color: active
+                        ? (isDark ? T.dark.textMain : T.textMain)
+                        : (isDark ? T.dark.textMuted : T.textMuted),
+                      background: active
+                        ? (isDark ? T.dark.bg : '#ffffff')
+                        : (isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)'),
+                      border: active
+                        ? `1.5px solid ${isDark ? T.dark.border : T.border}`
+                        : '1.5px solid transparent',
+                      borderBottom: active
+                        ? `2px solid ${isDark ? T.dark.bg : '#ffffff'}`
+                        : '1.5px solid transparent',
+                      borderRadius: '10px 10px 0 0',
+                      cursor: 'pointer',
+                      position: 'relative',
+                      bottom: '-2px',
+                      zIndex: 10,
+                      transition: 'color 0.15s, background 0.15s',
+                      fontFamily: 'inherit',
+                      lineHeight: 1.2,
+                      letterSpacing: active ? '-0.02em' : 'normal',
+                    }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* ── REPORT PAGE: back + title + breadcrumb ── */}
+          {isReportPage && (
+            <div className="flex items-center gap-3 min-w-0">
+              <button
+                onClick={() => router.push('/lms/pages/logs?tab=course')}
+                className="flex items-center gap-1.5 flex-shrink-0 transition-colors"
+                style={{
+                  height: 32, padding: '0 11px', fontSize: 12.5, fontWeight: 600, borderRadius: 9,
+                  color: isDark ? T.dark.textSub : T.textSub,
+                  background: isDark ? T.dark.surface : '#ffffff',
+                  border: `1.5px solid ${isDark ? T.dark.border : '#eae7ec'}`,
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.07)',
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = T.orange; (e.currentTarget as HTMLElement).style.color = T.orange }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = isDark ? T.dark.border : '#eae7ec'; (e.currentTarget as HTMLElement).style.color = isDark ? T.dark.textSub : T.textSub }}
+              >
+                <ArrowLeft className="w-3.5 h-3.5" /> Back
+              </button>
+              <div className="min-w-0">
+                <h1 className="truncate" style={{ fontSize: 17, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.15, color: isDark ? T.dark.textMain : T.textMain }}>
+                  Course Log Report{reportHasStudent ? ' - Student' : ''}
+                </h1>
+                <div className="flex items-center gap-1 mt-0.5" style={{ fontSize: 11, color: isDark ? T.dark.textMuted : T.textMuted }}>
+                  <span>Reports</span>
+                  <ChevronRight className="w-3 h-3" />
+                  <span style={{ color: reportHasStudent ? (isDark ? T.dark.textMuted : T.textMuted) : (isDark ? T.dark.textSub : T.textSub), fontWeight: 500 }}>Course Log Report</span>
+                  {reportHasStudent && (
+                    <>
+                      <ChevronRight className="w-3 h-3" />
+                      <span style={{ color: isDark ? T.dark.textSub : T.textSub, fontWeight: 500 }}>Student Report</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── COURSES PAGE: inline search bar ── */}
+          {showNavSearch && (
+            <div className="relative flex-1 max-w-[480px]">
+              <Search
+                className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none"
+                style={{ color: isDark ? T.dark.textHint : T.textHint }}
+              />
+              <input
+                type="text"
+                placeholder={searchPlaceholder}
+                value={navSearch}
+                onChange={e => handleNavSearch(e.target.value)}
+                className="w-full h-[40px] pl-11 pr-9 text-[13px] outline-none"
+                style={{
+                  background: isDark ? T.dark.surface : '#ffffff',
+                  border: `1.5px solid ${isDark ? T.dark.border : T.border}`,
+                  borderRadius: '12px',
+                  color: isDark ? T.dark.textMain : T.textMain,
+                  fontFamily: 'inherit',
+                }}
+                onFocus={e => {
+                  e.currentTarget.style.borderColor = T.orange
+                  e.currentTarget.style.background = isDark ? T.dark.bg : '#ffffff'
+                  e.currentTarget.style.boxShadow = `0 0 0 3px rgba(242,119,87,0.12)`
+                }}
+                onBlur={e => {
+                  e.currentTarget.style.borderColor = isDark ? T.dark.border : T.border
+                  e.currentTarget.style.background = isDark ? T.dark.surface : '#ffffff'
+                  e.currentTarget.style.boxShadow = 'none'
+                }}
+              />
+              {navSearch && (
+                <button
+                  onClick={() => handleNavSearch('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2"
+                  style={{ color: isDark ? T.dark.textMuted : T.textMuted }}
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* ── GREETING + DATE/TIME CARD — dashboard pages only ── */}
+          {isOnDashboard && (
             <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0 select-none"
+              className="flex items-center gap-4 flex-1 px-5 py-3 rounded-2xl"
               style={{
-                background: isDark ? "rgba(242,119,87,0.15)" : T.orangeLight,
-                border: `1.5px solid ${isDark ? "rgba(242,119,87,0.25)" : "rgba(242,119,87,0.20)"}`,
+                background: isDark
+                  ? `linear-gradient(120deg, rgba(242,119,87,0.10) 0%, ${T.dark.surface} 100%)`
+                  : `linear-gradient(120deg, rgba(242,119,87,0.07) 0%, #ffffff 100%)`,
+                border: `1.5px solid ${isDark ? "rgba(242,119,87,0.18)" : "rgba(242,119,87,0.15)"}`,
+                boxShadow: isDark
+                  ? `0 2px 12px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.04)`
+                  : `0 2px 12px rgba(242,119,87,0.08), inset 0 1px 0 rgba(255,255,255,0.9)`,
               }}
             >
-              {greetEmoji}
-            </div>
-
-            {/* Greeting text */}
-            <div className="flex-1 min-w-0">
-              <p className="text-[13.5px] font-bold leading-tight truncate" style={{ color: isDark ? T.dark.textMain : T.textMain }}>
-                {greetText},{" "}
-                <span style={{ color: T.orange }}>
-                  {user?.firstName || "there"}{isDummyStudent ? " (Student View)" : ""}
-                </span>{" "}
-                <Sparkles className="inline w-3.5 h-3.5 mb-0.5" style={{ color: T.orange }} />
-              </p>
-              <p className="text-[11px] mt-0.5 leading-none" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>
-                {user?.role?.renameRole || user?.institution?.institutionName || "SmartCliff LMS"}
-              </p>
-            </div>
-
-            {/* Date + time pills */}
-            <div className="hidden md:flex items-center gap-2 flex-shrink-0">
-              {/* Date pill */}
+              {/* Emoji badge */}
               <div
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full"
+                className="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0 select-none"
                 style={{
-                  background: isDark ? T.dark.bg : "#f5f3f8",
-                  border: `1px solid ${isDark ? T.dark.border : T.border}`,
+                  background: isDark ? "rgba(242,119,87,0.15)" : T.orangeLight,
+                  border: `1.5px solid ${isDark ? "rgba(242,119,87,0.25)" : "rgba(242,119,87,0.20)"}`,
                 }}
               >
-                <CalendarDays className="w-3.5 h-3.5" style={{ color: T.orange }} strokeWidth={2} />
-                <span className="text-[11px] font-semibold" style={{ color: isDark ? T.dark.textSub : T.textSub }}>
-                  {formatDate(now)}
-                </span>
+                {greetEmoji}
               </div>
 
-              {/* Time pill */}
-              <div
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full"
-                style={{
-                  background: isDark ? T.dark.bg : "#f5f3f8",
-                  border: `1px solid ${isDark ? T.dark.border : T.border}`,
-                }}
-              >
-                <Clock className="w-3.5 h-3.5" style={{ color: T.orange }} strokeWidth={2} />
-                <span className="text-[11px] font-semibold tabular-nums" style={{ color: isDark ? T.dark.textSub : T.textSub }}>
-                  {formatTime(now)}
-                </span>
+              {/* Greeting text */}
+              <div className="flex-1 min-w-0">
+                <p className="text-[13.5px] font-bold leading-tight truncate" style={{ color: isDark ? T.dark.textMain : T.textMain }}>
+                  {greetText},{" "}
+                  <span style={{ color: T.orange }}>
+                    {user?.firstName || "there"}{isDummyStudent ? " (Student View)" : ""}
+                  </span>{" "}
+                  <Sparkles className="inline w-3.5 h-3.5 mb-0.5" style={{ color: T.orange }} />
+                </p>
+                <p className="text-[11px] mt-0.5 leading-none" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>
+                  {user?.role?.renameRole || user?.institution?.institutionName || "SmartCliff LMS"}
+                </p>
+              </div>
+
+              {/* Date + time pills */}
+              <div className="hidden md:flex items-center gap-2 flex-shrink-0">
+                <div
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full"
+                  style={{ background: isDark ? T.dark.bg : "#f5f3f8", border: `1px solid ${isDark ? T.dark.border : T.border}` }}
+                >
+                  <CalendarDays className="w-3.5 h-3.5" style={{ color: T.orange }} strokeWidth={2} />
+                  <span className="text-[11px] font-semibold" style={{ color: isDark ? T.dark.textSub : T.textSub }}>
+                    {formatDate(now)}
+                  </span>
+                </div>
+                <div
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full"
+                  style={{ background: isDark ? T.dark.bg : "#f5f3f8", border: `1px solid ${isDark ? T.dark.border : T.border}` }}
+                >
+                  <Clock className="w-3.5 h-3.5" style={{ color: T.orange }} strokeWidth={2} />
+                  <span className="text-[11px] font-semibold tabular-nums" style={{ color: isDark ? T.dark.textSub : T.textSub }}>
+                    {formatTime(now)}
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* ── RIGHT: bell + theme toggle + divider + profile ── */}

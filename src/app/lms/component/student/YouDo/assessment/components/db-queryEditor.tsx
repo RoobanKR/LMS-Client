@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react"
+import { useExamLiveEmitter } from "./useExamLiveEmitter"
+import ScreenShareGuard from "./ScreenShareGuard"
+import StudentMessageChat from "./StudentMessageChat"
 import {
     Play, RotateCcw, CheckCircle, X, Search, AlertTriangle,
     XCircle, ArrowLeft, Plus, RefreshCw, History, ChevronLeft,
@@ -25,6 +28,11 @@ import dynamic from 'next/dynamic'
 import axios from 'axios'
 import 'react-toastify/dist/ReactToastify.css'
 import { toast, ToastContainer } from 'react-toastify'
+import { useAssessmentSecurity, normalizeSecurityConfig, AssessmentSecurityConfig } from './useAssessmentSecurity'
+import { useFaceProctor } from './useFaceProctor'
+import { useScreenRecording } from './useScreenRecording'
+import FaceVerificationGate from './FaceVerificationGate'
+import LiveCameraPreview from './LiveCameraPreview'
 
 // Types (unchanged)
 interface BrowserDatabase {
@@ -132,6 +140,12 @@ interface DBQueryEditorProps {
     onCloseExercise?: () => void
     onResetExercise?: () => void
     initialQuestionIndex?: number
+    /** When true: suppresses internal assessment-mode security modal and browser fullscreen */
+    embedded?: boolean
+    /** Section mode: called when Next is pressed on the LAST question (Combined → next part). */
+    onCrossNext?: () => void
+    /** Section mode: called when Prev is pressed on the FIRST question (Combined → back to MCQ). */
+    onCrossPrev?: () => void
 }
 
 // Monaco Editor Configuration
@@ -2102,7 +2116,9 @@ const QuestionPanel = ({
     attemptLimitEnabled,
     onToggleCollapse,
     isCollapsed,
-    theme = "light"
+    theme = "light",
+    allowPrevAtStart = false,
+    allowNextAtEnd = false
 }: {
     question: any
     currentQuestionIndex: number
@@ -2115,6 +2131,8 @@ const QuestionPanel = ({
     onToggleCollapse: () => void
     isCollapsed: boolean
     theme?: "light" | "dark"
+    allowPrevAtStart?: boolean
+    allowNextAtEnd?: boolean
 }) => {
     const [showHint, setShowHint] = useState(false)
     const [showSolution, setShowSolution] = useState(false)
@@ -2370,7 +2388,7 @@ const QuestionPanel = ({
                 <div className="flex items-center gap-4 mt-2">
                     <button
                         onClick={onPrevious}
-                        disabled={currentQuestionIndex === 0}
+                        disabled={currentQuestionIndex === 0 && !allowPrevAtStart}
                         className={`p-1.5 rounded hover:scale-110 transition-all ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-200'} disabled:opacity-50 disabled:cursor-not-allowed`}
                         title="Previous Question"
                     >
@@ -2381,7 +2399,7 @@ const QuestionPanel = ({
                     </span>
                     <button
                         onClick={onNext}
-                        disabled={currentQuestionIndex === totalQuestions - 1}
+                        disabled={currentQuestionIndex === totalQuestions - 1 && !allowNextAtEnd}
                         className={`p-1.5 rounded hover:scale-110 transition-all ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-200'} disabled:opacity-50 disabled:cursor-not-allowed`}
                         title="Next Question"
                     >
@@ -2527,7 +2545,10 @@ export default function DBQueryEditorPage({
     onBack,
     onCloseExercise,
     onResetExercise,
-    initialQuestionIndex = 0
+    initialQuestionIndex = 0,
+    embedded = false,
+    onCrossNext,
+    onCrossPrev,
 }: DBQueryEditorProps) {
     const [currentTheme, setCurrentTheme] = useState<string>(theme)
     const [databases, setDatabases] = useState<BrowserDatabase[]>([])
@@ -2555,13 +2576,108 @@ export default function DBQueryEditorPage({
     const [isLoadingPrevious, setIsLoadingPrevious] = useState(false)
     const [previousAttempts, setPreviousAttempts] = useState<number>(0)
 
+    // ── Security ────────────────────────────────────────────────────────────
+    // When embedded the parent SectionBasedTestPage handles security.
+    const isYouDo = !embedded && (category || '').replace(/_/g, ' ').toLowerCase().trim() === 'you do';
+    const [showSecurityModal, setShowSecurityModal] = useState(false);
+    const [showFaceVerification, setShowFaceVerification] = useState(false);
+    const [securityAgreed, setSecurityAgreed] = useState(!isYouDo);
+    const [assessmentActive, setAssessmentActive] = useState(!isYouDo);
+    const securityConfig = normalizeSecurityConfig(exercise?.securitySettings || {});
+
+    useAssessmentSecurity({
+        config: securityConfig,
+        isActive: assessmentActive && securityAgreed,
+        onTabSwitchViolation: (count, max) => {
+            toast.warning(`⚠️ Tab switch ${count}/${max}`, { toastId: 'sql-tab' });
+            if (count >= max) toast.error('Max tab switches — assessment may be auto-submitted.', { toastId: 'sql-terminate' });
+        },
+        onTimeWarning: (secs) => {
+            toast.warning(`⏰ ${secs}s remaining!`, { toastId: 'sql-warn', autoClose: 8000 });
+        },
+    });
+
+    // ── Face proctoring: warn on no-face / multiple persons, then auto-submit ──
+    useFaceProctor({
+        isActive: assessmentActive && securityAgreed,
+        multiFaceEnabled: !!(securityConfig as any).multipleFaceDetection,
+        multiFaceLimit: (securityConfig as any).faceWarningLimit ?? 3,
+        noFaceEnabled: !!(securityConfig as any).faceMonitoringDetection,
+        noFaceLimit: (securityConfig as any).faceMonitoringWarningLimit ?? 3,
+        intervalSeconds: 10,
+        onWarning: ({ reason, count, limit }) => {
+            toast.warning(`⚠️ ${reason} (${count}/${limit}). Continued violations will auto-submit.`, { toastId: `sql-face-${count}`, autoClose: 4000 });
+        },
+        onLimitReached: async (reason) => {
+            toast.error(`${reason} — assessment locked.`, { toastId: 'sql-face-term' });
+            try {
+                const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
+                await fetch('https://lms-server-ym1q.onrender.com/exercise/lock', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({
+                        courseId,
+                        exerciseId: exerciseData?._id,
+                        category: category || 'You_Do',
+                        subcategory: subcategory || '',
+                        status: 'terminated',
+                        reason,
+                        submitType: 'AUTO',
+                        autoSubmitReason: reason,
+                    }),
+                });
+            } catch (e) { console.warn('SQL face lock failed', e); }
+        },
+    });
+
+    // ── Screen recording (proctoring) ────────────────────────────────────────
+    const { startRecording, stopRecording } = useScreenRecording();
+
+    /** Called after security agreement (and face verification if required). */
+    const beginAssessment = useCallback(() => {
+        setSecurityAgreed(true);
+        setAssessmentActive(true);
+
+        const sId = typeof window !== 'undefined'
+            ? (localStorage.getItem('smartcliff_userId') || localStorage.getItem('userId') || 'student')
+            : 'student';
+        const base = {
+            courseId:    courseId    || '',
+            exerciseId:  exercise?._id || '',
+            studentId:   sId,
+            category:    'You_Do',
+            subcategory: subcategory || 'assessments',
+        };
+
+        const hasScreen = securityConfig.screenRecordingEnabled;
+        const hasFace   = securityConfig.enableFaceVerification;
+
+        if (hasScreen) {
+            // Screen recording — include camera PiP if face verification is also on
+            startRecording({ ...base, withCamera: !!hasFace })
+                .catch(err => console.warn('SQL screen recording start failed:', err));
+        } else if (hasFace) {
+            // Face-only recording
+            startRecording({ ...base, cameraOnly: true })
+                .catch(err => console.warn('SQL camera recording start failed:', err));
+        }
+        // if neither → no recording
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [securityConfig, courseId, exercise?._id, subcategory]);
+
     const editorRefs = useRef<Record<string, any>>({})
     const containerRef = useRef<HTMLDivElement>(null)
+
+    // Show security agreement when You_Do mode loads
+    useEffect(() => {
+        if (isYouDo && !securityAgreed) setShowSecurityModal(true);
+    }, [isYouDo]);
 
     useEffect(() => {
         if (currentTheme === 'dark') {
             document.documentElement.classList.add('dark')
         } else {
+            document.removeEventListener('dark', () => {})
             document.documentElement.classList.remove('dark')
         }
     }, [currentTheme])
@@ -2613,6 +2729,9 @@ export default function DBQueryEditorPage({
     ]
 
     const currentQuestion = questions[currentQuestionIndex] || questions[0]
+
+    // ── Live Dashboard emitter (student → teacher). assessmentId = exercise _id. ──
+    const live = useExamLiveEmitter(exerciseData?._id ? String(exerciseData._id) : "", questions.length)
 
     const isSubmitDisabled = () => {
         const serverAttempts = previousAttempts;
@@ -2997,6 +3116,7 @@ export default function DBQueryEditorPage({
 
             if (response.data.success) {
                 saveUserAttempts(currentQuestion._id)
+                live.answerSaved(currentQuestion._id, undefined, 0)
 
                 showToast({
                     type: 'success',
@@ -3018,6 +3138,7 @@ export default function DBQueryEditorPage({
                         setQueryResults({})
                     }, 1500)
                 } else {
+                    stopRecording(); // stop proctoring recording when all questions completed
                     showToast({
                         type: 'success',
                         title: 'All Questions Completed',
@@ -3244,6 +3365,7 @@ export default function DBQueryEditorPage({
 
     const handlePreviousQuestion = () => {
         if (currentQuestionIndex > 0) {
+            live.questionChanged(questions[currentQuestionIndex]?._id || null, questions[currentQuestionIndex - 1]?._id || null)
             setCurrentQuestionIndex(prev => prev - 1)
             setQueryTabs([{
                 id: 'tab-1',
@@ -3253,11 +3375,15 @@ export default function DBQueryEditorPage({
             }])
             setActiveTab('tab-1')
             setQueryResults({})
+        } else if (onCrossPrev) {
+            // First question: in a Combined section delegate back to the parent (→ MCQ).
+            onCrossPrev()
         }
     }
 
     const handleNextQuestion = () => {
         if (currentQuestionIndex < questions.length - 1) {
+            live.questionChanged(questions[currentQuestionIndex]?._id || null, questions[currentQuestionIndex + 1]?._id || null)
             setCurrentQuestionIndex(prev => prev + 1)
             setQueryTabs([{
                 id: 'tab-1',
@@ -3267,12 +3393,92 @@ export default function DBQueryEditorPage({
             }])
             setActiveTab('tab-1')
             setQueryResults({})
+        } else if (onCrossNext) {
+            // Last question: in a Combined section delegate forward to the parent.
+            onCrossNext()
         }
     }
 
     const toggleQuestionPanel = () => {
         setIsQuestionCollapsed(!isQuestionCollapsed)
     }
+
+    // Security items for modal display
+    const secItems = [
+      { icon: <Clock className="w-3 h-3" />, label: `Timed: ${securityConfig.sessionTimeoutMinutes} min`, active: !!securityConfig.sessionTimeoutMinutes },
+      { icon: <Maximize2 className="w-3 h-3" />, label: 'Fullscreen Required', active: !!securityConfig.requireFullscreen },
+      { icon: <Lock className="w-3 h-3" />, label: `Tab Switch Restricted (max ${securityConfig.maxTabSwitches ?? 3})`, active: !!securityConfig.preventTabSwitch },
+      { icon: <Shield className="w-3 h-3" />, label: 'Copy/Paste Disabled', active: !!securityConfig.preventCopyPaste },
+      { icon: <Shield className="w-3 h-3" />, label: 'Right-click Disabled', active: !!securityConfig.preventRightClick },
+      { icon: <Shield className="w-3 h-3" />, label: 'Dev Tools Blocked', active: !!securityConfig.preventDevTools },
+      { icon: <AlertTriangle className="w-3 h-3" />, label: 'Refresh Blocked', active: !!securityConfig.preventRefresh },
+      { icon: <AlertTriangle className="w-3 h-3" />, label: 'Browser Close Warning', active: !!securityConfig.preventBrowserClose },
+    ].filter(i => i.active);
+
+    // Face verification gate (shown after security modal agreement when enableFaceVerification is true)
+    if (showFaceVerification) return (
+        <>
+            <ToastContainer position="top-right" />
+            <FaceVerificationGate
+                isOpen={true}
+                onVerified={() => { setShowFaceVerification(false); beginAssessment(); }}
+                onCancel={() => { setShowFaceVerification(false); if (onBack) onBack(); else if (onCloseExercise) onCloseExercise(); }}
+            />
+        </>
+    );
+
+    if (showSecurityModal) return (
+        <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <ToastContainer position="top-right" />
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-7">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                <ShieldCheck className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <div className="text-lg font-bold text-gray-900">Assessment Security</div>
+                <div className="text-xs text-gray-500">Review restrictions before starting the SQL assessment</div>
+              </div>
+            </div>
+            {secItems.length > 0 ? (
+              <div className="bg-gray-50 rounded-xl p-4 mb-5">
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Active Restrictions</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {secItems.map((it, i) => (
+                    <div key={i} className="flex items-center gap-2 text-sm text-gray-700 font-medium">
+                      <span className="text-indigo-500">{it.icon}</span>{it.label}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="bg-green-50 rounded-xl p-4 mb-5 text-sm text-green-700 font-medium">
+                No special security restrictions for this assessment.
+              </div>
+            )}
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-5 text-xs text-amber-800">
+              By starting you agree to comply with all security measures. Violations may result in automatic submission.
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => { setShowSecurityModal(false); if (onBack) onBack(); else if (onCloseExercise) onCloseExercise(); }}
+                className="flex-1 py-2.5 px-4 rounded-lg border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50">
+                Cancel
+              </button>
+              <button onClick={() => {
+                setShowSecurityModal(false);
+                if (securityConfig.enableFaceVerification) {
+                  setShowFaceVerification(true);
+                } else {
+                  beginAssessment();
+                }
+              }}
+                className="flex-2 py-2.5 px-5 rounded-lg bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4" /> Start Assessment
+              </button>
+            </div>
+          </div>
+        </div>
+    );
 
     return (
         <div
@@ -3292,6 +3498,25 @@ export default function DBQueryEditorPage({
                     border: `1px solid ${currentTheme === 'dark' ? '#374151' : '#e5e7eb'}`
                 }}
             />
+
+            {/* Live camera preview — visible while face verification is enabled */}
+            <LiveCameraPreview
+                isActive={assessmentActive && securityAgreed && !!securityConfig.enableFaceVerification}
+                corner="bottom-left"
+            />
+
+            {/* Live Screen Monitoring — standalone SQL (parent owns it in section mode) */}
+            <ScreenShareGuard
+                assessmentId={exerciseData?._id ? String(exerciseData._id) : ""}
+                active={!embedded && assessmentActive && securityAgreed}
+                courseId={courseId}
+                waitForSharedStream={!!securityConfig.screenRecordingEnabled}
+            />
+
+            {/* ── Proctor → student messaging (floating chat) ── */}
+            {!embedded && (
+                <StudentMessageChat assessmentId={exerciseData?._id ? String(exerciseData._id) : ""} />
+            )}
 
             {/* Top Navigation Bar */}
             <div className={`flex items-center justify-between px-3 py-2 border-b transition-colors ${currentTheme === 'dark'
@@ -3431,7 +3656,7 @@ export default function DBQueryEditorPage({
                         ) : (
                             <CheckCircle className="w-3.5 h-3.5" />
                         )}
-                        {isSubmitDisabled() ? 'Max Attempts Reached' : 'Submit'}
+                        {isSubmitDisabled() ? 'Max Attempts Reached' : (embedded ? 'Submit Question' : 'Submit')}
                     </button>
                 </div>
             </div>
@@ -3446,6 +3671,8 @@ export default function DBQueryEditorPage({
                         totalQuestions={questions.length}
                         onPrevious={handlePreviousQuestion}
                         onNext={handleNextQuestion}
+                        allowPrevAtStart={!!onCrossPrev}
+                        allowNextAtEnd={!!onCrossNext}
                         userAttempts={Math.max(
                             userAttempts[currentQuestion._id] || 0,
                             previousAttempts

@@ -4,10 +4,11 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   ChevronLeft, ChevronRight, Upload, X, Loader2, CheckCircle2,
   AlertCircle, Download, FileText, Eye,
-  ArrowLeft,
   Timer
 } from 'lucide-react';
 import OthersNotionEditor, { PageData } from './OthersNotionEditor';
+import ExerciseInfoModals, { ExerciseInfoButtons } from './ExerciseInfoModals';
+import toast from 'react-hot-toast';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -121,7 +122,7 @@ function parseDescription(desc: string | OthersDescription | undefined): OthersD
 // ─── Injected styles ──────────────────────────────────────────────────────────
 
 const STYLES = `
-  .oe-root { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif; }
+  .oe-root { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
   .oe-scroll::-webkit-scrollbar { width: 5px; }
   .oe-scroll::-webkit-scrollbar-track { background: transparent; }
   .oe-resizer:hover > .oe-resizer-line { border-color: #6366f1 !important; }
@@ -690,7 +691,7 @@ const FileUploadAnswerArea: React.FC<{
 
 const OthersExam: React.FC<OthersExamProps> = ({
   exercise, courseId, nodeId, nodeName, nodeType,courseName,
-  category, subcategory, onClose,
+  category, subcategory, hierarchy = [], onClose,
 }) => {
   useEffect(() => { injectStyles(); }, []);
 
@@ -746,28 +747,29 @@ const OthersExam: React.FC<OthersExamProps> = ({
         setTimeLeft(prev => {
           if (prev <= 1) {
             if (timerRef.current) clearInterval(timerRef.current);
-            // Auto-submit when time is up
-            handleTimeUp();
+            // Auto-submit when time is up (uses a ref so it always sees the
+            // student's latest answers, not the mount-time snapshot)
+            timeUpRef.current();
             return 0;
           }
           return prev - 1;
         });
       }, 1000);
     }
-    
+
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [exercise]);
 
-  const handleTimeUp = async () => {
-    if (submitted || isSubmitting) return;
-    setIsSubmitting(true);
-    // Auto-submit all answers
-    await submitAllAnswers();
-    setSubmitted(true);
-    setIsSubmitting(false);
-  };
+  // Keep the auto-submit handler fresh so the timer reads current answers.
+  const timeUpRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    timeUpRef.current = () => {
+      if (submitted || isSubmitting) return;
+      handleSubmit(undefined, { auto: true });
+    };
+  });
 
   const formatTime = (seconds: number): string => {
     if (seconds <= 0) return '00:00';
@@ -784,6 +786,10 @@ const OthersExam: React.FC<OthersExamProps> = ({
 
   const [submitted, setSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState('');
+
+  // Exercise Info / Overview modals
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showOverviewModal, setShowOverviewModal] = useState(false);
 
   const questions: OthersQuestion[] = (exercise.questions || []).filter((q: any) => q.questionType === 'others');
   const exerciseInfo = exercise.exerciseInformation || exercise;
@@ -816,9 +822,19 @@ const OthersExam: React.FC<OthersExamProps> = ({
 
   const answeredCount = questions.filter(isAnswered).length;
 
+  // Indices of answered questions (drives the Score Overview "answered" count)
+  const solvedQuestions = new Set<number>(
+    questions.map((q, i) => (isAnswered(q) ? i : -1)).filter(i => i >= 0)
+  );
+  // Exercise object whose `questions` match the indices above, so the
+  // ExerciseInfo / Overview modals compute totals & per-difficulty marks correctly.
+  const infoExercise = { ...exercise, questions };
+  const isGraded = (exercise as any)?.isGraded !== false;
+
   // Accepts optional override for the current question's notion pages
   // (needed because React state update is async — called right before handleSubmit)
-  const handleSubmit = async (notionPagesOverride?: { qId: string; pages: PageData[] }) => {
+  const handleSubmit = async (notionPagesOverride?: { qId: string; pages: PageData[] }, opts?: { auto?: boolean }) => {
+    if (submitted) return;
     setIsSubmitting(true); setSubmitError('');
     try {
       const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
@@ -858,9 +874,41 @@ const OthersExam: React.FC<OthersExamProps> = ({
           method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd,
         });
       }
+
+      // ── Final submission flag — increments testSubmissions on the backend
+      // so exercises.tsx can detect this exercise as "Submitted" (same as MCQ does)
+      const lastQ = questions[questions.length - 1];
+      if (lastQ) {
+        const fd = new FormData();
+        fd.append('courseId', courseId);
+        fd.append('exerciseId', exerciseId);
+        fd.append('questionId', lastQ._id);
+        fd.append('category', category);
+        fd.append('subcategory', subcategory);
+        fd.append('nodeId', nodeId);
+        fd.append('nodeName', nodeName || exerciseName);
+        fd.append('nodeType', nodeType || 'others_notion');
+        fd.append('language', 'text');
+        fd.append('code', '');
+        fd.append('score', '0');
+        fd.append('status', 'submitted');
+        fd.append('isTestSubmission', 'true');
+        await fetch('https://lms-server-ym1q.onrender.com/courses/answers/submit', {
+          method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd,
+        });
+      }
+
       setSubmitted(true);
+      // Hand the toast to the list page so it shows reliably after the redirect.
+      try {
+        sessionStorage.setItem('lms_submit_toast', opts?.auto
+          ? `Time's up! "${exerciseName}" submitted successfully.`
+          : `"${exerciseName}" submitted successfully`);
+      } catch { /* ignore */ }
+      setTimeout(() => onClose(), 600);
     } catch (e: any) {
       setSubmitError(e.message || 'Submission failed. Please try again.');
+      if (opts?.auto) toast.error('Auto-submit failed. Please submit manually.');
     } finally { setIsSubmitting(false); }
   };
 
@@ -875,13 +923,13 @@ const OthersExam: React.FC<OthersExamProps> = ({
           </div>
           <h2 style={{ fontSize: 22, fontWeight: 800, color: '#111827', margin: '0 0 8px' }}>Submitted Successfully</h2>
           <p style={{ fontSize: 14, color: '#6b7280', margin: '0 0 4px' }}>Your responses have been saved.</p>
-          <p style={{ fontSize: 13, color: '#9ca3af', margin: '0 0 28px' }}>
+          <p style={{ fontSize: 13, color: '#9ca3af', margin: '0 0 20px' }}>
             {answeredCount} of {questions.length} question{questions.length !== 1 ? 's' : ''} answered
           </p>
-          <button onClick={onClose}
-            style={{ padding: '11px 32px', borderRadius: 8, border: 'none', background: '#16a34a', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-            Back to Course
-          </button>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: '#6b7280', fontSize: 13, fontWeight: 600 }}>
+            <Loader2 style={{ width: 15, height: 15 }} className="animate-spin" />
+            Returning to your exercises…
+          </div>
         </div>
       </div>
     );
@@ -917,72 +965,6 @@ const OthersExam: React.FC<OthersExamProps> = ({
   gap: 12 
 }}>
   
-  {/* Back Button - matching MCQ style */}
-  <button 
-    onClick={onClose}
-    style={{
-      display: 'flex',
-      alignItems: 'center',
-      gap: 6,
-      padding: '6px 12px',
-      borderRadius: 8,
-      border: '1.5px solid #e5e7eb',
-      background: 'transparent',
-      color: '#6b7280',
-      fontSize: 12,
-      fontWeight: 600,
-      cursor: 'pointer',
-      fontFamily: 'inherit',
-      transition: 'all 0.13s',
-      flexShrink: 0,
-      marginRight: 4
-    }}
-    className="oe-back-btn"
-    onMouseEnter={(e) => {
-      e.currentTarget.style.borderColor = '#f97316';
-      e.currentTarget.style.color = '#f97316';
-    }}
-    onMouseLeave={(e) => {
-      e.currentTarget.style.borderColor = '#e5e7eb';
-      e.currentTarget.style.color = '#6b7280';
-    }}
-  >
-    <ArrowLeft size={13} /> Back
-  </button>
-
-  {/* Logo/Icon */}
-  <div style={{ 
-    display: 'flex', 
-    alignItems: 'center', 
-    gap: 7, 
-    flexShrink: 0,
-    marginRight: 4
-  }}>
-    <div style={{ 
-      width: 28, 
-      height: 28, 
-      borderRadius: 8, 
-      background: 'linear-gradient(135deg, #f97316, #ea580c)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      boxShadow: '0 3px 10px rgba(249, 115, 22, 0.22)'
-    }}>
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
-        <path d="M6 12v5c0 2 2 3 4 3h4c2 0 4-1 4-3v-5"/>
-      </svg>
-    </div>
-    <span style={{ 
-      fontSize: 13, 
-      fontWeight: 800, 
-      color: '#111827',
-      letterSpacing: '-0.02em'
-    }}>SmartCliff</span>
-  </div>
-
-  <div style={{ width: 1, height: 18, background: '#e5e7eb', marginRight: 4, flexShrink: 0 }} />
-
   {/* Breadcrumb navigation - matching MCQ style */}
   <nav style={{ 
     display: 'flex', 
@@ -994,15 +976,18 @@ const OthersExam: React.FC<OthersExamProps> = ({
   }}>
     {[
       { label: courseName !== 'Course' && courseName ? courseName : null },
-      { label: category !== 'Course' ? category.replace(/_/g, ' ') : null },
-      { label: subcategory },
+      // Node hierarchy (e.g. Module → Topic) passed from the course view
+      ...hierarchy.map(seg => ({ label: seg })),
+      { label: category && category !== 'Course'
+          ? (category === 'We_Do' ? 'We Do' : category === 'I_Do' ? 'I Do' : category === 'You_Do' ? 'You Do' : category.replace(/_/g, ' '))
+          : null },
       { label: exerciseName, active: true }
     ].filter(b => b.label).map((b, i, arr) => (
       <React.Fragment key={i}>
         <span style={{
           fontSize: 12,
-          fontWeight: b.active ? 700 : 400,
-          color: b.active ? '#f97316' : '#9ca3af',
+          fontWeight: b.active ? 700 : 500,
+          color: b.active ? '#f97316' : '#6b7280',
           whiteSpace: 'nowrap',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
@@ -1016,6 +1001,19 @@ const OthersExam: React.FC<OthersExamProps> = ({
       </React.Fragment>
     ))}
   </nav>
+
+  {/* Exercise Info / Score Overview buttons */}
+  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginRight: 4 }}>
+    <ExerciseInfoButtons
+      onDetailsClick={() => setShowDetailsModal(true)}
+      onOverviewClick={() => setShowOverviewModal(true)}
+      isGraded={isGraded}
+      detailsActive={showDetailsModal}
+      overviewActive={showOverviewModal}
+    />
+  </div>
+
+  <div style={{ width: 1, height: 18, background: '#e5e7eb', flexShrink: 0 }} />
 
   {/* Right side - Timer and Progress */}
   <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
@@ -1303,6 +1301,16 @@ const OthersExam: React.FC<OthersExamProps> = ({
           )}
         </div>
       </div>
+
+      {/* ── Exercise Info / Score Overview modals ── */}
+      <ExerciseInfoModals
+        exercise={infoExercise}
+        showDetailsModal={showDetailsModal}
+        setShowDetailsModal={setShowDetailsModal}
+        showOverviewModal={showOverviewModal}
+        setShowOverviewModal={setShowOverviewModal}
+        solvedQuestions={solvedQuestions}
+      />
     </div>
   );
 };

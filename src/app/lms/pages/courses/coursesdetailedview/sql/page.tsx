@@ -5,6 +5,7 @@ import React, { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import DBQueryEditor from '@/app/lms/component/student/db-queryEditor';
 import { ArrowLeft } from 'lucide-react';
+import { Loading } from '@/components/loading-ui/loading';
 
 const SQLCompilerPageContent = () => {
   const router = useRouter();
@@ -90,10 +91,7 @@ const handleBack = () => {
   if (isLoading) {
     return (
       <div className="w-full h-screen bg-[#1e1e1e] flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-white text-lg">Loading SQL Exercise...</p>
-        </div>
+        <Loading size="size-12" color="blue" label="Loading SQL Exercise..." spinnerClassName="text-blue-400" />
       </div>
     );
   }

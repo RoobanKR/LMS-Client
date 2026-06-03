@@ -1,4 +1,5 @@
 'use client';
+import { Loading } from "@/components/loading-ui/loading";
 import React, { useEffect, useState, useMemo } from 'react';
 import {
     BookOpen,
@@ -455,10 +456,7 @@ export default function StudentDashboardPage() {
         return (
             <StudentLayout>
                 <div className="flex items-center justify-center h-screen bg-white dark:bg-gray-900">
-                    <div className="text-center">
-                        <div className="w-16 h-16 border-4 border-blue-200 dark:border-blue-800 border-t-blue-600 dark:border-t-blue-400 rounded-full animate-spin mx-auto"></div>
-                        <p className="mt-4 text-gray-600 dark:text-gray-400 font-medium">Loading your dashboard...</p>
-                    </div>
+                    <Loading size="size-12" label="Loading your dashboard..." />
                 </div>
             </StudentLayout>
         );

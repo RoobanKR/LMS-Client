@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { logoutUser } from "@/apiServices/tokenVerify";
+import { postLogout } from "@/apiServices/activityLog";
 import { toast } from "sonner";
 
 export function Navbarpro() {
@@ -38,6 +39,8 @@ export function Navbarpro() {
         router.push("/login");
         return;
       }
+      // Record logout time / session duration while the token is still present.
+      await postLogout();
       const response = await logoutUser(token);
       localStorage.removeItem("smartcliff_token");
       toast.success(response.message?.[0]?.value || "Logged out successfully");

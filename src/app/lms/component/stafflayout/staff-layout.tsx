@@ -49,6 +49,7 @@ export function StaffLayout({ children }: StaffLayoutProps) {
     if (pathname.includes("/settings"))      return "settings"
     if (pathname.includes("/students"))      return "students"
     if (pathname.includes("/analytics"))     return "analytics"
+    if (pathname.includes("/logs"))          return "logs"
     if (pathname.includes("/help"))          return "help"
     return "dashboard"
   }
@@ -58,7 +59,7 @@ export function StaffLayout({ children }: StaffLayoutProps) {
       className="min-h-screen"
       style={{
         background: isDark ? "#12121f" : "#f8f8fa",
-        fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
+        fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
       }}
     >
       {/* Sidebar — full height, fixed, z-50 */}
@@ -72,10 +73,10 @@ export function StaffLayout({ children }: StaffLayoutProps) {
       <div
         className={cn(
           "min-h-screen transition-all duration-300 ease-out",
-          sidebarOpen ? "md:ml-[260px]" : "md:ml-0"
+          sidebarOpen ? "md:ml-[220px]" : "md:ml-0"
         )}
       >
-        <div className="p-5 md:px-7 md:py-6">
+        <div className="p-3 md:px-4 md:py-4">
           {/* Top bar — search + bell + theme + profile — inline, not fixed */}
           <StaffTopBar
             onMenuClick={() => setSidebarOpen(!sidebarOpen)}

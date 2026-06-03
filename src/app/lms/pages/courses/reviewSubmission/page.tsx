@@ -49,7 +49,8 @@ import {
   MoreVertical,
   Lock,
   Unlock,
-  XCircle
+  XCircle,
+  Filter
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -130,7 +131,12 @@ interface ExerciseQuestion {
   questionType?: 'MCQ' | 'Programming';
   mcqQuestionTitle?: string | any[];
   mcqQuestionDescription?: string;
-  mcqQuestionType?: 'multiple_choice' | 'dropdown' | 'short_answer' | 'essay' | 'checkboxes';
+  mcqQuestionType?: 'multiple_choice' | 'dropdown' | 'short_answer' | 'essay' | 'checkboxes' | 'multiple_select' | 'true_false' | 'numeric' | 'matching' | 'ordering';
+  matchingPairs?: Array<{ left: string; right: string; _id?: string }>;
+  orderingItems?: Array<{ text: string; order: number; _id?: string }>;
+  trueFalseAnswer?: boolean | null;
+  numericAnswer?: number | null;
+  numericTolerance?: number | null;
   mcqQuestionDifficulty?: string;
   mcqQuestionOptions?: MCQOption[];
   mcqQuestionCorrectAnswers?: string[];
@@ -302,6 +308,9 @@ interface ExerciseAnswer {
   lastTestSubmittedAt?: string;
   userAttempts?: number;
   testSubmissions?: number;
+  // How the most recent submission happened + the stored reason (only set for AUTO)
+  submitType?: 'USER' | 'AUTO';
+  autoSubmitReason?: string;
 }
 
 interface UserCourse {
@@ -436,7 +445,7 @@ const extractMCQTitleText = (title: string | any[] | undefined): string => {
 
 const getQuestionTitle = (question: ExerciseQuestion): string => {
   if (!question) return "Question";
-  if (question.questionType === 'MCQ' || (!question.title && question.mcqQuestionTitle)) {
+  if ((question.questionType?.toLowerCase() === 'mcq') || (!question.title && question.mcqQuestionTitle)) {
     return extractMCQTitleText(question.mcqQuestionTitle);
   }
   return question.title || "Programming Question";
@@ -444,7 +453,7 @@ const getQuestionTitle = (question: ExerciseQuestion): string => {
 
 const getQuestionDescription = (question: ExerciseQuestion): string => {
   if (!question) return "";
-  if (question.questionType === 'MCQ' || (!question.title && question.mcqQuestionDescription)) {
+  if ((question.questionType?.toLowerCase() === 'mcq') || (!question.title && question.mcqQuestionDescription)) {
     return question.mcqQuestionDescription || "";
   }
   if (question.description) {
@@ -567,7 +576,8 @@ const getDynamicExerciseTotal = (exercise: Exercise | null): number => {
 
 const isQuestionMCQ = (q: ExerciseQuestion | null): boolean => {
   if (!q) return false;
-  return q.questionType === 'MCQ' || (!q.title && !!q.mcqQuestionTitle);
+  // Handle both uppercase 'MCQ' (regular exercises) and lowercase 'mcq' (section-based)
+  return (q.questionType?.toLowerCase() === 'mcq') || (!q.title && !!q.mcqQuestionTitle);
 };
 
 // Returns true ONLY when this is a real frontend (HTML/CSS/JS) submission.
@@ -1118,6 +1128,7 @@ export default function EnhancedSubmissionReview() {
   const [feedbackText, setFeedbackText] = useState('');
   const [gradingStats, setGradingStats] = useState({ graded: 0, pending: 0, total: 0, averageScore: 0 });
   const [difficultyFilter, setDifficultyFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [showVideoModal, setShowVideoModal] = useState(false);
@@ -1286,6 +1297,7 @@ const isNonGraded = !!(
           collect(p.You_Do?.project_development, 'You_Do', 'project_development', moduleId, undefined, undefined, undefined);
           collect(p.You_Do?.assessments, 'You_Do', 'assessments', moduleId, undefined, undefined, undefined);
           collect(p.You_Do?.assesments, 'You_Do', 'assesments', moduleId, undefined, undefined, undefined);
+          collect(p.You_Do?.assesment, 'You_Do', 'assesment', moduleId, undefined, undefined, undefined);
         }
 
         // Check if module has direct topics (without submodules)
@@ -1303,6 +1315,7 @@ const isNonGraded = !!(
               collect(p.You_Do?.project_development, 'You_Do', 'project_development', moduleId, undefined, topicId, undefined);
               collect(p.You_Do?.assessments, 'You_Do', 'assessments', moduleId, undefined, topicId, undefined);
               collect(p.You_Do?.assesments, 'You_Do', 'assesments', moduleId, undefined, topicId, undefined);
+              collect(p.You_Do?.assesment, 'You_Do', 'assesment', moduleId, undefined, topicId, undefined);
             }
 
             // Check if topic has subTopics
@@ -1320,6 +1333,7 @@ const isNonGraded = !!(
                   collect(p.You_Do?.project_development, 'You_Do', 'project_development', moduleId, undefined, topicId, subTopicId);
                   collect(p.You_Do?.assessments, 'You_Do', 'assessments', moduleId, undefined, topicId, subTopicId);
                   collect(p.You_Do?.assesments, 'You_Do', 'assesments', moduleId, undefined, topicId, subTopicId);
+                  collect(p.You_Do?.assesment, 'You_Do', 'assesment', moduleId, undefined, topicId, subTopicId);
                 }
               });
             }
@@ -1343,6 +1357,7 @@ const isNonGraded = !!(
               collect(p.You_Do?.project_development, 'You_Do', 'project_development', moduleId, subModuleId, undefined, undefined);
               collect(p.You_Do?.assessments, 'You_Do', 'assessments', moduleId, subModuleId, undefined, undefined);
               collect(p.You_Do?.assesments, 'You_Do', 'assesments', moduleId, subModuleId, undefined, undefined);
+              collect(p.You_Do?.assesment, 'You_Do', 'assesment', moduleId, subModuleId, undefined, undefined);
             }
 
             // Check if submodule has direct topics
@@ -1360,6 +1375,7 @@ const isNonGraded = !!(
                   collect(p.You_Do?.project_development, 'You_Do', 'project_development', moduleId, subModuleId, topicId, undefined);
                   collect(p.You_Do?.assessments, 'You_Do', 'assessments', moduleId, subModuleId, topicId, undefined);
                   collect(p.You_Do?.assesments, 'You_Do', 'assesments', moduleId, subModuleId, topicId, undefined);
+                  collect(p.You_Do?.assesment, 'You_Do', 'assesment', moduleId, subModuleId, topicId, undefined);
                 }
 
                 // Check if topic has subTopics
@@ -1377,6 +1393,7 @@ const isNonGraded = !!(
                       collect(p.You_Do?.project_development, 'You_Do', 'project_development', moduleId, subModuleId, topicId, subTopicId);
                       collect(p.You_Do?.assessments, 'You_Do', 'assessments', moduleId, subModuleId, topicId, subTopicId);
                       collect(p.You_Do?.assesments, 'You_Do', 'assesments', moduleId, subModuleId, topicId, subTopicId);
+                      collect(p.You_Do?.assesment, 'You_Do', 'assesment', moduleId, subModuleId, topicId, subTopicId);
                     }
                   });
                 }
@@ -1813,13 +1830,18 @@ const isNonGraded = !!(
 
   const renderBreadcrumb = () => (
     <nav aria-label="Breadcrumb" className="flex items-center select-none">
-      <ol className="flex items-center flex-wrap gap-y-1">
+      <ol className="flex items-center flex-wrap gap-y-0.5">
         {breadcrumb.map((item, index) => (
-          <li key={index} className="flex items-center animate-in fade-in slide-in-from-left-2 duration-300" style={{ animationDelay: `${index * 30}ms` }}>
-            {index > 0 && <ChevronRight className="h-3.5 w-3.5 text-slate-400 mx-1 shrink-0 stroke-[2.5]" />}
-            <div className={`group flex items-center gap-2 px-2 py-1 rounded-md transition-all duration-200 ${index === breadcrumb.length - 1 ? 'bg-indigo-50 text-indigo-700' : 'text-slate-700 hover:bg-slate-100 hover:text-black cursor-pointer'}`} title={item.title}>
-              <span className={`shrink-0 ${index === breadcrumb.length - 1 ? 'text-indigo-600' : 'text-slate-500 group-hover:text-slate-800'}`}>{item.icon}</span>
-              <span className={`text-[11px] font-bold uppercase tracking-wider ${montserrat.className}`}>{item.title}</span>
+          <li key={index} className="flex items-center" style={{ animationDelay: `${index * 30}ms` }}>
+            {index > 0 && <ChevronRight className="h-3 w-3 text-slate-300 mx-0.5 shrink-0" />}
+            <div
+              className={`flex items-center gap-1 px-1.5 py-0.5 rounded transition-colors duration-150 ${index === breadcrumb.length - 1 ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-700 cursor-pointer'}`}
+              title={item.title}
+            >
+              <span className="shrink-0 [&>svg]:h-3 [&>svg]:w-3">{item.icon}</span>
+              <span className={`text-[11px] font-medium ${inter.className} ${index === breadcrumb.length - 1 ? 'text-indigo-600' : 'text-slate-500'}`}>
+                {item.title}
+              </span>
             </div>
           </li>
         ))}
@@ -1836,7 +1858,7 @@ const isNonGraded = !!(
       if (!catObj) return [];
       const answers: ExerciseAnswer[] = [];
       if (catObj.assignments && Array.isArray(catObj.assignments)) answers.push(...catObj.assignments);
-      const otherCategories = ['practical', 'project_development', 'assessments', 'assesments'];
+      const otherCategories = ['practical', 'project_development', 'assessments', 'assesments', 'assesment'];
       otherCategories.forEach(cat => {
         if (catObj[cat] && Array.isArray(catObj[cat])) answers.push(...catObj[cat]);
       });
@@ -2118,11 +2140,17 @@ const isNonGraded = !!(
     return null;
   };
 
-  const getStatusDot = (sub: SubmissionQuestion | null) =>
-    !sub ? 'bg-slate-300' :
-      sub.status === 'evaluated' ? 'bg-emerald-500' :
-        (sub.codeAnswer || (sub.othersFiles && sub.othersFiles.length > 0)) ? 'bg-amber-500' :
-          'bg-slate-300';
+  const getStatusDot = (sub: SubmissionQuestion | null) => {
+    if (!sub) return 'bg-slate-300';
+    if (sub.status === 'evaluated') return 'bg-emerald-500';
+    const hasContent = !!(
+      sub.codeAnswer ||
+      (sub.othersFiles && sub.othersFiles.length > 0) ||
+      (sub.files && sub.files.length > 0) ||
+      (sub.isCorrect !== undefined && sub.isCorrect !== null)
+    );
+    return hasContent ? 'bg-amber-500' : 'bg-slate-300';
+  };
 
   const saveGrade = async (): Promise<boolean> => {
     if (isQuestionMCQ(selectedQuestion)) {
@@ -2452,16 +2480,76 @@ builtins.input = _async_input
     }
   };
 
+  // Helper: compute submission status for a participant
+  const getParticipantStatus = (p: Participant): 'not_submitted' | 'review' | 'evaluated' => {
+    const answers = getExerciseAnswersForSelectedExercise(p);
+    const hasSubmissions = answers.length > 0;
+    if (!hasSubmissions) return 'not_submitted';
+
+    const allQuestions = selectedExercise?.questions || [];
+    const isPureMCQ = selectedExercise?.exerciseType === 'MCQ' ||
+      (allQuestions.length > 0 && allQuestions.every(q => isQuestionMCQ(q)));
+
+    let totalAnsweredQuestions = 0;
+    allQuestions.forEach(question => {
+      const sub = (() => {
+        for (const ans of answers) {
+          const s = ans.questions.find(q => q.questionId === question._id);
+          if (s) return s;
+        }
+        return null;
+      })();
+      const hasAnswer = !!(sub?.codeAnswer || sub?.files?.length || sub?.othersFiles?.length ||
+        (sub && sub.isCorrect !== undefined && sub.isCorrect !== null));
+      if (sub && hasAnswer) totalAnsweredQuestions++;
+    });
+    const allQuestionsAnswered = totalAnsweredQuestions === allQuestions.length;
+
+    let isEval = false;
+    if (isPureMCQ) {
+      isEval = allQuestionsAnswered && hasSubmissions;
+    } else {
+      let allProgEval = true;
+      allQuestions.forEach(question => {
+        const sub = (() => {
+          for (const ans of answers) {
+            const s = ans.questions.find(q => q.questionId === question._id);
+            if (s) return s;
+          }
+          return null;
+        })();
+        if (!isQuestionMCQ(question)) {
+          if (sub?.status !== 'evaluated') allProgEval = false;
+        } else {
+          const hasAns = !!(sub?.codeAnswer || sub?.files?.length ||
+            (sub && sub.isCorrect !== undefined && sub.isCorrect !== null));
+          if (!hasAns) allProgEval = false;
+        }
+      });
+      isEval = allProgEval && allQuestionsAnswered;
+    }
+
+    return isEval ? 'evaluated' : 'review';
+  };
+
   // Filtered participants - only students
   const filteredParticipants = useMemo(() => {
     return participants.filter(p => {
-      if (!search) return true;
-      const fullName = `${p.user.firstName} ${p.user.lastName}`.toLowerCase();
-      const email = p.user.email.toLowerCase();
-      const searchLower = search.toLowerCase();
-      return fullName.includes(searchLower) || email.includes(searchLower);
+      // search filter
+      if (search) {
+        const fullName = `${p.user.firstName} ${p.user.lastName}`.toLowerCase();
+        const email = p.user.email.toLowerCase();
+        const searchLower = search.toLowerCase();
+        if (!fullName.includes(searchLower) && !email.includes(searchLower)) return false;
+      }
+      // status filter
+      if (statusFilter !== 'all') {
+        const status = getParticipantStatus(p);
+        if (status !== statusFilter) return false;
+      }
+      return true;
     });
-  }, [participants, search]);
+  }, [participants, search, statusFilter, selectedExercise]);
 
   const filteredQuestions = useMemo(() => {
     if (!selectedExercise) return [];
@@ -2545,30 +2633,30 @@ builtins.input = _async_input
       />
 
       {/* HEADER */}
-      <div className="flex-none z-50 border-b border-slate-200 bg-white px-6 py-4 shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
+      <div className="flex-none z-50 border-b border-slate-100 bg-white px-6 py-2.5">
         <div className="flex items-center justify-between w-full">
-          <div className="flex items-center gap-3 flex-1 mr-6 min-w-0">
+          <div className="flex items-center gap-2 flex-1 mr-4 min-w-0">
             {viewMode !== 'grading' && (
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={handleBack}
-                className="h-8 w-8 rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                className="h-6 w-6 rounded text-slate-400 hover:bg-slate-100 hover:text-slate-700 shrink-0"
               >
-                <ArrowLeft className="h-4.5 w-4.5 stroke-[2.5]" />
+                <ArrowLeft className="h-3.5 w-3.5" />
               </Button>
             )}
             {renderBreadcrumb()}
           </div>
-          <div className="flex items-center space-x-3 shrink-0">
+          <div className="flex items-center shrink-0">
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
               onClick={fetchCourseData}
-              className={`h-9 px-4 text-xs font-bold text-slate-700 border-slate-300 hover:bg-slate-50 rounded-md shadow-sm transition-all ${montserrat.className}`}
+              className={`h-7 px-3 text-[11px] font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded transition-colors ${inter.className}`}
             >
-              <RefreshCw className={`h-3.5 w-3.5 mr-2 ${loading ? 'animate-spin' : ''}`} />
-              Sync Data
+              <RefreshCw className={`h-3 w-3 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
+              Sync
             </Button>
           </div>
         </div>
@@ -2579,59 +2667,46 @@ builtins.input = _async_input
         {viewMode === 'list' ? (
           /* STUDENT LIST VIEW */
           <div className="flex flex-col h-full bg-white">
-            {/* Stats Cards */}
-            <div className="flex-none w-full px-6 py-8 bg-slate-50/50 border-b border-slate-100">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                {[
-                  { label: "Enrollment", val: enrollmentCount, icon: Users, style: "bg-indigo-50 text-indigo-600", border: "hover:border-indigo-200" },
-                  { label: "Submissions", val: submissionsCount, icon: Send, style: "bg-emerald-50 text-emerald-600", border: "hover:border-emerald-200" },
-                  { label: "Evaluated", val: evaluatedCount, icon: CheckCircle, style: "bg-blue-50 text-blue-600", border: "hover:border-blue-200" },
-                  { label: "Awaiting", val: pendingCount, icon: Clock, style: "bg-slate-100 text-slate-600", border: "hover:border-slate-300" }
-                ].map((stat, i) => (
-                  <div key={i} className={`group bg-white p-5 rounded-xl border border-slate-200 shadow-sm transition-all hover:shadow-md hover:-translate-y-1 ${stat.border}`}>
-                    <div className="flex items-start justify-between">
-                      <div className="flex flex-col gap-1">
-                        <p className={`text-xs font-semibold uppercase tracking-wider text-slate-500 ${montserrat.className}`}>
-                          {stat.label}
-                        </p>
-                        <h3 className={`text-2xl font-bold text-slate-800 ${montserrat.className}`}>
-                          {stat.val}
-                        </h3>
-                      </div>
-                      <div className={`p-3 rounded-full flex items-center justify-center ${stat.style}`}>
-                        <stat.icon className="w-5 h-5" strokeWidth={2.5} />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
             {/* Search Bar */}
             <div className="flex-none px-6 py-5 border-b border-slate-100 bg-white">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="flex items-center gap-3 mb-1">
-                    <h1 className={`text-lg font-bold text-slate-900 ${montserrat.className}`}>
-                      Repository Review
-                    </h1>
-                    <Badge
-                      variant="outline"
-                      className={`bg-indigo-50/50 text-indigo-600 border-indigo-100 font-semibold px-2 py-0 text-[10px] uppercase ${montserrat.className}`}
-                    >
-                      {selectedExercise.exerciseInformation.exerciseName}
-                    </Badge>
+                  <h1 className={`text-lg font-bold text-slate-900 mb-1 ${montserrat.className}`}>
+                    Repository Review
+                  </h1>
+                  <div className={`flex items-center gap-3 text-xs ${inter.className}`}>
+                    <span className="text-slate-500">
+                      <span className="font-semibold text-slate-600">ID:</span> {selectedExercise.exerciseInformation.exerciseId}
+                    </span>
+                    <span className="text-slate-300">|</span>
+                    <span className="text-slate-500">
+                      <span className="font-semibold text-slate-600">
+                        {selectedExercise._category === 'You_Do' ? 'Assessment Name:' : 'Assignment Name:'}
+                      </span>{' '}{selectedExercise.exerciseInformation.exerciseName}
+                    </span>
                   </div>
-                  <p className="text-xs text-slate-500 font-medium tracking-tight">
-                    {filteredParticipants.length} students • {selectedExercise.questions.length} questions • Total Points: {getDynamicExerciseTotal(selectedExercise)}
-                  </p>
                 </div>
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center gap-2">
+                  {/* Status Filter */}
+                  <div className="relative flex items-center">
+                    <Filter className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none z-10" />
+                    <select
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                      className={`h-9 pl-8 pr-3 text-xs border border-slate-200 rounded-md bg-white text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 appearance-none cursor-pointer ${inter.className} ${statusFilter !== 'all' ? 'border-indigo-300 text-indigo-600 bg-indigo-50' : ''}`}
+                    >
+                      <option value="all">All Status</option>
+                      <option value="not_submitted">Not Submitted</option>
+                      <option value="review">Review</option>
+                      <option value="evaluated">Evaluated</option>
+                    </select>
+                  </div>
+                  {/* Search */}
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
                     <Input
                       placeholder="Search students..."
-                      className="pl-9 h-9 text-xs w-64 border-slate-200 rounded-md focus:ring-2 focus:ring-indigo-500/20 bg-white"
+                      className="pl-9 h-9 text-xs w-56 border-slate-200 rounded-md focus:ring-2 focus:ring-indigo-500/20 bg-white"
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
                     />
@@ -2646,11 +2721,17 @@ builtins.input = _async_input
                 <TableHeader>
                   <TableRow className="border-b border-slate-100 bg-slate-50/50 hover:bg-slate-50/50">
                     <TableHead className={`w-12 px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-center ${montserrat.className}`}>No.</TableHead>
-                    <TableHead className={`px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider ${montserrat.className}`}>Student Identity</TableHead>
-                    <TableHead className={`px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider ${montserrat.className}`}>Grading Status</TableHead>
-                    <TableHead className={`px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-center ${montserrat.className}`}>Progress</TableHead>
-                    <TableHead className={`px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-center ${montserrat.className}`}>Result</TableHead>
-                    <TableHead className={`px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-center ${montserrat.className}`}>Pass/Fail</TableHead>
+                    <TableHead className={`px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider ${montserrat.className}`}>Name</TableHead>
+                    <TableHead className={`px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider ${montserrat.className}`}>Email</TableHead>
+                    {/* Submit Type / Reason only apply to You Do assessments (proctoring + auto-submit), not We Do assignments */}
+                    {selectedExercise._category === 'You_Do' && (
+                      <>
+                        <TableHead className={`px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-center ${montserrat.className}`}>Submit Type</TableHead>
+                        <TableHead className={`px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider ${montserrat.className}`}>Reason</TableHead>
+                      </>
+                    )}
+                    <TableHead className={`px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider ${montserrat.className}`}>Status</TableHead>
+                    <TableHead className={`px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-center ${montserrat.className}`}>Submitted Date</TableHead>
                     <TableHead className={`px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-center ${montserrat.className}`}>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -2676,7 +2757,14 @@ builtins.input = _async_input
 
                     allQuestions.forEach(question => {
                       const submission = getSubmissionForParticipantQuestion(participant, question._id);
-                      if (submission && (submission.codeAnswer || submission.files?.length)) {
+                      // A submission counts as answered if it has answer content OR isCorrect set (MCQ)
+                      const hasAnswer = !!(
+                        submission?.codeAnswer ||
+                        submission?.files?.length ||
+                        submission?.othersFiles?.length ||
+                        (submission && submission.isCorrect !== undefined && submission.isCorrect !== null)
+                      );
+                      if (submission && hasAnswer) {
                         totalAnsweredQuestions++;
                         if (isQuestionMCQ(question)) {
                           const questionMax = getQuestionMaxScore(selectedExercise, question);
@@ -2701,16 +2789,18 @@ builtins.input = _async_input
                     } else {
                       let allProgrammingEvaluated = true;
                       allQuestions.forEach(question => {
+                        const submission = getSubmissionForParticipantQuestion(participant, question._id);
                         if (!isQuestionMCQ(question)) {
-                          const submission = getSubmissionForParticipantQuestion(participant, question._id);
                           if (submission?.status !== 'evaluated') {
                             allProgrammingEvaluated = false;
                           }
                         } else {
-                          const submission = getSubmissionForParticipantQuestion(participant, question._id);
-                          if (!submission?.codeAnswer && !submission?.files?.length) {
-                            allProgrammingEvaluated = false;
-                          }
+                          const hasAns = !!(
+                            submission?.codeAnswer ||
+                            submission?.files?.length ||
+                            (submission && submission.isCorrect !== undefined && submission.isCorrect !== null)
+                          );
+                          if (!hasAns) allProgrammingEvaluated = false;
                         }
                       });
                       isEvaluated = allProgrammingEvaluated && allQuestionsAnswered;
@@ -2734,89 +2824,121 @@ builtins.input = _async_input
                             <div className={`w-8 h-8 bg-slate-800 flex items-center justify-center text-white text-[10px] font-bold rounded-md shadow-sm ${montserrat.className}`}>
                               {participant.user.firstName[0]}{participant.user.lastName[0]}
                             </div>
-                            <div>
-                              <div className={`text-xs font-bold text-slate-800 group-hover:text-indigo-600 transition-colors ${montserrat.className}`}>
-                                {participant.user.firstName} {participant.user.lastName}
-                              </div>
-                              <div className="text-[10px] text-slate-500 font-medium">
-                                {participant.user.email}
-                              </div>
-                            </div>
+                            <span className={`text-xs font-bold text-slate-800 group-hover:text-indigo-600 transition-colors ${montserrat.className}`}>
+                              {participant.user.firstName} {participant.user.lastName}
+                            </span>
                           </div>
                         </TableCell>
                         <TableCell className="px-4 py-3">
+                          <span className="text-xs text-slate-500 font-medium">
+                            {participant.user.email}
+                          </span>
+                        </TableCell>
+                        {/* Submit Type / Reason only apply to You Do assessments (proctoring + auto-submit), not We Do assignments */}
+                        {selectedExercise._category === 'You_Do' && (
+                          <>
+                            {/* Submit Type — USER (manual) vs AUTO (system auto-submit) */}
+                            <TableCell className="px-4 py-3 text-center">
+                              {hasSubmissions ? (
+                                answers[0]?.submitType === 'AUTO' ? (
+                                  <Badge className={`font-bold text-[9px] uppercase tracking-wider py-0.5 px-2 border-none rounded bg-rose-50 text-rose-600 ${montserrat.className}`}>
+                                    AUTO
+                                  </Badge>
+                                ) : (
+                                  <Badge className={`font-bold text-[9px] uppercase tracking-wider py-0.5 px-2 border-none rounded bg-emerald-50 text-emerald-600 ${montserrat.className}`}>
+                                    USER
+                                  </Badge>
+                                )
+                              ) : (
+                                <span className={`text-[10px] text-slate-400 ${inter.className}`}>—</span>
+                              )}
+                            </TableCell>
+                            {/* Reason — stored auto-submit reason for AUTO; otherwise a dash */}
+                            <TableCell className="px-4 py-3">
+                              {hasSubmissions && answers[0]?.submitType === 'AUTO' && answers[0]?.autoSubmitReason ? (
+                                <span className={`text-xs text-slate-600 ${inter.className}`}>
+                                  {answers[0].autoSubmitReason}
+                                </span>
+                              ) : (
+                                <span className={`text-[10px] text-slate-400 ${inter.className}`}>—</span>
+                              )}
+                            </TableCell>
+                          </>
+                        )}
+                        <TableCell className="px-4 py-3">
                           {hasSubmissions ? (
                             <Badge className={`font-bold text-[9px] uppercase tracking-wider py-0.5 px-2 border-none rounded ${isEvaluated ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"} ${montserrat.className}`}>
-                              {isEvaluated ? 'Evaluated' : 'Needs Review'}
+                              {isEvaluated ? 'Evaluated' : 'Review'}
                             </Badge>
                           ) : (
                             <Badge variant="outline" className={`text-[9px] uppercase tracking-wider font-bold text-slate-400 bg-slate-50 border-slate-200 py-0.5 px-2 rounded ${montserrat.className}`}>
-                              No Action
+                              Not Submitted
                             </Badge>
                           )}
                         </TableCell>
                         <TableCell className="px-4 py-3 text-center">
-                          <div className={`text-xs font-bold text-slate-600 ${montserrat.className}`}>
-                            {totalAnsweredQuestions}
-                            <span className="text-slate-300 mx-1">/</span>
-                            {selectedExercise.questions.length}
-                          </div>
-                        </TableCell>
-                        <TableCell className="px-4 py-3 text-center">
-                          <div className="flex flex-col items-center">
-                            <div className={`flex items-center gap-1 mb-1 ${montserrat.className}`}>
-                              <span className="text-xs font-bold text-slate-900">{totalScore}</span>
-                              <span className="text-xs font-bold text-slate-400">/</span>
-                              <span className="text-xs font-bold text-slate-500">{max}</span>
+                          {hasSubmissions && answers[0]?.createdAt ? (
+                            <div className="flex flex-col items-center gap-0.5">
+                              <span className={`text-xs text-slate-700 ${inter.className}`}>
+                                {new Date(answers[0].createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                              </span>
+                              <span className={`text-[10px] text-slate-600 ${inter.className}`}>
+                                {(() => { const d = new Date(answers[0].createdAt); const h = d.getHours(); const m = String(d.getMinutes()).padStart(2,'0'); const ampm = h >= 12 ? 'PM' : 'AM'; const h12 = h % 12 || 12; return `${h12}:${m} ${ampm}`; })()}
+                              </span>
+                              {answers[0].lateSubmission && (
+                                <span className={`mt-0.5 text-[9px] font-bold uppercase tracking-wide text-rose-600 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded-full ${montserrat.className}`}>
+                                  Late Submission
+                                </span>
+                              )}
                             </div>
-                            <ScoreIndicator score={totalScore} maxScore={max} />
-                          </div>
+                          ) : (
+                            <span className={`text-[10px] text-slate-500 ${inter.className}`}>—</span>
+                          )}
                         </TableCell>
-                        <TableCell className="px-4 py-3 text-center">
-                          <div className="flex flex-col items-center">
-                            {hasSubmissions && allQuestionsAnswered ? (
-                              passFailStatus === 'pass' ? (
-                                <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 font-bold text-[10px] px-2 py-0.5 rounded-full">
-                                  ✓ Pass
-                                </Badge>
-                              ) : (
-                                <Badge className="bg-rose-100 text-rose-700 border-rose-200 font-bold text-[10px] px-2 py-0.5 rounded-full">
-                                  ✗ Fail
-                                </Badge>
-                              )
+                        <TableCell className="px-4 py-3">
+                          <div className="flex items-center justify-center gap-1.5">
+                            {!hasSubmissions ? (
+                              <Button
+                                size="sm"
+                                disabled
+                                className={`h-8 w-36 text-[10px] font-bold rounded-md shadow-sm bg-red-100 text-red-500 border border-red-200 cursor-not-allowed ${montserrat.className}`}
+                              >
+                                Not Submitted Yet
+                              </Button>
+                            ) : (isEvaluated || isNonGraded) ? (
+                              <Button
+                                size="sm"
+                                onClick={() => handleStartGrading(participant)}
+                                className={`h-8 w-36 text-[10px] font-bold rounded-md transition-all shadow-sm bg-emerald-600 hover:bg-emerald-700 text-white border-transparent ${montserrat.className}`}
+                              >
+                                View Details
+                              </Button>
                             ) : (
-                              <Badge variant="outline" className="text-slate-400 bg-slate-50 border-slate-200 font-bold text-[10px] px-2 py-0.5 rounded-full">
-                                Pending
-                              </Badge>
+                              <Button
+                                size="sm"
+                                onClick={() => handleStartGrading(participant)}
+                                className={`h-8 w-36 text-[10px] font-bold rounded-md transition-all shadow-sm bg-orange-500 hover:bg-orange-600 text-white border-transparent ${montserrat.className}`}
+                              >
+                                Start Grading
+                              </Button>
                             )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="px-4 py-3 text-center">
-                          <div className="flex items-center justify-center gap-2">
-                            <Button
-                              variant={hasSubmissions ? "default" : "outline"}
-                              size="sm"
-                              onClick={() => handleStartGrading(participant)}
-                              className={`h-8 px-4 text-[10px] font-bold rounded-md transition-all shadow-sm ${montserrat.className} ${hasSubmissions
-                                ? 'bg-slate-900 hover:bg-indigo-600 text-white border-transparent'
-                                : 'border-slate-200 text-slate-600 bg-white hover:text-indigo-600'
-                                }`}
-                            >
-                              {hasSubmissions ? 'View Details' : 'Start Grading'}
-                            </Button>
 
-                            <DropdownMenu>
+                            <DropdownMenu modal={false}>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-md hover:bg-slate-100 text-slate-400 hover:text-slate-700">
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-md hover:bg-slate-100 text-slate-400 hover:text-slate-700 flex items-center justify-center shrink-0">
                                   <MoreVertical className="h-4 w-4" />
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end" className="w-48">
-                                <DropdownMenuItem onClick={() => handleUnlockExercise(participant.user._id, selectedExercise._id)} className="text-xs font-medium cursor-pointer text-slate-600 focus:text-indigo-600 focus:bg-indigo-50">
-                                  <Unlock className="mr-2 h-3.5 w-3.5" />
-                                  <span>Unlock Exercise</span>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleViewAssessmentVideo(participant.user._id, selectedExercise._id)} className="text-xs font-medium cursor-pointer text-slate-600 focus:text-emerald-600 focus:bg-emerald-50">
+                                <DropdownMenuItem
+                                  className="text-xs font-medium cursor-pointer text-slate-600 focus:text-emerald-600 focus:bg-emerald-50"
+                                  onSelect={(e) => {
+                                    e.preventDefault();
+                                    const pId = participant.user._id;
+                                    const exId = selectedExercise._id;
+                                    setTimeout(() => handleViewAssessmentVideo(pId, exId), 80);
+                                  }}
+                                >
                                   <Play className="mr-2 h-3.5 w-3.5" />
                                   <span>Assessment Video</span>
                                 </DropdownMenuItem>
@@ -2939,7 +3061,12 @@ builtins.input = _async_input
                       {filteredQuestions.map((question, index) => {
                         const submission = getSubmissionForQuestion(question._id);
                         const isCurrent = selectedQuestion?._id === question._id;
-                        const hasSubmission = !!(submission?.codeAnswer || submission?.files?.length || submission?.othersFiles?.length);
+                        const hasSubmission = !!(
+                          submission?.codeAnswer ||
+                          submission?.files?.length ||
+                          submission?.othersFiles?.length ||
+                          (submission && submission.isCorrect !== undefined && submission.isCorrect !== null)
+                        );
                         const allowedMax = selectedExercise ? getQuestionMaxScore(selectedExercise, question) : question.points || 10;
 
                         const getDiffStyle = (diff: string) => {
@@ -2990,7 +3117,12 @@ builtins.input = _async_input
                     </Button>
                     {selectedExercise?.questions.map((_, index) => {
                       const submission = getSubmissionForQuestion(selectedExercise.questions[index]._id);
-                      const hasSubmission = !!(submission?.codeAnswer || submission?.files?.length || submission?.othersFiles?.length);
+                      const hasSubmission = !!(
+                        submission?.codeAnswer ||
+                        submission?.files?.length ||
+                        submission?.othersFiles?.length ||
+                        (submission && submission.isCorrect !== undefined && submission.isCorrect !== null)
+                      );
                       const isCurrent = selectedQuestion?._id === selectedExercise.questions[index]._id;
                       return (
                         <div key={index} onClick={() => handleQuestionClick(selectedExercise.questions[index], index)} className={`w-8 h-8 flex items-center justify-center rounded-md text-[10px] font-bold transition-all cursor-pointer ${montserrat.className} ${isCurrent ? 'bg-indigo-600 text-white' : !hasSubmission ? 'bg-rose-50 text-rose-300 border border-rose-100' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}>
@@ -3006,7 +3138,9 @@ builtins.input = _async_input
               <div className="flex-1 overflow-hidden">
                 {isCodeMultiFileReview && frontendSubmissionData && selectedQuestion ? (
                   <StaffCodeReview
-                    key={selectedQuestion._id}
+                    key={frontendSubmissionData._id || selectedQuestion._id}
+                    submissionId={frontendSubmissionData._id || `${selectedParticipant?.user?._id || 'p'}-${selectedQuestion._id}`}
+                    selectedLanguages={selectedExercise?.programmingSettings?.selectedLanguages || []}
                     files={frontendSubmissionData.files}
                     folders={frontendSubmissionData.folders}
                     questionTitle={getQuestionTitle(selectedQuestion)}
@@ -3057,11 +3191,12 @@ builtins.input = _async_input
                     inter={inter}
                   />
                 ) : isQuestionMCQ(selectedQuestion) ? (
-                  /* MCQ QUESTION VIEW */
+                  /* MCQ QUESTION VIEW — type-aware */
                   <div className="h-full overflow-y-auto custom-scrollbar px-6 py-5 space-y-4">
+                    {/* Question header */}
                     <div className="bg-slate-950 rounded-xl p-5 border border-slate-800">
                       <span className={`text-[9px] font-bold text-violet-400 uppercase tracking-widest mb-2 block ${montserrat.className}`}>
-                        {selectedQuestion?.mcqQuestionType?.replace('_', ' ') || 'Multiple Choice'} • {maxScore} points
+                        {selectedQuestion?.mcqQuestionType?.replace(/_/g, ' ') || 'Multiple Choice'} • {maxScore} points
                       </span>
                       <h2 className={`text-sm font-semibold text-white leading-relaxed ${inter.className}`}>
                         {getQuestionTitle(selectedQuestion)}
@@ -3073,73 +3208,228 @@ builtins.input = _async_input
                       )}
                     </div>
 
-                    {submissionQuestion?.codeAnswer ? (
-                      <div className={`flex items-center gap-2.5 px-4 py-2.5 rounded-lg border ${submissionQuestion.isCorrect ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
-                        <User className={`h-3.5 w-3.5 shrink-0 ${submissionQuestion.isCorrect ? 'text-emerald-600' : 'text-rose-600'}`} />
-                        <span className={`text-xs font-semibold ${submissionQuestion.isCorrect ? 'text-emerald-700' : 'text-rose-700'}`}>
-                          Student answered:
-                        </span>
-                        <span className={`text-xs font-bold ${submissionQuestion.isCorrect ? 'text-emerald-900' : 'text-rose-900'}`}>
-                          "{submissionQuestion.codeAnswer}"
-                        </span>
-                        <span className={`ml-auto text-[10px] font-bold uppercase tracking-wide ${submissionQuestion.isCorrect ? 'text-emerald-600' : 'text-rose-600'}`}>
-                          {submissionQuestion.isCorrect ? '✓ Correct' : '✗ Wrong'}
-                        </span>
-                      </div>
-                    ) : (
+                    {/* No submission */}
+                    {!submissionQuestion?.codeAnswer && (
                       <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-lg border bg-slate-50 border-slate-200">
                         <AlertCircle className="h-3.5 w-3.5 text-slate-400" />
                         <span className="text-xs font-medium text-slate-500">Student has not answered this question</span>
                       </div>
                     )}
 
-                    <div className="space-y-2.5">
-                      {(selectedQuestion?.mcqQuestionOptions || []).map((option, idx) => {
-                        const studentAnswer = submissionQuestion?.codeAnswer || '';
-                        const isStudentChoice = !!studentAnswer && option.text.trim() === studentAnswer.trim();
-                        const isCorrectOpt = option.isCorrect ||
-                          (selectedQuestion?.mcqQuestionCorrectAnswers || []).includes(option.text);
+                    {/* ── MATCHING ── */}
+                    {selectedQuestion?.mcqQuestionType === 'matching' && submissionQuestion?.codeAnswer && (() => {
+                      let studentPairs: { left: string; right: string }[] = [];
+                      try { studentPairs = JSON.parse(submissionQuestion.codeAnswer); } catch {}
+                      const correctPairs = selectedQuestion.matchingPairs || [];
 
-                        let containerCls = 'border-slate-200 bg-white';
-                        let labelText = '';
-                        let labelCls = '';
-                        let letterCls = 'border-slate-300 text-slate-500 bg-slate-50';
-
-                        if (isCorrectOpt && isStudentChoice) {
-                          containerCls = 'border-emerald-400 bg-emerald-50';
-                          labelText = '✓ Correct Answer';
-                          labelCls = 'text-emerald-600 font-bold';
-                          letterCls = 'border-emerald-400 text-emerald-700 bg-emerald-100';
-                        } else if (isCorrectOpt) {
-                          containerCls = 'border-emerald-200 bg-emerald-50/40';
-                          labelText = 'Correct Answer';
-                          labelCls = 'text-emerald-500 font-medium';
-                          letterCls = 'border-emerald-300 text-emerald-600 bg-emerald-50';
-                        } else if (isStudentChoice) {
-                          containerCls = 'border-rose-400 bg-rose-50';
-                          labelText = '✗ Student\'s Choice';
-                          labelCls = 'text-rose-600 font-bold';
-                          letterCls = 'border-rose-400 text-rose-700 bg-rose-100';
-                        }
-
-                        return (
-                          <div key={idx} className={`flex items-center justify-between gap-3 px-4 py-3 rounded-xl border-2 transition-all ${containerCls}`}>
-                            <div className="flex items-center gap-3 flex-1 min-w-0">
-                              <span className={`w-7 h-7 rounded-full border-2 flex items-center justify-center text-[11px] font-bold shrink-0 ${letterCls}`}>
-                                {String.fromCharCode(65 + idx)}
-                              </span>
-                              <span className="text-sm font-medium text-slate-800 leading-snug">{option.text}</span>
-                              {option.imageUrl && <img src={option.imageUrl} alt="" className="h-10 w-auto rounded object-contain ml-2" />}
-                            </div>
-                            {labelText && (
-                              <span className={`text-[10px] uppercase tracking-wide shrink-0 ${labelCls} ${montserrat.className}`}>
-                                {labelText}
-                              </span>
-                            )}
+                      return (
+                        <div className="space-y-2">
+                          <p className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 ${montserrat.className}`}>
+                            Matching Pairs
+                          </p>
+                          {/* Column headers */}
+                          <div className="grid grid-cols-3 gap-3 px-3 pb-1">
+                            <span className={`text-[10px] font-bold text-slate-400 uppercase tracking-wide ${montserrat.className}`}>Left Item</span>
+                            <span className={`text-[10px] font-bold text-slate-400 uppercase tracking-wide ${montserrat.className}`}>Student's Match</span>
+                            <span className={`text-[10px] font-bold text-slate-400 uppercase tracking-wide ${montserrat.className}`}>Correct Match</span>
                           </div>
-                        );
-                      })}
-                    </div>
+                          {correctPairs.map((correctPair, idx) => {
+                            const studentPair = studentPairs.find(sp => sp.left === correctPair.left);
+                            const studentRight = studentPair?.right ?? '—';
+                            const isCorrect = studentRight === correctPair.right;
+                            return (
+                              <div key={idx} className={`grid grid-cols-3 gap-3 items-center px-4 py-3 rounded-xl border-2 ${isCorrect ? 'border-emerald-300 bg-emerald-50' : 'border-rose-300 bg-rose-50'}`}>
+                                {/* Left item */}
+                                <div className="flex items-center gap-2">
+                                  <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${isCorrect ? 'bg-emerald-200 text-emerald-700' : 'bg-rose-200 text-rose-700'}`}>
+                                    {String.fromCharCode(65 + idx)}
+                                  </span>
+                                  <span className="text-sm font-medium text-slate-800">{correctPair.left}</span>
+                                </div>
+                                {/* Student's answer */}
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-sm font-bold ${isCorrect ? 'text-emerald-700' : 'text-rose-700'}`}>{studentRight}</span>
+                                  <span className={`text-base font-bold ${isCorrect ? 'text-emerald-500' : 'text-rose-500'}`}>{isCorrect ? '✓' : '✗'}</span>
+                                </div>
+                                {/* Correct answer */}
+                                <div>
+                                  <span className="text-sm font-semibold text-emerald-700">{correctPair.right}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                          {/* Summary badge */}
+                          <div className={`flex items-center gap-2 px-4 py-2 rounded-lg mt-1 ${submissionQuestion.isCorrect ? 'bg-emerald-50 border border-emerald-200' : 'bg-rose-50 border border-rose-200'}`}>
+                            <span className={`text-[11px] font-bold ${submissionQuestion.isCorrect ? 'text-emerald-700' : 'text-rose-700'}`}>
+                              {submissionQuestion.isCorrect ? '✓ All pairs correct' : '✗ Some pairs incorrect'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* ── SHORT ANSWER / ESSAY ── */}
+                    {(selectedQuestion?.mcqQuestionType === 'short_answer' || selectedQuestion?.mcqQuestionType === 'essay') && submissionQuestion?.codeAnswer && (
+                      <div>
+                        <p className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 ${montserrat.className}`}>Student's Answer</p>
+                        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                          <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">{submissionQuestion.codeAnswer}</p>
+                        </div>
+                        {selectedQuestion.mcqQuestionType === 'short_answer' && (selectedQuestion as any).shortAnswer && (
+                          <div className="mt-2 bg-emerald-50 border border-emerald-200 rounded-xl p-3">
+                            <p className={`text-[10px] font-bold text-emerald-600 uppercase tracking-widest mb-1 ${montserrat.className}`}>Expected Answer</p>
+                            <p className="text-sm font-semibold text-emerald-800">{(selectedQuestion as any).shortAnswer}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* ── TRUE / FALSE ── */}
+                    {selectedQuestion?.mcqQuestionType === 'true_false' && submissionQuestion?.codeAnswer && (() => {
+                      const studentVal = submissionQuestion.codeAnswer.toLowerCase() === 'true';
+                      const correctVal = selectedQuestion.trueFalseAnswer;
+                      const isCorrect = correctVal !== null && correctVal !== undefined ? studentVal === correctVal : submissionQuestion.isCorrect;
+                      return (
+                        <div className="space-y-2.5">
+                          <p className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 ${montserrat.className}`}>Student's Answer</p>
+                          {['true', 'false'].map(val => {
+                            const isStudentChoice = submissionQuestion.codeAnswer.toLowerCase() === val;
+                            const isCorrectChoice = correctVal !== null && correctVal !== undefined ? (correctVal === (val === 'true')) : (isStudentChoice && submissionQuestion.isCorrect);
+                            let cls = 'border-slate-200 bg-white';
+                            let label = '';
+                            if (isCorrectChoice && isStudentChoice) { cls = 'border-emerald-400 bg-emerald-50'; label = '✓ Correct'; }
+                            else if (isCorrectChoice) { cls = 'border-emerald-200 bg-emerald-50/40'; label = 'Correct Answer'; }
+                            else if (isStudentChoice) { cls = 'border-rose-400 bg-rose-50'; label = '✗ Wrong'; }
+                            return (
+                              <div key={val} className={`flex items-center justify-between gap-3 px-4 py-3 rounded-xl border-2 ${cls}`}>
+                                <span className="text-sm font-semibold text-slate-800 capitalize">{val}</span>
+                                {label && <span className={`text-[10px] font-bold uppercase tracking-wide ${isCorrectChoice ? 'text-emerald-600' : 'text-rose-600'} ${montserrat.className}`}>{label}</span>}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+
+                    {/* ── NUMERIC ── */}
+                    {selectedQuestion?.mcqQuestionType === 'numeric' && submissionQuestion?.codeAnswer && (() => {
+                      const studentNum = parseFloat(submissionQuestion.codeAnswer);
+                      const correctNum = selectedQuestion.numericAnswer;
+                      const tol = selectedQuestion.numericTolerance ?? 0;
+                      const isCorrect = correctNum !== null && correctNum !== undefined
+                        ? Math.abs(studentNum - correctNum) <= tol
+                        : submissionQuestion.isCorrect;
+                      return (
+                        <div className="space-y-2">
+                          <p className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest ${montserrat.className}`}>Student's Answer</p>
+                          <div className={`flex items-center justify-between px-5 py-4 rounded-xl border-2 ${isCorrect ? 'border-emerald-300 bg-emerald-50' : 'border-rose-300 bg-rose-50'}`}>
+                            <span className={`text-xl font-bold ${isCorrect ? 'text-emerald-700' : 'text-rose-700'}`}>{submissionQuestion.codeAnswer}</span>
+                            <span className={`text-[11px] font-bold uppercase tracking-wide ${isCorrect ? 'text-emerald-600' : 'text-rose-600'} ${montserrat.className}`}>
+                              {isCorrect ? '✓ Correct' : '✗ Wrong'}
+                            </span>
+                          </div>
+                          {correctNum !== null && correctNum !== undefined && (
+                            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-50 border border-slate-200">
+                              <span className={`text-[10px] text-slate-500 ${montserrat.className}`}>Correct answer:</span>
+                              <span className="text-sm font-bold text-emerald-700">{correctNum}</span>
+                              {tol > 0 && <span className="text-[10px] text-slate-400">± {tol}</span>}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    {/* ── ORDERING ── */}
+                    {selectedQuestion?.mcqQuestionType === 'ordering' && submissionQuestion?.codeAnswer && (() => {
+                      let studentOrder: { itemId: string; order: number }[] = [];
+                      try { studentOrder = JSON.parse(submissionQuestion.codeAnswer); } catch {}
+                      const correctItems = selectedQuestion.orderingItems || [];
+                      const sorted = [...studentOrder].sort((a, b) => a.order - b.order);
+                      return (
+                        <div className="space-y-2">
+                          <p className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 ${montserrat.className}`}>Student's Order</p>
+                          {sorted.map((item, idx) => {
+                            const matchedItem = correctItems.find(ci => ci._id === item.itemId);
+                            const correctItem = correctItems.find(ci => ci.order === idx + 1);
+                            const isCorrect = matchedItem && correctItem && matchedItem._id === correctItem._id;
+                            return (
+                              <div key={idx} className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 ${isCorrect ? 'border-emerald-300 bg-emerald-50' : 'border-rose-200 bg-rose-50'}`}>
+                                <span className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${isCorrect ? 'bg-emerald-200 text-emerald-700' : 'bg-rose-200 text-rose-700'}`}>{idx + 1}</span>
+                                <span className="text-sm font-medium text-slate-800 flex-1">{matchedItem?.text || item.itemId}</span>
+                                <span className={`text-base font-bold ${isCorrect ? 'text-emerald-500' : 'text-rose-400'}`}>{isCorrect ? '✓' : '✗'}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+
+                    {/* ── MULTIPLE CHOICE / DROPDOWN / CHECKBOXES / default ── */}
+                    {(!selectedQuestion?.mcqQuestionType ||
+                      ['multiple_choice', 'dropdown', 'checkboxes', 'multiple_select'].includes(selectedQuestion.mcqQuestionType)) &&
+                      submissionQuestion?.codeAnswer && (
+                      <div className={`flex items-center gap-2.5 px-4 py-2.5 rounded-lg border ${submissionQuestion.isCorrect ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
+                        <User className={`h-3.5 w-3.5 shrink-0 ${submissionQuestion.isCorrect ? 'text-emerald-600' : 'text-rose-600'}`} />
+                        <span className={`text-xs font-semibold ${submissionQuestion.isCorrect ? 'text-emerald-700' : 'text-rose-700'}`}>Student answered:</span>
+                        <span className={`text-xs font-bold ${submissionQuestion.isCorrect ? 'text-emerald-900' : 'text-rose-900'}`}>"{submissionQuestion.codeAnswer}"</span>
+                        <span className={`ml-auto text-[10px] font-bold uppercase tracking-wide ${submissionQuestion.isCorrect ? 'text-emerald-600' : 'text-rose-600'} ${montserrat.className}`}>
+                          {submissionQuestion.isCorrect ? '✓ Correct' : '✗ Wrong'}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Options list — for multiple_choice / dropdown / checkboxes */}
+                    {(!selectedQuestion?.mcqQuestionType ||
+                      ['multiple_choice', 'dropdown', 'checkboxes', 'multiple_select'].includes(selectedQuestion.mcqQuestionType)) &&
+                      (selectedQuestion?.mcqQuestionOptions || []).length > 0 && (
+                      <div className="space-y-2.5">
+                        {(selectedQuestion?.mcqQuestionOptions || []).map((option, idx) => {
+                          const studentAnswer = submissionQuestion?.codeAnswer || '';
+                          const isStudentChoice = !!studentAnswer && option.text.trim() === studentAnswer.trim();
+                          const isCorrectOpt = option.isCorrect ||
+                            (selectedQuestion?.mcqQuestionCorrectAnswers || []).includes(option.text);
+
+                          let containerCls = 'border-slate-200 bg-white';
+                          let labelText = '';
+                          let labelCls = '';
+                          let letterCls = 'border-slate-300 text-slate-500 bg-slate-50';
+
+                          if (isCorrectOpt && isStudentChoice) {
+                            containerCls = 'border-emerald-400 bg-emerald-50';
+                            labelText = '✓ Correct Answer';
+                            labelCls = 'text-emerald-600 font-bold';
+                            letterCls = 'border-emerald-400 text-emerald-700 bg-emerald-100';
+                          } else if (isCorrectOpt) {
+                            containerCls = 'border-emerald-200 bg-emerald-50/40';
+                            labelText = 'Correct Answer';
+                            labelCls = 'text-emerald-500 font-medium';
+                            letterCls = 'border-emerald-300 text-emerald-600 bg-emerald-50';
+                          } else if (isStudentChoice) {
+                            containerCls = 'border-rose-400 bg-rose-50';
+                            labelText = '✗ Student\'s Choice';
+                            labelCls = 'text-rose-600 font-bold';
+                            letterCls = 'border-rose-400 text-rose-700 bg-rose-100';
+                          }
+
+                          return (
+                            <div key={idx} className={`flex items-center justify-between gap-3 px-4 py-3 rounded-xl border-2 transition-all ${containerCls}`}>
+                              <div className="flex items-center gap-3 flex-1 min-w-0">
+                                <span className={`w-7 h-7 rounded-full border-2 flex items-center justify-center text-[11px] font-bold shrink-0 ${letterCls}`}>
+                                  {String.fromCharCode(65 + idx)}
+                                </span>
+                                <span className="text-sm font-medium text-slate-800 leading-snug">{option.text}</span>
+                                {option.imageUrl && <img src={option.imageUrl} alt="" className="h-10 w-auto rounded object-contain ml-2" />}
+                              </div>
+                              {labelText && (
+                                <span className={`text-[10px] uppercase tracking-wide shrink-0 ${labelCls} ${montserrat.className}`}>
+                                  {labelText}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   /* STANDARD MONACO EDITOR VIEW */
@@ -3585,26 +3875,153 @@ builtins.input = _async_input
       </Dialog>
 
       {/* ASSESSMENT VIDEO MODAL */}
-      <Dialog open={showVideoModal} onOpenChange={setShowVideoModal}>
-        <DialogContent className={`max-w-4xl rounded-xl border-none shadow-2xl p-0 overflow-hidden bg-black ${inter.className}`} onCloseAutoFocus={(e) => { e.preventDefault(); }} onOpenAutoFocus={(e) => { e.preventDefault(); }}>
-          <div className="flex flex-col h-full">
-            <DialogHeader className="p-4 pb-2 border-b border-slate-800 bg-slate-900">
-              <div className="flex items-center justify-between">
-                <DialogTitle className={`text-sm font-bold text-white uppercase tracking-tight ${montserrat.className}`}>Assessment Screen Recording</DialogTitle>
-                <Button variant="ghost" size="sm" onClick={() => { setShowVideoModal(false); setAssessmentVideoUrl(null); setIsLoadingVideo(false); }} className="rounded-full h-8 w-8 p-0 hover:bg-slate-800"><X className="h-4 w-4 text-white" /></Button>
+      <Dialog open={showVideoModal} onOpenChange={(open) => { if (!open) { setShowVideoModal(false); setAssessmentVideoUrl(null); setIsLoadingVideo(false); setTimeout(() => { document.body.style.pointerEvents = ''; }, 100); } }}>
+        <DialogContent
+          className={`max-w-5xl rounded-2xl border-none shadow-2xl p-0 overflow-hidden ${inter.className}`}
+          style={{ background: '#0a0a0f' }}
+          onCloseAutoFocus={(e) => e.preventDefault()}
+          onOpenAutoFocus={(e) => e.preventDefault()}
+        >
+          <div className="flex flex-col">
+            {/* ── Header ── */}
+            <DialogHeader className="px-5 py-3.5 border-b border-white/10" style={{ background: 'rgba(255,255,255,0.04)' }}>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                    style={{ background: 'linear-gradient(135deg,#6366f1,#8b5cf6)' }}>
+                    <Play className="h-3.5 w-3.5 text-white fill-white" />
+                  </div>
+                  <div>
+                    <DialogTitle className={`text-sm font-bold text-white ${montserrat.className}`}>
+                      Assessment Screen Recording
+                    </DialogTitle>
+                    {selectedParticipant && (
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        {selectedParticipant.user.firstName} {selectedParticipant.user.lastName}
+                        {selectedExercise && <span className="text-slate-600"> · {selectedExercise.exerciseInformation.exerciseName}</span>}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  variant="ghost" size="sm"
+                  onClick={() => { setShowVideoModal(false); setAssessmentVideoUrl(null); setIsLoadingVideo(false); }}
+                  className="rounded-full h-8 w-8 p-0 text-slate-400 hover:text-white hover:bg-white/10 flex-shrink-0"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
               </div>
-              {selectedParticipant && (<p className="text-xs text-slate-400 mt-1">{selectedParticipant.user.firstName} {selectedParticipant.user.lastName} • {selectedExercise?.exerciseInformation.exerciseName}</p>)}
             </DialogHeader>
-            <div className="flex-1 p-0 bg-black">
+
+            {/* ── Video area ── */}
+            <div className="relative" style={{ background: '#000', minHeight: 420 }}>
               {isLoadingVideo ? (
-                <div className="flex items-center justify-center h-96"><Loader2 className="h-8 w-8 animate-spin text-indigo-500" /><span className="ml-3 text-slate-400 text-sm">Loading video...</span></div>
+                <div className="flex flex-col items-center justify-center h-[420px] gap-3">
+                  <div className="w-12 h-12 rounded-full border-2 border-indigo-500/30 border-t-indigo-500 animate-spin" />
+                  <span className="text-slate-400 text-sm font-medium">Loading recording…</span>
+                </div>
+
               ) : assessmentVideoUrl ? (
-                <div className="relative w-full h-full"><video key={assessmentVideoUrl} controls autoPlay className="w-full h-auto max-h-[70vh]" controlsList="nodownload" onEnded={() => { const video = document.querySelector('video'); if (video) video.currentTime = 0; }}><source src={assessmentVideoUrl} type="video/mp4" />Your browser does not support the video tag.</video></div>
+                <div className="relative w-full">
+                  {/* Red dot live/rec indicator that fades out */}
+                  <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-full"
+                    style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+                    <div className="w-2 h-2 rounded-full bg-red-500" style={{ animation: 'none' }} />
+                    <span className="text-[10px] font-bold text-white tracking-widest">RECORDING</span>
+                  </div>
+                  <video
+                    key={assessmentVideoUrl}
+                    controls
+                    autoPlay={false}
+                    className="w-full"
+                    style={{ maxHeight: '70vh', display: 'block', background: '#000' }}
+                    controlsList="nodownload"
+                    preload="metadata"
+                    onError={(e) => {
+                      // If mp4 fails, the webm source below is tried automatically
+                      console.warn('Video source error, trying alternate format');
+                    }}
+                  >
+                    {/* Primary source — detect format from URL */}
+                    <source
+                      src={assessmentVideoUrl}
+                      type={
+                        assessmentVideoUrl.includes('.webm') || assessmentVideoUrl.includes('webm')
+                          ? 'video/webm'
+                          : assessmentVideoUrl.includes('.mp4')
+                          ? 'video/mp4'
+                          : 'video/webm'  /* Cloudinary recordings from hook are always webm */
+                      }
+                    />
+                    {/* Fallback for browsers that need the other type */}
+                    <source src={assessmentVideoUrl} type="video/mp4" />
+                    <source src={assessmentVideoUrl} type="video/webm" />
+                    <p className="text-slate-400 text-sm p-8 text-center">
+                      Your browser does not support video playback.
+                      <a href={assessmentVideoUrl} target="_blank" rel="noopener noreferrer"
+                        className="ml-2 text-indigo-400 underline">Download recording</a>
+                    </p>
+                  </video>
+                </div>
+
               ) : (
-                <div className="flex flex-col items-center justify-center h-96 text-center p-6"><div className="w-16 h-16 bg-slate-900 rounded-full flex items-center justify-center mb-4 border border-slate-800"><FileQuestion className="h-8 w-8 text-slate-600" /></div><h4 className={`text-sm font-bold text-slate-400 uppercase tracking-widest mb-2 ${montserrat.className}`}>No Recording Available</h4><p className="text-sm text-slate-600 max-w-md font-medium leading-relaxed">This student hasn't submitted any screen recording for this assessment yet.</p></div>
+                <div className="flex flex-col items-center justify-center h-[420px] text-center px-8 gap-4">
+                  <div className="w-18 h-18 flex items-center justify-center rounded-2xl mb-2"
+                    style={{ width: 72, height: 72, background: 'rgba(255,255,255,0.04)', border: '1.5px solid rgba(255,255,255,0.08)' }}>
+                    <FileQuestion className="h-8 w-8 text-slate-600" />
+                  </div>
+                  <div>
+                    <h4 className={`text-sm font-bold text-slate-400 uppercase tracking-widest mb-2 ${montserrat.className}`}>
+                      No Recording Available
+                    </h4>
+                    <p className="text-sm text-slate-600 max-w-sm leading-relaxed">
+                      No screen recording was found for this student's assessment session.
+                      The student may not have enabled screen sharing, or the recording is still processing.
+                    </p>
+                  </div>
+                </div>
               )}
             </div>
-            <div className="p-4 bg-slate-900 border-t border-slate-800 flex justify-end"><Button onClick={() => { setShowVideoModal(false); setAssessmentVideoUrl(null); setIsLoadingVideo(false); }} className={`bg-slate-800 text-white font-bold text-xs uppercase tracking-wide px-6 rounded-md h-9 hover:bg-slate-700 ${montserrat.className}`}>Close</Button></div>
+
+            {/* ── Footer ── */}
+            {assessmentVideoUrl && (
+              <div className="px-5 py-3 border-t border-white/10 flex items-center justify-between gap-3"
+                style={{ background: 'rgba(255,255,255,0.03)' }}>
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  This recording was captured automatically during the assessment session for proctoring purposes.
+                </p>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <a
+                    href={assessmentVideoUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-slate-300 hover:text-white border border-white/10 hover:bg-white/10 transition-colors ${montserrat.className}`}
+                  >
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                    Open in new tab
+                  </a>
+                  <Button
+                    onClick={() => { setShowVideoModal(false); setAssessmentVideoUrl(null); setIsLoadingVideo(false); }}
+                    className={`bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-wide px-5 rounded-md h-8 ${montserrat.className}`}
+                  >
+                    Close
+                  </Button>
+                </div>
+              </div>
+            )}
+            {!assessmentVideoUrl && !isLoadingVideo && (
+              <div className="px-5 py-3 border-t border-white/10 flex justify-end"
+                style={{ background: 'rgba(255,255,255,0.03)' }}>
+                <Button
+                  onClick={() => { setShowVideoModal(false); setAssessmentVideoUrl(null); setIsLoadingVideo(false); }}
+                  className={`bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs uppercase tracking-wide px-5 rounded-md h-8 ${montserrat.className}`}
+                >
+                  Close
+                </Button>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

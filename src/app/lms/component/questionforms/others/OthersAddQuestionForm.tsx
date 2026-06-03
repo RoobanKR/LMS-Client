@@ -3180,21 +3180,13 @@ const OthersAddQuestionForm: React.FC<OthersAddQuestionFormProps> = ({
               setDiffPickerMandatory(true);
               setShowDiffPicker(true);
               return; // Don't create new block or navigate
-            } else if (!limitReached) {
-              // 🔥 Check if we can create another question for this difficulty
-              const canAddMore = canCreateQuestionForDifficulty(savedDiff as 'easy' | 'medium' | 'hard');
-              if (!canAddMore) {
-                // Show popup instead of creating same difficulty
-                setDiffPickerMandatory(true);
-                setShowDiffPicker(true);
-                return;
-              }
+            } else if (!currentDiffNowFull) {
               // Same difficulty still has slots - add new block for same diff
               const fresh = makeDefaultBlock(savedDiff as 'easy' | 'medium' | 'hard');
               setQuestionBlocks(bs => [...bs, fresh]);
               setCurrentIndex(questionBlocks.length);
             } else {
-              // All quotas full - just stay on current or go to next
+              // currentDiffNowFull && no remaining diffs → all quotas full
               setCurrentIndex(Math.min(currentIndex + 1, questionBlocks.length - 1));
             }
           } else {
@@ -4333,11 +4325,14 @@ const OthersAddQuestionForm: React.FC<OthersAddQuestionFormProps> = ({
       {showDiffPicker && (() => {
         const diffs: ('easy' | 'medium' | 'hard')[] = ['easy', 'medium', 'hard'];
         const allDiffs = diffs
-          .map(d => ({
-            diff: d,
-            total: getDifficultyLimit(d),
-            remaining: Math.max(0, getDifficultyLimit(d) - getDifficultyUsedCount(d)),
-          }))
+          .map(d => {
+            const total = getDifficultyLimit(d);
+            // Inline count to avoid stale useCallback: directly read questionBlocks + savedQuestionIds
+            const usedCount = questionBlocks.filter(
+              b => (b.origin === 'db' || savedQuestionIds.has(b.id)) && b.difficulty === d
+            ).length;
+            return { diff: d, total, remaining: Math.max(0, total - usedCount) };
+          })
           .filter(({ total }) => total > 0); // only show configured diffs
 
         // Mandatory mode → disable full diffs so user can only pick one with remaining slots

@@ -1,12 +1,12 @@
 "use client";
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Loading } from "@/components/loading-ui/loading";
+import React, { useState, useEffect, useMemo } from 'react';
 import {
-  BookOpen, Clock, Users, Search, Loader2,
+  BookOpen, Users, Loader2,
   Target, LayoutGrid, List, GraduationCap, ArrowRight,
-  Sparkles, X, Plus, ChevronDown,
-  FileText, CheckCircle, ClipboardCheck,
+  ChevronDown, ChevronLeft, ChevronRight,
 } from 'lucide-react';
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence, cubicBezier } from 'framer-motion';
 import {
   useCoursesInfiniteQuery,
@@ -18,7 +18,6 @@ import {
 import { StudentLayout } from '../../component/student/student-layout';
 import DashboardLayout from '../../component/layout';
 import { StaffLayout } from '../../component/stafflayout/staff-layout';
-import RichTextDisplay from '../../component/RichTextDisplay';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const T = {
@@ -48,21 +47,6 @@ const getUser = (): { valid: boolean; user: UserData | null } => {
   } 
 };
 
-const isStudentUser = (): boolean => { 
-  try { 
-    const { valid, user } = getUser(); 
-    if (!valid || !user) return false; 
-    let r = ''; 
-    if (typeof user.role === 'object' && user.role !== null) 
-      r = (user.role as any).roleValue || (user.role as any).originalRole || (user.role as any).renameRole || ''; 
-    else if (typeof user.role === 'string') 
-      r = user.role; 
-    const s = localStorage.getItem("smartcliff_roleValue") || localStorage.getItem("smartcliff_originalRole") || localStorage.getItem("smartcliff_role") || ''; 
-    return (r || s).toLowerCase().includes('student') 
-  } catch { 
-    return false 
-  } 
-};
 
 const isDummyMode = (): boolean => { 
   try { 
@@ -109,134 +93,181 @@ const getLevelCfg = (l: string) => {
   } 
 };
 
-// ─── Stat Card — compact ──────────────────────────────────────────────────────
-const StatCard = ({ icon: Icon, value, label, isDark }: { icon: React.ElementType; value: string | number; label: string; isDark: boolean }) => (
-  <div className="flex items-center gap-3 px-4 py-3.5 rounded-xl" style={{ background: isDark ? T.dark.card : T.bg, border: `1px solid ${isDark ? T.dark.border : T.border}` }}>
-    <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: isDark ? 'rgba(242,119,87,0.12)' : T.orangeLight }}>
-      <Icon className="w-4 h-4" style={{ color: T.orange }} strokeWidth={2} />
-    </div>
-    <div>
-      <p className="text-[18px] font-extrabold leading-none tracking-tight" style={{ color: isDark ? T.dark.textMain : T.textMain }}>{value}</p>
-      <p className="text-[11px] font-medium mt-0.5" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>{label}</p>
-    </div>
-  </div>
-);
+// ─── Banner gradient per course level ────────────────────────────────────────
+const BANNER_GRADIENTS: Record<string, string> = {
+  Beginner:     'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
+  Intermediate: 'linear-gradient(135deg, #F27757 0%, #f5a623 100%)',
+  Advanced:     'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+  Expert:       'linear-gradient(135deg, #e11d48 0%, #7c3aed 100%)',
+};
+const fallbackGradient = (name: string) => {
+  const hues = [210, 150, 270, 30, 180, 320, 60, 0];
+  const h = hues[(name.charCodeAt(0) || 0) % hues.length];
+  return `linear-gradient(135deg, hsl(${h},65%,45%) 0%, hsl(${(h + 40) % 360},70%,60%) 100%)`;
+};
+const getBanner = (course: Course) =>
+  BANNER_GRADIENTS[course.courseLevel] || fallbackGradient(course.courseName || '');
 
 // ─── Course Card ──────────────────────────────────────────────────────────────
 const CourseCard = ({ course, isStudent, onStart, viewMode, isDark }: { course: Course; isStudent: boolean; onStart: (id: string) => void; viewMode: 'grid' | 'list'; isDark: boolean }) => {
-  const lv = getLevelCfg(course.courseLevel);
-  const desc = course.courseDescription?.replace(/<[^>]+>/g, '') || 'No description available.';
+  const [imgError, setImgError] = useState(false);
 
-  // ── LIST view ───────────────────────────────────────────────────────────────
+  const lv = getLevelCfg(course.courseLevel);
+  const abbr = (course.courseName || 'C').split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 3);
+  const banner = getBanner(course);
+  const hasImg = !!(course as any).courseImage && !imgError;
+
+  // ── LIST view ────────────────────────────────────────────────────────────────
   if (viewMode === 'list') {
     return (
       <motion.div layout variants={cardV}
-        className="group flex items-center gap-4 p-3.5 rounded-xl  transition-all"
-        style={{ background: isDark ? T.dark.card : T.bg, border: `1px solid ${isDark ? T.dark.border : T.border}` }}
+        className="group flex items-center gap-4 p-3.5 rounded-xl cursor-pointer"
+        style={{ background: isDark ? T.dark.card : T.bg, border: `1px solid ${isDark ? T.dark.border : T.border}`, transition: 'border-color .15s, box-shadow .15s' }}
         onClick={() => onStart(course._id)}
         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = T.orange; (e.currentTarget as HTMLElement).style.boxShadow = `0 4px 16px ${T.orangeGlow}` }}
         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = isDark ? T.dark.border : T.border; (e.currentTarget as HTMLElement).style.boxShadow = 'none' }}
       >
         {/* Thumbnail */}
-        <div className="relative h-16 w-24 rounded-lg overflow-hidden flex-shrink-0">
-          <img
-            src={course.courseImage || "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=200&h=150&fit=crop"}
-            alt={course.courseName}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-            onError={e => { e.currentTarget.src = "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=200&h=150&fit=crop" }}
-          />
+        <div className="h-14 w-20 rounded-lg overflow-hidden flex-shrink-0 relative" style={{ background: banner }}>
+          {hasImg
+            ? <img src={(course as any).courseImage} onError={() => setImgError(true)} className="w-full h-full object-cover" />
+            : <div className="w-full h-full flex items-center justify-center text-white font-extrabold text-[15px]">{abbr}</div>
+          }
         </div>
-
         {/* Info */}
         <div className="flex-1 min-w-0">
-          <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded mb-0.5" style={{ background: lv.bg, color: lv.text }}>
-            <span className="w-1.5 h-1.5 rounded-full" style={{ background: lv.dot }} />{course.courseLevel}
-          </span>
-          <h3 className="text-[14px] font-bold leading-snug truncate" style={{ color: isDark ? T.dark.textMain : T.textMain }}>{course.courseName}</h3>
-          <div className="flex items-center gap-3 mt-1">
-            <span className="flex items-center gap-1 text-[11px] font-medium" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>
-              <FileText className="w-3 h-3" style={{ color: T.orange }} />{course.courseDuration} Modules
+          <div className="flex items-center gap-1.5 mb-0.5">
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded" style={{ background: lv.bg, color: lv.text }}>
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: lv.dot }} />{course.courseLevel}
             </span>
-            <span style={{ color: isDark ? T.dark.border : T.border }}>|</span>
-            <span className="flex items-center gap-1 text-[11px] font-medium" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>
-              <Users className="w-3 h-3" style={{ color: T.orange }} />{course.clientName}
-            </span>
+            {course.serviceType && (
+              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded max-w-[120px] truncate" style={{ background: isDark ? 'rgba(255,255,255,0.06)' : '#f0f0f5', color: isDark ? T.dark.textMuted : T.textMuted }}>
+                {course.serviceType}
+              </span>
+            )}
+          </div>
+          <h3 className="text-[13.5px] font-bold leading-snug truncate" style={{ color: isDark ? T.dark.textMain : T.textMain }}>{course.courseName}</h3>
+          <div className="flex items-center gap-3 mt-0.5">
+            {course.courseDuration && (
+              <span className="flex items-center gap-1 text-[11px]" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>
+                <BookOpen className="w-3 h-3" style={{ color: T.orange }} />{course.courseDuration} modules
+              </span>
+            )}
+            {course.clientName && (
+              <span className="flex items-center gap-1 text-[11px]" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>
+                <Users className="w-3 h-3" style={{ color: T.orange }} />{course.clientName}
+              </span>
+            )}
           </div>
         </div>
-
-        {/* Both buttons fully orange */}
         <button
           onClick={e => { e.stopPropagation(); onStart(course._id) }}
-          className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-lg text-[12px] font-semibold text-white transition-all"
-          style={{ background: T.orange, boxShadow: `0 3px 10px ${T.orangeGlow}` }}
+          className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-lg text-[12px] font-semibold text-white"
+          style={{ background: T.orange, transition: 'background .15s' }}
           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = T.orangeDark }}
           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.orange }}
         >
-          {isStudent ? 'Start' : 'Manage Resources'}<ArrowRight className="w-3 h-3" />
+          {isStudent ? 'Start' : 'Manage'}<ArrowRight className="w-3 h-3" />
         </button>
       </motion.div>
     );
   }
 
-  // ── GRID view ───────────────────────────────────────────────────────────────
+  // ── GRID view — Udemy-style ──────────────────────────────────────────────────
   return (
     <motion.div layout variants={cardV}
-      className="group flex flex-col rounded-xl overflow-hidden transition-all duration-200"
-      style={{ background: isDark ? T.dark.card : T.bg, border: `1px solid ${isDark ? T.dark.border : T.border}` }}
-      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.boxShadow = isDark ? '0 6px 24px rgba(0,0,0,0.28)' : '0 6px 24px rgba(0,0,0,0.07)'; (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)' }}
-      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.boxShadow = 'none'; (e.currentTarget as HTMLElement).style.transform = 'translateY(0)' }}
+      className="group flex flex-col rounded-2xl overflow-hidden cursor-pointer"
+      style={{
+        background: isDark ? T.dark.card : T.bg,
+        border: `1px solid ${isDark ? T.dark.border : T.border}`,
+        boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+        transition: 'transform .18s, box-shadow .18s, border-color .18s',
+      }}
+      onClick={() => onStart(course._id)}
+      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(-4px)'; (e.currentTarget as HTMLElement).style.boxShadow = `0 12px 32px ${T.orangeGlow}`; (e.currentTarget as HTMLElement).style.borderColor = T.orange + '88' }}
+      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(0)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 1px 4px rgba(0,0,0,0.06)'; (e.currentTarget as HTMLElement).style.borderColor = isDark ? T.dark.border : T.border }}
     >
-      {/* Thumbnail — slightly shorter */}
-      <div className="relative h-36 overflow-hidden cursor-pointer" onClick={() => onStart(course._id)}>
-        <img
-          src={course.courseImage || "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=600&h=400&fit=crop"}
-          alt={course.courseName}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-          onError={e => { e.currentTarget.src = "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=600&h=400&fit=crop" }}
-        />
-        <div className="absolute top-2 left-2">
-          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md" style={{ background: lv.bg, color: lv.text }}>
-            <span className="w-1.5 h-1.5 rounded-full" style={{ background: lv.dot }} />{course.courseLevel}
+      {/* ── Thumbnail ── */}
+      <div className="relative h-[160px] flex-shrink-0 overflow-hidden">
+        {hasImg ? (
+          <img src={(course as any).courseImage} onError={() => setImgError(true)} className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-center gap-1.5" style={{ background: banner }}>
+            <div className="absolute inset-0 opacity-10"
+              style={{ backgroundImage: 'repeating-linear-gradient(0deg,transparent,transparent 24px,rgba(255,255,255,.6) 24px,rgba(255,255,255,.6) 25px),repeating-linear-gradient(90deg,transparent,transparent 24px,rgba(255,255,255,.6) 24px,rgba(255,255,255,.6) 25px)' }} />
+            <span className="relative text-white font-extrabold text-[36px] tracking-[-0.04em] leading-none select-none" style={{ textShadow: '0 2px 12px rgba(0,0,0,0.25)' }}>
+              {abbr}
+            </span>
+            <span className="relative text-white text-[10px] font-semibold opacity-80 tracking-widest uppercase select-none">
+              {course.courseLevel || 'Course'}
+            </span>
+          </div>
+        )}
+
+        {/* Category / service type badge — top left */}
+        {course.serviceType && (
+          <div className="absolute top-2.5 left-2.5 max-w-[calc(100%-12px)]">
+            <span className="text-[9.5px] font-bold px-2 py-0.5 rounded-md block truncate"
+              style={{ background: lv.bg, color: lv.text }}>
+              {course.serviceType}
+            </span>
+          </div>
+        )}
+
+        {/* Level badge — bottom left */}
+        <div className="absolute bottom-2.5 left-2.5">
+          <span className="inline-flex items-center gap-1 text-[9.5px] font-bold px-2 py-0.5 rounded-md"
+            style={{ background: 'rgba(0,0,0,0.52)', color: '#fff' }}>
+            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: lv.dot }} />
+            {course.courseLevel || 'Course'}
           </span>
         </div>
       </div>
 
-      {/* Body */}
+      {/* ── Body ── */}
       <div className="flex flex-col flex-1 p-4">
-        <h3
-          className="text-[14px] font-bold leading-snug cursor-pointer mb-1 line-clamp-2 transition-colors"
-          style={{ color: isDark ? T.dark.textMain : T.textMain }}
-          onClick={() => onStart(course._id)}
-          onMouseEnter={e => (e.currentTarget.style.color = T.orange)}
-          onMouseLeave={e => (e.currentTarget.style.color = isDark ? T.dark.textMain : T.textMain)}
-        >
+        {/* Title */}
+        <h3 className="text-[13.5px] font-bold leading-snug line-clamp-2 mb-2"
+          style={{ color: isDark ? T.dark.textMain : T.textMain }}>
           {course.courseName}
         </h3>
 
-        <p className="text-[12px] leading-relaxed line-clamp-2 mb-3" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>{desc}</p>
+        {/* Batch / instructor row */}
+        {course.clientName && (
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0"
+              style={{ background: `linear-gradient(135deg, ${T.orange}, ${T.orangeDark})` }}>
+              {(course.clientName[0] || 'B').toUpperCase()}
+            </div>
+            <span className="text-[11.5px] truncate" style={{ color: isDark ? T.dark.textSub : T.textSub }}>
+              {course.clientName}
+            </span>
+          </div>
+        )}
 
-        <div className="flex items-center gap-3 mb-3">
-          <span className="flex items-center gap-1 text-[11px] font-medium" style={{ color: isDark ? T.dark.textSub : T.textSub }}>
-            <FileText className="w-3 h-3" style={{ color: T.orange }} />{course.courseDuration} Modules
-          </span>
-          <span style={{ color: isDark ? T.dark.border : T.border }}>|</span>
-          <span className="flex items-center gap-1 text-[11px] font-medium" style={{ color: isDark ? T.dark.textSub : T.textSub }}>
-            <Users className="w-3 h-3" style={{ color: T.orange }} />{course.clientName || '0'} Students
+        {/* Stats row */}
+        <div className="flex items-center gap-1 mt-auto pt-2.5" style={{ borderTop: `1px solid ${isDark ? T.dark.border : T.border}` }}>
+          {course.courseDuration && (
+            <span className="flex items-center gap-1 text-[11px]" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>
+              <BookOpen className="w-3 h-3 flex-shrink-0" style={{ color: T.orange }} />
+              {course.courseDuration} modules
+            </span>
+          )}
+          <span className="ml-auto text-[11.5px] font-bold" style={{ color: T.orange }}>
+            {course.courseLevel || '—'}
           </span>
         </div>
 
-        {/* Both buttons fully orange — solid fill for both student and staff */}
-        <div className="mt-auto">
-          <button
-            onClick={() => onStart(course._id)}
-            className="w-full flex items-center cursor-pointer justify-center gap-1.5 py-2.5 rounded-lg text-[13px] font-bold text-white transition-all"
-            style={{ background: T.orange, boxShadow: `0 3px 10px ${T.orangeGlow}` }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = T.orangeDark }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.orange }}
-          >
-            {isStudent ? 'Start Course' : 'Manage Resources'}<ArrowRight className="w-3.5 h-3.5" />
-          </button>
-        </div>
+        {/* CTA */}
+        <button
+          onClick={e => { e.stopPropagation(); onStart(course._id) }}
+          className="w-full mt-3 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[12.5px] font-bold text-white"
+          style={{ background: T.orange, transition: 'background .15s' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = T.orangeDark }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.orange }}
+        >
+          {isStudent ? 'Start Course' : 'Manage'}<ArrowRight className="w-3.5 h-3.5" />
+        </button>
       </div>
     </motion.div>
   );
@@ -244,12 +275,17 @@ const CourseCard = ({ course, isStudent, onStart, viewMode, isDark }: { course: 
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 const Skel = ({ isDark }: { isDark: boolean }) => (
-  <div className="rounded-xl overflow-hidden animate-pulse" style={{ background: isDark ? T.dark.card : T.bg, border: `1px solid ${isDark ? T.dark.border : T.border}` }}>
-    <div className="h-36" style={{ background: isDark ? T.dark.surface : '#f0f0f4' }} />
-    <div className="p-4 space-y-2">
-      <div className="h-3.5 rounded-full w-3/5" style={{ background: isDark ? T.dark.surface : '#f0f0f4' }} />
-      <div className="h-3 rounded-full w-full" style={{ background: isDark ? T.dark.surface : '#f0f0f4' }} />
-      <div className="h-9 rounded-lg mt-2" style={{ background: isDark ? T.dark.surface : '#f0f0f4' }} />
+  <div className="rounded-2xl overflow-hidden animate-pulse" style={{ background: isDark ? T.dark.card : T.bg, border: `1px solid ${isDark ? T.dark.border : T.border}` }}>
+    <div className="h-[160px]" style={{ background: isDark ? T.dark.surface : '#ededf0' }} />
+    <div className="p-4 space-y-2.5">
+      <div className="h-4 rounded-full w-4/5" style={{ background: isDark ? T.dark.surface : '#ededf0' }} />
+      <div className="h-3.5 rounded-full w-3/5" style={{ background: isDark ? T.dark.surface : '#ededf0' }} />
+      <div className="h-px mt-1" style={{ background: isDark ? T.dark.border : T.border }} />
+      <div className="flex justify-between">
+        <div className="h-3 rounded-full w-1/3" style={{ background: isDark ? T.dark.surface : '#ededf0' }} />
+        <div className="h-3 rounded-full w-1/5" style={{ background: isDark ? T.dark.surface : '#ededf0' }} />
+      </div>
+      <div className="h-9 rounded-xl mt-1" style={{ background: isDark ? T.dark.surface : '#ededf0' }} />
     </div>
   </div>
 );
@@ -282,7 +318,11 @@ const Err = ({ onRetry, isDark }: { onRetry: () => void; isDark: boolean }) => (
 
 // ─── MAIN PAGE ────────────────────────────────────────────────────────────────
 export default function CoursesPage() {
-  const [searchTerm, setSearchTerm] = useState("");
+  const sp = useSearchParams();
+  const [searchTerm, setSearchTerm] = useState(sp?.get('q') || "");
+
+  // Keep in sync when navbar search updates the URL
+  useEffect(() => { setSearchTerm(sp?.get('q') || "") }, [sp]);
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [authToken, setAuthToken] = useState<string | null>(null);
@@ -293,9 +333,11 @@ export default function CoursesPage() {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isDark, setIsDark] = useState(false);
   const [showCatDrop, setShowCatDrop] = useState(false);
-  const [showSearch, setShowSearch] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [selectedLevel, setSelectedLevel] = useState('All');
+  const [showLevelDrop, setShowLevelDrop] = useState(false);
   const [userName, setUserName] = useState('');
-  const [isRoleLoading, setIsRoleLoading] = useState(true); // Add loading state for role
+  const [isRoleLoading, setIsRoleLoading] = useState(true);
   const router = useRouter();
 
   useEffect(() => { 
@@ -366,23 +408,38 @@ export default function CoursesPage() {
     initializeRole();
   }, []);
 
+  const ITEMS_PER_PAGE = 8;
+
   const filters = { searchTerm, selectedCategory };
-  const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage, refetch } = useCoursesInfiniteQuery(authToken, userId, filters);
+  const { data, isLoading, isError, error, fetchNextPage, hasNextPage, isFetchingNextPage, refetch } = useCoursesInfiniteQuery(authToken, userId, filters);
+
+  useEffect(() => {
+    if (isError && (error as any)?.status === 401) {
+      localStorage.removeItem('smartcliff_token');
+      router.push('/login');
+    }
+  }, [isError, error, router]);
   const allCourses = useMemo(() => data?.pages.flatMap(p => p.data) || [], [data]);
   const uniqueTypes = useMemo(() => allCourses.length ? Array.from(new Set(allCourses.map(c => c.serviceType).filter(Boolean))) : [], [allCourses]);
   useEffect(() => { setCategories(uniqueTypes.length > 0 ? ["All", ...uniqueTypes] : defaultCategories) }, [uniqueTypes]);
-  const filtered = useFilteredCourses(allCourses, filters);
+  const filteredBase = useFilteredCourses(allCourses, filters);
+  const filtered = useMemo(() =>
+    selectedLevel === 'All' ? filteredBase : filteredBase.filter(c => c.courseLevel === selectedLevel),
+    [filteredBase, selectedLevel]
+  );
 
-  const handleScroll = useCallback(() => { 
-    if (isFetchingNextPage || !hasNextPage || isLoading) return; 
-    if (window.scrollY + document.documentElement.clientHeight >= document.documentElement.scrollHeight - 300) 
-      fetchNextPage() 
-  }, [isFetchingNextPage, hasNextPage, fetchNextPage, isLoading]);
-  
-  useEffect(() => { 
-    window.addEventListener('scroll', handleScroll); 
-    return () => window.removeEventListener('scroll', handleScroll) 
-  }, [handleScroll]);
+  // Reset to page 1 when filters change
+  useEffect(() => { setCurrentPage(1) }, [searchTerm, selectedCategory, selectedLevel]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
+  const paginatedCourses = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
+  // Eagerly fetch next backend pages when user reaches last available page
+  useEffect(() => {
+    if (currentPage >= totalPages && hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
+    }
+  }, [currentPage, totalPages, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const onStart = (id: string) => {
     if (isStudent) 
@@ -397,104 +454,98 @@ export default function CoursesPage() {
   const content = (
     <div className="sc-courses-font">
       <style jsx global>{`
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
-        .sc-courses-font,.sc-courses-font *{font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,sans-serif!important}
+        .sc-courses-font,.sc-courses-font *{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif!important}
         .scrollbar-hide::-webkit-scrollbar{display:none}
         .scrollbar-hide{-ms-overflow-style:none;scrollbar-width:none}
       `}</style>
 
-      {/* ── Header row — compact ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+      {/* ── Header bar: title + count ── */}
+      <div className="flex items-end justify-between mb-4">
         <div>
-          <h1 className="text-[20px] font-extrabold tracking-tight" style={{ color: isDark ? T.dark.textMain : T.textMain, letterSpacing: '-0.03em' }}>
-            Welcome back, <span style={{ color: T.orange }}>{userName || 'User'}</span>!
+          <h1 className="text-[22px] font-extrabold tracking-tight" style={{ color: isDark ? T.dark.textMain : T.textMain, letterSpacing: '-0.03em' }}>
+            Courses
           </h1>
-          <p className="text-[12.5px] mt-0.5" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>
-            {isStudent ? 'Continue your progress where you left off.' : 'Manage your courses and resources efficiently.'}
-          </p>
+          {!loading && (
+            <p className="text-[12px] mt-0.5" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>
+              {filtered.length} course{filtered.length !== 1 ? 's' : ''} found
+            </p>
+          )}
         </div>
       </div>
 
-      {/* ── Stats — compact ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
-        <StatCard icon={BookOpen}      value={filtered.length || 0} label="Total Courses"  isDark={isDark} />
-        <StatCard icon={Users}         value={45}                   label="Students"        isDark={isDark} />
-        <StatCard icon={ClipboardCheck} value={18}                  label="Assignments"     isDark={isDark} />
-        <StatCard icon={CheckCircle}   value="92%"                  label="Progress"        isDark={isDark} />
-      </div>
+      {/* ── Filter / toolbar bar ── */}
+      <div className="flex flex-wrap items-center gap-2 mb-5">
 
-      {/* ── Toolbar ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
-        <h2 className="text-[16px] font-extrabold tracking-tight" style={{ color: isDark ? T.dark.textMain : T.textMain }}>
-          Course Management
-        </h2>
-        <div className="flex items-center gap-2">
-          {/* Category dropdown */}
-          <div className="relative">
-            <button
-              onClick={() => setShowCatDrop(!showCatDrop)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[12px] font-semibold"
-              style={{ background: isDark ? T.dark.card : T.bg, border: `1.5px solid ${isDark ? T.dark.border : T.border}`, color: T.orange }}
-            >
-              {selectedCategory}<ChevronDown className="w-3 h-3" style={{ color: T.orange }} />
-            </button>
-            {showCatDrop && (
-              <div className="absolute top-full right-0 mt-1 w-44 py-1 z-50 rounded-xl overflow-hidden"
-                style={{ background: isDark ? T.dark.card : T.bg, border: `1px solid ${isDark ? T.dark.border : T.border}`, boxShadow: isDark ? '0 8px 24px rgba(0,0,0,0.3)' : '0 8px 24px rgba(0,0,0,0.08)' }}>
-                {categories.map(c => (
-                  <button key={c} onClick={() => { setSelectedCategory(c); setShowCatDrop(false) }}
-                    className="w-full text-left px-3 py-1.5 text-[12px] transition-colors"
-                    style={{ fontWeight: selectedCategory === c ? 700 : 500, color: selectedCategory === c ? T.orange : isDark ? T.dark.textSub : T.textSub, background: selectedCategory === c ? (isDark ? 'rgba(242,119,87,0.08)' : T.orangeLight) : 'transparent' }}
-                    onMouseEnter={e => { if (selectedCategory !== c) (e.currentTarget as HTMLElement).style.background = isDark ? 'rgba(255,255,255,0.04)' : '#f7f7f9' }}
-                    onMouseLeave={e => { if (selectedCategory !== c) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
-                  >{c}</button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Search toggle */}
-          <button onClick={() => setShowSearch(!showSearch)} className="p-2 rounded-lg"
-            style={{ background: isDark ? T.dark.card : T.bg, border: `1.5px solid ${isDark ? T.dark.border : T.border}`, color: showSearch ? T.orange : isDark ? T.dark.textMuted : T.textMuted }}>
-            <Search className="w-3.5 h-3.5" />
+        {/* Category dropdown */}
+        <div className="relative">
+          <button
+            onClick={() => { setShowCatDrop(v => !v); setShowLevelDrop(false) }}
+            className="flex items-center gap-1.5 h-[36px] px-3 rounded-lg text-[12px] font-semibold"
+            style={{ background: isDark ? T.dark.card : T.bg, border: `1.5px solid ${selectedCategory !== 'All' ? T.orange : (isDark ? T.dark.border : T.border)}`, color: selectedCategory !== 'All' ? T.orange : isDark ? T.dark.textSub : T.textSub }}
+          >
+            All Categories{selectedCategory !== 'All' ? `: ${selectedCategory.slice(0, 10)}` : ''}
+            <ChevronDown className="w-3 h-3" />
           </button>
+          {showCatDrop && (
+            <div className="absolute top-full left-0 mt-1 w-48 py-1 z-50 rounded-xl"
+              style={{ background: isDark ? T.dark.card : T.bg, border: `1px solid ${isDark ? T.dark.border : T.border}`, boxShadow: '0 8px 24px rgba(0,0,0,0.10)' }}>
+              {categories.map(c => (
+                <button key={c} onClick={() => { setSelectedCategory(c); setShowCatDrop(false) }}
+                  className="w-full text-left px-3 py-1.5 text-[12px]"
+                  style={{ fontWeight: selectedCategory === c ? 700 : 500, color: selectedCategory === c ? T.orange : isDark ? T.dark.textSub : T.textSub, background: selectedCategory === c ? (isDark ? 'rgba(242,119,87,0.08)' : T.orangeLight) : 'transparent' }}
+                  onMouseEnter={e => { if (selectedCategory !== c) (e.currentTarget as HTMLElement).style.background = isDark ? 'rgba(255,255,255,0.04)' : '#f7f7f9' }}
+                  onMouseLeave={e => { if (selectedCategory !== c) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                >{c}</button>
+              ))}
+            </div>
+          )}
+        </div>
 
-          {/* View toggle */}
-          <div className="flex items-center p-0.5 rounded-lg" style={{ background: isDark ? T.dark.card : T.bg, border: `1.5px solid ${isDark ? T.dark.border : T.border}` }}>
-            {(['grid', 'list'] as const).map(m => { const a = viewMode === m; const I = m === 'grid' ? LayoutGrid : List; return (
-              <button key={m} onClick={() => setViewMode(m)} className="p-1.5 rounded-md transition-all"
-                style={{ background: a ? (isDark ? 'rgba(242,119,87,0.12)' : T.orangeLight) : 'transparent', color: a ? T.orange : isDark ? T.dark.textMuted : T.textMuted }}>
-                <I className="w-3.5 h-3.5" />
-              </button>
-            )})}
-          </div>
+        {/* Level dropdown */}
+        <div className="relative">
+          <button
+            onClick={() => { setShowLevelDrop(v => !v); setShowCatDrop(false) }}
+            className="flex items-center gap-1.5 h-[36px] px-3 rounded-lg text-[12px] font-semibold"
+            style={{ background: isDark ? T.dark.card : T.bg, border: `1.5px solid ${selectedLevel !== 'All' ? T.orange : (isDark ? T.dark.border : T.border)}`, color: selectedLevel !== 'All' ? T.orange : isDark ? T.dark.textSub : T.textSub }}
+          >
+            Level{selectedLevel !== 'All' ? `: ${selectedLevel}` : ''}
+            <ChevronDown className="w-3 h-3" />
+          </button>
+          {showLevelDrop && (
+            <div className="absolute top-full left-0 mt-1 w-36 py-1 z-50 rounded-xl"
+              style={{ background: isDark ? T.dark.card : T.bg, border: `1px solid ${isDark ? T.dark.border : T.border}`, boxShadow: '0 8px 24px rgba(0,0,0,0.10)' }}>
+              {['All', 'Beginner', 'Intermediate', 'Advanced', 'Expert'].map(l => (
+                <button key={l} onClick={() => { setSelectedLevel(l); setShowLevelDrop(false) }}
+                  className="w-full text-left px-3 py-1.5 text-[12px]"
+                  style={{ fontWeight: selectedLevel === l ? 700 : 500, color: selectedLevel === l ? T.orange : isDark ? T.dark.textSub : T.textSub, background: selectedLevel === l ? (isDark ? 'rgba(242,119,87,0.08)' : T.orangeLight) : 'transparent' }}
+                  onMouseEnter={e => { if (selectedLevel !== l) (e.currentTarget as HTMLElement).style.background = isDark ? 'rgba(255,255,255,0.04)' : '#f7f7f9' }}
+                  onMouseLeave={e => { if (selectedLevel !== l) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                >{l}</button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Spacer */}
+        <div className="flex-1" />
+
+        {/* View toggle */}
+        <div className="flex items-center p-0.5 rounded-lg" style={{ background: isDark ? T.dark.card : T.bg, border: `1.5px solid ${isDark ? T.dark.border : T.border}` }}>
+          {(['grid', 'list'] as const).map(m => { const a = viewMode === m; const I = m === 'grid' ? LayoutGrid : List; return (
+            <button key={m} onClick={() => setViewMode(m)} className="p-1.5 rounded-md"
+              style={{ background: a ? (isDark ? 'rgba(242,119,87,0.12)' : T.orangeLight) : 'transparent', color: a ? T.orange : isDark ? T.dark.textMuted : T.textMuted, transition: 'background .15s' }}>
+              <I className="w-3.5 h-3.5" />
+            </button>
+          )})}
         </div>
       </div>
-
-      {/* Search bar */}
-      <AnimatePresence>
-        {showSearch && (
-          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="mb-4 overflow-hidden">
-            <div className="relative">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: isDark ? T.dark.textHint : T.textHint }} />
-              <input type="text" placeholder="Search courses…" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} autoFocus
-                className="w-full h-[40px] pl-10 pr-9 text-[13px] outline-none"
-                style={{ background: isDark ? T.dark.card : T.bg, border: `1.5px solid ${isDark ? T.dark.border : T.border}`, borderRadius: '10px', color: isDark ? T.dark.textMain : T.textMain, fontFamily: 'inherit' }}
-                onFocus={e => { e.currentTarget.style.borderColor = T.orange; e.currentTarget.style.boxShadow = `0 0 0 3px ${T.orangeLight}` }}
-                onBlur={e => { e.currentTarget.style.borderColor = isDark ? T.dark.border : T.border; e.currentTarget.style.boxShadow = 'none' }}
-              />
-              {searchTerm && <button onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}><X className="w-3.5 h-3.5" /></button>}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* ── Cards ── */}
       <AnimatePresence mode="wait">
         {loading ? (
           <motion.div key="load" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-            className={viewMode === 'grid' ? "grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4" : "space-y-2.5"}>
-            {[...Array(6)].map((_, i) => viewMode === 'grid'
+            className={viewMode === 'grid' ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5" : "space-y-2.5"}>
+            {[...Array(8)].map((_, i) => viewMode === 'grid'
               ? <Skel key={i} isDark={isDark} />
               : <div key={i} className="h-20 rounded-xl animate-pulse" style={{ background: isDark ? T.dark.card : T.bg, border: `1px solid ${isDark ? T.dark.border : T.border}` }} />
             )}
@@ -502,33 +553,75 @@ export default function CoursesPage() {
         ) : isError ? (
           <Err onRetry={() => refetch()} isDark={isDark} />
         ) : filtered.length === 0 ? (
-          <Empty onClear={() => setSearchTerm('')} hasSearch={!!searchTerm} isDark={isDark} />
+          <Empty onClear={() => { setSearchTerm(''); setSelectedCategory('All'); setSelectedLevel('All') }} hasSearch={!!searchTerm} isDark={isDark} />
         ) : (
-          <motion.div key={`${viewMode}-g`} variants={containerV} initial="hidden" animate="visible"
-            className={viewMode === 'grid' ? "grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4" : "space-y-2.5"}>
-            {filtered.map(c => <CourseCard key={c._id} course={c} isStudent={isStudent} onStart={onStart} viewMode={viewMode} isDark={isDark} />)}
+          <motion.div key={`${viewMode}-${currentPage}`} variants={containerV} initial="hidden" animate="visible"
+            className={viewMode === 'grid' ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5" : "space-y-2.5"}>
+            {paginatedCourses.map(c => <CourseCard key={c._id} course={c} isStudent={isStudent} onStart={onStart} viewMode={viewMode} isDark={isDark} />)}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Load more indicator */}
+      {/* Background fetch indicator */}
       {isFetchingNextPage && (
-        <div className="flex justify-center mt-6">
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full" style={{ background: isDark ? T.dark.card : T.bg, border: `1px solid ${isDark ? T.dark.border : T.border}` }}>
-            <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: T.orange }} />
-            <span className="text-[11px] font-semibold" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>Loading more…</span>
+        <div className="flex justify-center mt-4">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full" style={{ background: isDark ? T.dark.card : T.bg, border: `1px solid ${isDark ? T.dark.border : T.border}` }}>
+            <Loader2 className="w-3 h-3 animate-spin" style={{ color: T.orange }} />
+            <span className="text-[10px] font-semibold" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>Loading…</span>
           </div>
         </div>
       )}
 
-      {/* End of list */}
-      {!hasNextPage && filtered.length > 0 && !loading && (
-        <div className="flex items-center justify-center gap-3 mt-10 mb-3">
-          <div className="h-px flex-1 max-w-12" style={{ background: isDark ? T.dark.border : T.border }} />
-          <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest" style={{ color: isDark ? T.dark.textHint : T.textHint }}>
-            <Sparkles className="w-2.5 h-2.5" style={{ color: T.orange }} />All caught up
-          </span>
-          <div className="h-px flex-1 max-w-12" style={{ background: isDark ? T.dark.border : T.border }} />
+      {/* ── Pagination ── */}
+      {!loading && filtered.length > 0 && totalPages > 1 && (
+        <div className="flex items-center justify-center gap-1.5 mt-8 mb-2">
+          {/* Prev */}
+          <button
+            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+            className="w-8 h-8 rounded-lg flex items-center justify-center transition-all"
+            style={{ background: isDark ? T.dark.card : T.bg, border: `1.5px solid ${isDark ? T.dark.border : T.border}`, color: currentPage === 1 ? (isDark ? T.dark.border : T.border) : isDark ? T.dark.textMuted : T.textSub, cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+
+          {/* Page numbers */}
+          {(() => {
+            const pages: (number | '...')[] = [];
+            if (totalPages <= 7) {
+              for (let i = 1; i <= totalPages; i++) pages.push(i);
+            } else {
+              pages.push(1);
+              if (currentPage > 3) pages.push('...');
+              for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) pages.push(i);
+              if (currentPage < totalPages - 2) pages.push('...');
+              pages.push(totalPages);
+            }
+            return pages.map((p, i) => p === '...'
+              ? <span key={`e${i}`} className="w-8 h-8 flex items-center justify-center text-[12px]" style={{ color: isDark ? T.dark.textHint : T.textHint }}>…</span>
+              : (
+                <button key={p} onClick={() => setCurrentPage(p as number)}
+                  className="w-8 h-8 rounded-lg text-[12.5px] font-semibold transition-all"
+                  style={{
+                    background: currentPage === p ? T.orange : isDark ? T.dark.card : T.bg,
+                    border: `1.5px solid ${currentPage === p ? T.orange : isDark ? T.dark.border : T.border}`,
+                    color: currentPage === p ? '#fff' : isDark ? T.dark.textSub : T.textSub,
+                    boxShadow: currentPage === p ? `0 2px 8px ${T.orangeGlow}` : 'none',
+                  }}
+                >{p}</button>
+              )
+            );
+          })()}
+
+          {/* Next */}
+          <button
+            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+            disabled={currentPage === totalPages}
+            className="w-8 h-8 rounded-lg flex items-center justify-center transition-all"
+            style={{ background: isDark ? T.dark.card : T.bg, border: `1.5px solid ${isDark ? T.dark.border : T.border}`, color: currentPage === totalPages ? (isDark ? T.dark.border : T.border) : isDark ? T.dark.textMuted : T.textSub, cursor: currentPage === totalPages ? 'not-allowed' : 'pointer' }}
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
         </div>
       )}
     </div>
@@ -538,7 +631,7 @@ export default function CoursesPage() {
   if (isRoleLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: isDark ? T.dark.pageBg : T.pageBg }}>
-        <div className="w-8 h-8 rounded-full animate-spin" style={{ border: `3px solid ${T.orangeLight}`, borderTopColor: T.orange }} />
+        <Loading size="size-8" />
       </div>
     );
   }

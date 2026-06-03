@@ -29,6 +29,7 @@ import AddQuestionViaDocument from './AddQuestionViaDocument';
 import RichTextDisplay from './RichTextDisplay';
 import QuestionBankSelector from './questionforms/mcq/QuestionBankSelector';
 import QuestionPreview from './QuestionPreview';
+import ProgrammingQuestionForm from './questionforms/ProgrammingQuestionForm';
 
 // ─── Design tokens (Login page parity) ────────────────────────────────────────
 const JKT: React.CSSProperties = {
@@ -134,7 +135,8 @@ const [showDocumentUpload, setShowDocumentUpload] = useState(false);
   const [showSlotInfo, setShowSlotInfo]         = useState(false);
   // Full exercise data fetched from API — ensures questionConfiguration is always fresh
   const [fullExData, setFullExData]             = useState<any>(null);
-
+const [showProgrammingForm, setShowProgrammingForm] = useState(false);
+const [selectedProgrammingQuestion, setSelectedProgrammingQuestion] = useState<any>(null);
   // ── Dynamic rows ──────────────────────────────────────────────────────────
 
 
@@ -547,29 +549,80 @@ const handleAction = async (type: string, q: Question) => {
     return { successCount: sc, errorCount: ec };
   };
 
-  const handleBankSelect = async (selected: Question[]) => {
-    if (!selected.length) return;
-    const dupes: any[] = [], nonDupes: Question[] = [];
-    selected.forEach(sq => {
-      const found = questions.find(eq => {
-        if (eq._id === sq._id) return true;
-        const et = getTitle(eq).toLowerCase().trim(), st = getTitle(sq).toLowerCase().trim();
-        if (et === st) return true;
-        if (et.length > 20 && st.length > 20) return strSimilarity(et, st) > 0.8;
-        return false;
-      });
-      if (found) dupes.push({ original: found, duplicate: sq }); else nonDupes.push(sq);
-    });
-    if (dupes.length > 0) { setDuplicateQuestions(dupes); setPendingBankQuestions(nonDupes); setShowDuplicateConfirmation(true); setCurrentEditIndex(0); }
-    else {
-      setIsAddingQuestions(true); const tid = toast.loading(`Adding ${nonDupes.length} question(s)…`);
-      const r = await addBatch(nonDupes); toast.dismiss(tid); setIsAddingQuestions(false);
-      if (r.successCount > 0) toast.success(`${r.successCount} question(s) added!`);
-      if (r.errorCount > 0)   toast.error(`${r.errorCount} failed.`);
-      setShowQuestionBank(false); await fetchQuestions();
-      if (quickAddMode && r.successCount > 0) setTimeout(() => onClose?.(), 1500);
+ const handleBankSelect = async (selected: Question[]) => {
+  if (!selected.length) return;
+  
+  // Filter programming questions
+  const programmingQuestions = selected.filter(q => 
+    q.questionType?.toLowerCase() === 'programming'
+  );
+  
+  if (programmingQuestions.length === 0) {
+    toast.warning('No programming questions selected', 
+      'Please select programming questions from the bank.');
+    return;
+  }
+  
+  // If there's only one programming question selected, open the form directly
+  if (programmingQuestions.length === 1) {
+    setSelectedProgrammingQuestion(programmingQuestions[0]);
+    setShowProgrammingForm(true);
+    setShowQuestionBank(false);
+    return;
+  }
+  
+  // For multiple questions, show confirmation or process in bulk
+  const confirmAdd = window.confirm(
+    `Add ${programmingQuestions.length} programming question(s) to this exercise?`
+  );
+  
+  if (confirmAdd) {
+    setIsAddingQuestions(true);
+    const tid = toast.loading(`Adding ${programmingQuestions.length} question(s)…`);
+    
+    let successCount = 0;
+    let errorCount = 0;
+    
+    for (const q of programmingQuestions) {
+      try {
+        // Convert the bank question to the format expected by the API
+        const questionData = {
+          questionType: 'programming',
+          title: q.title || q.mcqQuestionTitle || 'Untitled',
+          description: q.description || '',
+          difficulty: q.difficulty || q.mcqQuestionDifficulty || 'medium',
+          score: q.score || q.mcqQuestionScore || 10,
+          timeLimit: q.timeLimit || 2000,
+          memoryLimit: q.memoryLimit || 256,
+          testCases: q.testCases || [],
+          constraints: q.constraints || [],
+          hints: q.hints || [],
+          isActive: true,
+        };
+        
+        await questionApi.addQuestion(
+          nodeType.toLowerCase(),
+          nodeId,
+          exercise._id,
+          questionData,
+          tabType,
+          subcategory
+        );
+        successCount++;
+      } catch (err) {
+        errorCount++;
+      }
     }
-  };
+    
+    toast.dismiss(tid);
+    toast.success(`${successCount} question(s) added!`);
+    if (errorCount > 0) toast.error(`${errorCount} failed.`);
+    
+    setShowQuestionBank(false);
+    await fetchQuestions();
+    setIsAddingQuestions(false);
+  }
+};
 
   const handleDupConfirm = async (action: 'addAll' | 'skip' | 'edit') => {
     setShowDuplicateConfirmation(false);
@@ -629,7 +682,6 @@ const handleAction = async (type: string, q: Question) => {
   const isPureMCQ  = !isCombined && (exercise.exerciseType?.toLowerCase() === 'mcq' || (exercise.configurationType?.mcqMode === true && !exercise.configurationType?.programmingMode));
 const isPureProg = !isCombined && (
   exercise.exerciseType?.toLowerCase() === 'programming' ||
-  // REMOVE: exercise.exerciseType?.toLowerCase() === 'other' ||
   (exercise.configurationType?.programmingMode === true && !exercise.configurationType?.mcqMode)
 );
 
@@ -678,7 +730,7 @@ const addBtnDisabled = isAddingQuestions || (() => {
     <div className="fixed inset-0" style={{ zIndex, background: 'rgba(26,26,46,0.45)', backdropFilter: 'blur(4px)' }} />
   );
 
-  // ─── Add Question Option Modal ─────────────────────────────────────────────
+  // ─── Add Question Option Modal (Updated for both MCQ and Programming) ─────────
   const AddQuestionOptions = () => (
     <>
       <Backdrop zIndex={100} />
@@ -707,7 +759,7 @@ const addBtnDisabled = isAddingQuestions || (() => {
                   <h2 className="text-[15px] font-bold" style={{ color: '#1a1a2e' }}>Add Question</h2>
                 </div>
                 <p className="text-[11px]" style={{ color: '#8b8b9e' }}>
-                  {isPureMCQ ? 'Add MCQ to this exercise' : 'Choose how to add questions'}
+                  {isPureMCQ ? 'Add MCQ to this exercise' : isPureProg ? 'Add Programming question to this exercise' : 'Choose how to add questions'}
                 </p>
               </div>
               <button onClick={() => setShowAddOption(false)}
@@ -721,7 +773,7 @@ const addBtnDisabled = isAddingQuestions || (() => {
 
           {/* Choices */}
           <div className="p-4 space-y-2.5">
-            {/* Create New */}
+            {/* Create New From Scratch */}
             <button onClick={() => { setShowAddOption(false); setShowAddQuestion(true); }}
               className="group w-full text-left rounded-xl p-4 transition-all"
               style={{ border: '1.5px solid #e4e4ed', cursor: 'pointer', background: '#fff' }}
@@ -733,14 +785,16 @@ const addBtnDisabled = isAddingQuestions || (() => {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-[13px] font-semibold" style={{ color: '#1a1a2e' }}>Create Question From Scratch</div>
-                  <div className="text-[11px] mt-0.5" style={{ color: '#8b8b9e' }}>Build from scratch with custom content</div>
+                  <div className="text-[11px] mt-0.5" style={{ color: '#8b8b9e' }}>
+                    {isPureProg ? 'Build a programming question from scratch' : 'Build from scratch with custom content'}
+                  </div>
                 </div>
                 <ChevronRight size={15} className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-all" style={{ color: '#F27757' }} />
               </div>
             </button>
 
-            {/* Question Bank */}
-            {(isPureMCQ || exercise.exerciseType !== 'mcq') && (
+            {/* Question Bank - Show for both MCQ and Programming */}
+            {(isPureMCQ || isPureProg || exercise.exerciseType !== 'mcq') && (
               <button onClick={() => { setQbankFromMCQOpts(true); setShowAddOption(false); setShowQuestionBank(true); }}
                 className="group w-full text-left rounded-xl p-4 transition-all"
                 style={{ border: '1.5px solid #e4e4ed', cursor: 'pointer', background: '#fff' }}
@@ -752,32 +806,34 @@ const addBtnDisabled = isAddingQuestions || (() => {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-[13px] font-semibold" style={{ color: '#1a1a2e' }}>Create Question From Question Bank</div>
-                    <div className="text-[11px] mt-0.5" style={{ color: '#8b8b9e' }}>Import from existing question repository</div>
+                    <div className="text-[11px] mt-0.5" style={{ color: '#8b8b9e' }}>
+                      {isPureProg ? 'Import programming questions from repository' : 'Import from existing question repository'}
+                    </div>
                   </div>
                   <ChevronRight size={15} className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-all text-purple-400" />
                 </div>
               </button>
             )}
 
-            {/* Add via Document — NEW */}
-{isPureMCQ && (
-  <button onClick={() => { setShowAddOption(false); setShowDocumentUpload(true); }}
-    className="group w-full text-left rounded-xl p-4 transition-all"
-    style={{ border: '1.5px solid #e4e4ed', cursor: 'pointer', background: '#fff' }}
-    onMouseEnter={e => { e.currentTarget.style.borderColor = '#0891b2'; e.currentTarget.style.background = 'rgba(8,145,178,0.03)'; e.currentTarget.style.boxShadow = '0 2px 12px rgba(8,145,178,0.1)'; }}
-    onMouseLeave={e => { e.currentTarget.style.borderColor = '#e4e4ed'; e.currentTarget.style.background = '#fff'; e.currentTarget.style.boxShadow = 'none'; }}>
-    <div className="flex items-center gap-3">
-      <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(8,145,178,0.08)' }}>
-        <FileText size={18} style={{ color: '#0891b2' }} />
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="text-[13px] font-semibold" style={{ color: '#1a1a2e' }}>Create Question From Document</div>
-        <div className="text-[11px] mt-0.5" style={{ color: '#8b8b9e' }}>Bulk import from JSON · CSV · TXT</div>
-      </div>
-      <ChevronRight size={15} className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-all" style={{ color: '#0891b2' }} />
-    </div>
-  </button>
-)}
+            {/* Add via Document - Only for MCQ for now (can be extended to programming later) */}
+            {isPureMCQ && (
+              <button onClick={() => { setShowAddOption(false); setShowDocumentUpload(true); }}
+                className="group w-full text-left rounded-xl p-4 transition-all"
+                style={{ border: '1.5px solid #e4e4ed', cursor: 'pointer', background: '#fff' }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = '#0891b2'; e.currentTarget.style.background = 'rgba(8,145,178,0.03)'; e.currentTarget.style.boxShadow = '0 2px 12px rgba(8,145,178,0.1)'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = '#e4e4ed'; e.currentTarget.style.background = '#fff'; e.currentTarget.style.boxShadow = 'none'; }}>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(8,145,178,0.08)' }}>
+                    <FileText size={18} style={{ color: '#0891b2' }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[13px] font-semibold" style={{ color: '#1a1a2e' }}>Create Question From Document</div>
+                    <div className="text-[11px] mt-0.5" style={{ color: '#8b8b9e' }}>Bulk import from JSON · CSV · TXT</div>
+                  </div>
+                  <ChevronRight size={15} className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-all" style={{ color: '#0891b2' }} />
+                </div>
+              </button>
+            )}
           </div>
 
           <div className="px-4 pb-4">
@@ -869,7 +925,6 @@ const addBtnDisabled = isAddingQuestions || (() => {
   return (
   <div className="h-full flex flex-col overflow-hidden" style={{ ...JKT, background: '#ffffff', color: '#1a1a2e' }}>
   {/* Header - fixed height */}
- {/* Header - fixed height */}
 <div className="flex-none flex items-center justify-between px-4 py-2.5 bg-white" style={{ borderBottom: '1px solid #e4e4ed' }}>
   <div className="flex items-center gap-2.5 min-w-0 flex-1">
     {/* Back */}
@@ -989,8 +1044,13 @@ const addBtnDisabled = isAddingQuestions || (() => {
       <button
         onClick={() => {
           if (addBtnDisabled) return;
-          if (isCombined || !isPureMCQ) setShowAddQuestion(true);
-          else setShowAddOption(true);
+          // For Combined exercise, always show the form directly
+          if (isCombined) {
+            setShowAddQuestion(true);
+          } else {
+            // For pure MCQ or pure Programming, show the options modal first
+            setShowAddOption(true);
+          }
         }}
         title={addBtnDisabled ? 'All slots are filled' : 'Add a new question'}
         className="h-7 px-3 text-[12px] font-semibold rounded-lg flex items-center gap-1 transition-all select-none"
@@ -1453,20 +1513,27 @@ const addBtnDisabled = isAddingQuestions || (() => {
       {/* ══ Modals ══ */}
       {showAddOption && <AddQuestionOptions />}
 
-      {showQuestionBank && (
-        <QuestionBankSelector
-          exerciseData={{
-            exerciseId: exercise._id, exerciseName: exercise.exerciseInformation.exerciseName,
-            exerciseLevel: exercise.exerciseInformation.exerciseLevel || 'intermediate',
-            nodeId, nodeName, subcategory, nodeType, fullExerciseData: exercise, exerciseType: exercise.exerciseType,
-          }}
-          tabType={tabType}
-          onClose={() => { setShowQuestionBank(false); setQbankFromMCQOpts(false); }}
-          onBack={qbankFromMCQOpts ? () => { setShowQuestionBank(false); setQbankFromMCQOpts(false); setShowAddOption(true); } : undefined}
-          onSelect={handleBankSelect}
-          existingQuestionIds={questions.map(q => q._id)} existingQuestions={questions}
-          remainingQuestions={calcRemaining()} marksPerQuestion={calcMarksPerQ()} />
-      )}
+    {showQuestionBank && (
+  <QuestionBankSelector
+    exerciseData={{
+      exerciseId: exercise._id,
+      exerciseName: exercise.exerciseInformation.exerciseName,
+      exerciseLevel: exercise.exerciseInformation.exerciseLevel || 'intermediate',
+      nodeId, nodeName, subcategory, nodeType,
+      fullExerciseData: exercise,
+      exerciseType: exercise.exerciseType,
+    }}
+    tabType={tabType}
+    onClose={() => { setShowQuestionBank(false); setQbankFromMCQOpts(false); }}
+    onBack={qbankFromMCQOpts ? () => { setShowQuestionBank(false); setQbankFromMCQOpts(false); setShowAddOption(true); } : undefined}
+    onSelect={handleBankSelect}
+    existingQuestionIds={questions.map(q => q._id)}
+    existingQuestions={questions}
+    remainingQuestions={calcRemaining()}
+    marksPerQuestion={calcMarksPerQ()}
+    filterByType={isPureProg ? 'programming' : isPureMCQ ? 'mcq' : 'all'}
+  />
+)}
 
       {showAddQuestion && (
         <AddQuestionForm
@@ -1618,6 +1685,41 @@ const addBtnDisabled = isAddingQuestions || (() => {
           </div>
         </>
       )}
+      {showProgrammingForm && selectedProgrammingQuestion && (
+  <ProgrammingQuestionForm
+    exerciseData={{
+      exerciseId: exercise._id,
+      exerciseName: exercise.exerciseInformation.exerciseName,
+      exerciseLevel: exercise.exerciseInformation.exerciseLevel || 'intermediate',
+      nodeId,
+      nodeName,
+      subcategory,
+      nodeType,
+      fullExerciseData: exercise,
+      exerciseType: exercise.exerciseType,
+      programmingSettings: exercise.programmingSettings,
+    }}
+    tabType={tabType}
+    initialData={selectedProgrammingQuestion}
+    isEditing={false}
+    onClose={() => {
+      setShowProgrammingForm(false);
+      setSelectedProgrammingQuestion(null);
+    }}
+    onSave={async (savedData) => {
+      await fetchQuestions();
+      setShowProgrammingForm(false);
+      setSelectedProgrammingQuestion(null);
+      toast.success('Programming question added successfully!');
+      return savedData;
+    }}
+    isSaving={false}
+    saveProgress={0}
+    saveMessage=""
+    onEditExercise={onEditExercise}
+    sectionData={null}
+  />
+)}
     </div>
   );
 };

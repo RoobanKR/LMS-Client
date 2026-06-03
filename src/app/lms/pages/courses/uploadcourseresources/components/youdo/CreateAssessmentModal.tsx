@@ -21,7 +21,7 @@ import { SectionConfigurationStep, SectionConfigurationStepRef } from './assessm
 
 const CreateAssessmentModal: React.FC<ExerciseSettingsProps> = ({
   hierarchyData, nodeId, nodeName, nodeType, subcategory, courseId, onSave = () => {}, onClose,
-  isEditing = false, tabType = 'You_Do', initialData, exercise_Id, configuredLanguages
+  isEditing = false, tabType = 'You_Do', initialData, exercise_Id, exerciseData: preloadedExercise, configuredLanguages
 }) => {
   injectFonts();
 
@@ -44,6 +44,11 @@ const CreateAssessmentModal: React.FC<ExerciseSettingsProps> = ({
   const [exerciseSections, setExerciseSections] = useState<SectionItem[]>([]);
   const exerciseDetailsStepRef = useRef<ExerciseDetailsStepRef>(null);
   const sectionConfigurationStepRef = useRef<SectionConfigurationStepRef>(null);
+  // Guard: populate the form from the loaded exercise ONCE per exercise.
+  // Without this, a re-rendered `exerciseData` (parent computes it inline via
+  // rawExercises.find) re-runs the loader and clobbers in-progress edits
+  // (e.g. the Camera Proctoring toggle reverting on save).
+  const populatedForIdRef = useRef<string | null>(null);
 
   const [courseConfig, setCourseConfig] = useState<{
     coreProgram: string[];
@@ -459,26 +464,47 @@ const CreateAssessmentModal: React.FC<ExerciseSettingsProps> = ({
 
   useEffect(() => {
     const loadExerciseData = async () => {
-      if (isEditing && exercise_Id) {
-        setIsLoading(true);
-        try {
-          const response = await exerciseApi.getExerciseById(exercise_Id);
-          const exerciseData = response?.data?.exercise || response?.data || response;
-          
-          if (exerciseData) {
-            populateFormFromExercise(exerciseData);
-          }
-        } catch (error) {
-          console.error('Failed to load exercise data:', error);
-          toast.error('Failed to load exercise data');
-        } finally {
-          setIsLoading(false);
+      if (!isEditing) return;
+
+      // Populate ONCE per exercise — never clobber the user's in-progress edits
+      // when the parent re-renders and hands us a new `exerciseData` reference.
+      const loadKey = String(
+        exercise_Id ||
+        (preloadedExercise && (preloadedExercise._id || preloadedExercise.id)) ||
+        'edit'
+      );
+      if (populatedForIdRef.current === loadKey) return;
+      populatedForIdRef.current = loadKey;
+
+      // ── Fast path: parent already has the data — no API call needed ──
+      if (preloadedExercise) {
+        populateFormFromExercise(preloadedExercise);
+        setSavedSteps(new Set([1, 2, 3, 4, 5, 6, 7]));
+        setCompletedSteps(new Set([1, 2, 3, 4, 5, 6, 7]));
+        return;
+      }
+
+      // ── Slow path: fetch by ID if no preloaded data provided ──
+      if (!exercise_Id) return;
+      setIsLoading(true);
+      try {
+        const response = await exerciseApi.getExerciseById(exercise_Id);
+        const exerciseData = response?.data?.exercise || response?.data || response;
+        if (exerciseData) {
+          populateFormFromExercise(exerciseData);
+          setSavedSteps(new Set([1, 2, 3, 4, 5, 6, 7]));
+          setCompletedSteps(new Set([1, 2, 3, 4, 5, 6, 7]));
         }
+      } catch (error) {
+        console.error('Failed to load exercise data:', error);
+        toast.error('Failed to load exercise data');
+      } finally {
+        setIsLoading(false);
       }
     };
 
     loadExerciseData();
-  }, [isEditing, exercise_Id]);
+  }, [isEditing, exercise_Id, preloadedExercise]);
 
   // Sync isSectionBasedDuration state with formData.sectionBasedDuration
   useEffect(() => {
@@ -494,12 +520,31 @@ const CreateAssessmentModal: React.FC<ExerciseSettingsProps> = ({
     const gradeSettings = exercise.gradeSettings || {};
     const additionalOptions = exercise.additionalOptions || {};
     const questionConfig = exercise.questionConfiguration || {};
-    const mcqConfig = questionConfig.mcqConfig || {};
-    const programmingConfig = questionConfig.programmingConfig || {};
-    const othersConfig = questionConfig.othersQuestionConfiguration || {};
+
+    // Support both naming conventions the backend may use
+    const mcqConfig =
+      questionConfig.mcqConfig ||
+      questionConfig.mcqQuestionConfiguration ||
+      {};
+    const programmingConfig =
+      questionConfig.programmingConfig ||
+      questionConfig.programmingQuestionConfiguration ||
+      {};
+    const othersConfig =
+      questionConfig.othersQuestionConfiguration ||
+      questionConfig.othersConfig ||
+      {};
+
     const sectionsData = exercise.sections || [];
-    const isSectionBasedVal = exercise.isSectionBased || false;
-    
+    const isSectionBasedVal =
+      exercise.isSectionBased || info.isSectionBased || false;
+
+    // 'SectionBased' is a storage value, not a valid form exerciseType —
+    // fall back to root exercise.exerciseType or 'MCQ' so type buttons render properly
+    let exerciseTypeVal: string =
+      info.exerciseType || exercise.exerciseType || 'MCQ';
+    if (exerciseTypeVal === 'SectionBased') exerciseTypeVal = 'MCQ';
+
     const parseDate = (dateStr: string) => {
       if (!dateStr) return { day: 0, month: 0, year: 0, hour: 0, minute: 0 };
       const date = new Date(dateStr);
@@ -514,9 +559,10 @@ const CreateAssessmentModal: React.FC<ExerciseSettingsProps> = ({
 
     setFormData(prev => ({
       ...prev,
-      exerciseType: info.exerciseType || 'MCQ',
-          testType: info.testType || 'mock',  // ← ADD THIS LINE
 
+      // ── Exercise Details ───────────────────────────────────────────
+      exerciseType: exerciseTypeVal,
+      testType: info.testType || 'mock',
       exerciseId: info.exerciseId || prev.exerciseId,
       exerciseName: info.exerciseName || '',
       description: info.description || '',
@@ -531,60 +577,111 @@ const CreateAssessmentModal: React.FC<ExerciseSettingsProps> = ({
       sectionBasedDuration: info.sectionBasedDuration || false,
       sections: sectionsData,
       sectionConfigs: exercise.sectionConfigs || {},
+
+      // ── MCQ question config ────────────────────────────────────────
       mcqConfig: {
         ...prev.mcqConfig,
+        questionConfigType: mcqConfig.questionConfigType || 'general',
         generalQuestionCount: mcqConfig.generalQuestionCount || 0,
-        sectionConfig: mcqConfig.sectionConfig || { sections: {}, totalSections: 0, totalQuestions: 0, totalMarks: 0 },
-        scoreSettings: mcqConfig.scoreSettings || { scoreType: 'equalDistribution', equalDistribution: 0, totalMarks: 0 },
+        sectionConfig: mcqConfig.sectionConfig || prev.mcqConfig.sectionConfig,
+        scoreSettings: mcqConfig.scoreSettings || prev.mcqConfig.scoreSettings,
         attemptLimitEnabled: mcqConfig.attemptLimitEnabled || false,
         submissionAttempts: mcqConfig.submissionAttempts || 1,
       },
+
+      // ── Programming question config ────────────────────────────────
       programmingConfig: {
         ...prev.programmingConfig,
         questionConfigType: programmingConfig.questionConfigType || 'general',
         generalQuestionCount: programmingConfig.generalQuestionCount || 0,
-        selectionLevelCounts: programmingConfig.selectionLevelCounts || { easy: 0, medium: 0, hard: 0 },
-        levelBasedCounts: programmingConfig.levelBasedCounts || { easy: 0, medium: 0, hard: 0 },
-        scoreSettings: programmingConfig.scoreSettings || prev.programmingConfig.scoreSettings,
+        selectionLevelCounts:
+          programmingConfig.selectionLevelCounts || { easy: 0, medium: 0, hard: 0 },
+        levelBasedCounts:
+          programmingConfig.levelBasedCounts || { easy: 0, medium: 0, hard: 0 },
+        scoreSettings:
+          programmingConfig.scoreSettings || prev.programmingConfig.scoreSettings,
+        questionFlow: programmingConfig.questionFlow || 'freeFlow',
+        attemptLimitEnabled: programmingConfig.attemptLimitEnabled || false,
+        submissionAttempts: programmingConfig.submissionAttempts || 1,
       },
+
+      // ── Others question config ─────────────────────────────────────
       othersConfig: {
         ...prev.othersConfig,
         questionConfigType: othersConfig.questionConfigType || 'general',
         generalQuestionCount: othersConfig.generalQuestionCount || 0,
+        selectionLevelCounts:
+          othersConfig.selectionLevelCounts || { easy: 0, medium: 0, hard: 0 },
+        levelBasedCounts:
+          othersConfig.levelBasedCounts || { easy: 0, medium: 0, hard: 0 },
+        scoreSettings:
+          othersConfig.scoreSettings || prev.othersConfig.scoreSettings,
+        questionFlow: othersConfig.questionFlow || 'freeFlow',
+        attemptLimitEnabled: othersConfig.attemptLimitEnabled || false,
+        submissionAttempts: othersConfig.submissionAttempts || 1,
       },
+
+      // ── Schedule ───────────────────────────────────────────────────
       schedule: {
         ...prev.schedule,
+        allowSubmissions:
+          schedule.allowSubmissions !== undefined ? schedule.allowSubmissions : true,
         startDate: parseDate(schedule.startDate),
         endDate: parseDate(schedule.endDate),
         cutOffEnabled: schedule.cutOffEnabled || false,
         cutOffDate: parseDate(schedule.cutOffDate),
         gracePeriodEnabled: schedule.gracePeriodEnabled || false,
         gracePeriodDate: parseDate(schedule.gracePeriodDate),
+        remindGradeByEnabled: schedule.remindGradeByEnabled || false,
+        remindGradeBy: parseDate(schedule.remindGradeBy),
       },
+
+      // ── Security Settings ──────────────────────────────────────────
+      // Merge defaults so older assessments (saved before newer fields like
+      // faceMonitoringDetection existed) still have every field defined —
+      // otherwise NumberInputs flip uncontrolled→controlled.
+      securitySettings: { ...defaultSecuritySettings, ...(exercise.securitySettings || {}) },
+
+      // ── Notifications ──────────────────────────────────────────────
       notifyUsers: notifications.notifyUsers || false,
       notifyGmail: notifications.notifyGmail || false,
       notifyWhatsApp: notifications.notifyWhatsApp || false,
-      gradeSheet: notifications.gradeSheet !== undefined ? notifications.gradeSheet : true,
+      gradeSheet:
+        notifications.gradeSheet !== undefined ? notifications.gradeSheet : true,
       notifications: {
         notifyGradersSubmissions: notifications.notifyGradersSubmissions || false,
-        notifyGradersLateSubmissions: notifications.notifyGradersLateSubmissions || false,
-        notifyStudent: notifications.notifyStudent !== undefined ? notifications.notifyStudent : true,
+        notifyGradersLateSubmissions:
+          notifications.notifyGradersLateSubmissions || false,
+        notifyStudent:
+          notifications.notifyStudent !== undefined
+            ? notifications.notifyStudent
+            : true,
       },
+
+      // ── Grades / Mark Settings ─────────────────────────────────────
       grades: {
         ...prev.grades,
-        mcqGrade: gradeSettings.mcqGrade || null,
-        mcqGradeToPass: gradeSettings.mcqGradeToPass || null,
+        mcqGrade: gradeSettings.mcqGrade ?? null,
+        mcqGradeToPass: gradeSettings.mcqGradeToPass ?? null,
+        combinedGrade: gradeSettings.combinedGrade ?? null,
+        combinedGradeToPass: gradeSettings.combinedGradeToPass ?? null,
+        separateMarks: gradeSettings.separateMarks || false,
       },
+
+      // ── Additional Options ─────────────────────────────────────────
       additionalOptions: {
         anonymousSubmissions: additionalOptions.anonymousSubmissions || false,
         hideGraderIdentity: additionalOptions.hideGraderIdentity || false,
       },
     }));
-    
-    if (isSectionBasedVal && sectionsData.length > 0) {
-      setExerciseSections(sectionsData);
+
+    // Always sync isSectionBasedDuration regardless of whether sections are present
+    if (isSectionBasedVal) {
       setIsSectionBased(true);
       setIsSectionBasedDuration(info.sectionBasedDuration || false);
+      if (sectionsData.length > 0) {
+        setExerciseSections(sectionsData);
+      }
     }
   }, []);
 
@@ -805,6 +902,8 @@ const buildFullPayload = useCallback((overrideSectionConfigs?: Record<string, an
       }
     }
     
+    // 🔒 TEMP DIAGNOSTIC — what securitySettings is actually being sent on save.
+    console.log('🔒 SAVE securitySettings →', JSON.stringify(payload.securitySettings));
     return payload;
 }, [formData, tabType, subcategory, isSectionBased, exerciseSections]);
   const performSave = useCallback(async (afterSave?: () => void) => {
@@ -834,7 +933,7 @@ const buildFullPayload = useCallback((overrideSectionConfigs?: Record<string, an
         if (newId) setLocalExerciseId(newId);
       }
       setSavedSteps(prev => new Set(prev).add(currentStep));
-      setCompletedSteps(prev => { const n = new Set(prev); steps.forEach(step => { if (isStepCompleted(step.id)) n.add(step.id); }); return n; });
+      setCompletedSteps(prev => new Set(prev).add(currentStep));
       afterSave?.();
     } catch (err: any) {
       toast.error(`Save failed: ${err?.response?.data?.message || err?.message || 'Failed to save'}`, { position: 'top-right', duration: 4000 });
@@ -850,16 +949,20 @@ const handleSave = useCallback(async () => {
   }
 
   if (currentTitle === 'Notifications' || currentTitle === 'Notification') {
-    setSavedSteps(prev => new Set(prev).add(currentStep));
-    setCompletedSteps(prev => new Set(prev).add(currentStep));
-    toast.success('Notifications settings saved!', { position: 'top-right', duration: 1800 });
+    // Persist to the backend (not just mark the step done) — same fix as the
+    // Security Settings step, which previously only saved on Finish.
+    await performSave(() => {
+      toast.success('Notifications settings saved!', { position: 'top-right', duration: 1800 });
+    });
     return;
   }
 
   if (currentTitle === 'Security Settings') {
-    setSavedSteps(prev => new Set(prev).add(currentStep));
-    setCompletedSteps(prev => new Set(prev).add(currentStep));
-    toast.success('Security settings saved!', { position: 'top-right', duration: 1800 });
+    // Persist to the backend (not just mark the step done) so editing + Save
+    // actually updates securitySettings — previously only Finish saved them.
+    await performSave(() => {
+      toast.success('Security settings saved!', { position: 'top-right', duration: 1800 });
+    });
     return;
   }
 
@@ -1044,10 +1147,11 @@ const handleComplete = useCallback(async () => {
   const handleStepClick = useCallback((targetStepId: number) => {
     if (targetStepId === currentStep) return;
     const step1Id = steps.find(s => s.title === 'Exercise Details')?.id ?? 1;
-    const step1Unlocked = savedSteps.has(step1Id);
+    // In edit mode all steps are already persisted — allow free navigation
+    const step1Unlocked = isEditing || savedSteps.has(step1Id);
     if (!step1Unlocked && targetStepId !== step1Id) return;
     setCurrentStep(targetStepId);
-  }, [currentStep, steps, savedSteps]);
+  }, [currentStep, steps, savedSteps, isEditing]);
 
   const isDateDisabled = useCallback((year: number, month: number, day: number, fieldKey: string): boolean => {
     const date = new Date(year, month - 1, day);
@@ -1236,7 +1340,8 @@ if (formData.exerciseType === 'MCQ') {
 
   const breadcrumbs = useMemo(() => getBreadcrumbs(), [getBreadcrumbs]);
   const step1Id = steps.find(s => s.title === 'Exercise Details')?.id ?? 1;
-  const step1Unlocked = savedSteps.has(step1Id);
+  // When editing an existing exercise all steps are already saved — unlock entire sidebar
+  const step1Unlocked = isEditing || savedSteps.has(step1Id);
   const isLastStep = currentStep === steps[steps.length - 1]?.id;
   const isOnStep1 = currentStep === step1Id;
   const busy = isLoading || isSavingStep;

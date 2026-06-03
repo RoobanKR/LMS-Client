@@ -1,6 +1,7 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { Loading } from "@/components/loading-ui/loading";
 import {
   Edit,
   Trash2,
@@ -767,7 +768,7 @@ export default function UserManagementPage() {
   );
 
   if (userRole === null) {
-    return <div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div></div>;
+    return <div className="min-h-screen flex items-center justify-center"><Loading size="size-8" /></div>;
   }
 
   return userRole === 'admin' ? <DashboardLayout>{pageContent}</DashboardLayout> : <StaffLayout>{pageContent}</StaffLayout>;

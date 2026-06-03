@@ -1,6 +1,6 @@
 // components/ResourceComponents.tsx
 import React, { useState } from "react"
-import { File, Folder, Layout, Video, Presentation, FileText, Archive, Link, Download, ChevronUp, ChevronDown, ChevronRight, Image as ImageIcon, FileType, Eye, ExternalLink, FolderOpen } from "lucide-react"
+import { File, Folder, Layout, Video, Presentation, FileText, Archive, Link, Download, ChevronUp, ChevronDown, ChevronRight, Image as ImageIcon, FileType, Eye, ExternalLink, FolderOpen, MoreVertical } from "lucide-react"
 import { RES_COLOR, RES_LABEL } from "./types/constants"
 import { Resource, ResourceType, SortConfig, SortField } from "./types/types"
 import { fmtSize, shouldShowDownload, isResourceVisible } from "./types/utils"
@@ -72,14 +72,18 @@ const ensureAnimStyle = () => {
 
 export const ResourceItem = ({
   resource, index, onClick, onDownload, animType = "resource",
+  indent = 0, isLast = false, groupChild = false,
 }: {
   resource: Resource
   index: number
   onClick: (r: Resource) => void
   onDownload?: (r: Resource, e: React.MouseEvent) => void
   animType?: "resource" | "wedo" | "none"
+  indent?: number
+  isLast?: boolean
+  groupChild?: boolean
 }) => {
-  const [tip, setTip] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   ensureAnimStyle()
 
   if (!isResourceVisible(resource)) return null
@@ -94,9 +98,11 @@ export const ResourceItem = ({
       const yyyy = dt.getFullYear()
       const mo = String(dt.getMonth() + 1).padStart(2, '0')
       const dd = String(dt.getDate()).padStart(2, '0')
-      const HH = String(dt.getHours()).padStart(2, '0')
+      const h24 = dt.getHours()
+      const ampm = h24 >= 12 ? 'PM' : 'AM'
+      const HH = String(h24 % 12 || 12).padStart(2, '0')
       const mm = String(dt.getMinutes()).padStart(2, '0')
-      return `${yyyy}/${mo}/${dd} ${HH}:${mm}`
+      return `${yyyy}/${mo}/${dd} ${HH}:${mm} ${ampm}`
     }
     catch { return '—' }
   }
@@ -121,18 +127,26 @@ export const ResourceItem = ({
     ? (folderTotalBytes > 0 ? fmtSize(String(folderTotalBytes)) : '—')
     : fmtSize(resource.fileSize || "0")
 
+  const menuItemStyle: React.CSSProperties = {
+    display: 'flex', alignItems: 'center', gap: 8,
+    width: '100%', padding: '7px 10px', borderRadius: 6,
+    border: 'none', background: 'transparent', cursor: 'pointer',
+    color: '#334155', fontSize: '12px', fontWeight: 400,
+    textAlign: 'left', fontFamily: 'inherit', whiteSpace: 'nowrap',
+  }
+
   return (
     <div
       onClick={() => onClick(resource)}
       style={{
         display: 'flex', alignItems: 'center',
-        padding: '8px 20px',
-        minHeight: 40,
+        padding: '6px 20px',
+        minHeight: 34,
         cursor: 'pointer',
         background: rowBg,
         borderBottom: '1px solid #eef0f4',
         transition: 'background 0.15s ease',
-        fontFamily: "'Inter','Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
+        fontFamily: "'Inter','Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,sans-serif",
         WebkitFontSmoothing: 'antialiased',
         ...animStyle,
       }}
@@ -140,7 +154,13 @@ export const ResourceItem = ({
       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = rowBg }}
     >
       {/* Name */}
-      <div style={{ width: '44%', minWidth: 220, display: 'flex', alignItems: 'center', paddingRight: 12 }}>
+      <div style={{ width: '36%', minWidth: 0, display: 'flex', alignItems: 'center', paddingRight: 12, paddingLeft: indent, position: 'relative' }}>
+        {groupChild && indent > 0 && (
+          <>
+            <div style={{ position: 'absolute', left: indent - 18, top: 0, height: isLast ? '50%' : '100%', width: 1.5, background: '#cbd5e1' }} />
+            <div style={{ position: 'absolute', left: indent - 18, top: '50%', transform: 'translateY(-0.75px)', width: 14, height: 1.5, background: '#cbd5e1' }} />
+          </>
+        )}
         <div style={{
           flexShrink: 0, width: 22, height: 22, borderRadius: 6,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -150,10 +170,12 @@ export const ResourceItem = ({
         }}>
           {getResourceIcon(resource)}
         </div>
-        <p style={{
+        <p title={resource.title} style={{
           margin: 0,
+          flex: 1,
+          minWidth: 0,
           fontSize: '12.5px',
-          fontWeight: 600,
+          fontWeight: 500,
           color: '#0F172A',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
@@ -165,66 +187,79 @@ export const ResourceItem = ({
       </div>
 
       {/* Updated */}
-      <div style={{ width: '14%', minWidth: 100, paddingRight: 12 }}>
-        <span style={{ fontSize: '11.5px', color: '#475569', fontWeight: 600, letterSpacing: '-0.004em' }}>{updated}</span>
+      <div style={{ width: '16%', minWidth: 132, paddingRight: 12 }}>
+        <span style={{ fontSize: '11px', color: '#475569', fontWeight: 400, letterSpacing: '-0.004em', whiteSpace: 'nowrap' }}>{updated}</span>
       </div>
 
       {/* Category */}
-      <div style={{ width: '16%', minWidth: 120, paddingRight: 12 }}>
+      <div style={{ width: '24%', minWidth: 100, paddingLeft: 48, paddingRight: 12 }}>
         <span style={{
-          fontSize: '10.5px', fontWeight: 700, padding: '2px 7px', borderRadius: 5,
-          textTransform: 'uppercase' as const, letterSpacing: '0.05em',
-          background: 'transparent', color: '#94A3B8',
-          border: '1px solid #eef0f4', whiteSpace: 'nowrap' as const,
+          fontSize: '11px', fontWeight: 400,
+          textTransform: 'capitalize' as const, letterSpacing: '-0.004em',
+          color: '#334155', whiteSpace: 'nowrap' as const,
         }}>{category}</span>
       </div>
 
       {/* Size */}
-      <div style={{ width: '10%', minWidth: 80, paddingRight: 12 }}>
-        <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#334155', letterSpacing: '-0.006em' }}>{sizeText}</span>
+      <div style={{ width: '8%', minWidth: 64, paddingRight: 12 }}>
+        <span style={{ fontSize: '11px', fontWeight: 400, color: '#334155', letterSpacing: '-0.006em' }}>{sizeText}</span>
       </div>
 
       {/* Actions */}
-      <div style={{ width: '16%', minWidth: 130, display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
+      <div style={{ width: '16%', minWidth: 130, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', position: 'relative' }}>
         {showAction && (
-          <button
-            type="button"
-            onClick={e => { e.stopPropagation(); onClick(resource) }}
-            style={{
-              height: 26, padding: '0 10px', borderRadius: 7,
-              border: '1px solid #c7d2fe', background: '#eef2ff',
-              cursor: 'pointer', color: '#4338ca',
-              display: 'inline-flex', alignItems: 'center', gap: 5,
-              fontSize: '10.5px', fontWeight: 700,
-            }}
-          >
-            {resource.isFolder || resource.type === "link" ? <Layout size={12} /> : <Eye size={12} />}
-            {actionLabel}
-          </button>
-        )}
-        {!resource.isFolder && !isPage && shouldShowDownload(resource) && (
-          <div style={{ position: 'relative' }}>
+          <>
             <button
-              onClick={e => { e.stopPropagation(); if (onDownload) onDownload(resource, e) }}
-              onMouseEnter={() => setTip(true)}
-              onMouseLeave={() => setTip(false)}
+              type="button"
+              onClick={e => { e.stopPropagation(); setMenuOpen(v => !v) }}
               style={{
-                width: 26, height: 26, borderRadius: 7, border: '1px solid #e2e8f0',
-                background: '#fff', cursor: 'pointer', color: '#64748b',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 28, height: 26, borderRadius: 7,
+                border: '1px solid #e2e8f0', background: menuOpen ? '#f1f5f9' : '#fff',
+                cursor: 'pointer', color: '#64748b',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
               }}
             >
-              <Download size={12} />
+              <MoreVertical size={15} />
             </button>
-            {tip && (
-              <div style={{
-                position: 'absolute', top: '100%', right: 0, marginTop: 3,
-                padding: '3px 8px', borderRadius: 5,
-                background: '#1e293b', color: '#fff',
-                fontSize: '10px', whiteSpace: 'nowrap', zIndex: 10, pointerEvents: 'none',
-              }}>Download</div>
+            {menuOpen && (
+              <>
+                <div
+                  onClick={e => { e.stopPropagation(); setMenuOpen(false) }}
+                  style={{ position: 'fixed', inset: 0, zIndex: 40 }}
+                />
+                <div style={{
+                  position: 'absolute', top: '100%', right: 0, marginTop: 4,
+                  minWidth: 144, background: '#fff', borderRadius: 8,
+                  border: '1px solid #e2e8f0', boxShadow: '0 8px 24px rgba(15,23,42,0.12)',
+                  padding: 4, zIndex: 50,
+                  display: 'flex', flexDirection: 'column', gap: 2,
+                }}>
+                  <button
+                    type="button"
+                    onClick={e => { e.stopPropagation(); setMenuOpen(false); onClick(resource) }}
+                    style={menuItemStyle}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#f8fafc' }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                  >
+                    {resource.isFolder || resource.type === "link" ? <Layout size={13} /> : <Eye size={13} />}
+                    {actionLabel}
+                  </button>
+                  {!resource.isFolder && !isPage && shouldShowDownload(resource) && (
+                    <button
+                      type="button"
+                      onClick={e => { e.stopPropagation(); setMenuOpen(false); if (onDownload) onDownload(resource, e) }}
+                      style={menuItemStyle}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#f8fafc' }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                    >
+                      <Download size={13} />
+                      Download
+                    </button>
+                  )}
+                </div>
+              </>
             )}
-          </div>
+          </>
         )}
       </div>
     </div>
@@ -276,9 +311,11 @@ export const ResourceGroupRow = ({
       const yyyy = dt.getFullYear()
       const mo = String(dt.getMonth() + 1).padStart(2, '0')
       const dd = String(dt.getDate()).padStart(2, '0')
-      const HH = String(dt.getHours()).padStart(2, '0')
+      const h24 = dt.getHours()
+      const ampm = h24 >= 12 ? 'PM' : 'AM'
+      const HH = String(h24 % 12 || 12).padStart(2, '0')
       const mm = String(dt.getMinutes()).padStart(2, '0')
-      return `${yyyy}/${mo}/${dd} ${HH}:${mm}`
+      return `${yyyy}/${mo}/${dd} ${HH}:${mm} ${ampm}`
     }
     catch { return '—' }
   }
@@ -295,8 +332,9 @@ export const ResourceGroupRow = ({
     return t > acc ? t : acc
   }, 0)
   const groupTotalBytes = allItems.reduce((sum, r) => sum + (parseInt((r as any).fileSize || "0") || 0), 0)
-  // Each depth level adds 28px of left padding so nesting is visually obvious.
-  const headerIndent = 20 + depth * 28
+  // Each depth level indents only the name cell so the Date / Type / Size
+  // columns stay aligned with the header even when a group is expanded.
+  const nameIndent = depth * 28
 
   return (
     <>
@@ -304,14 +342,13 @@ export const ResourceGroupRow = ({
         onClick={() => setExpanded(v => !v)}
         style={{
           display: 'flex', alignItems: 'center',
-          padding: `8px 20px 8px ${headerIndent}px`,
-          minHeight: 40,
+          padding: '6px 20px',
+          minHeight: 34,
           cursor: 'pointer',
           background: '#ffffff',
           borderBottom: '1px solid #eef0f4',
-          borderLeft: depth === 0 ? '3px solid #f97316' : '3px solid #fed7aa',
           transition: 'background 0.15s ease',
-          fontFamily: "'Inter','Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
+          fontFamily: "'Inter','Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,sans-serif",
           WebkitFontSmoothing: 'antialiased',
           ...animStyle,
         }}
@@ -319,19 +356,19 @@ export const ResourceGroupRow = ({
         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#ffffff' }}
       >
         {/* Name */}
-        <div style={{ width: '44%', minWidth: 220, display: 'flex', alignItems: 'center', paddingRight: 12, gap: 8 }}>
+        <div style={{ width: '36%', minWidth: 0, display: 'flex', alignItems: 'center', paddingRight: 12, paddingLeft: nameIndent, gap: 8 }}>
           {expanded
-            ? <ChevronDown size={14} style={{ color: '#f97316', flexShrink: 0 }} strokeWidth={2.5} />
-            : <ChevronRight size={14} style={{ color: '#f97316', flexShrink: 0 }} strokeWidth={2.5} />}
+            ? <ChevronDown size={14} style={{ color: '#2563eb', flexShrink: 0 }} strokeWidth={2.5} />
+            : <ChevronRight size={14} style={{ color: '#2563eb', flexShrink: 0 }} strokeWidth={2.5} />}
           <div style={{
             flexShrink: 0, width: 22, height: 22, borderRadius: 6,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'rgba(249,115,22,0.12)', border: '1px solid rgba(249,115,22,0.25)',
+            background: 'rgba(37,99,235,0.10)', border: '1px solid rgba(37,99,235,0.20)',
             marginRight: 4,
           }}>
-            {expanded ? <FolderOpen size={12} style={{ color: '#f97316' }} /> : <Folder size={12} style={{ color: '#f97316' }} />}
+            {expanded ? <FolderOpen size={12} style={{ color: '#2563eb' }} /> : <Folder size={12} style={{ color: '#2563eb' }} />}
           </div>
-          <p style={{ margin: 0, fontSize: '12.5px', fontWeight: 600, color: '#0F172A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '-0.005em' }}>
+          <p title={groupName} style={{ margin: 0, flex: 1, minWidth: 0, fontSize: '12.5px', fontWeight: 500, color: '#0F172A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '-0.005em' }}>
             {groupName}
           </p>
           {/* <span style={{
@@ -343,85 +380,43 @@ export const ResourceGroupRow = ({
           </span> */}
         </div>
         {/* Updated */}
-        <div style={{ width: '14%', minWidth: 100, paddingRight: 12 }}>
-          <span style={{ fontSize: '11.5px', color: '#475569', fontWeight: 600, letterSpacing: '-0.004em' }}>
+        <div style={{ width: '16%', minWidth: 132, paddingRight: 12 }}>
+          <span style={{ fontSize: '11px', color: '#475569', fontWeight: 400, letterSpacing: '-0.004em', whiteSpace: 'nowrap' }}>
             {latest ? fmtDate(new Date(latest).toISOString()) : '—'}
           </span>
         </div>
         {/* Category */}
-        <div style={{ width: '16%', minWidth: 120, paddingRight: 12 }}>
+        <div style={{ width: '24%', minWidth: 100, paddingLeft: 48, paddingRight: 12 }}>
           <span style={{
-            fontSize: '10.5px', fontWeight: 700, padding: '2px 7px', borderRadius: 5,
-            textTransform: 'uppercase' as const, letterSpacing: '0.05em',
-            background: 'transparent', color: '#94A3B8', border: '1px solid #eef0f4', whiteSpace: 'nowrap' as const,
+            fontSize: '11px', fontWeight: 400,
+            textTransform: 'capitalize' as const, letterSpacing: '-0.004em',
+            color: '#334155', whiteSpace: 'nowrap' as const,
           }}>Group</span>
         </div>
         {/* Size */}
-        <div style={{ width: '10%', minWidth: 80, paddingRight: 12 }}>
-          <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#334155', letterSpacing: '-0.006em' }}>
+        <div style={{ width: '8%', minWidth: 64, paddingRight: 12 }}>
+          <span style={{ fontSize: '11px', fontWeight: 400, color: '#334155', letterSpacing: '-0.006em' }}>
             {groupTotalBytes > 0 ? fmtSize(String(groupTotalBytes)) : '—'}
           </span>
         </div>
         {/* Actions (empty for group row) */}
-        <div style={{ width: '16%', minWidth: 130 }} />
+        <div style={{ width: '16%', minWidth: 130 }} />{/* keep aligned with Actions header */}
       </div>
 
       {expanded && items.map((r, i) => {
         const isLast = i === items.length - 1 && subGroups.length === 0
-        const connectorIndent = headerIndent
         return (
-          <div
+          <ResourceItem
             key={r.id}
-            style={{
-              display: 'flex',
-              alignItems: 'stretch',
-              background: '#ffffff',
-              borderBottom: '1px solid #eef0f4',
-              borderLeft: '3px solid #fed7aa',
-            }}
-          >
-            {/* Tree connector column */}
-            <div style={{ width: connectorIndent + 24, flexShrink: 0, position: 'relative' }}>
-              <div style={{
-                position: 'absolute',
-                left: connectorIndent,
-                top: 0,
-                height: isLast ? '50%' : '100%',
-                width: 1.5,
-                background: '#fdba74',
-              }} />
-              <div style={{
-                position: 'absolute',
-                left: connectorIndent,
-                top: '50%',
-                transform: 'translateY(-0.75px)',
-                width: 18,
-                height: 1.5,
-                background: '#fdba74',
-              }} />
-              <div style={{
-                position: 'absolute',
-                left: connectorIndent - 4,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                width: 6,
-                height: 6,
-                borderRadius: '50%',
-                background: '#f97316',
-                opacity: 0.55,
-              }} />
-            </div>
-            {/* Resource row */}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <ResourceItem
-                resource={r}
-                index={i}
-                onClick={onClick}
-                onDownload={onDownload}
-                animType="none"
-              />
-            </div>
-          </div>
+            resource={r}
+            index={i}
+            onClick={onClick}
+            onDownload={onDownload}
+            animType="none"
+            indent={(depth + 1) * 28}
+            isLast={isLast}
+            groupChild
+          />
         )
       })}
       {/* Nested sub-groups (recursive — supports unlimited depth) */}
@@ -449,20 +444,20 @@ export const ResourceTableHeader = () => (
     style={{
       display: 'flex',
       alignItems: 'center',
-      padding: '8px 20px',
+      padding: '7px 20px',
       background: '#f8fafc',
       borderBottom: '1px solid #eef0f4',
       position: 'sticky',
       top: 0,
       zIndex: 5,
-      fontFamily: "'Inter','Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
+      fontFamily: "'Inter','Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,sans-serif",
     }}
   >
-    <div style={{ width: '44%', minWidth: 220, fontSize: '11px', fontWeight: 600, color: '#94A3B8', paddingRight: 12, letterSpacing: '0.04em', textTransform: 'uppercase' as const }}>Name</div>
-    <div style={{ width: '14%', minWidth: 100, fontSize: '11px', fontWeight: 600, color: '#94A3B8', paddingRight: 12, letterSpacing: '0.04em', textTransform: 'uppercase' as const }}>Date Modified</div>
-    <div style={{ width: '16%', minWidth: 120, fontSize: '11px', fontWeight: 600, color: '#94A3B8', paddingRight: 12, letterSpacing: '0.04em', textTransform: 'uppercase' as const }}>Type</div>
-    <div style={{ width: '10%', minWidth: 80, fontSize: '11px', fontWeight: 600, color: '#94A3B8', paddingRight: 12, letterSpacing: '0.04em', textTransform: 'uppercase' as const }}>Size</div>
-    <div style={{ width: '16%', minWidth: 130, fontSize: '11px', fontWeight: 600, color: '#94A3B8', textAlign: 'right' as const, letterSpacing: '0.04em', textTransform: 'uppercase' as const }}>Actions</div>
+    <div style={{ width: '36%', minWidth: 0, fontSize: '11px', fontWeight: 500, color: '#0F172A', paddingRight: 12, letterSpacing: '0.04em' }}>Name</div>
+    <div style={{ width: '16%', minWidth: 132, fontSize: '11px', fontWeight: 500, color: '#0F172A', paddingRight: 12, letterSpacing: '0.04em' }}>Date Modified</div>
+    <div style={{ width: '24%', minWidth: 100, fontSize: '11px', fontWeight: 500, color: '#0F172A', paddingLeft: 48, paddingRight: 12, letterSpacing: '0.04em' }}>Type</div>
+    <div style={{ width: '8%', minWidth: 64, fontSize: '11px', fontWeight: 500, color: '#0F172A', paddingRight: 12, letterSpacing: '0.04em' }}>Size</div>
+    <div style={{ width: '16%', minWidth: 130, fontSize: '11px', fontWeight: 500, color: '#0F172A', textAlign: 'right' as const, letterSpacing: '0.04em' }}>Actions</div>
   </div>
 )
 
@@ -532,9 +527,11 @@ export const ResourceCard = ({
       const yyyy = dt.getFullYear()
       const mo = String(dt.getMonth() + 1).padStart(2, '0')
       const dd = String(dt.getDate()).padStart(2, '0')
-      const HH = String(dt.getHours()).padStart(2, '0')
+      const h24 = dt.getHours()
+      const ampm = h24 >= 12 ? 'PM' : 'AM'
+      const HH = String(h24 % 12 || 12).padStart(2, '0')
       const mm = String(dt.getMinutes()).padStart(2, '0')
-      return `${yyyy}/${mo}/${dd} ${HH}:${mm}`
+      return `${yyyy}/${mo}/${dd} ${HH}:${mm} ${ampm}`
     }
     catch { return '—' }
   }

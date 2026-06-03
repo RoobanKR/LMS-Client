@@ -3,7 +3,8 @@ import {
   Plus, Trash2, AlertCircle, Loader, X, Copy, ChevronUp, ChevronDown, Sparkles,
   List, CheckSquare, AlignLeft, ChevronDown as ChevronDownIcon,
   Bold, Italic, Underline, Image, HelpCircle, Columns,
-  ZoomIn, ZoomOut, Tag, Check, Hash, ToggleLeft, Equal, ArrowUpDown
+  ZoomIn, ZoomOut, Tag, Check, Hash, ToggleLeft, Equal, ArrowUpDown,
+  RefreshCw
 } from 'lucide-react';
 import CommonFields from './CommonFields';
 
@@ -40,7 +41,7 @@ type QuestionType =
   | 'multiple-select'
   | 'true-false'
   | 'short-answer'
-  | 'paragraph'
+  | 'essay'
   | 'dropdown'
   | 'matching'
   | 'ordering'
@@ -73,6 +74,7 @@ interface QuestionBlock {
   orderingItems?: OrderingItem[];
   trueFalseAnswer?: boolean | null;
   shortAnswer?: string;
+  essayAnswer?: string;
   numericAnswer?: number | null;
   numericTolerance?: number | null;
 }
@@ -489,6 +491,7 @@ const MCQFields: React.FC<MCQQuestionFormProps> = ({
     ],
     trueFalseAnswer: null,
     shortAnswer: '',
+    essayAnswer: '',
     numericAnswer: null,
     numericTolerance: null,
   });
@@ -574,7 +577,7 @@ const [questionBlocks, setQuestionBlocks] = useState<QuestionBlock[]>(() => {
           'multiple_select': 'multiple-select',
           'true_false': 'true-false',
           'short_answer': 'short-answer',
-          'essay': 'paragraph',
+          'essay': 'essay',
           'dropdown': 'dropdown',
           'matching': 'matching',
           'ordering': 'ordering',
@@ -597,6 +600,7 @@ const [questionBlocks, setQuestionBlocks] = useState<QuestionBlock[]>(() => {
         orderingItems,
         trueFalseAnswer: blockData.trueFalseAnswer ?? null,
         shortAnswer: blockData.shortAnswer || '',
+        essayAnswer: blockData.essayAnswer || '',
         numericAnswer: blockData.numericAnswer ?? null,
         numericTolerance: blockData.numericTolerance ?? null,
         score: blockData.mcqQuestionScore || blockData.score || 10,
@@ -623,20 +627,20 @@ const [questionBlocks, setQuestionBlocks] = useState<QuestionBlock[]>(() => {
   return [makeDefaultBlock(generateId('block'), 0)];
 });
 
-  const mapInternalTypeToApi = (type: QuestionType): string => {
-    const mapping: Record<QuestionType, string> = {
-      'multiple-choice': 'multiple_choice',
-      'multiple-select': 'multiple_select',
-      'true-false': 'true_false',
-      'short-answer': 'short_answer',
-      'paragraph': 'essay',
-      'dropdown': 'dropdown',
-      'matching': 'matching',
-      'ordering': 'ordering',
-      'numeric': 'numeric',
-    };
-    return mapping[type] || 'multiple_choice';
+const mapInternalTypeToApi = (type: QuestionType): string => {
+  const mapping: Record<QuestionType, string> = {
+    'multiple-choice': 'multiple_choice',
+    'multiple-select': 'multiple_select',
+    'true-false': 'true_false',
+    'short-answer': 'short_answer',
+    'essay': 'essay',
+    'dropdown': 'dropdown',
+    'matching': 'matching',
+    'ordering': 'ordering',
+    'numeric': 'numeric',
   };
+  return mapping[type] || 'multiple_choice';
+};
 
   // Local Storage Persistence
   useEffect(() => {
@@ -990,88 +994,98 @@ const [questionBlocks, setQuestionBlocks] = useState<QuestionBlock[]>(() => {
     });
   };
 
-  // Validation
-  const validateSingleBlock = (b: QuestionBlock): boolean => {
-    const be: any = {};
-    let valid = true;
+const validateSingleBlock = (b: QuestionBlock): boolean => {
+  const be: any = {};
+  let valid = true;
 
-    const text = b.questionText.replace(/<[^>]*>/g, '').trim();
-    if (!text) {
-      be.questionText = 'Question text is required';
+  const text = b.questionText.replace(/<[^>]*>/g, '').trim();
+  if (!text) {
+    be.questionText = 'Question text is required';
+    valid = false;
+  }
+
+  if (!b.questionCategory) {
+    be.questionCategory = 'Category is required';
+    valid = false;
+  }
+
+  if (!b.difficulty) {
+    be.difficulty = 'Difficulty is required';
+    valid = false;
+  }
+
+  // All question types now require an answer (set via Answer Key)
+  if (['multiple-choice', 'multiple-select', 'dropdown'].includes(b.type)) {
+    const validOptions = b.options.filter(o => o.text.trim());
+    if (validOptions.length < 2) {
+      be.options = 'At least 2 options with text are required';
       valid = false;
     }
 
-    if (!b.questionCategory) {
-      be.questionCategory = 'Category is required';
-      valid = false;
-    }
-
-    if (!b.difficulty) {
-      be.difficulty = 'Difficulty is required';
-      valid = false;
-    }
-
-    if (['multiple-choice', 'multiple-select', 'dropdown'].includes(b.type)) {
-      const validOptions = b.options.filter(o => o.text.trim());
-      if (validOptions.length < 2) {
-        be.options = 'At least 2 options with text are required';
-        valid = false;
+    const hasCorrectAnswer = b.options.some(o => o.isCorrect);
+    if (!hasCorrectAnswer) {
+      if (b.type === 'multiple-choice' || b.type === 'dropdown') {
+        be.correctAnswer = 'Please mark one option as the correct answer (Click Answer Key)';
+      } else if (b.type === 'multiple-select') {
+        be.correctAnswer = 'Please mark at least one option as correct (Click Answer Key)';
       }
-
-      const hasCorrectAnswer = b.options.some(o => o.isCorrect);
-      if (!hasCorrectAnswer) {
-        if (b.type === 'multiple-choice' || b.type === 'dropdown') {
-          be.correctAnswer = 'Please mark one option as the correct answer';
-        } else if (b.type === 'multiple-select') {
-          be.correctAnswer = 'Please mark at least one option as correct';
-        }
-        valid = false;
-      }
-    }
-
-    if (b.type === 'true-false' && b.trueFalseAnswer === null) {
-      be.trueFalse = 'Please select True or False';
       valid = false;
     }
+  }
 
-    if (b.type === 'matching') {
-      const hasEmptyPairs = !b.matchingPairs?.every(p => p.left.trim() && p.right.trim());
-      if (hasEmptyPairs) {
-        be.matching = 'All matching pairs must be filled';
-        valid = false;
-      }
-    }
+  if (b.type === 'true-false' && b.trueFalseAnswer === null) {
+    be.trueFalse = 'Please select True or False (Click Answer Key)';
+    valid = false;
+  }
 
-    if (b.type === 'ordering') {
-      const hasEmptyItems = !b.orderingItems?.every(item => item.text.trim());
-      if (hasEmptyItems) {
-        be.ordering = 'All ordering items must be filled';
-        valid = false;
-      }
-    }
+  if (b.type === 'short-answer' && !b.shortAnswer) {
+    be.shortAnswer = 'Please enter the expected answer (Click Answer Key)';
+    valid = false;
+  }
 
-    if (b.type === 'numeric' && (b.numericAnswer === null || b.numericAnswer === undefined)) {
-      be.numeric = 'Please enter a numeric answer';
+  if (b.type === 'essay' && !b.essayAnswer) {
+    be.essayAnswer = 'Please enter a sample answer or rubric (Click Answer Key)';
+    valid = false;
+  }
+
+  if (b.type === 'matching') {
+    const hasEmptyPairs = !b.matchingPairs?.every(p => p.left.trim() && p.right.trim());
+    if (hasEmptyPairs) {
+      be.matching = 'All matching pairs must be filled';
       valid = false;
     }
+  }
 
-    if (b.hasExplanation && !b.explanation?.replace(/<[^>]*>/g, '').trim() && !b.explanationImage?.url) {
-      be.explanation = 'Explanation text or image is required when enabled';
+  if (b.type === 'ordering') {
+    const hasEmptyItems = !b.orderingItems?.every(item => item.text.trim());
+    if (hasEmptyItems) {
+      be.ordering = 'All ordering items must be filled';
       valid = false;
     }
+  }
 
-    if (Object.keys(be).length > 0) {
-      setErrors(prev => ({ blocks: { ...prev.blocks, [b.id]: be } }));
-    } else {
-      setErrors(prev => {
-        const nb = { ...(prev.blocks || {}) };
-        delete nb[b.id];
-        return { blocks: nb };
-      });
-    }
+  if (b.type === 'numeric' && (b.numericAnswer === null || b.numericAnswer === undefined)) {
+    be.numeric = 'Please enter a numeric answer';
+    valid = false;
+  }
 
-    return valid;
-  };
+  if (b.hasExplanation && !b.explanation?.replace(/<[^>]*>/g, '').trim() && !b.explanationImage?.url) {
+    be.explanation = 'Explanation text or image is required when enabled';
+    valid = false;
+  }
+
+  if (Object.keys(be).length > 0) {
+    setErrors(prev => ({ blocks: { ...prev.blocks, [b.id]: be } }));
+  } else {
+    setErrors(prev => {
+      const nb = { ...(prev.blocks || {}) };
+      delete nb[b.id];
+      return { blocks: nb };
+    });
+  }
+
+  return valid;
+};
 
   const validateForm = (): boolean => {
     let allValid = true;
@@ -1107,7 +1121,6 @@ const [questionBlocks, setQuestionBlocks] = useState<QuestionBlock[]>(() => {
     }
   };
 
-// Format Payload for Save - CORRECTED VERSION
 const formatPayload = () => {
   const imagesToUpload: { 
     path: string; 
@@ -1184,6 +1197,7 @@ const formatPayload = () => {
     let mcqQuestionOptions: any[] = [];
     let mcqQuestionCorrectAnswers: string[] = [];
 
+    // For choice-based questions (multiple-choice, multiple-select, dropdown)
     if (['multiple-choice', 'multiple-select', 'dropdown'].includes(block.type)) {
       const validOptions = block.options.filter(o => o.text.trim() !== '');
       
@@ -1230,19 +1244,40 @@ const formatPayload = () => {
         };
       });
     }
+    
+    // For essay questions - set mcqQuestionCorrectAnswers
+    if (block.type === 'essay') {
+      if (block.essayAnswer) {
+        mcqQuestionCorrectAnswers = [block.essayAnswer];
+      }
+    }
 
-    // Build the question payload - FIXED: mcqQuestionTitle as object
+    // For short answer questions
+    if (block.type === 'short-answer' && block.shortAnswer) {
+      mcqQuestionCorrectAnswers = [block.shortAnswer];
+    }
+
+    // For numeric questions
+    if (block.type === 'numeric' && block.numericAnswer !== null) {
+      mcqQuestionCorrectAnswers = [block.numericAnswer.toString()];
+    }
+
+    // For true/false questions
+    if (block.type === 'true-false' && block.trueFalseAnswer !== null) {
+      mcqQuestionCorrectAnswers = [block.trueFalseAnswer.toString()];
+    }
+
+    // Build the question payload
     const questionPayload: any = {
       questionCategory: block.questionCategory || 'MCQ',
       questionType: 'MCQ',
       isActive: block.isActive !== undefined ? block.isActive : true,
-      // FIX: Send as object with text field
-     mcqQuestionTitle: {
-    text: htmlContent,
-    ...(questionImageUrl && { imageUrl: questionImageUrl }),
-    ...(questionImageAlignment && { imageAlignment: questionImageAlignment }),
-    ...(questionImageSizePercent && { imageSizePercent: questionImageSizePercent })
-  },
+      mcqQuestionTitle: {
+        text: htmlContent,
+        ...(questionImageUrl && { imageUrl: questionImageUrl }),
+        ...(questionImageAlignment && { imageAlignment: questionImageAlignment }),
+        ...(questionImageSizePercent && { imageSizePercent: questionImageSizePercent })
+      },
       mcqQuestionType: mapInternalTypeToApi(block.type),
       mcqQuestionDifficulty: block.difficulty || 'medium',
       mcqQuestionScore: block.score || 10,
@@ -1252,6 +1287,11 @@ const formatPayload = () => {
       sequence: questionIndex,
     };
 
+    // Add mcqQuestionCorrectAnswers if it has values
+    if (mcqQuestionCorrectAnswers.length > 0) {
+      questionPayload.mcqQuestionCorrectAnswers = mcqQuestionCorrectAnswers;
+    }
+
     // Add explanation as mcqQuestionDescription
     if (explanationObject) {
       questionPayload.mcqQuestionDescription = explanationObject;
@@ -1260,7 +1300,6 @@ const formatPayload = () => {
     // Add options only for choice-based questions
     if (['multiple-choice', 'multiple-select', 'dropdown'].includes(block.type)) {
       questionPayload.mcqQuestionOptions = mcqQuestionOptions;
-      questionPayload.mcqQuestionCorrectAnswers = mcqQuestionCorrectAnswers;
     }
 
     // Add type-specific fields
@@ -1270,6 +1309,10 @@ const formatPayload = () => {
     
     if (block.type === 'short-answer') {
       questionPayload.shortAnswer = block.shortAnswer || '';
+    }
+    
+    if (block.type === 'essay') {
+      questionPayload.essayAnswer = block.essayAnswer || '';
     }
     
     if (block.type === 'numeric') {
@@ -1342,256 +1385,275 @@ const formatPayload = () => {
     onSave(formData, questionId);
   };
 
-  const questionTypes: { type: QuestionType; label: string; icon: React.ReactNode; group: string }[] = [
-    { type: 'multiple-choice', label: 'Multiple Choice', icon: <List className="h-3.5 w-3.5" />, group: 'Choice' },
-    { type: 'multiple-select', label: 'Multiple Select', icon: <CheckSquare className="h-3.5 w-3.5" />, group: 'Choice' },
-    { type: 'true-false', label: 'True / False', icon: <ToggleLeft className="h-3.5 w-3.5" />, group: 'Choice' },
-    { type: 'dropdown', label: 'Dropdown', icon: <ChevronDownIcon className="h-3.5 w-3.5" />, group: 'Choice' },
-    { type: 'short-answer', label: 'Short Answer', icon: <AlignLeft className="h-3.5 w-3.5" />, group: 'Text' },
-    { type: 'paragraph', label: 'Paragraph', icon: <AlignLeft className="h-3.5 w-3.5" />, group: 'Text' },
-    { type: 'matching', label: 'Matching', icon: <Equal className="h-3.5 w-3.5" />, group: 'Complex' },
-    { type: 'ordering', label: 'Ordering', icon: <ArrowUpDown className="h-3.5 w-3.5" />, group: 'Complex' },
-    { type: 'numeric', label: 'Numeric', icon: <Hash className="h-3.5 w-3.5" />, group: 'Complex' },
-  ];
+const questionTypes: { type: QuestionType; label: string; icon: React.ReactNode; group: string }[] = [
+  { type: 'multiple-choice', label: 'Multiple Choice', icon: <List className="h-3.5 w-3.5" />, group: 'Choice' },
+  { type: 'multiple-select', label: 'Multiple Select', icon: <CheckSquare className="h-3.5 w-3.5" />, group: 'Choice' },
+  { type: 'true-false', label: 'True / False', icon: <ToggleLeft className="h-3.5 w-3.5" />, group: 'Choice' },
+  { type: 'dropdown', label: 'Dropdown', icon: <ChevronDownIcon className="h-3.5 w-3.5" />, group: 'Choice' },
+  { type: 'short-answer', label: 'Short Answer', icon: <AlignLeft className="h-3.5 w-3.5" />, group: 'Text' },
+  { type: 'essay', label: 'Essay', icon: <AlignLeft className="h-3.5 w-3.5" />, group: 'Text' },
+  { type: 'matching', label: 'Matching', icon: <Equal className="h-3.5 w-3.5" />, group: 'Complex' },
+  { type: 'ordering', label: 'Ordering', icon: <ArrowUpDown className="h-3.5 w-3.5" />, group: 'Complex' },
+  { type: 'numeric', label: 'Numeric', icon: <Hash className="h-3.5 w-3.5" />, group: 'Complex' },
+];
 
   const getTypeIcon = (type: QuestionType) =>
     questionTypes.find(qt => qt.type === type)?.icon ?? <List className="h-3.5 w-3.5" />;
 
   const getTypeLabel = (type: QuestionType) =>
     questionTypes.find(qt => qt.type === type)?.label ?? type;
+// Add this after the duplicateQuestionBlock function, before removeQuestionBlock
 
-  // Render options for choice-based questions
-  const renderOptions = (block: QuestionBlock) => {
-    const isMultiSelect = block.type === 'multiple-select';
-    const isDropdown = block.type === 'dropdown';
-    const isAnswerKeyMode = answerKeyOpenBlockId === block.id;
-    const filledOptions = block.options.filter(o => o.text.trim());
-    const correctCount = block.options.filter(o => o.isCorrect).length;
+const clearQuestionBlock = (blockId: string) => {
+  setQuestionBlocks(bs => bs.map(b => {
+    if (b.id !== blockId) return b;
+    
+    // Create a fresh default block with the same ID and sequence
+    const clearedBlock = makeDefaultBlock(blockId, b.sequence);
+    
+    // Preserve the ID and sequence
+    return {
+      ...clearedBlock,
+      id: blockId,
+      sequence: b.sequence,
+    };
+  }));
+};
+// Replace the renderOptions function with this updated version
+const renderOptions = (block: QuestionBlock) => {
+  const isMultiSelect = block.type === 'multiple-select';
+  const isDropdown = block.type === 'dropdown';
+  const isAnswerKeyMode = answerKeyOpenBlockId === block.id;
+  const correctCount = block.options.filter(o => o.isCorrect).length;
+  const hasAnswerSet = correctCount > 0;
 
-    if (isAnswerKeyMode) {
-      return (
-        <div className="px-4 py-3">
-          <p className="text-sm text-gray-600 mb-3">
-            Select the correct answer{isMultiSelect ? 's' : ''} below, then click <strong className="text-green-600">Done</strong>.
-          </p>
-          <div className="space-y-2">
-            {block.options.map((opt, idx) => (
-              <button
-                key={opt.id}
-                type="button"
-                onClick={() => {
-                  if (isMultiSelect) {
-                    toggleCorrectAnswer(block.id, opt.id);
-                  } else {
-                    setCorrectAnswer(block.id, opt.id);
-                  }
-                }}
-                className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${
-                  opt.isCorrect
-                    ? 'border-green-400 bg-green-50'
-                    : 'border-gray-200 bg-white hover:border-indigo-300'
-                }`}
-              >
-                {isDropdown ? (
-                  <span className="text-sm font-semibold w-5">{idx + 1}.</span>
-                ) : isMultiSelect ? (
-                  <div className={`w-5 h-5 border-2 rounded flex items-center justify-center ${
-                    opt.isCorrect ? 'border-green-500 bg-green-500' : 'border-gray-300'
-                  }`}>
-                    {opt.isCorrect && <Check className="h-3 w-3 text-white" />}
-                  </div>
-                ) : (
-                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                    opt.isCorrect ? 'border-green-500 bg-green-500' : 'border-gray-300'
-                  }`}>
-                    {opt.isCorrect && <div className="w-2 h-2 rounded-full bg-white" />}
-                  </div>
-                )}
-                {opt.imageUrl && (
-                  <img src={opt.imageUrl} alt="" className="h-8 w-8 object-cover rounded" />
-                )}
-                <span className={`flex-1 text-left ${opt.isCorrect ? 'font-semibold' : ''}`}>
-                  {opt.text || `Option ${idx + 1}`}
-                </span>
-                {opt.isCorrect && <Check className="h-4 w-4 text-green-600" />}
-              </button>
-            ))}
-          </div>
-          <div className="mt-4 flex justify-end">
-            <button
-              onClick={() => setAnswerKeyOpenBlockId(null)}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700"
-            >
-              Done
-            </button>
-          </div>
-        </div>
-      );
-    }
-
+  if (isAnswerKeyMode) {
     return (
-      <div className="px-4 py-2">
-        <div className="flex items-center justify-between mb-2">
-          <OptionsPerRowPicker
-            value={block.optionsPerRow || 1}
-            onChange={(v) => setOptionsPerRow(block.id, v)}
-          />
-          <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full">
-            {isMultiSelect ? 'Click checkbox to mark correct (multiple allowed)' : 'Click radio to mark correct answer'}
-          </span>
-        </div>
-
-        <div className={`grid gap-2 ${
-          block.optionsPerRow === 1 ? 'grid-cols-1' :
-          block.optionsPerRow === 2 ? 'grid-cols-2' :
-          block.optionsPerRow === 3 ? 'grid-cols-3' : 'grid-cols-4'
-        }`}>
-          {block.options.map((option, optionIndex) => (
-            <div key={option.id} className="group relative">
-              <div className={`flex flex-col rounded-xl border-2 transition-all overflow-hidden ${
-                option.isCorrect
-                  ? 'border-emerald-400 bg-emerald-50/60'
-                  : 'border-gray-200 bg-white hover:border-indigo-200'
-              }`}>
-                {option.imageUrl && (
-                  <div className="relative px-2 pt-2">
-                    <div className="flex items-center gap-1 mb-1">
-                      <span className="text-[9px] font-bold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded-full">
-                        {option.imageSizePercent || 60}% · {option.imageAlignment || 'center'}
-                      </span>
-                      <button
-                        onClick={() => handleOptionImageClick(block.id, option.id)}
-                        className="text-[9px] text-indigo-600 font-bold underline"
-                      >
-                        Edit
-                      </button>
-                    </div>
-                    <div className="relative">
-                      {activeImageToolbar?.type === 'option' &&
-                        activeImageToolbar.blockId === block.id &&
-                        activeImageToolbar.optionId === option.id && (
-                          <ImageToolbar
-                            alignment={option.imageAlignment || 'center'}
-                            sizePercent={option.imageSizePercent || 60}
-                            onAlignmentChange={(a) => updateOptionImageAlignment(block.id, option.id, a)}
-                            onSizeChange={(v) => updateOptionImageSizePercent(block.id, option.id, v)}
-                            onRemove={() => removeOptionImage(block.id, option.id)}
-                            onClose={() => setActiveImageToolbar(null)}
-                          />
-                        )}
-                      <div style={{
-                        display: 'flex',
-                        justifyContent: option.imageAlignment === 'left' ? 'flex-start'
-                          : option.imageAlignment === 'right' ? 'flex-end' : 'center',
-                      }}>
-                        <div
-                          style={{ width: `${option.imageSizePercent || 60}%` }}
-                          className="cursor-pointer"
-                          onClick={() => handleOptionImageClick(block.id, option.id)}
-                        >
-                          <img
-                            src={option.imageUrl}
-                            alt=""
-                            className="w-full h-auto rounded-lg border-2 transition-all"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex items-center gap-2 px-2.5 py-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (isMultiSelect) {
-                        toggleCorrectAnswer(block.id, option.id);
-                      } else {
-                        setCorrectAnswer(block.id, option.id);
-                      }
-                    }}
-                    className="flex-shrink-0"
-                  >
-                    {isDropdown ? (
-                      <span className="text-xs text-gray-500 font-bold w-4 text-center">
-                        {optionIndex + 1}.
-                      </span>
-                    ) : isMultiSelect ? (
-                      <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${
-                        option.isCorrect ? 'border-emerald-500 bg-emerald-500' : 'border-gray-300'
-                      }`}>
-                        {option.isCorrect && (
-                          <svg className="h-2.5 w-2.5 text-white" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                          </svg>
-                        )}
-                      </div>
-                    ) : (
-                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${
-                        option.isCorrect ? 'border-emerald-500 bg-emerald-500' : 'border-gray-300'
-                      }`}>
-                        {option.isCorrect && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-                      </div>
-                    )}
-                  </button>
-
-                  <OptionInput
-                    value={option.text}
-                    onChange={(v) => updateOptionText(block.id, option.id, v)}
-                    placeholder="Click to edit option"
-                    isCorrect={option.isCorrect}
-                    type={block.type}
-                  />
-
-                  {!option.imageUrl && !isDropdown && (
-                    <label className="opacity-0 group-hover:opacity-100 cursor-pointer flex items-center gap-1 px-1.5 py-0.5 bg-indigo-50 hover:bg-indigo-100 rounded-full transition-all">
-                      <Image className="h-3 w-3 text-indigo-500" />
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (f) handleOptionImageUpload(block.id, option.id, f);
-                        }}
-                      />
-                    </label>
-                  )}
-                  {block.options.length > 2 && !option.id.includes('other-') && (
-                    <button
-                      onClick={() => removeOption(block.id, option.id)}
-                      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-50 rounded-lg transition-all"
-                    >
-                      <Trash2 className="h-3 w-3 text-red-500" />
-                    </button>
-                  )}
+      <div className="px-4 py-3">
+        <p className="text-sm text-gray-600 mb-3">
+          Select the correct answer{isMultiSelect ? 's' : ''} below, then click <strong className="text-green-600">Done</strong>.
+        </p>
+        <div className="space-y-2">
+          {block.options.map((opt, idx) => (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => {
+                if (isMultiSelect) {
+                  toggleCorrectAnswer(block.id, opt.id);
+                } else {
+                  setCorrectAnswer(block.id, opt.id);
+                }
+              }}
+              className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${
+                opt.isCorrect
+                  ? 'border-green-400 bg-green-50'
+                  : 'border-gray-200 bg-white hover:border-indigo-300'
+              }`}
+            >
+              {isDropdown ? (
+                <span className="text-sm font-semibold w-5">{idx + 1}.</span>
+              ) : isMultiSelect ? (
+                <div className={`w-5 h-5 border-2 rounded flex items-center justify-center ${
+                  opt.isCorrect ? 'border-green-500 bg-green-500' : 'border-gray-300'
+                }`}>
+                  {opt.isCorrect && <Check className="h-3 w-3 text-white" />}
                 </div>
-              </div>
-            </div>
+              ) : (
+                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                  opt.isCorrect ? 'border-green-500 bg-green-500' : 'border-gray-300'
+                }`}>
+                  {opt.isCorrect && <div className="w-2 h-2 rounded-full bg-white" />}
+                </div>
+              )}
+              {opt.imageUrl && (
+                <img src={opt.imageUrl} alt="" className="h-8 w-8 object-cover rounded" />
+              )}
+              <span className={`flex-1 text-left ${opt.isCorrect ? 'font-semibold' : ''}`}>
+                {opt.text || `Option ${idx + 1}`}
+              </span>
+              {opt.isCorrect && <Check className="h-4 w-4 text-green-600" />}
+            </button>
           ))}
         </div>
-
-        <div className="flex items-center gap-2 mt-2">
+        
+        {/* + Add option button inside Answer Key modal at the bottom */}
+        <div className="mt-3">
           <button
             onClick={() => addOption(block.id)}
-            className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold"
+            className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1"
           >
-            + Add option
+            <Plus className="h-3 w-3" /> Add option
           </button>
-          {!block.hasOtherOption && !isDropdown && (
-            <>
-              <span className="text-gray-300 text-xs">or</span>
-              <button
-                onClick={() => addOtherOption(block.id)}
-                className="text-xs text-indigo-500 hover:text-indigo-700"
-              >
-                add "Other"
-              </button>
-            </>
-          )}
         </div>
+        
+        <div className="mt-4 flex justify-end">
+          <button
+            onClick={() => {
+              setAnswerKeyOpenBlockId(null);
+              if (correctCount > 0) {
+                clearBlockError(block.id, 'correctAnswer');
+              }
+            }}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    );
+  }
 
-        <div className="mt-3 flex items-center gap-2">
+  return (
+    <div className="px-4 py-2">
+      {/* Options Per Row on RIGHT only - Answer Key removed from top */}
+      <div className="flex items-center justify-end mb-2">
+        <OptionsPerRowPicker
+          value={block.optionsPerRow || 1}
+          onChange={(v) => setOptionsPerRow(block.id, v)}
+        />
+      </div>
+
+      <div className={`grid gap-2 ${
+        block.optionsPerRow === 1 ? 'grid-cols-1' :
+        block.optionsPerRow === 2 ? 'grid-cols-2' :
+        block.optionsPerRow === 3 ? 'grid-cols-3' : 'grid-cols-4'
+      }`}>
+        {block.options.map((option, optionIndex) => (
+          <div key={option.id} className="group relative">
+            <div className={`flex flex-col rounded-xl border-2 transition-all overflow-hidden ${
+              option.isCorrect && hasAnswerSet
+                ? 'border-emerald-400 bg-emerald-50/60'
+                : 'border-gray-200 bg-white hover:border-indigo-200'
+            }`}>
+              {/* Delete button - top right corner */}
+              {block.options.length > 2 && !option.id.includes('other-') && (
+                <div className="absolute top-1 right-1 z-10">
+                  <button
+                    onClick={() => removeOption(block.id, option.id)}
+                    className="opacity-0 group-hover:opacity-100 p-1.5 bg-white rounded-lg shadow-sm hover:bg-red-50 transition-all"
+                    title="Delete option"
+                  >
+                    <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                  </button>
+                </div>
+              )}
+
+              {option.imageUrl && (
+                <div className="relative px-2 pt-2">
+                  <div className="flex items-center gap-1 mb-1">
+                    <span className="text-[9px] font-bold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded-full">
+                      {option.imageSizePercent || 60}% · {option.imageAlignment || 'center'}
+                    </span>
+                    <button
+                      onClick={() => handleOptionImageClick(block.id, option.id)}
+                      className="text-[9px] text-indigo-600 font-bold underline"
+                    >
+                      Edit
+                    </button>
+                  </div>
+                  <div className="relative">
+                    {activeImageToolbar?.type === 'option' &&
+                      activeImageToolbar.blockId === block.id &&
+                      activeImageToolbar.optionId === option.id && (
+                        <ImageToolbar
+                          alignment={option.imageAlignment || 'center'}
+                          sizePercent={option.imageSizePercent || 60}
+                          onAlignmentChange={(a) => updateOptionImageAlignment(block.id, option.id, a)}
+                          onSizeChange={(v) => updateOptionImageSizePercent(block.id, option.id, v)}
+                          onRemove={() => removeOptionImage(block.id, option.id)}
+                          onClose={() => setActiveImageToolbar(null)}
+                        />
+                      )}
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: option.imageAlignment === 'left' ? 'flex-start'
+                        : option.imageAlignment === 'right' ? 'flex-end' : 'center',
+                    }}>
+                      <div
+                        style={{ width: `${option.imageSizePercent || 60}%` }}
+                        className="cursor-pointer"
+                        onClick={() => handleOptionImageClick(block.id, option.id)}
+                      >
+                        <img
+                          src={option.imageUrl}
+                          alt=""
+                          className="w-full h-auto rounded-lg border-2 transition-all"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2 px-2.5 py-2">
+                <div className="flex-shrink-0">
+                  {isDropdown ? (
+                    <span className="text-xs text-gray-500 font-bold w-4 text-center">
+                      {optionIndex + 1}.
+                    </span>
+                  ) : isMultiSelect ? (
+                    <div className="w-4 h-4 rounded border-2 border-gray-300">
+                    </div>
+                  ) : (
+                    <div className="w-4 h-4 rounded-full border-2 border-gray-300">
+                    </div>
+                  )}
+                </div>
+
+                <OptionInput
+                  value={option.text}
+                  onChange={(v) => updateOptionText(block.id, option.id, v)}
+                  placeholder="Click to edit option"
+                  isCorrect={option.isCorrect && hasAnswerSet}
+                  type={block.type}
+                />
+
+                {!option.imageUrl && !isDropdown && (
+                  <label className="opacity-0 group-hover:opacity-100 cursor-pointer flex items-center gap-1 px-1.5 py-0.5 bg-indigo-50 hover:bg-indigo-100 rounded-full transition-all">
+                    <Image className="h-3 w-3 text-indigo-500" />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) handleOptionImageUpload(block.id, option.id, f);
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* + Add option button */}
+      <div className="flex items-center gap-2 mt-2">
+        <button
+          onClick={() => addOption(block.id)}
+          className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1"
+        >
+          <Plus className="h-3 w-3" /> Add option
+        </button>
+        
+        {!block.hasOtherOption && !isDropdown && (
+          <>
+            <span className="text-gray-300 text-xs">or</span>
+            <button
+              onClick={() => addOtherOption(block.id)}
+              className="text-xs text-indigo-500 hover:text-indigo-700"
+            >
+              add "Other"
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Answer Key button at the BOTTOM */}
+      <div className="mt-3 pt-2 border-t border-gray-100 dark:border-gray-700">
+        <div className="flex items-center justify-between">
           <button
             type="button"
             onClick={() => setAnswerKeyOpenBlockId(block.id)}
@@ -1602,107 +1664,238 @@ const formatPayload = () => {
             </div>
             Answer key
           </button>
-          {correctCount > 0 && (
-            <span className="text-xs text-gray-500">
-              ({correctCount} {correctCount === 1 ? 'answer' : 'answers'} selected)
+          {hasAnswerSet && (
+            <span className="text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
+              {correctCount} answer{correctCount !== 1 ? 's' : ''} selected
             </span>
           )}
         </div>
-
-        {errors.blocks?.[block.id]?.options && (
-          <div className="text-red-600 text-xs mt-1.5 flex items-center gap-1 bg-red-50 px-2 py-1 rounded-lg">
-            <AlertCircle className="h-3 w-3" />
-            {errors.blocks[block.id].options}
-          </div>
-        )}
-        {errors.blocks?.[block.id]?.correctAnswer && (
-          <div className="text-amber-700 text-xs mt-1 flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-lg">
-            <AlertCircle className="h-3 w-3" />
-            {errors.blocks[block.id].correctAnswer}
-          </div>
-        )}
       </div>
-    );
-  };
 
-  // Render True/False interface
-  const renderTrueFalseInterface = (block: QuestionBlock) => {
-    const isAnswerKeyMode = answerKeyOpenBlockId === block.id;
-    
-    if (isAnswerKeyMode) {
-      return (
-        <div className="px-5 py-4">
-          <p className="text-sm text-gray-600 mb-3">
-            Select the correct answer below, then click <strong className="text-green-600">Done</strong>.
-          </p>
-          <div className="space-y-2">
-            {[true, false].map(val => (
-              <button
-                key={String(val)}
-                type="button"
-                onClick={() => {
-                  updateBlock(block.id, { trueFalseAnswer: val });
-                  clearBlockError(block.id, 'trueFalse');
-                }}
-                className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${
-                  block.trueFalseAnswer === val
-                    ? 'border-green-400 bg-green-50'
-                    : 'border-gray-200 bg-white hover:border-indigo-300'
-                }`}
-              >
-                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                  block.trueFalseAnswer === val ? 'border-green-500 bg-green-500' : 'border-gray-300'
-                }`}>
-                  {block.trueFalseAnswer === val && <div className="w-2 h-2 rounded-full bg-white" />}
-                </div>
-                <span className="flex-1 text-left font-semibold">{val ? 'True' : 'False'}</span>
-                {block.trueFalseAnswer === val && <Check className="h-4 w-4 text-green-600" />}
-              </button>
-            ))}
-          </div>
-          <div className="mt-4 flex justify-end">
-            <button
-              onClick={() => setAnswerKeyOpenBlockId(null)}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700"
-            >
-              Done
-            </button>
-          </div>
+      {errors.blocks?.[block.id]?.options && (
+        <div className="text-red-600 text-xs mt-1.5 flex items-center gap-1 bg-red-50 px-2 py-1 rounded-lg">
+          <AlertCircle className="h-3 w-3" />
+          {errors.blocks[block.id].options}
         </div>
-      );
-    }
-
+      )}
+      {errors.blocks?.[block.id]?.correctAnswer && (
+        <div className="text-amber-700 text-xs mt-1 flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-lg">
+          <AlertCircle className="h-3 w-3" />
+          {errors.blocks[block.id].correctAnswer}
+        </div>
+      )}
+    </div>
+  );
+};
+// Render Short Answer interface with Answer Key modal - Answer Key on LEFT
+const renderShortAnswerInterface = (block: QuestionBlock) => {
+  const isAnswerKeyMode = answerKeyOpenBlockId === block.id;
+  
+  if (isAnswerKeyMode) {
     return (
       <div className="px-5 py-4">
-        <div className="flex gap-4">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="radio"
-              name={`tf-${block.id}`}
-              checked={block.trueFalseAnswer === true}
-              onChange={() => {
-                updateBlock(block.id, { trueFalseAnswer: true });
-                clearBlockError(block.id, 'trueFalse');
-              }}
-              className="w-4 h-4 accent-green-600"
-            />
-            <span className="text-sm font-medium">True</span>
-          </label>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="radio"
-              name={`tf-${block.id}`}
-              checked={block.trueFalseAnswer === false}
-              onChange={() => {
-                updateBlock(block.id, { trueFalseAnswer: false });
-                clearBlockError(block.id, 'trueFalse');
-              }}
-              className="w-4 h-4 accent-green-600"
-            />
-            <span className="text-sm font-medium">False</span>
-          </label>
+        <p className="text-sm text-gray-600 mb-3">
+          Enter the expected answer for this short answer question.
+        </p>
+        <div className="space-y-2">
+          <input
+            type="text"
+            value={block.shortAnswer || ''}
+            onChange={(e) => updateBlock(block.id, { shortAnswer: e.target.value })}
+            placeholder="Enter the expected answer..."
+            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          />
+          <p className="text-xs text-gray-400">Student's answer will be compared with this expected answer</p>
         </div>
-        <div className="mt-3">
+        <div className="mt-4 flex justify-end">
+          <button
+            onClick={() => {
+              setAnswerKeyOpenBlockId(null);
+              if (block.shortAnswer && block.shortAnswer.trim()) {
+                clearBlockError(block.id, 'shortAnswer');
+              }
+            }}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-5 py-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <button
+            type="button"
+            onClick={() => setAnswerKeyOpenBlockId(block.id)}
+            className="inline-flex items-center gap-2 text-sm font-semibold text-blue-600 hover:text-blue-700"
+          >
+            <div className="w-4 h-4 border-2 border-blue-600 rounded flex items-center justify-center">
+              <Check className="h-3 w-3" />
+            </div>
+            Answer key
+          </button>
+          {block.shortAnswer && (
+            <span className="text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
+              Answer set
+            </span>
+          )}
+        </div>
+        <p className="text-sm text-gray-500">Short answer question - student will type a brief response</p>
+      </div>
+      <p className="text-xs text-gray-400 mt-2">Click Answer Key to set the expected answer</p>
+      {block.shortAnswer && (
+        <div className="mt-3 p-3 bg-green-50 rounded-lg">
+          <p className="text-xs font-semibold text-green-700">Expected answer set:</p>
+          <p className="text-sm text-green-600 mt-1">{block.shortAnswer}</p>
+        </div>
+      )}
+      {errors.blocks?.[block.id]?.shortAnswer && (
+        <div className="mt-2 text-amber-700 text-xs flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-lg">
+          <AlertCircle className="h-3 w-3" />
+          {errors.blocks[block.id].shortAnswer}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Render Essay interface with Answer Key modal - Answer Key on LEFT
+const renderEssayInterface = (block: QuestionBlock) => {
+  const isAnswerKeyMode = answerKeyOpenBlockId === block.id;
+  
+  if (isAnswerKeyMode) {
+    return (
+      <div className="px-5 py-4">
+        <p className="text-sm text-gray-600 mb-3">
+          Enter a sample answer or grading rubric for this essay question.
+        </p>
+        <div className="space-y-2">
+          <textarea
+            value={block.essayAnswer || ''}
+            onChange={(e) => updateBlock(block.id, { essayAnswer: e.target.value })}
+            placeholder="Enter sample answer or key points to look for..."
+            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-h-[120px]"
+            rows={4}
+          />
+          <p className="text-xs text-gray-400">This will be used as a reference for grading</p>
+        </div>
+        <div className="mt-4 flex justify-end">
+          <button
+            onClick={() => {
+              setAnswerKeyOpenBlockId(null);
+              if (block.essayAnswer && block.essayAnswer.trim()) {
+                clearBlockError(block.id, 'essayAnswer');
+              }
+            }}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-5 py-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <button
+            type="button"
+            onClick={() => setAnswerKeyOpenBlockId(block.id)}
+            className="inline-flex items-center gap-2 text-sm font-semibold text-blue-600 hover:text-blue-700"
+          >
+            <div className="w-4 h-4 border-2 border-blue-600 rounded flex items-center justify-center">
+              <Check className="h-3 w-3" />
+            </div>
+            Answer key / Rubric
+          </button>
+          {block.essayAnswer && (
+            <span className="text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
+              Rubric set
+            </span>
+          )}
+        </div>
+        <p className="text-sm text-gray-500">Essay question - student will write a detailed response</p>
+      </div>
+      <p className="text-xs text-gray-400 mt-2">Click Answer Key to set sample answer or grading rubric</p>
+      {block.essayAnswer && (
+        <div className="mt-3 p-3 bg-green-50 rounded-lg">
+          <p className="text-xs font-semibold text-green-700">Sample answer / Rubric set:</p>
+          <p className="text-sm text-green-600 mt-1 line-clamp-3">{block.essayAnswer}</p>
+        </div>
+      )}
+      {errors.blocks?.[block.id]?.essayAnswer && (
+        <div className="mt-2 text-amber-700 text-xs flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-lg">
+          <AlertCircle className="h-3 w-3" />
+          {errors.blocks[block.id].essayAnswer}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Render True/False interface with Answer Key modal - Answer Key on LEFT with visible options
+const renderTrueFalseInterface = (block: QuestionBlock) => {
+  const isAnswerKeyMode = answerKeyOpenBlockId === block.id;
+  
+  if (isAnswerKeyMode) {
+    return (
+      <div className="px-5 py-4">
+        <p className="text-sm text-gray-600 mb-3">
+          Select the correct answer below, then click <strong className="text-green-600">Done</strong>.
+        </p>
+        <div className="space-y-2">
+          {[true, false].map(val => (
+            <button
+              key={String(val)}
+              type="button"
+              onClick={() => {
+                updateBlock(block.id, { trueFalseAnswer: val });
+                clearBlockError(block.id, 'trueFalse');
+              }}
+              className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${
+                block.trueFalseAnswer === val
+                  ? 'border-green-400 bg-green-50'
+                  : 'border-gray-200 bg-white hover:border-indigo-300'
+              }`}
+            >
+              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                block.trueFalseAnswer === val ? 'border-green-500 bg-green-500' : 'border-gray-300'
+              }`}>
+                {block.trueFalseAnswer === val && <div className="w-2 h-2 rounded-full bg-white" />}
+              </div>
+              <span className="flex-1 text-left font-semibold">{val ? 'True' : 'False'}</span>
+              {block.trueFalseAnswer === val && <Check className="h-4 w-4 text-green-600" />}
+            </button>
+          ))}
+        </div>
+        <div className="mt-4 flex justify-end">
+          <button
+            onClick={() => {
+              setAnswerKeyOpenBlockId(null);
+              if (block.trueFalseAnswer !== null) {
+                clearBlockError(block.id, 'trueFalse');
+              }
+            }}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-5 py-4">
+      {/* Answer Key section - LEFT side */}
+      <div className="mb-3">
+        <div className="flex items-center gap-3 mb-2">
           <button
             type="button"
             onClick={() => setAnswerKeyOpenBlockId(block.id)}
@@ -1714,45 +1907,94 @@ const formatPayload = () => {
             Answer key
           </button>
           {block.trueFalseAnswer !== null && (
-            <span className="ml-2 text-xs text-gray-500">
-              ({block.trueFalseAnswer ? 'True' : 'False'} selected)
+            <span className="text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
+              Answer set: {block.trueFalseAnswer ? 'True' : 'False'}
             </span>
           )}
         </div>
-        {errors.blocks?.[block.id]?.trueFalse && (
-          <div className="mt-2 text-red-600 text-xs flex items-center gap-1">
-            <AlertCircle className="h-3 w-3" />
-            {errors.blocks[block.id].trueFalse}
-          </div>
-        )}
+        <p className="text-xs text-gray-400">Click Answer Key to set the correct answer</p>
       </div>
-    );
-  };
 
-  // Render Short Answer interface
-  const renderShortAnswerInterface = (block: QuestionBlock) => (
-    <div className="px-5 py-4">
-      <div className="mb-4">
-        <label className="block text-xs font-semibold text-gray-500 mb-1">Expected Answer (Optional)</label>
-        <input
-          type="text"
-          value={block.shortAnswer || ''}
-          onChange={(e) => updateBlock(block.id, { shortAnswer: e.target.value })}
-          placeholder="Enter the expected answer..."
-          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-        />
-        <p className="text-xs text-gray-400 mt-1">Leave blank for open-ended answers</p>
+      {/* True/False Options - Visible always */}
+      <div className="flex gap-6 mt-3">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="radio"
+            name={`tf-${block.id}`}
+            checked={block.trueFalseAnswer === true}
+            onChange={() => {}}
+            className="w-4 h-4 accent-gray-300 cursor-not-allowed"
+            disabled
+          />
+          <span className="text-sm font-medium text-gray-700">True</span>
+        </label>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="radio"
+            name={`tf-${block.id}`}
+            checked={block.trueFalseAnswer === false}
+            onChange={() => {}}
+            className="w-4 h-4 accent-gray-300 cursor-not-allowed"
+            disabled
+          />
+          <span className="text-sm font-medium text-gray-700">False</span>
+        </label>
       </div>
+
+      {/* Error message */}
+      {errors.blocks?.[block.id]?.trueFalse && (
+        <div className="mt-3 text-amber-700 text-xs flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-lg">
+          <AlertCircle className="h-3 w-3" />
+          {errors.blocks[block.id].trueFalse}
+        </div>
+      )}
     </div>
   );
+};
 
-  // Render Paragraph interface
-  const renderParagraphInterface = () => (
+  // Render Numeric interface
+  const renderNumericInterface = (block: QuestionBlock) => (
     <div className="px-5 py-4">
-      <div className="bg-gray-50 rounded-lg p-4 text-center">
-        <p className="text-sm text-gray-500">Long-form answer text area will appear here</p>
-        <p className="text-xs text-gray-400 mt-1">No correct answer needed for essay questions</p>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-xs font-semibold text-gray-500 mb-1">Correct Answer *</label>
+          <input
+            type="number"
+            step="any"
+            value={block.numericAnswer ?? ''}
+            onChange={(e) => {
+              updateBlock(block.id, { numericAnswer: e.target.value === '' ? null : parseFloat(e.target.value) });
+              if (e.target.value !== '') clearBlockError(block.id, 'numeric');
+            }}
+            placeholder="Enter number..."
+            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-gray-500 mb-1">Tolerance (±)</label>
+          <input
+            type="number"
+            step="any"
+            value={block.numericTolerance ?? ''}
+            onChange={(e) => updateBlock(block.id, { numericTolerance: e.target.value === '' ? null : parseFloat(e.target.value) })}
+            placeholder="Optional"
+            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          />
+        </div>
       </div>
+      {block.numericAnswer !== null && block.numericTolerance !== null && block.numericTolerance > 0 && (
+        <div className="mt-3 p-2 bg-blue-50 rounded-lg">
+          <p className="text-xs text-blue-700">
+            Accepted range: {(block.numericAnswer - block.numericTolerance).toFixed(2)} to {(block.numericAnswer + block.numericTolerance).toFixed(2)}
+          </p>
+        </div>
+      )}
+      {errors.blocks?.[block.id]?.numeric && (
+        <div className="mt-2 text-red-600 text-xs flex items-center gap-1">
+          <AlertCircle className="h-3 w-3" />
+          {errors.blocks[block.id].numeric}
+        </div>
+      )}
     </div>
   );
 
@@ -1822,52 +2064,6 @@ const formatPayload = () => {
         <div className="mt-2 text-red-600 text-xs flex items-center gap-1">
           <AlertCircle className="h-3 w-3" />
           {errors.blocks[block.id].ordering}
-        </div>
-      )}
-    </div>
-  );
-
-  // Render Numeric interface
-  const renderNumericInterface = (block: QuestionBlock) => (
-    <div className="px-5 py-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-xs font-semibold text-gray-500 mb-1">Correct Answer *</label>
-          <input
-            type="number"
-            step="any"
-            value={block.numericAnswer ?? ''}
-            onChange={(e) => {
-              updateBlock(block.id, { numericAnswer: e.target.value === '' ? null : parseFloat(e.target.value) });
-              if (e.target.value !== '') clearBlockError(block.id, 'numeric');
-            }}
-            placeholder="Enter number..."
-            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-semibold text-gray-500 mb-1">Tolerance (±)</label>
-          <input
-            type="number"
-            step="any"
-            value={block.numericTolerance ?? ''}
-            onChange={(e) => updateBlock(block.id, { numericTolerance: e.target.value === '' ? null : parseFloat(e.target.value) })}
-            placeholder="Optional"
-            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-          />
-        </div>
-      </div>
-      {block.numericAnswer !== null && block.numericTolerance !== null && block.numericTolerance > 0 && (
-        <div className="mt-3 p-2 bg-blue-50 rounded-lg">
-          <p className="text-xs text-blue-700">
-            Accepted range: {(block.numericAnswer - block.numericTolerance).toFixed(2)} to {(block.numericAnswer + block.numericTolerance).toFixed(2)}
-          </p>
-        </div>
-      )}
-      {errors.blocks?.[block.id]?.numeric && (
-        <div className="mt-2 text-red-600 text-xs flex items-center gap-1">
-          <AlertCircle className="h-3 w-3" />
-          {errors.blocks[block.id].numeric}
         </div>
       )}
     </div>
@@ -1945,28 +2141,28 @@ const formatPayload = () => {
     );
   };
 
-  const renderQuestionContent = (block: QuestionBlock) => {
-    switch (block.type) {
-      case 'short-answer':
-        return renderShortAnswerInterface(block);
-      case 'paragraph':
-        return renderParagraphInterface();
-      case 'multiple-choice':
-      case 'multiple-select':
-      case 'dropdown':
-        return renderOptions(block);
-      case 'true-false':
-        return renderTrueFalseInterface(block);
-      case 'matching':
-        return renderMatchingInterface(block);
-      case 'ordering':
-        return renderOrderingInterface(block);
-      case 'numeric':
-        return renderNumericInterface(block);
-      default:
-        return null;
-    }
-  };
+const renderQuestionContent = (block: QuestionBlock) => {
+  switch (block.type) {
+    case 'short-answer':
+      return renderShortAnswerInterface(block);
+    case 'essay':
+      return renderEssayInterface(block);
+    case 'multiple-choice':
+    case 'multiple-select':
+    case 'dropdown':
+      return renderOptions(block);
+    case 'true-false':
+      return renderTrueFalseInterface(block);
+    case 'matching':
+      return renderMatchingInterface(block);
+    case 'ordering':
+      return renderOrderingInterface(block);
+    case 'numeric':
+      return renderNumericInterface(block);
+    default:
+      return null;
+  }
+};
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(15,23,42,0.75)' }}>
@@ -2016,7 +2212,7 @@ const formatPayload = () => {
                     <div
                       key={block.id}
                       className={`bg-white dark:bg-gray-800 rounded-2xl border-2 transition-all overflow-visible shadow-sm ${
-                        hasError ? 'border-red-300 dark:border-red-700' : 'border-gray-200 dark:border-gray-700 hover:border-indigo-200 dark:hover:border-indigo-700'
+                        hasError ? 'border-indigo-300 dark:border-indigo-700' : 'border-gray-200 dark:border-gray-700 hover:border-indigo-200 dark:hover:border-indigo-700'
                       }`}
                     >
                       {/* Common Fields Section */}
@@ -2249,55 +2445,62 @@ const formatPayload = () => {
                       {/* Question Options/Answer Area */}
                       {renderQuestionContent(block)}
 
-                      {/* Footer Actions */}
-                      <div className="px-4 py-2 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between bg-slate-50 dark:bg-gray-800/50 rounded-b-2xl">
-                        <div className="flex items-center gap-0.5">
-                          <button
-                            onClick={() => duplicateQuestionBlock(block.id)}
-                            title="Duplicate"
-                            className="p-1.5 hover:bg-white dark:hover:bg-gray-700 hover:shadow-sm rounded-lg transition-all text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400"
-                          >
-                            <Copy className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={() => removeQuestionBlock(block.id)}
-                            title="Delete"
-                            className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                          <span className="text-gray-200 dark:text-gray-700 mx-1">|</span>
-                          <button
-                            onClick={() => moveBlock(block.id, 'up')}
-                            disabled={blockIndex === 0}
-                            title="Move up"
-                            className="p-1.5 hover:bg-white dark:hover:bg-gray-700 hover:shadow-sm rounded-lg transition-all text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 disabled:opacity-25 disabled:cursor-not-allowed"
-                          >
-                            <ChevronUp className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={() => moveBlock(block.id, 'down')}
-                            disabled={blockIndex === questionBlocks.length - 1}
-                            title="Move down"
-                            className="p-1.5 hover:bg-white dark:hover:bg-gray-700 hover:shadow-sm rounded-lg transition-all text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 disabled:opacity-25 disabled:cursor-not-allowed"
-                          >
-                            <ChevronDown className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
+                    {/* Footer Actions */}
+<div className="px-4 py-2 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between bg-slate-50 dark:bg-gray-800/50 rounded-b-2xl">
+  <div className="flex items-center gap-0.5">
+    <button
+      onClick={() => duplicateQuestionBlock(block.id)}
+      title="Duplicate"
+      className="p-1.5 hover:bg-white dark:hover:bg-gray-700 hover:shadow-sm rounded-lg transition-all text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400"
+    >
+      <Copy className="h-3.5 w-3.5" />
+    </button>
+    <button
+      onClick={() => clearQuestionBlock(block.id)}
+      title="Clear All Fields"
+      className="p-1.5 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-all text-gray-500 dark:text-gray-400 hover:text-amber-600 dark:hover:text-amber-400"
+    >
+      <RefreshCw className="h-3.5 w-3.5" />
+    </button>
+    <button
+      onClick={() => removeQuestionBlock(block.id)}
+      title="Delete"
+      className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+    >
+      <Trash2 className="h-3.5 w-3.5" />
+    </button>
+    <span className="text-gray-200 dark:text-gray-700 mx-1">|</span>
+    <button
+      onClick={() => moveBlock(block.id, 'up')}
+      disabled={blockIndex === 0}
+      title="Move up"
+      className="p-1.5 hover:bg-white dark:hover:bg-gray-700 hover:shadow-sm rounded-lg transition-all text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 disabled:opacity-25 disabled:cursor-not-allowed"
+    >
+      <ChevronUp className="h-3.5 w-3.5" />
+    </button>
+    <button
+      onClick={() => moveBlock(block.id, 'down')}
+      disabled={blockIndex === questionBlocks.length - 1}
+      title="Move down"
+      className="p-1.5 hover:bg-white dark:hover:bg-gray-700 hover:shadow-sm rounded-lg transition-all text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 disabled:opacity-25 disabled:cursor-not-allowed"
+    >
+      <ChevronDown className="h-3.5 w-3.5" />
+    </button>
+  </div>
 
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">Required</span>
-                          <div className="relative">
-                            <input
-                              type="checkbox"
-                              checked={block.isRequired}
-                              onChange={() => toggleRequired(block.id)}
-                              className="sr-only peer"
-                            />
-                            <div className="w-9 h-5 bg-gray-300 dark:bg-gray-600 peer-checked:bg-indigo-600 dark:peer-checked:bg-indigo-500 rounded-full transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white dark:after:bg-gray-200 after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4 after:border after:border-gray-200 dark:after:border-gray-700" />
-                          </div>
-                        </label>
-                      </div>
+  <label className="flex items-center gap-2 cursor-pointer">
+    <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">Required</span>
+    <div className="relative">
+      <input
+        type="checkbox"
+        checked={block.isRequired}
+        onChange={() => toggleRequired(block.id)}
+        className="sr-only peer"
+      />
+      <div className="w-9 h-5 bg-gray-300 dark:bg-gray-600 peer-checked:bg-indigo-600 dark:peer-checked:bg-indigo-500 rounded-full transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white dark:after:bg-gray-200 after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4 after:border after:border-gray-200 dark:after:border-gray-700" />
+    </div>
+  </label>
+</div>
                     </div>
                   );
                 })}

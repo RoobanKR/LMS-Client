@@ -101,11 +101,13 @@ const fetchCourses = async (
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(
+    const err: any = new Error(
       errorData.message ||
         `HTTP error! status: ${response.status}` ||
         "Failed to fetch courses"
     );
+    err.status = response.status;
+    throw err;
   }
 
   const data: CoursesApiResponse = await response.json();

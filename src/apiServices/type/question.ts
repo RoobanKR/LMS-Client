@@ -135,7 +135,7 @@ export interface QuestionFormData {
   // Programming Specific Fields
   title?: string;
   description?: string;
-  difficulty?: 'Easy' | 'Medium' | 'Hard';
+  difficulty?: 'easy' | 'medium' | 'hard';
   sampleInput?: string;
   sampleOutput?: string;
   score?: number;

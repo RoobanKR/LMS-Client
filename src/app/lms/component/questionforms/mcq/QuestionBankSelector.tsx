@@ -15,13 +15,18 @@ interface QuestionBankSelectorProps {
     nodeType: string;
     fullExerciseData: any;
     exerciseType: string;
+      onEditQuestion?: (question: any) => void;  // ADD THIS
+
+    
   };
   tabType: string;
   onClose: () => void;
   onBack?: () => void;
   onSelect: (selectedQuestions: Question[]) => void;
   existingQuestionIds: string[];
-  existingQuestions: Question[]; // Add this to pass full question objects for better duplicate detection
+  existingQuestions: Question[];
+  // ✅ NEW: Add filterType prop to filter by question type
+  filterByType?: 'mcq' | 'programming' | 'frontend' | 'database' | 'all';
 }
 
 const QuestionBankSelector: React.FC<QuestionBankSelectorProps> = ({
@@ -31,14 +36,22 @@ const QuestionBankSelector: React.FC<QuestionBankSelectorProps> = ({
   onBack,
   onSelect,
   existingQuestionIds,
-  existingQuestions = []
+  existingQuestions = [],
+  filterByType = 'all' // ✅ Default to 'all' to show all question types
 }) => {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState<'all' | 'mcq' | 'programming' | 'frontend' | 'database'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'mcq' | 'programming' | 'frontend' | 'database'>(filterByType);
   const [selectedQuestions, setSelectedQuestions] = useState<Set<string>>(new Set());
   const [selectAll, setSelectAll] = useState(false);
+
+  // Update filterType when prop changes
+  useEffect(() => {
+    if (filterByType !== 'all') {
+      setFilterType(filterByType);
+    }
+  }, [filterByType]);
 
   useEffect(() => {
     fetchQuestionBank();
@@ -87,95 +100,95 @@ const QuestionBankSelector: React.FC<QuestionBankSelectorProps> = ({
     return commonWords.length / totalWords.size;
   };
 
-const getQuestionTitle = (question: any): string => {
-  // Handle different formats of mcqQuestionTitle
-  if (question.mcqQuestionTitle) {
-    // Case 1: It's an object with a text property (like in your data)
-    if (typeof question.mcqQuestionTitle === 'object' && question.mcqQuestionTitle !== null) {
-      if (question.mcqQuestionTitle.text) {
-        return question.mcqQuestionTitle.text.replace(/<[^>]*>/g, '').trim();
+  const getQuestionTitle = (question: any): string => {
+    // Handle different formats of mcqQuestionTitle
+    if (question.mcqQuestionTitle) {
+      // Case 1: It's an object with a text property (like in your data)
+      if (typeof question.mcqQuestionTitle === 'object' && question.mcqQuestionTitle !== null) {
+        if (question.mcqQuestionTitle.text) {
+          return question.mcqQuestionTitle.text.replace(/<[^>]*>/g, '').trim();
+        }
+        // Case 2: It's an array of content blocks
+        if (Array.isArray(question.mcqQuestionTitle)) {
+          return question.mcqQuestionTitle
+            .filter((cb: any) => cb.type === 'text')
+            .map((cb: any) => (cb.value || '').replace(/<[^>]*>/g, '').trim())
+            .filter(Boolean)
+            .join(' ');
+        }
       }
-      // Case 2: It's an array of content blocks
-      if (Array.isArray(question.mcqQuestionTitle)) {
-        return question.mcqQuestionTitle
-          .filter((cb: any) => cb.type === 'text')
-          .map((cb: any) => (cb.value || '').replace(/<[^>]*>/g, '').trim())
-          .filter(Boolean)
-          .join(' ');
+      // Case 3: It's a string
+      if (typeof question.mcqQuestionTitle === 'string') {
+        return question.mcqQuestionTitle.replace(/<[^>]*>/g, '').trim();
       }
     }
-    // Case 3: It's a string
-    if (typeof question.mcqQuestionTitle === 'string') {
-      return question.mcqQuestionTitle.replace(/<[^>]*>/g, '').trim();
+    
+    // Fallback to other title fields
+    const title = question.questionText || question.title || '';
+    
+    if (typeof title === 'string') {
+      return title.replace(/<[^>]*>/g, '').trim();
     }
-  }
-  
-  // Fallback to other title fields
-  const title = question.questionText || question.title || '';
-  
-  if (typeof title === 'string') {
-    return title.replace(/<[^>]*>/g, '').trim();
-  }
-  
-  if (Array.isArray(title)) {
-    return title
-      .filter((cb: any) => cb.type === 'text')
-      .map((cb: any) => (cb.value || '').replace(/<[^>]*>/g, '').trim())
-      .filter(Boolean)
-      .join(' ');
-  }
-  
-  return 'Untitled Question';
-};
+    
+    if (Array.isArray(title)) {
+      return title
+        .filter((cb: any) => cb.type === 'text')
+        .map((cb: any) => (cb.value || '').replace(/<[^>]*>/g, '').trim())
+        .filter(Boolean)
+        .join(' ');
+    }
+    
+    return 'Untitled Question';
+  };
 
- const getQuestionDescription = (question: any): string => {
-  if (question.questionType?.toLowerCase() === 'mcq') {
-    const desc = question.mcqQuestionDescription;
-    
-    // Handle object with text property
-    if (desc && typeof desc === 'object' && desc !== null) {
-      if (desc.text) {
-        return desc.text.replace(/<[^>]*>/g, '').trim();
+  const getQuestionDescription = (question: any): string => {
+    if (question.questionType?.toLowerCase() === 'mcq') {
+      const desc = question.mcqQuestionDescription;
+      
+      // Handle object with text property
+      if (desc && typeof desc === 'object' && desc !== null) {
+        if (desc.text) {
+          return desc.text.replace(/<[^>]*>/g, '').trim();
+        }
+        if (Array.isArray(desc)) {
+          return desc
+            .filter((cb: any) => cb.type === 'text')
+            .map((cb: any) => (cb.value || '').replace(/<[^>]*>/g, '').trim())
+            .filter(Boolean)
+            .join(' ');
+        }
       }
-      if (Array.isArray(desc)) {
-        return desc
-          .filter((cb: any) => cb.type === 'text')
-          .map((cb: any) => (cb.value || '').replace(/<[^>]*>/g, '').trim())
-          .filter(Boolean)
-          .join(' ');
+      
+      // Handle string
+      if (typeof desc === 'string') {
+        return desc.replace(/<[^>]*>/g, '').trim();
+      }
+      
+      return 'Multiple Choice Question';
+    }
+    
+    const description = question.description;
+    if (typeof description === 'string') {
+      return description.replace(/<[^>]*>/g, '').substring(0, 120);
+    }
+    
+    if (description && typeof description === 'object' && description !== null) {
+      if (description.text) {
+        return description.text.replace(/<[^>]*>/g, '').substring(0, 120);
+      }
+      if (Array.isArray(description)) {
+        const text = description
+          .filter((b: any) => b.type === 'text')
+          .map((b: any) => b.value || '')
+          .join(' ')
+          .replace(/<[^>]*>/g, '')
+          .trim();
+        return text.substring(0, 120) || 'No description provided';
       }
     }
     
-    // Handle string
-    if (typeof desc === 'string') {
-      return desc.replace(/<[^>]*>/g, '').trim();
-    }
-    
-    return 'Multiple Choice Question';
-  }
-  
-  const description = question.description;
-  if (typeof description === 'string') {
-    return description.replace(/<[^>]*>/g, '').substring(0, 120);
-  }
-  
-  if (description && typeof description === 'object' && description !== null) {
-    if (description.text) {
-      return description.text.replace(/<[^>]*>/g, '').substring(0, 120);
-    }
-    if (Array.isArray(description)) {
-      const text = description
-        .filter((b: any) => b.type === 'text')
-        .map((b: any) => b.value || '')
-        .join(' ')
-        .replace(/<[^>]*>/g, '')
-        .trim();
-      return text.substring(0, 120) || 'No description provided';
-    }
-  }
-  
-  return 'No description provided';
-};
+    return 'No description provided';
+  };
 
   // Check if a question is duplicate with existing questions
   const isDuplicate = (bankQuestion: Question): boolean => {
@@ -207,6 +220,14 @@ const getQuestionTitle = (question: any): string => {
 
   const getFilteredQuestions = () => {
     return questions.filter(q => {
+      // ✅ First filter by type if filterByType is specified
+      const questionType = q.questionType?.toLowerCase() || '';
+      
+      // If filterByType is not 'all', only show questions of that type
+      if (filterByType !== 'all' && questionType !== filterByType) {
+        return false;
+      }
+      
       // Search filter
       const title = getQuestionTitle(q);
       const description = getQuestionDescription(q);
@@ -215,8 +236,7 @@ const getQuestionTitle = (question: any): string => {
         (title && title.toLowerCase().includes(searchLower)) ||
         (description && description.toLowerCase().includes(searchLower));
 
-      // Type filter
-      const questionType = q.questionType?.toLowerCase() || '';
+      // Type filter (for UI filtering within the filtered type)
       const matchesType = filterType === 'all' || questionType === filterType;
 
       return matchesSearch && matchesType;
@@ -274,6 +294,15 @@ const getQuestionTitle = (question: any): string => {
   };
 
   const filteredQuestions = getFilteredQuestions();
+  
+  // Get header title based on filter type
+  const getHeaderTitle = () => {
+    if (filterByType === 'programming') return 'Programming Question Bank';
+    if (filterByType === 'mcq') return 'MCQ Question Bank';
+    if (filterByType === 'frontend') return 'Frontend Question Bank';
+    if (filterByType === 'database') return 'Database Question Bank';
+    return 'Question Bank';
+  };
 
   return (
     <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
@@ -294,9 +323,9 @@ const getQuestionTitle = (question: any): string => {
               </button>
             )}
             <div>
-              <h2 className="text-xl font-bold text-gray-900">Question Bank</h2>
+              <h2 className="text-xl font-bold text-gray-900">{getHeaderTitle()}</h2>
               <p className="text-gray-600 text-sm mt-1">
-                Select questions to add to "{exerciseData.exerciseName}"
+                Select {filterByType !== 'all' ? filterByType : ''} questions to add to "{exerciseData.exerciseName}"
               </p>
             </div>
           </div>
@@ -308,7 +337,7 @@ const getQuestionTitle = (question: any): string => {
           </button>
         </div>
 
-        {/* Search and Filter */}
+        {/* Search and Filter - Show type filter only when filterByType is 'all' */}
         <div className="px-6 py-4 border-b border-gray-100">
           <div className="flex items-center gap-3">
             <div className="flex-1 relative">
@@ -321,20 +350,33 @@ const getQuestionTitle = (question: any): string => {
                 className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-400"
               />
             </div>
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-gray-400" />
-              <select
-                value={filterType}
-                onChange={(e) => setFilterType(e.target.value as any)}
-                className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-200"
-              >
-                <option value="all">All Types</option>
-                <option value="mcq">MCQ</option>
-                <option value="programming">Programming</option>
-                <option value="frontend">Frontend</option>
-                <option value="database">Database</option>
-              </select>
-            </div>
+            
+            {/* Only show type filter when filterByType is 'all' */}
+            {filterByType === 'all' && (
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-gray-400" />
+                <select
+                  value={filterType}
+                  onChange={(e) => setFilterType(e.target.value as any)}
+                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-200"
+                >
+                  <option value="all">All Types</option>
+                  <option value="mcq">MCQ</option>
+                  <option value="programming">Programming</option>
+                  <option value="frontend">Frontend</option>
+                  <option value="database">Database</option>
+                </select>
+              </div>
+            )}
+            
+            {/* Show active filter badge when specific type is selected */}
+            {filterByType !== 'all' && (
+              <div className="flex items-center gap-2">
+                <span className={`text-xs px-3 py-1.5 rounded-full border ${getQuestionTypeBadge(filterByType)}`}>
+                  Showing: {filterByType.toUpperCase()}
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -350,10 +392,10 @@ const getQuestionTitle = (question: any): string => {
               <h3 className="text-sm font-medium text-gray-900 mb-1">No questions found</h3>
               <p className="text-sm text-gray-500">
                 {questions.length === 0 
-                  ? 'Question bank is empty' 
-                  : searchTerm || filterType !== 'all' 
+                  ? `Question bank is empty` 
+                  : searchTerm || (filterByType === 'all' && filterType !== 'all')
                     ? 'Try adjusting your filters' 
-                    : 'No matching questions found'}
+                    : `No ${filterByType !== 'all' ? filterByType : ''} questions found in the bank`}
               </p>
             </div>
           ) : (

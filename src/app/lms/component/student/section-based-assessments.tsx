@@ -9,7 +9,7 @@ import {
   Info, Target, Settings, FileText, BarChart2, Shield, Cpu,
   Search, Filter, ChevronDown, LayoutList,
 } from "lucide-react"
-import SectionBasedTestPage from "../../pages/courses/uploadcourseresources/components/youdo/assessments/components/SectionBasedTestPage"
+import SectionBasedTestPage from "./YouDo/assessment/components/SectionBasedTestPage"
 
 // ─── Re-use the same interfaces as exercises.tsx ──────────────────────────────
 
@@ -175,13 +175,26 @@ function isSectionExerciseConfigured(exercise: SectionBasedExercise): boolean {
   return hasConfiguredSections || hasAnyQuestions
 }
 
+function normalizeSectionConfigs(exercise: SectionBasedExercise): SectionConfig[] {
+  const sc = exercise.sectionConfigs
+  if (!sc) return []
+  if (Array.isArray(sc)) return sc
+  if (typeof sc === 'object') return Object.values(sc) as SectionConfig[]
+  return []
+}
+
 function getSectionCount(exercise: SectionBasedExercise): number {
-  return exercise.sectionConfigs?.length ?? 0
+  return normalizeSectionConfigs(exercise).length
 }
 
 function getTotalSectionQuestions(exercise: SectionBasedExercise): number {
-  if (exercise.sectionConfigs?.length) {
-    return exercise.sectionConfigs.reduce((sum, cfg) => sum + (cfg.questionCount ?? 0), 0)
+  const configs = normalizeSectionConfigs(exercise)
+  if (configs.length > 0) {
+    return configs.reduce((sum, cfg: any) => {
+      const mcqQ = cfg.mcqConfig?.generalQuestionCount ?? 0
+      const progQ = cfg.programmingConfig?.generalQuestionCount ?? 0
+      return sum + (cfg.questionCount ?? mcqQ + progQ)
+    }, 0)
   }
   return exercise.questions?.filter(q => q.sectionId).length ?? 0
 }
@@ -290,7 +303,7 @@ interface SectionPopupProps {
   limitReached: boolean
 }
 
-function SectionStartPopup({
+export function SectionStartPopup({
   exercise, onConfirm, onClose, availability,
   testSubmissions, submissionAttempts, limitReached,
 }: SectionPopupProps) {
@@ -299,25 +312,18 @@ function SectionStartPopup({
   const isPractice = exercise.evaluationSettings?.practiceMode
   const canProceed = availability.canStart && !limitReached
   
-  // Normalize sectionConfigs (convert object to array if needed)
-  let sections = exercise.sectionConfigs ?? []
-  if (sections && typeof sections === 'object' && !Array.isArray(sections)) {
-    sections = Object.values(sections)
-  }
+  const sections = normalizeSectionConfigs(exercise)
   
   const totalQ = getTotalSectionQuestions(exercise)
   
-  // Calculate total marks safely
-  let totalMarks = 0
-  if (Array.isArray(sections) && sections.length > 0) {
-    totalMarks = sections.reduce((s, c) => {
-      const marksPerQ = c.marksPerQuestion ?? c.mcqConfig?.marksPerQuestion ?? c.programmingConfig?.scoreSettings?.evenMarks ?? 0
-      const questionCount = c.questionCount ?? 
-                           c.mcqConfig?.generalQuestionCount ?? 
-                           c.programmingConfig?.generalQuestionCount ?? 0
-      return s + (marksPerQ * questionCount)
-    }, 0)
-  }
+  // Calculate total marks — prefer top-level totalMarks, then sum across sections
+  const totalMarks = (exercise as any).exerciseInformation?.totalMarks
+    || sections.reduce((s, c: any) => {
+        if (c.totalMarks) return s + c.totalMarks
+        const marksPerQ = c.marksPerQuestion ?? c.mcqConfig?.marksPerQuestion ?? 0
+        const questionCount = c.questionCount ?? c.mcqConfig?.generalQuestionCount ?? c.programmingConfig?.generalQuestionCount ?? 0
+        return s + (marksPerQ * questionCount)
+      }, 0)
 
   const statusConfig = limitReached
     ? { bg: "#f0fdf4", color: "#15803d", border: "#bbf7d0", text: `All ${submissionAttempts} attempt${submissionAttempts > 1 ? "s" : ""} used` }
@@ -505,10 +511,10 @@ const [activeTest, setActiveTest] = useState<SectionBasedExercise | null>(null)
     setTimeout(() => setToast(null), 3500)
   }
 
-  // Filter to only section-based + fully configured exercises
+  // Filter to only section-based exercises — show all that have an id and exerciseInformation
   const filteredExercises = useMemo(() => {
     let result = exercises
-      .filter(ex => isSectionBasedExercise(ex) && isSectionExerciseConfigured(ex))
+      .filter(ex => isSectionBasedExercise(ex) && !!ex._id && !!ex.exerciseInformation)
 
     if (searchQuery) {
       const q = searchQuery.toLowerCase()

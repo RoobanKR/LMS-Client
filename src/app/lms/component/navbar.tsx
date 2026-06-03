@@ -30,6 +30,7 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useRef } from "react";
 import { getCurrentUser, logoutUser } from "@/apiServices/tokenVerify";
+import { postLogout } from "@/apiServices/activityLog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { notificationsService } from "@/apiServices/notifications";
 import { cn } from "@/lib/utils";
@@ -137,6 +138,9 @@ export function Navbar({
     try {
       setIsLoggingOut(true);
       const token = localStorage.getItem("smartcliff_token");
+
+      // Record logout time / session duration while the token is still present.
+      await postLogout();
 
       // Remove all localStorage items
       localStorage.removeItem("smartcliff_userId");

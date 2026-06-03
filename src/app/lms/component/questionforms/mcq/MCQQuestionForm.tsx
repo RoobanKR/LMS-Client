@@ -498,6 +498,7 @@ import {
 } from 'lucide-react';
 
 import GenerateMCQAIQuestion, { GeneratedQuestion } from './GenerateMCQAIQuestion';
+import QuestionBankSelector from './QuestionBankSelector';
 import { exerciseApi } from '@/apiServices/exercise';
 import { questionApi } from '@/apiServices/question';
 
@@ -3350,6 +3351,9 @@ const MCQQuestionForm: React.FC<MCQQuestionFormProps> = ({
   const [exerciseSettingsData, setExerciseSettingsData] = useState<any>(null);
   const [activeFormats, setActiveFormats] = useState<Set<string>>(new Set());
   const [sidebarTab, setSidebarTab] = useState<'details' | 'overview' | 'section' | null>(null);
+  const [showAddDropdown, setShowAddDropdown] = useState(false);
+  const [showBankSelector, setShowBankSelector] = useState(false);
+  const [showAIModal, setShowAIModal] = useState(false);
 
   const mainScrollRef = useRef<HTMLDivElement>(null);
   const richTextRefs = useRef<{ [id: string]: React.RefObject<HTMLDivElement> }>({});
@@ -3429,61 +3433,73 @@ const MCQQuestionForm: React.FC<MCQQuestionFormProps> = ({
     setShowExerciseSettings(false);
   }, [toast]);
 
-  const buildBlockFromDbQuestion = (q: any): QuestionBlock => {
-    const id = generateId('block-db');
-    return {
-      ...makeDefaultBlock(id), id, dbId: q._id, origin: 'db', isDirty: false,
-      type: mapApiTypeToInternal(q.mcqQuestionType || 'multiple_choice'),
-      questionText: Array.isArray(q.mcqQuestionTitle)
-        ? q.mcqQuestionTitle.filter((cb: any) => cb.type === 'text').map((cb: any) => cb.value || '').join(' ')
-        : (q.mcqQuestionTitle || ''),
-      title: Array.isArray(q.mcqQuestionTitle)
-        ? q.mcqQuestionTitle.filter((cb: any) => cb.type === 'text').map((cb: any) => (cb.value || '').replace(/<[^>]*>/g, '').trim()).filter(Boolean).join(' ') || 'Untitled Question'
-        : (q.mcqQuestionTitle || '').replace(/<[^>]*>/g, '').trim() || 'Untitled Question',
-      options: (q.mcqQuestionOptions || []).length > 0
-        ? q.mcqQuestionOptions.map((o: any, oi: number) => ({
-          id: o._id || `opt-${id}-${oi}`, text: o.text || '', isCorrect: o.isCorrect || false,
-          imageUrl: o.imageUrl || o.image || o.optionImage || '',
-          imageAlignment: (o.imageAlignment || 'center') as 'left' | 'center' | 'right',
-          imageSizePercent: o.imageSizePercent || 60,
-        }))
-        : makeDefaultBlock(id).options,
-      score: q.mcqQuestionScore ?? undefined,
-      difficulty: (q.mcqQuestionDifficulty || '') as 'easy' | 'medium' | 'hard' | '',
-      hasExplanation: !!(q.mcqQuestionDescription || q.explanation),
-      explanation: q.mcqQuestionDescription || q.explanation || '',
-      isRequired: q.mcqQuestionRequired || false,
-      hasOtherOption: q.hasOtherOption || false,
-      optionsPerRow: (q.mcqQuestionOptionsPerRow || 1) as 1 | 2 | 3 | 4,
-      timeLimit: q.mcqQuestionTimeLimit || 2000,
-      questionImageUrl: q.mcqQuestionImageUrl || q.questionImage || q.imageUrl || '',
-      questionContent: (() => {
-        try {
-          const t = q.mcqQuestionTitle;
-          // new format — already an array
-          if (Array.isArray(t)) return t;
-          // old format — plain HTML string
-          if (typeof t === 'string' && t.trim()) {
-            return [{ id: generateId('cb-text'), type: 'text' as const, value: t }];
-          }
-          return [{ id: generateId('cb-text'), type: 'text' as const, value: '' }];
-        } catch {
-          return [{ id: generateId('cb-text'), type: 'text' as const, value: '' }];
+const buildBlockFromDbQuestion = (q: any): QuestionBlock => {
+  const id = generateId('block-db');
+  
+  // Extract correct answers for short answer/essay from mcqQuestionCorrectAnswers
+  let shortAnswerValue = '';
+  if (q.mcqQuestionType === 'short_answer' || q.mcqQuestionType === 'essay') {
+    if (q.mcqQuestionCorrectAnswers && q.mcqQuestionCorrectAnswers.length > 0) {
+      shortAnswerValue = q.mcqQuestionCorrectAnswers[0];
+    } else if (q.shortAnswer) {
+      shortAnswerValue = q.shortAnswer;
+    }
+  }
+  
+  return {
+    ...makeDefaultBlock(id), id, dbId: q._id, origin: 'db', isDirty: false,
+    type: mapApiTypeToInternal(q.mcqQuestionType || 'multiple_choice'),
+    questionText: Array.isArray(q.mcqQuestionTitle)
+      ? q.mcqQuestionTitle.filter((cb: any) => cb.type === 'text').map((cb: any) => cb.value || '').join(' ')
+      : (q.mcqQuestionTitle || ''),
+    title: Array.isArray(q.mcqQuestionTitle)
+      ? q.mcqQuestionTitle.filter((cb: any) => cb.type === 'text').map((cb: any) => (cb.value || '').replace(/<[^>]*>/g, '').trim()).filter(Boolean).join(' ') || 'Untitled Question'
+      : (q.mcqQuestionTitle || '').replace(/<[^>]*>/g, '').trim() || 'Untitled Question',
+    options: (q.mcqQuestionOptions || []).length > 0
+      ? q.mcqQuestionOptions.map((o: any, oi: number) => ({
+        id: o._id || `opt-${id}-${oi}`, text: o.text || '', isCorrect: o.isCorrect || false,
+        imageUrl: o.imageUrl || o.image || o.optionImage || '',
+        imageAlignment: (o.imageAlignment || 'center') as 'left' | 'center' | 'right',
+        imageSizePercent: o.imageSizePercent || 60,
+      }))
+      : makeDefaultBlock(id).options,
+    score: q.mcqQuestionScore ?? undefined,
+    difficulty: (q.mcqQuestionDifficulty || '') as 'easy' | 'medium' | 'hard' | '',
+    hasExplanation: !!(q.mcqQuestionDescription || q.explanation),
+    explanation: q.mcqQuestionDescription || q.explanation || '',
+    isRequired: q.mcqQuestionRequired || false,
+    hasOtherOption: q.hasOtherOption || false,
+    optionsPerRow: (q.mcqQuestionOptionsPerRow || 1) as 1 | 2 | 3 | 4,
+    timeLimit: q.mcqQuestionTimeLimit || 2000,
+    questionImageUrl: q.mcqQuestionImageUrl || q.questionImage || q.imageUrl || '',
+    questionContent: (() => {
+      try {
+        const t = q.mcqQuestionTitle;
+        if (Array.isArray(t)) return t;
+        if (typeof t === 'string' && t.trim()) {
+          return [{ id: generateId('cb-text'), type: 'text' as const, value: t }];
         }
-      })(),
-      questionImageAlignment: (q.mcqQuestionImageAlignment || q.questionImageAlignment || 'center') as 'left' | 'center' | 'right',
-      questionImageSizePercent: q.mcqQuestionImageSizePercent || q.questionImageSizePercent || 60,
-      isActive: q.isActive !== undefined ? q.isActive : true, sequence: q.sequence || 0,
-      trueFalseAnswer: q.trueFalseAnswer ?? null, shortAnswer: q.shortAnswer || '',
-      numericAnswer: q.numericAnswer ?? null, numericTolerance: q.numericTolerance ?? null,
-      matchingPairs: (q.matchingPairs || []).length > 0
-        ? q.matchingPairs.map((p: any) => ({ id: p._id || generateId(`pair-${id}`), left: p.left || '', right: p.right || '' }))
-        : makeDefaultBlock(id).matchingPairs,
-      orderingItems: (q.orderingItems || []).length > 0
-        ? q.orderingItems.map((item: any) => ({ id: item._id || generateId(`ord-${id}`), text: item.text || '', order: item.order || 0 }))
-        : makeDefaultBlock(id).orderingItems,
-    };
+        return [{ id: generateId('cb-text'), type: 'text' as const, value: '' }];
+      } catch {
+        return [{ id: generateId('cb-text'), type: 'text' as const, value: '' }];
+      }
+    })(),
+    questionImageAlignment: (q.mcqQuestionImageAlignment || q.questionImageAlignment || 'center') as 'left' | 'center' | 'right',
+    questionImageSizePercent: q.mcqQuestionImageSizePercent || q.questionImageSizePercent || 60,
+    isActive: q.isActive !== undefined ? q.isActive : true, 
+    sequence: q.sequence || 0,
+    trueFalseAnswer: q.trueFalseAnswer ?? null, 
+    shortAnswer: shortAnswerValue,  // ← Updated to load from correct answers
+    numericAnswer: q.numericAnswer ?? null, 
+    numericTolerance: q.numericTolerance ?? null,
+    matchingPairs: (q.matchingPairs || []).length > 0
+      ? q.matchingPairs.map((p: any) => ({ id: p._id || generateId(`pair-${id}`), left: p.left || '', right: p.right || '' }))
+      : makeDefaultBlock(id).matchingPairs,
+    orderingItems: (q.orderingItems || []).length > 0
+      ? q.orderingItems.map((item: any) => ({ id: item._id || generateId(`ord-${id}`), text: item.text || '', order: item.order || 0 }))
+      : makeDefaultBlock(id).orderingItems,
   };
+};
   const filterQuestionsBySection = useCallback(
     (questions: any[]): any[] => {
       if (!currentSectionId && !currentSectionName) {
@@ -3656,11 +3672,11 @@ const MCQQuestionForm: React.FC<MCQQuestionFormProps> = ({
 
   // ─── CLOSE DROPDOWNS ON OUTSIDE CLICK ────────────────────────────────────────
   useEffect(() => {
-    if (!showQTypeMenu && !showDifficultyMenu) return;
-    const close = () => { setShowQTypeMenu(false); setShowDifficultyMenu(false); };
+    if (!showQTypeMenu && !showDifficultyMenu && !showAddDropdown) return;
+    const close = () => { setShowQTypeMenu(false); setShowDifficultyMenu(false); setShowAddDropdown(false); };
     document.addEventListener('click', close);
     return () => document.removeEventListener('click', close);
-  }, [showQTypeMenu, showDifficultyMenu]);
+  }, [showQTypeMenu, showDifficultyMenu, showAddDropdown]);
 
   const updateActiveFormats = () => {
     const formats = new Set<string>();
@@ -4151,6 +4167,153 @@ const MCQQuestionForm: React.FC<MCQQuestionFormProps> = ({
     if (autoScore !== undefined) toast.info('Marks distributed', `Each question assigned ${autoScore} mark${autoScore !== 1 ? 's' : ''} from remaining balance.`);
   };
 
+  // ─── TRIGGER AI PANEL (from Add Options dropdown) ────────────────────────────
+  const triggerAI = () => {
+    setShowAddDropdown(false);
+    setShowAIModal(true);
+  };
+
+  // ─── BANK QUESTIONS HANDLER (Feature 2 + 3) ──────────────────────────────────
+  const handleBankSelectedQuestions = (selected: any[]) => {
+    if (!selected.length) return;
+
+    // Compute fillability locally (same logic as isCurrentBlockFillable but self-contained)
+    const currentIsFillable = !!(currentBlock && currentBlock.origin !== 'db' && !isBlockComplete(currentBlock));
+
+    // Feature 2: slot / marks constraints
+    // Use savedBlocks.length (committed questions only) — same baseline as isLimitReached()
+    // so unsaved/empty slots don't incorrectly consume quota
+    const maxCount = scoringType === 'equalDistribution' && totalMcqQuestions > 0
+      ? Math.max(currentIsFillable ? 1 : 0, totalMcqQuestions - savedBlocks.length)
+      : -1;
+
+    let toAdd = selected;
+    if (maxCount === 0) {
+      toast.warning('No slots available', 'All question slots are filled.');
+      return;
+    }
+    if (maxCount > 0 && toAdd.length > maxCount) {
+      toast.warning(
+        `Only ${maxCount} slot${maxCount !== 1 ? 's' : ''} available`,
+        `Using first ${maxCount} of ${selected.length} selected.`
+      );
+      toAdd = toAdd.slice(0, maxCount);
+    }
+
+    // Feature 2: distribute remaining marks for questionSpecific (same as AI)
+    const computeScore = (): number | undefined => {
+      if (scoringType === 'questionSpecific' && maxMcqMarks > 0) {
+        const usedMarks = questionBlocks.reduce((s, b) => s + (Number(b.score) || 0), 0);
+        const remaining = Math.max(0, maxMcqMarks - usedMarks);
+        if (remaining > 0 && toAdd.length > 0) return parseFloat((remaining / toAdd.length).toFixed(2));
+      }
+      return undefined;
+    };
+    const autoScore = computeScore();
+
+    // Convert bank question to editable QuestionBlock — handles all mcqQuestionTitle formats:
+    // string | ContentBlock[] | legacy object {text:"..."} | undefined
+    const bankToBlock = (q: any, seq: number): QuestionBlock => {
+      const id = generateId('bank');
+
+      const extractTitle = (): { text: string; contentBlocks: ContentBlock[] } => {
+        const t = q.mcqQuestionTitle;
+        if (!t) return { text: '', contentBlocks: [{ id: generateId('cb-text'), type: 'text' as const, value: '' }] };
+        if (Array.isArray(t)) {
+          const txt = t.filter((cb: any) => cb.type === 'text').map((cb: any) => cb.value || '').join(' ');
+          return { text: txt, contentBlocks: t };
+        }
+        if (typeof t === 'string') {
+          return { text: t, contentBlocks: [{ id: generateId('cb-text'), type: 'text' as const, value: t }] };
+        }
+        if (typeof t === 'object') {
+          const txt = t.text || t.value || '';
+          return { text: txt, contentBlocks: [{ id: generateId('cb-text'), type: 'text' as const, value: txt }] };
+        }
+        return { text: '', contentBlocks: [{ id: generateId('cb-text'), type: 'text' as const, value: '' }] };
+      };
+      const { text, contentBlocks } = extractTitle();
+
+      const opts = (q.mcqQuestionOptions || []).length > 0
+        ? q.mcqQuestionOptions.map((o: any, oi: number) => ({
+          id: o._id || `opt-${id}-${oi}`,
+          text: o.text || '',
+          isCorrect: o.isCorrect || false,
+          imageUrl: o.imageUrl || '',
+          imageAlignment: (o.imageAlignment || 'center') as 'left' | 'center' | 'right',
+          imageSizePercent: o.imageSizePercent || 60,
+        }))
+        : makeDefaultBlock(id).options;
+
+      return {
+        ...makeDefaultBlock(id, seq),
+        id,
+        origin: 'new' as const,
+        isDirty: false,
+        dbId: undefined,
+        sequence: seq,
+        type: mapApiTypeToInternal(q.mcqQuestionType || 'multiple_choice'),
+        questionText: text,
+        title: text.replace(/<[^>]*>/g, '').trim() || 'Untitled Question',
+        questionContent: contentBlocks,
+        options: opts,
+        score: autoScore !== undefined ? autoScore : (q.mcqQuestionScore ?? undefined),
+        difficulty: (q.mcqQuestionDifficulty || '') as 'easy' | 'medium' | 'hard' | '',
+        hasExplanation: !!(q.mcqQuestionDescription || q.explanation),
+        explanation: q.mcqQuestionDescription || q.explanation || '',
+        isRequired: q.mcqQuestionRequired || false,
+        optionsPerRow: (q.mcqQuestionOptionsPerRow || 1) as 1 | 2 | 3 | 4,
+        trueFalseAnswer: q.trueFalseAnswer ?? null,
+        shortAnswer: q.shortAnswer || '',
+        numericAnswer: q.numericAnswer ?? null,
+        numericTolerance: q.numericTolerance ?? null,
+        matchingPairs: (q.matchingPairs || []).length > 0
+          ? q.matchingPairs.map((p: any) => ({ id: p._id || generateId(`pair-${id}`), left: p.left || '', right: p.right || '' }))
+          : makeDefaultBlock(id).matchingPairs,
+        orderingItems: (q.orderingItems || []).length > 0
+          ? q.orderingItems.map((item: any) => ({ id: item._id || generateId(`ord-${id}`), text: item.text || '', order: item.order || 0 }))
+          : makeDefaultBlock(id).orderingItems,
+      };
+    };
+
+    // Feature 3: insert questions sequentially from current position.
+    // After adding, the user stays on the current question and uses Save & Next
+    // to naturally flow through each pre-filled question one by one.
+    if (currentIsFillable && toAdd.length > 0) {
+      // Current slot is empty/incomplete → fill it with the first bank question,
+      // insert the rest immediately after. User stays on this slot (now pre-filled).
+      const newFirstId = generateId('bank-fill');
+      delete richTextRefs.current[currentBlock!.id];
+      const filledBlock = { ...currentBlock!, ...bankToBlock(toAdd[0], currentIndex), id: newFirstId };
+      const extra = toAdd.slice(1).map((q, i) => bankToBlock(q, currentIndex + i + 1));
+      setQuestionBlocks(prev => {
+        const before = prev.slice(0, currentIndex);
+        const after = prev.slice(currentIndex + 1);
+        return [...before, filledBlock, ...extra, ...after];
+      });
+      // Stay on current index — user reviews pre-filled Q then clicks Save & Next
+    } else {
+      // Current slot is already saved/complete → insert ALL bank questions immediately
+      // after current position. User stays here; Save & Next carries them through each one.
+      const insertAt = currentIndex + 1;
+      const newBlocks = toAdd.map((q, i) => bankToBlock(q, insertAt + i));
+      setQuestionBlocks(prev => [
+        ...prev.slice(0, insertAt),
+        ...newBlocks,
+        ...prev.slice(insertAt),
+      ]);
+      // Do NOT navigate — user stays on current question.
+      // Next arrow is now enabled (new questions exist immediately after).
+    }
+
+    toast.success(
+      `${toAdd.length} question${toAdd.length > 1 ? 's' : ''} added`,
+      `${toAdd.length === 1 ? 'Question' : 'Questions'} inserted after Q${currentIndex + 1} — use Save & Next to review each one.`
+    );
+    if (autoScore !== undefined)
+      toast.info('Marks distributed', `Each question assigned ${autoScore} mark${autoScore !== 1 ? 's' : ''} from remaining balance.`);
+  };
+
   const base64ToFile = (b64: string, name: string): File | null => {
     try {
       const m = b64.match(/^data:([^;]+);base64,(.+)$/);
@@ -4164,56 +4327,103 @@ const MCQQuestionForm: React.FC<MCQQuestionFormProps> = ({
 
   const OPTION_BASED_TYPES: QuestionType[] = ['multiple-choice', 'multiple-select', 'dropdown'];
 
-  const buildQuestionPayload = (b: QuestionBlock, qi: number) => {
-    const images: any[] = [];
-    const html = b.questionText?.trim() || '<p></p>';
-    const score = scoringType === 'equalDistribution' ? marksPerQuestion : (b.score ?? 0);
+const buildQuestionPayload = (b: QuestionBlock, qi: number) => {
+  const images: any[] = [];
+  const html = b.questionText?.trim() || '<p></p>';
+  const score = scoringType === 'equalDistribution' ? marksPerQuestion : (b.score ?? 0);
 
-    const isOptionBased = OPTION_BASED_TYPES.includes(b.type);
-    const correctOptions = isOptionBased ? b.options.filter(o => o.isCorrect) : [];
-    const correctAnswers = isOptionBased
-      ? (b.type === 'multiple-select' ? correctOptions.map(o => o.text.trim()) : correctOptions.length ? [correctOptions[0].text.trim()] : []) : [];
-    const opts = isOptionBased ? b.options.filter(o => o.text.trim()).map((o, oi) => {
-      let imgPath = null;
-      if (o.imageUrl?.startsWith('data:')) {
-        const fn = `option_${b.id}_${o.id}_${Date.now()}.jpg`; imgPath = `/uploads/${fn}`;
-        const f = base64ToFile(o.imageUrl, fn); if (f) images.push({ path: imgPath, file: f, type: 'option', qi, oi, blockId: b.id, optionId: o.id });
-      } else if (o.imageUrl) imgPath = o.imageUrl;
-      return { text: o.text.trim(), isCorrect: o.isCorrect, imageUrl: imgPath, imageAlignment: o.imageAlignment || 'left', imageSizePercent: o.imageSizePercent || 100 };
-    }) : [];
+  const isOptionBased = OPTION_BASED_TYPES.includes(b.type);
+  const correctOptions = isOptionBased ? b.options.filter(o => o.isCorrect) : [];
+  
+  // Handle correct answers based on question type
+  let correctAnswers: string[] = [];
+  
+  if (isOptionBased) {
+    // For option-based types (multiple-choice, multiple-select, dropdown)
+    correctAnswers = b.type === 'multiple-select' 
+      ? correctOptions.map(o => o.text.trim()) 
+      : correctOptions.length ? [correctOptions[0].text.trim()] : [];
+  } else if (b.type === 'short-answer') {
+    // For short answer - store the expected answer
+    correctAnswers = b.shortAnswer?.trim() ? [b.shortAnswer.trim()] : [];
+  } else if (b.type === 'paragraph') {
+    // For essay/paragraph - store the expected answer (if any)
+    correctAnswers = b.shortAnswer?.trim() ? [b.shortAnswer.trim()] : [];
+  } else if (b.type === 'true-false') {
+    // For true/false - store as string representation
+    correctAnswers = b.trueFalseAnswer !== null ? [String(b.trueFalseAnswer)] : [];
+  } else if (b.type === 'numeric') {
+    // For numeric - store as string
+    correctAnswers = b.numericAnswer !== null ? [String(b.numericAnswer)] : [];
+  } else if (b.type === 'matching') {
+    // For matching - store pairs as JSON string
+    correctAnswers = (b.matchingPairs || []).map(p => `${p.left}|${p.right}`);
+  } else if (b.type === 'ordering') {
+    // For ordering - store order as JSON string
+    correctAnswers = (b.orderingItems || [])
+      .sort((a, b) => a.order - b.order)
+      .map(item => item.text.trim());
+  }
 
-    let qImgPath = null;
-    if (b.questionImageUrl?.startsWith('data:')) {
-      const fn = `question_${b.id}_${Date.now()}.jpg`; qImgPath = `/uploads/${fn}`;
-      const f = base64ToFile(b.questionImageUrl, fn); if (f) images.push({ path: qImgPath, file: f, type: 'question', qi, blockId: b.id });
-    } else if (b.questionImageUrl) qImgPath = b.questionImageUrl;
+  const opts = isOptionBased ? b.options.filter(o => o.text.trim()).map((o, oi) => {
+    let imgPath = null;
+    if (o.imageUrl?.startsWith('data:')) {
+      const fn = `option_${b.id}_${o.id}_${Date.now()}.jpg`; imgPath = `/uploads/${fn}`;
+      const f = base64ToFile(o.imageUrl, fn); if (f) images.push({ path: imgPath, file: f, type: 'option', qi, oi, blockId: b.id, optionId: o.id });
+    } else if (o.imageUrl) imgPath = o.imageUrl;
+    return { text: o.text.trim(), isCorrect: o.isCorrect, imageUrl: imgPath, imageAlignment: o.imageAlignment || 'left', imageSizePercent: o.imageSizePercent || 100 };
+  }) : [];
 
-    const contentToStore = b.questionContent && b.questionContent.length > 0
-      ? b.questionContent
-      : [{ id: 'txt-1', type: 'text', value: html }];
+  let qImgPath = null;
+  if (b.questionImageUrl?.startsWith('data:')) {
+    const fn = `question_${b.id}_${Date.now()}.jpg`; qImgPath = `/uploads/${fn}`;
+    const f = base64ToFile(b.questionImageUrl, fn); if (f) images.push({ path: qImgPath, file: f, type: 'question', qi, blockId: b.id });
+  } else if (b.questionImageUrl) qImgPath = b.questionImageUrl;
 
-    const q: any = {
-      mcqQuestionTitle: contentToStore, mcqQuestionType: mapInternalTypeToApi(b.type),
-      mcqQuestionDifficulty: b.difficulty || undefined, mcqQuestionScore: score,
-      mcqQuestionTimeLimit: b.timeLimit || 0, isActive: b.isActive !== undefined ? b.isActive : true,
-      mcqQuestionOptionsPerRow: b.optionsPerRow || 1, mcqQuestionOptions: opts,
-      mcqQuestionCorrectAnswers: correctAnswers, mcqQuestionRequired: b.isRequired === true,
-      hasOtherOption: b.hasOtherOption || false, mcqQuestionImageUrl: qImgPath,
-      mcqQuestionImageAlignment: b.questionImageAlignment || 'left',
-      mcqQuestionImageSizePercent: b.questionImageSizePercent || 100,
-      questionType: 'mcq', sequence: qi, hasExplanation: b.hasExplanation || false,
-      questionContent: b.questionContent || [],
-      sectionId: currentSectionId ?? null,
-      sectionName: currentSectionName || undefined,
-    };
-    if (b.type === 'true-false') q.trueFalseAnswer = b.trueFalseAnswer;
-    if (b.type === 'short-answer') q.shortAnswer = b.shortAnswer || '';
-    if (b.type === 'numeric') { q.numericAnswer = b.numericAnswer ?? null; q.numericTolerance = b.numericTolerance ?? null; }
-    if (b.type === 'matching') q.matchingPairs = (b.matchingPairs || []).map(p => ({ left: p.left, right: p.right }));
-    if (b.type === 'ordering') q.orderingItems = (b.orderingItems || []).map(i => ({ text: i.text, order: i.order }));
-    if (b.hasExplanation && b.explanation?.trim()) { q.mcqQuestionDescription = b.explanation.trim(); q.explanation = b.explanation.trim(); }
-    return { question: q, images };
+  const contentToStore = b.questionContent && b.questionContent.length > 0
+    ? b.questionContent
+    : [{ id: 'txt-1', type: 'text', value: html }];
+
+  const q: any = {
+    mcqQuestionTitle: contentToStore, 
+    mcqQuestionType: mapInternalTypeToApi(b.type),
+    mcqQuestionDifficulty: b.difficulty || undefined, 
+    mcqQuestionScore: score,
+    mcqQuestionTimeLimit: b.timeLimit || 0, 
+    isActive: b.isActive !== undefined ? b.isActive : true,
+    mcqQuestionOptionsPerRow: b.optionsPerRow || 1, 
+    mcqQuestionOptions: opts,
+    mcqQuestionCorrectAnswers: correctAnswers,  // ← This now works for all types
+    mcqQuestionRequired: b.isRequired === true,
+    hasOtherOption: b.hasOtherOption || false, 
+    mcqQuestionImageUrl: qImgPath,
+    mcqQuestionImageAlignment: b.questionImageAlignment || 'left',
+    mcqQuestionImageSizePercent: b.questionImageSizePercent || 100,
+    questionType: 'mcq', 
+    sequence: qi, 
+    hasExplanation: b.hasExplanation || false,
+    questionContent: b.questionContent || [],
+    sectionId: currentSectionId ?? null,
+    sectionName: currentSectionName || undefined,
   };
+  
+  // Add type-specific fields
+  if (b.type === 'true-false') q.trueFalseAnswer = b.trueFalseAnswer;
+  if (b.type === 'short-answer') q.shortAnswer = b.shortAnswer || '';
+  if (b.type === 'paragraph') q.shortAnswer = b.shortAnswer || '';  // Store expected answer for essay too
+  if (b.type === 'numeric') { 
+    q.numericAnswer = b.numericAnswer ?? null; 
+    q.numericTolerance = b.numericTolerance ?? null; 
+  }
+  if (b.type === 'matching') q.matchingPairs = (b.matchingPairs || []).map(p => ({ left: p.left, right: p.right }));
+  if (b.type === 'ordering') q.orderingItems = (b.orderingItems || []).map(i => ({ text: i.text, order: i.order }));
+  if (b.hasExplanation && b.explanation?.trim()) { 
+    q.mcqQuestionDescription = b.explanation.trim(); 
+    q.explanation = b.explanation.trim(); 
+  }
+  
+  return { question: q, images };
+};
 
   const validateForm = (): boolean => {
     const newErrors: typeof errors = { blocks: {} };
@@ -4812,34 +5022,188 @@ const MCQQuestionForm: React.FC<MCQQuestionFormProps> = ({
       );
     }
 
-    if (block.type === 'short-answer') {
-      return (
-        <div className="px-5 py-4 flex-shrink-0">
+if (block.type === 'short-answer') {
+  const isShortAnswerKeyMode = answerKeyOpenBlockId === block.id;
+  
+  return (
+    <div className="px-5 py-4 flex-shrink-0">
+      {isShortAnswerKeyMode ? (
+        <div>
+          <p style={{ fontSize: 13.5, color: 'var(--lms-text-sec)', fontFamily: 'var(--lms-font)', marginBottom: 10 }}>
+            Enter the expected answer for this short answer question below, then click <strong style={{ color: 'var(--lms-success)' }}>Done</strong>.
+          </p>
+          <div className="space-y-2">
+            <input
+              type="text"
+              value={block.shortAnswer || ''}
+              onChange={e => {
+                updateBlock(block.id, { shortAnswer: e.target.value });
+                if (e.target.value.trim()) clearBlockError(block.id, 'shortAnswer');
+              }}
+              placeholder="Type the expected answer key here..."
+              className="w-full text-sm outline-none p-3 rounded-lg transition-colors"
+              style={{
+                border: '1.5px solid var(--lms-border)',
+                color: 'var(--lms-text-main)',
+                fontFamily: 'var(--lms-font)',
+                background: 'var(--lms-bg-white)',
+              }}
+            />
+            {block.shortAnswer?.trim() && (
+              <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--lms-success)', fontFamily: 'var(--lms-font)' }}>
+                <Check className="h-3 w-3" />
+                <span>Answer key saved</span>
+              </div>
+            )}
+          </div>
+          <div className="mt-4 flex justify-end">
+            <button 
+              type="button" 
+              onClick={() => setAnswerKeyOpenBlockId(null)} 
+              className="lms-ak-done-btn"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div>
           <div className="mt-1 px-1 py-1.5 flex items-center" style={{ borderBottom: '1.5px solid var(--lms-border)' }}>
             <span className="text-sm italic" style={{ color: 'var(--lms-text-hint)', fontFamily: 'var(--lms-font)' }}>Short answer text</span>
           </div>
+          
           <div className="mt-4">
-            <p className="lms-section-label">Answer Key (optional)</p>
-            <input type="text" value={block.shortAnswer || ''} onChange={e => updateBlock(block.id, { shortAnswer: e.target.value })}
-              placeholder="Enter the expected answer…"
-              className="w-full text-sm outline-none pb-1 transition-colors"
-              style={{ borderBottom: '1.5px solid var(--lms-border)', color: 'var(--lms-text-main)', fontFamily: 'var(--lms-font)', background: 'transparent' }}
-            />
+            <div className="flex items-center gap-2">
+              <button 
+                type="button" 
+                onClick={() => setAnswerKeyOpenBlockId(block.id)} 
+                className="lms-answer-key-btn"
+              >
+                <div className="lms-answer-key-checkbox">
+                  <Check style={{ width: 10, height: 10, color: 'var(--lms-info)' }} strokeWidth={3} />
+                </div>
+                Answer key
+              </button>
+              {block.shortAnswer?.trim() && (
+                <span className="text-xs flex items-center gap-1" style={{ color: 'var(--lms-success)', fontFamily: 'var(--lms-font)' }}>
+                  <Check className="h-3 w-3" />
+                  Answer key set
+                </span>
+              )}
+            </div>
+            
+            {block.shortAnswer?.trim() && (
+              <div className="mt-3 p-3 rounded-lg" style={{ background: 'var(--lms-success-bg)', border: '1.5px solid var(--lms-success-bdr)' }}>
+                <p className="text-[10px] font-bold uppercase mb-1" style={{ color: 'var(--lms-success)', fontFamily: 'var(--lms-font)' }}>Expected Answer</p>
+                <p className="text-sm font-medium" style={{ color: '#14532d', fontFamily: 'var(--lms-font)' }}>
+                  {block.shortAnswer}
+                </p>
+              </div>
+            )}
+            
+            <p className="text-[11px] mt-3 italic" style={{ color: 'var(--lms-text-sec)', fontFamily: 'var(--lms-font)' }}>
+              {block.shortAnswer?.trim() 
+                ? 'Click Answer key to edit the expected answer' 
+                : 'Set an expected answer to help with grading'}
+            </p>
           </div>
         </div>
-      );
-    }
+      )}
+    </div>
+  );
+}
 
-    if (block.type === 'paragraph') {
-      return (
-        <div className="px-5 py-4 flex-shrink-0">
+   if (block.type === 'paragraph') {
+  const isEssayAnswerKeyMode = answerKeyOpenBlockId === block.id;
+  
+  return (
+    <div className="px-5 py-4 flex-shrink-0">
+      {isEssayAnswerKeyMode ? (
+        <div>
+          <p style={{ fontSize: 13.5, color: 'var(--lms-text-sec)', fontFamily: 'var(--lms-font)', marginBottom: 10 }}>
+            Enter the expected answer for this essay question below, then click <strong style={{ color: 'var(--lms-success)' }}>Done</strong>.
+          </p>
+          <div className="space-y-2">
+            <textarea
+              value={block.shortAnswer || ''}
+              onChange={e => {
+                updateBlock(block.id, { shortAnswer: e.target.value });
+                if (e.target.value.trim()) clearBlockError(block.id, 'shortAnswer');
+              }}
+              placeholder="Type the expected answer key here..."
+              rows={5}
+              className="w-full text-sm outline-none p-3 rounded-lg transition-colors"
+              style={{
+                border: '1.5px solid var(--lms-border)',
+                color: 'var(--lms-text-main)',
+                fontFamily: 'var(--lms-font)',
+                background: 'var(--lms-bg-white)',
+                resize: 'vertical'
+              }}
+            />
+            {block.shortAnswer?.trim() && (
+              <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--lms-success)', fontFamily: 'var(--lms-font)' }}>
+                <Check className="h-3 w-3" />
+                <span>Answer key saved</span>
+              </div>
+            )}
+          </div>
+          <div className="mt-4 flex justify-end">
+            <button 
+              type="button" 
+              onClick={() => setAnswerKeyOpenBlockId(null)} 
+              className="lms-ak-done-btn"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div>
           <div className="mt-1 px-1 py-1.5 flex items-center" style={{ borderBottom: '1.5px solid var(--lms-border)' }}>
             <span className="text-sm italic" style={{ color: 'var(--lms-text-hint)', fontFamily: 'var(--lms-font)' }}>Long answer text</span>
           </div>
-          <p className="text-[11px] mt-3 italic" style={{ color: 'var(--lms-text-sec)', fontFamily: 'var(--lms-font)' }}>No correct answer needed for essay questions</p>
+          
+          <div className="mt-4">
+            <div className="flex items-center gap-2">
+              <button 
+                type="button" 
+                onClick={() => setAnswerKeyOpenBlockId(block.id)} 
+                className="lms-answer-key-btn"
+              >
+                <div className="lms-answer-key-checkbox">
+                  <Check style={{ width: 10, height: 10, color: 'var(--lms-info)' }} strokeWidth={3} />
+                </div>
+                Answer key
+              </button>
+              {block.shortAnswer?.trim() && (
+                <span className="text-xs flex items-center gap-1" style={{ color: 'var(--lms-success)', fontFamily: 'var(--lms-font)' }}>
+                  <Check className="h-3 w-3" />
+                  Answer key set
+                </span>
+              )}
+            </div>
+            
+            {block.shortAnswer?.trim() && (
+              <div className="mt-3 p-3 rounded-lg" style={{ background: 'var(--lms-success-bg)', border: '1.5px solid var(--lms-success-bdr)' }}>
+                <p className="text-[10px] font-bold uppercase mb-1" style={{ color: 'var(--lms-success)', fontFamily: 'var(--lms-font)' }}>Expected Answer</p>
+                <p className="text-sm" style={{ color: '#14532d', fontFamily: 'var(--lms-font)', whiteSpace: 'pre-wrap' }}>
+                  {block.shortAnswer}
+                </p>
+              </div>
+            )}
+            
+            <p className="text-[11px] mt-3 italic" style={{ color: 'var(--lms-text-sec)', fontFamily: 'var(--lms-font)' }}>
+              {block.shortAnswer?.trim() 
+                ? 'Click Answer key to edit the expected answer' 
+                : 'Set an expected answer to help with grading'}
+            </p>
+          </div>
         </div>
-      );
-    }
+      )}
+    </div>
+  );
+}
 
     if (block.type === 'matching') {
       return (
@@ -5001,6 +5365,32 @@ const MCQQuestionForm: React.FC<MCQQuestionFormProps> = ({
         />
       )}
 
+
+      {/* ── Question Bank Selector ── */}
+      {showBankSelector && (
+        <div className="fixed inset-0 z-[9999]">
+          <QuestionBankSelector
+            exerciseData={{
+              exerciseId: exerciseDbId,
+              exerciseName: exerciseData?.exerciseName || exerciseData?.fullExerciseData?.exerciseInformation?.exerciseName || '',
+              exerciseLevel: exerciseData?.fullExerciseData?.exerciseInformation?.exerciseLevel || 'intermediate',
+              nodeId: entityId,
+              nodeName: exerciseData?.nodeName || '',
+              subcategory,
+              nodeType: exerciseData?.nodeType || '',
+              fullExerciseData: exerciseData?.fullExerciseData,
+              exerciseType: exerciseData?.exerciseType || exerciseData?.fullExerciseData?.exerciseType || '',
+            }}
+            tabType={tabType}
+            onClose={() => setShowBankSelector(false)}
+            onBack={() => { setShowBankSelector(false); setShowAddDropdown(true); }}
+            onSelect={(qs) => { setShowBankSelector(false); handleBankSelectedQuestions(qs); }}
+            existingQuestionIds={(exerciseData?.fullExerciseData?.questions || []).map((q: any) => q._id)}
+            existingQuestions={exerciseData?.fullExerciseData?.questions || []}
+          />
+        </div>
+      )}
+
       {/* ── HEADER ── */}
       <div className="flex items-center justify-between px-4 py-2.5 flex-shrink-0"
         style={{ background: 'var(--lms-bg-white)', borderBottom: '1.5px solid var(--lms-border)' }}>
@@ -5041,29 +5431,79 @@ const MCQQuestionForm: React.FC<MCQQuestionFormProps> = ({
             )}
           </button>
 
-          {limitReachedForAI ? (
-            <div className="relative group/ai-limit mr-2">
-              <div className="lms-btn lms-btn-orange" style={{ opacity: 0.5, cursor: 'not-allowed' }}>
-                <Sparkles className="h-3.5 w-3.5" />Generate AI
+          {/* ── Add Question — simple select: pick Question Bank or Generate AI ── */}
+          <div className="relative mr-2" onClick={e => e.stopPropagation()}>
+            <button
+              onClick={() => setShowAddDropdown(v => !v)}
+              className="inline-flex items-center justify-between gap-2"
+              style={{ minWidth: 150, height: 32, padding: '0 10px', borderRadius: 8, border: '1.5px solid #e4e4ed', background: '#fff', color: '#1a1a2e', fontSize: 12.5, fontWeight: 600, fontFamily: 'var(--lms-font)', cursor: 'pointer' }}
+            >
+              Add Question via
+              <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+            </button>
+            {showAddDropdown && (
+              <div
+                className="absolute top-full right-0 mt-1.5 z-[9999] overflow-hidden"
+                style={{ width: 220, background: '#fff', borderRadius: 12, border: '1px solid #e4e4ed', boxShadow: '0 8px 32px rgba(26,26,46,0.14)', fontFamily: 'var(--lms-font)' }}
+              >
+                {/* 1. Question Bank */}
+                <button
+                  onClick={() => { setShowAddDropdown(false); if (!limitReachedForAI) setShowBankSelector(true); }}
+                  disabled={limitReachedForAI}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ background: 'none', border: 'none', cursor: limitReachedForAI ? 'not-allowed' : 'pointer' }}
+                  onMouseEnter={e => { if (!limitReachedForAI) e.currentTarget.style.background = 'rgba(168,85,247,0.06)'; }}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                  title={limitReachedForAI ? getAiLimitTooltip() : ''}
+                >
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(168,85,247,0.1)' }}>
+                    <Database size={14} style={{ color: '#a855f7' }} />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-[12.5px] font-semibold" style={{ color: '#1a1a2e' }}>Question Bank</div>
+                    <div className="text-[10px]" style={{ color: limitReachedForAI ? '#d97706' : '#8b8b9e' }}>
+                      {limitReachedForAI ? 'Limit reached' : 'Import from bank'}
+                    </div>
+                  </div>
+                </button>
+
+                <div style={{ height: 1, background: '#f0f0f7', margin: '0 12px' }} />
+
+                {/* 2. Generate AI */}
+                <button
+                  onClick={() => { if (!limitReachedForAI) triggerAI(); else setShowAddDropdown(false); }}
+                  disabled={limitReachedForAI}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ background: 'none', border: 'none', cursor: limitReachedForAI ? 'not-allowed' : 'pointer' }}
+                  onMouseEnter={e => { if (!limitReachedForAI) e.currentTarget.style.background = 'rgba(242,119,87,0.06)'; }}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                  title={limitReachedForAI ? getAiLimitTooltip() : ''}
+                >
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(242,119,87,0.1)' }}>
+                    <Sparkles size={14} style={{ color: '#F27757' }} />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-[12.5px] font-semibold" style={{ color: '#1a1a2e' }}>Generate AI</div>
+                    <div className="text-[10px]" style={{ color: limitReachedForAI ? '#d97706' : '#8b8b9e' }}>
+                      {limitReachedForAI ? 'Limit reached' : 'Auto-generate'}
+                    </div>
+                  </div>
+                </button>
               </div>
-              <div className="absolute top-full right-0 mt-2 z-[9999] w-64 text-[11px] font-medium px-3 py-2.5 rounded-lg leading-relaxed pointer-events-none opacity-0 group-hover/ai-limit:opacity-100 transition-opacity"
-                style={{ background: '#1a1a2e', color: 'white', boxShadow: '0 4px 20px rgba(0,0,0,0.25)', fontFamily: 'var(--lms-font)' }}>
-                <div className="absolute top-[-5px] right-4 w-2.5 h-2.5 rotate-45" style={{ background: '#1a1a2e' }} />
-                <div className="flex items-start gap-2">
-                  <AlertCircle className="h-3.5 w-3.5 text-amber-400 flex-shrink-0 mt-0.5" />
-                  <span>{getAiLimitTooltip()}</span>
-                </div>
-              </div>
-            </div>
-          ) : (
+            )}
+          </div>
+          {/* AI modal — externalOpen drives visibility; z-index handled inside GenerateMCQAIQuestion */}
+          {!limitReachedForAI && (
             <GenerateMCQAIQuestion
               breadcrumbs={breadcrumbs} exerciseData={exerciseData}
-              onClose={() => { }} onSave={handleAIGeneratedQuestions}
-              buttonClassName="lms-btn lms-btn-orange mr-2"
-              buttonText={<span className="flex items-center gap-1.5"><Sparkles className="h-3.5 w-3.5" />Generate AI</span>}
+              onClose={() => setShowAIModal(false)}
+              onSave={handleAIGeneratedQuestions}
+              buttonText={null}
+              externalOpen={showAIModal}
+              onExternalOpenHandled={() => setShowAIModal(false)}
               scoringType={scoringType} marksPerQuestion={marksPerQuestion}
               maxSelectableCount={scoringType === 'equalDistribution' && totalMcqQuestions > 0
-                ? Math.max(isCurrentBlockFillable ? 1 : 0, totalMcqQuestions - questionBlocks.length + (isCurrentBlockFillable ? 1 : 0))
+                ? Math.max(isCurrentBlockFillable ? 1 : 0, totalMcqQuestions - savedBlocks.length)
                 : -1}
               remainingMarks={scoringType === 'questionSpecific' && maxMcqMarks > 0
                 ? Math.max(0, maxMcqMarks - questionBlocks.reduce((s, b) => s + (Number(b.score) || 0), 0))
@@ -5468,8 +5908,9 @@ const MCQQuestionForm: React.FC<MCQQuestionFormProps> = ({
 
                 <button
                   onClick={() => goToIndex(currentIndex + 1)}
-                  disabled={currentIndex >= questionBlocks.length - 1}
+                  disabled={currentIndex >= questionBlocks.length - 1 || currentBlock?.origin === 'new'}
                   className="lms-nav-btn flex-shrink-0"
+                  title={currentBlock?.origin === 'new' ? 'Save this question first before moving to the next' : undefined}
                 >
                   Next <ChevronRight className="h-3.5 w-3.5" />
                 </button>

@@ -48,7 +48,13 @@ export interface SecuritySettingsData {
   enableIdVerification: boolean;
   enableVoiceVerification: boolean;
   captureIntervalSeconds: number;
-  
+  // Face-detection proctoring (no face / multiple persons → warnings then auto-submit)
+  multipleFaceDetection: boolean;
+  faceWarningLimit: number;
+  // Face-presence monitoring (no face / student absent → warnings then auto-submit)
+  faceMonitoringDetection: boolean;
+  faceMonitoringWarningLimit: number;
+
   // Network restrictions
   blockOtherIPs: boolean;
   allowedIPs: string[];
@@ -155,7 +161,7 @@ const NumberInput: React.FC<{
     {label && <span className="text-xs font-medium" style={{ color: D.textSub }}>{label}</span>}
     <input
       type="number"
-      value={value}
+      value={Number.isFinite(value) ? value : min}
       onChange={(e) => onChange(Math.min(max, Math.max(min, parseInt(e.target.value) || min)))}
       disabled={disabled}
       className="w-20 px-2 py-1 text-sm rounded-lg border text-center"
@@ -252,7 +258,95 @@ export const SecuritySettings: React.FC<SecuritySettingsProps> = ({ value, onCha
             disabled={disabled}
             info="Detects screen recording software, OBS, Zoom recording, and browser-based recording APIs. Shows warning if recording is detected."
           />
-          
+
+          {/* Camera Proctoring (Face Verification) — drives the webcam during the test */}
+          <SettingRow
+            label="Camera Proctoring"
+            description="Require the student's webcam and record the camera during the test"
+            icon={<Camera size={16} />}
+            enabled={value.enableFaceVerification}
+            onChange={(v) => updateField('enableFaceVerification', v)}
+            disabled={disabled}
+            info="When ON, the student is prompted for camera access before starting and the camera is recorded for proctoring. When OFF, only screen recording runs."
+          >
+            {value.enableFaceVerification && (
+              <div className="mt-2 flex items-center gap-2">
+                <span className="text-xs" style={{ color: D.textMuted }}>Capture every</span>
+                <input
+                  type="number"
+                  min={10}
+                  max={600}
+                  value={value.captureIntervalSeconds}
+                  onChange={(e) => updateField('captureIntervalSeconds', Math.max(10, Number(e.target.value) || 60))}
+                  className="w-20 px-2 py-1 text-sm rounded-lg border"
+                  style={{ borderColor: D.border, background: D.bg }}
+                  disabled={disabled}
+                />
+                <span className="text-xs" style={{ color: D.textMuted }}>seconds</span>
+              </div>
+            )}
+          </SettingRow>
+
+          {/* Multiple Face Detection — webcam proctoring: no face / multiple persons */}
+          <SettingRow
+            label="Multiple Face Detection"
+            description="Monitor the webcam for no face or more than one person during the test"
+            icon={<Users size={16} />}
+            enabled={value.multipleFaceDetection}
+            onChange={(v) => updateField('multipleFaceDetection', v)}
+            disabled={disabled}
+            info="Requires Camera Proctoring. The student is warned each time no face or multiple people are detected; after the warning limit is reached the assessment is auto-submitted and closed."
+          >
+            {value.multipleFaceDetection && (
+              <div className="mt-2">
+                <NumberInput
+                  value={value.faceWarningLimit}
+                  onChange={(v) => updateField('faceWarningLimit', v)}
+                  min={1}
+                  max={10}
+                  label="Warning limit:"
+                  unit="warnings, then auto-submit"
+                  disabled={disabled}
+                />
+              </div>
+            )}
+          </SettingRow>
+
+          {/* Face Monitoring Detection — webcam proctoring: student's face must stay visible */}
+          <SettingRow
+            label="Face Monitoring Detection"
+            description="Monitor that the student's face stays visible during the test"
+            icon={<Eye size={16} />}
+            enabled={value.faceMonitoringDetection}
+            onChange={(v) => updateField('faceMonitoringDetection', v)}
+            disabled={disabled}
+            info="Requires Camera Proctoring. The student is warned each time no face is detected; after the warning limit is reached the assessment is auto-submitted and closed."
+          >
+            {value.faceMonitoringDetection && (
+              <div className="mt-2">
+                <NumberInput
+                  value={value.faceMonitoringWarningLimit}
+                  onChange={(v) => updateField('faceMonitoringWarningLimit', v)}
+                  min={1}
+                  max={10}
+                  label="Warning limit:"
+                  unit="warnings, then auto-submit"
+                  disabled={disabled}
+                />
+              </div>
+            )}
+          </SettingRow>
+
+          {/* Microphone / Voice Monitoring */}
+          <SettingRow
+            label="Microphone Monitoring"
+            description="Capture microphone audio during the test"
+            icon={<Mic size={16} />}
+            enabled={value.enableVoiceVerification}
+            onChange={(v) => updateField('enableVoiceVerification', v)}
+            disabled={disabled}
+          />
+
           <SettingRow
             label="Require Fullscreen Mode"
             description="Test must be taken in fullscreen mode"
@@ -550,6 +644,10 @@ export const defaultSecuritySettings: SecuritySettingsData = {
   enableIdVerification: false,
   enableVoiceVerification: false,
   captureIntervalSeconds: 60,
+  multipleFaceDetection: false,
+  faceWarningLimit: 3,
+  faceMonitoringDetection: false,
+  faceMonitoringWarningLimit: 3,
   blockOtherIPs: false,
   allowedIPs: [],
   singleDeviceOnly: false,

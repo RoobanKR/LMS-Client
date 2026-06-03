@@ -1,5 +1,6 @@
 "use client"
 
+import { Loading } from "@/components/loading-ui/loading"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import {
@@ -375,15 +376,7 @@ export default function ProfilePage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 to-amber-50 dark:from-gray-950 dark:to-gray-900">
-        <div className="flex flex-col items-center gap-3">
-          <div className="relative h-12 w-12">
-            <div className="absolute inset-0 rounded-full border-3 border-orange-200 border-t-orange-500 animate-spin" style={{ borderWidth: 3 }} />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <Flame className="h-5 w-5 text-orange-500 animate-pulse" />
-            </div>
-          </div>
-          <p className="text-orange-500 text-xs font-bold uppercase tracking-widest">Loading Profile...</p>
-        </div>
+        <Loading size="size-12" label="Loading Profile..." />
       </div>
     )
   }

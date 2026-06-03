@@ -1,7 +1,7 @@
 // ScheduleStep.tsx
-import React, { useState, useRef, useEffect } from 'react';
-import { Calendar, Clock, Lock, Bell, ChevronLeft, ChevronRight, AlertCircle } from 'lucide-react';
-import { D } from './constants';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Calendar, Clock, Lock, Bell, ChevronUp, ChevronDown, Check } from 'lucide-react';
+import { D, generateCalendarDays } from './constants';
 import { FormDataType, ValidationErrors } from './types';
 import { InfoTooltip } from './UIComponents';
 
@@ -14,448 +14,456 @@ interface ScheduleStepProps {
   isEditing: boolean;
 }
 
-// Helper function to generate calendar days
-const generateCalendarDays = (year: number, month: number): (number | null)[] => {
-  const daysInMonth = new Date(year, month, 0).getDate();
-  const firstDayOfMonth = new Date(year, month - 1, 1).getDay();
-  const days: (number | null)[] = [];
-  for (let i = 0; i < firstDayOfMonth; i++) days.push(null);
-  for (let i = 1; i <= daysInMonth; i++) days.push(i);
-  return days;
+type DateValue = { day: number; month: number; year: number; hour: number; minute: number };
+const EMPTY: DateValue = { day: 0, month: 0, year: 0, hour: 0, minute: 0 };
+const hasDate = (v: DateValue) => v.day > 0 && v.month > 0 && v.year > 0;
+
+const MONTHS_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const DAY_NAMES = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+const GRN = '#10b981';
+const GRN_LIGHT = 'rgba(16,185,129,0.10)';
+
+const fmtDateTime = (v: DateValue) => {
+  if (!hasDate(v)) return '';
+  const h = v.hour, m = v.minute;
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const hh = h % 12 === 0 ? 12 : h % 12;
+  return `${MONTHS_SHORT[v.month - 1]} ${v.day}, ${v.year}, ${String(hh).padStart(2,'0')}:${String(m).padStart(2,'0')} ${ampm}`;
 };
 
-// Date picker component
-const DatePicker: React.FC<{
-  value: { day: number; month: number; year: number; hour: number; minute: number };
-  onChange: (date: { day: number; month: number; year: number; hour: number; minute: number }) => void;
-  label: string;
-  disabled?: boolean;
-  minDate?: Date;
-  error?: string;
-  touched?: boolean;
-  required?: boolean;
-}> = ({ value, onChange, label, disabled, minDate, error, touched, required }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [tempDate, setTempDate] = useState(value);
-  const pickerRef = useRef<HTMLDivElement>(null);
-  const buttonRef = useRef<HTMLButtonElement>(null);
-
-  const [calMonth, setCalMonth] = useState(value.month || new Date().getMonth() + 1);
-  const [calYear, setCalYear] = useState(value.year || new Date().getFullYear());
+// ── Editable segment input (DD, MM, YYYY, HH, MM) ───────────────────────────
+const SegInput: React.FC<{
+  value: number;           // 0 = empty
+  placeholder: string;    // 'DD' | 'MM' | 'YYYY' | 'HH' | 'MM'
+  min: number;
+  max: number;
+  onChange: (v: number) => void;
+}> = ({ value, placeholder, min, max, onChange }) => {
+  const pad = placeholder.length;
+  const [raw, setRaw] = useState(value > 0 ? String(value).padStart(pad, '0') : '');
 
   useEffect(() => {
-    if (isOpen) {
-      setTempDate(value);
-      setCalMonth(value.month || new Date().getMonth() + 1);
-      setCalYear(value.year || new Date().getFullYear());
-    }
-  }, [isOpen, value]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleClick = (e: MouseEvent) => {
-      if (pickerRef.current && !pickerRef.current.contains(e.target as Node) &&
-          buttonRef.current && !buttonRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [isOpen]);
-
-  const formatDateTime = () => {
-    if (value.day === 0 || value.month === 0 || value.year === 0) {
-      return `Select ${label.toLowerCase()}`;
-    }
-    const date = new Date(value.year, value.month - 1, value.day, value.hour, value.minute);
-    return date.toLocaleString('en-US', {
-      month: 'short', day: 'numeric', year: 'numeric',
-      hour: '2-digit', minute: '2-digit',
-    });
-  };
-
-  const isDayDisabled = (day: number): boolean => {
-    if (!minDate) return false;
-    const checkDate = new Date(calYear, calMonth - 1, day);
-    checkDate.setHours(0, 0, 0, 0);
-    const minDateOnly = new Date(minDate);
-    minDateOnly.setHours(0, 0, 0, 0);
-    return checkDate < minDateOnly;
-  };
-
-  const handleDateSelect = (day: number) => {
-    if (isDayDisabled(day)) return;
-    setTempDate(prev => ({ ...prev, day, month: calMonth, year: calYear }));
-  };
-
-  const handleTimeChange = (hour: number, minute: number) => {
-    setTempDate(prev => ({ ...prev, hour, minute }));
-  };
-
-  const handleConfirm = () => {
-    onChange(tempDate);
-    setIsOpen(false);
-  };
-
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const hours = Array.from({ length: 24 }, (_, i) => i);
-  const minutes = Array.from({ length: 60 }, (_, i) => i);
-
-  const hasValue = value.day > 0 && value.month > 0 && value.year > 0;
+    setRaw(value > 0 ? String(value).padStart(pad, '0') : '');
+  }, [value, pad]);
 
   return (
-    <div className="relative">
-      <button
-        ref={buttonRef}
-        type="button"
-        onClick={() => !disabled && setIsOpen(v => !v)}
-        disabled={disabled}
-        className={`w-full flex items-center justify-between px-3 py-2 rounded-lg border text-sm transition-all ${
-          error && touched ? 'border-red-300 bg-red-50/30' : 'border-[#ecedf1] bg-white'
-        } ${
-          disabled ? 'bg-[#fafafa] text-[#9b9bae] cursor-not-allowed' : 'hover:border-[#F27757] focus:border-[#F27757]'
-        }`}
-      >
-        <span className={`truncate ${!hasValue ? 'text-[#9b9bae]' : 'text-[#1a1a2e]'}`}>
-          {formatDateTime()}
-        </span>
-        <Calendar size={14} className="flex-shrink-0" style={{ color: D.textMuted }} />
-      </button>
-      {required && !hasValue && touched && !error && (
-        <p className="mt-1 text-xs" style={{ color: D.red }}>{label} is required</p>
-      )}
-      {error && touched && <p className="mt-1 text-xs" style={{ color: D.red }}>{error}</p>}
+    <input
+      type="text"
+      inputMode="numeric"
+      value={raw}
+      placeholder={placeholder}
+      maxLength={pad}
+      onChange={e => {
+        const v = e.target.value.replace(/\D/g, '').slice(0, pad);
+        setRaw(v);
+        const n = parseInt(v, 10);
+        if (!isNaN(n)) onChange(Math.min(n, max));
+      }}
+      onBlur={() => {
+        const n = parseInt(raw, 10);
+        if (isNaN(n) || n < min) { setRaw(''); onChange(0); }
+        else {
+          const c = Math.min(Math.max(n, min), max);
+          setRaw(String(c).padStart(pad, '0'));
+          onChange(c);
+        }
+      }}
+      className="text-center font-semibold bg-white rounded-md outline-none transition-colors"
+      style={{
+        width: pad === 4 ? 42 : 26,
+        height: 24,
+        fontSize: 11,
+        border: '1.5px solid #ecedf1',
+        color: '#1a1a2e',
+      }}
+      onFocus={e => (e.target.style.borderColor = GRN)}
+      onBlurCapture={e => (e.target.style.borderColor = '#ecedf1')}
+    />
+  );
+};
 
-      {isOpen && !disabled && (
-        <div
-          ref={pickerRef}
-          className="absolute z-[9999] p-4 rounded-xl shadow-2xl border bg-white"
-          style={{ width: 320, top: '100%', left: 0, marginTop: 8 }}
-        >
-          {/* Calendar header */}
-          <div className="mb-3">
-            <div className="flex items-center justify-between mb-2">
-              <button
-                onClick={() => {
-                  if (calMonth === 1) { setCalMonth(12); setCalYear(y => y - 1); }
-                  else setCalMonth(m => m - 1);
-                }}
-                className="w-7 h-7 rounded-md flex items-center justify-center hover:bg-gray-100"
-              >
-                <ChevronLeft size={14} />
-              </button>
-              <span className="text-sm font-bold">{months[calMonth - 1]} {calYear}</span>
-              <button
-                onClick={() => {
-                  if (calMonth === 12) { setCalMonth(1); setCalYear(y => y + 1); }
-                  else setCalMonth(m => m + 1);
-                }}
-                className="w-7 h-7 rounded-md flex items-center justify-center hover:bg-gray-100"
-              >
-                <ChevronRight size={14} />
-              </button>
-            </div>
+// ── Spinner (up/down arrows + value in green circle) ─────────────────────────
+const Spinner: React.FC<{ value: number; max: number; onChange: (v: number) => void }> = ({ value, max, onChange }) => (
+  <div className="flex flex-col items-center gap-0.5">
+    <button
+      type="button"
+      onClick={() => onChange(value >= max ? 0 : value + 1)}
+      className="w-5 h-5 flex items-center justify-center rounded hover:bg-gray-100 transition-colors"
+    >
+      <ChevronUp size={12} style={{ color: GRN }} />
+    </button>
+    <div
+      className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold"
+      style={{ background: GRN, fontSize: 12 }}
+    >
+      {String(value).padStart(2, '0')}
+    </div>
+    <button
+      type="button"
+      onClick={() => onChange(value <= 0 ? max : value - 1)}
+      className="w-5 h-5 flex items-center justify-center rounded hover:bg-gray-100 transition-colors"
+    >
+      <ChevronDown size={12} style={{ color: GRN }} />
+    </button>
+  </div>
+);
 
-            {/* Day headers */}
-            <div className="grid grid-cols-7 gap-1 mb-1">
-              {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(d => (
-                <div key={d} className="text-center text-[10px] font-semibold py-1" style={{ color: D.textMuted }}>{d}</div>
-              ))}
-            </div>
+// ── Calendar Popup ────────────────────────────────────────────────────────────
+interface CalendarPopupProps {
+  fieldLabel: string;
+  value: DateValue;
+  onConfirm: (v: DateValue) => void;
+  onClose: () => void;
+  minDate?: Date;
+  anchorEl: HTMLElement | null;
+}
 
-            {/* Days grid */}
-            <div className="grid grid-cols-7 gap-1">
-              {generateCalendarDays(calYear, calMonth).map((day, idx) => {
-                const isDisabled = day ? isDayDisabled(day) : true;
-                const isSelected = tempDate.day === day && tempDate.month === calMonth && tempDate.year === calYear;
-                const isToday = day === new Date().getDate() && calMonth === new Date().getMonth() + 1 && calYear === new Date().getFullYear();
-                return (
-                  <button
-                    key={idx}
-                    onClick={() => day && !isDisabled && handleDateSelect(day)}
-                    disabled={!day || isDisabled}
-                    className="h-8 w-8 text-xs rounded-lg flex items-center justify-center transition-all mx-auto"
-                    style={{
-                      background: isSelected ? D.orange : 'transparent',
-                      color: isSelected ? '#fff' : isDisabled ? '#d1d5db' : '#1a1a2e',
-                      fontWeight: isToday && !isSelected ? 700 : 400,
-                      outline: isToday && !isSelected ? `1.5px solid ${D.orange}` : 'none',
-                      cursor: !day || isDisabled ? 'default' : 'pointer',
-                    }}
-                  >
-                    {day}
-                  </button>
-                );
-              })}
-            </div>
+const CalendarPopup: React.FC<CalendarPopupProps> = ({ fieldLabel, value, onConfirm, onClose, minDate, anchorEl }) => {
+  const [calMonth, setCalMonth]     = useState(hasDate(value) ? value.month     : new Date().getMonth() + 1);
+  const [calYear, setCalYear]       = useState(hasDate(value) ? value.year      : new Date().getFullYear());
+  const [selDay, setSelDay]         = useState(hasDate(value) ? value.day       : 0);
+  const [selMonth, setSelMonth]     = useState(hasDate(value) ? value.month     : 0);
+  const [selYear, setSelYear]       = useState(hasDate(value) ? value.year      : 0);
+  const [hour, setHour]             = useState(value.hour);
+  const [minute, setMinute]         = useState(value.minute);
+  const popRef                      = useRef<HTMLDivElement>(null);
+  const [pos, setPos]               = useState<React.CSSProperties>({ position: 'fixed', top: -9999, left: -9999, zIndex: 9999, visibility: 'hidden' });
+
+  // Two-pass positioning: first render off-screen, then measure real height and snap into place
+  useEffect(() => {
+    if (!anchorEl || !popRef.current) return;
+    // Let the browser paint once so offsetHeight is accurate
+    const frame = requestAnimationFrame(() => {
+      if (!anchorEl || !popRef.current) return;
+      const r  = anchorEl.getBoundingClientRect();
+      const pw = 360;
+      const ph = popRef.current.offsetHeight || 360;   // real rendered height
+
+      // Prefer right of anchor; flip left if no room
+      let left = r.right + 8;
+      if (left + pw > window.innerWidth - 8) left = r.left - pw - 8;
+      left = Math.max(8, left);
+
+      // Align popup top with anchor top; clamp so it never bleeds off screen
+      let top = r.top;
+      top = Math.max(8, Math.min(top, window.innerHeight - ph - 8));
+
+      setPos({ position: 'fixed', top, left, zIndex: 9999, visibility: 'visible' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [anchorEl]);
+
+  // Outside click
+  useEffect(() => {
+    const fn = (e: MouseEvent) => {
+      if (popRef.current?.contains(e.target as Node)) return;
+      if (anchorEl?.contains(e.target as Node)) return;
+      onClose();
+    };
+    document.addEventListener('mousedown', fn);
+    return () => document.removeEventListener('mousedown', fn);
+  }, [anchorEl, onClose]);
+
+  const isDisabled = (day: number) => {
+    if (!minDate) return false;
+    const d = new Date(calYear, calMonth - 1, day); d.setHours(0,0,0,0);
+    const m = new Date(minDate); m.setHours(0,0,0,0);
+    return d < m;
+  };
+
+  const prevMonth = () => calMonth === 1 ? (setCalMonth(12), setCalYear(y => y-1)) : setCalMonth(m => m-1);
+  const nextMonth = () => calMonth === 12 ? (setCalMonth(1), setCalYear(y => y+1)) : setCalMonth(m => m+1);
+
+  const today = new Date();
+  const days = generateCalendarDays(calYear, calMonth);
+
+  const selectDay = (day: number) => {
+    if (isDisabled(day)) return;
+    setSelDay(day); setSelMonth(calMonth); setSelYear(calYear);
+  };
+
+  const setNow = () => {
+    const n = new Date();
+    if (minDate && n < minDate) return;
+    setSelDay(n.getDate()); setSelMonth(n.getMonth()+1); setSelYear(n.getFullYear());
+    setCalMonth(n.getMonth()+1); setCalYear(n.getFullYear());
+    setHour(n.getHours()); setMinute(n.getMinutes());
+  };
+
+  const confirm = () => {
+    if (!selDay) return;
+    onConfirm({ day: selDay, month: selMonth, year: selYear, hour, minute });
+    onClose();
+  };
+
+  const selVal: DateValue = { day: selDay, month: selMonth, year: selYear, hour, minute };
+
+  return (
+    <div ref={popRef} style={pos} className="bg-white rounded-xl shadow-2xl border border-[#ecedf1] w-[360px] overflow-hidden select-none">
+      {/* Header */}
+      <div className="flex items-center gap-1.5 px-3 py-2 border-b border-[#ecedf1]">
+        <div className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0" style={{ background: GRN_LIGHT }}>
+          <Calendar size={11} style={{ color: GRN }} />
+        </div>
+        <span className="text-xs font-semibold text-[#6b6b7e]">Setting:</span>
+        <span className="text-xs font-bold truncate" style={{ color: GRN }}>{fieldLabel}</span>
+      </div>
+
+      {/* Body: calendar left + time right */}
+      <div className="flex divide-x divide-[#ecedf1]">
+        {/* Calendar */}
+        <div className="flex-1 px-3 py-2">
+          {/* Month nav */}
+          <div className="flex items-center justify-between mb-2">
+            <button onClick={prevMonth} className="w-6 h-6 rounded-md flex items-center justify-center hover:bg-gray-100 text-[#6b6b7e] text-sm font-bold">‹</button>
+            <span className="text-xs font-bold text-[#1a1a2e]">{MONTHS_FULL[calMonth-1]} {calYear}</span>
+            <button onClick={nextMonth} className="w-6 h-6 rounded-md flex items-center justify-center hover:bg-gray-100 text-[#6b6b7e] text-sm font-bold">›</button>
           </div>
 
-          {/* Time picker */}
-          <div className="border-t pt-3" style={{ borderColor: D.border }}>
-            <div className="text-xs font-semibold mb-2" style={{ color: D.textMuted }}>Time</div>
-            <div className="flex gap-2">
-              <select
-                value={tempDate.hour}
-                onChange={e => handleTimeChange(parseInt(e.target.value), tempDate.minute)}
-                className="flex-1 px-2 py-1.5 text-sm rounded-lg border outline-none"
-                style={{ borderColor: D.border }}
-              >
-                {hours.map(h => (
-                  <option key={h} value={h}>{h.toString().padStart(2, '0')}:00</option>
-                ))}
-              </select>
-              <select
-                value={tempDate.minute}
-                onChange={e => handleTimeChange(tempDate.hour, parseInt(e.target.value))}
-                className="flex-1 px-2 py-1.5 text-sm rounded-lg border outline-none"
-                style={{ borderColor: D.border }}
-              >
-                {minutes.map(m => (
-                  <option key={m} value={m}>:{m.toString().padStart(2, '0')}</option>
-                ))}
-              </select>
-            </div>
+          {/* Day headers */}
+          <div className="grid grid-cols-7 mb-0.5">
+            {DAY_NAMES.map(d => (
+              <div key={d} className="text-center py-0.5" style={{ fontSize: 9, fontWeight: 700, color: D.textMuted }}>{d}</div>
+            ))}
           </div>
 
-          {/* Actions */}
-          <div className="flex justify-between mt-3 pt-2 border-t" style={{ borderColor: D.border }}>
-            <button
-              onClick={() => {
-                const now = new Date();
-                if (minDate && now < minDate) return;
-                setTempDate({
-                  day: now.getDate(),
-                  month: now.getMonth() + 1,
-                  year: now.getFullYear(),
-                  hour: now.getHours(),
-                  minute: now.getMinutes(),
-                });
-              }}
-              className="text-xs font-semibold"
-              style={{ color: D.orange }}
-            >
-              Now
-            </button>
-            <button
-              onClick={() => { setTempDate(value); setIsOpen(false); }}
-              className="text-xs font-semibold"
-              style={{ color: D.textMuted }}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleConfirm}
-              className="text-xs font-semibold px-3 py-1 rounded-lg text-white"
-              style={{ background: D.orange }}
-            >
-              OK
-            </button>
+          {/* Days */}
+          <div className="grid grid-cols-7">
+            {days.map((day, idx) => {
+              if (!day) return <div key={idx} />;
+              const disabled   = isDisabled(day);
+              const isSelected = selDay === day && selMonth === calMonth && selYear === calYear;
+              const isToday    = day === today.getDate() && calMonth === today.getMonth()+1 && calYear === today.getFullYear();
+              return (
+                <button
+                  key={idx}
+                  onClick={() => selectDay(day)}
+                  disabled={disabled}
+                  className="h-7 w-7 rounded-lg flex items-center justify-center mx-auto transition-all"
+                  style={{
+                    fontSize: 10,
+                    background: isSelected ? GRN : 'transparent',
+                    color: isSelected ? '#fff' : disabled ? '#d1d5db' : '#1a1a2e',
+                    fontWeight: isToday && !isSelected ? 700 : 400,
+                    outline: isToday && !isSelected ? `2px solid ${GRN}` : 'none',
+                    outlineOffset: '-2px',
+                    cursor: disabled ? 'default' : 'pointer',
+                  }}
+                >
+                  {day}
+                </button>
+              );
+            })}
           </div>
         </div>
-      )}
+
+        {/* Time spinner */}
+        <div className="w-24 flex flex-col items-center justify-center gap-2 px-2 py-2">
+          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', color: D.textMuted }}>TIME</span>
+          <div className="flex items-center gap-1">
+            <Spinner value={hour}   max={23} onChange={setHour} />
+            <span className="text-sm font-bold" style={{ color: GRN }}>:</span>
+            <Spinner value={minute} max={59} onChange={setMinute} />
+          </div>
+        </div>
+      </div>
+
+      {/* Selected date banner */}
+      <div className="mx-3 mb-2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg" style={{ background: GRN_LIGHT }}>
+        <Check size={11} style={{ color: GRN }} />
+        <span className="text-xs font-semibold truncate" style={{ color: GRN }}>
+          {selDay ? fmtDateTime(selVal) : 'No date selected'}
+        </span>
+      </div>
+
+      {/* Footer */}
+      <div className="flex items-center justify-between px-3 pb-2.5">
+        <button onClick={setNow} className="text-xs font-semibold" style={{ color: D.orange }}>Now</button>
+        <button onClick={onClose} className="text-xs font-semibold text-[#6b6b7e]">Cancel</button>
+        <button
+          onClick={confirm}
+          disabled={!selDay}
+          className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition-all"
+          style={{ background: selDay ? GRN : '#d1d5db' }}
+        >
+          Confirm
+        </button>
+      </div>
     </div>
   );
 };
 
+// ── Schedule Step ─────────────────────────────────────────────────────────────
 export const ScheduleStep: React.FC<ScheduleStepProps> = ({
-  formData,
-  setFormData,
-  setValidationErrors,
-  validationErrors,
-  touchedFields,
-  isEditing,
+  formData, setFormData, setValidationErrors, validationErrors, touchedFields, isEditing,
 }) => {
-  const updateScheduleField = (field: string, value: { day: number; month: number; year: number; hour: number; minute: number }) => {
-    setFormData(prev => ({
-      ...prev,
-      schedule: {
-        ...prev.schedule,
-        [field]: value,
-      },
-    }));
-    // Clear validation error
+  const [openField, setOpenField] = useState<string | null>(null);
+  const rowRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  const get = useCallback((key: string): DateValue => (formData.schedule as any)[key] || EMPTY, [formData.schedule]);
+
+  const set = useCallback((key: string, val: DateValue) => {
+    setFormData(prev => ({ ...prev, schedule: { ...prev.schedule, [key]: val } }));
     setValidationErrors(prev => {
-      const errors = { ...prev };
-      if (field === 'startDate') delete errors.startDate;
-      if (field === 'endDate') delete errors.endDate;
-      if (field === 'cutOffDate') delete (errors as any).cutOffDate;
-      if (field === 'gracePeriodDate') delete errors.gracePeriod;
-      return errors;
+      const n = { ...prev };
+      if (key === 'startDate')      delete n.startDate;
+      if (key === 'endDate')        delete n.endDate;
+      if (key === 'cutOffDate')     delete (n as any).cutOffDate;
+      if (key === 'gracePeriodDate') delete n.gracePeriod;
+      return n;
     });
-  };
+  }, [setFormData, setValidationErrors]);
 
-  const getFieldValue = (fieldKey: string) => {
-    return (formData.schedule as any)[fieldKey] || { day: 0, month: 0, year: 0, hour: 0, minute: 0 };
-  };
-
-  const getFieldError = (fieldKey: string): string | undefined => {
-    if (fieldKey === 'startDate') return validationErrors.startDate;
-    if (fieldKey === 'endDate') return validationErrors.endDate;
-    if (fieldKey === 'cutOffDate') return (validationErrors as any).cutOffDate;
-    if (fieldKey === 'gracePeriodDate') return validationErrors.gracePeriod;
-    return undefined;
-  };
-
-  const getFieldTouched = (fieldKey: string): boolean => {
-    if (fieldKey === 'startDate') return touchedFields.has('startDate');
-    if (fieldKey === 'endDate') return touchedFields.has('endDate');
-    if (fieldKey === 'cutOffDate') return touchedFields.has('cutOffDate');
-    if (fieldKey === 'gracePeriodDate') return touchedFields.has('gracePeriod');
-    return false;
-  };
-
-  const getMinDateForField = (fieldKey: string): Date | undefined => {
-    const now = new Date();
-    if (fieldKey === 'startDate') {
-      return isEditing ? undefined : now;
-    }
-    if (fieldKey === 'endDate') {
-      const startDate = getFieldValue('startDate');
-      if (startDate.day > 0 && startDate.month > 0 && startDate.year > 0) {
-        return new Date(startDate.year, startDate.month - 1, startDate.day, startDate.hour, startDate.minute);
-      }
-      return isEditing ? undefined : now;
-    }
-    if (fieldKey === 'cutOffDate') {
-      const endDate = getFieldValue('endDate');
-      if (endDate.day > 0 && endDate.month > 0 && endDate.year > 0) {
-        return new Date(endDate.year, endDate.month - 1, endDate.day, endDate.hour, endDate.minute);
-      }
-      return undefined;
-    }
-    if (fieldKey === 'gracePeriodDate') {
-      const cutOffDate = getFieldValue('cutOffDate');
-      if (cutOffDate.day > 0 && cutOffDate.month > 0 && cutOffDate.year > 0) {
-        return new Date(cutOffDate.year, cutOffDate.month - 1, cutOffDate.day, cutOffDate.hour, cutOffDate.minute);
-      }
-      const endDate = getFieldValue('endDate');
-      if (endDate.day > 0 && endDate.month > 0 && endDate.year > 0) {
-        return new Date(endDate.year, endDate.month - 1, endDate.day, endDate.hour, endDate.minute);
-      }
-      return undefined;
-    }
-    return undefined;
-  };
-
-  const handleToggleEnable = (fieldKey: string, enabledKey: string) => {
+  const toggle = useCallback((enabledKey: string) => {
     setFormData(prev => ({
       ...prev,
-      schedule: {
-        ...prev.schedule,
-        [enabledKey]: !(prev.schedule as any)[enabledKey],
-      },
+      schedule: { ...prev.schedule, [enabledKey]: !(prev.schedule as any)[enabledKey] },
     }));
+  }, [setFormData]);
+
+  const getMinDate = useCallback((key: string): Date | undefined => {
+    const now = new Date();
+    if (key === 'startDate') return isEditing ? undefined : now;
+    if (key === 'endDate') {
+      const s = get('startDate');
+      return hasDate(s) ? new Date(s.year, s.month-1, s.day, s.hour, s.minute) : (isEditing ? undefined : now);
+    }
+    if (key === 'cutOffDate') {
+      const e = get('endDate');
+      return hasDate(e) ? new Date(e.year, e.month-1, e.day, e.hour, e.minute) : undefined;
+    }
+    if (key === 'gracePeriodDate') {
+      const c = get('cutOffDate');
+      if (hasDate(c)) return new Date(c.year, c.month-1, c.day, c.hour, c.minute);
+      const e = get('endDate');
+      return hasDate(e) ? new Date(e.year, e.month-1, e.day, e.hour, e.minute) : undefined;
+    }
+  }, [get, isEditing]);
+
+  const getError = (key: string) => {
+    if (key === 'startDate')       return validationErrors.startDate;
+    if (key === 'endDate')         return validationErrors.endDate;
+    if (key === 'cutOffDate')      return (validationErrors as any).cutOffDate;
+    if (key === 'gracePeriodDate') return validationErrors.gracePeriod;
   };
 
-  const DATE_FIELDS = [
-    { 
-      label: 'Start Date & Time', 
-      fieldKey: 'startDate', 
-      toggleable: false,
-      tooltip: 'The date from which students can start submitting this exercise.',
-      icon: <Calendar size={14} />,
-      color: D.emerald,
-      required: true,
-    },
-    { 
-      label: 'End Date & Time', 
-      fieldKey: 'endDate', 
-      toggleable: false,
-      tooltip: 'The actual submission deadline. Submissions after this date are not accepted.',
-      icon: <Clock size={14} />,
-      color: D.amber,
-      required: true,
-    },
-    { 
-      label: 'Cut-off Date & Time', 
-      fieldKey: 'cutOffDate', 
-      toggleable: true,
-      enabledKey: 'cutOffEnabled',
-      tooltip: 'Optional hard late boundary. Must be on or after the end date.',
-      icon: <Lock size={14} />,
-      color: D.red,
-    },
-    { 
-      label: 'Grace Period', 
-      fieldKey: 'gracePeriodDate', 
-      toggleable: true,
-      enabledKey: 'gracePeriodEnabled',
-      tooltip: 'Additional time after cut-off date for submissions.',
-      icon: <Bell size={14} />,
-      color: D.purple,
-    },
-  ];
+  const FIELDS = [
+    { label: 'Start Date & Time',   fieldKey: 'startDate',      icon: <Calendar size={15} />, iconColor: D.emerald,  iconBg: 'rgba(16,185,129,0.10)', toggleable: false, enabledKey: '',                  required: true,  tooltip: 'The date from which students can start submitting.' },
+    { label: 'End Date & Time',     fieldKey: 'endDate',        icon: <Clock size={15} />,    iconColor: D.amber,    iconBg: 'rgba(245,158,11,0.10)',  toggleable: false, enabledKey: '',                  required: true,  tooltip: 'The submission deadline.' },
+    { label: 'Cut-off Date & Time', fieldKey: 'cutOffDate',     icon: <Lock size={15} />,     iconColor: D.red,      iconBg: 'rgba(239,68,68,0.10)',   toggleable: true,  enabledKey: 'cutOffEnabled',      required: false, tooltip: 'Optional hard late boundary after end date.' },
+    { label: 'Remind Me to Mark By',fieldKey: 'gracePeriodDate',icon: <Bell size={15} />,     iconColor: D.purple,   iconBg: 'rgba(139,92,246,0.10)', toggleable: true,  enabledKey: 'gracePeriodEnabled', required: false, tooltip: 'Reminder to finish grading by this date.' },
+  ] as const;
 
   return (
     <div className="px-4 py-3">
+      {/* Section header */}
       <div className="mb-4 flex items-center gap-2">
-        <div
-          className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
-          style={{ background: D.orangeLight, color: D.orange }}
-        >
-          <Calendar size={13} />
+        <div className="w-7 h-7 rounded-xl flex items-center justify-center" style={{ background: D.orangeLight, color: D.orange }}>
+          <Calendar size={14} />
         </div>
-        <h3 className="text-sm font-bold" style={{ color: '#000000', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+        <h3 className="text-sm font-bold text-[#1a1a2e]" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
           Schedule Exercise
         </h3>
       </div>
 
-      <div className="space-y-4">
-        {DATE_FIELDS.map(({ label, fieldKey, toggleable, enabledKey, tooltip, icon, color, required }) => {
-          const isEnabled = !toggleable || !!(formData.schedule as any)[enabledKey!];
-          const value = getFieldValue(fieldKey);
-          const error = getFieldError(fieldKey);
-          const touched = getFieldTouched(fieldKey);
-          const minDate = getMinDateForField(fieldKey);
+      {/* Rows */}
+      <div className="divide-y divide-[#ecedf1]">
+        {FIELDS.map(({ label, fieldKey, icon, iconColor, iconBg, toggleable, enabledKey, required, tooltip }) => {
+          const enabled  = !toggleable || !!(formData.schedule as any)[enabledKey];
+          const val      = get(fieldKey);
+          const hasDt    = hasDate(val);
+          const error    = getError(fieldKey);
+          const touched  = touchedFields.has(fieldKey === 'gracePeriodDate' ? 'gracePeriod' : fieldKey);
+          const isOpen   = openField === fieldKey;
 
           return (
-            <div key={fieldKey} className="flex items-start gap-3">
-              {/* Left side - Label */}
-              <div className="w-36 flex-shrink-0 flex items-start gap-2 pt-2">
-                <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${color}12`, color }}>
-                  {icon}
-                </div>
-                <div className="flex items-center gap-0.5 flex-wrap">
-                  <span className="text-xs font-semibold" style={{ color: '#000000' }}>{label}</span>
-                  {required && <span className="text-xs font-bold flex-shrink-0" style={{ color: D.orange }}>*</span>}
-                  {tooltip && <InfoTooltip content={tooltip} side="right" />}
-                </div>
+            <div
+              key={fieldKey}
+              ref={el => { rowRefs.current[fieldKey] = el; }}
+              className="flex items-center gap-3 py-3 relative"
+            >
+              {/* Icon */}
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: iconBg, color: iconColor }}>
+                {icon}
               </div>
 
-              {/* Right side - Toggle and Picker */}
-              <div className="flex-1 flex items-center gap-3">
-                {toggleable && (
+              {/* Label */}
+              <div className="flex items-center gap-1 w-40 flex-shrink-0">
+                <span className="text-xs font-semibold text-[#1a1a2e]">{label}</span>
+                {required && <span className="text-xs font-bold" style={{ color: D.orange }}>*</span>}
+                {tooltip && <InfoTooltip content={tooltip} side="right" />}
+              </div>
+
+              {/* Toggle (optional fields) */}
+              {toggleable && (
+                <button
+                  type="button"
+                  onClick={() => toggle(enabledKey)}
+                  className="relative inline-flex items-center h-5 w-9 flex-shrink-0 rounded-full p-[2px] transition-colors duration-200"
+                  style={{ background: enabled ? D.orange : '#e2e3e8' }}
+                >
+                  <span className={`inline-block h-[13px] w-[13px] rounded-full bg-white shadow transition-transform duration-200 ${enabled ? 'translate-x-[17px]' : 'translate-x-0'}`} />
+                </button>
+              )}
+
+              {/* Date/time display OR disabled */}
+              {enabled ? (
+                <div className="flex items-center gap-1">
+                  {/* DD / MM / YYYY — editable inputs */}
+                  <span className="inline-flex items-center gap-1">
+                    <SegInput value={val.day}   placeholder="DD"   min={1} max={31} onChange={d => set(fieldKey, { ...val, day: d })} />
+                    <span className="text-[#9b9bae] text-xs font-bold">/</span>
+                    <SegInput value={val.month} placeholder="MM"   min={1} max={12} onChange={m => set(fieldKey, { ...val, month: m })} />
+                    <span className="text-[#9b9bae] text-xs font-bold">/</span>
+                    <SegInput value={val.year}  placeholder="YYYY" min={2020} max={2099} onChange={y => set(fieldKey, { ...val, year: y })} />
+                  </span>
+
+                  {/* HH : MM — editable inputs */}
+                  <span className="inline-flex items-center gap-1 ml-2">
+                    <SegInput value={val.hour}   placeholder="HH" min={0} max={23} onChange={h => set(fieldKey, { ...val, hour: h })} />
+                    <span className="text-[#9b9bae] text-xs font-bold">:</span>
+                    <SegInput value={val.minute} placeholder="MM" min={0} max={59} onChange={m => set(fieldKey, { ...val, minute: m })} />
+                  </span>
+
+                  {/* Calendar icon button — triggers popup */}
                   <button
+                    ref={el => { rowRefs.current[fieldKey + '_btn'] = el as HTMLDivElement | null; }}
                     type="button"
-                    onClick={() => handleToggleEnable(fieldKey, enabledKey!)}
-                    className="relative inline-flex items-center h-5 w-9 flex-shrink-0 rounded-full border-transparent transition-colors duration-200 p-[2px]"
-                    style={{ background: isEnabled ? D.orange : '#e2e3e8' }}
+                    onClick={() => setOpenField(isOpen ? null : fieldKey)}
+                    className="ml-2 w-8 h-8 rounded-xl flex items-center justify-center border transition-all flex-shrink-0"
+                    style={{
+                      background: isOpen ? GRN : '#f4f4f6',
+                      color: isOpen ? '#fff' : '#6b6b7e',
+                      borderColor: isOpen ? GRN : D.border,
+                    }}
                   >
-                    <span className={`inline-block h-[13px] w-[13px] transform rounded-full bg-white shadow transition-transform duration-200 ${
-                      isEnabled ? 'translate-x-[17px]' : 'translate-x-0'
-                    }`} />
+                    <Calendar size={14} />
                   </button>
-                )}
-
-                <div className="flex-1">
-                  {isEnabled ? (
-                    <DatePicker
-                      value={value}
-                      onChange={(newValue) => updateScheduleField(fieldKey, newValue)}
-                      label={label}
-                      minDate={minDate}
-                      error={error}
-                      touched={touched}
-                      required={required}
-                    />
-                  ) : (
-                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-[#fafafa]" style={{ borderColor: D.border }}>
-                      <Lock size={12} style={{ color: D.textMuted }} />
-                      <span className="text-xs" style={{ color: D.textMuted }}>Disabled</span>
-                    </div>
-                  )}
                 </div>
-              </div>
+              ) : (
+                <div className="flex items-center gap-1.5 text-xs" style={{ color: D.textMuted }}>
+                  <Lock size={12} />
+                  <span>Disabled</span>
+                </div>
+              )}
+
+              {/* Validation error */}
+              {error && touched && (
+                <span className="text-xs ml-1" style={{ color: D.red }}>{error}</span>
+              )}
+
+              {/* Calendar popup — anchored to the calendar icon button */}
+              {isOpen && enabled && (
+                <CalendarPopup
+                  fieldLabel={label}
+                  value={val}
+                  onConfirm={v => { set(fieldKey, v); setOpenField(null); }}
+                  onClose={() => setOpenField(null)}
+                  minDate={getMinDate(fieldKey)}
+                  anchorEl={rowRefs.current[fieldKey + '_btn']}
+                />
+              )}
             </div>
           );
         })}

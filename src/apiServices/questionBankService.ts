@@ -41,21 +41,38 @@ const cleanSimpleQuestionPayload = (question: Partial<Question>): Partial<Questi
       ...baseFields,
       title: question.title || '',
       description: question.description || '',
-      difficulty: question.difficulty || 'Medium',
+      difficulty: question.difficulty || 'medium',
       sampleInput: question.sampleInput || '',
       sampleOutput: question.sampleOutput || '',
       score: question.score || 0,
+      category: question.category || 'core',
     };
 
-    if (question.constraints && question.constraints.length > 0) {
-      cleanedQuestion.constraints = question.constraints.filter(c => c.trim() !== '');
+    // ✅ Add sampleQuery and expectedResult for database category
+    if (question.sampleQuery) {
+      cleanedQuestion.sampleQuery = question.sampleQuery;
+    }
+    
+    if (question.expectedResult) {
+      cleanedQuestion.expectedResult = question.expectedResult;
     }
 
-    if (question.hints && question.hints.length > 0) {
+    // ✅ CRITICAL FIX: Add constraints for frontend category
+    // Make sure to send it as a plain array of strings
+    if (question.constraints && Array.isArray(question.constraints) && question.constraints.length > 0) {
+      cleanedQuestion.constraints = question.constraints.filter(c => c && c.trim() !== '');
+    }
+
+    // ✅ Also handle constraints for core/database
+    if (question.constraints && Array.isArray(question.constraints) && question.constraints.length > 0) {
+      cleanedQuestion.constraints = question.constraints.filter(c => c && c.trim() !== '');
+    }
+
+    if (question.hints && Array.isArray(question.hints) && question.hints.length > 0) {
       cleanedQuestion.hints = question.hints.filter(h => h.hintText?.trim() !== '');
     }
 
-    if (question.testCases && question.testCases.length > 0) {
+    if (question.testCases && Array.isArray(question.testCases) && question.testCases.length > 0) {
       cleanedQuestion.testCases = question.testCases.filter(t => 
         t.input?.trim() !== '' || t.expectedOutput?.trim() !== ''
       );
@@ -67,14 +84,9 @@ const cleanSimpleQuestionPayload = (question: Partial<Question>): Partial<Questi
       cleanedQuestion.solutions = question.solutions;
     }
 
-    if (question.timeLimit) {
-      cleanedQuestion.timeLimit = question.timeLimit;
-    }
-
-    if (question.memoryLimit) {
-      cleanedQuestion.memoryLimit = question.memoryLimit;
-    }
-
+    // Log for debugging
+    console.log('📤 Sending constraints:', cleanedQuestion.constraints);
+    
     return cleanedQuestion;
   }
 

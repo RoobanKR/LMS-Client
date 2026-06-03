@@ -1064,12 +1064,13 @@ const DateRowPicker: React.FC<{
 // =============================================================================
 const GradeRow = React.memo(({
   icon, color, label, info, fieldKey, value, onChange, onBlur,
-  autoValue, error, errorTouched,
+  autoValue, error, errorTouched, optional,
 }: {
   icon: React.ReactNode; color: string; label: string; info: string;
   fieldKey?: string;
   value?: number | null; onChange?: (v: number) => void; onBlur?: () => void;
   autoValue?: number | string; error?: string; errorTouched?: boolean;
+  optional?: boolean;
 }) => (
   <div className="flex items-center justify-between py-2.5 border-b last:border-b-0" style={{ borderColor: D.border }}>
     <div className="flex items-center gap-2.5 flex-1 mr-4">
@@ -1077,7 +1078,7 @@ const GradeRow = React.memo(({
       <div>
         <div className="flex items-center gap-0.5">
           <span className="text-xs font-semibold" style={{ color: D.textMain, fontFamily: FONT }}>{label}</span>
-          {!autoValue && <span className="text-xs font-bold" style={{ color: D.orange }}>*</span>}
+          {!autoValue && !optional && <span className="text-xs font-bold" style={{ color: D.orange }}>*</span>}
           <InfoTooltip content={info} side="right" />
         </div>
         {error && errorTouched && <p className="text-[10.5px] mt-0.5" style={{ color: D.red }}>{error}</p>}
@@ -1600,24 +1601,24 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
         }
         case 'Notifications':
         case 'Notification': {
-          // Green tick when mark settings are filled (means user completed the full flow)
-          if (formData.exerciseType === 'MCQ') filled = (formData.grades.mcqGradeToPass ?? 0) > 0;
-          else if (formData.exerciseType === 'Other') filled = (formData.grades.programmingGradeToPass ?? 0) > 0;
-          else if (formData.exerciseType === 'Programming') filled = (formData.grades.programmingGrade ?? 0) > 0 && (formData.grades.programmingGradeToPass ?? 0) > 0;
-          else if (formData.exerciseType === 'Combined') filled = (formData.grades.combinedGradeToPass ?? 0) > 0;
+          // Green tick — Mark to Pass is optional, so just check that Grade Settings was visited/saved
+          if (formData.exerciseType === 'MCQ') filled = true;
+          else if (formData.exerciseType === 'Other') filled = true;
+          else if (formData.exerciseType === 'Programming') filled = (formData.grades.programmingGrade ?? 0) > 0;
+          else if (formData.exerciseType === 'Combined') filled = true;
           else filled = false;
           break;
         }
         case 'Grade Settings':
+          // Mark to Pass is optional — only Mark (programmingGrade) is required for Programming type
           if (formData.exerciseType === 'MCQ')
-            filled = (formData.grades.mcqGradeToPass ?? 0) > 0;
+            filled = true;
           else if (formData.exerciseType === 'Other')
-            // Mark is auto from totalMarks — only Mark to Pass is user-entered
-            filled = (formData.grades.programmingGradeToPass ?? 0) > 0;
+            filled = true;
           else if (formData.exerciseType === 'Programming')
-            filled = (formData.grades.programmingGrade ?? 0) > 0 && (formData.grades.programmingGradeToPass ?? 0) > 0;
+            filled = (formData.grades.programmingGrade ?? 0) > 0;
           else if (formData.exerciseType === 'Combined')
-            filled = (formData.grades.combinedGradeToPass ?? 0) > 0;
+            filled = true;
           break;
         default:
           filled = true;
@@ -1869,6 +1870,14 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
     if (ct === 'levelBased') {
       const counts = formData.programmingConfig.levelBasedCounts ?? { easy: 0, medium: 0, hard: 0 };
       if ((counts.easy ?? 0) <= 0 || (counts.medium ?? 0) <= 0 || (counts.hard ?? 0) <= 0) return null;
+      // All three levels must have marks configured — a level with count > 0 but 0 marks is invalid
+      const missingMarks = (['easy', 'medium', 'hard'] as const).filter(l => {
+        const c = counts[l] ?? 0; if (!c) return false;
+        const sc = ls?.[l];
+        if (!sc) return true;
+        return sc.type === 'level_specific' ? !(sc.marksPerQuestion && sc.marksPerQuestion > 0) : !(sc.totalMarks && sc.totalMarks > 0);
+      });
+      if (missingMarks.length > 0) return `Please enter marks for: ${missingMarks.map(l => l.charAt(0).toUpperCase() + l.slice(1)).join(', ')}`;
       const sum = getSum(counts); if (sum <= 0) return null;
       return isApproximatelyEqual(sum, total) ? null : `Level totals sum to ${sum} but total is ${total}.`;
     }
@@ -1966,6 +1975,14 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
     if (ct === 'levelBased') {
       const counts = formData.othersConfig.levelBasedCounts ?? { easy: 0, medium: 0, hard: 0 };
       if ((counts.easy ?? 0) <= 0 || (counts.medium ?? 0) <= 0 || (counts.hard ?? 0) <= 0) return null;
+      // All three levels must have marks configured — a level with count > 0 but 0 marks is invalid
+      const missingMarks = (['easy', 'medium', 'hard'] as const).filter(l => {
+        const c = counts[l] ?? 0; if (!c) return false;
+        const sc = ls?.[l];
+        if (!sc) return true;
+        return sc.type === 'level_specific' ? !(sc.marksPerQuestion && sc.marksPerQuestion > 0) : !(sc.totalMarks && sc.totalMarks > 0);
+      });
+      if (missingMarks.length > 0) return `Please enter marks for: ${missingMarks.map(l => l.charAt(0).toUpperCase() + l.slice(1)).join(', ')}`;
       const sum = getSum(counts); if (sum <= 0) return null;
       return isApproximatelyEqual(sum, total) ? null : `Level totals sum to ${sum} but total is ${total}.`;
     }
@@ -2394,35 +2411,24 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
 
     if (et === 'MCQ') {
       const autoGrade = formData.totalMarks;
-      if (!skipTopLevelPass) {
-        if (!g.mcqGradeToPass || g.mcqGradeToPass <= 0) e.mcqGradeToPass = 'Mark to Pass is required';
-        else if (autoGrade > 0 && g.mcqGradeToPass > autoGrade)
-          e.mcqGradeToPass = `Cannot exceed Mark (${autoGrade})`;
-      } else if (g.mcqGradeToPass && autoGrade > 0 && g.mcqGradeToPass > autoGrade) {
+      // Mark to Pass is optional — only validate "cannot exceed" when provided
+      if (g.mcqGradeToPass && autoGrade > 0 && g.mcqGradeToPass > autoGrade) {
         e.mcqGradeToPass = `Cannot exceed Mark (${autoGrade})`;
       }
     }
 
     if (et === 'Programming') {
-      if (!skipTopLevelPass) {
-        if (!g.programmingGrade || g.programmingGrade <= 0) e.programmingGrade = 'Mark is required';
-        if (!g.programmingGradeToPass || g.programmingGradeToPass <= 0) e.programmingGradeToPass = 'Mark to Pass is required';
-        else if (g.programmingGrade && g.programmingGradeToPass > g.programmingGrade)
-          e.programmingGradeToPass = `Cannot exceed Mark (${g.programmingGrade})`;
-      } else {
-        if (!g.programmingGrade || g.programmingGrade <= 0) e.programmingGrade = 'Mark is required';
-        else if (g.programmingGradeToPass && g.programmingGrade && g.programmingGradeToPass > g.programmingGrade)
-          e.programmingGradeToPass = `Cannot exceed Mark (${g.programmingGrade})`;
+      if (!g.programmingGrade || g.programmingGrade <= 0) e.programmingGrade = 'Mark is required';
+      // Mark to Pass is optional — only validate "cannot exceed" when provided
+      if (g.programmingGradeToPass && g.programmingGrade && g.programmingGradeToPass > g.programmingGrade) {
+        e.programmingGradeToPass = `Cannot exceed Mark (${g.programmingGrade})`;
       }
     }
 
     if (et === 'Other') {
       const autoGrade = formData.totalMarks || 0;
-      if (!skipTopLevelPass) {
-        if (!g.programmingGradeToPass || g.programmingGradeToPass <= 0) e.programmingGradeToPass = 'Mark to Pass is required';
-        else if (autoGrade > 0 && g.programmingGradeToPass > autoGrade)
-          e.programmingGradeToPass = `Cannot exceed Mark (${autoGrade})`;
-      } else if (g.programmingGradeToPass && autoGrade > 0 && g.programmingGradeToPass > autoGrade) {
+      // Mark to Pass is optional — only validate "cannot exceed" when provided
+      if (g.programmingGradeToPass && autoGrade > 0 && g.programmingGradeToPass > autoGrade) {
         e.programmingGradeToPass = `Cannot exceed Mark (${autoGrade})`;
       }
     }
@@ -2431,26 +2437,15 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
       if (g.separateMarks) {
         const autoMCQ = formData.totalMarksMCQ || 0;
         const autoProg = formData.totalMarksProgramming || 0;
-        if (!skipTopLevelPass) {
-          if (!g.mcqGradeToPass || g.mcqGradeToPass <= 0) e.mcqGradeToPass = 'MCQ Mark to Pass is required';
-          else if (autoMCQ > 0 && g.mcqGradeToPass > autoMCQ)
-            e.mcqGradeToPass = `Cannot exceed MCQ Mark (${autoMCQ})`;
-          if (!g.programmingGradeToPass || g.programmingGradeToPass <= 0) e.programmingGradeToPass = 'Programming Mark to Pass is required';
-          else if (autoProg > 0 && g.programmingGradeToPass > autoProg)
-            e.programmingGradeToPass = `Cannot exceed Programming Mark (${autoProg})`;
-        } else {
-          if (g.mcqGradeToPass && autoMCQ > 0 && g.mcqGradeToPass > autoMCQ)
-            e.mcqGradeToPass = `Cannot exceed MCQ Mark (${autoMCQ})`;
-          if (g.programmingGradeToPass && autoProg > 0 && g.programmingGradeToPass > autoProg)
-            e.programmingGradeToPass = `Cannot exceed Programming Mark (${autoProg})`;
-        }
+        // Mark to Pass is optional — only validate "cannot exceed" when provided
+        if (g.mcqGradeToPass && autoMCQ > 0 && g.mcqGradeToPass > autoMCQ)
+          e.mcqGradeToPass = `Cannot exceed MCQ Mark (${autoMCQ})`;
+        if (g.programmingGradeToPass && autoProg > 0 && g.programmingGradeToPass > autoProg)
+          e.programmingGradeToPass = `Cannot exceed Programming Mark (${autoProg})`;
       } else {
         const autoGrade = (formData.totalMarksMCQ || 0) + (formData.totalMarksProgramming || 0);
-        if (!skipTopLevelPass) {
-          if (!g.combinedGradeToPass || g.combinedGradeToPass <= 0) e.combinedGradeToPass = 'Mark to Pass is required';
-          else if (autoGrade > 0 && g.combinedGradeToPass > autoGrade)
-            e.combinedGradeToPass = `Cannot exceed Mark (${autoGrade})`;
-        } else if (g.combinedGradeToPass && autoGrade > 0 && g.combinedGradeToPass > autoGrade) {
+        // Mark to Pass is optional — only validate "cannot exceed" when provided
+        if (g.combinedGradeToPass && autoGrade > 0 && g.combinedGradeToPass > autoGrade) {
           e.combinedGradeToPass = `Cannot exceed Mark (${autoGrade})`;
         }
       }
@@ -2884,7 +2879,8 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
       if (formData.isGraded !== false && othersLevelMismatch) allErrors.othersTotalMarks = othersLevelMismatch;
       allFields.push('othersGeneralQuestionCount', 'othersMarksPerQuestion',
         'othersLevelCounts', 'othersLevelCounts_Easy',
-        'othersLevelCounts_Medium', 'othersLevelCounts_Hard', 'othersTotalMarks');
+        'othersLevelCounts_Medium', 'othersLevelCounts_Hard', 'othersTotalMarks',
+        'scoring_others_easy', 'scoring_others_medium', 'scoring_others_hard');
     }
 
     const scheduleErrors = validateSchedule();
@@ -2911,7 +2907,11 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
         allErrors.programmingGeneralQuestionCount || allErrors.programmingMarksPerQuestion ||
         allErrors.programmingLevelCounts || allErrors.programmingLevelCounts_Easy ||
         allErrors.programmingLevelCounts_Medium || allErrors.programmingLevelCounts_Hard ||
-        allErrors.programmingTotalMarks || allErrors.programmingLevelScoring)
+        allErrors.programmingTotalMarks || allErrors.programmingLevelScoring ||
+        allErrors.othersGeneralQuestionCount || allErrors.othersMarksPerQuestion ||
+        allErrors.othersLevelCounts || allErrors.othersLevelCounts_Easy ||
+        allErrors.othersLevelCounts_Medium || allErrors.othersLevelCounts_Hard ||
+        allErrors.othersTotalMarks || allErrors.othersLevelScoring)
         incompleteSteps.push('Question Configuration');
       if (allErrors.startDate || allErrors.endDate || allErrors.cutOffDate || allErrors.gracePeriod)
         incompleteSteps.push('Schedule');
@@ -3220,6 +3220,10 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
         return n;
       });
 
+      // Clear all validation errors on successful save — sidebar indicators reset
+      setValidationErrors({});
+      setTouchedFields(new Set());
+
       afterSave?.();
     } catch (err: any) {
       const msg = err?.message || 'Failed to save';
@@ -3310,7 +3314,8 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
         if (formData.isGraded !== false && othersLevelMismatch) errors.othersTotalMarks = othersLevelMismatch;
         fields.push('othersGeneralQuestionCount', 'othersMarksPerQuestion',
           'othersLevelCounts', 'othersLevelCounts_Easy',
-          'othersLevelCounts_Medium', 'othersLevelCounts_Hard', 'othersTotalMarks');
+          'othersLevelCounts_Medium', 'othersLevelCounts_Hard', 'othersTotalMarks',
+          'scoring_others_easy', 'scoring_others_medium', 'scoring_others_hard');
       }
     }
 
@@ -3331,6 +3336,32 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
     if (Object.keys(errors).length > 0) {
       setValidationErrors(prev => ({ ...prev, ...errors }));
       markAllTouched(fields);
+
+      // For Combined type: auto-switch to the tab that has errors so the user can see them
+      if (formData.exerciseType === 'Combined' && currentTitle === 'Question Configuration') {
+        const hasProgrammingErrors = Object.keys(errors).some(k =>
+          k.startsWith('programming') || k === 'programmingTotalMarks' || k === 'programmingLevelScoring'
+        );
+        const hasMCQErrors = Object.keys(errors).some(k =>
+          k.startsWith('mcq') || k === 'mcqTotalMarks'
+        );
+        // Switch to the tab with errors; prefer programming if both have errors and user is on mcq
+        if (hasProgrammingErrors && combinedConfigTab === 'mcq') {
+          setCombinedConfigTab('programming');
+        } else if (hasMCQErrors && combinedConfigTab === 'programming') {
+          setCombinedConfigTab('mcq');
+        }
+      }
+
+      // Determine which section has issues for a helpful toast message
+      const hasLevelScoringError = !!(errors.othersLevelScoring || errors.programmingLevelScoring);
+      const hasSumError = !!(errors.othersTotalMarks || errors.programmingTotalMarks);
+      const scoringMsg = hasLevelScoringError
+        ? 'Please fill in marks for all configured levels'
+        : hasSumError
+          ? 'Level marks total must equal total marks'
+          : 'Please fill in all required fields';
+      toast.error(scoringMsg, { position: 'top-right', duration: 4000, id: 'step-validation-error' });
       return;
     }
 
@@ -4255,7 +4286,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
               style={{ width: '100%' }}
             />
           ) : (
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
               <div style={{ flex: 1 }}>
                 <ONumberInput
                   value={formData.totalMarksMCQ}
@@ -4462,7 +4493,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
     const isMatch = isApproximatelyEqual(othersAllocatedMarks, totalToUse);
     const total = formData.exerciseType === 'Combined' ? (formData.totalMarksProgramming ?? 0) : (formData.totalMarks ?? 0);
 
-    const progUsedMarks = programmingAllocatedMarks;
+    const progUsedMarks = othersAllocatedMarks;
     const progRemainingMarks = Math.max(0, totalToUse - progUsedMarks);
 
     const renderScoringConfiguration = () => {
@@ -4511,6 +4542,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
                   <div className="text-[9px] font-semibold mb-1" style={{ color: D.textMuted }}>{isQSpec ? 'TOTAL MARKS' : 'PER QUESTION'}</div>
                   <ONumberInput value={isQSpec ? (scoring?.totalMarks || 0) : (scoring?.marksPerQuestion || 0)}
                     onChange={v => updateOthersLevelScoringConfig(level, isQSpec ? { totalMarks: v } : { marksPerQuestion: v })}
+                    liveUpdate
                     className="text-xs" />
                 </div>
                 <div className="text-[10px] text-center font-semibold pt-1 border-t" style={{ borderColor: D.border2, color: style.color }}>
@@ -4547,12 +4579,6 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
           </div>
         </div>
 
-        {othersLevelMismatch && (
-          <div className="sticky z-10 mb-3 flex items-center gap-2 px-3 py-2 rounded-lg" style={{ top: '44px', background: D.red + '10', border: `1px solid ${D.red}40` }}>
-            <AlertCircle size={13} style={{ color: D.red }} />
-            <p className="text-xs font-semibold flex-1" style={{ color: D.red }}>{othersLevelMismatch}</p>
-          </div>
-        )}
 
         <div className="space-y-0">
           {/* Config Strategy + Difficulty Counts — side by side */}
@@ -4651,18 +4677,26 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
                   <div className="flex items-center gap-1.5">
                     <Calculator size={12} style={{ color: D.textMuted }} />
                     <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: D.textMuted, fontFamily: FONT }}>Questions and Scoring Configuration</span>
+                    {othersLevelMismatch && (
+                      <div className="flex items-center gap-1 px-2 py-0.5 rounded-md" style={{ background: D.red + '10', border: `1px solid ${D.red}30` }}>
+                        <AlertCircle size={10} style={{ color: D.red, flexShrink: 0 }} />
+                        <span className="text-[10px] font-semibold" style={{ color: D.red }}>{othersLevelMismatch}</span>
+                      </div>
+                    )}
                   </div>
-                  <div className="flex items-center gap-1.5" style={{ fontFamily: FONT }}>
-                    <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold" style={{ background: D.blue + '15', color: D.blue }}>
-                      Total Marks : &nbsp;<strong>{totalToUse}</strong>
-                    </span>
-                    <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold" style={{ background: D.emerald + '15', color: D.emerald }}>
-                      Used Marks : &nbsp;<strong>{formatDecimal(progUsedMarks)}</strong>
-                    </span>
-                    <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold" style={{ background: (progRemainingMarks === 0 ? D.emerald : D.red) + '15', color: progRemainingMarks === 0 ? D.emerald : D.red }}>
-                      Left Marks&nbsp;<strong>{formatDecimal(progRemainingMarks)}</strong>
-                    </span>
-                  </div>
+                  {formData.isGraded !== false && (
+                    <div className="flex items-center gap-1.5" style={{ fontFamily: FONT }}>
+                      <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold" style={{ background: D.blue + '15', color: D.blue }}>
+                        Total Marks : &nbsp;<strong>{totalToUse}</strong>
+                      </span>
+                      <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold" style={{ background: D.emerald + '15', color: D.emerald }}>
+                        Used Marks : &nbsp;<strong>{formatDecimal(progUsedMarks)}</strong>
+                      </span>
+                      <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold" style={{ background: (progRemainingMarks === 0 ? D.emerald : D.red) + '15', color: progRemainingMarks === 0 ? D.emerald : D.red }}>
+                        Left Marks : &nbsp;<strong>{formatDecimal(progRemainingMarks)}</strong>
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {(() => {
@@ -4721,6 +4755,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
                       {!isSelLevel && validationErrors.othersLevelCounts && touchedFields.has('othersLevelCounts') && (
                         <p className="text-[10px] mb-1" style={{ color: D.red }}>{validationErrors.othersLevelCounts}</p>
                       )}
+                      {formData.isGraded !== false && (<>
                       {/* Row 2: Score Type */}
                       <div style={rowStyle}>
                         <div className="text-[10px] font-semibold" style={{ color: D.textMuted }}>Score Type</div>
@@ -4752,7 +4787,8 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
                           return (
                             <div key={level} style={{ opacity: count === 0 ? 0.4 : 1, pointerEvents: count === 0 ? 'none' : 'auto' }}>
                               <ONumberInput value={isQSpec ? (scoring?.totalMarks || 0) : (scoring?.marksPerQuestion || 0)}
-                                onChange={v => updateOthersLevelScoringConfig(level, isQSpec ? { totalMarks: v } : { marksPerQuestion: v })} />
+                                onChange={v => updateOthersLevelScoringConfig(level, isQSpec ? { totalMarks: v } : { marksPerQuestion: v })}
+                                liveUpdate />
                               {hasError && <span className="text-[10px]" style={{ color: D.red }}>{scoringErrors[level]}</span>}
                             </div>
                           );
@@ -4774,6 +4810,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
                           );
                         })}
                       </div>
+                      </>)}
                     </div>
                   );
                 })()}
@@ -6613,7 +6650,7 @@ const renderNotifications = useCallback(() => {
           >
             <span>Level</span>
             <span className="text-center">Total Marks</span>
-            <span className="text-center">Mark to Pass <span style={{ color: D.orange }}>*</span></span>
+            <span className="text-center">Mark to Pass</span>
           </div>
 
           {activeLevels.map((level, idx) => {
@@ -6722,7 +6759,7 @@ const renderNotifications = useCallback(() => {
           >
             <span>Level</span>
             <span className="text-center">Total Marks</span>
-            <span className="text-center">Mark to Pass <span style={{ color: D.orange }}>*</span></span>
+            <span className="text-center">Mark to Pass</span>
           </div>
 
           {rows.map((row, idx) => {
@@ -6911,11 +6948,11 @@ const renderNotifications = useCallback(() => {
                 autoValue={formData.totalMarks || 'Auto'} />
               {/* HIDDEN when difficultyPassEnabled — but MCQ has no level config so always show */}
               <GradeRow icon={<Award size={13} />} color={D.blue} label="Mark to Pass"
-                info="Minimum marks to pass — cannot exceed Mark"
+                info="Minimum marks to pass — cannot exceed Mark (optional)"
                 fieldKey="mcqGradeToPass" value={g.mcqGradeToPass}
                 onChange={v => setFormData(prev => ({ ...prev, grades: { ...prev.grades, mcqGradeToPass: v } }))}
                 onBlur={() => markTouched('mcqGradeToPass')}
-                error={ve.mcqGradeToPass} errorTouched={tf.has('mcqGradeToPass')} />
+                error={ve.mcqGradeToPass} errorTouched={tf.has('mcqGradeToPass')} optional />
             </>)}
 
             {/* Other */}
@@ -6926,11 +6963,11 @@ const renderNotifications = useCallback(() => {
               {/* Hide Mark to Pass when difficulty pass enabled */}
               {!diffEnabled && (
                 <GradeRow icon={<Award size={13} />} color={D.orange} label="Mark to Pass"
-                  info="Minimum marks required to pass — cannot exceed Mark"
+                  info="Minimum marks required to pass — cannot exceed Mark (optional)"
                   fieldKey="programmingGradeToPass" value={g.programmingGradeToPass}
                   onChange={v => setFormData(prev => ({ ...prev, grades: { ...prev.grades, programmingGradeToPass: v } }))}
                   onBlur={() => markTouched('programmingGradeToPass')}
-                  error={ve.programmingGradeToPass} errorTouched={tf.has('programmingGradeToPass')} />
+                  error={ve.programmingGradeToPass} errorTouched={tf.has('programmingGradeToPass')} optional />
               )}
               {showDifficultyPass && (
                 <div className="pb-2"><DifficultyPassSection /></div>
@@ -6945,11 +6982,11 @@ const renderNotifications = useCallback(() => {
               {/* Hide Mark to Pass when difficulty pass enabled */}
               {!diffEnabled && (
                 <GradeRow icon={<Award size={13} />} color={D.orange} label="Mark to Pass"
-                  info="Minimum marks required to pass — cannot exceed Mark"
+                  info="Minimum marks required to pass — cannot exceed Mark (optional)"
                   fieldKey="programmingGradeToPass" value={g.programmingGradeToPass}
                   onChange={v => setFormData(prev => ({ ...prev, grades: { ...prev.grades, programmingGradeToPass: v } }))}
                   onBlur={() => markTouched('programmingGradeToPass')}
-                  error={ve.programmingGradeToPass} errorTouched={tf.has('programmingGradeToPass')} />
+                  error={ve.programmingGradeToPass} errorTouched={tf.has('programmingGradeToPass')} optional />
               )}
               {showDifficultyPass && (
                 <div className="pb-2"><DifficultyPassSection /></div>
@@ -6991,11 +7028,11 @@ const renderNotifications = useCallback(() => {
                     {/* Hide Mark to Pass when difficulty pass enabled */}
                     {!diffEnabled && (
                       <GradeRow icon={<Award size={13} />} color={D.emerald} label="Mark to Pass"
-                        info={`Overall passing marks — cannot exceed Mark${ag > 0 ? ` (${ag})` : ''}`}
+                        info={`Overall passing marks — cannot exceed Mark${ag > 0 ? ` (${ag})` : ''} (optional)`}
                         fieldKey="combinedGradeToPass" value={g.combinedGradeToPass}
                         onChange={v => setFormData(prev => ({ ...prev, grades: { ...prev.grades, combinedGradeToPass: v } }))}
                         onBlur={() => markTouched('combinedGradeToPass')}
-                        error={ve.combinedGradeToPass} errorTouched={tf.has('combinedGradeToPass')} />
+                        error={ve.combinedGradeToPass} errorTouched={tf.has('combinedGradeToPass')} optional />
                     )}
                   </>);
                 })()}
@@ -7007,11 +7044,11 @@ const renderNotifications = useCallback(() => {
                 {/* Hide MCQ Mark to Pass when difficulty pass enabled */}
                 {!diffEnabled && (
                   <GradeRow icon={<Award size={13} />} color={D.blue} label="MCQ Mark to Pass"
-                    info="Minimum marks to pass the MCQ section"
+                    info="Minimum marks to pass the MCQ section (optional)"
                     fieldKey="mcqGradeToPass" value={g.mcqGradeToPass}
                     onChange={v => setFormData(prev => ({ ...prev, grades: { ...prev.grades, mcqGradeToPass: v } }))}
                     onBlur={() => markTouched('mcqGradeToPass')}
-                    error={ve.mcqGradeToPass} errorTouched={tf.has('mcqGradeToPass')} />
+                    error={ve.mcqGradeToPass} errorTouched={tf.has('mcqGradeToPass')} optional />
                 )}
                 <div className="pt-2 pb-1 text-[10px] font-bold uppercase tracking-wide" style={{ color: D.orange }}>Programming Section</div>
                 <GradeRow icon={<Terminal size={13} />} color={D.orange} label="Programming Mark"
@@ -7020,11 +7057,11 @@ const renderNotifications = useCallback(() => {
                 {/* Hide Programming Mark to Pass when difficulty pass enabled */}
                 {!diffEnabled && (
                   <GradeRow icon={<Award size={13} />} color={D.orange} label="Programming Mark to Pass"
-                    info="Minimum marks to pass the programming section"
+                    info="Minimum marks to pass the programming section (optional)"
                     fieldKey="programmingGradeToPass" value={g.programmingGradeToPass}
                     onChange={v => setFormData(prev => ({ ...prev, grades: { ...prev.grades, programmingGradeToPass: v } }))}
                     onBlur={() => markTouched('programmingGradeToPass')}
-                    error={ve.programmingGradeToPass} errorTouched={tf.has('programmingGradeToPass')} />
+                    error={ve.programmingGradeToPass} errorTouched={tf.has('programmingGradeToPass')} optional />
                 )}
                 {showDifficultyPass && (
                   <div className="pb-2"><DifficultyPassSection /></div>
@@ -7113,7 +7150,8 @@ const renderNotifications = useCallback(() => {
   // RENDER: Combined Question Configuration (tabbed MCQ + Programming)
   // ==========================================================================
   const renderCombinedConfiguration = useCallback(() => {
-    const mcqTabDone = formData.mcqConfig.generalQuestionCount > 0;
+    const mcqHasError = Object.keys(validationErrors).some(k => k.startsWith('mcq') || k === 'mcqTotalMarks');
+    const progHasError = Object.keys(validationErrors).some(k => k.startsWith('programming') || k === 'programmingTotalMarks' || k === 'programmingLevelScoring');
     return (
       <div>
         {/* Tab header */}
@@ -7130,7 +7168,11 @@ const renderNotifications = useCallback(() => {
           >
             <List size={11} />
             MCQ Config
-            {/* {mcqTabDone && <span className="ml-1 w-3.5 h-3.5 rounded-full flex items-center justify-center" style={{ background: D.emerald, color: '#fff' }}><Check size={7} strokeWidth={3} /></span>} */}
+            {mcqHasError && (
+              <span className="ml-1 w-3.5 h-3.5 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: D.red, color: '#fff' }}>
+                <AlertCircle size={8} strokeWidth={3} />
+              </span>
+            )}
           </button>
           <button
             type="button"
@@ -7144,6 +7186,11 @@ const renderNotifications = useCallback(() => {
           >
             <Terminal size={11} />
             Programming Config
+            {progHasError && (
+              <span className="ml-1 w-3.5 h-3.5 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: D.red, color: '#fff' }}>
+                <AlertCircle size={8} strokeWidth={3} />
+              </span>
+            )}
           </button>
         </div>
         {/* Tab content */}
@@ -7152,7 +7199,7 @@ const renderNotifications = useCallback(() => {
         </div>
       </div>
     );
-  }, [combinedConfigTab, formData.mcqConfig.generalQuestionCount, renderMCQConfiguration, renderProgrammingConfiguration]);
+  }, [combinedConfigTab, validationErrors, formData.mcqConfig.generalQuestionCount, renderMCQConfiguration, renderProgrammingConfiguration]);
 
   // ==========================================================================
   // RENDER: Current Step

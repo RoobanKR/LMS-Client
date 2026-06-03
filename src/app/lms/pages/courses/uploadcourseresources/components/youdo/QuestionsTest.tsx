@@ -1,13 +1,14 @@
 // QuestionsTest.tsx - Fixed version with Assessment.tsx-matching Add Question flow
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import ReactDOM from 'react-dom';
 import {
   ArrowLeft, Plus, MoreVertical, Edit2, Trash2,
   List, X, AlertTriangle, Code, CheckCircle,
   Layers, ChevronLeft, ChevronRight, FlaskConical,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import AddQuestionForm from '@/app/lms/component/questionforms/AddQuestionForm';
+import AddQuestionForm from '@/app/lms/component/student/YouDo/assessment/questionforms/AddQuestionForm';
 import { exerciseApi } from '@/apiServices/exercise';
 import { questionApi } from '@/apiServices/question';
 
@@ -363,6 +364,49 @@ const TypePickerModal: React.FC<{
   );
 };
 
+// ─── Portal Dropdown ──────────────────────────────────────────────────────────
+const PortalDropMenu: React.FC<{
+  anchorEl: HTMLElement | null;
+  onClose: () => void;
+  children: React.ReactNode;
+}> = ({ anchorEl, onClose, children }) => {
+  const [style, setStyle] = React.useState<React.CSSProperties>({ visibility: 'hidden', position: 'fixed' });
+
+  React.useEffect(() => {
+    if (!anchorEl) return;
+    const rect = anchorEl.getBoundingClientRect();
+    const menuWidth = 120;
+    let left = rect.right - menuWidth;
+    if (left < 4) left = 4;
+    setStyle({
+      position: 'fixed',
+      top: rect.bottom + 4,
+      left,
+      width: menuWidth,
+      zIndex: 9999,
+      background: T.bg,
+      border: `1px solid ${T.border}`,
+      borderRadius: 8,
+      boxShadow: '0 6px 20px rgba(0,0,0,0.12)',
+      visibility: 'visible',
+    });
+  }, [anchorEl]);
+
+  React.useEffect(() => {
+    const handleClose = () => onClose();
+    document.addEventListener('mousedown', handleClose);
+    return () => document.removeEventListener('mousedown', handleClose);
+  }, [onClose]);
+
+  if (!anchorEl || typeof window === 'undefined') return null;
+  return ReactDOM.createPortal(
+    <div style={style} onMouseDown={e => e.stopPropagation()}>
+      {children}
+    </div>,
+    document.body
+  );
+};
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 const QuestionsTest: React.FC<QuestionsTestProps> = ({
   assessment,
@@ -383,6 +427,7 @@ const QuestionsTest: React.FC<QuestionsTestProps> = ({
   const [deleting, setDeleting] = useState(false);
   const [hoveredRow, setHoveredRow] = useState<string | null>(null);
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
+  const [openDrop, setOpenDrop] = useState<{ id: string; el: HTMLElement } | null>(null);
 
   // ── Add-Question flow state (mirrors Assessment.tsx) ──────────────────────
   const [addQ, setAddQ] = useState<{
@@ -446,24 +491,19 @@ const QuestionsTest: React.FC<QuestionsTestProps> = ({
 
   useEffect(() => { fetchQuestions(); }, [fetchQuestions]);
 
-  // ── Open Add Question flow (matches Assessment.tsx handleAddQuestion) ──────
-  const handleOpenAddQuestion = async () => {
-    try {
-      const res = await exerciseApi.getExerciseById(assessment._id);
-      const full =
-        res?.data?.exercise ||
-        res?.exercise ||
-        (res?.data && !Array.isArray(res.data) ? res.data : null) ||
-        res;
-      if (!full) { toast.error('Could not load exercise details'); return; }
-
-      if (full.isSectionBased || Object.keys(full.sectionConfigs || {}).length > 0) {
-        setAddQ({ step: 'section', exercise: full });
-      } else {
-        setAddQ({ step: 'form', exercise: full });
-      }
-    } catch (err: any) {
-      toast.error(err?.message || 'Failed to load exercise details');
+  // ── Open Add Question flow ────────────────────────────────────────────────
+  // No API call needed — assessment is the full exercise object already (fetched
+  // by the parent before mounting this component), and `questions` state is kept
+  // fresh by fetchQuestions(). Merging them gives an instant modal open.
+  const handleOpenAddQuestion = () => {
+    const exerciseWithQuestions = { ...assessment, questions };
+    if (
+      exerciseWithQuestions.isSectionBased ||
+      Object.keys(exerciseWithQuestions.sectionConfigs || {}).length > 0
+    ) {
+      setAddQ({ step: 'section', exercise: exerciseWithQuestions });
+    } else {
+      setAddQ({ step: 'form', exercise: exerciseWithQuestions });
     }
   };
 
@@ -509,16 +549,21 @@ const QuestionsTest: React.FC<QuestionsTestProps> = ({
       const mcqCfg = sec.mcqConfig || {};
       const progCfg = sec.programmingConfig || {};
 
+      // mcqSectionMarks = TOTAL marks for the MCQ part of this section
+      // Note: mcqCfg.scoreSettings.equalDistribution = marks PER QUESTION (not total),
+      //       so we must NOT use it as a stand-in for the total section marks.
       const mcqSectionMarks =
-        sec.mcqSectionMarks ?? mcqCfg?.scoreSettings?.equalDistribution ??
+        sec.mcqSectionMarks ??
         (sec.exerciseType === 'MCQ' ? sec.totalMarks : 0) ?? 0;
       const progSectionMarks =
         sec.programmingSectionMarks ?? (sec.exerciseType === 'Programming' ? sec.totalMarks : 0) ?? 0;
 
       const mcqGenCount = mcqCfg.generalQuestionCount || 0;
-      const mcqEqualDist = mcqCfg?.scoreSettings?.equalDistribution || mcqSectionMarks || 0;
       const mcqScoringType = mcqCfg?.scoreSettings?.scoreType || 'equalDistribution';
-      const mcqMarksPerQ = mcqGenCount > 0 ? Math.floor(mcqEqualDist / mcqGenCount) : 0;
+      // equalDistribution in sectionConfig.mcqConfig = marks per question directly
+      const mcqMarksPerQ: number =
+        mcqCfg?.scoreSettings?.equalDistribution ||
+        (mcqGenCount > 0 ? Math.floor(mcqSectionMarks / mcqGenCount) : 0);
 
       const mcqQuestionConfiguration = {
         scoringType: mcqScoringType,
@@ -528,24 +573,40 @@ const QuestionsTest: React.FC<QuestionsTestProps> = ({
         submissionAttempts: mcqCfg.submissionAttempts,
       };
 
+      // ── Programming config — only relevant when section exerciseType is Programming or Combined ──
       const pc = progCfg;
-      const lvlCounts = pc.levelBasedCounts || { easy: 0, medium: 0, hard: 0 };
-      const selCounts = pc.selectionLevelCounts || { easy: 0, medium: 0, hard: 0 };
-      const lvlScoring = pc.levelScoring || {};
+      const cfgType = pc.questionConfigType || 'general';
+
+      const lvlCounts    = pc.levelBasedCounts    || { easy: 0, medium: 0, hard: 0 };
+      const selCounts    = pc.selectionLevelCounts || { easy: 0, medium: 0, hard: 0 };
+      const lvlScoring   = pc.levelScoring || {};
+
+      // level-based: read marksPerQuestion directly from levelScoring (already per-question)
       const levelScoringConfiguration: any = {};
       const levelBasedMarks: any = {};
       (['easy', 'medium', 'hard'] as const).forEach((d) => {
-        const s = lvlScoring[d] || {};
-        const count = lvlCounts[d] || 0;
-        const mpq = s.marksPerQuestion || 0;
-        levelScoringConfiguration[d] = { type: s.type || 'level_specific', marksPerQuestion: mpq, questionCount: count, totalMarks: mpq * count };
+        const s     = lvlScoring[d] || {};
+        const count = (cfgType === 'selectionLevel' ? selCounts[d] : lvlCounts[d]) || 0;
+        const mpq   = s.marksPerQuestion || 0;
+        levelScoringConfiguration[d] = {
+          type: s.type || 'level_specific',
+          marksPerQuestion: mpq,
+          questionCount: count,
+          totalMarks: mpq * count,
+        };
         levelBasedMarks[d] = mpq;
       });
 
+      // general: scoreSettings.equalDistribution = marks PER QUESTION (same pattern as MCQ)
+      const progGenCount: number = pc.generalQuestionCount || 0;
+      const generalMarksPerQuestion: number =
+        pc.scoreSettings?.equalDistribution ||
+        (progGenCount > 0 ? Math.floor(progSectionMarks / progGenCount) : 0);
+
       const programmingQuestionConfiguration = {
-        questionConfigType: pc.questionConfigType || 'general',
-        generalQuestionCount: pc.generalQuestionCount || 0,
-        generalMarksPerQuestion: (pc.generalQuestionCount || 0) > 0 ? Math.floor(progSectionMarks / pc.generalQuestionCount) : 0,
+        questionConfigType: cfgType,
+        generalQuestionCount: progGenCount,
+        generalMarksPerQuestion,
         levelBasedCounts: lvlCounts,
         selectionLevelCounts: selCounts,
         questionFlow: pc.questionFlow || 'freeFlow',
@@ -555,7 +616,7 @@ const QuestionsTest: React.FC<QuestionsTestProps> = ({
           ...(pc.scoreSettings || {}),
           levelScoringConfiguration,
           levelBasedMarks,
-          evenMarks: (pc.generalQuestionCount || 0) > 0 ? Math.floor(progSectionMarks / pc.generalQuestionCount) : 0,
+          evenMarks: generalMarksPerQuestion,  // same value, used as fallback in form
         },
       };
 
@@ -842,7 +903,7 @@ const QuestionsTest: React.FC<QuestionsTestProps> = ({
       )}
 
       {/* Question Table */}
-      <div className="flex-1 overflow-auto p-4">
+      <div className="flex-1 overflow-auto">
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: T.blue, borderTopColor: 'transparent' }} />
@@ -905,38 +966,36 @@ const QuestionsTest: React.FC<QuestionsTestProps> = ({
                     <span className="text-[11px] font-bold" style={{ color: T.textMain }}>{getScore(q)}</span>
                   </div>
                   <div className="col-span-1 flex items-center justify-center">
-                    <div className="relative">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const menu = document.getElementById(`menu-${q._id}`);
-                          if (menu) menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
-                        }}
-                        className="p-1.5 rounded-lg transition-all"
-                        style={{ color: isHovered ? T.blue : T.textHint }}
-                        onMouseEnter={e => { e.currentTarget.style.background = T.pageBg; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}>
-                        <MoreVertical size={13} />
-                      </button>
-                      <div
-                        id={`menu-${q._id}`}
-                        className="absolute right-0 top-full mt-1 z-50 hidden"
-                        style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', minWidth: 100 }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.display = 'none'; }}>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const el = e.currentTarget as HTMLElement;
+                        setOpenDrop(prev =>
+                          prev?.id === q._id ? null : { id: q._id, el }
+                        );
+                      }}
+                      className="p-1.5 rounded-lg transition-all"
+                      style={{ color: isHovered ? T.blue : T.textHint }}
+                      onMouseEnter={e => { e.currentTarget.style.background = T.pageBg; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}>
+                      <MoreVertical size={13} />
+                    </button>
+                    {openDrop?.id === q._id && (
+                      <PortalDropMenu anchorEl={openDrop.el} onClose={() => setOpenDrop(null)}>
                         <button
-                          onClick={() => { handleEdit(q); document.getElementById(`menu-${q._id}`)!.style.display = 'none'; }}
-                          className="flex items-center gap-2 w-full px-3 py-1.5 text-[11px] hover:bg-gray-50 rounded-t-lg"
+                          onClick={() => { handleEdit(q); setOpenDrop(null); }}
+                          className="flex items-center gap-2 w-full px-3 py-2 text-[11px] hover:bg-gray-50 rounded-t-lg"
                           style={{ color: T.textSub }}>
                           <Edit2 size={11} /> Edit
                         </button>
                         <button
-                          onClick={() => { handleDelete(q); document.getElementById(`menu-${q._id}`)!.style.display = 'none'; }}
-                          className="flex items-center gap-2 w-full px-3 py-1.5 text-[11px] hover:bg-gray-50 rounded-b-lg"
+                          onClick={() => { handleDelete(q); setOpenDrop(null); }}
+                          className="flex items-center gap-2 w-full px-3 py-2 text-[11px] hover:bg-gray-50 rounded-b-lg"
                           style={{ color: T.red }}>
                           <Trash2 size={11} /> Delete
                         </button>
-                      </div>
-                    </div>
+                      </PortalDropMenu>
+                    )}
                   </div>
                 </div>
               );

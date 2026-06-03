@@ -8,8 +8,12 @@ import {
   GraduationCap, Hash, Image, Play, Bold, Italic, Underline,
 
 
-} from 'lucide-react';
+  ChevronDown as ChevronDownIcon,
 
+  Library
+} from 'lucide-react';
+import QuestionBankSelector from './mcq/QuestionBankSelector';
+import { toast } from 'react-toastify';
 // ─── FONT INJECTION ───────────────────────────────────────────────────────────
 const injectFonts = (() => {
   let injected = false;
@@ -3105,6 +3109,11 @@ const ProgrammingQuestionForm: React.FC<ProgrammingQuestionFormProps> = ({
   const [showOverviewModal, setShowOverviewModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showSectionModal, setShowSectionModal] = useState(false);
+const [showAddDropdown, setShowAddDropdown] = useState(false);
+const [showBankSelector, setShowBankSelector] = useState(false);
+const [showAIModal, setShowAIModal] = useState(false);
+  const exerciseDbId = exerciseData?.exerciseId || exerciseData?.fullExerciseData?._id || exerciseData?.id || '';
+  const entityId = exerciseData?.nodeId || '';
 
   const progCfg = exerciseData.fullExerciseData?.questionConfiguration?.programmingQuestionConfiguration;
   const cfgType = (progCfg?.questionConfigType as string) || 'general';
@@ -3134,8 +3143,16 @@ const ProgrammingQuestionForm: React.FC<ProgrammingQuestionFormProps> = ({
     }
     return [];
   }, [isGeneral, cfgType, progCfg]);
+const isAIAvailable = () => {
+  // You can add logic here to check if AI generation is enabled
+  // For now, we'll enable it by default
+  return true;
+};
 
-  const getQuotaForDiff = useCallback((d: Diff): number => {
+
+
+
+const getQuotaForDiff = useCallback((d: Diff): number => {
     if (cfgType === 'levelBased') {
       // levelBasedCounts is always the source of truth
       // levelScoringConfiguration.questionCount is stale — only use as last fallback
@@ -3253,7 +3270,16 @@ const ProgrammingQuestionForm: React.FC<ProgrammingQuestionFormProps> = ({
       const diff = lockedDifficulty || initialDiff;
       preExisting.push(...getDbQuestionsForDiff(diff).map(dbQuestionToFlow));
     }
-    return { questions: preExisting, startIndex: preExisting.length };
+    // startIndex = preExisting.length means "next empty slot for new question".
+    // But if ALL difficulty quotas are already met, clamp to the last existing question
+    // to avoid showing an empty out-of-bounds form (Q6 when quota is 5).
+    const totalQuota = allDiffs.length > 0
+      ? allDiffs.reduce((sum, d) => sum + getQuotaForDiff(d), 0)
+      : getQuotaForDiff(lockedDifficulty || initialDiff);
+    const startIndex = (totalQuota > 0 && preExisting.length >= totalQuota)
+      ? Math.max(0, preExisting.length - 1)   // all full → land on last question
+      : preExisting.length;                    // still room → land on next empty slot
+    return { questions: preExisting, startIndex };
   }, [isEditing, initialData, isGeneral, lockedDifficulty, initialDiff, getDbQuestionsForDiff, getConfiguredDiffs]);
 
   const initialFlow = useMemo(() => buildInitialFlow(), []);
@@ -3313,6 +3339,40 @@ const ProgrammingQuestionForm: React.FC<ProgrammingQuestionFormProps> = ({
   const [showMockModal, setShowMockModal] = useState(false);
   const [showDiffPopup, setShowDiffPopup] = useState(false);
   const [completedDiff, setCompletedDiff] = useState<Diff | null>(null);
+
+  // On mount: if the component remounted after a plain Save and the current difficulty
+  // quota is already full (startIndex is out-of-bounds), show DiffPopup immediately
+  // instead of leaving the user staring at a blank Q6 form.
+  useEffect(() => {
+    if (isGeneral) return;
+    if (lockedDifficulty) return; // user already picked a difficulty from the selector — don't re-show "complete" popup
+    const flow = flowQuestionsRef.current;
+    const idx = currentIndexRef.current;
+    if (idx < flow.length || flow.length === 0) return; // normal case — nothing to do
+    const allDiffs = getConfiguredDiffs();
+    for (const d of allDiffs) {
+      const cnt = flow.filter(q =>
+        q.difficulty === d &&
+        !!(q._id || q.isSaved || q.isPreExisting || serverIdMap.current.get(q.__localId))
+      ).length;
+      if (cnt >= getQuotaForDiff(d)) {
+        const remaining = allDiffs.filter(od => {
+          if (od === d) return false;
+          const oc = flow.filter(q =>
+            q.difficulty === od &&
+            !!(q._id || q.isSaved || q.isPreExisting || serverIdMap.current.get(q.__localId))
+          ).length;
+          return oc < getQuotaForDiff(od);
+        });
+        if (remaining.length > 0) {
+          setCompletedDiff(d);
+          setShowDiffPopup(true);
+        }
+        return;
+      }
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const [errs, setErrs] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState<Set<string>>(new Set());
   const [saveOk, setSaveOk] = useState(false);
@@ -3853,8 +3913,235 @@ const ProgrammingQuestionForm: React.FC<ProgrammingQuestionFormProps> = ({
     const prevIdx = idx - 1; currentIndexRef.current = prevIdx; setCurrentIndex(prevIdx); loadQuestionIntoForm(newFlow[prevIdx]);
     setTimeout(() => titleRef.current?.focus(), 80);
   };
+const handleBankSelectedQuestions = useCallback((selected: any[]) => {
+  // Filter only programming questions (as a safeguard)
+  const programmingQuestions = selected.filter(q => 
+    q.questionType?.toLowerCase() === 'programming'
+  );
+  
+  if (!selected.length) {
+    toast.info('No questions selected', 'Please select questions from the bank.');
+    return;
+  }
+  
+  if (programmingQuestions.length === 0) {
+    toast.warning('No programming questions selected', 
+      'Please select programming questions from the bank. Only programming questions can be added to this exercise.');
+    return;
+  }
+  
+  // Log if some questions were filtered out
+  if (programmingQuestions.length < selected.length) {
+    const filteredOut = selected.length - programmingQuestions.length;
+    toast.info(`${filteredOut} non-programming question${filteredOut > 1 ? 's were' : ' was'} skipped`, 
+      'Only programming questions can be added to this exercise.');
+  }
 
-  const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean): Promise<string | undefined> => {
+  // Map bank question to Programming question format
+  const bankToProgrammingQuestion = (q: any): Partial<FlowQuestion> => {
+    // Extract title - handle different formats
+    let titleText = '';
+    if (typeof q.title === 'string') {
+      titleText = q.title;
+    } else if (q.mcqQuestionTitle) {
+      if (typeof q.mcqQuestionTitle === 'string') titleText = q.mcqQuestionTitle;
+      else if (Array.isArray(q.mcqQuestionTitle)) {
+        titleText = q.mcqQuestionTitle.filter((b: any) => b.type === 'text').map((b: any) => b.value).join(' ').trim();
+      }
+    }
+    
+    // Extract description - handle different formats
+    let descriptionBlocks: ProgContentBlock[] = [];
+    let descriptionText = '';
+    
+    if (q.description) {
+      if (typeof q.description === 'string') {
+        descriptionText = q.description;
+      } else if (q.description.contentBlocks) {
+        descriptionBlocks = q.description.contentBlocks;
+      } else if (q.description.text) {
+        descriptionText = q.description.text;
+      } else {
+        descriptionText = q.description;
+      }
+    }
+    
+    // If no description blocks, create one from description text
+    if (descriptionBlocks.length === 0 && descriptionText) {
+      descriptionBlocks = [{ id: `pb-${Date.now()}`, type: 'text' as const, value: descriptionText }];
+    } else if (descriptionBlocks.length === 0) {
+      descriptionBlocks = [mkProgTextBlock()];
+    }
+    
+    // Extract constraints
+    let constraintsList: string[] = [];
+    if (q.constraints && Array.isArray(q.constraints)) {
+      constraintsList = q.constraints;
+    } else if (q.constraints && typeof q.constraints === 'string') {
+      constraintsList = [q.constraints];
+    }
+    
+    // Extract test cases
+    let testCasesList: any[] = [];
+    if (q.testCases && Array.isArray(q.testCases)) {
+      testCasesList = q.testCases.map((tc: any) => ({
+        input: tc.input || '',
+        expectedOutput: tc.expectedOutput || '',
+        isSample: tc.isSample || false,
+        isHidden: tc.isHidden || false,
+        points: tc.points || 1,
+        explanation: tc.explanation || `Test Case`,
+        sequence: tc.sequence || 0,
+      }));
+    } else if (q.sampleInput && q.sampleOutput) {
+      testCasesList = [{
+        input: q.sampleInput,
+        expectedOutput: q.sampleOutput,
+        isSample: true,
+        isHidden: false,
+        points: 1,
+        explanation: 'Sample Test Case',
+        sequence: 0,
+      }];
+    }
+    
+    // If no test cases, create a default one
+    if (testCasesList.length === 0) {
+      testCasesList = [mkTC(0)];
+    }
+    
+    // Get difficulty
+    let difficulty: Diff = 'medium';
+    if (q.difficulty) {
+      const diffLower = q.difficulty.toLowerCase();
+      if (diffLower === 'easy') difficulty = 'easy';
+      else if (diffLower === 'hard') difficulty = 'hard';
+      else difficulty = 'medium';
+    } else if (q.mcqQuestionDifficulty) {
+      const diffLower = q.mcqQuestionDifficulty.toLowerCase();
+      if (diffLower === 'easy') difficulty = 'easy';
+      else if (diffLower === 'hard') difficulty = 'hard';
+      else difficulty = 'medium';
+    }
+    
+    // Extract hints
+    let hintsList: any[] = [];
+    if (q.hints && Array.isArray(q.hints)) {
+      hintsList = q.hints;
+    } else if (q.hint) {
+      hintsList = [{ hintText: q.hint, pointsDeduction: 0, isPublic: true, sequence: 0 }];
+    }
+    
+    // Get score
+    let questionScore = 0;
+    if (q.score !== undefined && q.score !== null) {
+      questionScore = q.score;
+    } else if (q.mcqQuestionScore !== undefined && q.mcqQuestionScore !== null) {
+      questionScore = q.mcqQuestionScore;
+    } else {
+      // Try to get from exercise configuration
+      if (isGeneral) {
+        questionScore = generalMPQ;
+      } else if (typeof isScoreEditable === 'function' && isScoreEditable(currentDiff as Diff)) {
+        questionScore = 0;
+      } else if (typeof getFixedScore === 'function') {
+        questionScore = getFixedScore(currentDiff as Diff);
+      }
+    }
+    
+    return {
+      title: titleText || 'Untitled Programming Question',
+      description: descriptionBlocks,
+      difficulty: difficulty,
+      score: questionScore,
+      constraints: constraintsList,
+      testCases: testCasesList,
+      hints: hintsList,
+      timeLimit: q.timeLimit || 2000,
+      memoryLimit: q.memoryLimit || 256,
+    };
+  };
+
+  // Auto-distribute marks for question-specific scoring
+  const autoScore = (() => {
+    if (isGeneral) return undefined;
+    if (typeof isScoreEditable === 'function' && !isScoreEditable(currentDiff as Diff)) return undefined;
+    if (typeof getRemainingMarksForDiff === 'function') {
+      const remainingMarks = getRemainingMarksForDiff(currentDiff as Diff);
+      if (remainingMarks > 0 && selected.length > 0) {
+        return parseFloat((remainingMarks / selected.length).toFixed(2));
+      }
+    }
+    return undefined;
+  })();
+
+  // Add questions from bank
+  const newQuestions: FlowQuestion[] = selected.map((q, i) => {
+    const base = bankToProgrammingQuestion(q);
+    const newId = mkLocalId();
+    
+    // Calculate score
+    let questionScore = base.score;
+    if (autoScore !== undefined) {
+      questionScore = autoScore;
+    } else if (isGeneral) {
+      questionScore = generalMPQ;
+    } else if (typeof isScoreEditable === 'function' && isScoreEditable(currentDiff as Diff)) {
+      questionScore = 0;
+    } else if (typeof getFixedScore === 'function') {
+      questionScore = getFixedScore(currentDiff as Diff);
+    }
+    
+    const newQ: FlowQuestion = {
+      __localId: newId,
+      _id: undefined,
+      title: base.title || '',
+      description: base.description || [mkProgTextBlock()],
+      difficulty: base.difficulty || (typeof currentDiff === 'string' ? currentDiff as Diff : 'medium'),
+      score: questionScore,
+      testCases: base.testCases || [mkTC(0)],
+      constraints: base.constraints || [],
+      hints: base.hints || [],
+      timeLimit: base.timeLimit || 2000,
+      memoryLimit: base.memoryLimit || 256,
+      questionType: 'programming',
+      isSaved: false,
+      isDirty: false,
+      isPreExisting: false,
+    };
+    return newQ;
+  });
+
+  if (newQuestions.length === 0) {
+    toast.warning('No questions to add', 'No valid programming questions were selected.');
+    return;
+  }
+
+  // Add the new questions to the flow
+  setFlowQuestions(prev => [...prev, ...newQuestions]);
+  
+  // Navigate to the first new question
+  const newStartIndex = flowQuestions.length;
+  setCurrentIndex(newStartIndex);
+  
+  // Load the first new question into the form
+  if (newQuestions[0]) {
+    setTimeout(() => {
+      loadQuestionIntoForm(newQuestions[0]);
+    }, 100);
+  }
+  
+  toast.success(`${newQuestions.length} programming question${newQuestions.length > 1 ? 's' : ''} added from bank`);
+  
+  if (autoScore !== undefined && autoScore > 0) {
+    toast.info('Marks distributed', `Each question assigned ${autoScore} mark${autoScore !== 1 ? 's' : ''} from remaining balance.`);
+  }
+// eslint-disable-next-line react-hooks/exhaustive-deps
+}, [currentDiff, isGeneral, isScoreEditable, getFixedScore, getRemainingMarksForDiff, generalMPQ, flowQuestions.length, loadQuestionIntoForm]);
+  
+
+
+const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean): Promise<string | undefined> => {
     const flow = flowQuestionsRef.current; const currentQ = flow.find(q => q.__localId === localId);
     const serverId = serverIdMap.current.get(localId) || currentQ?._id || (isEditing && initialData?._id ? initialData._id : undefined);
     const result = await onSave({ ...payload, __saveAndNext: isSaveAndNext, __isUpdate: !!serverId, __questionId: serverId, __editLocalId: localId });
@@ -3897,53 +4184,204 @@ const ProgrammingQuestionForm: React.FC<ProgrammingQuestionFormProps> = ({
     setTimeout(() => setSaveOk(false), 2500);
   };
 
-  const handleSaveAndContinue = async () => {
-    const flow = flowQuestionsRef.current; const idx = currentIndexRef.current; let currentQ = flow[idx];
-    if (!currentQ) {
-      const { valid: v0, errors: e0 } = validate();
-      if (!v0) { scrollToFirstError(e0); return; }
-      const localId = ensureCurrentInFlow(); currentQ = flowQuestionsRef.current[currentIndexRef.current];
+  // ──────────────────────────────────────────────────────────────────────────
+  // Helper: Check if the just-saved question completes its difficulty's quota.
+  // If yes → show DiffPopup (or close if no other diffs available).
+  // Returns true if a popup/close happened (caller should NOT proceed further).
+  // ──────────────────────────────────────────────────────────────────────────
+  const checkDiffComplete = (savedLocalId: string | undefined): boolean => {
+    if (isGeneral) return false;
+    const flowNow = flowQuestionsRef.current;
+    const idxNow  = currentIndexRef.current;
+    const savedQ  = flowNow[idxNow];
+    const diff    = (savedQ?.difficulty as Diff | undefined) || currentDiff;
+    if (!diff) return false;
+
+    // Count saved/created questions for this difficulty (NOT counting blank Q6-type entries)
+    const savedCount = flowNow.filter(q =>
+      q.difficulty === diff &&
+      !!(q._id || q.isSaved || q.isPreExisting || serverIdMap.current.get(q.__localId) || (savedLocalId && q.__localId === savedLocalId))
+    ).length;
+    const quota = getQuotaForDiff(diff);
+
+    if (savedCount < quota) return false;
+
+    // Quota met for this difficulty
+    if (isEditing) { onClose(); return true; }
+
+    // Find any OTHER difficulty that still has remaining slots
+    const otherDiffs = getConfiguredDiffs().filter(d => {
+      if (d === diff) return false;
+      const otherSaved = flowNow.filter(q =>
+        q.difficulty === d &&
+        !!(q._id || q.isSaved || q.isPreExisting || serverIdMap.current.get(q.__localId))
+      ).length;
+      return otherSaved < getQuotaForDiff(d);
+    });
+
+    if (otherDiffs.length > 0) {
+      setCompletedDiff(diff);
+      setShowDiffPopup(true);
+    } else {
+      onClose();
     }
-    const latestQ = flowQuestionsRef.current[currentIndexRef.current]; const localId = latestQ?.__localId ?? currentQ.__localId;
-    const serverId = serverIdMap.current.get(localId) || latestQ?._id || (isEditing && initialData?._id ? initialData._id : undefined);
-    if (serverId && !isEditMode && !hasUnsavedFormChanges) { advanceAfterSave(serverId); return; }
-    const { valid, errors } = validate();
-    if (!valid) { scrollToFirstError(errors); return; }
-    let savedId: string | undefined;
-    try { savedId = await executeSave(localId, mkPayload(), true); } catch (err) { console.error('handleSaveAndContinue error:', err); return; }
-    setSaveOk(true); setTimeout(() => setSaveOk(false), 2500); setIsEditMode(false); advanceAfterSave(savedId);
+    return true; // popup or close was triggered
   };
 
-  const advanceAfterSave = (savedId: string | undefined) => {
-    const flow = flowQuestionsRef.current; const idx = currentIndexRef.current;
-    if (returnIndexRef.current !== null) {
-      const returnIdx = returnIndexRef.current; const returnDiff = returnDiffRef.current;
-      returnIndexRef.current = null; returnDiffRef.current = null;
-      if (returnDiff && !isGeneral) setCurrentDiff(returnDiff);
-      if (returnIdx < flow.length) { setCurrentIndex(returnIdx); currentIndexRef.current = returnIdx; loadQuestionIntoForm(flow[returnIdx]); if (!isGeneral && flow[returnIdx]?.difficulty) setCurrentDiff(flow[returnIdx].difficulty as Diff); setTimeout(() => titleRef.current?.focus(), 80); return; }
+  const handleSaveAndContinue = async () => {
+    const flow = flowQuestionsRef.current;
+    const idx = currentIndexRef.current;
+    let currentQ = flow[idx];
+
+    // Case 1: no current question (out-of-bounds index) — typically when initial
+    // flow had quota already met and form opened on a blank slot.
+    if (!currentQ) {
+      if (!isGeneral) {
+        const cnt = flow.filter(q => q.difficulty === currentDiff).length;
+        if (cnt >= getQuotaForDiff(currentDiff)) {
+          // Don't create new — show popup directly
+          if (checkDiffComplete(undefined)) return;
+          advanceAfterSave(undefined, undefined);
+          return;
+        }
+      }
+      const { valid: v0, errors: e0 } = validate();
+      if (!v0) { scrollToFirstError(e0); return; }
+      const lid = ensureCurrentInFlow();
+      currentQ = flowQuestionsRef.current[currentIndexRef.current];
     }
+
+    const latestQ = flowQuestionsRef.current[currentIndexRef.current];
+    const localId = latestQ?.__localId ?? currentQ.__localId;
+    const serverId = serverIdMap.current.get(localId) || latestQ?._id || (isEditing && initialData?._id ? initialData._id : undefined);
+
+    // Case 2: already saved, no changes — skip executeSave but still check quota
+    if (serverId && !isEditMode && !hasUnsavedFormChanges) {
+      if (checkDiffComplete(localId)) return;
+      advanceAfterSave(serverId, localId);
+      return;
+    }
+
+    // Case 3: validate + save
+    const { valid, errors } = validate();
+    if (!valid) { scrollToFirstError(errors); return; }
+
+    let savedId: string | undefined;
+    try {
+      savedId = await executeSave(localId, mkPayload(), true);
+    } catch (err) {
+      console.error('handleSaveAndContinue error:', err);
+      return;
+    }
+
+    setSaveOk(true);
+    setTimeout(() => setSaveOk(false), 2500);
+    setIsEditMode(false);
+
+    // ⚡ HARD QUOTA GUARD: check immediately after save
+    if (checkDiffComplete(localId)) return;
+
+    advanceAfterSave(savedId, localId);
+  };
+
+  const advanceAfterSave = (savedId: string | undefined, savedLocalId?: string) => {
+    const flow = flowQuestionsRef.current;
+    const idx  = currentIndexRef.current;
+
+    // Handle Previous → Return-to-original-position case
+    if (returnIndexRef.current !== null) {
+      const returnIdx = returnIndexRef.current;
+      const returnDiff = returnDiffRef.current;
+      returnIndexRef.current = null;
+      returnDiffRef.current = null;
+      if (returnDiff && !isGeneral) setCurrentDiff(returnDiff);
+      if (returnIdx < flow.length) {
+        setCurrentIndex(returnIdx); currentIndexRef.current = returnIdx;
+        loadQuestionIntoForm(flow[returnIdx]);
+        if (!isGeneral && flow[returnIdx]?.difficulty) setCurrentDiff(flow[returnIdx].difficulty as Diff);
+        setTimeout(() => titleRef.current?.focus(), 80);
+        return;
+      }
+    }
+
+    // Try to navigate to the next slot in the flow (if it exists and quota allows)
     const nextIdx = idx + 1;
     if (nextIdx < flow.length) {
-      setCurrentIndex(nextIdx); currentIndexRef.current = nextIdx;
-      if (!isGeneral && flow[nextIdx]?.difficulty) setCurrentDiff(flow[nextIdx].difficulty as Diff);
-      loadQuestionIntoForm(flow[nextIdx]); setTimeout(() => titleRef.current?.focus(), 80); return;
+      const nextQ = flow[nextIdx];
+      const nextDiff = nextQ?.difficulty as Diff | undefined;
+      if (!isGeneral && nextDiff) {
+        // Count actually-saved questions for nextDiff (not blank slots)
+        const savedCountForNextDiff = flow.filter(q =>
+          q.difficulty === nextDiff &&
+          !!(q._id || q.isSaved || q.isPreExisting || serverIdMap.current.get(q.__localId) || q.__localId === savedLocalId)
+        ).length;
+        const quotaForNextDiff = getQuotaForDiff(nextDiff);
+        if (savedCountForNextDiff < quotaForNextDiff) {
+          setCurrentIndex(nextIdx); currentIndexRef.current = nextIdx;
+          setCurrentDiff(nextDiff); loadQuestionIntoForm(nextQ);
+          setTimeout(() => titleRef.current?.focus(), 80);
+          return;
+        }
+        // else: quota met for nextDiff → fall through to popup logic
+      } else {
+        setCurrentIndex(nextIdx); currentIndexRef.current = nextIdx;
+        if (!isGeneral && nextDiff) setCurrentDiff(nextDiff);
+        loadQuestionIntoForm(nextQ);
+        setTimeout(() => titleRef.current?.focus(), 80);
+        return;
+      }
     }
-    // In edit mode never create new blocks — just close when all questions visited
+
     if (isEditing) { onClose(); return; }
+
     if (isGeneral) {
       if (getRemainingSlots(undefined, flow) > 0) {
         const newQ: FlowQuestion = { __localId: mkLocalId(), _id: undefined, title: '', description: { text: '', imageUrl: null, imageAlignment: 'left', imageSizePercent: 100 }, difficulty: 'medium', score: generalMPQ, testCases: [], constraints: [], hints: [], timeLimit: 2000, memoryLimit: 256, questionType: 'programming', isSaved: false, isDirty: false };
         const newFlow = [...flow, newQ]; flowQuestionsRef.current = newFlow; setFlowQuestions(newFlow);
-        setCurrentIndex(flow.length); currentIndexRef.current = flow.length; resetForm(generalMPQ); setTimeout(() => titleRef.current?.focus(), 80);
-      } else { onClose(); }
-    } else {
-      if (getRemainingSlots(currentDiff, flow) > 0) {
-        const newQ: FlowQuestion = { __localId: mkLocalId(), _id: undefined, title: '', description: { text: '', imageUrl: null, imageAlignment: 'left', imageSizePercent: 100 }, difficulty: currentDiff, score: isScoreEditable(currentDiff) ? 0 : getFixedScore(currentDiff), testCases: [], constraints: [], hints: [], timeLimit: 2000, memoryLimit: 256, questionType: 'programming', isSaved: false, isDirty: false };
-        const newFlow = [...flow, newQ]; flowQuestionsRef.current = newFlow; setFlowQuestions(newFlow);
-        setCurrentIndex(flow.length); currentIndexRef.current = flow.length; resetForm(isScoreEditable(currentDiff) ? 0 : getFixedScore(currentDiff)); setTimeout(() => titleRef.current?.focus(), 80);
+        setCurrentIndex(flow.length); currentIndexRef.current = flow.length;
+        resetForm(generalMPQ);
+        setTimeout(() => titleRef.current?.focus(), 80);
       } else {
-        const otherDiffs = getConfiguredDiffs().filter(d => d !== currentDiff && getRemainingSlots(d, flow) > 0);
-        if (otherDiffs.length > 0) { setCompletedDiff(currentDiff); setShowDiffPopup(true); } else { onClose(); }
+        onClose();
+      }
+      return;
+    }
+
+    // Level-based / selection-level: decide between creating new Q or showing popup
+    const savedQ_inAdv = flow[idx];
+    const diffToUse = (savedQ_inAdv?.difficulty as Diff | undefined) || currentDiff;
+
+    // Count SAVED questions for this difficulty (don't include blank Q6 entries)
+    const savedCountForDiff = flow.filter(q =>
+      q.difficulty === diffToUse &&
+      !!(q._id || q.isSaved || q.isPreExisting || serverIdMap.current.get(q.__localId) || q.__localId === savedLocalId)
+    ).length;
+    const diffQuota = getQuotaForDiff(diffToUse);
+
+    if (savedCountForDiff < diffQuota) {
+      // Still room → create the next blank question for this difficulty
+      const newQ: FlowQuestion = { __localId: mkLocalId(), _id: undefined, title: '', description: { text: '', imageUrl: null, imageAlignment: 'left', imageSizePercent: 100 }, difficulty: diffToUse, score: isScoreEditable(diffToUse) ? 0 : getFixedScore(diffToUse), testCases: [], constraints: [], hints: [], timeLimit: 2000, memoryLimit: 256, questionType: 'programming', isSaved: false, isDirty: false };
+      const newFlow = [...flow, newQ];
+      flowQuestionsRef.current = newFlow;
+      setFlowQuestions(newFlow);
+      setCurrentIndex(flow.length); currentIndexRef.current = flow.length;
+      resetForm(isScoreEditable(diffToUse) ? 0 : getFixedScore(diffToUse));
+      setTimeout(() => titleRef.current?.focus(), 80);
+    } else {
+      // Quota met → show DiffPopup if other diffs have remaining slots, else close
+      const otherDiffs = getConfiguredDiffs().filter(d => {
+        if (d === diffToUse) return false;
+        const otherSavedCount = flow.filter(q =>
+          q.difficulty === d &&
+          !!(q._id || q.isSaved || q.isPreExisting || serverIdMap.current.get(q.__localId))
+        ).length;
+        return otherSavedCount < getQuotaForDiff(d);
+      });
+      if (otherDiffs.length > 0) {
+        setCompletedDiff(diffToUse);
+        setShowDiffPopup(true);
+      } else {
+        onClose();
       }
     }
   };
@@ -4000,12 +4438,24 @@ const ProgrammingQuestionForm: React.FC<ProgrammingQuestionFormProps> = ({
       if (sType === 'question_specific') {
         const totalAllowed = getTotalMarksForDiff(currentDiff); const existingServerId = getServerId(currentQ);
         const isEditingExist = !!(existingServerId || isEditing);
+        const totalQuestionsForDiff = getQuotaForDiff(currentDiff);
         if (isEditingExist && existingServerId) {
-          const otherSum = dbQsForDiff.reduce((s: number, q: any) => q._id?.toString() === existingServerId ? s : s + (q.score || q.points || 0), 0);
-          if (otherSum + score > totalAllowed + 0.01) e.score = `Max for this question: ${fmtMark(Math.max(0, totalAllowed - otherSum))}`;
+          const otherQs = dbQsForDiff.filter((q: any) => q._id?.toString() !== existingServerId);
+          const otherSum = otherQs.reduce((s: number, q: any) => s + (q.score || q.points || 0), 0);
+          // Reserve 1 mark for each remaining question that hasn't been created yet
+          const questionsWithMarks = otherQs.length + 1; // other saved + this one
+          const futureQuestions = Math.max(0, totalQuestionsForDiff - questionsWithMarks);
+          const rawMax = totalAllowed - otherSum - futureQuestions;
+          const maxForThis = rawMax > 0 ? Math.max(1, rawMax) : 0;
+          if (score > maxForThis + 0.01) e.score = `Max for this question: ${fmtMark(maxForThis)} (reserving 1 mark each for ${futureQuestions} remaining question${futureQuestions !== 1 ? 's' : ''})`;
         } else {
-          const used = getDbMarksUsedForDiff(currentDiff); const remaining = Math.max(0, totalAllowed - used);
-          if (score > remaining + 0.01) e.score = `Score (${score}) exceeds remaining marks (${fmtMark(remaining)})`;
+          const used = getDbMarksUsedForDiff(currentDiff);
+          const createdSoFar = getCreatedCount(currentDiff);
+          // Reserve 1 mark for each remaining question after this one
+          const futureQuestions = Math.max(0, totalQuestionsForDiff - createdSoFar - 1);
+          const rawMax2 = totalAllowed - used - futureQuestions;
+          const maxForThis = rawMax2 > 0 ? Math.max(1, rawMax2) : 0;
+          if (score > maxForThis + 0.01) e.score = `Max for this question: ${fmtMark(maxForThis)} (reserving 1 mark each for ${futureQuestions} remaining question${futureQuestions !== 1 ? 's' : ''})`;
         }
         if (!e.score && score <= 0) e.score = 'Score must be greater than 0';
       }
@@ -4019,12 +4469,22 @@ const ProgrammingQuestionForm: React.FC<ProgrammingQuestionFormProps> = ({
     const totalAllowed = getTotalMarksForDiff(currentDiff); const currentQ = flowQuestions[currentIndex];
     const existingServerId = getServerId(currentQ); const isEditExist = isEditing || !!existingServerId;
     const dbQsForDiff = getDbQuestionsForDiff(currentDiff); const tempErrors: Record<string, string> = {};
+    const totalQuestionsForDiff = getQuotaForDiff(currentDiff);
     if (isEditExist && existingServerId) {
-      const otherSum = dbQsForDiff.reduce((s: number, q: any) => s + (q._id?.toString() === existingServerId ? 0 : (q.score || q.points || 0)), 0);
-      if (otherSum + score > totalAllowed + 0.01) tempErrors.score = `Max allowed: ${fmtMark(Math.max(0, totalAllowed - otherSum))} marks`;
+      const otherQs = dbQsForDiff.filter((q: any) => q._id?.toString() !== existingServerId);
+      const otherSum = otherQs.reduce((s: number, q: any) => s + (q.score || q.points || 0), 0);
+      const questionsWithMarks = otherQs.length + 1;
+      const futureQuestions = Math.max(0, totalQuestionsForDiff - questionsWithMarks);
+      const rawBlur1 = totalAllowed - otherSum - futureQuestions;
+      const maxForThis = rawBlur1 > 0 ? Math.max(1, rawBlur1) : 0;
+      if (score > maxForThis + 0.01) tempErrors.score = `Max allowed: ${fmtMark(maxForThis)} marks (reserving 1 each for ${futureQuestions} remaining)`;
     } else {
-      const remaining = Math.max(0, totalAllowed - getDbMarksUsedForDiff(currentDiff));
-      if (score > remaining + 0.01) tempErrors.score = `Exceeds remaining marks (${fmtMark(remaining)})`;
+      const used = getDbMarksUsedForDiff(currentDiff);
+      const createdSoFar = getCreatedCount(currentDiff);
+      const futureQuestions = Math.max(0, totalQuestionsForDiff - createdSoFar - 1);
+      const rawBlur2 = totalAllowed - used - futureQuestions;
+      const maxForThis = rawBlur2 > 0 ? Math.max(1, rawBlur2) : 0;
+      if (score > maxForThis + 0.01) tempErrors.score = `Max allowed: ${fmtMark(maxForThis)} marks (reserving 1 each for ${futureQuestions} remaining)`;
     }
     if (score <= 0 && !tempErrors.score) tempErrors.score = 'Score must be > 0';
     if (tempErrors.score) { setErrs(p => ({ ...p, score: tempErrors.score })); setTouched(p => new Set(p).add('score')); }
@@ -4091,6 +4551,28 @@ const ProgrammingQuestionForm: React.FC<ProgrammingQuestionFormProps> = ({
   const usedMarksAll = isGeneral ? 0 : getConfiguredDiffs().reduce((acc, d) => acc + getDbMarksUsedForDiff(d), 0);
   const scoringType = isGeneral ? 'fixed' : getScoringType(currentDiff);
   const displayScore = isGeneral ? generalMPQ : isScoreEditable(currentDiff) ? score : getFixedScore(currentDiff);
+
+  // Max assignable marks for the current question (question_specific mode) — reserves 1 mark per future question
+  const maxAssignableForCurrentQ = useMemo((): number | null => {
+    if (isGeneral || !isScoreEditable(currentDiff)) return null;
+    const totalAllowed = getTotalMarksForDiff(currentDiff);
+    const totalQForDiff = getQuotaForDiff(currentDiff);
+    const currentQ = flowQuestions[currentIndex];
+    const existingServerId = getServerId(currentQ);
+    const dbQsForDiff = getDbQuestionsForDiff(currentDiff);
+    if (existingServerId) {
+      const otherQs = dbQsForDiff.filter((q: any) => q._id?.toString() !== existingServerId);
+      const otherSum = otherQs.reduce((s: number, q: any) => s + (q.score || q.points || 0), 0);
+      const futureQs = Math.max(0, totalQForDiff - otherQs.length - 1);
+      const raw1 = totalAllowed - otherSum - futureQs;
+      return raw1 > 0 ? Math.max(1, raw1) : 0;
+    }
+    const used = getDbMarksUsedForDiff(currentDiff);
+    const created = getCreatedCount(currentDiff);
+    const futureQs = Math.max(0, totalQForDiff - created - 1);
+    const raw2 = totalAllowed - used - futureQs;
+    return raw2 > 0 ? Math.max(1, raw2) : 0;
+  }, [isGeneral, currentDiff, currentIndex, flowQuestions, isScoreEditable, getTotalMarksForDiff, getQuotaForDiff, getServerId, getDbQuestionsForDiff, getDbMarksUsedForDiff, getCreatedCount]);
 
   const hierarchyData = exerciseData.fullExerciseData?.hierarchyData || {};
   const subcategory = exerciseData.subcategory;
@@ -4313,62 +4795,146 @@ const ProgrammingQuestionForm: React.FC<ProgrammingQuestionFormProps> = ({
       <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', background: 'var(--lms-bg-white)', overflow: 'hidden' }}>
 
         {/* ── HEADER ── */}
-        <div style={{ background: 'var(--lms-bg-white)', borderBottom: '1.5px solid var(--lms-border)', padding: '10px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
-            {/* Logo mark */}
-            <div className="lms-header-logo-mark">
-              <GraduationCap size={16} style={{ color: 'white' }} />
+      <div style={{ background: 'var(--lms-bg-white)', borderBottom: '1.5px solid var(--lms-border)', padding: '10px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+  <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
+    {/* Logo mark */}
+    <div className="lms-header-logo-mark">
+      <GraduationCap size={16} style={{ color: 'white' }} />
+    </div>
+    <div style={{ width: 1, height: 20, background: 'var(--lms-border)', flexShrink: 0 }} />
+
+    {/* Edit mode indicators */}
+    {isCurrentPreExisting && !isEditMode && !isEditing && (
+      <button onClick={handleEditClick}
+        className="lms-btn lms-btn-ghost-orange"
+        style={{ padding: '5px 12px', fontSize: 12 }}>
+        <Edit2 size={12} /> Edit Exercise
+      </button>
+    )}
+    {isEditMode && (
+      <span className="lms-badge lms-badge-amber">
+        <Edit2 size={11} /> Editing
+      </span>
+    )}
+
+    <div style={{ minWidth: 0, flex: 1, overflow: 'visible' }}>
+      <QuestionFormBreadcrumb hierarchyData={hierarchyData} tabType={tabType} subcategory={subcategory} subcategoryLabel={subcategoryLabel} exerciseName={exerciseName} actionLabel={actionLabel} questionLabel={questionLabel} />
+    </div>
+  </div>
+
+  <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0, marginLeft: 12 }}>
+    
+    {/* Preview button */}
+    {(() => {
+      const dbCount = getDbQuestionsForDiff().length;
+      const flowSavedCount = flowQuestions.filter(q => !!(q._id || q.isSaved || q.isPreExisting)).length;
+      const savedCount = Math.max(dbCount, flowSavedCount);
+      return savedCount > 0 && (
+        <button onClick={() => setShowPreview(true)} className="lms-btn lms-btn-ghost-violet" style={{ marginRight: 8 }}>
+          <Eye size={12} /> Preview
+          <span style={{ background: 'var(--lms-violet)', color: 'white', fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 20 }}>
+            {savedCount}
+          </span>
+        </button>
+      );
+    })()}
+
+    {/* ADD QUESTION VIA DROPDOWN BUTTON */}
+    <div className="relative" style={{ marginRight: 8 }} onClick={e => e.stopPropagation()}>
+      <button
+        onClick={() => setShowAddDropdown(v => !v)}
+        className="inline-flex items-center justify-between gap-2"
+        style={{ 
+          minWidth: 150, 
+          height: 32, 
+          padding: '0 10px', 
+          borderRadius: 8, 
+          border: '1.5px solid #e4e4ed', 
+          background: '#fff', 
+          color: '#1a1a2e', 
+          fontSize: 12.5, 
+          fontWeight: 600, 
+          fontFamily: 'var(--lms-font)', 
+          cursor: 'pointer' 
+        }}
+      >
+        Add Question via
+        <ChevronDownIcon className="h-3.5 w-3.5 opacity-60" />
+      </button>
+      
+      {showAddDropdown && (
+        <div
+          className="absolute top-full right-0 mt-1.5 z-[9999] overflow-hidden"
+          style={{ 
+            width: 220, 
+            background: '#fff', 
+            borderRadius: 12, 
+            border: '1px solid #e4e4ed', 
+            boxShadow: '0 8px 32px rgba(26,26,46,0.14)', 
+            fontFamily: 'var(--lms-font)' 
+          }}
+        >
+          {/* 1. Question Bank */}
+          <button
+            onClick={() => { 
+              setShowAddDropdown(false); 
+              setShowBankSelector(true); 
+            }}
+            className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors"
+            style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(168,85,247,0.06)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'none'}
+          >
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(168,85,247,0.1)' }}>
+              <Database size={14} style={{ color: '#a855f7' }} />
             </div>
-            <div style={{ width: 1, height: 20, background: 'var(--lms-border)', flexShrink: 0 }} />
-
-            {/* Edit mode indicators */}
-            {isCurrentPreExisting && !isEditMode && !isEditing && (
-              <button onClick={handleEditClick}
-                className="lms-btn lms-btn-ghost-orange"
-                style={{ padding: '5px 12px', fontSize: 12 }}>
-                <Edit2 size={12} /> Edit Exercise
-              </button>
-            )}
-            {isEditMode && (
-              <span className="lms-badge lms-badge-amber">
-                <Edit2 size={11} /> Editing
-              </span>
-            )}
-
-            <div style={{ minWidth: 0, flex: 1, overflow: 'visible' }}>
-              <QuestionFormBreadcrumb hierarchyData={hierarchyData} tabType={tabType} subcategory={subcategory} subcategoryLabel={subcategoryLabel} exerciseName={exerciseName} actionLabel={actionLabel} questionLabel={questionLabel} />
+            <div className="min-w-0">
+              <div className="text-[12.5px] font-semibold" style={{ color: '#1a1a2e' }}>Question Bank</div>
+              <div className="text-[10px]" style={{ color: '#8b8b9e' }}>Import from bank</div>
             </div>
-          </div>
+          </button>
 
-       <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0, marginLeft: 12 }}>
-            {/* Preview */}
-            {(() => {
-              const dbCount = getDbQuestionsForDiff().length;
-              const flowSavedCount = flowQuestions.filter(q => !!(q._id || q.isSaved || q.isPreExisting)).length;
-              const savedCount = Math.max(dbCount, flowSavedCount);
-              return savedCount > 0 && (
-                <button onClick={() => setShowPreview(true)} className="lms-btn lms-btn-ghost-violet" style={{ marginRight: 24 }}>
-                  <Eye size={12} /> Preview
-                  <span style={{ background: 'var(--lms-violet)', color: 'white', fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 20 }}>
-                    {savedCount}
-                  </span>
-                </button>
-              );
-            })()}
+          <div style={{ height: 1, background: '#f0f0f7', margin: '0 12px' }} />
 
-            {/* Edit Exercise */}
-            {onEditExercise && (
-              <button onClick={handleEditExerciseClick} className="lms-btn lms-btn-ghost-orange" style={{ marginRight: 24 }}>
-                <Settings size={12} /> Edit Exercise
-              </button>
-            )}
-
-            {/* Close */}
-            <button onClick={handleCloseRequest} style={{ padding: 8, borderRadius: 8, border: '1.5px solid var(--lms-danger-bdr)', background: 'var(--lms-danger-bg)', cursor: 'pointer', color: 'var(--lms-danger)', transition: 'all 0.15s' }}>
-              <X size={15} />
-            </button>
-          </div>
+          {/* 2. Generate AI */}
+          <button
+            onClick={() => { 
+              if (isAIAvailable()) {
+                setShowAddDropdown(false); 
+                setShowAIModal(true); 
+              }
+            }}
+            className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors"
+            style={{ background: 'none', border: 'none', cursor: isAIAvailable() ? 'pointer' : 'not-allowed', opacity: isAIAvailable() ? 1 : 0.5 }}
+            onMouseEnter={e => { if (isAIAvailable()) e.currentTarget.style.background = 'rgba(242,119,87,0.06)'; }}
+            onMouseLeave={e => e.currentTarget.style.background = 'none'}
+            disabled={!isAIAvailable()}
+          >
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(242,119,87,0.1)' }}>
+              <Sparkles size={14} style={{ color: '#F27757' }} />
+            </div>
+            <div className="min-w-0">
+              <div className="text-[12.5px] font-semibold" style={{ color: '#1a1a2e' }}>Generate AI</div>
+              <div className="text-[10px]" style={{ color: '#8b8b9e' }}>Auto-generate</div>
+            </div>
+          </button>
         </div>
+      )}
+    </div>
+
+    {/* Edit Exercise button */}
+    {onEditExercise && (
+      <button onClick={handleEditExerciseClick} className="lms-btn lms-btn-ghost-orange" style={{ marginRight: 8 }}>
+        <Settings size={12} /> Edit Exercise
+      </button>
+    )}
+
+    {/* Close button */}
+    <button onClick={handleCloseRequest} style={{ padding: 8, borderRadius: 8, border: '1.5px solid var(--lms-danger-bdr)', background: 'var(--lms-danger-bg)', cursor: 'pointer', color: 'var(--lms-danger)', transition: 'all 0.15s' }}>
+      <X size={15} />
+    </button>
+  </div>
+</div>
 
         {/* ── DIFFICULTY SELECT BAR ── */}
         {!isGeneral && getConfiguredDiffs().length > 0 && (
@@ -4899,29 +5465,29 @@ const ProgrammingQuestionForm: React.FC<ProgrammingQuestionFormProps> = ({
               </button>
 
               {!isGeneral && (
-              <button
-                type="button"
-                onClick={() => setShowOverviewModal(true)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  width: '100%', padding: '10px 14px', borderRadius: 'var(--lms-radius-md)',
-                  fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 600,
-                  border: '1.5px solid var(--lms-border)',
-                  background: 'var(--lms-bg-white)', color: 'var(--lms-text-sec)',
-                  cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left',
-                }}
-                onMouseEnter={e => { const b = e.currentTarget; b.style.borderColor = 'var(--lms-info-bdr)'; b.style.background = 'var(--lms-info-bg)'; b.style.color = 'var(--lms-info)'; }}
-                onMouseLeave={e => { const b = e.currentTarget; b.style.borderColor = 'var(--lms-border)'; b.style.background = 'var(--lms-bg-white)'; b.style.color = 'var(--lms-text-sec)'; }}
-              >
-                <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--lms-info-bg)', border: '1.5px solid var(--lms-info-bdr)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <BarChart3 size={14} style={{ color: 'var(--lms-info)' }} />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 700, color: 'inherit' }}>Exercise Overview</div>
-                  <div style={{ fontFamily: 'var(--lms-font)', fontSize: 10.5, color: 'var(--lms-text-muted)', marginTop: 1 }}>Quota, marks, progress</div>
-                </div>
-                <ChevronRight size={13} style={{ color: 'var(--lms-text-hint)', flexShrink: 0 }} />
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setShowOverviewModal(true)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    width: '100%', padding: '10px 14px', borderRadius: 'var(--lms-radius-md)',
+                    fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 600,
+                    border: '1.5px solid var(--lms-border)',
+                    background: 'var(--lms-bg-white)', color: 'var(--lms-text-sec)',
+                    cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left',
+                  }}
+                  onMouseEnter={e => { const b = e.currentTarget; b.style.borderColor = 'var(--lms-info-bdr)'; b.style.background = 'var(--lms-info-bg)'; b.style.color = 'var(--lms-info)'; }}
+                  onMouseLeave={e => { const b = e.currentTarget; b.style.borderColor = 'var(--lms-border)'; b.style.background = 'var(--lms-bg-white)'; b.style.color = 'var(--lms-text-sec)'; }}
+                >
+                  <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--lms-info-bg)', border: '1.5px solid var(--lms-info-bdr)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <BarChart3 size={14} style={{ color: 'var(--lms-info)' }} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 700, color: 'inherit' }}>Exercise Overview</div>
+                    <div style={{ fontFamily: 'var(--lms-font)', fontSize: 10.5, color: 'var(--lms-text-muted)', marginTop: 1 }}>Quota, marks, progress</div>
+                  </div>
+                  <ChevronRight size={13} style={{ color: 'var(--lms-text-hint)', flexShrink: 0 }} />
+                </button>
               )}
               {sectionData && (
                 <button
@@ -5036,6 +5602,19 @@ const ProgrammingQuestionForm: React.FC<ProgrammingQuestionFormProps> = ({
                         : <span className="lms-badge" style={{ fontSize: '9px', padding: '1px 5px', marginLeft: 3, background: 'var(--lms-bg-surface)', color: 'var(--lms-text-muted)', borderColor: 'var(--lms-border)' }}>Fixed</span>}
                     </span>
                   </div>
+                  {maxAssignableForCurrentQ !== null && (
+                    <div className="lms-marks-row">
+                      <span className="lms-marks-label">Max Assignable</span>
+                      <span className="lms-marks-value" style={{ color: 'var(--lms-info)', fontSize: 12 }}>
+                        {fmtMark(maxAssignableForCurrentQ)}
+                        {remainingSlots > 0 && (
+                          <span style={{ color: 'var(--lms-text-hint)', fontWeight: 400, fontSize: 9, marginLeft: 4 }}>
+                            (1 reserved × {remainingSlots})
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  )}
                   <div className="lms-marks-row">
                     <span className="lms-marks-label">Used Marks</span>
                     <span className="lms-marks-value" style={{ color: 'var(--lms-warning)', fontSize: 12 }}>
@@ -5884,6 +6463,89 @@ const ProgrammingQuestionForm: React.FC<ProgrammingQuestionFormProps> = ({
           </div>
         </div>
       )}
+           {/* ── Question Bank Selector ── */}
+{showBankSelector && (
+  <div className="fixed inset-0 z-[9999]">
+    <QuestionBankSelector
+      exerciseData={{
+        exerciseId: exerciseDbId,
+        exerciseName: exerciseData?.exerciseName || exerciseData?.fullExerciseData?.exerciseInformation?.exerciseName || '',
+        exerciseLevel: exerciseData?.fullExerciseData?.exerciseInformation?.exerciseLevel || 'intermediate',
+        nodeId: entityId,
+        nodeName: exerciseData?.nodeName || '',
+        subcategory,
+        nodeType: exerciseData?.nodeType || '',
+        fullExerciseData: exerciseData?.fullExerciseData,
+        exerciseType: exerciseData?.exerciseType || exerciseData?.fullExerciseData?.exerciseType || '',
+      }}
+      
+      tabType={tabType}
+      onClose={() => setShowBankSelector(false)}
+      onBack={() => { setShowBankSelector(false); setShowAddDropdown(true); }}
+      onSelect={(qs) => { setShowBankSelector(false); handleBankSelectedQuestions(qs); }}
+      existingQuestionIds={(exerciseData?.fullExerciseData?.questions || []).map((q: any) => q._id)}
+      existingQuestions={exerciseData?.fullExerciseData?.questions || []}
+      // ✅ ADD THIS LINE - filter to show only programming questions
+      filterByType="programming"
+    onEditQuestion={(question) => {
+    setShowQuestionBank(false);
+    setSelectedProgrammingQuestion(question);
+    setShowProgrammingForm(true);
+  }}
+/>
+  </div>
+)}
+
+{/* AI Generation Modal */}
+{showAIModal && (
+  <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ background: 'rgba(26,26,46,0.55)', backdropFilter: 'blur(2px)' }}>
+    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" style={{ border: '1.5px solid var(--lms-border)' }}>
+      <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderBottomColor: 'var(--lms-border)', background: 'var(--lms-bg-surface)' }}>
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'rgba(242,119,87,0.1)' }}>
+            <Sparkles size={18} style={{ color: '#F27757' }} />
+          </div>
+          <h2 className="text-base font-bold" style={{ fontFamily: 'var(--lms-font)', color: 'var(--lms-text-main)' }}>Generate with AI</h2>
+        </div>
+        <button onClick={() => setShowAIModal(false)} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+          <X className="h-4 w-4" style={{ color: 'var(--lms-text-muted)' }} />
+        </button>
+      </div>
+      
+      <div className="p-6 text-center">
+        <div className="flex items-center justify-center mb-4">
+          <div className="w-20 h-20 rounded-full flex items-center justify-center" style={{ background: 'rgba(242,119,87,0.1)' }}>
+            <Sparkles size={40} style={{ color: '#F27757' }} />
+          </div>
+        </div>
+        
+        <h3 className="text-xl font-bold mb-2" style={{ color: 'var(--lms-text-main)', fontFamily: 'var(--lms-font)' }}>
+          Coming Soon! 🚀
+        </h3>
+        
+        <p className="text-sm mb-6" style={{ color: 'var(--lms-text-sec)', fontFamily: 'var(--lms-font)', lineHeight: 1.6 }}>
+          AI-powered programming question generation is currently under development.
+          <br /><br />
+          Soon you'll be able to generate complete programming questions 
+          with test cases, constraints, and hints just by describing the problem.
+        </p>
+        
+        <div className="flex items-center justify-center gap-2 mb-6 p-3 rounded-xl" style={{ background: 'var(--lms-orange-50)', border: '1px solid var(--lms-orange-100)' }}>
+          <div className="w-2 h-2 rounded-full" style={{ background: '#F27757', animation: 'pulse 1.5s infinite' }} />
+          <span className="text-xs font-medium" style={{ color: '#c85a30', fontFamily: 'var(--lms-font)' }}>In Development — Release coming soon</span>
+        </div>
+        
+        <button
+          onClick={() => setShowAIModal(false)}
+          className="px-6 py-2.5 rounded-xl font-semibold transition-all w-full"
+          style={{ background: 'var(--lms-orange)', color: '#fff', fontFamily: 'var(--lms-font)' }}
+        >
+          Got it
+        </button>
+      </div>
+    </div>
+  </div>
+)}
     </div>
   );
 };

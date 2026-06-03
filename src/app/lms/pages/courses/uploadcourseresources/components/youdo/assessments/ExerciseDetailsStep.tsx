@@ -398,6 +398,21 @@ export const ExerciseDetailsStep = forwardRef<ExerciseDetailsStepRef, ExerciseDe
     { id: crypto.randomUUID?.() || Math.random().toString(), name: '', order: 1, description: '', totalMarks: 0 }
   ]);
 
+  // ── Sync inbound props → local state when parent loads edit data ────────────
+  useEffect(() => {
+    setIsSectionBased(isSectionBasedProp);
+  }, [isSectionBasedProp]);
+
+  useEffect(() => {
+    setIsSectionBasedDuration(isSectionBasedDurationProp);
+  }, [isSectionBasedDurationProp]);
+
+  useEffect(() => {
+    if (sectionsProp.length > 0) {
+      setSections(sectionsProp);
+    }
+  }, [sectionsProp]);
+
   // Sync sections with parent
   useEffect(() => {
     onSectionsChange?.(sections);

@@ -7,7 +7,7 @@ import {
   GraduationCap, Home, LayoutDashboard,
   Code2, Braces, Atom, Server, Layers,
   Crown, ArrowRight, ChevronsUpDown, ChevronsDownUp,
-  AlertTriangle,
+  AlertTriangle, PanelLeftClose,
 } from "lucide-react"
 import { FONT_PRIMARY, FONT_INTER_IMPORT } from "./types/constants"
 import { hasChildItems, hasPedagogyData } from "./types/utils"
@@ -101,8 +101,8 @@ const AnimCollapse: React.FC<{ open: boolean; children: React.ReactNode }> = ({ 
 /* ─── Shared primitives ──────────────────────────────────────────────────── */
 const SectionLabel: React.FC<{ label: string }> = ({ label }) => (
   <div style={{
-    fontFamily: C.font, fontSize: 10.5, fontWeight: 700,
-    letterSpacing: "0.08em", textTransform: "uppercase",
+    fontFamily: C.font, fontSize: 10, fontWeight: 600,  // Reduced from 10.5/700
+    letterSpacing: "0.03em",  // Reduced from 0.04em
     color: C.textGhost, padding: "16px 16px 8px",
     marginTop: 4,
   }}>
@@ -161,7 +161,7 @@ const NavItem: React.FC<{
         {icon}
       </div>
       <span style={{
-        fontFamily: C.font, fontSize: 13.5, fontWeight: active ? 600 : 500,
+        fontFamily: C.font, fontSize: 12.5, fontWeight: active ? 500 : 400,  // Reduced from 13.5/600/500
         color: active ? C.text : C.textMuted, flex: 1,
         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
       }}>
@@ -207,10 +207,10 @@ const TreeModuleRow: React.FC<{
       </div>
       <span style={{
         fontFamily: C.font, flex: 1,
-        fontSize: depth === 0 ? 13.5 : 12.5, fontWeight: 500,
+        fontSize: depth === 0 ? 12.5 : 12, fontWeight: 400,  // Reduced from 13.5/12.5/500
         color: isOpen || isActive ? C.text : C.textMuted,
         textTransform: depth === 0 ? "uppercase" as const : "none" as const,
-        letterSpacing: depth === 0 ? "0.02em" : "0",
+        letterSpacing: depth === 0 ? "0.015em" : "0",  // Reduced from 0.02em
         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
         transition: "color 0.13s",
       }}>
@@ -252,8 +252,8 @@ const SubtopicRow: React.FC<{
         transition: "background 0.13s",
       }} />
       <span style={{
-        fontFamily: C.font, fontSize: 12.5, flex: 1,
-        fontWeight: isSelected ? 600 : 400,
+        fontFamily: C.font, fontSize: 12, flex: 1,  // Reduced from 12.5
+        fontWeight: isSelected ? 500 : 400,  // Reduced from 600/400
         color: isSelected ? C.text : C.textFaint,
         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
       }}>
@@ -261,7 +261,7 @@ const SubtopicRow: React.FC<{
       </span>
       {isCurrentTopic && (
         <span style={{
-          fontFamily: C.font, fontSize: 10, fontWeight: 600,
+          fontFamily: C.font, fontSize: 9.5, fontWeight: 500,  // Reduced from 10/600
           color: C.accent, background: C.accentLight,
           padding: "2px 7px", borderRadius: 4, flexShrink: 0, whiteSpace: "nowrap",
         }}>
@@ -283,15 +283,15 @@ const UpgradeBanner: React.FC = () => (
   }}>
     <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
       <Crown size={13} color={C.gold} strokeWidth={2} />
-      <span style={{ fontSize: 12, fontWeight: 700, color: C.gold }}>Upgrade to Pro</span>
+      <span style={{ fontSize: 11.5, fontWeight: 600, color: C.gold }}>Upgrade to Pro</span>  {/* Reduced from 12/700 */}
     </div>
-    <p style={{ fontSize: 10.5, color: C.textFaint, lineHeight: 1.5, margin: "0 0 10px" }}>
+    <p style={{ fontSize: 10, color: C.textFaint, lineHeight: 1.5, margin: "0 0 10px" }}>  {/* Reduced from 10.5 */}
       Unlock advanced features and boost your learning experience.
     </p>
     <button style={{
       width: "100%",
       background: "linear-gradient(135deg,#4e82ff 0%,#3a6fd8 100%)",
-      color: "#fff", fontSize: 11, fontWeight: 600,
+      color: "#fff", fontSize: 10.5, fontWeight: 500,  // Reduced from 11/600
       border: "none", borderRadius: 7, padding: "8px 10px",
       cursor: "pointer", display: "flex", alignItems: "center",
       justifyContent: "center", gap: 6, fontFamily: C.font,
@@ -311,10 +311,11 @@ interface SidebarHeaderProps {
   onSearchChange: (v: string) => void
   onExpandAll?: () => void
   onCollapseAll?: () => void
+  onClose?: () => void
 }
 
 export const SidebarHeader: React.FC<SidebarHeaderProps> = ({
-  courseName, modulesCount, sidebarSearch, onSearchChange, onExpandAll, onCollapseAll,
+  courseName, modulesCount, sidebarSearch, onSearchChange, onExpandAll, onCollapseAll, onClose,
 }) => {
   const [searchOpen, setSearchOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -341,7 +342,7 @@ export const SidebarHeader: React.FC<SidebarHeaderProps> = ({
         </div>
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{
-            fontFamily: C.font, fontSize: 13, fontWeight: 600,
+            fontFamily: C.font, fontSize: 12.5, fontWeight: 500,  // Reduced from 13/600
             color: C.text, overflow: "hidden", textOverflow: "ellipsis",
             whiteSpace: "nowrap", letterSpacing: "-0.01em",
           }}>
@@ -349,7 +350,7 @@ export const SidebarHeader: React.FC<SidebarHeaderProps> = ({
           </div>
         </div>
         <span style={{
-          fontFamily: C.font, fontSize: 10, fontWeight: 500,
+          fontFamily: C.font, fontSize: 9.5, fontWeight: 500,  // Reduced from 10/500
           color: C.textFaint, background: C.surface,
           border: `1px solid ${C.border}`,
           padding: "2px 7px", borderRadius: 16, flexShrink: 0,
@@ -390,6 +391,11 @@ export const SidebarHeader: React.FC<SidebarHeaderProps> = ({
             <ChevronsDownUp size={12} strokeWidth={2} />
           </ToolBtn>
         )}
+        {onClose && (
+          <ToolBtn onClick={onClose} title="Close sidebar">
+            <PanelLeftClose size={12} strokeWidth={2} />
+          </ToolBtn>
+        )}
       </div>
 
       {/* Animated search input */}
@@ -418,7 +424,7 @@ export const SidebarHeader: React.FC<SidebarHeaderProps> = ({
               style={{
                 width: "100%", boxSizing: "border-box" as const,
                 paddingLeft: 28, paddingRight: 10, paddingTop: 7, paddingBottom: 7,
-                fontFamily: C.font, fontSize: 12.5,
+                fontFamily: C.font, fontSize: 12,  // Reduced from 12.5
                 background: C.surface, border: `1px solid ${C.border}`,
                 borderRadius: 9, color: C.text, outline: "none",
                 transition: "border-color 0.15s, background 0.15s",
@@ -669,10 +675,10 @@ export const LogoutModal: React.FC<{
       }}>
         <AlertTriangle size={20} color={C.accent} />
       </div>
-      <h3 style={{ margin: "0 0 6px", fontSize: 15, fontWeight: 700, color: C.text, fontFamily: C.font }}>
+      <h3 style={{ margin: "0 0 6px", fontSize: 14.5, fontWeight: 600, color: C.text, fontFamily: C.font }}>  {/* Reduced from 15/700 */}
         Logout?
       </h3>
-      <p style={{ margin: "0 0 22px", fontSize: 12.5, color: C.textMuted, lineHeight: 1.65, fontFamily: C.font }}>
+      <p style={{ margin: "0 0 22px", fontSize: 12, color: C.textMuted, lineHeight: 1.65, fontFamily: C.font }}>  {/* Reduced from 12.5 */}
         Your progress is saved. You can resume anytime.
       </p>
       <div style={{ display: "flex", gap: 8 }}>
@@ -681,7 +687,7 @@ export const LogoutModal: React.FC<{
           style={{
             flex: 1, padding: "9px 0", borderRadius: 9,
             border: `1.5px solid ${C.border}`, background: "transparent",
-            color: C.textMuted, fontWeight: 600, fontSize: 13,
+            color: C.textMuted, fontWeight: 500, fontSize: 12.5,  // Reduced from 600/13
             cursor: "pointer", fontFamily: C.font,
           }}
         >
@@ -692,7 +698,7 @@ export const LogoutModal: React.FC<{
           style={{
             flex: 1, padding: "9px 0", borderRadius: 9, border: "none",
             background: "linear-gradient(135deg,#4e82ff,#3a6fd8)",
-            color: "#fff", fontWeight: 700, fontSize: 13,
+            color: "#fff", fontWeight: 600, fontSize: 12.5,  // Reduced from 700/13
             cursor: "pointer", fontFamily: C.font,
           }}
         >

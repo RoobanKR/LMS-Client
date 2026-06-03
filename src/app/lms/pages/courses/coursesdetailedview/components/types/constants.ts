@@ -2,7 +2,7 @@
 import { Target, Users, BookOpen } from "lucide-react"
 import React from "react"
 
-export const FONT_PRIMARY = "'Inter','Segoe UI','Roboto',system-ui,-apple-system,BlinkMacSystemFont,sans-serif"
+export const FONT_PRIMARY = "'Inter','Roboto',system-ui,-apple-system,BlinkMacSystemFont,sans-serif"
 export const FONT_INTER_IMPORT = "@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');"
 
 export const T = {
@@ -86,6 +86,6 @@ export const RES_COLOR: Record<string,string> = {
 }
 
 export const RES_LABEL: Record<string,string> = {
-  all:"All", video:"Videos", pdf:"PDFs", ppt:"Slides",
-  zip:"ZIPs", link:"Links", reference:"Refs", page:"Pages", image:"Images", word:"Docs", txt:"Text"
+  all:"All", video:"Video", pdf:"PDF", ppt:"Slides",
+  zip:"ZIP", link:"Link", reference:"Ref", page:"Page", image:"Image", word:"Doc", txt:"Text"
 }

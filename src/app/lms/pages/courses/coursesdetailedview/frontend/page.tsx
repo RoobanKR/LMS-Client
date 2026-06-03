@@ -3,6 +3,7 @@
 import React, { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import FrontendCompiler from '@/app/lms/component/student/frontendCompiler';
+import { Loading } from '@/components/loading-ui/loading';
 
 const CompilerPageContent = () => {
   const router = useRouter();
@@ -248,10 +249,7 @@ const CompilerPageContent = () => {
   if (isLoading) {
     return (
       <div className="w-full h-screen bg-[#1e1e1e] flex items-center justify-center text-white">
-        <div className="text-center">
-          <div className="w-10 h-10 border-3 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-          <p>Loading exercise data...</p>
-        </div>
+        <Loading size="size-10" color="blue" label="Loading exercise data..." spinnerClassName="text-blue-400" />
       </div>
     );
   }

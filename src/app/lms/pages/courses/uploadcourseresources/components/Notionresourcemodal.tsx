@@ -7,7 +7,6 @@ import {
 } from "lucide-react";
 import type { FileTypeConfig, CourseNode } from "./Types";
 import { PageCreationModal, type PageBlock, type HierarchyInfo, type PagesPayload } from "./Pagecreationmodal";
-import { BreadcrumbBar, buildCrumbsFromHierarchy } from "./BreadcrumbBar";
 import { PlainBreadcrumb, type PlainCrumb } from "./PlainBreadcrumb";
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
@@ -59,6 +58,54 @@ const PICKER_ITEMS = [
   { key: "url",           label: "URL",           description: "Link to external websites or articles",      icon: <Link2 />,      color: "#10b981" },
   { key: "reference",     label: "Reference",     description: "Add supplementary reference materials",      icon: <BookOpen />,   color: "#8b5cf6" },
 ] as const;
+
+// ─── Location breadcrumb helper ─────────────────────────────────────────────────
+/**
+ * Builds a simple "Course › Module › … › Folder" path from the hierarchy so the
+ * user can see exactly where the new resource will be created. Parent academic
+ * levels become clickable when an `onNavigate` handler is supplied; the current
+ * (last) level always renders as plain, non-clickable text.
+ */
+function buildPlainPathCrumbs(
+  h: HierarchyInfo | undefined,
+  opts: {
+    tab?: "I_Do" | "We_Do" | "You_Do" | null;
+    subcategory?: string;
+    folderPath?: string[];
+    onNavigate?: (nodeId: string) => void;
+  } = {}
+): PlainCrumb[] {
+  if (!h) return [];
+
+  const crumbs: PlainCrumb[] = [];
+  const nav = opts.onNavigate;
+  const push = (label?: string | null, id?: string) => {
+    if (!label) return;
+    crumbs.push({ label, onClick: nav && id ? () => nav(id) : undefined });
+  };
+
+  // Academic hierarchy: Course → Module → Sub-Module → Topic → Sub-Topic
+  push(h.courseName, h.courseId);
+  push(h.moduleName, h.moduleId);
+  push(h.subModuleName, h.subModuleId);
+  push(h.topicName, h.topicId);
+  push(h.subTopicName, h.subTopicId);
+
+  // Section (I Do / We Do / You Do) and its subcategory
+  const tab = h.tabType ?? opts.tab;
+  if (tab) push(tab.replace(/_/g, " "));
+
+  const subcategory = h.subcategory ?? opts.subcategory;
+  if (subcategory) push(subcategory);
+
+  // Group, then the current folder navigation path
+  push(h.groupName, h.groupId);
+
+  const folders = (h.folderPath && h.folderPath.length ? h.folderPath : opts.folderPath) ?? [];
+  folders.forEach(folder => push(folder));
+
+  return crumbs;
+}
 
 // ─── NotionResourceModal ───────────────────────────────────────────────────────
 export const NotionResourceModal: React.FC<NotionResourceModalProps> = ({
@@ -202,21 +249,28 @@ export const NotionResourceModal: React.FC<NotionResourceModalProps> = ({
             </div>
           </div>
 
-          {/* ── Plain location breadcrumb ───────────────────────────────────
-             Tells the user exactly where the new resource will be saved:
-             Course > Module > … > Group > Folder > Subfolder.
-             Read-only — no clicks, no styling per segment. */}
-          {/* {pathCrumbs && pathCrumbs.length > 0 && (
-            <PlainBreadcrumb crumbs={pathCrumbs} prefix="Saving to:" />
-          )} */}
-
-          {/* ── (Legacy) Pill breadcrumb — preserved for navigation only ─── */}
-          {hierarchyInfo && onNavigateTo && (!pathCrumbs || pathCrumbs.length === 0) && (
-            <BreadcrumbBar crumbs={buildCrumbsFromHierarchy(hierarchyInfo)} onNavigate={onNavigateTo} />
-          )}
+          {/* ── Location breadcrumb ──────────────────────────────────────────
+             Simple path from Course down to the current folder so the user
+             knows exactly where the new resource will be created. Uses the
+             crumbs supplied by the parent, otherwise builds them from the
+             hierarchy + active tab / subcategory / folder context. */}
+          {(() => {
+            const crumbs =
+              pathCrumbs && pathCrumbs.length > 0
+                ? pathCrumbs
+                : buildPlainPathCrumbs(hierarchyInfo, {
+                    tab: activeTab,
+                    subcategory: activeSubcategory,
+                    folderPath: currentFolderPath,
+                    onNavigate: onNavigateTo,
+                  });
+            return crumbs.length > 0 ? (
+              <PlainBreadcrumb crumbs={crumbs} prefix="Saving to:" />
+            ) : null;
+          })()}
 
           {/* ── Search ──────────────────────────────────────────────────────── */}
-          <div
+          {/* <div
             className="flex-shrink-0 px-5 py-2.5"
             style={{ borderBottom: `1px solid ${T.border}`, background: T.bg }}
           >
@@ -256,7 +310,7 @@ export const NotionResourceModal: React.FC<NotionResourceModalProps> = ({
                 </button>
               )}
             </div>
-          </div>
+          </div> */}
 
           {/* ── Card grid ───────────────────────────────────────────────────── */}
           <div

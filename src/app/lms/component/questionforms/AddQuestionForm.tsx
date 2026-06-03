@@ -604,12 +604,13 @@ const refreshExerciseData = useCallback(async () => {
       };
       localExerciseDataRef.current = updatedExerciseData;
       setLocalExerciseData(updatedExerciseData);
-      setRefreshKey(k => k + 1);
+      // Don't remount ProgrammingQuestionForm during Save & Continue — it loses all flow state
+      if (!isInSaveAndContinueFlow.current) setRefreshKey(k => k + 1);
       setDiffRefreshTrigger(prev => prev + 1); // ✅ Trigger diff options refresh
     }
   } catch (err) {
     console.warn('Refetch failed:', err);
-    setRefreshKey(k => k + 1);
+    if (!isInSaveAndContinueFlow.current) setRefreshKey(k => k + 1);
     setDiffRefreshTrigger(prev => prev + 1);
   }
 }, [exerciseData]);

@@ -50,6 +50,35 @@ interface FormErrors {
   password: string;
 }
 
+// ── Client-info helpers (used to capture login metadata) ─────────────────────
+const getBrowserName = (ua: string): string => {
+  if (/Edg\//.test(ua)) return 'Edge';
+  if (/OPR|Opera/.test(ua)) return 'Opera';
+  if (/Firefox\//.test(ua)) return 'Firefox';
+  if (/Chrome\//.test(ua)) return 'Chrome';
+  if (/Safari\//.test(ua) && !/Chrome/.test(ua)) return 'Safari';
+  return 'Browser';
+};
+
+const getOSName = (ua: string): string => {
+  if (/Windows NT 10\.0|Windows NT 11/.test(ua)) return 'Windows 10/11';
+  if (/Windows/.test(ua)) return 'Windows';
+  if (/Mac OS X/.test(ua)) return 'macOS';
+  if (/Android/.test(ua)) {
+    const m = ua.match(/Android ([\d.]+)/);
+    return m ? `Android ${m[1]}` : 'Android';
+  }
+  if (/iPhone|iPad/.test(ua)) return 'iOS';
+  if (/Linux/.test(ua)) return 'Linux';
+  return 'Unknown OS';
+};
+
+const getDeviceType = (ua: string): string => {
+  if (/iPad/.test(ua)) return 'Tablet';
+  if (/Android.*Mobile|iPhone|Windows Phone|Mobile/.test(ua)) return 'Mobile';
+  return 'Desktop PC';
+};
+
 const CAROUSEL_IMAGES = [
   {
     src: "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=800&h=1000&fit=crop&crop=faces",
@@ -136,13 +165,37 @@ const SmartCliffLogin = () => {
 
   const loginMutation = useMutation({
     mutationFn: async (credentials: { email: string; password: string }) => {
+      // Collect synchronous client info (no delay)
+      const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+      const clientInfo: Record<string, string> = {
+        browser: getBrowserName(ua),
+        os: getOSName(ua),
+        device: getDeviceType(ua),
+        userAgent: ua,
+      };
+      // Best-effort public IP + location BEFORE login, so the real IP is stored
+      // at login time (a post-login fetch would be aborted by the redirect).
+      try {
+        const ctrl = new AbortController();
+        const tid = setTimeout(() => ctrl.abort(), 2500);
+        const geo = await fetch('https://ipapi.co/json/', { signal: ctrl.signal });
+        clearTimeout(tid);
+        if (geo.ok) {
+          const d = await geo.json();
+          if (d.ip) clientInfo.ipAddress = String(d.ip);
+          const loc = [d.city, d.region, d.country_name].filter(Boolean).join(', ');
+          if (loc) clientInfo.location = loc;
+        }
+      } catch { /* best effort — login is never blocked beyond the timeout */ }
       const response = await fetch("https://lms-server-ym1q.onrender.com/user/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(credentials),
+        body: JSON.stringify({ ...credentials, clientInfo }),
       });
       if (!response.ok) { const errorData = await response.json(); throw new Error(errorData.message?.[0]?.value || "Login failed"); }
-      return response.json();
+      const result = await response.json();
+      (result as any)._clientInfo = clientInfo;
+      return result as LoginResponse;
     },
     onSuccess: async (data: LoginResponse) => {
       try {
@@ -195,6 +248,8 @@ const SmartCliffLogin = () => {
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         });
         if (!verifyResponse.ok) { clearAuthData(); throw new Error("Token verification failed"); }
+        // IP / location / device were already captured with the login request
+        // (clientInfo), so they persist even though we redirect immediately below.
         if (!user.firstTimeLoginDone) localStorage.setItem("showWelcomeToast", "true");
         if (redirectTo) { window.location.href = redirectTo; return; }
         const firstPermissionKey = localStorage.getItem("smartcliff_firstPermissionKey");

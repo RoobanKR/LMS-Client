@@ -44,7 +44,8 @@ onSave?: (payload: any) => void;
   tabType?: "I_Do" | "We_Do" | "You_Do";
   initialData?: any;
   exercise_Id?: string;
-    courseId?: string; // Add this line
+  exerciseData?: any;   // pre-loaded raw exercise — skips API fetch on edit
+  courseId?: string;
 
  
 }

@@ -65,6 +65,7 @@ interface ProgrammingQuestionProps {
   isLastQuestion: boolean;
   onBack?: () => void;
   theme?: 'light' | 'dark';
+  registerSubmit?: (fn: () => void | Promise<void>) => void;
 }
 
 // Helper to get Piston language config
@@ -192,7 +193,8 @@ const ProgrammingQuestion: React.FC<ProgrammingQuestionProps> = ({
   onNext,
   isLastQuestion,
   onBack,
-  theme = 'light'
+  theme = 'light',
+  registerSubmit
 }) => {
   // State
   const [code, setCode] = useState("");
@@ -413,7 +415,7 @@ solution();`
   const submitCode = async () => {
     setIsSubmitting(true);
     clearTerminal();
-    setShowTerminal(true);
+    // Note: do NOT auto-open the console on submit — only Run opens it.
 
     try {
       const currentCode = editorInstanceRef.current ? editorInstanceRef.current.getValue() : code;
@@ -459,6 +461,11 @@ solution();`
       setIsSubmitting(false);
     }
   };
+
+  // Expose submit to parent (combined page bottom-bar "Submit Question")
+  useEffect(() => {
+    registerSubmit?.(submitCode);
+  });
 
   // Editor functions
   const handleEditorChange = (value: string | undefined) => {

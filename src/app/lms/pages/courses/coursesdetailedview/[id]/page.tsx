@@ -22,21 +22,24 @@ import ZipViewer from "../../../../component/student/zipViewer"
 import ImageViewer from "../../../../component/student/ImageViewer"
 import WordViewer from "../../../../component/student/word-viewer"
 import Exercises from "../../../../component/student/exercises"
+import Assessments from "../../../../component/student/assessments"
 import { useTheme as useNextTheme } from "next-themes"
 import AIChat from "@/app/lms/component/student/ai-chat"
 import SummaryChat from "@/app/lms/component/student/summary-chat"
 import DBQueryEditor from "@/app/lms/component/student/db-queryEditor"
 import { toast, ToastContainer } from 'react-toastify'
+import { toast as hotToast } from 'react-hot-toast'
 import 'react-toastify/dist/ReactToastify.css'
 import { userPermission } from "@/apiServices/tokenVerify"
 import { injectTryItButtons } from '../../utils/injectTryItButtons'
-import SectionBasedAssessments from "../../../../component/student/section-based-assessments"
 import TxtViewer from "../../../../component/student/textdoc"
 
 // Import progress tracking functions
 import {
-  recordNodeVisit,
   recordResourceOpen,
+  recordResourceClose,
+  recordMethodSelect,
+  recordActivitySelect,
   fetchStudentProgress,
   StudentProgress
 } from '../../../../../../apiServices/progress';
@@ -44,6 +47,7 @@ import {
 import { T, METHOD_CFG, RES_LABEL, FONT_PRIMARY, FONT_INTER_IMPORT } from "../components/types/constants"
 import { TopBar } from "../components/TopBar"
 import { Sidebar, SidebarHeader, LogoutModal, buildHoursMap } from "../components/Sidebar"
+import { postLogout } from "@/apiServices/activityLog"
 import { TabBar } from "../components/TabBar"
 import InlineAIChat from "../components/InlineAIChat"
 import InlineSummaryChat from "../components/InlineSummaryChat"
@@ -63,6 +67,7 @@ import {
 
 import { fetchAllPedagogyViews, fetchPedagogyViewById } from '../.../../../../../../../apiServices/pedagogyAndModuleAdd/pedagogy';
 import StudentTestYourSkillsMCQQuestion from "@/app/lms/component/student/YouDo/testYourSkillMcqquestion"
+import { Loading } from "@/components/loading-ui/loading"
 
 export default function LMSPage() {
   const params = useParams()
@@ -539,12 +544,22 @@ const subcategories = useMemo(() => {
     setSelectedMethod(method)
     setSelectedActivity("")
     setUserSelectedResourceType(false)
+    // Track method selection
+    const userId = getCurrentUserId()
+    if (userId && courseId && selectedItem) {
+      recordMethodSelect(userId, courseId, tab, selectedItem.id, selectedItem.title)
+    }
   }
 
   const handleSubcategoryChange = (sub: string, component: any) => {
     setActiveSubcategory(sub)
     setSelectedActivity(sub)
     setUserSelectedResourceType(false)
+    // Track activity/subcategory selection
+    const userId = getCurrentUserId()
+    if (userId && courseId && selectedItem && selectedMethod) {
+      recordActivitySelect(userId, courseId, selectedMethod, sub, selectedItem.id, selectedItem.title)
+    }
   }
 
   useEffect(() => {
@@ -567,7 +582,40 @@ const subcategories = useMemo(() => {
     if (!canToggleHeader && isHeaderCollapsed) setIsHeaderCollapsed(false)
   }, [canToggleHeader, isHeaderCollapsed])
 
+  // ── Resource view-duration tracking (I Do only, for now) ───────────────────
+  // Holds the currently-open I Do resource so we can stamp a close time / duration.
+  const openResourceRef = useRef<{ logId: string | null; resourceId: string; openedAt: number; pending: Promise<string | null> | null } | null>(null)
+
+  const flushResourceClose = (opts?: { keepalive?: boolean }) => {
+    const cur = openResourceRef.current
+    if (!cur) return
+    openResourceRef.current = null   // clear first so we never send twice
+    const userId = getCurrentUserId()
+    if (!userId || !courseId) return
+    const durationSec = Math.max(0, Math.round((Date.now() - cur.openedAt) / 1000))
+    const send = (logId: string | null) => { if (logId) recordResourceClose(userId, courseId, logId, durationSec, opts) }
+    if (cur.logId) send(cur.logId)
+    else if (cur.pending) cur.pending.then(send).catch(() => {})
+  }
+
+  // Keep a stable handle to the latest flush for unload listeners.
+  const flushRef = useRef(flushResourceClose)
+  flushRef.current = flushResourceClose
+
+  useEffect(() => {
+    const onVisibility = () => { if (document.visibilityState === 'hidden') flushRef.current({ keepalive: true }) }
+    const onPageHide = () => flushRef.current({ keepalive: true })
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('pagehide', onPageHide)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('pagehide', onPageHide)
+      flushRef.current({ keepalive: true })   // flush on unmount / navigation away
+    }
+  }, [])
+
   const closeAllViewers = () => {
+    flushResourceClose()   // stamp close time on the resource being closed
     setActiveViewer({ type: null, resource: null })
     setShowNotesPanel(false)   // ← ADD THIS
   }
@@ -579,6 +627,15 @@ const subcategories = useMemo(() => {
       .then(r => r.json()).then(d => { setCourseData(d.data || d) })
       .catch(() => { })
   }, [courseId])
+
+  // Show the "submitted successfully" toast handed over by the exam page after
+  // it redirected back here (survives the navigation reliably via sessionStorage).
+  useEffect(() => {
+    try {
+      const msg = sessionStorage.getItem('lms_submit_toast')
+      if (msg) { sessionStorage.removeItem('lms_submit_toast'); setTimeout(() => hotToast.success(msg), 300) }
+    } catch { /* ignore */ }
+  }, [])
 
   useEffect(() => {
     if (!courseId) { setError("No course ID."); setIsLoading(false); return }
@@ -636,29 +693,7 @@ const subcategories = useMemo(() => {
     closeAllViewers()
     setUserSelectedResourceType(false)
     setSortOption("newest")
-
-    // ── PROGRESS TRACKING: Record node visit ──────────────────────────────
-    const userId = getCurrentUserId()
-    if (userId && courseId && itemId) {
-      // Fire and forget - don't await to avoid blocking UI
-      recordNodeVisit(userId, courseId, itemId).then(result => {
-        if (result.success) {
-          // Update local state to show visual feedback immediately
-          setStudentProgress(prev => {
-            if (!prev) return prev
-            const updatedVisitedNodes = prev.visitedNodes.includes(itemId)
-              ? prev.visitedNodes
-              : [...prev.visitedNodes, itemId]
-            return {
-              ...prev,
-              visitedNodes: updatedVisitedNodes,
-              lastVisitedNode: itemId,
-              lastVisitedAt: new Date()
-            }
-          })
-        }
-      })
-    }
+    // Node-visit tracking removed — selecting a module/submodule/topic/subtopic is no longer stored as "visited".
   }, [courseData, selectedItem, courseId])
 
   // UPDATED: handleResourceClick with progress tracking
@@ -731,8 +766,13 @@ const subcategories = useMemo(() => {
     if (resource.id && resource.type !== 'exercise') {
       const userId = getCurrentUserId()
       if (userId && courseId && resource.id) {
-        // Fire and forget
-        recordResourceOpen(userId, courseId, resource.id).then(result => {
+        const isIDo = selectedMethod === 'i-do'
+        const openedAt = Date.now()
+        // Fire and forget — resolves to the created log id (for close-time stamping)
+        const pending = recordResourceOpen(
+          userId, courseId, resource.id, resource.title, resource.type, isIDo ? 'I_Do' : undefined,
+          selectedItem?.title, selectedItem?.type
+        ).then(result => {
           if (result.success) {
             // Update local state
             setStudentProgress(prev => {
@@ -746,7 +786,17 @@ const subcategories = useMemo(() => {
               }
             })
           }
+          return result.logId ?? null
         })
+        // I Do only (for now): remember this open so its close time / duration is stamped.
+        if (isIDo) {
+          openResourceRef.current = { logId: null, resourceId: resource.id, openedAt, pending }
+          pending.then(id => {
+            if (openResourceRef.current && openResourceRef.current.resourceId === resource.id) {
+              openResourceRef.current.logId = id
+            }
+          }).catch(() => {})
+        }
       }
     }
   }
@@ -754,34 +804,42 @@ const subcategories = useMemo(() => {
   useEffect(() => {
     if (!courseData?.modules) return
     if (selectedItem) { setIsLoading(false); return }
-    // Note: Removed auto-restoration of selected item - students see Course Overview by default
-    // const nid = load('lms_student_selected_node_id')
-    // const sm = load('lms_student_selected_method')
-    // const sa = load('lms_student_selected_activity')
-    // if (nid) {
-    //   const restore = (id: string, title: string, type: SelectedItemType, hier: string[], ped?: any) => {
-    //     handleItemSelect(id, title, type, hier, ped)
-    //     if (sm && sa) setTimeout(() => { setSelectedMethod(sm); setSelectedActivity(sa) }, 100)
-    //   }
-    //   const walk = (modules: any[]): boolean => {
-    //     for (const m of modules) {
-    //       if (m._id === nid) { restore(m._id, m.title, "module", [m._id], m.pedagogy); setExpandedModules(p => new Set(p).add(m._id)); return true }
-    //       if (m.subModules) for (const sub of m.subModules) {
-    //         if (sub._id === nid) { restore(sub._id, sub.title, "submodule", [m._id, sub._id], sub.pedagogy); setExpandedModules(p => new Set(p).add(m._id)); setExpandedSubModules(p => new Set(p).add(sub._id)); return true }
-    //         if (sub.topics) for (const t of sub.topics) {
-    //           if (t._id === nid) { restore(t._id, t.title, "topic", [m._id, sub._id, t._id], t.pedagogy); setExpandedModules(p => new Set(p).add(m._id)); setExpandedSubModules(p => new Set(p).add(sub._id)); setExpandedTopics(p => new Set(p).add(t._id)); return true }
-    //           if (t.subTopics) for (const st of t.subTopics) if (st._id === nid) { restore(st._id, st.title, "subtopic", [m._id, sub._id, t._id, st._id], st.pedagogy); setExpandedModules(p => new Set(p).add(m._id)); setExpandedSubModules(p => new Set(p).add(sub._id)); setExpandedTopics(p => new Set(p).add(t._id)); return true }
-    //         }
-    //       }
-    //       if (m.topics) for (const t of m.topics) {
-    //         if (t._id === nid) { restore(t._id, t.title, "topic", [m._id, t._id], t.pedagogy); setExpandedModules(p => new Set(p).add(m._id)); setExpandedTopics(p => new Set(p).add(t._id)); return true }
-    //         if (t.subTopics) for (const st of t.subTopics) if (st._id === nid) { restore(st._id, st.title, "subtopic", [m._id, t._id, st._id], st.pedagogy); setExpandedModules(p => new Set(p).add(m._id)); setExpandedTopics(p => new Set(p).add(t._id)); return true }
-    //       }
-    //     }
-    //     return false
-    //   }
-    //   walk(courseData.modules as any)
-    // }
+
+    // Restore the EXACT node + method + activity ONLY when returning from an
+    // exercise (the exam page sends ?restoreNodeId/method/activity). Normal
+    // course visits have no such params, so they still show Course Overview.
+    const restoreParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams()
+    const nid = restoreParams.get('restoreNodeId')
+    const sm = restoreParams.get('method')    // 'i-do' | 'we-do' | 'you-do'
+    const sa = restoreParams.get('activity')  // e.g. 'Assignments'
+    if (nid) {
+      const restore = (id: string, title: string, type: SelectedItemType, hier: string[], ped?: any) => {
+        handleItemSelect(id, title, type, hier, ped)
+        // handleItemSelect clears method/activity when the node changes, so set
+        // them just after, to re-open the same tab + activity (the exercises list).
+        if (sm && sa) setTimeout(() => { setSelectedMethod(sm); setSelectedActivity(sa) }, 120)
+      }
+      const walk = (modules: any[]): boolean => {
+        for (const m of modules) {
+          if (m._id === nid) { restore(m._id, m.title, "module", [m._id], m.pedagogy); setExpandedModules(p => new Set(p).add(m._id)); return true }
+          if (m.subModules) for (const sub of m.subModules) {
+            if (sub._id === nid) { restore(sub._id, sub.title, "submodule", [m._id, sub._id], sub.pedagogy); setExpandedModules(p => new Set(p).add(m._id)); setExpandedSubModules(p => new Set(p).add(sub._id)); return true }
+            if (sub.topics) for (const t of sub.topics) {
+              if (t._id === nid) { restore(t._id, t.title, "topic", [m._id, sub._id, t._id], t.pedagogy); setExpandedModules(p => new Set(p).add(m._id)); setExpandedSubModules(p => new Set(p).add(sub._id)); setExpandedTopics(p => new Set(p).add(t._id)); return true }
+              if (t.subTopics) for (const st of t.subTopics) if (st._id === nid) { restore(st._id, st.title, "subtopic", [m._id, sub._id, t._id, st._id], st.pedagogy); setExpandedModules(p => new Set(p).add(m._id)); setExpandedSubModules(p => new Set(p).add(sub._id)); setExpandedTopics(p => new Set(p).add(t._id)); return true }
+            }
+          }
+          if (m.topics) for (const t of m.topics) {
+            if (t._id === nid) { restore(t._id, t.title, "topic", [m._id, t._id], t.pedagogy); setExpandedModules(p => new Set(p).add(m._id)); setExpandedTopics(p => new Set(p).add(t._id)); return true }
+            if (t.subTopics) for (const st of t.subTopics) if (st._id === nid) { restore(st._id, st.title, "subtopic", [m._id, t._id, st._id], st.pedagogy); setExpandedModules(p => new Set(p).add(m._id)); setExpandedTopics(p => new Set(p).add(t._id)); return true }
+          }
+        }
+        return false
+      }
+      walk(courseData.modules as any)
+      // Strip the restore params so a manual refresh doesn't re-trigger this.
+      router.replace(`/lms/pages/courses/coursesdetailedview/${courseId}`)
+    }
     setIsLoading(false)
   }, [courseData, handleItemSelect, selectedItem])
 
@@ -1119,51 +1177,69 @@ const getExercisesForActivity = (): any[] => {
 
   const handleExerciseSelect = async (exercise: any, options?: { resetProgress?: boolean }) => {
     let qs: any[] = []
-     if (exercise.isTestYourSkills || exercise.exerciseType === "TestYourSkills") {
-    handleOpenTestYourSkills(exercise.testData);
-    return;
-  }
+    if (exercise.isTestYourSkills || exercise.exerciseType === "TestYourSkills") {
+      handleOpenTestYourSkills(exercise.testData);
+      return;
+    }
     if (exercise.questions && Array.isArray(exercise.questions)) qs = exercise.questions
     else if (exercise.exerciseInformation?.questions) qs = exercise.exerciseInformation.questions
     else if (exercise.data?.questions) qs = exercise.data.questions
-    if (!qs.length) { toast.warning("Exercise not yet configured."); return }
+
+    // Section-based exercises store questions in sectionConfigs, not questions[] — skip guard
+    const isSecBased = exercise?.exerciseType === 'SectionBased' || exercise?.isSectionBased === true
+    if (!qs.length && !isSecBased) { toast.warning("Exercise not yet configured."); return }
+
     const mk: Record<string, string> = { 'i-do': 'I_Do', 'we-do': 'We_Do', 'you-do': 'You_Do' }
     const catP = mk[selectedMethod] || 'We_Do'
     const eid = exercise?._id
     const cname = courseData?.courseName || "Course"
     const stored = { ...exercise, questions: qs, courseId, courseName: cname, context: { courseId, nodeId: selectedItem?.id, nodeTitle: selectedItem?.title, method: selectedMethod, activity: selectedActivity }, storedAt: new Date().toISOString() }
+
+    // You Do → route to youdo/* pages; We Do / I Do → existing pages
+    const prefix = selectedMethod === 'you-do' ? 'youdo/' : ''
+
     const nav = (path: string, key: string, extra: Record<string, string> = {}) => {
       localStorage.setItem(key, JSON.stringify(stored))
-      router.push(`/lms/pages/courses/coursesdetailedview/${path}?${new URLSearchParams({ courseId, courseName: cname, exerciseId: eid || '', subcategory: selectedActivity || '', category: catP, questionCount: qs.length.toString(), ...extra })}`)
+      router.push(`/lms/pages/courses/coursesdetailedview/${prefix}${path}?${new URLSearchParams({ courseId, courseName: cname, exerciseId: eid || '', subcategory: selectedActivity || '', category: catP, questionCount: qs.length.toString(), ...extra })}`)
     }
+
     if (exercise.exerciseType === "Combined") nav('combined', 'currentCombinedExercise', { exerciseName: exercise.exerciseInformation?.exerciseName || 'Combined Exercise' })
     else if (exercise.programmingSettings?.selectedModule === 'Frontend') nav('frontend', 'currentFrontendExercise', { exerciseName: exercise.exerciseInformation?.exerciseName || 'Frontend Exercise', hierarchy: currentHierarchy.toString() })
     else if (exercise.programmingSettings?.selectedModule === 'Database') { toast.info("Opening SQL Exercise...", { autoClose: 2000 }); nav('sql', 'currentSQLExercise', { exerciseName: exercise.exerciseInformation?.exerciseName || 'SQL Exercise' }) }
     else if (exercise.exerciseType === "MCQ") nav('mcq', 'currentMCQExercise', { exerciseName: exercise.exerciseInformation?.exerciseName || 'MCQ Exercise', nodeId: selectedItem?.id || '', nodeName: selectedItem?.title || '', nodeType: selectedItem?.type || '', hierarchy: currentHierarchy.join(',') })
     else if (exercise.exerciseType === "Other") nav('others', 'currentOthersExercise', { exerciseName: exercise.exerciseInformation?.exerciseName || 'Other Exercise', nodeId: selectedItem?.id || '', nodeName: selectedItem?.title || '', nodeType: selectedItem?.type || '', hierarchy: currentHierarchy.join(',') })
     else {
-      // Programming/Core exercise — fetch the full exercise document so all
-      // exerciseInformation fields (totalMarks, totalMarksProgramming, etc.)
-      // are available in CodeEditor (the course-data embed only stores a partial snapshot).
-      setExerciseResetProgress(options?.resetProgress ?? false)
-      try {
-        const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || ''
-        const res = await fetch(`https://lms-server-ym1q.onrender.com/exercise/${exercise._id}`, {
-          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+      // Programming / Core exercise
+      if (selectedMethod === 'you-do') {
+        // You Do → route to youdo/programming page (uses YouDo CodeEditor)
+        nav('programming', 'currentProgrammingExercise', {
+          exerciseName: exercise.exerciseInformation?.exerciseName || 'Programming Exercise',
+          nodeId: selectedItem?.id || '',
+          nodeName: selectedItem?.title || '',
+          nodeType: selectedItem?.type || '',
+          hierarchy: currentHierarchy.join(','),
         })
-        if (res.ok) {
-          const data = await res.json()
-          const full = data.data || data.exercise || data
-          if (full?._id) {
-            // Merge: full overrides partial, but keep the already-resolved questions array
-            setSelectedExercise({ ...full, questions: qs })
-            return
+      } else {
+        // We Do / I Do — fetch full exercise document and render inline
+        setExerciseResetProgress(options?.resetProgress ?? false)
+        try {
+          const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || ''
+          const res = await fetch(`https://lms-server-ym1q.onrender.com/exercise/${exercise._id}`, {
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+          })
+          if (res.ok) {
+            const data = await res.json()
+            const full = data.data || data.exercise || data
+            if (full?._id) {
+              setSelectedExercise({ ...full, questions: qs })
+              return
+            }
           }
+        } catch {
+          // Fall through to use the partial exercise object
         }
-      } catch {
-        // Fall through to use the partial exercise object
+        setSelectedExercise(exercise)
       }
-      setSelectedExercise(exercise)
     }
   }
 
@@ -1648,9 +1724,21 @@ const getExercisesForActivity = (): any[] => {
       </div>
     )
   }
-  function isSectionBasedEx(ex: any): boolean {
-    return ex?.exerciseType === "SectionBased" || ex?.isSectionBased === true
+  // ── Logout action (sidebar Logout → confirm modal) ────────────────────────
+  const handleLogout = async () => {
+    try {
+      // Record logout time / session duration before the token is cleared.
+      await postLogout()
+    } catch { /* best effort */ }
+    try {
+      localStorage.removeItem('smartcliff_roleSwitch')
+      localStorage.removeItem('smartcliff_isDummyStudent')
+      localStorage.clear()
+    } catch { /* ignore */ }
+    setShowLogoutModal(false)
+    router.push('/login')
   }
+
   // ── Logout button (reused in both sidebars) ───────────────────────────────
   const LogoutBtn = ({ onClick }: { onClick: () => void }) => (
     <div
@@ -1671,7 +1759,7 @@ const getExercisesForActivity = (): any[] => {
   if (error) return <div className="p-6 text-red-500">Error: {error}</div>
   if (isLoading) return (
     <div className="flex justify-center items-center h-screen">
-      <Loader2 className="animate-spin text-orange-400" size={36} />
+      <Loading size="size-12" color="blue" />
     </div>
   )
 
@@ -1793,13 +1881,6 @@ const getExercisesForActivity = (): any[] => {
           style={{ width: sidebarOpen ? 280 : 0, minWidth: 0 }}
         >
           <div className="w-[280px] flex-1 min-h-0 flex flex-col relative">
-            <button
-              onClick={() => setSidebarOpen(false)}
-              className="absolute -right-3 top-1/2 -translate-y-1/2 z-[100] w-10 h-10 rounded-full flex items-center justify-center bg-white border-2 border-gray-300 shadow-[0_4px_20px_rgba(0,0,0,0.25)] cursor-pointer text-slate-600 hover:bg-orange-50 hover:text-orange-500 hover:border-orange-300 hover:scale-110 transition-all duration-200"
-              title="Close sidebar"
-            >
-              <ChevronLeft size={20} strokeWidth={3} />
-            </button>
             <SidebarHeader
               courseName={courseData?.courseName || "Course"}
               modulesCount={courseData?.modules?.length || 0}
@@ -1807,6 +1888,7 @@ const getExercisesForActivity = (): any[] => {
               onSearchChange={setSidebarSearch}
               onExpandAll={expandAll}
               onCollapseAll={collapseAll}
+              onClose={() => setSidebarOpen(false)}
             />
             <div className="sb-scroll flex-1 min-h-0 overflow-y-auto bg-[#111827]">
               {isLoading || !courseData ? (
@@ -1833,14 +1915,43 @@ const getExercisesForActivity = (): any[] => {
           </div>
         </div>
 
-        {/* Sidebar open toggle button */}
+        {/* Sidebar open tab — appears flush on left edge when sidebar is closed */}
         {!sidebarOpen && (
           <button
             onClick={() => setSidebarOpen(true)}
-            className="fixed left-0 top-1/2 -translate-y-1/2 z-[100] w-10 h-10 rounded-full flex items-center justify-center bg-white border-2 border-gray-300 shadow-[0_4px_20px_rgba(0,0,0,0.25)] cursor-pointer text-slate-600 hover:bg-orange-50 hover:text-orange-500 hover:border-orange-300 hover:scale-110 transition-all duration-200 -translate-x-1/2"
             title="Open sidebar"
+            style={{
+              position: 'fixed',
+              left: 0,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              zIndex: 100,
+              width: 20,
+              height: 56,
+              borderRadius: '0 8px 8px 0',
+              background: '#111827',
+              border: '1px solid #1e2430',
+              borderLeft: 'none',
+              boxShadow: '2px 0 8px rgba(0,0,0,0.18)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              color: '#94a3b8',
+              transition: 'background 0.15s, color 0.15s, width 0.15s',
+            }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLButtonElement).style.background = '#1e2430'
+              ;(e.currentTarget as HTMLButtonElement).style.color = '#f8fafc'
+              ;(e.currentTarget as HTMLButtonElement).style.width = '24px'
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLButtonElement).style.background = '#111827'
+              ;(e.currentTarget as HTMLButtonElement).style.color = '#94a3b8'
+              ;(e.currentTarget as HTMLButtonElement).style.width = '20px'
+            }}
           >
-            <ChevronRight size={20} strokeWidth={3} />
+            <ChevronRight size={12} strokeWidth={2.5} />
           </button>
         )}
 
@@ -1882,7 +1993,7 @@ const getExercisesForActivity = (): any[] => {
                   {/* Course Header */}
                   <div className="mb-6">
                     <div className="flex items-center gap-3 mb-2">
-                      <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest bg-orange-50 text-orange-600 border border-orange-200">
+                      <span className="px-3 py-1 rounded-full text-xs  tracking-widest bg-orange-50 text-orange-600 border border-orange-200">
                         Course Overview
                       </span>
                       {(() => {
@@ -1898,7 +2009,7 @@ const getExercisesForActivity = (): any[] => {
                         )
                       })()}
                     </div>
-                    <h2 className="m-0 text-xl font-bold text-gray-900 leading-tight mb-2">{courseData?.courseName}</h2>
+                    <h2 className="m-0 text-xl  text-black-700 leading-tight mb-2">{courseData?.courseName}</h2>
                     <p className="m-0 text-sm text-gray-500">Complete learning path with structured modules and interactive content</p>
                   </div>
 
@@ -1951,11 +2062,11 @@ const getExercisesForActivity = (): any[] => {
                   })()}
 
                   {/* Description */}
-                  <h3 className="mt-2.5 mb-2.5 text-sm font-bold text-gray-900">Course Description</h3>
+                  <h3 className="mt-2.5 mb-2.5 text-sm  text-black-700">Course Description</h3>
                   {courseData?.courseDescription && (
                     <>
                       <div
-                        className="mb-3 text-[13.5px] text-gray-500 leading-[1.8] rounded-xl transition-all duration-300"
+                        className="mb-3 text-[12px] text-black-600 leading-[1.8] rounded-xl transition-all duration-300"
                         style={{
                           display: '-webkit-box',
                           WebkitLineClamp: isDescriptionExpanded ? 'unset' : 4,
@@ -1981,7 +2092,7 @@ const getExercisesForActivity = (): any[] => {
 
                   {/* Course Structure - Enhanced Hierarchy Table */}
                   <div className="mb-6">
-                    <h3 className="m-0 text-2xl font-extrabold text-gray-900 mb-2">Course Structure</h3>
+                    <h3 className="m-0   text-black-500 mb-2">Course Structure</h3>
                     <p className="m-0 text-sm text-gray-500 mb-6">Click any row to explore content and resources</p>
                   </div>
 
@@ -2200,7 +2311,7 @@ const getExercisesForActivity = (): any[] => {
                   <div className="flex items-center justify-between gap-4 mb-6">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
-                        <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest bg-gray-100 text-gray-600 border border-gray-200">
+                        <span className="px-3 py-1 rounded-full text-xs  tracking-widest bg-gray-100 text-gray-600 border border-gray-200">
                           {selectedItem.type.charAt(0).toUpperCase() + selectedItem.type.slice(1)}
                         </span>
                         {(() => {
@@ -2214,8 +2325,8 @@ const getExercisesForActivity = (): any[] => {
                           )
                         })()}
                       </div>
-                      <h2 className="m-0 text-xl font-bold text-gray-900 leading-tight mb-1">{selectedItem.title}</h2>
-                      <p className="m-0 text-sm text-gray-500">Detailed overview with hierarchy and resources</p>
+                      <h2 className="m-0 text-xl  text-black-700 leading-tight mb-1">{selectedItem.title}</h2>
+                      <p className="m-0 text-[12.5px]  text-gray-600">Detailed overview with hierarchy and resources</p>
                     </div>
 
                     {/* Course Overview Button */}
@@ -2260,9 +2371,9 @@ const getExercisesForActivity = (): any[] => {
 
                     return desc ? (
                       <>
-                        <h3 className="mt-6 mb-3 text-xl font-extrabold text-gray-900">{getDescriptionHeading()}</h3>
+                        <h3 className="mt-6 mb-3 text-black-600">{getDescriptionHeading()}</h3>
                         <div
-                          className="mb-6 text-[14px] text-gray-600 leading-[1.8] whitespace-pre-wrap"
+                          className="mb-6 text-[12.5px] text-black-600 leading-[1.8] whitespace-pre-wrap"
                           dangerouslySetInnerHTML={{ __html: escapeHtml(desc) }}
                         />
                       </>
@@ -2278,12 +2389,12 @@ const getExercisesForActivity = (): any[] => {
 
                   {/* Filtered Hierarchy Table */}
                   <div className="mb-6">
-                    <h3 className="m-0 text-xl font-extrabold text-gray-900 mb-2">
+                    <h3 className="m-0 text-black-600 mb-1">
                       {selectedItem.type === 'module' ? 'Module Hierarchy' :
                         selectedItem.type === 'submodule' ? 'Submodule Hierarchy' :
                           selectedItem.type === 'topic' ? 'Topic Hierarchy' : 'Subtopic Details'}
                     </h3>
-                    <p className="m-0 text-sm text-gray-500">View the structure and content of this {selectedItem.type}</p>
+                    <p className="m-0 text-[12.5px] text-black-500">View the structure and content of this {selectedItem.type}</p>
                   </div>
                   {renderFilteredHierarchyTable()}
 
@@ -2427,45 +2538,40 @@ const getExercisesForActivity = (): any[] => {
 
                         // ── Exercise list ───────────────────────────────────────────────────────
                         if (exs.length > 0) {
-                          const sectionExercises = exs.filter((ex: any) => ex?.exerciseType === 'SectionBased' || ex?.isSectionBased === true)
                           const regularExercises = exs.filter((ex: any) => ex?.exerciseType !== 'SectionBased' && !ex?.isSectionBased)
+                          const sharedProps = {
+                            courseId,
+                            onExerciseSelect: handleExerciseSelect,
+                            method: selectedMethod,
+                            category: selectedMethod === 'i-do' ? 'I_Do' : selectedMethod === 'you-do' ? 'You_Do' : 'We_Do',
+                            subcategory: selectedActivity || '',
+                            topic: selectedItem?.title || '',
+                            module: currentHierarchy.length > 0 ? currentHierarchy[0] : selectedItem?.title || '',
+                            nodeType: selectedItem?.type || '',
+                            hierarchy: currentHierarchy,
+                            selectedItem,
+                            currentHierarchy,
+                            studentAnswers: getStudentAnswers(),
+                          }
 
-                          return (
-                            <div className="exercises-portal-host flex-1 min-h-0 flex flex-col overflow-visible gap-4">
-                              {regularExercises.length > 0 && (
+                          // We Do → regular exercises only
+                          if (selectedMethod === 'we-do') {
+                            return (
+                              <div className="exercises-portal-host flex-1 min-h-0 flex flex-col overflow-visible">
                                 <Exercises
-                                  courseId={courseId}
                                   exercises={regularExercises}
-                                  onExerciseSelect={handleExerciseSelect}
-                                  method={selectedMethod}
-                                  category={selectedMethod === 'i-do' ? 'I_Do' : selectedMethod === 'you-do' ? 'You_Do' : 'We_Do'}
-                                  subcategory={selectedActivity || ''}
-                                  topic={selectedItem?.title || ''}
-                                  module={currentHierarchy.length > 0 ? currentHierarchy[0] : selectedItem?.title || ''}
-                                  nodeType={selectedItem?.type || ''}
-                                  hierarchy={currentHierarchy}
-                                  selectedItem={selectedItem}
-                                  currentHierarchy={currentHierarchy}
-                                  studentAnswers={getStudentAnswers()}
+                                  {...sharedProps}
+                                  isHeaderHidden={isHeaderCollapsed}
+                                  onShowHeader={() => setIsHeaderCollapsed(false)}
                                 />
-                              )}
-                              {sectionExercises.length > 0 && (
-                                <SectionBasedAssessments
-                                  courseId={courseId}
-                                  exercises={sectionExercises}
-                                  onExerciseSelect={handleExerciseSelect}
-                                  method={selectedMethod}
-                                  category={selectedMethod === 'i-do' ? 'I_Do' : selectedMethod === 'you-do' ? 'You_Do' : 'We_Do'}
-                                  subcategory={selectedActivity || ''}
-                                  topic={selectedItem?.title || ''}
-                                  module={currentHierarchy.length > 0 ? currentHierarchy[0] : selectedItem?.title || ''}
-                                  nodeType={selectedItem?.type || ''}
-                                  hierarchy={currentHierarchy}
-                                  selectedItem={selectedItem}
-                                  currentHierarchy={currentHierarchy}
-                                  studentAnswers={getStudentAnswers()}
-                                />
-                              )}
+                              </div>
+                            )
+                          }
+
+                          // You Do → Assessments component (handles both regular + section-based internally)
+                          return (
+                            <div className="exercises-portal-host flex-1 min-h-0 flex flex-col overflow-visible">
+                              <Assessments exercises={exs} {...sharedProps} onSectionSubmit={refreshCourseData} />
                             </div>
                           )
                         }
@@ -2477,10 +2583,10 @@ const getExercisesForActivity = (): any[] => {
                           <div className="flex flex-col flex-1 overflow-clip min-h-0 gap-2.5">
                             <div className="flex items-center gap-2 justify-between flex-wrap">
                               <div
-                                className={`flex items-center gap-2 h-9 px-3 w-full max-w-[380px] rounded-lg border bg-white transition-all duration-200 ${isSearchFocused ? 'border-orange-400 shadow-[0_0_0_3px_rgba(251,146,60,0.15)]' : 'border-gray-200 hover:border-gray-300'
+                                className={`flex items-center gap-2 h-9 px-3 flex-1 min-w-[200px] rounded-lg border bg-white transition-all duration-200 ${isSearchFocused ? 'border-gray-400' : 'border-gray-200 hover:border-gray-300'
                                   }`}
                               >
-                                <Search size={14} className={`flex-shrink-0 transition-colors ${isSearchFocused ? 'text-orange-400' : 'text-gray-400'}`} />
+                                <Search size={14} className="flex-shrink-0 text-gray-400" />
                                 <input
                                   value={resourceSearch}
                                   onChange={(e) => setResourceSearch(e.target.value)}
@@ -2499,7 +2605,7 @@ const getExercisesForActivity = (): any[] => {
                                   </button>
                                 )}
                                 {isLoadingResources && (
-                                  <Loader2 size={14} className="flex-shrink-0 text-orange-400 animate-spin" />
+                                  <Loader2 size={14} className="flex-shrink-0 text-gray-400 animate-spin" />
                                 )}
                               </div>
 
@@ -2515,7 +2621,7 @@ const getExercisesForActivity = (): any[] => {
                                   </button>
                                 )}
 
-                                {/* <div className="h-9 rounded-lg border border-[#e3e8f2] bg-[#f8fafc] p-0.5 inline-flex items-center gap-0.5">
+                                <div className="h-9 rounded-lg border border-[#e3e8f2] bg-[#f8fafc] p-0.5 inline-flex items-center gap-0.5">
                                   <button
                                     onClick={() => setResourceView("grid")}
                                     className="w-8 h-8 rounded-md inline-flex items-center justify-center border-none cursor-pointer touch-friendly mobile-touch-target"
@@ -2532,7 +2638,7 @@ const getExercisesForActivity = (): any[] => {
                                   >
                                     <List size={14} />
                                   </button>
-                                </div> */}
+                                </div>
 
                                 <div style={{ position: 'relative' } } ref={sortDropdownRef}>
                                   <button
@@ -2704,7 +2810,7 @@ const getExercisesForActivity = (): any[] => {
                               )
                             })()}
 
-                            <div className="flex-1 overflow-hidden rounded-2xl bg-gray-50 border-[1.5px] border-gray-200 flex flex-col">
+                            <div className="flex-1 overflow-hidden border-[1.5px] border-gray-200 flex flex-col">
                               {selectedResourceType === "page" ? (() => {
                                 const pages = filteredPages
                                 if (!pages.length) return null
@@ -2974,6 +3080,14 @@ const getExercisesForActivity = (): any[] => {
           </div>
         </div>
       </div>
+
+      {/* Logout confirmation */}
+      {showLogoutModal && (
+        <LogoutModal
+          onConfirm={handleLogout}
+          onCancel={() => setShowLogoutModal(false)}
+        />
+      )}
 
       {/* Panels and Viewers */}
       <NotesPanel

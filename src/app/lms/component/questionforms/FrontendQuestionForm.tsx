@@ -6,10 +6,14 @@ import {
   ChevronLeft, ChevronRight, Flag, Sparkles, ChevronDown, ChevronUp,
   AlertTriangle, ArrowLeftRight, FileText, Settings, BarChart3,
   GraduationCap, Hash, Image, Play, Bold, Italic, Underline,
+  ChevronDown as ChevronDownIcon,
 
 
 } from 'lucide-react';
 import ProgrammingMockModal from '../ProgrammingMockModal';
+import QuestionBankSelector from './mcq/QuestionBankSelector';
+import { toast } from 'react-toastify';
+
 // ─── FONT INJECTION ───────────────────────────────────────────────────────────
 const injectFonts = (() => {
   let injected = false;
@@ -3031,7 +3035,11 @@ const FrontendQuestionForm: React.FC<FrontendQuestionFormProps> = ({
   const progCfg = exerciseData.fullExerciseData?.questionConfiguration?.programmingQuestionConfiguration;
   const cfgType = (progCfg?.questionConfigType as string) || 'general';
   const isGeneral = cfgType === 'general';
-
+const [showAddDropdown, setShowAddDropdown] = useState(false);
+const [showBankSelector, setShowBankSelector] = useState(false);
+const [showAIModal, setShowAIModal] = useState(false);
+  const exerciseDbId = exerciseData?.exerciseId || exerciseData?.fullExerciseData?._id || exerciseData?.id || '';
+  const entityId = exerciseData?.nodeId || '';
   const generalQuestionCount: number = progCfg?.generalQuestionCount || 0;
   const generalTotalMarks: number =
     exerciseData.fullExerciseData?.exerciseInformation?.totalMarksProgramming ||
@@ -3053,6 +3061,11 @@ const FrontendQuestionForm: React.FC<FrontendQuestionFormProps> = ({
     }
     return [];
   }, [isGeneral, cfgType, progCfg]);
+const isAIAvailable = () => {
+  // You can add logic here to check if AI generation is enabled
+  // For now, we'll enable it by default
+  return true;
+};
 
   const getQuotaForDiff = useCallback((d: Diff): number => {
     if (cfgType === 'levelBased') return progCfg?.scoreSettings?.levelScoringConfiguration?.[d]?.questionCount || progCfg?.levelBasedCounts?.[d] || 0;
@@ -3632,6 +3645,232 @@ const FrontendQuestionForm: React.FC<FrontendQuestionFormProps> = ({
     const prevIdx = idx - 1; currentIndexRef.current = prevIdx; setCurrentIndex(prevIdx); loadQuestionIntoForm(newFlow[prevIdx]);
     setTimeout(() => titleRef.current?.focus(), 80);
   };
+const handleBankSelectedQuestions = useCallback((selected: any[]) => {
+  // Filter only programming questions (as a safeguard)
+  const programmingQuestions = selected.filter(q => 
+    q.questionType?.toLowerCase() === 'programming'
+  );
+  
+  if (!selected.length) {
+    toast.info('No questions selected', 'Please select questions from the bank.');
+    return;
+  }
+  
+  if (programmingQuestions.length === 0) {
+    toast.warning('No programming questions selected', 
+      'Please select programming questions from the bank. Only programming questions can be added to this exercise.');
+    return;
+  }
+  
+  // Log if some questions were filtered out
+  if (programmingQuestions.length < selected.length) {
+    const filteredOut = selected.length - programmingQuestions.length;
+    toast.info(`${filteredOut} non-programming question${filteredOut > 1 ? 's were' : ' was'} skipped`, 
+      'Only programming questions can be added to this exercise.');
+  }
+
+  // Map bank question to Programming question format
+  const bankToProgrammingQuestion = (q: any): Partial<FlowQuestion> => {
+    // Extract title - handle different formats
+    let titleText = '';
+    if (typeof q.title === 'string') {
+      titleText = q.title;
+    } else if (q.mcqQuestionTitle) {
+      if (typeof q.mcqQuestionTitle === 'string') titleText = q.mcqQuestionTitle;
+      else if (Array.isArray(q.mcqQuestionTitle)) {
+        titleText = q.mcqQuestionTitle.filter((b: any) => b.type === 'text').map((b: any) => b.value).join(' ').trim();
+      }
+    }
+    
+    // Extract description - handle different formats
+    let descriptionBlocks: ProgContentBlock[] = [];
+    let descriptionText = '';
+    
+    if (q.description) {
+      if (typeof q.description === 'string') {
+        descriptionText = q.description;
+      } else if (q.description.contentBlocks) {
+        descriptionBlocks = q.description.contentBlocks;
+      } else if (q.description.text) {
+        descriptionText = q.description.text;
+      } else {
+        descriptionText = q.description;
+      }
+    }
+    
+    // If no description blocks, create one from description text
+    if (descriptionBlocks.length === 0 && descriptionText) {
+      descriptionBlocks = [{ id: `pb-${Date.now()}`, type: 'text' as const, value: descriptionText }];
+    } else if (descriptionBlocks.length === 0) {
+      descriptionBlocks = [mkProgTextBlock()];
+    }
+    
+    // Extract constraints
+    let constraintsList: string[] = [];
+    if (q.constraints && Array.isArray(q.constraints)) {
+      constraintsList = q.constraints;
+    } else if (q.constraints && typeof q.constraints === 'string') {
+      constraintsList = [q.constraints];
+    }
+    
+    // Extract test cases
+    let testCasesList: any[] = [];
+    if (q.testCases && Array.isArray(q.testCases)) {
+      testCasesList = q.testCases.map((tc: any) => ({
+        input: tc.input || '',
+        expectedOutput: tc.expectedOutput || '',
+        isSample: tc.isSample || false,
+        isHidden: tc.isHidden || false,
+        points: tc.points || 1,
+        explanation: tc.explanation || `Test Case`,
+        sequence: tc.sequence || 0,
+      }));
+    } else if (q.sampleInput && q.sampleOutput) {
+      testCasesList = [{
+        input: q.sampleInput,
+        expectedOutput: q.sampleOutput,
+        isSample: true,
+        isHidden: false,
+        points: 1,
+        explanation: 'Sample Test Case',
+        sequence: 0,
+      }];
+    }
+    
+    // If no test cases, create a default one
+    if (testCasesList.length === 0) {
+      testCasesList = [mkTC(0)];
+    }
+    
+    // Get difficulty
+    let difficulty: Diff = 'medium';
+    if (q.difficulty) {
+      const diffLower = q.difficulty.toLowerCase();
+      if (diffLower === 'easy') difficulty = 'easy';
+      else if (diffLower === 'hard') difficulty = 'hard';
+      else difficulty = 'medium';
+    } else if (q.mcqQuestionDifficulty) {
+      const diffLower = q.mcqQuestionDifficulty.toLowerCase();
+      if (diffLower === 'easy') difficulty = 'easy';
+      else if (diffLower === 'hard') difficulty = 'hard';
+      else difficulty = 'medium';
+    }
+    
+    // Extract hints
+    let hintsList: any[] = [];
+    if (q.hints && Array.isArray(q.hints)) {
+      hintsList = q.hints;
+    } else if (q.hint) {
+      hintsList = [{ hintText: q.hint, pointsDeduction: 0, isPublic: true, sequence: 0 }];
+    }
+    
+    // Get score
+    let questionScore = 0;
+    if (q.score !== undefined && q.score !== null) {
+      questionScore = q.score;
+    } else if (q.mcqQuestionScore !== undefined && q.mcqQuestionScore !== null) {
+      questionScore = q.mcqQuestionScore;
+    } else {
+      // Try to get from exercise configuration
+      if (isGeneral) {
+        questionScore = generalMPQ;
+      } else if (typeof isScoreEditable === 'function' && isScoreEditable(currentDiff as Diff)) {
+        questionScore = 0;
+      } else if (typeof getFixedScore === 'function') {
+        questionScore = getFixedScore(currentDiff as Diff);
+      }
+    }
+    
+    return {
+      title: titleText || 'Untitled Programming Question',
+      description: descriptionBlocks,
+      difficulty: difficulty,
+      score: questionScore,
+      constraints: constraintsList,
+      testCases: testCasesList,
+      hints: hintsList,
+      timeLimit: q.timeLimit || 2000,
+      memoryLimit: q.memoryLimit || 256,
+    };
+  };
+
+  // Auto-distribute marks for question-specific scoring
+  const autoScore = (() => {
+    if (isGeneral) return undefined;
+    if (typeof isScoreEditable === 'function' && !isScoreEditable(currentDiff as Diff)) return undefined;
+    if (typeof getRemainingMarksForDiff === 'function') {
+      const remainingMarks = getRemainingMarksForDiff(currentDiff as Diff);
+      if (remainingMarks > 0 && selected.length > 0) {
+        return parseFloat((remainingMarks / selected.length).toFixed(2));
+      }
+    }
+    return undefined;
+  })();
+
+  // Add questions from bank
+  const newQuestions: FlowQuestion[] = selected.map((q, i) => {
+    const base = bankToProgrammingQuestion(q);
+    const newId = mkLocalId();
+    
+    // Calculate score
+    let questionScore = base.score;
+    if (autoScore !== undefined) {
+      questionScore = autoScore;
+    } else if (isGeneral) {
+      questionScore = generalMPQ;
+    } else if (typeof isScoreEditable === 'function' && isScoreEditable(currentDiff as Diff)) {
+      questionScore = 0;
+    } else if (typeof getFixedScore === 'function') {
+      questionScore = getFixedScore(currentDiff as Diff);
+    }
+    
+    const newQ: FlowQuestion = {
+      __localId: newId,
+      _id: undefined,
+      title: base.title || '',
+      description: base.description || [mkProgTextBlock()],
+      difficulty: base.difficulty || (typeof currentDiff === 'string' ? currentDiff as Diff : 'medium'),
+      score: questionScore,
+      testCases: base.testCases || [mkTC(0)],
+      constraints: base.constraints || [],
+      hints: base.hints || [],
+      timeLimit: base.timeLimit || 2000,
+      memoryLimit: base.memoryLimit || 256,
+      questionType: 'programming',
+      isSaved: false,
+      isDirty: false,
+      isPreExisting: false,
+    };
+    return newQ;
+  });
+
+  if (newQuestions.length === 0) {
+    toast.warning('No questions to add', 'No valid programming questions were selected.');
+    return;
+  }
+
+  // Add the new questions to the flow
+  setFlowQuestions(prev => [...prev, ...newQuestions]);
+  
+  // Navigate to the first new question
+  const newStartIndex = flowQuestions.length;
+  setCurrentIndex(newStartIndex);
+  
+  // Load the first new question into the form
+  if (newQuestions[0]) {
+    setTimeout(() => {
+      loadQuestionIntoForm(newQuestions[0]);
+    }, 100);
+  }
+  
+  toast.success(`${newQuestions.length} programming question${newQuestions.length > 1 ? 's' : ''} added from bank`);
+  
+  if (autoScore !== undefined && autoScore > 0) {
+    toast.info('Marks distributed', `Each question assigned ${autoScore} mark${autoScore !== 1 ? 's' : ''} from remaining balance.`);
+  }
+// eslint-disable-next-line react-hooks/exhaustive-deps
+}, [currentDiff, isGeneral, isScoreEditable, getFixedScore, getRemainingMarksForDiff, generalMPQ, flowQuestions.length, loadQuestionIntoForm]);
+  
 
   const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean): Promise<string | undefined> => {
     const flow = flowQuestionsRef.current; const currentQ = flow.find(q => q.__localId === localId);
@@ -4080,6 +4319,88 @@ const FrontendQuestionForm: React.FC<FrontendQuestionFormProps> = ({
                 </span>
               </button>
             )}
+                {/* ADD QUESTION VIA DROPDOWN BUTTON */}
+                <div className="relative" style={{ marginRight: 8 }} onClick={e => e.stopPropagation()}>
+                  <button
+                    onClick={() => setShowAddDropdown(v => !v)}
+                    className="inline-flex items-center justify-between gap-2"
+                    style={{ 
+                      minWidth: 150, 
+                      height: 32, 
+                      padding: '0 10px', 
+                      borderRadius: 8, 
+                      border: '1.5px solid #e4e4ed', 
+                      background: '#fff', 
+                      color: '#1a1a2e', 
+                      fontSize: 12.5, 
+                      fontWeight: 600, 
+                      fontFamily: 'var(--lms-font)', 
+                      cursor: 'pointer' 
+                    }}
+                  >
+                    Add Question via
+                    <ChevronDownIcon className="h-3.5 w-3.5 opacity-60" />
+                  </button>
+                  
+                  {showAddDropdown && (
+                    <div
+                      className="absolute top-full right-0 mt-1.5 z-[9999] overflow-hidden"
+                      style={{ 
+                        width: 220, 
+                        background: '#fff', 
+                        borderRadius: 12, 
+                        border: '1px solid #e4e4ed', 
+                        boxShadow: '0 8px 32px rgba(26,26,46,0.14)', 
+                        fontFamily: 'var(--lms-font)' 
+                      }}
+                    >
+                      {/* 1. Question Bank */}
+                      <button
+                        onClick={() => { 
+                          setShowAddDropdown(false); 
+                          setShowBankSelector(true); 
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(168,85,247,0.06)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                      >
+                        <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(168,85,247,0.1)' }}>
+                          <Database size={14} style={{ color: '#a855f7' }} />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-[12.5px] font-semibold" style={{ color: '#1a1a2e' }}>Question Bank</div>
+                          <div className="text-[10px]" style={{ color: '#8b8b9e' }}>Import from bank</div>
+                        </div>
+                      </button>
+            
+                      <div style={{ height: 1, background: '#f0f0f7', margin: '0 12px' }} />
+            
+                      {/* 2. Generate AI */}
+                      <button
+                        onClick={() => { 
+                          if (isAIAvailable()) {
+                            setShowAddDropdown(false); 
+                            setShowAIModal(true); 
+                          }
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors"
+                        style={{ background: 'none', border: 'none', cursor: isAIAvailable() ? 'pointer' : 'not-allowed', opacity: isAIAvailable() ? 1 : 0.5 }}
+                        onMouseEnter={e => { if (isAIAvailable()) e.currentTarget.style.background = 'rgba(242,119,87,0.06)'; }}
+                        onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                        disabled={!isAIAvailable()}
+                      >
+                        <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(242,119,87,0.1)' }}>
+                          <Sparkles size={14} style={{ color: '#F27757' }} />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-[12.5px] font-semibold" style={{ color: '#1a1a2e' }}>Generate AI</div>
+                          <div className="text-[10px]" style={{ color: '#8b8b9e' }}>Auto-generate</div>
+                        </div>
+                      </button>
+                    </div>
+                  )}
+                </div>
             {/* Edit Exercise */}
             {onEditExercise && (
               <button onClick={handleEditExerciseClick} className="lms-btn lms-btn-ghost-orange" style={{ marginRight: 24 }}>
@@ -5382,6 +5703,82 @@ const FrontendQuestionForm: React.FC<FrontendQuestionFormProps> = ({
               <button type="button" onClick={() => setSidebarTab(null)}
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 16px', borderRadius: 'var(--lms-radius-md)', fontFamily: 'var(--lms-font)', fontSize: 12, fontWeight: 600, border: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-surface)', color: 'var(--lms-text-sec)', cursor: 'pointer' }}>
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showBankSelector && (
+        <div className="fixed inset-0 z-[9999]">
+          <QuestionBankSelector
+            exerciseData={{
+              exerciseId: exerciseDbId,
+              exerciseName: exerciseData?.exerciseName || exerciseData?.fullExerciseData?.exerciseInformation?.exerciseName || '',
+              exerciseLevel: exerciseData?.fullExerciseData?.exerciseInformation?.exerciseLevel || 'intermediate',
+              nodeId: entityId,
+              nodeName: exerciseData?.nodeName || '',
+              subcategory,
+              nodeType: exerciseData?.nodeType || '',
+              fullExerciseData: exerciseData?.fullExerciseData,
+              exerciseType: exerciseData?.exerciseType || exerciseData?.fullExerciseData?.exerciseType || '',
+            }}
+            tabType={tabType}
+            onClose={() => setShowBankSelector(false)}
+            onBack={() => { setShowBankSelector(false); setShowAddDropdown(true); }}
+            onSelect={(qs) => { setShowBankSelector(false); handleBankSelectedQuestions(qs); }}
+            existingQuestionIds={(exerciseData?.fullExerciseData?.questions || []).map((q: any) => q._id)}
+            existingQuestions={exerciseData?.fullExerciseData?.questions || []}
+            // ✅ ADD THIS LINE - filter to show only programming questions
+            filterByType="programming"
+          />
+        </div>
+      )}
+      
+      {/* AI Generation Modal */}
+      {showAIModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ background: 'rgba(26,26,46,0.55)', backdropFilter: 'blur(2px)' }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" style={{ border: '1.5px solid var(--lms-border)' }}>
+            <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderBottomColor: 'var(--lms-border)', background: 'var(--lms-bg-surface)' }}>
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'rgba(242,119,87,0.1)' }}>
+                  <Sparkles size={18} style={{ color: '#F27757' }} />
+                </div>
+                <h2 className="text-base font-bold" style={{ fontFamily: 'var(--lms-font)', color: 'var(--lms-text-main)' }}>Generate with AI</h2>
+              </div>
+              <button onClick={() => setShowAIModal(false)} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+                <X className="h-4 w-4" style={{ color: 'var(--lms-text-muted)' }} />
+              </button>
+            </div>
+            
+            <div className="p-6 text-center">
+              <div className="flex items-center justify-center mb-4">
+                <div className="w-20 h-20 rounded-full flex items-center justify-center" style={{ background: 'rgba(242,119,87,0.1)' }}>
+                  <Sparkles size={40} style={{ color: '#F27757' }} />
+                </div>
+              </div>
+              
+              <h3 className="text-xl font-bold mb-2" style={{ color: 'var(--lms-text-main)', fontFamily: 'var(--lms-font)' }}>
+                Coming Soon! 🚀
+              </h3>
+              
+              <p className="text-sm mb-6" style={{ color: 'var(--lms-text-sec)', fontFamily: 'var(--lms-font)', lineHeight: 1.6 }}>
+                AI-powered programming question generation is currently under development.
+                <br /><br />
+                Soon you'll be able to generate complete programming questions 
+                with test cases, constraints, and hints just by describing the problem.
+              </p>
+              
+              <div className="flex items-center justify-center gap-2 mb-6 p-3 rounded-xl" style={{ background: 'var(--lms-orange-50)', border: '1px solid var(--lms-orange-100)' }}>
+                <div className="w-2 h-2 rounded-full" style={{ background: '#F27757', animation: 'pulse 1.5s infinite' }} />
+                <span className="text-xs font-medium" style={{ color: '#c85a30', fontFamily: 'var(--lms-font)' }}>In Development — Release coming soon</span>
+              </div>
+              
+              <button
+                onClick={() => setShowAIModal(false)}
+                className="px-6 py-2.5 rounded-xl font-semibold transition-all w-full"
+                style={{ background: 'var(--lms-orange)', color: '#fff', fontFamily: 'var(--lms-font)' }}
+              >
+                Got it
               </button>
             </div>
           </div>

@@ -1622,7 +1622,7 @@ export default function EnhancedSubmissionReview() {
                       Student Identity
                     </TableHead>
                     <TableHead className={`px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider ${montserrat.className}`}>
-                      Grading Status
+                       Status
                     </TableHead>
                     <TableHead className={`px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-center ${montserrat.className}`}>
                       Progress

@@ -1420,7 +1420,7 @@ function MCQQuestionForm({
     setIsSaving(true)
     try {
       const linkToken = generateLinkToken()
-      const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000"
+      const origin = typeof window !== "undefined" ? window.location.origin : "https://lms-client-jade-three.vercel.app"
       const shareableUrl = `${origin}/lms/pages/courses/live-mcq/${linkToken}`
 
       const payload: Record<string, any> = {

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation"
 import { ChevronRight, Layout, Bot, Sparkles, Sun, Moon, User, Settings, LogOut, BookOpen, ChevronDown, FileText, Bell, EyeOff } from "lucide-react"
 import { T } from "./types/constants"
 import { userPermission } from "@/apiServices/tokenVerify"
+import { postLogout } from "@/apiServices/activityLog"
 import { RoleSwitchState } from "./types/types"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { notificationsService } from "@/apiServices/notifications"
@@ -110,6 +111,8 @@ export const TopBar: React.FC<TopBarProps> = ({ items, onAIClick, onSummaryClick
   const handleLogout = async () => {
     setIsLoggingOut(true)
     try {
+      // Record logout time / session duration before the token is cleared.
+      await postLogout()
       localStorage.removeItem('smartcliff_roleSwitch')
       localStorage.removeItem('smartcliff_isDummyStudent')
       localStorage.clear()
@@ -262,7 +265,7 @@ export const TopBar: React.FC<TopBarProps> = ({ items, onAIClick, onSummaryClick
                       fontSize: '9px',
                       fontWeight: 700,
                       letterSpacing: '0.02em',
-                      background: '#22c55e',
+                      background: '#2263c5',
                       color: '#fff',
                       marginLeft: 4,
                     }}
@@ -287,124 +290,109 @@ export const TopBar: React.FC<TopBarProps> = ({ items, onAIClick, onSummaryClick
         })}
       </div>
 
-      {/* Hide Header Button — only shown when onHideHeader is provided */}
-      {onHideHeader && (
-        <button
-          onClick={onHideHeader}
-          title="Hide header bar"
-          style={{
-            display: 'flex', alignItems: 'center', gap: 5,
-            padding: '4px 10px', borderRadius: 16,
-            border: '1.5px solid #e2e8f0',
-            background: '#ffffff',
-            color: '#64748b', fontSize: '11px', fontWeight: 700,
-            cursor: 'pointer', flexShrink: 0, transition: 'all .15s',
-            letterSpacing: '0.01em',
-          }}
-          onMouseEnter={e => {
-            const el = e.currentTarget as HTMLElement
-            el.style.background = '#fff1f0'
-            el.style.borderColor = '#fca5a5'
-            el.style.color = '#ef4444'
-          }}
-          onMouseLeave={e => {
-            const el = e.currentTarget as HTMLElement
-            el.style.background = '#ffffff'
-            el.style.borderColor = '#e2e8f0'
-            el.style.color = '#64748b'
-          }}
-        >
-          <EyeOff size={12} />
-          Hide
-        </button>
-      )}
+      {/* Icon action group */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
 
-      {/* Notes Button */}
-      <button
-        onClick={() => {
-          if (!onNotesClick || notesLoading) return
-          setNotesLoading(true)
-          onNotesClick()
-          const timer = setTimeout(() => setNotesLoading(false), 1200)
-          return () => clearTimeout(timer)
-        }}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 4,
-          padding: '4px 8px', borderRadius: 16,
-          border: `1px solid ${T.border}`,
-          background: T.pageBg,
-          color: T.textSub, fontSize: '11px', fontWeight: 600,
-          cursor: 'pointer', flexShrink: 0, transition: 'all .12s',
-        }}
-        onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = T.border}
-        onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = T.pageBg}
-      >
-        {notesLoading ? (
-          <svg
-            width="13" height="13" viewBox="0 0 24 24"
-            fill="none" stroke="currentColor" strokeWidth="2.5"
-            strokeLinecap="round"
-            style={{ animation: 'spin 0.7s linear infinite' }}
+        {/* Hide Header */}
+        {onHideHeader && (
+          <button
+            onClick={onHideHeader}
+            title="Hide header"
+            style={{
+              width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              border: '1px solid #e2e8f0', background: '#ffffff',
+              color: '#64748b', cursor: 'pointer', transition: 'all .15s',
+            }}
+            onMouseEnter={e => {
+              const el = e.currentTarget as HTMLElement
+              el.style.background = '#fef2f2'; el.style.borderColor = '#fca5a5'; el.style.color = '#ef4444'
+            }}
+            onMouseLeave={e => {
+              const el = e.currentTarget as HTMLElement
+              el.style.background = '#ffffff'; el.style.borderColor = '#e2e8f0'; el.style.color = '#64748b'
+            }}
           >
-            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-          </svg>
-        ) : (
-          <FileText size={13} />
+            <EyeOff size={14} />
+          </button>
         )}
-        Notes
-      </button>
 
-      {/* NOTIFICATION BELL - Added near Notes button */}
-      <div ref={notificationRef} style={{ position: 'relative', flexShrink: 0 }}>
+        {/* Notes */}
         <button
-          onClick={() => setShowNotificationsDropdown(!showNotificationsDropdown)}
+          onClick={() => {
+            if (!onNotesClick || notesLoading) return
+            setNotesLoading(true)
+            onNotesClick()
+            const timer = setTimeout(() => setNotesLoading(false), 1200)
+            return () => clearTimeout(timer)
+          }}
+          title="Notes"
           style={{
-            position: 'relative',
-            padding: '4px 8px',
-            borderRadius: 16,
-            border: `1px solid ${T.border}`,
-            background: showNotificationsDropdown ? T.border : T.pageBg,
-            color: T.textSub,
-            fontSize: '11px',
-            fontWeight: 600,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 4,
-            transition: 'all .12s',
+            width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: '1px solid #e2e8f0', background: '#ffffff',
+            color: '#64748b', cursor: 'pointer', transition: 'all .15s',
           }}
           onMouseEnter={e => {
-            if (!showNotificationsDropdown) (e.currentTarget as HTMLElement).style.background = T.border
+            const el = e.currentTarget as HTMLElement
+            el.style.background = '#f0f9ff'; el.style.borderColor = '#93c5fd'; el.style.color = '#2563eb'
           }}
           onMouseLeave={e => {
-            if (!showNotificationsDropdown) (e.currentTarget as HTMLElement).style.background = T.pageBg
+            const el = e.currentTarget as HTMLElement
+            el.style.background = '#ffffff'; el.style.borderColor = '#e2e8f0'; el.style.color = '#64748b'
           }}
         >
-          <Bell size={13} />
-          <span>Notifications</span>
-          {unreadCount > 0 && (
-            <span
-              style={{
-                position: 'absolute',
-                top: -2,
-                right: -2,
-                display: 'flex',
-                height: 14,
-                minWidth: 14,
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderRadius: 9999,
-                background: '#ef4444',
-                color: '#fff',
-                fontSize: '8px',
-                fontWeight: 'bold',
-                padding: '0 3px',
-              }}
-            >
-              {unreadCount > 9 ? '9+' : unreadCount}
-            </span>
+          {notesLoading ? (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
+              style={{ animation: 'spin 0.7s linear infinite' }}>
+              <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+            </svg>
+          ) : (
+            <FileText size={14} />
           )}
         </button>
+
+        {/* Notifications */}
+        <div ref={notificationRef} style={{ position: 'relative' }}>
+          <button
+            onClick={() => setShowNotificationsDropdown(!showNotificationsDropdown)}
+            title="Notifications"
+            style={{
+              position: 'relative',
+              width: 32, height: 32, borderRadius: 8,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              border: `1px solid ${showNotificationsDropdown ? '#93c5fd' : '#e2e8f0'}`,
+              background: showNotificationsDropdown ? '#eff6ff' : '#ffffff',
+              color: showNotificationsDropdown ? '#2563eb' : '#64748b',
+              cursor: 'pointer', transition: 'all .15s',
+            }}
+            onMouseEnter={e => {
+              if (!showNotificationsDropdown) {
+                const el = e.currentTarget as HTMLElement
+                el.style.background = '#f0f9ff'; el.style.borderColor = '#93c5fd'; el.style.color = '#2563eb'
+              }
+            }}
+            onMouseLeave={e => {
+              if (!showNotificationsDropdown) {
+                const el = e.currentTarget as HTMLElement
+                el.style.background = '#ffffff'; el.style.borderColor = '#e2e8f0'; el.style.color = '#64748b'
+              }
+            }}
+          >
+            <Bell size={14} />
+            {unreadCount > 0 && (
+              <span style={{
+                position: 'absolute', top: -3, right: -3,
+                height: 15, minWidth: 15,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                borderRadius: 9999, background: '#ef4444',
+                color: '#fff', fontSize: '8px', fontWeight: 'bold', padding: '0 3px',
+                border: '1.5px solid #fff',
+              }}>
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </button>
 
         {/* Notifications Dropdown */}
         {showNotificationsDropdown && (
@@ -483,7 +471,7 @@ export const TopBar: React.FC<TopBarProps> = ({ items, onAIClick, onSummaryClick
                         (e.currentTarget as HTMLElement).style.background = T.pageBg
                       }}
                       onMouseLeave={e => {
-                        (e.currentTarget as HTLElement).style.background = !n.isRead ? 'rgba(59,130,246,0.04)' : 'transparent'
+                        (e.currentTarget as HTMLElement).style.background = !n.isRead ? 'rgba(59,130,246,0.04)' : 'transparent'
                       }}
                     >
                       <div
@@ -524,7 +512,8 @@ export const TopBar: React.FC<TopBarProps> = ({ items, onAIClick, onSummaryClick
             </div>
           </>
         )}
-      </div>
+        </div>{/* end notifications */}
+      </div>{/* end icon action group */}
 
       {/* Divider */}
       <div style={{ width: 1, height: 20, background: T.border, flexShrink: 0 }} />

@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   ChevronLeft, ChevronRight, Home, CheckCircle, Flag, ArrowLeft,
-  AlertCircle, XCircle, ChevronDown, ChevronUp, BookOpen, GraduationCap,
+  AlertCircle, XCircle, ChevronDown, ChevronUp, BookOpen,
   File, Layers, Clock, Target, Check, Code, HelpCircle, Info, Filter,
   Type, AlignLeft, Hash, Shuffle, ArrowRight, ArrowLeft as ArrowLeftIcon,
   GripVertical, Sparkles, Brain, Award, Timer, BarChart, Bookmark,
@@ -12,7 +12,6 @@ import {
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-// 1. Import at top
 import ExerciseInfoModals, { ExerciseInfoButtons } from './ExerciseInfoModals';
 
 // ── Design tokens ─────────────────────────────────────────────────────────
@@ -84,8 +83,19 @@ interface MCQOption {
 }
 interface MatchingPair  { left: string; right: string; _id: string; }
 interface OrderingItem  { text: string; order: number; _id: string; }
+interface ContentBlock {
+  id?: string;
+  type: string;
+  value?: string;
+  url?: string;
+  bgColor?: string;
+  alignment?: string;
+  sizePercent?: number;
+  width?: number;
+  height?: number;
+}
 interface MCQQuestion {
-  _id: string; questionType: string; mcqQuestionTitle: string;
+  _id: string; questionType: string; mcqQuestionTitle: ContentBlock[] | string;
   mcqQuestionDescription: string; mcqQuestionType: string;
   mcqQuestionDifficulty: string; mcqQuestionScore: number;
   mcqQuestionTimeLimit: number; isActive: boolean;
@@ -122,42 +132,159 @@ interface Answer {
 }
 type FilterType = 'all' | 'flagged' | 'answered' | 'answeredFlagged' | 'required';
 
-// ── Content Block Renderer ────────────────────────────────────────────────
-const ContentBlockRenderer: React.FC<{ title: unknown }> = ({ title }) => {
+// ── Helper function to decode HTML entities ────────────────────────────────
+const decodeHTMLEntities = (text: string) => {
+  if (!text) return '';
+  const textarea = document.createElement('textarea');
+  textarea.innerHTML = text;
+  return textarea.value;
+};
+
+// ── Enhanced Content Block Renderer with proper HTML support ────────────────
+const ContentBlockRenderer: React.FC<{ title: ContentBlock[] | string }> = ({ title }) => {
+  const renderHTML = (html: string) => {
+    if (!html) return null;
+    // First decode HTML entities if needed
+    let decoded = html;
+    if (html.includes('&nbsp;') || html.includes('&lt;') || html.includes('&gt;') || html.includes('&amp;')) {
+      decoded = decodeHTMLEntities(html);
+    }
+    // Remove scripts for security
+    const cleanHtml = decoded.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+    return <div dangerouslySetInnerHTML={{ __html: cleanHtml }} />;
+  };
+
   if (Array.isArray(title)) {
     return (
-      <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:4 }}>
-        {(title as { type:string; value?:string; url?:string; bgColor?:string; alignment?:string; sizePercent?:number }[]).map((cb,i)=>{
-          if (cb.type==='text') {
-            if (!cb.value) return null;
-            return <div key={i} style={{ fontSize:16,fontWeight:700,color:T.textMain,lineHeight:1.65 }} dangerouslySetInnerHTML={{ __html:cb.value }} />;
-          }
-          if (cb.type==='code') {
-            const bg=cb.bgColor||'#f5f5f5';
-            const isDark=['#1e1e1e','#282a36','#272822','#2e3440'].includes(bg);
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 8 }}>
+        {title.map((block, idx) => {
+          // Text block
+          if (block.type === 'text' && block.value) {
+            // Determine if this is likely a heading (contains h1-h6 tags)
+            const isHeading = /<h[1-6][^>]*>/.test(block.value);
+            const isBold = /<b>|<strong>/.test(block.value) && !isHeading;
+            
             return (
-              <div key={i} style={{ display:'inline-block', maxWidth:'100%', margin:'4px 0' }}>
-                <pre style={{ margin:0,padding:'10px 16px',fontSize:13,lineHeight:1.7,fontFamily:'Menlo,Monaco,"Courier New",monospace',color:isDark?'#d4d4d4':'#1a1a2e',background:bg,borderRadius:8,border:`1.5px solid ${isDark?'#3a3a3a':'#e2e2e2'}`,whiteSpace:'pre',display:'inline-block',width:'400px',maxWidth:'800px',overflowX:'auto',boxSizing:'border-box' as const }}>{cb.value||''}</pre>
+              <div 
+                key={block.id || idx} 
+                style={{ 
+                  fontSize: isHeading ? 20 : isBold ? 16 : 15,
+                  fontWeight: isHeading ? 700 : isBold ? 600 : 500,
+                  color: T.textMain, 
+                  lineHeight: 1.5,
+                  marginBottom: 8
+                }}
+              >
+                {renderHTML(block.value)}
               </div>
             );
           }
-          if (cb.type==='image'&&cb.url) {
-            const justify=cb.alignment==='left'?'flex-start':cb.alignment==='right'?'flex-end':'center';
+          
+          // Code block
+          if (block.type === 'code' && block.value) {
+            const bgColor = block.bgColor || '#1e1e1e';
+            const isDark = ['#1e1e1e', '#282a36', '#272822', '#2e3440'].includes(bgColor);
+            
             return (
-              <div key={i} style={{ display:'flex', justifyContent:justify }}>
-                <img src={cb.url} alt="" style={{ width:`${cb.sizePercent||60}%`,height:'auto',borderRadius:8,border:`1px solid ${T.border}`,display:'block' }} />
+              <div key={block.id || idx} style={{ margin: '8px 0' }}>
+                <div style={{
+                  padding: '6px 12px',
+                  background: isDark ? '#2d2d2d' : '#f5f5f5',
+                  borderTopLeftRadius: 8,
+                  borderTopRightRadius: 8,
+                  borderBottom: `1px solid ${isDark ? '#3a3a3a' : '#e2e2e2'}`,
+                  fontSize: 11,
+                  color: isDark ? '#888' : '#666',
+                  fontFamily: 'monospace'
+                }}>
+                  Code
+                </div>
+                <pre style={{
+                  margin: 0,
+                  padding: '12px 16px',
+                  fontSize: 13,
+                  lineHeight: 1.5,
+                  fontFamily: "'Fira Code', 'Cascadia Code', 'Courier New', monospace",
+                  color: isDark ? '#d4d4d4' : '#1a1a2e',
+                  background: bgColor,
+                  borderRadius: '0 0 8px 8px',
+                  overflow: 'auto',
+                  maxWidth: '100%',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word'
+                }}>
+                  {block.value}
+                </pre>
               </div>
             );
           }
+          
+          // Image block
+          if (block.type === 'image' && block.url) {
+            const alignment = block.alignment || 'center';
+            const justifyContent = 
+              alignment === 'left' ? 'flex-start' : 
+              alignment === 'right' ? 'flex-end' : 
+              'center';
+            const sizePercent = block.sizePercent || 60;
+            
+            return (
+              <div key={block.id || idx} style={{ display: 'flex', justifyContent, margin: '12px 0' }}>
+                <img 
+                  src={block.url} 
+                  alt="Question content" 
+                  style={{
+                    width: `${sizePercent}%`,
+                    maxWidth: '100%',
+                    height: 'auto',
+                    borderRadius: 8,
+                    border: `1px solid ${T.border}`,
+                    objectFit: 'contain'
+                  }}
+                  onError={(e) => {
+                    console.error('Failed to load image:', block.url);
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+              </div>
+            );
+          }
+          
           return null;
         })}
       </div>
     );
   }
-  return <div style={{ fontSize:16,fontWeight:700,color:T.textMain,lineHeight:1.65,marginBottom:4 }} dangerouslySetInnerHTML={{ __html:typeof title==='string'?title:'' }} />;
+  
+  // Handle string title (fallback for backwards compatibility)
+  if (typeof title === 'string' && title) {
+    const hasHtml = /<[a-z][\s\S]*>/i.test(title);
+    if (hasHtml) {
+      return (
+        <div 
+          style={{ fontSize: 16, fontWeight: 500, color: T.textMain, lineHeight: 1.6, marginBottom: 8 }}
+          dangerouslySetInnerHTML={{ __html: title }}
+        />
+      );
+    }
+    return <div style={{ fontSize: 16, fontWeight: 500, color: T.textMain, lineHeight: 1.6, marginBottom: 8 }}>{title}</div>;
+  }
+  
+  return null;
 };
 
 // ── Option atoms ──────────────────────────────────────────────────────────
+const OptionImage = ({ option, lbl }:{ option: MCQOption; lbl: string }) => {
+  if(!option.imageUrl||!option.imageUrl.trim()) return null;
+  const justify=option.imageAlignment==='left'?'flex-start':option.imageAlignment==='right'?'flex-end':'center';
+  const widthPct=option.imageSizePercent&&option.imageSizePercent>0?option.imageSizePercent:60;
+  return (
+    <div style={{ marginTop:8,display:'flex',justifyContent:justify }}>
+      <img src={option.imageUrl} alt={`Option ${lbl}`} style={{ width:`${widthPct}%`,height:'auto',maxWidth:'100%',borderRadius:8,border:`1px solid ${T.border}`,display:'block' }} onError={e=>{e.currentTarget.style.display='none';}} />
+    </div>
+  );
+};
+
 const RadioOption = ({ option, checked, onChange, index, disabled }:{ option:MCQOption; checked:boolean; onChange:()=>void; index:number; disabled?:boolean }) => {
   const lbl=String.fromCharCode(65+index);
   return (
@@ -171,11 +298,7 @@ const RadioOption = ({ option, checked, onChange, index, disabled }:{ option:MCQ
           <span style={{ flexShrink:0,width:20,height:20,borderRadius:6,background:checked?T.orange:T.pageBg,color:checked?'#fff':T.textMuted,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,transition:'all 0.15s' }}>{lbl}</span>
           <span style={{ fontSize:14,color:checked?T.textMain:T.textSub,fontWeight:checked?600:400 }}>{option.text}</span>
         </div>
-        {option.imageUrl?.trim()&&(
-          <div style={{ marginTop:8,borderRadius:8,overflow:'hidden',border:`1px solid ${T.border}` }}>
-            <img src={option.imageUrl} alt={`Option ${lbl}`} style={{ width:'100%',height:96,objectFit:'cover' }} onError={e=>{e.currentTarget.style.display='none';}} />
-          </div>
-        )}
+        <OptionImage option={option} lbl={lbl} />
       </div>
     </label>
   );
@@ -194,6 +317,7 @@ const CheckboxOption = ({ option, checked, onChange, index, disabled }:{ option:
           <span style={{ flexShrink:0,width:20,height:20,borderRadius:6,background:checked?T.purple:T.pageBg,color:checked?'#fff':T.textMuted,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,transition:'all 0.15s' }}>{lbl}</span>
           <span style={{ fontSize:14,color:checked?T.textMain:T.textSub,fontWeight:checked?600:400 }}>{option.text}</span>
         </div>
+        <OptionImage option={option} lbl={lbl} />
       </div>
     </label>
   );
@@ -530,7 +654,7 @@ const QuestionPanel = ({
 };
 
 // ─────────────────────────────────────────────────────────────────────────
-// MAIN
+// MAIN MCQ COMPONENT
 // ─────────────────────────────────────────────────────────────────────────
 interface MCQProps {
   exercise?:any; courseId?:string; courseName?:string; nodeId?:string; nodeName?:string;
@@ -577,65 +701,63 @@ const MCQ = ({ exercise:propExercise, courseId='', courseName='Course', nodeId='
   const urlSubcategory=searchParams.get('subcategory');
   const urlCategory=searchParams.get('category');
 
-// 2. Add state inside MCQ component
-const [showDetailsModal, setShowDetailsModal] = useState(false);
-const [showOverviewModal, setShowOverviewModal] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showOverviewModal, setShowOverviewModal] = useState(false);
+  
   const startTimer=(duration:number)=>{
     if(timerRef.current) clearInterval(timerRef.current);
     setTimeLeft(duration*60);
     timerRef.current=setInterval(()=>{ setTimeLeft(prev=>{ if(prev<=1){ clearInterval(timerRef.current!); handleTimeUp(); return 0; } return prev-1; }); },1000);
   };
 
-const handleTimeUp = async () => {
-  if (quizCompleted || isSubmitting) return;
-  setIsSubmitting(true);
-  await saveCurrentAnswer();
-  await sendFinalSubmission();
-  if (timerRef.current) clearInterval(timerRef.current);
-  if (exerciseData?._id) {
-    localStorage.removeItem(`mcq_answers_${exerciseData._id}`);
-    localStorage.removeItem(`mcq_flagged_${exerciseData._id}`);
-  }
-  setQuizCompleted(true);
-  toast.info("Time's up! Your answers have been submitted.");
-  setTimeout(() => { if (onCloseExercise) onCloseExercise(); else router.back(); }, 1000);
-};
+  const handleTimeUp = async () => {
+    if (quizCompleted || isSubmitting) return;
+    setIsSubmitting(true);
+    await saveCurrentAnswer();
+    await sendFinalSubmission();
+    if (timerRef.current) clearInterval(timerRef.current);
+    if (exerciseData?._id) {
+      localStorage.removeItem(`mcq_answers_${exerciseData._id}`);
+      localStorage.removeItem(`mcq_flagged_${exerciseData._id}`);
+    }
+    setQuizCompleted(true);
+    try { sessionStorage.setItem('lms_submit_toast', `Time's up! "${exerciseTitle}" submitted successfully.`); } catch {}
+    setTimeout(() => { if (onCloseExercise) onCloseExercise(); else router.back(); }, 1000);
+  };
 
-  // ── NEW: send isTestSubmission:true on final MCQ submit ──────────────────
-const sendFinalSubmission = async () => {
-  try {
-    const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
-    const fCId = urlCourseId || courseId;
-    if (!fCId || !exerciseData?._id) return;
+  const sendFinalSubmission = async () => {
+    try {
+      const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
+      const fCId = urlCourseId || courseId;
+      if (!fCId || !exerciseData?._id) return;
 
-    const lastQ = questions[questions.length - 1]; // always use the real last question
-    if (!lastQ) return;
+      const lastQ = questions[questions.length - 1];
+      if (!lastQ) return;
 
-    const fd = new FormData();
-    fd.append('courseId', fCId);
-    fd.append('exerciseId', exerciseData._id);
-    fd.append('questionId', lastQ._id);
-    fd.append('code', '');
-    fd.append('score', '0');
-    fd.append('status', 'submitted');
-    fd.append('category', urlCategory || category);
-    fd.append('subcategory', urlSubcategory || subcategory);
-    fd.append('nodeId', nodeId || '');
-    fd.append('nodeName', exerciseData.exerciseInformation?.exerciseName || 'MCQ Assessment');
-    fd.append('nodeType', nodeType || 'mcq');
-    fd.append('language', 'text');
-    fd.append('isTestSubmission', 'true');  // ← THE KEY FLAG
+      const fd = new FormData();
+      fd.append('courseId', fCId);
+      fd.append('exerciseId', exerciseData._id);
+      fd.append('questionId', lastQ._id);
+      fd.append('code', '');
+      fd.append('score', '0');
+      fd.append('status', 'submitted');
+      fd.append('category', urlCategory || category);
+      fd.append('subcategory', urlSubcategory || subcategory);
+      fd.append('nodeId', nodeId || '');
+      fd.append('nodeName', exerciseData.exerciseInformation?.exerciseName || 'MCQ Assessment');
+      fd.append('nodeType', nodeType || 'mcq');
+      fd.append('language', 'text');
+      fd.append('isTestSubmission', 'true');
 
-    await fetch('https://lms-server-ym1q.onrender.com/courses/answers/submit', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${token}` },
-      body: fd,
-    });
-  } catch (e) {
-    console.error('Error sending final submission flag:', e);
-  }
-};
-
+      await fetch('https://lms-server-ym1q.onrender.com/courses/answers/submit', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: fd,
+      });
+    } catch (e) {
+      console.error('Error sending final submission flag:', e);
+    }
+  };
 
   useEffect(()=>{
     const fetch_=async()=>{
@@ -755,21 +877,24 @@ const sendFinalSubmission = async () => {
   };
 
   const getAnsweredCount=()=>questions.filter(isQuestionAnswered).length;
-const submitQuiz = async () => {
-  if (quizCompleted || isSubmitting) return;
-  setIsSubmitting(true);
-  setShowSubmitDialog(false);
-  await saveCurrentAnswer();
-  await sendFinalSubmission();
-  if (timerRef.current) clearInterval(timerRef.current);
-  if (exerciseData?._id) {
-    localStorage.removeItem(`mcq_answers_${exerciseData._id}`);
-    localStorage.removeItem(`mcq_flagged_${exerciseData._id}`);
-  }
-  setQuizCompleted(true);
-  toast.success('Exercise submitted successfully');
-  setTimeout(() => { if (onCloseExercise) onCloseExercise(); else router.back(); }, 800);
-};  const handleSubmitClick=()=>{ const ua=questions.length-getAnsweredCount(); if(ua>0) setShowSubmitDialog(true); else submitQuiz(); };
+  
+  const submitQuiz = async () => {
+    if (quizCompleted || isSubmitting) return;
+    setIsSubmitting(true);
+    setShowSubmitDialog(false);
+    await saveCurrentAnswer();
+    await sendFinalSubmission();
+    if (timerRef.current) clearInterval(timerRef.current);
+    if (exerciseData?._id) {
+      localStorage.removeItem(`mcq_answers_${exerciseData._id}`);
+      localStorage.removeItem(`mcq_flagged_${exerciseData._id}`);
+    }
+    setQuizCompleted(true);
+    try { sessionStorage.setItem('lms_submit_toast', `"${exerciseTitle}" submitted successfully`); } catch {}
+    setTimeout(() => { if (onCloseExercise) onCloseExercise(); else router.back(); }, 800);
+  };
+  
+  const handleSubmitClick=()=>{ const ua=questions.length-getAnsweredCount(); if(ua>0) setShowSubmitDialog(true); else submitQuiz(); };
   const handlePrev=async()=>{ if(currentQuestionIndex<=0) return; await saveCurrentAnswer(); loadAnswersForQuestion(filteredQuestions[currentQuestionIndex-1],answersRef.current); setCurrentQuestionIndex(p=>p-1); };
   const handleNext=async()=>{ await saveCurrentAnswer(); if(currentQuestionIndex<filteredQuestions.length-1){ loadAnswersForQuestion(filteredQuestions[currentQuestionIndex+1],answersRef.current); setCurrentQuestionIndex(p=>p+1); } };
   const handleJumpToQuestion=async(index:number)=>{ if(index<0||index>=filteredQuestions.length) return; await saveCurrentAnswer(); loadAnswersForQuestion(filteredQuestions[index],answersRef.current); setCurrentQuestionIndex(index); setShowSubmitDialog(false); };
@@ -844,75 +969,67 @@ const submitQuiz = async () => {
 
       <ToastContainer position="top-right" />
       {showSubmitDialog&&<SubmitDialog unansweredCount={unansweredCount} flaggedCount={flaggedQuestions.size} unansweredIndices={unansweredIndices} flaggedIndices={flaggedIndices} requiredUnansweredIndices={requiredUnansweredIndices} onConfirm={submitQuiz} onCancel={()=>setShowSubmitDialog(false)} onNavigateToQuestion={handleJumpToQuestion} />}
- {/* ── Exercise Info Modals ── ADD HERE ── */}
-  <ExerciseInfoModals
-    exercise={exerciseData}
-    showDetailsModal={showDetailsModal}
-    setShowDetailsModal={setShowDetailsModal}
-    showOverviewModal={showOverviewModal}
-    setShowOverviewModal={setShowOverviewModal}
-    solvedQuestions={new Set(
-      questions
-        .map((q, i) => ({ q, i }))
-        .filter(({ q }) => isQuestionAnswered(q))
-        .map(({ i }) => i)
-    )}
-  />
-
-    {/* ═══ TOP BAR (fixed height) ═══ */}
-<div style={{ flexShrink:0,height:TOP_BAR_H,background:T.bg,borderBottom:`1px solid ${T.border}`,display:'flex',flexDirection:'column',zIndex:50 }}>
-  <div style={{ flex:1,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 24px',gap:12 }}>
-    
-    {/* Left — back + logo + breadcrumb */}
-    <div style={{ display:'flex',alignItems:'center',gap:0,minWidth:0,flex:1 }}>
-      <div style={{ display:'flex',alignItems:'center',gap:7,flexShrink:0,marginRight:14 }}>
-        <div style={{ width:28,height:28,borderRadius:8,background:`linear-gradient(135deg,${T.orange},${T.orangeDark})`,display:'flex',alignItems:'center',justifyContent:'center',boxShadow:`0 3px 10px ${T.orangeGlow}` }}><GraduationCap size={13} color="#fff" /></div>
-        <span style={{ fontSize:13,fontWeight:800,color:T.textMain,letterSpacing:'-0.02em' }}>SmartCliff</span>
-      </div>
-      <div style={{ width:1,height:18,background:T.border,marginRight:14,flexShrink:0 }} />
-      <nav style={{ display:'flex',alignItems:'center',gap:0,minWidth:0,overflow:'hidden' }}>
-        {[{label:courseName!=='Course'&&courseName?courseName:null},{label:finalCategory!=='Course'?finalCategory.replace(/_/g,' '):null},{label:finalSubcategory},{label:exerciseTitle,active:true}].filter(b=>b.label).map((b,i,arr)=>(
-          <React.Fragment key={i}>
-            <span style={{ fontSize:12,fontWeight:b.active?700:400,color:b.active?T.orange:T.textMuted,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:b.active?200:110 }}>{b.label}</span>
-            {i<arr.length-1&&<ChevronRight size={12} style={{ color:T.border,margin:'0 5px',flexShrink:0 }} />}
-          </React.Fragment>
-        ))}
-      </nav>
-    </div>
-
-    {/* Right — buttons + timer + stats */}
-    <div style={{ display:'flex',alignItems:'center',gap:10,flexShrink:0 }}>
-
-      {/* ── Exercise Info Buttons ── ADD HERE ── */}
-      <ExerciseInfoButtons
-        onDetailsClick={() => setShowDetailsModal(true)}
-        onOverviewClick={() => setShowOverviewModal(true)}
-        isGraded={exerciseData?.isGraded !== false}
+      
+      <ExerciseInfoModals
+        exercise={exerciseData}
+        showDetailsModal={showDetailsModal}
+        setShowDetailsModal={setShowDetailsModal}
+        showOverviewModal={showOverviewModal}
+        setShowOverviewModal={setShowOverviewModal}
+        solvedQuestions={new Set(
+          questions
+            .map((q, i) => ({ q, i }))
+            .filter(({ q }) => isQuestionAnswered(q))
+            .map(({ i }) => i)
+        )}
       />
 
-      <div style={{ width:1,height:18,background:T.border }} />
+      {/* ═══ TOP BAR (fixed height) ═══ */}
+      <div style={{ flexShrink:0,height:TOP_BAR_H,background:T.bg,borderBottom:`1px solid ${T.border}`,display:'flex',flexDirection:'column',zIndex:50 }}>
+        <div style={{ flex:1,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 24px',gap:12 }}>
+          
+          {/* Left — back + logo + breadcrumb */}
+          <div style={{ display:'flex',alignItems:'center',gap:0,minWidth:0,flex:1 }}>
+            <nav style={{ display:'flex',alignItems:'center',gap:0,minWidth:0,overflow:'hidden' }}>
+              {[{label:courseName!=='Course'&&courseName?courseName:null},...hierarchy.map(seg=>({label:seg})),{label:finalCategory&&finalCategory!=='Course'?(finalCategory==='We_Do'?'We Do':finalCategory==='I_Do'?'I Do':finalCategory==='You_Do'?'You Do':finalCategory.replace(/_/g,' ')):null},{label:exerciseTitle,active:true}].filter(b=>b.label).map((b,i,arr)=>(
+                <React.Fragment key={i}>
+                  <span style={{ fontSize:12,fontWeight:b.active?700:500,color:b.active?T.orange:T.textSub,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:b.active?200:110 }}>{b.label}</span>
+                  {i<arr.length-1&&<ChevronRight size={12} style={{ color:T.border,margin:'0 5px',flexShrink:0 }} />}
+                </React.Fragment>
+              ))}
+            </nav>
+          </div>
 
-      {/* Stats — Total / Done / Left / Flagged */}
-      {[
-        {v:questions.length,    label:'Total',  col:T.textSub},
-        {v:answeredCount,       label:'Done',   col:T.green},
-        {v:unansweredCount,     label:'Left',   col:T.textMuted},
-        {v:flaggedQuestions.size,label:'Flagged',col:T.amber}
-      ].map(({v,label,col})=>(
-        <div key={label} style={{ display:'flex',alignItems:'center',gap:3 }}>
-          <span style={{ fontSize:14,fontWeight:800,color:col }}>{v}</span>
-          <span style={{ fontSize:10,color:T.textHint,fontWeight:600 }}>{label}</span>
+          {/* Right — buttons + timer + stats */}
+          <div style={{ display:'flex',alignItems:'center',gap:10,flexShrink:0 }}>
+            <ExerciseInfoButtons
+              onDetailsClick={() => setShowDetailsModal(true)}
+              onOverviewClick={() => setShowOverviewModal(true)}
+              isGraded={exerciseData?.isGraded !== false}
+            />
+
+            <div style={{ width:1,height:18,background:T.border }} />
+
+            {/* Stats — Total / Done / Left / Flagged */}
+            {[
+              {v:questions.length,    label:'Total',  col:T.textSub},
+              {v:answeredCount,       label:'Done',   col:T.green},
+              {v:unansweredCount,     label:'Left',   col:T.textMuted},
+              {v:flaggedQuestions.size,label:'Flagged',col:T.amber}
+            ].map(({v,label,col})=>(
+              <div key={label} style={{ display:'flex',alignItems:'center',gap:3 }}>
+                <span style={{ fontSize:14,fontWeight:800,color:col }}>{v}</span>
+                <span style={{ fontSize:10,color:T.textHint,fontWeight:600 }}>{label}</span>
+              </div>
+            ))}
+          </div>
         </div>
-      ))}
 
-    </div>
-  </div>
-
-  {/* Progress line */}
-  <div style={{ height:2,background:T.borderLight }}>
-    <div style={{ height:'100%',width:`${progressPct}%`,background:`linear-gradient(90deg,${T.orange},${T.orangeDark})`,transition:'width 0.5s ease' }} />
-  </div>
-</div>
+        {/* Progress line */}
+        <div style={{ height:2,background:T.borderLight }}>
+          <div style={{ height:'100%',width:`${progressPct}%`,background:`linear-gradient(90deg,${T.orange},${T.orangeDark})`,transition:'width 0.5s ease' }} />
+        </div>
+      </div>
 
       {/* ═══ BODY ═══ */}
       <div style={{ flex:1,minHeight:0,overflow:'hidden',display:'flex' }}>
@@ -923,7 +1040,6 @@ const submitQuiz = async () => {
           {/* ── Sticky Q-meta row ── */}
           <div style={{ flexShrink:0,height:Q_META_H,background:T.bg,borderBottom:`1px solid ${T.border}`,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 28px',gap:10,zIndex:20 }}>
             <div style={{ display:'flex',alignItems:'center',gap:10 }}>
-              {/* Q number */}
               <div style={{ display:'flex',alignItems:'baseline',gap:2 }}>
                 <span style={{ fontSize:10,color:T.textHint,fontWeight:700,letterSpacing:'0.05em' }}>Q</span>
                 <span style={{ fontSize:26,fontWeight:900,color:T.orange,lineHeight:1,letterSpacing:'-0.03em',margin:'0 2px' }}>{currentQuestionIndex+1}</span>
@@ -962,11 +1078,12 @@ const submitQuiz = async () => {
           {/* ── Scrollable question content ── */}
           <div ref={scrollRef} className="mcq-fade mcq-s" key={currentQuestionIndex}
             style={{ flex:1,minHeight:0,overflowY:'auto',padding:'24px 28px' }}>
+            {/* Use the enhanced ContentBlockRenderer for the question title */}
             <div style={{ marginBottom:8 }}><ContentBlockRenderer title={cq.mcqQuestionTitle} /></div>
-            {cq.mcqQuestionDescription&&(
+            {cq.mcqQuestionDescription && (
               <div style={{ display:'flex',gap:10,padding:'10px 14px',borderRadius:10,background:T.blueLight,border:`1px solid ${T.blue}20`,marginBottom:14 }}>
                 <Info size={13} style={{ color:T.blue,flexShrink:0,marginTop:2 }} />
-                <p style={{ fontSize:13,color:T.textSub,margin:0,lineHeight:1.6 }}>{cq.mcqQuestionDescription}</p>
+                <p style={{ fontSize:13,color:T.textSub,margin:0,lineHeight:1.6 }} dangerouslySetInnerHTML={{ __html: cq.mcqQuestionDescription }} />
               </div>
             )}
             <p style={{ fontSize:11,color:T.textHint,marginBottom:20,display:'flex',alignItems:'center',gap:5 }}>
@@ -1007,16 +1124,13 @@ const submitQuiz = async () => {
         </div>
       </div>
 
-      {/* ═══ BOTTOM NAV BAR — normal flex child, NOT position:fixed ═══ */}
+      {/* ═══ BOTTOM NAV BAR ═══ */}
       <div style={{ flexShrink:0,height:BOTTOM_BAR_H,background:T.bg,borderTop:`1px solid ${T.border}`,display:'flex',alignItems:'center',padding:'0 28px',gap:16,zIndex:50 }}>
-
-        {/* Previous */}
         <button onClick={handlePrev} disabled={currentQuestionIndex===0} className="btn-prev"
           style={{ display:'flex',alignItems:'center',gap:7,padding:'10px 20px',borderRadius:10,border:`1.5px solid ${T.border}`,background:'transparent',color:currentQuestionIndex===0?T.textHint:T.textSub,fontSize:13,fontWeight:600,cursor:currentQuestionIndex===0?'not-allowed':'pointer',fontFamily:'inherit',transition:'all 0.13s',flexShrink:0 }}>
           <ChevronLeft size={15} /> Previous
         </button>
 
-        {/* Step dots – centered */}
         <div style={{ flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:5,overflow:'hidden' }}>
           {filteredQuestions.slice(Math.max(0,currentQuestionIndex-4),Math.min(filteredQuestions.length,currentQuestionIndex+5)).map((_,relIdx)=>{
             const absIdx=Math.max(0,currentQuestionIndex-4)+relIdx;
@@ -1029,7 +1143,6 @@ const submitQuiz = async () => {
           })}
         </div>
 
-        {/* Next / Submit */}
         {!isLastQ?(
           <button onClick={handleNext} className="btn-next"
             style={{ display:'flex',alignItems:'center',gap:7,padding:'10px 22px',borderRadius:10,border:'none',background:T.orange,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',transition:'all 0.13s',boxShadow:`0 3px 14px ${T.orangeGlow}`,flexShrink:0 }}>
@@ -1043,10 +1156,7 @@ const submitQuiz = async () => {
         )}
       </div>
     </div>
-
-    
   );
-  
 };
 
 export default MCQ;

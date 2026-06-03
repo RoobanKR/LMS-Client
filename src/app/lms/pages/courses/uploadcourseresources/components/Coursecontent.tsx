@@ -134,10 +134,12 @@ export type SubGroupSeed = {
 // ─── Folder Breadcrumb Component ───────────────────────────────────────────────
 const FolderBreadcrumbBar: React.FC<{
   folderNavState: FolderNavState;
+  groupName?: string;
+  onGroupClick?: () => void;
   onNavigateUp: () => void;
   onNavigateToRoot?: () => void;
   onNavigateToFolderLevel?: (folderName: string, index: number) => void;
-}> = ({ folderNavState, onNavigateUp, onNavigateToRoot, onNavigateToFolderLevel }) => {
+}> = ({ folderNavState, groupName, onGroupClick, onNavigateUp, onNavigateToRoot, onNavigateToFolderLevel }) => {
   const isInsideFolder = folderNavState.currentFolderId !== null;
   const folderPath = folderNavState.currentFolderPath || [];
 
@@ -148,19 +150,6 @@ const FolderBreadcrumbBar: React.FC<{
       className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2"
       style={{ borderBottom: `1px solid ${T.border}` }}
     >
-      <button
-        onClick={onNavigateUp}
-        className="flex items-center gap-1 text-[11px] font-semibold cursor-pointer flex-shrink-0"
-        style={{ color: "#3B82F6", background: "none", border: "none" }}
-        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#1D4ED8"; (e.currentTarget as HTMLElement).style.textDecoration = "underline"; }}
-        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "#3B82F6"; (e.currentTarget as HTMLElement).style.textDecoration = "none"; }}
-      >
-        <ArrowLeft size={11} strokeWidth={2.5} />
-        Back
-      </button>
-
-      <span style={{ color: T.textHint, fontSize: 11, flexShrink: 0 }}>·</span>
-
       <div className="flex items-center gap-1 overflow-x-auto flex-1" style={{ scrollbarWidth: "none" }}>
         {/* Root — always blue, always navigable */}
         <button
@@ -172,6 +161,26 @@ const FolderBreadcrumbBar: React.FC<{
         >
           Root
         </button>
+
+        {/* Group crumb — shown when the current folder lives inside a group.
+            Clicking it routes back to root (where the group accordion lives)
+            and opens that group's dropdown. */}
+        {groupName && (
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <span style={{ color: T.textHint, fontSize: 11 }}>›</span>
+            <button
+              onClick={() => onGroupClick?.()}
+              className="flex items-center gap-1 text-[11px] max-w-[140px] truncate cursor-pointer"
+              style={{ color: "#3B82F6", fontWeight: 500, background: "none", border: "none" }}
+              title={groupName}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#1D4ED8"; (e.currentTarget as HTMLElement).style.textDecoration = "underline"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "#3B82F6"; (e.currentTarget as HTMLElement).style.textDecoration = "none"; }}
+            >
+              <Folder size={11} strokeWidth={2.2} style={{ flexShrink: 0 }} />
+              {groupName}
+            </button>
+          </div>
+        )}
 
         {folderPath.map((segment, idx) => {
           const isLast = idx === folderPath.length - 1;
@@ -1382,6 +1391,8 @@ const FileList: React.FC<{
   onBulkDelete: (items: Array<{ type: "file" | "folder" | "page"; id: string; name: string; folderItem?: FolderItem }>) => Promise<void>;
   onResourceModalOpen: (groupId?: string, groupName?: string) => void;
   onShowToast?: (message: string, type?: "success" | "error") => void;
+  autoExpandGroupId?: string | null;
+  onAutoExpandHandled?: () => void;
 }> = ({
   folders, files, combinedOrder, activeTab, activeSubcategory, getFolderItemCount, getFolderTotalSize,
   onFolderClick, onFileClick, onEditFolder, onDeleteFolder, onDeleteFile, onUpdateFile,
@@ -1394,6 +1405,8 @@ const FileList: React.FC<{
   onBulkDelete,
   onResourceModalOpen,
   onShowToast,
+  autoExpandGroupId,
+  onAutoExpandHandled,
 }) => {
     const [openDrop, setOpenDrop] = useState<string | null>(null);
     const [dropUpward, setDropUpward] = useState(false);
@@ -1425,6 +1438,19 @@ const FileList: React.FC<{
         return s;
       });
     };
+
+    // When the breadcrumb's group crumb routes back to root, open that group's
+    // accordion, then clear the request so manual collapse/expand still works.
+    useEffect(() => {
+      if (!autoExpandGroupId) return;
+      setExpandedGroups(prev => {
+        if (prev.has(autoExpandGroupId)) return prev;
+        const s = new Set(prev);
+        s.add(autoExpandGroupId);
+        return s;
+      });
+      onAutoExpandHandled?.();
+    }, [autoExpandGroupId]);
 
     const folderGroupMap = useMemo(() => {
       const map: Record<string, FolderItem[]> = {};
@@ -3177,6 +3203,58 @@ export const CourseContent: React.FC<CourseContentProps> = ({
 
   const isValidSub = subcategories[activeTab as "I_Do" | "We_Do" | "You_Do"]?.some(s => s.key === activeSubcategory);
 
+  // ── Breadcrumb group name ─────────────────────────────────────────────────
+  // When the user has navigated INTO a folder that belongs to a group, surface
+  // that group's name so the breadcrumb reads "Root › <Group> › <folder>…".
+  // Display-only — resolved from the same fields the root group row uses
+  // (folders carry `parentGroupId`, files carry `groupId`; the human name lives
+  // on `groupName`). Returns "" for ungrouped folders or at root.
+  const currentGroup = useMemo<{ id: string; name: string } | null>(() => {
+    const fid = folderNavState.currentFolderId;
+    if (!selectedNode || !activeTab || !fid) return null;
+    const subcatData = (contentData[selectedNode.id]?.[activeTab]?.[activeSubcategory] || []) as (FolderItem | UploadedFile)[];
+    const rootFolders = subcatData.filter((i): i is FolderItem => isFolderItem(i) && !i.parentId);
+    const containsId = (folder: FolderItem, id: string): boolean =>
+      folder.id === id || (folder.subfolders || []).some(sf => containsId(sf, id));
+    const rootAncestor = rootFolders.find(rf => containsId(rf, fid));
+    const gid = rootAncestor?.parentGroupId;
+    if (!gid) return null;
+    // Prefer any sibling folder in the group that carries the user-typed name,
+    // else any group file, else the ancestor's own groupName.
+    const namedFolder = rootFolders.find(f => f.parentGroupId === gid && !!f.groupName);
+    const namedFile = subcatData.find(
+      (i): i is UploadedFile =>
+        !isFolderItem(i) && ((i.groupId === gid) || (i.parentGroupId === gid)) && !!i.groupName,
+    );
+    const name = namedFolder?.groupName || namedFile?.groupName || rootAncestor?.groupName || "Untitled group";
+    return { id: gid, name };
+  }, [selectedNode, activeTab, activeSubcategory, contentData, folderNavState.currentFolderId]);
+
+  // Group whose accordion should auto-open after the breadcrumb routes back to
+  // root (set when the user clicks the group crumb). FileList consumes + clears it.
+  const [autoExpandGroupId, setAutoExpandGroupId] = useState<string | null>(null);
+
+  const handleGroupCrumbClick = useCallback(() => {
+    if (!currentGroup) return;
+    const gid = currentGroup.id;
+    onNavigateToRoot?.();       // route to where the group accordion lives
+    setAutoExpandGroupId(gid);  // …and open that group's dropdown
+  }, [currentGroup, onNavigateToRoot]);
+
+  // Group-aware wrapper for the generic "Add Resource" buttons (toolbar + empty
+  // state). A group row's own "+ Add" passes the group explicitly; the generic
+  // buttons don't — so when the user has navigated INTO a group's folder we
+  // carry `currentGroup` through. This keeps the group in the picker breadcrumb
+  // ("…› Group › Folder") regardless of which add button was used.
+  const handleResourceModalOpen = useCallback(
+    (groupId?: string, groupName?: string) => {
+      if (groupId) { onResourceModalOpen(groupId, groupName); return; }
+      if (currentGroup) { onResourceModalOpen(currentGroup.id, currentGroup.name); return; }
+      onResourceModalOpen();
+    },
+    [onResourceModalOpen, currentGroup],
+  );
+
   const allFiles = useMemo(() => {
     // Pages come exclusively from pedagogy below — exclude any stale page entries
     // that currentFolderContents.files might already carry to prevent duplicates.
@@ -3622,12 +3700,14 @@ if (activeSubcategory === "self_work") return <SelfWork key={`you_do-${activeSub
               <div className="flex-shrink-0 px-4 py-2.5"
                 style={{ borderBottom: `1px solid ${T.border}`, background: T.bg }}>
                 <FilterSection fileTypes={fileTypes} allFiles={allFiles} currentFolders={currentFolderContents.folders}
-                  activeFilters={activeFilters} onFilterChange={setActiveFilters} onResourceModalOpen={onResourceModalOpen}
+                  activeFilters={activeFilters} onFilterChange={setActiveFilters} onResourceModalOpen={handleResourceModalOpen}
                   sortBy={sortBy} onSortChange={setSortBy} />
               </div>
               {(folderNavState.currentFolderId !== null || folderNavState.currentFolderPath.length > 0) && (
                 <FolderBreadcrumbBar
                   folderNavState={folderNavState}
+                  groupName={currentGroup?.name || ""}
+                  onGroupClick={handleGroupCrumbClick}
                   onNavigateUp={onNavigateUp}
                   onNavigateToRoot={onNavigateToRoot}
                   onNavigateToFolderLevel={onNavigateToFolderLevel}
@@ -3666,8 +3746,10 @@ if (activeSubcategory === "self_work") return <SelfWork key={`you_do-${activeSub
                     }
                   }}
                   onBulkDelete={onBulkDelete}
-                  onResourceModalOpen={onResourceModalOpen}
+                  onResourceModalOpen={handleResourceModalOpen}
                   onShowToast={showToast}
+                  autoExpandGroupId={autoExpandGroupId}
+                  onAutoExpandHandled={() => setAutoExpandGroupId(null)}
                 />
               </div>
             </div>
@@ -3680,6 +3762,8 @@ if (activeSubcategory === "self_work") return <SelfWork key={`you_do-${activeSub
                 <div style={{ paddingTop: 10, background: T.bg }}>
                   <FolderBreadcrumbBar
                     folderNavState={folderNavState}
+                    groupName={currentGroup?.name || ""}
+                    onGroupClick={handleGroupCrumbClick}
                     onNavigateUp={onNavigateUp}
                     onNavigateToRoot={onNavigateToRoot}
                     onNavigateToFolderLevel={onNavigateToFolderLevel}
@@ -3694,7 +3778,7 @@ if (activeSubcategory === "self_work") return <SelfWork key={`you_do-${activeSub
                 <h3 className="text-[16px] font-bold mb-1.5 tracking-tight" style={{ color: T.textMain }}>It's quiet here</h3>
                 <p className="text-[12px] font-medium mb-5 max-w-[240px] leading-relaxed" style={{ color: T.textMuted }}>Start by adding resources to organise your course content.</p>
                 {activeTab === "I_Do" && (
-                  <button onClick={() => onResourceModalOpen()}
+                  <button onClick={() => handleResourceModalOpen()}
                     className="flex items-center gap-1.5 px-5 py-2 rounded-xl text-[11px] font-bold text-white"
                     style={{ background: T.orange, boxShadow: `0 4px 12px ${T.orangeGlow}`, transition: "all 0.18s" }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = T.orangeDark; (e.currentTarget as HTMLElement).style.transform = "translateY(-2px)"; }}

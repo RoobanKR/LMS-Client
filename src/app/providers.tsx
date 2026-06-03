@@ -7,6 +7,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { toast } from "react-toastify"
 import { showSuccessToast } from '@/components/ui/toastUtils'
 import { Settings2 } from 'lucide-react'
+import { Loading } from '@/components/loading-ui/loading'
 
 interface Permission {
   permissionName: string;
@@ -182,6 +183,11 @@ const hasPermissionForRoute = (pathname: string): { hasAccess: boolean; required
     return { hasAccess: true }
   }
 
+  // ── Allow logs page for all non-student staff/admin roles ─────────────────
+  if (pathname.startsWith('/lms/pages/logs')) {
+    return { hasAccess: !isStudent }
+  }
+
   const permissionKeys = getActivePermissionKeys()
 
   if (permissionKeys.length === 0) return { hasAccess: false }
@@ -350,7 +356,7 @@ function AuthWrapper({ children }: { children: ReactNode }) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        <Loading size="size-12" color="gray" />
       </div>
     )
   }
@@ -362,7 +368,7 @@ function AuthWrapper({ children }: { children: ReactNode }) {
   if (!['/login', '/login', '/register', '/forgot-password', '/'].includes(pathname) && !isAuthenticated) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        <Loading size="size-12" color="gray" />
       </div>
     )
   }

@@ -1,9 +1,10 @@
 // components/TabBar.tsx  (also contains TopBar — kept for backward compat)
 import React, { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { ChevronRight, Layout, Bot, Sparkles, Sun, Moon, User, Settings, LogOut, BookOpen, ChevronDown, Eye } from "lucide-react"
+import { ChevronRight, Layout, Bot, Sparkles, Sun, Moon, User, Settings, LogOut, BookOpen, ChevronDown, Eye, Users, ClipboardList } from "lucide-react"
 import { T, FONT_PRIMARY } from "./types/constants"
 import { userPermission } from "@/apiServices/tokenVerify"
+import { postLogout } from "@/apiServices/activityLog"
 import { RoleSwitchState } from "./types/types"
 
 interface TopBarProps {
@@ -82,6 +83,7 @@ export const TopBar: React.FC<TopBarProps> = ({ items, onAIClick, onSummaryClick
   const handleLogout = async () => {
     setIsLoggingOut(true)
     try {
+      await postLogout()
       localStorage.removeItem('smartcliff_roleSwitch')
       localStorage.removeItem('smartcliff_isDummyStudent')
       localStorage.clear()
@@ -354,33 +356,24 @@ const OVERVIEW_CFG = {
 const TAB_CFG = {
   I_Do: {
     label: "I Do",
-    icon: <img src="/icons/ido.png" alt="I Do" style={{
-      width: 18, height: 18, objectFit: 'contain', display: 'block',
-      background: '#ffffff', borderRadius: 4, padding: 2,
-    }} />,
-    color: "#F27757",
-    bg: "rgba(242,119,87,0.10)",
-    shadow: "rgba(242,119,87,0.30)"
+    icon: <User size={14} style={{ display: 'block' }} />,
+    color: "#dc2626",
+    bg: "rgba(220,38,38,0.09)",
+    shadow: "rgba(220,38,38,0.30)"
   },
   We_Do: {
     label: "We Do",
-    icon: <img src="/icons/wedo.png" alt="We Do" style={{
-      width: 18, height: 18, objectFit: 'contain', display: 'block',
-      background: '#ffffff', borderRadius: 4, padding: 2,
-    }} />,
-    color: "#3B82F6",
-    bg: "rgba(59,130,246,0.10)",
-    shadow: "rgba(59,130,246,0.30)"
+    icon: <Users size={14} style={{ display: 'block' }} />,
+    color: "#ea580c",
+    bg: "rgba(234,88,12,0.09)",
+    shadow: "rgba(234,88,12,0.30)"
   },
   You_Do: {
     label: "You Do",
-    icon: <img src="/icons/youdo.png" alt="You Do" style={{
-      width: 18, height: 18, objectFit: 'contain', display: 'block',
-      background: '#ffffff', borderRadius: 4, padding: 2,
-    }} />,
-    color: "#10B981",
-    bg: "rgba(16,185,129,0.10)",
-    shadow: "rgba(16,185,129,0.30)"
+    icon: <ClipboardList size={14} style={{ display: 'block' }} />,
+    color: "#059669",
+    bg: "rgba(5,150,105,0.09)",
+    shadow: "rgba(5,150,105,0.30)"
   },
 } as const
 type TabKey = keyof typeof TAB_CFG
@@ -441,7 +434,7 @@ export const TabBar: React.FC<TabBarProps> = ({
         alignItems: 'flex-end',
         gap: 6,
         justifyContent: 'flex-start',
-        padding: '8px 12px 0px 12px',
+        padding: '5px 12px 0px 12px',
         position: 'relative',
         background: '#ffffff',
       }}>
@@ -463,18 +456,26 @@ export const TabBar: React.FC<TabBarProps> = ({
           const subs = isOverview ? [] : (subcategories[tab.key as TabKey] ?? [])
 
           return (
+            <React.Fragment key={tab.key}>
+              {!isFirstTab && (
+                <span style={{
+                  alignSelf: 'center',
+                  width: 1,
+                  height: 24,
+                  background: '#e2e8f0',
+                  flexShrink: 0,
+                }} />
+              )}
             <button
-              key={tab.key}
               disabled={isDis}
               onClick={() => handleTabClick(tab.key, isOverview, subs)}
               style={{
                 flex: '0 0 auto',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                padding: '0 8px',
-                paddingLeft: isFirstTab ? 0 : 8,
+                padding: '0 16px',
                 height: 34,
-                fontSize: 13,
-                fontWeight: isSel ? 700 : 600,
+                fontSize: 12,
+                fontWeight: 500,
                 border: 'none',
                 borderBottom: isSel ? '3px solid #2563eb' : '3px solid transparent',
                 background: 'transparent',
@@ -503,7 +504,7 @@ export const TabBar: React.FC<TabBarProps> = ({
               {tab.key !== 'Overview' && (
                 <span style={{
                   display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                  width: 20, height: 20, borderRadius: 6,
+                  width: 16, height: 16, borderRadius: 6,
                   background: 'transparent',
                   flexShrink: 0,
                   opacity: isSel ? 1 : 0.6,
@@ -518,6 +519,7 @@ export const TabBar: React.FC<TabBarProps> = ({
                 display: 'inline-block',
               }}>{tab.label}</span>
             </button>
+            </React.Fragment>
           )
         })}
         {rightAction && (
@@ -527,47 +529,71 @@ export const TabBar: React.FC<TabBarProps> = ({
         )}
       </div>
 
-      {/* Subcategory pills */}
+      {/* Subcategory tabs */}
       {activeTab && activeTab !== "Overview" && (subcategories[activeTab as TabKey] ?? []).length > 0 && (
       <div style={{
-        display: 'flex', alignItems: 'center', gap: 8,
-        padding: '10px 14px',
+        display: 'flex', alignItems: 'flex-end', gap: 6,
+        padding: '5px 12px 0px 12px',
+        position: 'relative',
         overflowX: 'auto', scrollbarWidth: 'none',
         background: '#ffffff',
         animation: 'subcategorySlide 0.35s cubic-bezier(0.22, 1, 0.36, 1)',
       }}>
+        {/* Divider line (aligned with left/right padding) */}
+        <div style={{
+          position: 'absolute',
+          left: 12,
+          right: 12,
+          bottom: 0,
+          height: 1,
+          background: '#eef2f7',
+          pointerEvents: 'none',
+        }} />
           {(subcategories[activeTab as TabKey] ?? []).map((sub, idx) => {
             const tabCfg = TAB_CFG[activeTab as TabKey]
             const isActive = activeSubcategory === sub.key
+            const isFirstSub = idx === 0
             return (
+              <React.Fragment key={sub.key}>
+                {!isFirstSub && (
+                  <span style={{
+                    alignSelf: 'center',
+                    width: 1,
+                    height: 24,
+                    background: '#e2e8f0',
+                    flexShrink: 0,
+                  }} />
+                )}
 <button
-  key={sub.key}
   onClick={() => onSubcategoryChange(sub.key, sub.component)}
   style={{
-    flexShrink: 0,
-    padding: '5px 14px',
-    fontSize: 12.5, fontWeight: 600,
-    borderRadius: 8,
-    border: `1.5px solid ${isActive ? '#2563eb' : '#e2e8f0'}`,
-    background: isActive ? '#2563eb' : '#ffffff',
-    color: isActive ? '#fff' : '#475569',
+    flex: '0 0 auto',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+    padding: '0 16px',
+    height: 34,
+    fontSize: 12,
+    fontWeight: 500,
+    border: 'none',
+    borderBottom: isActive ? '3px solid #2563eb' : '3px solid transparent',
+    background: 'transparent',
+    color: isActive ? '#2563eb' : '#111827',
     cursor: 'pointer',
-    transition: 'all 0.2s cubic-bezier(0.22, 1, 0.36, 1)',
-    boxShadow: isActive ? '0 2px 8px rgba(37,99,235,0.25)' : 'none',
+    transition: 'all 0.25s cubic-bezier(0.22, 1, 0.36, 1)',
+    whiteSpace: 'nowrap',
+    borderRadius: 0,
+    boxShadow: 'none',
     animation: `pillSlideIn 0.3s cubic-bezier(0.22, 1, 0.36, 1) ${idx * 60}ms both`,
   }}
   onMouseEnter={e => {
     if (!isActive) {
-      const el = e.currentTarget as HTMLElement
-      el.style.borderColor = '#2563eb'
-      el.style.color = '#2563eb'
+      e.currentTarget.style.transform = 'translateY(-2px)'
+      e.currentTarget.style.color = '#2563eb'
     }
   }}
   onMouseLeave={e => {
     if (!isActive) {
-      const el = e.currentTarget as HTMLElement
-      el.style.borderColor = '#e2e8f0'
-      el.style.color = '#475569'
+      e.currentTarget.style.transform = 'translateY(0)'
+      e.currentTarget.style.color = '#111827'
     }
   }}
 >
@@ -579,13 +605,14 @@ export const TabBar: React.FC<TabBarProps> = ({
       padding: '1px 6px',
       borderRadius: 10,
       fontSize: '11px', fontWeight: 700,
-      background: isActive ? 'rgba(255,255,255,0.25)' : '#f1f5f9',
-      color: isActive ? '#fff' : '#64748b',
+      background: isActive ? 'rgba(37,99,235,0.12)' : '#f1f5f9',
+      color: isActive ? '#2563eb' : '#64748b',
     }}>
       {sub.component.subItems.length}
     </span>
   )}
 </button>
+              </React.Fragment>
             )
           })}
         </div>

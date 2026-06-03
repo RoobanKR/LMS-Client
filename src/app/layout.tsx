@@ -7,7 +7,7 @@ import { Providers } from './providers'
 import { ToastContainer } from 'react-toastify'
 import { Toaster } from 'react-hot-toast'
 
-// const inter = Inter({ subsets: ['latin'], display: 'swap' })
+const inter = Inter({ subsets: ['latin'], display: 'swap', variable: '--font-inter' })
 
 export const metadata: Metadata = {
   title: 'LMS - Learning Management System',
@@ -21,17 +21,16 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body>
+      <body className={inter.className}>
         <Providers>
          <Toaster
     position="top-right"
     toastOptions={{
       duration: 3000,
       style: {
-        fontFamily: "'Plus Jakarta Sans', sans-serif",
+        fontFamily: "'Inter', sans-serif",
         fontSize: '13px',
       },
-      
     }}
     containerStyle={{
     zIndex: 99999,

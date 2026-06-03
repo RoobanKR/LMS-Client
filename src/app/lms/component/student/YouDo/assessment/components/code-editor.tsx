@@ -2,6 +2,10 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { useRouter } from 'next/navigation';
+import { useExamLiveEmitter } from './useExamLiveEmitter';
+import ScreenShareGuard from './ScreenShareGuard';
+import StudentMessageChat from './StudentMessageChat';
+import { setSharedScreenStream, markScreenCaptureStarting, clearScreenCaptureInProgress } from './screenStreamStore';
 
 // Then, inside your CodeEditor component, add the router hook:
 
@@ -15,6 +19,9 @@ import dynamic from 'next/dynamic'
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css'
 import Script from 'next/script'
+import ExerciseInfoModals, { ExerciseInfoButtons } from './ExerciseInfoModals'
+import { useAssessmentSecurity, normalizeSecurityConfig } from './useAssessmentSecurity'
+import { useFaceProctor } from './useFaceProctor'
 
 // Piston API configuration
 const PISTON_API_URL = "https://emkc.org/api/v2/piston/execute"
@@ -284,6 +291,14 @@ interface CodeEditorProps {
     hierarchy?: string[]
     onNavigateToBreadcrumb?: (level: 'course' | 'hierarchy' | 'category') => void
     resetProgress?: boolean
+    /** When true: suppresses internal assessment-mode security modal and browser fullscreen */
+    embedded?: boolean
+    /** Section mode: called when Next is pressed on the LAST problem (e.g. Combined → next part). */
+    onCrossNext?: () => void
+    /** Section mode: called when Prev is pressed on the FIRST problem (e.g. Combined → back to MCQ). */
+    onCrossPrev?: () => void
+    /** Label for the last-problem cross button (e.g. "Next Section" / "Submit Test"). Defaults to "Next". */
+    crossNextLabel?: string
 }
 // Render a ProgContentBlock[] array to HTML
 const renderBlocksToHtml = (blocks: any[]): string =>
@@ -437,9 +452,9 @@ const SecurityAgreementModal = ({
                         <ul className="space-y-2 text-sm">
                             {/* In SecurityAgreementModal component, around line ~160 */}
                             {securitySettings.timerEnabled ? (
-                                <li className="flex items-center gap-2">
+                                <li className="flex items-center gap-2 text-green-700">
                                     <Clock className="w-3 h-3 text-blue-500" />
-                                    <span>Timed Assessment: {securitySettings.timerDuration || 60} minutes</span>
+                                    <span>Timed Assessment: {securitySettings.timerDuration || 30} minutes</span>
                                 </li>
                             ) : (
                                 <li className="flex items-center gap-2 text-gray-400">
@@ -447,67 +462,60 @@ const SecurityAgreementModal = ({
                                     <span>Timed Assessment: Disabled</span>
                                 </li>
                             )}
-
                             {securitySettings.fullScreenMode ? (
-                                <li className="flex items-center gap-2">
+                                <li className="flex items-center gap-2 text-purple-700">
                                     <Maximize2 className="w-3 h-3 text-purple-500" />
                                     <span>Full Screen Mode Required</span>
                                 </li>
-                            ) : (
-                                <li className="flex items-center gap-2 text-gray-400">
-                                    <Maximize2 className="w-3 h-3" />
-                                    <span>Full Screen Mode: Optional</span>
-                                </li>
-                            )}
-
+                            ) : null}
                             {securitySettings.cameraMicEnabled ? (
-                                <li className="flex items-center gap-2">
+                                <li className="flex items-center gap-2 text-green-700">
                                     <Camera className="w-3 h-3 text-green-500" />
-                                    <span>Camera & Microphone Monitoring</span>
+                                    <span>Camera &amp; Microphone Monitoring</span>
                                 </li>
-                            ) : (
-                                <li className="flex items-center gap-2">
-                                    <Camera className="w-3 h-3 text-gray-500" />
-                                    <span>Camera: Disabled</span>
-                                </li>
-                            )}
-
-                            {/* Screen Recording - Always shown */}
+                            ) : null}
                             {securitySettings.screenRecordingEnabled ? (
-                                <li className="flex items-center gap-2">
+                                <li className="flex items-center gap-2 text-red-700">
                                     <Video className="w-3 h-3 text-red-500" />
                                     <span>Screen Recording Active</span>
                                 </li>
-                            ) : (
-                                <li className="flex items-center gap-2 text-gray-400">
-                                    <Video className="w-3 h-3" />
-                                    <span>Screen Recording: Disabled</span>
-                                </li>
-                            )}
-
+                            ) : null}
                             {securitySettings.tabSwitchAllowed === false ? (
-                                <li className="flex items-center gap-2">
+                                <li className="flex items-center gap-2 text-yellow-700">
                                     <Lock className="w-3 h-3 text-yellow-500" />
-                                    <span>Tab Switching Restricted</span>
+                                    <span>Tab Switching Restricted (max {securitySettings.maxTabSwitches ?? 3})</span>
                                 </li>
-                            ) : (
-                                <li className="flex items-center gap-2 text-gray-400">
-                                    <Lock className="w-3 h-3" />
-                                    <span>Tab Switching: Allowed</span>
-                                </li>
-                            )}
-
+                            ) : null}
                             {securitySettings.disableClipboard ? (
-                                <li className="flex items-center gap-2">
+                                <li className="flex items-center gap-2 text-orange-700">
                                     <AlertTriangle className="w-3 h-3 text-orange-500" />
-                                    <span>Copy/Paste Disabled</span>
+                                    <span>Copy / Paste Disabled</span>
                                 </li>
-                            ) : (
-                                <li className="flex items-center gap-2 text-gray-400">
-                                    <AlertTriangle className="w-3 h-3" />
-                                    <span>Copy/Paste: Allowed</span>
+                            ) : null}
+                            {_normSecurity.preventRightClick ? (
+                                <li className="flex items-center gap-2 text-orange-700">
+                                    <AlertTriangle className="w-3 h-3 text-orange-500" />
+                                    <span>Right-click Disabled</span>
                                 </li>
-                            )}
+                            ) : null}
+                            {_normSecurity.preventDevTools ? (
+                                <li className="flex items-center gap-2 text-red-700">
+                                    <Shield className="w-3 h-3 text-red-500" />
+                                    <span>Developer Tools Blocked</span>
+                                </li>
+                            ) : null}
+                            {_normSecurity.preventBackNavigation ? (
+                                <li className="flex items-center gap-2 text-yellow-700">
+                                    <Lock className="w-3 h-3 text-yellow-500" />
+                                    <span>Back Navigation Locked</span>
+                                </li>
+                            ) : null}
+                            {_normSecurity.preventBrowserClose ? (
+                                <li className="flex items-center gap-2 text-yellow-700">
+                                    <AlertTriangle className="w-3 h-3 text-yellow-500" />
+                                    <span>Browser Close Warning Enabled</span>
+                                </li>
+                            ) : null}
                         </ul>
                     </div>
 
@@ -748,6 +756,8 @@ const InteractiveTerminal = ({
     );
 };
 
+const FONT = "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif";
+
 const InfoRow = ({ label, value, theme, mono }: { label: string; value?: string | null; theme: string; mono?: boolean }) => {
     if (value == null || value === '') return null;
     return (
@@ -805,7 +815,11 @@ export default function CodeEditor({
     courseName,
     hierarchy,
     onNavigateToBreadcrumb,
-    resetProgress = false
+    resetProgress = false,
+    embedded = false,
+    onCrossNext,
+    onCrossPrev,
+    crossNextLabel,
 }: CodeEditorProps) {
     // --- Security State ---
     const [isAssessmentMode, setIsAssessmentMode] = useState(false);
@@ -897,8 +911,77 @@ export default function CodeEditor({
     const problem = problems.length > 0 ? problems[currentProblemIndex] : null
     const router = useRouter();
 
+    // ── Live Dashboard emitter (student → teacher). assessmentId = exercise _id. ──
+    const live = useExamLiveEmitter(exercise?._id ? String(exercise._id) : "", problems.length);
+
+    // --- Full exercise data (re-fetched to get complete exerciseInformation fields) ---
+    const [fullExercise, setFullExercise] = useState<Exercise | null>(exercise || null);
+    useEffect(() => {
+        setFullExercise(exercise || null);
+        if (!exercise?._id) return;
+        // Always re-fetch so totalMarks / totalMarksProgramming are complete
+        const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
+        fetch(`https://lms-server-ym1q.onrender.com/exercise/${exercise._id}`, {
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+        })
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
+                if (!data) return;
+                const full = data.data || data.exercise || data;
+                if (full?._id) {
+                    // Keep the prop's questions array (already resolved) but use full exerciseInformation
+                    setFullExercise({ ...full, questions: exercise.questions ?? full.questions });
+                }
+            })
+            .catch(() => { /* keep prop data */ });
+    }, [exercise?._id]);
+
+    // Convenience alias — use fullExercise everywhere for display fields
+    const exData = fullExercise ?? exercise;
+
     // --- Security Configuration ---
-    const securitySettings = exercise?.securitySettings || {};
+    // Normalise backend field names → legacy aliases used throughout this component
+    const _rawSecurity = exercise?.securitySettings || {};
+    const _normSecurity = normalizeSecurityConfig(_rawSecurity);
+    const securitySettings = {
+        timerEnabled:          _normSecurity.timerEnabled,
+        timerDuration:         _normSecurity.timerDuration,
+        cameraMicEnabled:      _normSecurity.cameraMicEnabled,
+        fullScreenMode:        _normSecurity.fullScreenMode,
+        tabSwitchAllowed:      _normSecurity.tabSwitchAllowed,
+        maxTabSwitches:        _normSecurity.maxTabSwitches,
+        disableClipboard:      _normSecurity.disableClipboard,
+        screenRecordingEnabled: _normSecurity.screenRecordingEnabled,
+    };
+
+    // Extra security features not handled by the legacy code — use the hook
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    useAssessmentSecurity({
+        config: _normSecurity,
+        isActive: isAssessmentMode && hasStarted,
+        onTabSwitchViolation: (count, max) => {
+            if (count >= max) handleTermination('Maximum tab switches exceeded', 'terminated');
+        },
+        onTimeWarning: (secs) => {
+            showToast({ type: 'warning', title: `⏰ ${secs}s remaining`, message: 'Assessment will auto-submit soon', duration: 6000 });
+        },
+        onTimeUp: () => handleTermination('Time limit exceeded', 'terminated'),
+    });
+
+    // ── Face proctoring: warn on no-face / multiple persons, then auto-submit ──
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    useFaceProctor({
+        isActive: isAssessmentMode && hasStarted,
+        multiFaceEnabled: !!(_normSecurity as any).multipleFaceDetection,
+        multiFaceLimit: (_normSecurity as any).faceWarningLimit ?? 3,
+        noFaceEnabled: !!(_normSecurity as any).faceMonitoringDetection,
+        noFaceLimit: (_normSecurity as any).faceMonitoringWarningLimit ?? 3,
+        intervalSeconds: 10,
+        onWarning: ({ reason, count, limit }) => {
+            showToast({ type: 'warning', title: `⚠️ ${reason} (${count}/${limit})`, message: 'Continued violations will auto-submit', duration: 4000 });
+        },
+        onLimitReached: (reason) => { handleTermination(reason, 'terminated'); },
+    });
 
     // Resolve question flow: new field (questionFlow) takes priority over legacy allowNext boolean.
     // DB default for questionFlow is 'freeFlow', so unknown = free.
@@ -1150,6 +1233,15 @@ export default function CodeEditor({
 
     // Determine if assessment mode is active (You Do category)
     useEffect(() => {
+        // When embedded in SectionBasedTestPage the parent handles security.
+        // Disable all assessment-mode behaviour so we don't show a second
+        // security modal or request browser fullscreen for every section.
+        if (embedded) {
+            setIsAssessmentMode(false);
+            setHasStarted(true);
+            return;
+        }
+
         const normCategory = (category || "").replace(/_/g, ' ').toLowerCase().trim();
         const isYouDoCategory = normCategory === 'you do';
 
@@ -1163,7 +1255,7 @@ export default function CodeEditor({
         if (!isAssessmentMode) {
             setHasStarted(true); // Auto-start if not assessment mode
         }
-    }, [category, hasAgreedToSecurity]);
+    }, [category, hasAgreedToSecurity, embedded]);
     const normalizeLanguageName = (lang: string): string => {
         const normalized = lang.toLowerCase();
         if (normalized.includes('python')) return 'python';
@@ -1326,6 +1418,7 @@ function solve() {
 
             if (response.ok) {
                 const data = await response.json();
+                console.log('[retest-prefill] code-editor /single →', { sent: { category: category || 'We_Do', subcategory: subcategory || '', exerciseId: exercise._id, questionId: targetQuestionId }, got: data });
                 if (data.success && data.data) {
                     setUserAttempts(data.attempts || 0);
                     setAttemptsLoaded(true);
@@ -1625,6 +1718,9 @@ function solve() {
             addTerminalLog('system', '🎥 Starting screen recording...');
 
             // First request screen recording permission
+            // Flag the open prompt so the Live Screen broadcaster reuses THIS
+            // capture instead of opening a second screen-share prompt.
+            markScreenCaptureStarting();
             const displayStream = await navigator.mediaDevices.getDisplayMedia({
                 video: {
                     mediaSource: 'screen',
@@ -1638,9 +1734,12 @@ function solve() {
                     sampleRate: 44100,
                     channelCount: 2
                 } : false
-            });
+            }).catch((e: any) => { clearScreenCaptureInProgress(); throw e; });
 
             setScreenStream(displayStream);
+            // Share this capture with the Live Screen broadcaster (single prompt).
+            setSharedScreenStream(displayStream);
+            displayStream.getVideoTracks().forEach(t => t.addEventListener('ended', () => setSharedScreenStream(null)));
 
             // Request camera ONLY if cameraMicEnabled is true
             let cameraStream: MediaStream | null = null;
@@ -2500,79 +2599,84 @@ function solve() {
         }
     }, [cameraStream]);
     // --- Submission ---
-   const submitProgressToBackend = async (
-    questionId: string,
-    status = 'attempted',
-    score = 0,
-    isTestSubmission = false,  // ← NEW PARAM
-) => {
-    try {
-        const currentCode = editorInstanceRef.current 
-            ? editorInstanceRef.current.getValue() 
-            : code;
-        const currentCourseId = courseId || (exercise?.courseId 
-            ? exercise.courseId.toString() 
-            : "");
-        if (!currentCourseId) {
-            throw new Error('No courseId');
+    const submitProgressToBackend = async (
+        questionId: string,
+        status = 'attempted',
+        score = 0,
+        isTestSubmission = false,  // ← NEW PARAM
+    ) => {
+        try {
+            const currentCode = editorInstanceRef.current
+                ? editorInstanceRef.current.getValue()
+                : code;
+            const currentCourseId = courseId || (exercise?.courseId
+                ? exercise.courseId.toString()
+                : "");
+            if (!currentCourseId) {
+                throw new Error('No courseId');
+            }
+
+            const finalScore = score > 0 ? score : (status === 'solved' ? 100 : 0);
+
+            const formData = new FormData();
+            formData.append('courseId', currentCourseId);
+            formData.append('exerciseId', exercise?._id || "");
+            formData.append('questionId', questionId);
+            formData.append('code', currentCode);
+            formData.append('score', finalScore.toString());
+            formData.append('status', status);
+            formData.append('category', category || "We_Do");
+            formData.append('subcategory', subcategory);
+            formData.append('nodeId', nodeId || "");
+            formData.append('nodeName', nodeName || "");
+            formData.append('nodeType', nodeType || "");
+            formData.append('language', selectedLanguage);
+            formData.append('attemptLimitEnabled', (exercise?.questionBehavior?.attemptLimitEnabled || false).toString());
+            formData.append('maxAttempts', (exercise?.questionBehavior?.maxAttempts || 1).toString());
+            formData.append('isTestSubmission', isTestSubmission.toString()); // ← SEND FLAG
+
+            addTerminalLog('system', '📤 Submitting to server...');
+
+            const token = localStorage.getItem('smartcliff_token')
+                || localStorage.getItem('token')
+                || '';
+
+            const response = await fetch('https://lms-server-ym1q.onrender.com/courses/answers/submit', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` },
+                body: formData,
+            });
+
+            const result = await response.json();
+
+            if (response.status === 403) {
+                const errorMsg = result.message?.find((m: any) => m.key === 'error')?.value
+                    || "Max attempts reached.";
+                throw new Error(errorMsg);
+            }
+
+            if (!response.ok) {
+                throw new Error(`Server error: ${response.status}`);
+            }
+
+            // Live dashboard: a real submission (not a nav-save) completes the question.
+            if (status === 'submitted' || status === 'solved') {
+                live.answerSaved(questionId);
+            }
+
+            // ── Sync userAttempts from backend ONLY on full test submission ──
+            if (isTestSubmission && result.userAttempts != null) {
+                setUserAttempts(result.userAttempts);
+            }
+
+            addTerminalLog('success', '✅ Submission successful!');
+            return result;
+
+        } catch (error: any) {
+            addTerminalLog('error', `❌ Submission failed: ${error.message}`);
+            throw error;
         }
-
-        const finalScore = score > 0 ? score : (status === 'solved' ? 100 : 0);
-
-        const formData = new FormData();
-        formData.append('courseId', currentCourseId);
-        formData.append('exerciseId', exercise?._id || "");
-        formData.append('questionId', questionId);
-        formData.append('code', currentCode);
-        formData.append('score', finalScore.toString());
-        formData.append('status', status);
-        formData.append('category', category || "We_Do");
-        formData.append('subcategory', subcategory);
-        formData.append('nodeId', nodeId || "");
-        formData.append('nodeName', nodeName || "");
-        formData.append('nodeType', nodeType || "");
-        formData.append('language', selectedLanguage);
-        formData.append('attemptLimitEnabled', (exercise?.questionBehavior?.attemptLimitEnabled || false).toString());
-        formData.append('maxAttempts', (exercise?.questionBehavior?.maxAttempts || 1).toString());
-        formData.append('isTestSubmission', isTestSubmission.toString()); // ← SEND FLAG
-
-        addTerminalLog('system', '📤 Submitting to server...');
-
-        const token = localStorage.getItem('smartcliff_token') 
-            || localStorage.getItem('token') 
-            || '';
-
-        const response = await fetch('https://lms-server-ym1q.onrender.com/courses/answers/submit', {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${token}` },
-            body: formData,
-        });
-
-        const result = await response.json();
-
-        if (response.status === 403) {
-            const errorMsg = result.message?.find((m: any) => m.key === 'error')?.value 
-                || "Max attempts reached.";
-            throw new Error(errorMsg);
-        }
-
-        if (!response.ok) {
-            throw new Error(`Server error: ${response.status}`);
-        }
-
-        // ── Sync userAttempts from backend ONLY on full test submission ──
-        if (isTestSubmission && result.userAttempts != null) {
-            setUserAttempts(result.userAttempts);
-        }
-
-        addTerminalLog('success', '✅ Submission successful!');
-        return result;
-
-    } catch (error: any) {
-        addTerminalLog('error', `❌ Submission failed: ${error.message}`);
-        throw error;
-    }
-};
+    };
     // const submitCode = async () => {
     //     if (isAssessmentMode && !hasStarted) {
     //         showToast({
@@ -2898,7 +3002,7 @@ function solve() {
                 suggestOnTriggerCharacters: exercise.compilerSettings.autoSuggestion,
                 quickSuggestions: exercise.compilerSettings.autoSuggestion,
                 fontSize: exercise.compilerSettings.fontSize || 14,
-                fontFamily: 'Montserrat, Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+                fontFamily: FONT,
                 tabSize: exercise.compilerSettings.tabSize || 2,
                 theme: exercise.compilerSettings.theme === 'dark' ? 'vs-dark' : 'vs'
             });
@@ -2946,6 +3050,13 @@ function solve() {
     };
 
     const toggleFullscreen = async () => {
+        // When embedded the parent SectionBasedTestPage already fills the screen.
+        // Only toggle the CSS state (position:fixed on the root div) so the editor
+        // expands inside its container — never request browser-native fullscreen.
+        if (embedded) {
+            setIsFullscreen(prev => !prev);
+            return;
+        }
         if (!document.fullscreenElement) {
             try { await document.documentElement.requestFullscreen(); } catch { }
             setIsFullscreen(true);
@@ -2999,12 +3110,20 @@ function solve() {
     };
 
     const nextProblem = async () => {
-        if (currentProblemIndex >= problems.length - 1) return;
+        if (currentProblemIndex >= problems.length - 1) {
+            // Last problem: in a Combined section delegate forward to the parent.
+            if (onCrossNext) { await saveCurrentQuestionProgress(); onCrossNext(); }
+            return;
+        }
         await saveCurrentQuestionProgress();
+        const fromId = problems[currentProblemIndex]?._id || null;
+        const toId = problems[currentProblemIndex + 1]?._id || null;
         if (isFreeFlow) {
+            live.questionChanged(fromId, toId);
             setCurrentProblemIndex(currentProblemIndex + 1);
         } else {
             if (solvedQuestions.has(currentProblemIndex)) {
+                live.questionChanged(fromId, toId);
                 setCurrentProblemIndex(currentProblemIndex + 1);
             } else {
                 addTerminalLog('warning', 'Submit this question before moving to the next one (Controlled Flow).');
@@ -3015,7 +3134,12 @@ function solve() {
     const prevProblem = async () => {
         if (currentProblemIndex > 0) {
             await saveCurrentQuestionProgress();
+            live.questionChanged(problems[currentProblemIndex]?._id || null, problems[currentProblemIndex - 1]?._id || null);
             setCurrentProblemIndex(currentProblemIndex - 1);
+        } else if (onCrossPrev) {
+            // First problem: in a Combined section delegate back to the parent (→ MCQ).
+            await saveCurrentQuestionProgress();
+            onCrossPrev();
         }
     };
 
@@ -3109,8 +3233,21 @@ function solve() {
         <div
             ref={editorRef}
             className={`${theme === 'dark' ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'} border-gray-300 flex flex-col border ${isFullscreen ? 'rounded-none' : 'rounded-lg relative h-full min-h-0 flex-1'}`}
-            style={{ fontFamily: 'Poppins, sans-serif', ...(isFullscreen ? { position: 'fixed', inset: 0, width: '100vw', height: '100vh', zIndex: 2147483647, overflow: 'hidden' } : {}) }}
+            style={{ fontFamily: FONT, ...(isFullscreen ? { position: 'fixed', inset: 0, width: '100vw', height: '100vh', zIndex: 2147483647, overflow: 'hidden' } : {}) }}
         >
+            {/* Live Screen Monitoring — standalone code editor (parent owns it in section mode) */}
+            <ScreenShareGuard
+                assessmentId={exercise?._id ? String(exercise._id) : ""}
+                active={!embedded && isAssessmentMode && hasStarted}
+                courseId={courseId}
+                waitForSharedStream={!!(securitySettings as any)?.screenRecordingEnabled}
+            />
+
+            {/* ── Proctor → student messaging (floating chat) ── */}
+            {!embedded && (
+                <StudentMessageChat assessmentId={exercise?._id ? String(exercise._id) : ""} />
+            )}
+
             {/* Security Agreement Modal */}
             <SecurityAgreementModal
                 isOpen={showSecurityAgreement}
@@ -3261,14 +3398,14 @@ function solve() {
 
                         {/* Breadcrumb segments */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', flex: 1, minWidth: 0 }}>
-                            <button onClick={() => setPendingNavLevel('course')} style={{ fontFamily: 'Poppins, sans-serif', fontSize: 12.5, fontWeight: 500, color: theme === 'dark' ? '#60a5fa' : '#2563eb', background: 'none', border: 'none', cursor: 'pointer', padding: 0, whiteSpace: 'nowrap' }}>
+                            <button onClick={() => setPendingNavLevel('course')} style={{ fontFamily: FONT, fontSize: 12.5, fontWeight: 500, color: theme === 'dark' ? '#60a5fa' : '#2563eb', background: 'none', border: 'none', cursor: 'pointer', padding: 0, whiteSpace: 'nowrap' }}>
                                 {courseName || 'Course'}
                             </button>
 
                             {(hierarchy || []).map((seg, i) => (
                                 <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                     <ChevronRight style={{ width: 12, height: 12, color: theme === 'dark' ? '#4b5563' : '#c0c4cc', flexShrink: 0 }} />
-                                    <button onClick={() => setPendingNavLevel('hierarchy')} style={{ fontFamily: 'Poppins, sans-serif', fontSize: 12.5, fontWeight: 500, color: theme === 'dark' ? '#60a5fa' : '#2563eb', background: 'none', border: 'none', cursor: 'pointer', padding: 0, whiteSpace: 'nowrap' }}>
+                                    <button onClick={() => setPendingNavLevel('hierarchy')} style={{ fontFamily: FONT, fontSize: 12.5, fontWeight: 500, color: theme === 'dark' ? '#60a5fa' : '#2563eb', background: 'none', border: 'none', cursor: 'pointer', padding: 0, whiteSpace: 'nowrap' }}>
                                         {seg}
                                     </button>
                                 </span>
@@ -3277,7 +3414,7 @@ function solve() {
                             {category && (
                                 <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                     <ChevronRight style={{ width: 12, height: 12, color: theme === 'dark' ? '#4b5563' : '#c0c4cc', flexShrink: 0 }} />
-                                    <button onClick={() => setPendingNavLevel('category')} style={{ fontFamily: 'Poppins, sans-serif', fontSize: 12.5, fontWeight: 500, color: theme === 'dark' ? '#60a5fa' : '#2563eb', background: 'none', border: 'none', cursor: 'pointer', padding: 0, whiteSpace: 'nowrap' }}>
+                                    <button onClick={() => setPendingNavLevel('category')} style={{ fontFamily: FONT, fontSize: 12.5, fontWeight: 500, color: theme === 'dark' ? '#60a5fa' : '#2563eb', background: 'none', border: 'none', cursor: 'pointer', padding: 0, whiteSpace: 'nowrap' }}>
                                         {category === 'We_Do' ? 'We Do' : category === 'I_Do' ? 'I Do' : category === 'You_Do' ? 'You Do' : category}
                                     </button>
                                 </span>
@@ -3285,7 +3422,7 @@ function solve() {
 
                             <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                 <ChevronRight style={{ width: 12, height: 12, color: theme === 'dark' ? '#4b5563' : '#c0c4cc', flexShrink: 0 }} />
-                                <span style={{ fontFamily: 'Poppins, sans-serif', fontSize: 12.5, fontWeight: 600, color: theme === 'dark' ? '#e5e7eb' : '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                <span style={{ fontFamily: FONT, fontSize: 12.5, fontWeight: 600, color: theme === 'dark' ? '#e5e7eb' : '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                     {exercise?.exerciseInformation?.exerciseName || 'Exercise'}
                                 </span>
                             </span>
@@ -3304,7 +3441,7 @@ function solve() {
                                     background: showExerciseInfo ? (theme === 'dark' ? '#1e3a5f' : '#dbeafe') : (theme === 'dark' ? '#1f2937' : '#fff'),
                                     color: showExerciseInfo ? (theme === 'dark' ? '#93c5fd' : '#2563eb') : (theme === 'dark' ? '#9ca3af' : '#6b7280'),
                                     cursor: 'pointer',
-                                    fontFamily: 'Poppins, sans-serif',
+                                    fontFamily: FONT,
                                     fontSize: 12,
                                     fontWeight: 500,
                                     whiteSpace: 'nowrap',
@@ -3318,115 +3455,118 @@ function solve() {
 
                         {/* Right corner of breadcrumb row — Submit Test + Close */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, marginLeft: 8 }}>
-                        <button
-    onClick={async () => {
-        // ── Attempt limit check ──
-        if (exercise?.questionBehavior?.attemptLimitEnabled) {
-            const max = exercise.questionBehavior.maxAttempts || 1;
-            if (userAttempts >= max) {
-                showToast({
-                    type: 'error',
-                    title: 'Limit Reached',
-                    message: `Maximum attempts reached (${userAttempts}/${max}). You cannot submit again.`,
-                    duration: 4000
-                });
-                return;
-            }
-        }
+                            {/* Whole-test submit is hidden in section mode — the parent footer owns final submission */}
+                            {!embedded && (
+                            <button
+                                onClick={async () => {
+                                    // ── Attempt limit check ──
+                                    if (exercise?.questionBehavior?.attemptLimitEnabled) {
+                                        const max = exercise.questionBehavior.maxAttempts || 1;
+                                        if (userAttempts >= max) {
+                                            showToast({
+                                                type: 'error',
+                                                title: 'Limit Reached',
+                                                message: `Maximum attempts reached (${userAttempts}/${max}). You cannot submit again.`,
+                                                duration: 4000
+                                            });
+                                            return;
+                                        }
+                                    }
 
-        // ── allQuestionsRequired gate ──
-        if (exercise?.questionBehavior?.allQuestionsRequired === true) {
-            const missing: number[] = [];
-            for (let i = 0; i < problems.length; i++) {
-                if (i !== currentProblemIndex && !solvedQuestions.has(i)) missing.push(i + 1);
-            }
-            if (missing.length > 0) {
-                showToast({
-                    type: 'error',
-                    title: 'Incomplete Submission',
-                    message: `You must attempt all questions before submitting. Questions ${missing.join(', ')} remaining.`,
-                    duration: 5000
-                });
-                return;
-            }
-        }
+                                    // ── allQuestionsRequired gate ──
+                                    if (exercise?.questionBehavior?.allQuestionsRequired === true) {
+                                        const missing: number[] = [];
+                                        for (let i = 0; i < problems.length; i++) {
+                                            if (i !== currentProblemIndex && !solvedQuestions.has(i)) missing.push(i + 1);
+                                        }
+                                        if (missing.length > 0) {
+                                            showToast({
+                                                type: 'error',
+                                                title: 'Incomplete Submission',
+                                                message: `You must attempt all questions before submitting. Questions ${missing.join(', ')} remaining.`,
+                                                duration: 5000
+                                            });
+                                            return;
+                                        }
+                                    }
 
-        if (isTestSubmittingRef.current) return;
-        isTestSubmittingRef.current = true;
+                                    if (isTestSubmittingRef.current) return;
+                                    isTestSubmittingRef.current = true;
 
-        try {
-            if (currentQuestion) {
-                const liveQuestion = exercise?.questions?.[currentProblemIndex];
-                await submitProgressToBackend(
-                    liveQuestion?._id || currentQuestion._id,
-                    'submitted',
-                    0,
-                    true  // ← always isTestSubmission = true for Submit Test button
-                );
-            }
+                                    try {
+                                        if (currentQuestion) {
+                                            const liveQuestion = exercise?.questions?.[currentProblemIndex];
+                                            await submitProgressToBackend(
+                                                liveQuestion?._id || currentQuestion._id,
+                                                'submitted',
+                                                0,
+                                                true  // ← always isTestSubmission = true for Submit Test button
+                                            );
+                                        }
 
-            setSolvedQuestions(prev => {
-                const newSet = new Set(prev);
-                newSet.add(currentProblemIndex);
-                return newSet;
-            });
+                                        setSolvedQuestions(prev => {
+                                            const newSet = new Set(prev);
+                                            newSet.add(currentProblemIndex);
+                                            return newSet;
+                                        });
 
-            if (exercise?._id) localStorage.removeItem('ex_in_progress_' + exercise._id);
+                                        if (exercise?._id) localStorage.removeItem('ex_in_progress_' + exercise._id);
 
-            showToast({
-                type: 'success',
-                title: 'Test Submitted',
-                message: 'Your test has been submitted successfully.',
-                duration: 3000
-            });
+                                        showToast({
+                                            type: 'success',
+                                            title: 'Test Submitted',
+                                            message: 'Your test has been submitted successfully.',
+                                            duration: 3000
+                                        });
 
-            setTimeout(() => {
-                if (isAssessmentMode && hasStarted) {
-                    if (isRecording) stopScreenRecording();
-                    if (document.fullscreenElement) document.exitFullscreen().catch(() => { });
-                }
-                if (onCloseExercise) onCloseExercise();
-                else if (onBack) onBack();
-            }, 1500);
+                                        setTimeout(() => {
+                                            if (isAssessmentMode && hasStarted) {
+                                                if (isRecording) stopScreenRecording();
+                                                if (document.fullscreenElement) document.exitFullscreen().catch(() => { });
+                                            }
+                                            if (onCloseExercise) onCloseExercise();
+                                            else if (onBack) onBack();
+                                        }, 1500);
 
-        } catch (error: any) {
-            isTestSubmittingRef.current = false;
-            showToast({
-                type: 'error',
-                title: 'Submission Failed',
-                message: error.message || 'Could not submit test.',
-                duration: 4000
-            });
-        }
-    }}
-    disabled={isRunning}
-    style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 6,
-        padding: '6px 12px',
-        borderRadius: 6,
-        border: 'none',
-        background: isRunning ? '#6b7280' : (theme === 'dark' ? '#059669' : '#10b981'),
-        color: 'white',
-        fontSize: '13px',
-        fontWeight: 500,
-        cursor: isRunning ? 'not-allowed' : 'pointer',
-        transition: 'all 0.2s ease',
-        opacity: isRunning ? 0.7 : 1,
-    }}
-    onMouseEnter={(e) => {
-        e.currentTarget.style.background = theme === 'dark' ? '#047857' : '#059669';
-    }}
-    onMouseLeave={(e) => {
-        e.currentTarget.style.background = theme === 'dark' ? '#059669' : '#10b981';
-    }}
->
-    {isRunning
-        ? <Loader2 style={{ width: 14, height: 14 }} className="animate-spin" />
-        : <CheckCircle style={{ width: 14, height: 14 }} />}
-    Submit Exercise
-</button>
+                                    } catch (error: any) {
+                                        isTestSubmittingRef.current = false;
+                                        showToast({
+                                            type: 'error',
+                                            title: 'Submission Failed',
+                                            message: error.message || 'Could not submit test.',
+                                            duration: 4000
+                                        });
+                                    }
+                                }}
+                                disabled={isRunning}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 6,
+                                    padding: '6px 12px',
+                                    borderRadius: 6,
+                                    border: 'none',
+                                    background: isRunning ? '#6b7280' : (theme === 'dark' ? '#059669' : '#10b981'),
+                                    color: 'white',
+                                    fontSize: '13px',
+                                    fontWeight: 500,
+                                    cursor: isRunning ? 'not-allowed' : 'pointer',
+                                    transition: 'all 0.2s ease',
+                                    opacity: isRunning ? 0.7 : 1,
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.background = theme === 'dark' ? '#047857' : '#059669';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = theme === 'dark' ? '#059669' : '#10b981';
+                                }}
+                            >
+                                {isRunning
+                                    ? <Loader2 style={{ width: 14, height: 14 }} className="animate-spin" />
+                                    : <CheckCircle style={{ width: 14, height: 14 }} />}
+                                Submit Exercise
+                            </button>
+                            )}
 
                             <button
                                 onClick={() => setShowBackConfirm(true)}
@@ -3451,23 +3591,23 @@ function solve() {
                     {showBackConfirm && (
                         <div style={{ position: 'fixed', inset: 0, zIndex: 99999, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             <div style={{ background: theme === 'dark' ? '#1f2937' : '#fff', borderRadius: 12, padding: '28px 32px', width: 360, boxShadow: '0 20px 60px rgba(0,0,0,0.3)', border: `1px solid ${theme === 'dark' ? '#374151' : '#e5e7eb'}` }}>
-                                <p style={{ fontFamily: 'Montserrat, sans-serif', fontSize: 16, fontWeight: 700, color: theme === 'dark' ? '#f9fafb' : '#111827', marginBottom: 8 }}>Leave Exercise?</p>
-                                <p style={{ fontFamily: 'Poppins, sans-serif', fontSize: 13, color: theme === 'dark' ? '#9ca3af' : '#6b7280', marginBottom: 24, lineHeight: 1.6 }}>
+                                <p style={{ fontFamily: FONT, fontSize: 16, fontWeight: 700, color: theme === 'dark' ? '#f9fafb' : '#111827', marginBottom: 8 }}>Leave Exercise?</p>
+                                <p style={{ fontFamily: FONT, fontSize: 13, color: theme === 'dark' ? '#9ca3af' : '#6b7280', marginBottom: 24, lineHeight: 1.6 }}>
                                     Your code is saved, but unsaved progress may be lost. Where would you like to go?
                                 </p>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                    <button onClick={() => { setShowBackConfirm(false); onNavigateToBreadcrumb?.('category'); }} style={{ fontFamily: 'Poppins, sans-serif', fontSize: 13, fontWeight: 600, padding: '9px 16px', borderRadius: 8, border: 'none', background: '#3b82f6', color: '#fff', cursor: 'pointer', textAlign: 'left' }}>
+                                    <button onClick={() => { setShowBackConfirm(false); onNavigateToBreadcrumb?.('category'); }} style={{ fontFamily: FONT, fontSize: 13, fontWeight: 600, padding: '9px 16px', borderRadius: 8, border: 'none', background: '#3b82f6', color: '#fff', cursor: 'pointer', textAlign: 'left' }}>
                                         Back to {category === 'We_Do' ? 'We Do' : category === 'I_Do' ? 'I Do' : category === 'You_Do' ? 'You Do' : 'exercise list'}
                                     </button>
                                     {(hierarchy || []).length > 0 && (
-                                        <button onClick={() => { setShowBackConfirm(false); onNavigateToBreadcrumb?.('hierarchy'); }} style={{ fontFamily: 'Poppins, sans-serif', fontSize: 13, fontWeight: 500, padding: '9px 16px', borderRadius: 8, border: `1px solid ${theme === 'dark' ? '#374151' : '#e5e7eb'}`, background: 'none', color: theme === 'dark' ? '#d1d5db' : '#374151', cursor: 'pointer', textAlign: 'left' }}>
+                                        <button onClick={() => { setShowBackConfirm(false); onNavigateToBreadcrumb?.('hierarchy'); }} style={{ fontFamily: FONT, fontSize: 13, fontWeight: 500, padding: '9px 16px', borderRadius: 8, border: `1px solid ${theme === 'dark' ? '#374151' : '#e5e7eb'}`, background: 'none', color: theme === 'dark' ? '#d1d5db' : '#374151', cursor: 'pointer', textAlign: 'left' }}>
                                             Back to {(hierarchy || []).slice(-1)[0] || 'Topic'}
                                         </button>
                                     )}
-                                    <button onClick={() => { setShowBackConfirm(false); onNavigateToBreadcrumb?.('course'); }} style={{ fontFamily: 'Poppins, sans-serif', fontSize: 13, fontWeight: 500, padding: '9px 16px', borderRadius: 8, border: `1px solid ${theme === 'dark' ? '#374151' : '#e5e7eb'}`, background: 'none', color: theme === 'dark' ? '#d1d5db' : '#374151', cursor: 'pointer', textAlign: 'left' }}>
+                                    <button onClick={() => { setShowBackConfirm(false); onNavigateToBreadcrumb?.('course'); }} style={{ fontFamily: FONT, fontSize: 13, fontWeight: 500, padding: '9px 16px', borderRadius: 8, border: `1px solid ${theme === 'dark' ? '#374151' : '#e5e7eb'}`, background: 'none', color: theme === 'dark' ? '#d1d5db' : '#374151', cursor: 'pointer', textAlign: 'left' }}>
                                         Back to {courseName || 'Course'}
                                     </button>
-                                    <button onClick={() => setShowBackConfirm(false)} style={{ fontFamily: 'Poppins, sans-serif', fontSize: 12, fontWeight: 500, padding: '8px 16px', borderRadius: 8, border: 'none', background: 'none', color: theme === 'dark' ? '#6b7280' : '#9ca3af', cursor: 'pointer' }}>
+                                    <button onClick={() => setShowBackConfirm(false)} style={{ fontFamily: FONT, fontSize: 12, fontWeight: 500, padding: '8px 16px', borderRadius: 8, border: 'none', background: 'none', color: theme === 'dark' ? '#6b7280' : '#9ca3af', cursor: 'pointer' }}>
                                         Stay in Exercise
                                     </button>
                                 </div>
@@ -3479,22 +3619,22 @@ function solve() {
                     {pendingNavLevel !== null && (
                         <div style={{ position: 'fixed', inset: 0, zIndex: 99999, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             <div style={{ background: theme === 'dark' ? '#1f2937' : '#fff', borderRadius: 12, padding: '28px 32px', width: 360, boxShadow: '0 20px 60px rgba(0,0,0,0.35)', border: `1px solid ${theme === 'dark' ? '#374151' : '#e5e7eb'}` }}>
-                                <p style={{ fontFamily: 'Montserrat, sans-serif', fontSize: 16, fontWeight: 700, color: theme === 'dark' ? '#f9fafb' : '#111827', marginBottom: 8 }}>Leave Exercise?</p>
-                                <p style={{ fontFamily: 'Poppins, sans-serif', fontSize: 13, color: theme === 'dark' ? '#9ca3af' : '#6b7280', marginBottom: 24, lineHeight: 1.6 }}>
+                                <p style={{ fontFamily: FONT, fontSize: 16, fontWeight: 700, color: theme === 'dark' ? '#f9fafb' : '#111827', marginBottom: 8 }}>Leave Exercise?</p>
+                                <p style={{ fontFamily: FONT, fontSize: 13, color: theme === 'dark' ? '#9ca3af' : '#6b7280', marginBottom: 24, lineHeight: 1.6 }}>
                                     Your progress may not be saved if you leave now.
                                 </p>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                                     {/* PRIMARY — Stay (dominant, dark) */}
                                     <button
                                         onClick={() => setPendingNavLevel(null)}
-                                        style={{ fontFamily: 'Poppins, sans-serif', fontSize: 13, fontWeight: 700, padding: '11px 16px', borderRadius: 8, border: 'none', background: theme === 'dark' ? '#f9fafb' : '#111827', color: theme === 'dark' ? '#111827' : '#fff', cursor: 'pointer', textAlign: 'center' }}
+                                        style={{ fontFamily: FONT, fontSize: 13, fontWeight: 700, padding: '11px 16px', borderRadius: 8, border: 'none', background: theme === 'dark' ? '#f9fafb' : '#111827', color: theme === 'dark' ? '#111827' : '#fff', cursor: 'pointer', textAlign: 'center' }}
                                     >
                                         Stay in Exercise
                                     </button>
                                     {/* SECONDARY — Leave (outlined) */}
                                     <button
                                         onClick={() => { onNavigateToBreadcrumb?.(pendingNavLevel); setPendingNavLevel(null); }}
-                                        style={{ fontFamily: 'Poppins, sans-serif', fontSize: 13, fontWeight: 500, padding: '10px 16px', borderRadius: 8, border: `1px solid ${theme === 'dark' ? '#374151' : '#d1d5db'}`, background: 'none', color: theme === 'dark' ? '#9ca3af' : '#6b7280', cursor: 'pointer', textAlign: 'center' }}
+                                        style={{ fontFamily: FONT, fontSize: 13, fontWeight: 500, padding: '10px 16px', borderRadius: 8, border: `1px solid ${theme === 'dark' ? '#374151' : '#d1d5db'}`, background: 'none', color: theme === 'dark' ? '#9ca3af' : '#6b7280', cursor: 'pointer', textAlign: 'center' }}
                                     >
                                         Leave
                                     </button>
@@ -3504,229 +3644,87 @@ function solve() {
                     )}
                     {/* Row 2 — Difficulty dropdown + stats pills */}
                     {/* Row 2 — Difficulty dropdown + stats pills */}
-                   <div
-    style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '6px 14px',
-        background: theme === 'dark' ? '#111827' : '#f9fafb',
-        gap: 10,
-        flexWrap: 'wrap',
-    }}
->
-    {/* Left side — Difficulty Dropdown */}
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        {availableDifficulties.length > 0 && (
-            <>
-                <span style={{
-                    fontSize: 11,
-                    color: theme === 'dark' ? '#9ca3af' : '#6b7280',
-                    fontFamily: 'Poppins, sans-serif',
-                    fontWeight: 400,
-                }}>
-                    Difficulty
-                </span>
-
-                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                    <select
-                        value={selectedDifficulty}
-                        onChange={(e) => {
-                            setSelectedDifficulty(e.target.value);
-                            if (e.target.value !== 'all') jumpToDifficulty(e.target.value);
-                        }}
+                    <div
                         style={{
-                            appearance: 'none',
-                            WebkitAppearance: 'none',
-                            height: 28,
-                            padding: '0 28px 0 10px',
-                            borderRadius: 99,
-                            border: `1px solid ${selectedDifficulty === 'easy' ? '#16a34a' :
-                                selectedDifficulty === 'medium' ? '#d97706' :
-                                    selectedDifficulty === 'hard' ? '#dc2626' :
-                                        (theme === 'dark' ? '#374151' : '#d1d5db')
-                                }`,
-                            background: theme === 'dark' ? '#1f2937' : '#ffffff',
-                            color: selectedDifficulty === 'easy' ? '#16a34a' :
-                                selectedDifficulty === 'medium' ? '#d97706' :
-                                    selectedDifficulty === 'hard' ? '#dc2626' :
-                                        (theme === 'dark' ? '#9ca3af' : '#6b7280'),
-                            fontFamily: 'Poppins, sans-serif',
-                            fontSize: 12,
-                            fontWeight: 500,
-                            cursor: 'pointer',
-                            outline: 'none',
-                            transition: 'border-color 0.15s, color 0.15s',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '6px 14px',
+                            background: theme === 'dark' ? '#111827' : '#f9fafb',
+                            gap: 10,
+                            flexWrap: 'wrap',
                         }}
                     >
-                        <option value="all">All difficulties</option>
-                        {availableDifficulties.map((diff) => {
-                            const label = diff.charAt(0).toUpperCase() + diff.slice(1);
-                            const count = difficultyMap[diff].count;
-                            return (
-                                <option key={diff} value={diff}>
-                                    {label} ({count})
-                                </option>
-                            );
-                        })}
-                    </select>
+                        {/* Left side — Difficulty Dropdown */}
 
-                    {/* Custom chevron */}
-                    <svg
-                        viewBox="0 0 12 12"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                        style={{
-                            position: 'absolute',
-                            right: 9,
-                            pointerEvents: 'none',
-                            width: 12,
-                            height: 12,
-                            color: selectedDifficulty === 'easy' ? '#16a34a' :
-                                selectedDifficulty === 'medium' ? '#d97706' :
-                                    selectedDifficulty === 'hard' ? '#dc2626' :
-                                        (theme === 'dark' ? '#9ca3af' : '#6b7280'),
-                        }}
-                    >
-                        <path d="M2 4l4 4 4-4" />
-                    </svg>
-                </div>
 
-                {/* Total Marks Badge + Buttons Container */}
-                <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 12,
-                    marginLeft: 8,
-                    padding: '2px 8px 2px 12px',
-                    borderRadius: 99,
-                    background: theme === 'dark' ? '#1a3a2a' : '#dcfce7',
-                }}>
-                    {/* Total Marks Badge — hidden for non-graded */}
-                    {exercise?.isGraded !== false && (() => {
-                        const totalMarks =
-                            exercise.exerciseInformation?.totalMarksProgramming ??
-                            exercise.exerciseInformation?.totalMarks ??
-                            exercise.exerciseInformation?.totalPoints ?? null;
-                        if (totalMarks == null) return null;
-                        return (
-                            <span style={{
-                                fontSize: 11,
-                                fontWeight: 600,
-                                color: theme === 'dark' ? '#86efac' : '#15803d',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 4,
-                            }}>
-                                <Award style={{ width: 12, height: 12 }} />
-                                {totalMarks} total marks
-                            </span>
-                        );
-                    })()}
-                </div>
-            </>
-        )}
-    </div>
+                        {/* Center — Info Buttons (MCQ-style) */}
+                        <ExerciseInfoButtons
+                            onDetailsClick={() => setShowDetailsModal(true)}
+                            onOverviewClick={() => setShowOverviewModal(true)}
+                            isGraded={exData?.isGraded !== false}
+                            detailsActive={showDetailsModal}
+                            overviewActive={showOverviewModal}
+                        />
 
-    {/* Center — Two Buttons */}
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <button
-            onClick={() => setShowDetailsModal(true)}
-            style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '6px 14px',
-                borderRadius: 8,
-                fontSize: 13,
-                fontWeight: 500,
-                fontFamily: 'Inter, -apple-system, sans-serif',
-                border: '1px solid #3b82f6',
-                background: showExerciseInfo ? '#3b82f6' : 'transparent',
-                color: showExerciseInfo ? '#ffffff' : '#3b82f6',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                whiteSpace: 'nowrap',
-                boxShadow: showExerciseInfo ? '0 2px 4px rgba(59, 130, 246, 0.3)' : 'none',
-            }}
-            onMouseEnter={(e) => {
-                if (!showExerciseInfo) {
-                    e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)';
-                }
-            }}
-            onMouseLeave={(e) => {
-                if (!showExerciseInfo) {
-                    e.currentTarget.style.background = 'transparent';
-                }
-            }}
-            title="View Exercise Details"
-        >
-            <FileText style={{ width: 14, height: 14 }} />
-           Exercise Details
-        </button>
+                        {/* Right side — Total Marks badge + MCQ-style Timer */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                            {/* Total Marks badge — always visible when graded */}
+                            {exData?.isGraded !== false && (() => {
+                                const _ss = exData?.questionConfiguration?.programmingQuestionConfiguration?.scoreSettings;
+                                const _progCalc = _ss
+                                    ? _ss.scoreType === 'evenMarks' && _ss.evenMarks
+                                        ? _ss.evenMarks * (problems.length || 1)
+                                        : (['easy', 'medium', 'hard'] as const).reduce(
+                                            (s, d) => s + ((_ss.levelScoringConfiguration as any)?.[d]?.totalMarks || 0), 0
+                                          )
+                                    : 0;
+                                const tm =
+                                    exData?.exerciseInformation?.totalMarksProgramming ||
+                                    exData?.exerciseInformation?.totalMarks ||
+                                    exData?.exerciseInformation?.totalPoints ||
+                                    _progCalc || 0;
+                                return (
+                                    <span style={{
+                                        fontSize: 11, fontWeight: 600,
+                                        padding: '3px 10px', borderRadius: 99,
+                                        background: theme === 'dark' ? '#1a3a2a' : '#dcfce7',
+                                        color: theme === 'dark' ? '#86efac' : '#15803d',
+                                        display: 'flex', alignItems: 'center', gap: 4,
+                                        fontFamily: FONT, whiteSpace: 'nowrap',
+                                    }}>
+                                        <Award style={{ width: 12, height: 12 }} />
+                                        Total marks: {tm}
+                                    </span>
+                                );
+                            })()}
 
-        <button
-            onClick={() => setShowOverviewModal(true)}
-            style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '6px 14px',
-                borderRadius: 8,
-                fontSize: 13,
-                fontWeight: 500,
-                fontFamily: 'Inter, -apple-system, sans-serif',
-                border: '1px solid #10b981',
-                background: showOverviewModal ? '#10b981' : 'transparent',
-                color: showOverviewModal ? '#ffffff' : '#10b981',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                whiteSpace: 'nowrap',
-                boxShadow: showOverviewModal ? '0 2px 4px rgba(16, 185, 129, 0.3)' : 'none',
-            }}
-            onMouseEnter={(e) => {
-                if (!showOverviewModal) {
-                    e.currentTarget.style.background = 'rgba(16, 185, 129, 0.1)';
-                }
-            }}
-            onMouseLeave={(e) => {
-                if (!showOverviewModal) {
-                    e.currentTarget.style.background = 'transparent';
-                }
-            }}
-            title="View Exercise Overview"
-        >
-            <BarChart3 style={{ width: 14, height: 14 }} />
-            Question and mark details
-        </button>
-    </div>
-
-    {/* Right side — Progress, marks, timer */}
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        {exerciseTimeLeft !== null && (
-            <span style={{
-                fontSize: 11,
-                fontWeight: 600,
-                padding: '2px 8px',
-                borderRadius: 99,
-                fontFamily: 'ui-monospace, monospace',
-                background: exerciseTimeLeft < 300
-                    ? (theme === 'dark' ? '#450a0a' : '#fee2e2')
-                    : (theme === 'dark' ? '#1c1917' : '#f3f4f6'),
-                color: exerciseTimeLeft < 300
-                    ? (theme === 'dark' ? '#fca5a5' : '#dc2626')
-                    : (theme === 'dark' ? '#9ca3af' : '#4b5563'),
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-            }}>
-                <Clock style={{ width: 11, height: 11 }} />
-                {formatExerciseTime(exerciseTimeLeft)}
-            </span>
-        )}
-    </div>
-</div>
+                            {/* MCQ-style timer with progress bar */}
+                            {exerciseTimeLeft !== null && (exData?.exerciseInformation?.totalDuration || 0) > 0 && (() => {
+                                const totalSecs = (exData?.exerciseInformation?.totalDuration || 0) * 60;
+                                const pct = totalSecs > 0 ? Math.max(0, (exerciseTimeLeft / totalSecs) * 100) : 0;
+                                const isDanger = exerciseTimeLeft < 60;
+                                const isWarning = exerciseTimeLeft < 300 && !isDanger;
+                                const tcol = isDanger ? '#ef4444' : isWarning ? '#f59e0b' : '#F27757';
+                                return (
+                                    <div style={{ minWidth: 130 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                <Clock style={{ width: 12, height: 12, color: tcol }} />
+                                                <span style={{ fontSize: 11, color: '#9b9bae', fontWeight: 600, fontFamily: FONT }}>Time Left</span>
+                                            </div>
+                                            <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: 14, fontWeight: 800, color: tcol, animation: isDanger ? 'pulse 1s ease-in-out infinite' : 'none' }}>
+                                                {formatExerciseTime(exerciseTimeLeft)}
+                                            </span>
+                                        </div>
+                                        <div style={{ height: 4, borderRadius: 99, background: theme === 'dark' ? '#374151' : '#f4f4f7', overflow: 'hidden' }}>
+                                            <div style={{ height: '100%', width: `${pct}%`, background: tcol, borderRadius: 99, transition: 'width 1s linear' }} />
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+                        </div>
+                    </div>
                 </div>
             )}
 
@@ -3745,7 +3743,7 @@ function solve() {
                         <div className="flex items-center gap-1.5">
                             <button
                                 onClick={prevProblem}
-                                disabled={currentProblemIndex === 0}
+                                disabled={currentProblemIndex === 0 && !onCrossPrev}
                                 className={`px-2.5 h-7 flex items-center justify-center gap-1 border rounded text-xs font-medium transition-colors ${theme === 'dark'
                                     ? 'border-indigo-500 bg-indigo-900/50 hover:bg-indigo-800 text-indigo-200 disabled:text-indigo-700'
                                     : 'border-indigo-300 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 disabled:text-indigo-300'
@@ -3759,14 +3757,14 @@ function solve() {
                             </span>
                             <button
                                 onClick={nextProblem}
-                                disabled={currentProblemIndex === problems.length - 1 || (!isFreeFlow && !isQuestionSolved(currentProblemIndex))}
+                                disabled={(currentProblemIndex === problems.length - 1 && !onCrossNext) || (!isFreeFlow && !isQuestionSolved(currentProblemIndex))}
                                 className={`px-2.5 h-7 flex items-center justify-center gap-1 border rounded text-xs font-medium transition-colors ${theme === 'dark'
                                     ? 'border-blue-500 bg-blue-900/50 hover:bg-blue-800 text-blue-200 disabled:text-blue-700'
                                     : 'border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-700 disabled:text-blue-300'
                                     } disabled:opacity-50 disabled:cursor-not-allowed`}
-                                title="Next Problem"
+                                title={currentProblemIndex === problems.length - 1 && onCrossNext ? (crossNextLabel || 'Next Section') : 'Next Problem'}
                             >
-                                Next <ChevronRight className="w-3 h-3" />
+                                {currentProblemIndex === problems.length - 1 && onCrossNext ? (crossNextLabel || 'Next Section') : 'Next'} <ChevronRight className="w-3 h-3" />
                             </button>
                             {exercise?.questionBehavior?.allowSkip && (
                                 <button
@@ -3784,6 +3782,87 @@ function solve() {
                             )}
                         </div>
                     )}
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        {availableDifficulties.length > 0 && (
+                            <>
+                                <span style={{
+                                    fontSize: 11,
+                                    color: theme === 'dark' ? '#9ca3af' : '#6b7280',
+                                    fontFamily: FONT,
+                                    fontWeight: 400,
+                                }}>
+                                    Difficulty
+                                </span>
+
+                                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                    <select
+                                        value={selectedDifficulty}
+                                        onChange={(e) => {
+                                            setSelectedDifficulty(e.target.value);
+                                            if (e.target.value !== 'all') jumpToDifficulty(e.target.value);
+                                        }}
+                                        style={{
+                                            appearance: 'none',
+                                            WebkitAppearance: 'none',
+                                            height: 28,
+                                            padding: '0 28px 0 10px',
+                                            borderRadius: 99,
+                                            border: `1px solid ${selectedDifficulty === 'easy' ? '#16a34a' :
+                                                selectedDifficulty === 'medium' ? '#d97706' :
+                                                    selectedDifficulty === 'hard' ? '#dc2626' :
+                                                        (theme === 'dark' ? '#374151' : '#d1d5db')
+                                                }`,
+                                            background: theme === 'dark' ? '#1f2937' : '#ffffff',
+                                            color: selectedDifficulty === 'easy' ? '#16a34a' :
+                                                selectedDifficulty === 'medium' ? '#d97706' :
+                                                    selectedDifficulty === 'hard' ? '#dc2626' :
+                                                        (theme === 'dark' ? '#9ca3af' : '#6b7280'),
+                                            fontFamily: FONT,
+                                            fontSize: 12,
+                                            fontWeight: 500,
+                                            cursor: 'pointer',
+                                            outline: 'none',
+                                            transition: 'border-color 0.15s, color 0.15s',
+                                        }}
+                                    >
+                                        <option value="all">All difficulties</option>
+                                        {availableDifficulties.map((diff) => {
+                                            const label = diff.charAt(0).toUpperCase() + diff.slice(1);
+                                            const count = difficultyMap[diff].count;
+                                            return (
+                                                <option key={diff} value={diff}>
+                                                    {label} ({count})
+                                                </option>
+                                            );
+                                        })}
+                                    </select>
+
+                                    {/* Custom chevron */}
+                                    <svg
+                                        viewBox="0 0 12 12"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="1.5"
+                                        style={{
+                                            position: 'absolute',
+                                            right: 9,
+                                            pointerEvents: 'none',
+                                            width: 12,
+                                            height: 12,
+                                            color: selectedDifficulty === 'easy' ? '#16a34a' :
+                                                selectedDifficulty === 'medium' ? '#d97706' :
+                                                    selectedDifficulty === 'hard' ? '#dc2626' :
+                                                        (theme === 'dark' ? '#9ca3af' : '#6b7280'),
+                                        }}
+                                    >
+                                        <path d="M2 4l4 4 4-4" />
+                                    </svg>
+                                </div>
+
+                            </>
+                        )}
+                    </div>
 
                     {/* In the main render, around line ~1430 */}
                     {isAssessmentMode && hasStarted && securitySettings.screenRecordingEnabled && (
@@ -3881,7 +3960,7 @@ function solve() {
                     {/* {problems.length > 1 && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 4, borderLeft: `1px solid ${theme === 'dark' ? '#374151' : '#e5e7eb'}`, paddingLeft: 8 }}>
                             {currentProblemIndex > 0 ? (
-                                <button onClick={prevProblem} style={{ display: 'flex', alignItems: 'center', gap: 3, height: 28, padding: '0 10px', fontSize: 12, fontFamily: 'Poppins, sans-serif', fontWeight: 500, borderRadius: 6, border: `1px solid ${theme === 'dark' ? '#374151' : '#d1d5db'}`, background: theme === 'dark' ? '#1f2937' : '#fff', color: theme === 'dark' ? '#d1d5db' : '#374151', cursor: 'pointer' }}>
+                                <button onClick={prevProblem} style={{ display: 'flex', alignItems: 'center', gap: 3, height: 28, padding: '0 10px', fontSize: 12, fontFamily: FONT, fontWeight: 500, borderRadius: 6, border: `1px solid ${theme === 'dark' ? '#374151' : '#d1d5db'}`, background: theme === 'dark' ? '#1f2937' : '#fff', color: theme === 'dark' ? '#d1d5db' : '#374151', cursor: 'pointer' }}>
                                     <ChevronLeft style={{ width: 13, height: 13 }} />Prev
                                 </button>
                             ) : (
@@ -3891,14 +3970,14 @@ function solve() {
                             <button
                                 onClick={submitCode}
                                 disabled={isRunning || (exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1))}
-                                style={{ display: 'flex', alignItems: 'center', gap: 3, height: 28, padding: '0 14px', fontSize: 12, fontFamily: 'Poppins, sans-serif', fontWeight: 600, borderRadius: 6, border: 'none', background: (exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1)) ? '#9ca3af' : '#22c55e', color: '#fff', cursor: isRunning ? 'not-allowed' : 'pointer', opacity: isRunning ? 0.7 : 1 }}
+                                style={{ display: 'flex', alignItems: 'center', gap: 3, height: 28, padding: '0 14px', fontSize: 12, fontFamily: FONT, fontWeight: 600, borderRadius: 6, border: 'none', background: (exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1)) ? '#9ca3af' : '#22c55e', color: '#fff', cursor: isRunning ? 'not-allowed' : 'pointer', opacity: isRunning ? 0.7 : 1 }}
                             >
                                 {isRunning ? <Loader2 style={{ width: 12, height: 12 }} className="animate-spin" /> : <CheckCircle style={{ width: 12, height: 12 }} />}
                                 {(exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1)) ? 'Limit' : 'Submit'}
                             </button>
 
                             {currentProblemIndex < problems.length - 1 && (isFreeFlow || solvedQuestions.has(currentProblemIndex)) ? (
-                                <button onClick={nextProblem} style={{ display: 'flex', alignItems: 'center', gap: 3, height: 28, padding: '0 10px', fontSize: 12, fontFamily: 'Poppins, sans-serif', fontWeight: 500, borderRadius: 6, border: `1px solid ${theme === 'dark' ? '#374151' : '#d1d5db'}`, background: theme === 'dark' ? '#1f2937' : '#fff', color: theme === 'dark' ? '#d1d5db' : '#374151', cursor: 'pointer' }}>
+                                <button onClick={nextProblem} style={{ display: 'flex', alignItems: 'center', gap: 3, height: 28, padding: '0 10px', fontSize: 12, fontFamily: FONT, fontWeight: 500, borderRadius: 6, border: `1px solid ${theme === 'dark' ? '#374151' : '#d1d5db'}`, background: theme === 'dark' ? '#1f2937' : '#fff', color: theme === 'dark' ? '#d1d5db' : '#374151', cursor: 'pointer' }}>
                                     Next<ChevronRight style={{ width: 13, height: 13 }} />
                                 </button>
                             ) : (
@@ -3916,7 +3995,7 @@ function solve() {
                             style={{
                                 display: 'flex', alignItems: 'center', gap: 4,
                                 height: 30, padding: '0 16px',
-                                fontSize: 12, fontFamily: 'Poppins, sans-serif', fontWeight: 600,
+                                fontSize: 12, fontFamily: FONT, fontWeight: 600,
                                 borderRadius: 6, border: 'none',
                                 background: '#3b82f6', color: '#fff',
                                 cursor: isRunning ? 'not-allowed' : 'pointer',
@@ -3933,7 +4012,7 @@ function solve() {
                         onClick={runCode}
                         disabled={isRunning}
                         className="h-7 px-2 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 flex items-center gap-1"
-                        style={{ fontFamily: 'Poppins, sans-serif' }}
+                        style={{ fontFamily: FONT }}
                     >
                         {isRunning ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
                         Run
@@ -4101,7 +4180,7 @@ function solve() {
                                         padding: '2px 8px', borderRadius: 99,
                                         background: theme === 'dark' ? '#1e3a5f' : '#dbeafe',
                                         color: theme === 'dark' ? '#93c5fd' : '#1d4ed8',
-                                        fontFamily: 'Poppins, sans-serif',
+                                        fontFamily: FONT,
                                         whiteSpace: 'nowrap',
                                     }}>
                                         Q {currentProblemIndex + 1} / {problems.length}
@@ -4117,7 +4196,7 @@ function solve() {
                                         {formatLanguageName(selectedLanguage)}
                                     </span>
                                 </div>
-                                <h1 style={{ fontFamily: 'Montserrat, sans-serif' }} className={`text-xl font-semibold mb-1.5 ${theme === 'dark' ? 'text-white' : 'text-gray-700'}`}>{problem?.title || "Problem"}</h1>
+                                <h1 style={{ fontFamily: FONT }} className={`text-xl font-semibold mb-1.5 ${theme === 'dark' ? 'text-white' : 'text-gray-700'}`}>{problem?.title || "Problem"}</h1>
                                 <div className="flex items-center gap-2 flex-wrap">
                                     {/* Difficulty badge */}
                                     <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${problem?.difficulty === "Easy" ? (theme === 'dark' ? 'bg-green-900/30 text-green-300' : 'bg-green-100 text-green-800') : problem?.difficulty === "Medium" ? (theme === 'dark' ? 'bg-yellow-900/30 text-yellow-300' : 'bg-yellow-100 text-yellow-800') : (theme === 'dark' ? 'bg-red-900/30 text-red-300' : 'bg-red-100 text-red-800')}`}>
@@ -4138,7 +4217,7 @@ function solve() {
                                         }
                                         if (m == null) return null;
                                         return (
-                                            <span style={{ fontSize: 11, fontFamily: 'Poppins, sans-serif', fontWeight: 600, padding: '2px 9px', borderRadius: 99, background: theme === 'dark' ? '#1a3a2a' : '#dcfce7', color: theme === 'dark' ? '#86efac' : '#15803d', whiteSpace: 'nowrap' }}>
+                                            <span style={{ fontSize: 11, fontFamily: FONT, fontWeight: 600, padding: '2px 9px', borderRadius: 99, background: theme === 'dark' ? '#1a3a2a' : '#dcfce7', color: theme === 'dark' ? '#86efac' : '#15803d', whiteSpace: 'nowrap' }}>
                                                 {m} {m === 1 ? 'mark' : 'marks'}
                                             </span>
                                         );
@@ -4258,7 +4337,7 @@ function solve() {
                                 options={{
                                     minimap: { enabled: true },
                                     fontSize: 14,
-                                    fontFamily: 'Montserrat, Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+                                    fontFamily: FONT,
                                     readOnly: isAssessmentMode && !hasStarted
                                 }}
                             />
@@ -4287,98 +4366,99 @@ function solve() {
                                 {/* Add more tabs here if needed */}
                             </div>
 
-                          {/* Right side - Buttons */}
-<div className="flex items-center gap-2 mr-2">
-    {/* Submit Button - Normal question submission (not final test) */}
-    <button
-        onClick={async () => {
-            // ── Attempt limit check ──
-            if (exercise?.questionBehavior?.attemptLimitEnabled) {
-                const max = exercise.questionBehavior.maxAttempts || 1;
-                if (userAttempts >= max) {
-                    showToast({
-                        type: 'error',
-                        title: 'Limit Reached',
-                        message: `Maximum attempts reached (${userAttempts}/${max}). You cannot submit again.`,
-                        duration: 4000
-                    });
-                    return;
-                }
-            }
+                            {/* Right side - Buttons */}
+                            <div className="flex items-center gap-2 mr-2">
+                                {/* Submit Button - Normal question submission (not final test) */}
+                                <button
+                                    onClick={async () => {
+                                        // ── Attempt limit check ──
+                                        if (exercise?.questionBehavior?.attemptLimitEnabled) {
+                                            const max = exercise.questionBehavior.maxAttempts || 1;
+                                            if (userAttempts >= max) {
+                                                showToast({
+                                                    type: 'error',
+                                                    title: 'Limit Reached',
+                                                    message: `Maximum attempts reached (${userAttempts}/${max}). You cannot submit again.`,
+                                                    duration: 4000
+                                                });
+                                                return;
+                                            }
+                                        }
 
-            try {
-                if (currentQuestion) {
-                    const liveQuestion = exercise?.questions?.[currentProblemIndex];
-                    
-                    // Submit with isTestSubmission = false for normal question submission
-                    await submitProgressToBackend(
-                        liveQuestion?._id || currentQuestion._id,
-                        'submitted',
-                        0,
-                        false  // ← false = normal question submission, not test completion
-                    );
-                }
+                                        try {
+                                            if (currentQuestion) {
+                                                const liveQuestion = exercise?.questions?.[currentProblemIndex];
 
-                // Mark current question as solved
-                setSolvedQuestions(prev => {
-                    const newSet = new Set(prev);
-                    newSet.add(currentProblemIndex);
-                    return newSet;
-                });
+                                                // Submit with isTestSubmission = false for normal question submission
+                                                await submitProgressToBackend(
+                                                    liveQuestion?._id || currentQuestion._id,
+                                                    'submitted',
+                                                    0,
+                                                    false  // ← false = normal question submission, not test completion
+                                                );
+                                            }
 
-                showToast({
-                    type: 'success',
-                    title: 'Question Submitted',
-                    message: `Question ${currentProblemIndex + 1} submitted successfully.`,
-                    duration: 3000
-                });
+                                            // Mark current question as solved
+                                            setSolvedQuestions(prev => {
+                                                const newSet = new Set(prev);
+                                                newSet.add(currentProblemIndex);
+                                                return newSet;
+                                            });
 
-                // Auto-navigate to next question if free flow and not last question
-                if (isFreeFlow && currentProblemIndex < problems.length - 1) {
-                    setTimeout(() => {
-                        setCurrentProblemIndex(currentProblemIndex + 1);
-                        addTerminalLog('system', '➡️ Moving to next question...');
-                    }, 1500);
-                }
+                                            showToast({
+                                                type: 'success',
+                                                title: 'Question Submitted',
+                                                message: `Question ${currentProblemIndex + 1} submitted successfully.`,
+                                                duration: 3000
+                                            });
 
-            } catch (error: any) {
-                showToast({
-                    type: 'error',
-                    title: 'Submission Failed',
-                    message: error.message || 'Could not submit question.',
-                    duration: 4000
-                });
-            }
-        }}
-        disabled={isRunning || (exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1))}
-        style={{
-            display: 'flex', alignItems: 'center', gap: 4,
-            height: 30, padding: '0 18px',
-            fontSize: 12, fontFamily: 'Poppins, sans-serif', fontWeight: 600,
-            borderRadius: 6, border: 'none',
-            background: (exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1))
-                ? '#9ca3af' : '#22c55e',
-            color: '#fff',
-            cursor: isRunning ? 'not-allowed' : 'pointer',
-            opacity: isRunning ? 0.7 : 1,
-        }}
-    >
-        {isRunning
-            ? <Loader2 style={{ width: 13, height: 13 }} className="animate-spin" />
-            : <CheckCircle style={{ width: 13, height: 13 }} />}
-        {(exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1))
-            ? 'Limit Reached' : 'Submit Question'}
-    </button>
+                                            // Auto-navigate to next question if free flow and not last question
+                                            // (disabled in section/embedded mode — Submit Question must stay put)
+                                            if (!embedded && isFreeFlow && currentProblemIndex < problems.length - 1) {
+                                                setTimeout(() => {
+                                                    setCurrentProblemIndex(currentProblemIndex + 1);
+                                                    addTerminalLog('system', '➡️ Moving to next question...');
+                                                }, 1500);
+                                            }
 
-    {/* Clear button */}
-    <button
-        onClick={clearTerminal}
-        className={`flex items-center gap-1 px-2 py-1 text-[10px] rounded transition-colors ${theme === 'dark' ? 'text-gray-500 hover:text-gray-300 hover:bg-gray-700' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-200'}`}
-        title="Clear console"
-    >
-        <Trash2 className="w-3 h-3" /> Clear
-    </button>
-</div>
+                                        } catch (error: any) {
+                                            showToast({
+                                                type: 'error',
+                                                title: 'Submission Failed',
+                                                message: error.message || 'Could not submit question.',
+                                                duration: 4000
+                                            });
+                                        }
+                                    }}
+                                    disabled={isRunning || (exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1))}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: 4,
+                                        height: 30, padding: '0 18px',
+                                        fontSize: 12, fontFamily: FONT, fontWeight: 600,
+                                        borderRadius: 6, border: 'none',
+                                        background: (exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1))
+                                            ? '#9ca3af' : '#22c55e',
+                                        color: '#fff',
+                                        cursor: isRunning ? 'not-allowed' : 'pointer',
+                                        opacity: isRunning ? 0.7 : 1,
+                                    }}
+                                >
+                                    {isRunning
+                                        ? <Loader2 style={{ width: 13, height: 13 }} className="animate-spin" />
+                                        : <CheckCircle style={{ width: 13, height: 13 }} />}
+                                    {(exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1))
+                                        ? 'Limit Reached' : 'Submit Question'}
+                                </button>
+
+                                {/* Clear button */}
+                                <button
+                                    onClick={clearTerminal}
+                                    className={`flex items-center gap-1 px-2 py-1 text-[10px] rounded transition-colors ${theme === 'dark' ? 'text-gray-500 hover:text-gray-300 hover:bg-gray-700' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-200'}`}
+                                    title="Clear console"
+                                >
+                                    <Trash2 className="w-3 h-3" /> Clear
+                                </button>
+                            </div>
                         </div>
 
                         {/* Log output area */}
@@ -4643,16 +4723,28 @@ function solve() {
             />
 
 
-            {/* Exercise Details Modal */}
-            {showDetailsModal && exercise && (
+            {/* Exercise Info + Score/Question Overview Modals (MCQ-style) */}
+            {exData && (
+                <ExerciseInfoModals
+                    exercise={exData}
+                    showDetailsModal={showDetailsModal}
+                    setShowDetailsModal={setShowDetailsModal}
+                    showOverviewModal={showOverviewModal}
+                    setShowOverviewModal={setShowOverviewModal}
+                    solvedQuestions={solvedQuestions}
+                />
+            )}
+
+            {/* Exercise Details Modal — LEGACY INLINE (kept commented for reference) */}
+            {false && showDetailsModal && exercise && (
                 <div
                     style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
                     onClick={e => { if (e.target === e.currentTarget) setShowDetailsModal(false); }}>
-                    <div style={{ background: '#fff', borderRadius: 14, boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 360, maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1.5px solid #e4e4ed', fontFamily: 'Poppins, sans-serif' }}>
+                    <div style={{ background: '#fff', borderRadius: 14, boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 360, maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1.5px solid #e4e4ed', fontFamily: FONT }}>
                         <div style={{ padding: '13px 16px', borderBottom: '1.5px solid #e4e4ed', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f7f7fb', flexShrink: 0 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                                 <FileText size={14} style={{ color: '#3a3a52' }} />
-                                <span style={{ fontFamily: 'Poppins, sans-serif', fontSize: 13, fontWeight: 700, color: '#1a1a2e' }}>Exercise Details</span>
+                                <span style={{ fontFamily: FONT, fontSize: 13, fontWeight: 700, color: '#1a1a2e' }}>Exercise Details</span>
                             </div>
                             <button type="button" onClick={() => setShowDetailsModal(false)}
                                 style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9a9ab0', display: 'flex', padding: 4, borderRadius: 6 }}>
@@ -4662,77 +4754,77 @@ function solve() {
                         <div style={{ flex: 1, overflowY: 'auto', padding: '4px 0' }}>
                             {exercise.exerciseInformation?.exerciseName && (
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 16px', borderBottom: '1px solid #f0f0f7' }}>
-                                    <span style={{ fontSize: 12, fontWeight: 600, color: '#3a3a52', fontFamily: 'Poppins, sans-serif' }}>Exercise Name</span>
-                                    <span style={{ fontSize: 11, fontWeight: 700, color: '#F27757', fontFamily: 'Poppins, sans-serif', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{exercise.exerciseInformation.exerciseName}</span>
+                                    <span style={{ fontSize: 12, fontWeight: 600, color: '#3a3a52', fontFamily: FONT }}>Exercise Name</span>
+                                    <span style={{ fontSize: 11, fontWeight: 700, color: '#F27757', fontFamily: FONT, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{exercise.exerciseInformation.exerciseName}</span>
                                 </div>
                             )}
                             {exercise.exerciseInformation?.exerciseLevel && (
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 16px', borderBottom: '1px solid #f0f0f7' }}>
-                                    <span style={{ fontSize: 12, fontWeight: 600, color: '#3a3a52', fontFamily: 'Poppins, sans-serif' }}>Level</span>
-                                    <span style={{ fontSize: 11, fontWeight: 700, color: '#1a1a2e', fontFamily: 'Poppins, sans-serif', textTransform: 'capitalize' }}>{exercise.exerciseInformation.exerciseLevel}</span>
+                                    <span style={{ fontSize: 12, fontWeight: 600, color: '#3a3a52', fontFamily: FONT }}>Level</span>
+                                    <span style={{ fontSize: 11, fontWeight: 700, color: '#1a1a2e', fontFamily: FONT, textTransform: 'capitalize' }}>{exercise.exerciseInformation.exerciseLevel}</span>
                                 </div>
                             )}
                             {exercise.exerciseInformation?.totalDuration != null && (
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 16px', borderBottom: '1px solid #f0f0f7' }}>
-                                    <span style={{ fontSize: 12, fontWeight: 600, color: '#3a3a52', fontFamily: 'Poppins, sans-serif' }}>Duration</span>
-                                    <span style={{ fontSize: 11, fontWeight: 700, color: '#1a1a2e', fontFamily: 'Poppins, sans-serif' }}>{exercise.exerciseInformation.totalDuration} min</span>
+                                    <span style={{ fontSize: 12, fontWeight: 600, color: '#3a3a52', fontFamily: FONT }}>Duration</span>
+                                    <span style={{ fontSize: 11, fontWeight: 700, color: '#1a1a2e', fontFamily: FONT }}>{exercise.exerciseInformation.totalDuration} min</span>
                                 </div>
                             )}
                             {(() => {
                                 const tm = exercise.exerciseInformation?.totalMarksProgramming ?? exercise.exerciseInformation?.totalMarks ?? exercise.exerciseInformation?.totalPoints;
                                 return tm != null ? (
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 16px', borderBottom: '1px solid #f0f0f7' }}>
-                                        <span style={{ fontSize: 12, fontWeight: 600, color: '#3a3a52', fontFamily: 'Poppins, sans-serif' }}>Total Marks</span>
-                                        <span style={{ fontSize: 11, fontWeight: 700, color: '#1a1a2e', fontFamily: 'Poppins, sans-serif' }}>{tm}</span>
+                                        <span style={{ fontSize: 12, fontWeight: 600, color: '#3a3a52', fontFamily: FONT }}>Total Marks</span>
+                                        <span style={{ fontSize: 11, fontWeight: 700, color: '#1a1a2e', fontFamily: FONT }}>{tm}</span>
                                     </div>
                                 ) : null;
                             })()}
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 16px', borderBottom: '1px solid #f0f0f7' }}>
-                                <span style={{ fontSize: 12, fontWeight: 600, color: '#3a3a52', fontFamily: 'Poppins, sans-serif' }}>Questions</span>
-                                <span style={{ fontSize: 11, fontWeight: 700, color: '#1a1a2e', fontFamily: 'Poppins, sans-serif' }}>{exercise.questions?.length ?? 0}</span>
+                                <span style={{ fontSize: 12, fontWeight: 600, color: '#3a3a52', fontFamily: FONT }}>Questions</span>
+                                <span style={{ fontSize: 11, fontWeight: 700, color: '#1a1a2e', fontFamily: FONT }}>{exercise.questions?.length ?? 0}</span>
                             </div>
                             {exercise.exerciseType && (
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 16px', borderBottom: '1px solid #f0f0f7' }}>
-                                    <span style={{ fontSize: 12, fontWeight: 600, color: '#3a3a52', fontFamily: 'Poppins, sans-serif' }}>Exercise Type</span>
-                                    <span style={{ fontSize: 11, fontWeight: 700, color: '#1a1a2e', fontFamily: 'Poppins, sans-serif', textTransform: 'capitalize' }}>{exercise.exerciseType}</span>
+                                    <span style={{ fontSize: 12, fontWeight: 600, color: '#3a3a52', fontFamily: FONT }}>Exercise Type</span>
+                                    <span style={{ fontSize: 11, fontWeight: 700, color: '#1a1a2e', fontFamily: FONT, textTransform: 'capitalize' }}>{exercise.exerciseType}</span>
                                 </div>
                             )}
                             {exercise.programmingSettings?.selectedLanguages?.length > 0 && (
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 16px', borderBottom: '1px solid #f0f0f7' }}>
-                                    <span style={{ fontSize: 12, fontWeight: 600, color: '#3a3a52', fontFamily: 'Poppins, sans-serif' }}>Languages</span>
-                                    <span style={{ fontSize: 11, fontWeight: 700, color: '#1a1a2e', fontFamily: 'Poppins, sans-serif' }}>{exercise.programmingSettings.selectedLanguages.map((l: string) => l.charAt(0).toUpperCase() + l.slice(1)).join(', ')}</span>
+                                    <span style={{ fontSize: 12, fontWeight: 600, color: '#3a3a52', fontFamily: FONT }}>Languages</span>
+                                    <span style={{ fontSize: 11, fontWeight: 700, color: '#1a1a2e', fontFamily: FONT }}>{exercise.programmingSettings.selectedLanguages.map((l: string) => l.charAt(0).toUpperCase() + l.slice(1)).join(', ')}</span>
                                 </div>
                             )}
                             {exercise.evaluationSettings && (
                                 <>
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 16px', borderBottom: '1px solid #f0f0f7' }}>
-                                        <span style={{ fontSize: 12, fontWeight: 600, color: '#3a3a52', fontFamily: 'Poppins, sans-serif' }}>Practice Mode</span>
-                                        <span style={{ fontSize: 11, fontWeight: 700, color: exercise.evaluationSettings.practiceMode ? '#16a34a' : '#e53e3e', fontFamily: 'Poppins, sans-serif' }}>{exercise.evaluationSettings.practiceMode ? 'Yes' : 'No'}</span>
+                                        <span style={{ fontSize: 12, fontWeight: 600, color: '#3a3a52', fontFamily: FONT }}>Practice Mode</span>
+                                        <span style={{ fontSize: 11, fontWeight: 700, color: exercise.evaluationSettings.practiceMode ? '#16a34a' : '#e53e3e', fontFamily: FONT }}>{exercise.evaluationSettings.practiceMode ? 'Yes' : 'No'}</span>
                                     </div>
                                     {exercise.evaluationSettings.passingScore != null && (
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 16px', borderBottom: '1px solid #f0f0f7' }}>
-                                            <span style={{ fontSize: 12, fontWeight: 600, color: '#3a3a52', fontFamily: 'Poppins, sans-serif' }}>Passing Score</span>
-                                            <span style={{ fontSize: 11, fontWeight: 700, color: '#1a1a2e', fontFamily: 'Poppins, sans-serif' }}>{exercise.evaluationSettings.passingScore}%</span>
+                                            <span style={{ fontSize: 12, fontWeight: 600, color: '#3a3a52', fontFamily: FONT }}>Passing Score</span>
+                                            <span style={{ fontSize: 11, fontWeight: 700, color: '#1a1a2e', fontFamily: FONT }}>{exercise.evaluationSettings.passingScore}%</span>
                                         </div>
                                     )}
                                 </>
                             )}
                             {exercise.availabilityPeriod?.startDate && (
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 16px', borderBottom: '1px solid #f0f0f7' }}>
-                                    <span style={{ fontSize: 12, fontWeight: 600, color: '#3a3a52', fontFamily: 'Poppins, sans-serif' }}>From</span>
-                                    <span style={{ fontSize: 11, fontWeight: 700, color: '#1a1a2e', fontFamily: 'Poppins, sans-serif' }}>{new Date(exercise.availabilityPeriod.startDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                                    <span style={{ fontSize: 12, fontWeight: 600, color: '#3a3a52', fontFamily: FONT }}>From</span>
+                                    <span style={{ fontSize: 11, fontWeight: 700, color: '#1a1a2e', fontFamily: FONT }}>{new Date(exercise.availabilityPeriod.startDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
                                 </div>
                             )}
                             {exercise.availabilityPeriod?.endDate && (
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 16px' }}>
-                                    <span style={{ fontSize: 12, fontWeight: 600, color: '#3a3a52', fontFamily: 'Poppins, sans-serif' }}>Until</span>
-                                    <span style={{ fontSize: 11, fontWeight: 700, color: '#1a1a2e', fontFamily: 'Poppins, sans-serif' }}>{new Date(exercise.availabilityPeriod.endDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                                    <span style={{ fontSize: 12, fontWeight: 600, color: '#3a3a52', fontFamily: FONT }}>Until</span>
+                                    <span style={{ fontSize: 11, fontWeight: 700, color: '#1a1a2e', fontFamily: FONT }}>{new Date(exercise.availabilityPeriod.endDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
                                 </div>
                             )}
                         </div>
                         <div style={{ padding: '10px 16px', borderTop: '1.5px solid #e4e4ed', display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
                             <button type="button" onClick={() => setShowDetailsModal(false)}
-                                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 16px', borderRadius: 10, fontFamily: 'Poppins, sans-serif', fontSize: 12, fontWeight: 600, border: '1.5px solid #e4e4ed', background: '#f7f7fb', color: '#3a3a52', cursor: 'pointer' }}>
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 16px', borderRadius: 10, fontFamily: FONT, fontSize: 12, fontWeight: 600, border: '1.5px solid #e4e4ed', background: '#f7f7fb', color: '#3a3a52', cursor: 'pointer' }}>
                                 Close
                             </button>
                         </div>
@@ -4740,8 +4832,8 @@ function solve() {
                 </div>
             )}
 
-            {/* Exercise Overview Modal */}
-            {showOverviewModal && exercise && (() => {
+            {/* Exercise Overview Modal — LEGACY INLINE (disabled, replaced by ExerciseInfoModals above) */}
+            {false && showOverviewModal && exercise && (() => {
                 const configuredDiffs = (['easy', 'medium', 'hard'] as const).filter(d => difficultyMap[d]);
                 const totalSlotsAll = configuredDiffs.length > 0
                     ? configuredDiffs.reduce((s, d) => s + (difficultyMap[d]?.count ?? 0), 0)
@@ -4757,11 +4849,11 @@ function solve() {
                     <div
                         style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
                         onClick={e => { if (e.target === e.currentTarget) setShowOverviewModal(false); }}>
-                        <div style={{ background: '#fff', borderRadius: 14, boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 400, maxHeight: '86vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1.5px solid #e4e4ed', fontFamily: 'Poppins, sans-serif' }}>
+                        <div style={{ background: '#fff', borderRadius: 14, boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 400, maxHeight: '86vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1.5px solid #e4e4ed', fontFamily: FONT }}>
                             <div style={{ padding: '13px 16px', borderBottom: '1.5px solid #e4e4ed', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#eff6ff', flexShrink: 0 }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                                     <BarChart3 size={14} style={{ color: '#2563eb' }} />
-                                    <span style={{ fontFamily: 'Poppins, sans-serif', fontSize: 13, fontWeight: 700, color: '#1a1a2e' }}>Question and Marks details</span>
+                                    <span style={{ fontFamily: FONT, fontSize: 13, fontWeight: 700, color: '#1a1a2e' }}>Question and Marks details</span>
                                 </div>
                                 <button type="button" onClick={() => setShowOverviewModal(false)}
                                     style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9a9ab0', display: 'flex', padding: 4, borderRadius: 6 }}>
@@ -4772,7 +4864,7 @@ function solve() {
                                 {/* Overall Questions */}
                                 <div style={{ padding: '12px 16px', borderBottom: '1.5px solid #e4e4ed' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                                        <span style={{ fontSize: 11, fontWeight: 700, color: '#F27757', textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: 'Poppins, sans-serif' }}>Overall Questions</span>
+                                        <span style={{ fontSize: 11, fontWeight: 700, color: '#F27757', textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: FONT }}>Overall Questions</span>
                                     </div>
                                     {[
                                         { label: 'Total Questions', value: totalSlotsAll, color: '#1a1a2e' },
@@ -4780,8 +4872,8 @@ function solve() {
                                         { label: 'Remaining', value: remainingAll, color: remainingAll === 0 ? '#16a34a' : '#d97706' },
                                     ].map(({ label, value, denom, color }) => (
                                         <div key={label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '3px 0' }}>
-                                            <span style={{ fontSize: 12, fontWeight: 600, color: '#3a3a52', fontFamily: 'Poppins, sans-serif' }}>{label}</span>
-                                            <span style={{ fontSize: 12, fontWeight: 700, color, fontFamily: 'Poppins, sans-serif' }}>
+                                            <span style={{ fontSize: 12, fontWeight: 600, color: '#3a3a52', fontFamily: FONT }}>{label}</span>
+                                            <span style={{ fontSize: 12, fontWeight: 700, color, fontFamily: FONT }}>
                                                 {value}{denom != null ? <span style={{ color: '#9a9ab0', fontWeight: 400, fontSize: 10 }}>/{denom}</span> : ''}
                                             </span>
                                         </div>
@@ -4801,8 +4893,8 @@ function solve() {
                                                 const diffColor = d === 'easy' ? '#16a34a' : d === 'medium' ? '#d97706' : '#e53e3e';
                                                 return (
                                                     <div key={d} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 8, borderLeft: `2px solid ${diffColor}`, marginBottom: 2 }}>
-                                                        <span style={{ fontSize: 12, fontWeight: 600, color: diffColor, textTransform: 'capitalize', fontFamily: 'Poppins, sans-serif' }}>{d}</span>
-                                                        <span style={{ fontSize: 11, fontWeight: 700, fontFamily: 'Poppins, sans-serif' }}>
+                                                        <span style={{ fontSize: 12, fontWeight: 600, color: diffColor, textTransform: 'capitalize', fontFamily: FONT }}>{d}</span>
+                                                        <span style={{ fontSize: 11, fontWeight: 700, fontFamily: FONT }}>
                                                             <span style={{ color: '#7c3aed' }}>{solvedD}</span>
                                                             <span style={{ color: '#9a9ab0', fontWeight: 400 }}>/{count}</span>
                                                             <span style={{ color: rem <= 0 ? '#16a34a' : '#9a9ab0', fontSize: 10, marginLeft: 6, fontWeight: 500 }}>{rem <= 0 ? '✓' : `${rem} left`}</span>
@@ -4819,11 +4911,11 @@ function solve() {
                                     <div style={{ padding: '12px 16px' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
                                             <Award size={12} style={{ color: '#7c3aed' }} />
-                                            <span style={{ fontSize: 11, fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: 'Poppins, sans-serif' }}>Overall Marks</span>
+                                            <span style={{ fontSize: 11, fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: FONT }}>Overall Marks</span>
                                         </div>
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '3px 0' }}>
-                                            <span style={{ fontSize: 12, fontWeight: 600, color: '#3a3a52', fontFamily: 'Poppins, sans-serif' }}>Total Marks</span>
-                                            <span style={{ fontSize: 12, fontWeight: 700, color: '#7c3aed', fontFamily: 'Poppins, sans-serif' }}>{totalMarksAll}</span>
+                                            <span style={{ fontSize: 12, fontWeight: 600, color: '#3a3a52', fontFamily: FONT }}>Total Marks</span>
+                                            <span style={{ fontSize: 12, fontWeight: 700, color: '#7c3aed', fontFamily: FONT }}>{totalMarksAll}</span>
                                         </div>
                                         {/* Per-difficulty marks */}
                                         {!isGeneral && configuredDiffs.length > 0 && (
@@ -4836,8 +4928,8 @@ function solve() {
                                                     const diffColor = d === 'easy' ? '#16a34a' : d === 'medium' ? '#d97706' : '#e53e3e';
                                                     return (
                                                         <div key={d} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 8, borderLeft: `2px solid ${diffColor}`, marginBottom: 2 }}>
-                                                            <span style={{ fontSize: 12, fontWeight: 600, color: diffColor, textTransform: 'capitalize', fontFamily: 'Poppins, sans-serif' }}>{d}</span>
-                                                            <span style={{ fontSize: 11, fontWeight: 700, fontFamily: 'Poppins, sans-serif', color: '#1a1a2e' }}>
+                                                            <span style={{ fontSize: 12, fontWeight: 600, color: diffColor, textTransform: 'capitalize', fontFamily: FONT }}>{d}</span>
+                                                            <span style={{ fontSize: 11, fontWeight: 700, fontFamily: FONT, color: '#1a1a2e' }}>
                                                                 {total != null ? `${total} marks` : '—'}
                                                                 {perQ != null && <span style={{ color: '#9a9ab0', fontSize: 10, marginLeft: 6 }}>{perQ}/q</span>}
                                                             </span>
@@ -4850,8 +4942,8 @@ function solve() {
                                         {ss?.scoreType === 'evenMarks' && ss.evenMarks != null && (
                                             <div style={{ marginTop: 8, padding: '8px 12px', borderRadius: 8, background: '#eff6ff', border: '1.5px solid #bfdbfe' }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                                    <span style={{ fontSize: 12, color: '#2563eb', fontWeight: 600, fontFamily: 'Poppins, sans-serif' }}>Marks per question</span>
-                                                    <span style={{ fontSize: 14, fontWeight: 700, color: '#1e40af', fontFamily: 'Poppins, sans-serif' }}>{ss.evenMarks}</span>
+                                                    <span style={{ fontSize: 12, color: '#2563eb', fontWeight: 600, fontFamily: FONT }}>Marks per question</span>
+                                                    <span style={{ fontSize: 14, fontWeight: 700, color: '#1e40af', fontFamily: FONT }}>{ss.evenMarks}</span>
                                                 </div>
                                             </div>
                                         )}
@@ -4860,7 +4952,7 @@ function solve() {
                             </div>
                             <div style={{ padding: '10px 16px', borderTop: '1.5px solid #e4e4ed', display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
                                 <button type="button" onClick={() => setShowOverviewModal(false)}
-                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 16px', borderRadius: 10, fontFamily: 'Poppins, sans-serif', fontSize: 12, fontWeight: 600, border: '1.5px solid #e4e4ed', background: '#f7f7fb', color: '#3a3a52', cursor: 'pointer' }}>
+                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 16px', borderRadius: 10, fontFamily: FONT, fontSize: 12, fontWeight: 600, border: '1.5px solid #e4e4ed', background: '#f7f7fb', color: '#3a3a52', cursor: 'pointer' }}>
                                     Close
                                 </button>
                             </div>
@@ -4873,7 +4965,7 @@ function solve() {
             {/* ← ADD THIS */}
 
             <style jsx global>{`
-                @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&family=Poppins:wght@400;500;600&display=swap');
+                @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
                 .custom-scrollbar { scrollbar-width: thin; scrollbar-color: ${theme === 'dark' ? '#4b5563 transparent' : '#9ca3af transparent'}; }
                 .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
                 .custom-scrollbar::-webkit-scrollbar-thumb { background-color: ${theme === 'dark' ? '#4b5563' : '#9ca3af'}; border-radius: 4px; }

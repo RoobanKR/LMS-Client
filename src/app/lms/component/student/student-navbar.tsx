@@ -9,6 +9,7 @@ import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { notificationsService } from "@/apiServices/notifications"
+import { postLogout } from "@/apiServices/activityLog"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { notificationKeys } from "@/apiServices/notifications"
 import { getCurrentUser } from "@/apiServices/tokenVerify"
@@ -133,6 +134,7 @@ export function StudentNavbar({ onMenuClick, onAIClick, onSummaryClick }: Studen
   const handleLogout = async () => {
     setIsLoggingOut(true)
     try {
+      await postLogout()
       localStorage.removeItem('smartcliff_roleSwitch')
       localStorage.removeItem('smartcliff_isDummyStudent')
       localStorage.clear()

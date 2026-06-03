@@ -1,17 +1,29 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   ChevronLeft, ChevronRight, Home, CheckCircle, Flag, ArrowLeft,
   AlertCircle, XCircle, ChevronDown, ChevronUp, BookOpen, GraduationCap,
   File, Layers, Clock, Target, Check, Code, HelpCircle, Info, Filter,
   Type, AlignLeft, Hash, Shuffle, ArrowRight, ArrowLeft as ArrowLeftIcon,
   GripVertical, Sparkles, Brain, Award, Timer, BarChart, Bookmark,
-  Circle, CircleDot, PenTool, ListChecks, Grid3x3, Maximize2, Minimize2
+  Circle, CircleDot, PenTool, ListChecks, Grid3x3, Maximize2, Minimize2,
+  ShieldCheck, Shield, EyeOff, MonitorOff, Wifi, Lock, Video, Camera,
+  AlertTriangle
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { useAssessmentSecurity, normalizeSecurityConfig } from './useAssessmentSecurity';
+import { useExamLiveEmitter } from './useExamLiveEmitter';
+import ScreenShareGuard from './ScreenShareGuard';
+import StudentMessageChat from './StudentMessageChat';
+import { useScreenRecording } from './useScreenRecording';
+import FaceVerificationGate from './FaceVerificationGate';
+import LiveCameraPreview from './LiveCameraPreview';
+import { useFaceProctor } from './useFaceProctor';
+// 1. Import at top
+import ExerciseInfoModals, { ExerciseInfoButtons } from './ExerciseInfoModals';
 
 // ── Design tokens ─────────────────────────────────────────────────────────
 const T = {
@@ -96,6 +108,7 @@ interface MCQQuestion {
 }
 interface ExerciseData {
   _id: string; exerciseType: string; configurationType: any;
+  isGraded?: boolean;
   exerciseInformation: {
     exerciseId: string; exerciseName: string; description: string;
     exerciseLevel: string; totalDuration: number; totalMarks: number; _id: string;
@@ -155,6 +168,27 @@ const ContentBlockRenderer: React.FC<{ title: unknown }> = ({ title }) => {
 };
 
 // ── Option atoms ──────────────────────────────────────────────────────────
+// Shared image renderer — converts imageSizePercent against a 500px reference
+// (matching the admin editor column) so size is independent of the card width.
+const OPTION_IMG_REF_PX = 500;
+const OptionImage = ({ option, lbl }:{ option:MCQOption; lbl:string }) => {
+  if (!option.imageUrl?.trim()) return null;
+  const justify = option.imageAlignment === 'left' ? 'flex-start'
+                : option.imageAlignment === 'right' ? 'flex-end' : 'center';
+  const pct   = option.imageSizePercent && option.imageSizePercent > 0 ? option.imageSizePercent : 60;
+  const maxPx = Math.round((pct / 100) * OPTION_IMG_REF_PX); // e.g. 10% → 50px
+  return (
+    <div style={{ marginTop:8, display:'flex', justifyContent:justify }}>
+      <img
+        src={option.imageUrl}
+        alt={`Option ${lbl}`}
+        style={{ width:'auto', height:'auto', maxWidth:maxPx, maxHeight:80, objectFit:'contain', borderRadius:8, border:`1px solid ${T.border}`, display:'block' }}
+        onError={e => { e.currentTarget.style.display='none'; }}
+      />
+    </div>
+  );
+};
+
 const RadioOption = ({ option, checked, onChange, index, disabled }:{ option:MCQOption; checked:boolean; onChange:()=>void; index:number; disabled?:boolean }) => {
   const lbl=String.fromCharCode(65+index);
   return (
@@ -168,11 +202,7 @@ const RadioOption = ({ option, checked, onChange, index, disabled }:{ option:MCQ
           <span style={{ flexShrink:0,width:20,height:20,borderRadius:6,background:checked?T.orange:T.pageBg,color:checked?'#fff':T.textMuted,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,transition:'all 0.15s' }}>{lbl}</span>
           <span style={{ fontSize:14,color:checked?T.textMain:T.textSub,fontWeight:checked?600:400 }}>{option.text}</span>
         </div>
-        {option.imageUrl?.trim()&&(
-          <div style={{ marginTop:8,borderRadius:8,overflow:'hidden',border:`1px solid ${T.border}` }}>
-            <img src={option.imageUrl} alt={`Option ${lbl}`} style={{ width:'100%',height:96,objectFit:'cover' }} onError={e=>{e.currentTarget.style.display='none';}} />
-          </div>
-        )}
+        <OptionImage option={option} lbl={lbl} />
       </div>
     </label>
   );
@@ -191,6 +221,7 @@ const CheckboxOption = ({ option, checked, onChange, index, disabled }:{ option:
           <span style={{ flexShrink:0,width:20,height:20,borderRadius:6,background:checked?T.purple:T.pageBg,color:checked?'#fff':T.textMuted,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,transition:'all 0.15s' }}>{lbl}</span>
           <span style={{ fontSize:14,color:checked?T.textMain:T.textSub,fontWeight:checked?600:400 }}>{option.text}</span>
         </div>
+        <OptionImage option={option} lbl={lbl} />
       </div>
     </label>
   );
@@ -493,7 +524,7 @@ const QuestionPanel = ({
           {filtered.map(({q,i})=>{
             const status=getStatus(i); const isCurrent=i===currentIndex; const isFlagged=flaggedQuestions.has(i);
             let bg=T.pageBg,col=T.textSub,bdr=T.border;
-            if(isCurrent)                      { bg=T.orange;      col='#fff';      bdr=T.orange; }
+            if(isCurrent)                      { bg=T.blue;        col='#fff';      bdr=T.blue; }
             else if(status==='answered')        { bg=T.greenLight;  col=T.greenDark; bdr=T.green+'80'; }
             else if(status==='flagged')         { bg=T.amberLight;  col=T.amber;     bdr=T.amber+'80'; }
             else if(status==='answeredFlagged') { bg=T.orangeLight; col=T.orange;    bdr=T.orange+'80'; }
@@ -515,12 +546,75 @@ const QuestionPanel = ({
         </div>
       )}
       <div style={{ marginTop:12,paddingTop:10,borderTop:`1px solid ${T.borderLight}`,display:'grid',gridTemplateColumns:'1fr 1fr',gap:'5px 12px' }}>
-        {[{dot:T.orange,lbl:'Current'},{dot:T.green,lbl:'Answered'},{dot:T.amber,lbl:'Flagged'},{dot:T.orange,lbl:'Ans+Flag',op:0.55},{dot:T.red,lbl:'Required'}].map(({dot,lbl,op})=>(
+        {[{dot:T.blue,lbl:'Current'},{dot:T.green,lbl:'Answered'},{dot:T.amber,lbl:'Flagged'},{dot:T.orange,lbl:'Ans+Flag',op:0.55},{dot:T.red,lbl:'Required'}].map(({dot,lbl,op})=>(
           <div key={lbl} style={{ display:'flex',alignItems:'center',gap:5 }}>
             <div style={{ width:8,height:8,borderRadius:'50%',background:dot,opacity:op||1,flexShrink:0 }} />
             <span style={{ fontSize:11,color:T.textSub }}>{lbl}</span>
           </div>
         ))}
+      </div>
+    </div>
+  );
+};
+
+// ─── MCQ Security Agreement Modal ─────────────────────────────────────────────
+const MCQSecurityModal: React.FC<{
+  isOpen: boolean;
+  sec: ReturnType<typeof normalizeSecurityConfig>;
+  onAgree: () => void;
+  onCancel: () => void;
+}> = ({ isOpen, sec, onAgree, onCancel }) => {
+  if (!isOpen) return null;
+  const items: { icon: React.ReactNode; label: string; active: boolean }[] = [
+    { icon: <Clock size={13} />, label: sec.sessionTimeoutMinutes ? `Timed: ${sec.sessionTimeoutMinutes} min` : 'No timer', active: !!sec.sessionTimeoutMinutes },
+    { icon: <Maximize2 size={13} />, label: 'Fullscreen required', active: !!sec.requireFullscreen },
+    { icon: <EyeOff size={13} />, label: 'Tab switching restricted', active: !!sec.preventTabSwitch },
+    { icon: <Lock size={13} />, label: 'Copy / Paste disabled', active: !!sec.preventCopyPaste },
+    { icon: <MonitorOff size={13} />, label: 'Right-click disabled', active: !!sec.preventRightClick },
+    { icon: <Shield size={13} />, label: 'Dev tools blocked', active: !!sec.preventDevTools },
+    { icon: <AlertTriangle size={13} />, label: 'Refresh blocked', active: !!sec.preventRefresh },
+    { icon: <Wifi size={13} />, label: 'Browser close warning', active: !!sec.preventBrowserClose },
+  ];
+  const activeItems = items.filter(i => i.active);
+  return (
+    <div style={{ position:'fixed',inset:0,zIndex:9999,background:'rgba(0,0,0,0.55)',backdropFilter:'blur(4px)',display:'flex',alignItems:'center',justifyContent:'center',padding:16 }}>
+      <div style={{ background:'#fff',borderRadius:16,boxShadow:'0 20px 60px rgba(0,0,0,0.18)',width:'100%',maxWidth:480,padding:28,fontFamily:"'Plus Jakarta Sans',-apple-system,sans-serif" }}>
+        <div style={{ display:'flex',alignItems:'center',gap:12,marginBottom:18 }}>
+          <div style={{ width:40,height:40,borderRadius:10,background:'rgba(99,102,241,0.1)',display:'flex',alignItems:'center',justifyContent:'center' }}>
+            <ShieldCheck size={20} style={{ color:'#6366f1' }} />
+          </div>
+          <div>
+            <div style={{ fontSize:17,fontWeight:800,color:'#1a1a2e' }}>Assessment Security</div>
+            <div style={{ fontSize:12,color:'#6b6b7e',marginTop:1 }}>Review the active restrictions before you begin</div>
+          </div>
+        </div>
+        {activeItems.length > 0 ? (
+          <div style={{ background:'#f9f9fb',borderRadius:10,padding:14,marginBottom:18 }}>
+            <div style={{ fontSize:11,fontWeight:700,color:'#6b6b7e',textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:10 }}>Active Restrictions</div>
+            <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px 12px' }}>
+              {activeItems.map((it,i) => (
+                <div key={i} style={{ display:'flex',alignItems:'center',gap:7,fontSize:12,color:'#1a1a2e',fontWeight:500 }}>
+                  <span style={{ color:'#6366f1' }}>{it.icon}</span>{it.label}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div style={{ background:'#f0fdf4',borderRadius:10,padding:14,marginBottom:18,fontSize:13,color:'#16a34a',fontWeight:500 }}>
+            No special security restrictions for this assessment.
+          </div>
+        )}
+        <div style={{ background:'#fff8ed',border:'1px solid #fde68a',borderRadius:8,padding:10,marginBottom:20,fontSize:12,color:'#92400e' }}>
+          By clicking "Start Assessment" you agree to comply with all the above security measures. Violations may result in automatic submission.
+        </div>
+        <div style={{ display:'flex',gap:10 }}>
+          <button onClick={onCancel} style={{ flex:1,padding:'10px 16px',borderRadius:8,border:'1.5px solid #ece9f1',background:'#fff',color:'#6b6b7e',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit' }}>
+            Cancel
+          </button>
+          <button onClick={onAgree} style={{ flex:2,padding:'10px 16px',borderRadius:8,border:'none',background:'#6366f1',color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',display:'flex',alignItems:'center',justifyContent:'center',gap:6 }}>
+            <ShieldCheck size={14} /> Start Assessment
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -533,10 +627,18 @@ interface MCQProps {
   exercise?:any; courseId?:string; courseName?:string; nodeId?:string; nodeName?:string;
   nodeType?:string; onCloseExercise?:()=>void; category?:string; subcategory?:string;
   studentId?:string; moduleName?:string; topicName?:string; hierarchy?:string[];
-  embedded?:boolean; // when true, skip API fetch and use exercise.questions directly
+  /** When true: skip API re-fetch and use the passed exercise + its questions directly.
+   *  Used by SectionBasedTestPage so each section only sees its own filtered questions. */
+  embedded?:boolean;
+  /** Section mode only: called when Next is pressed on the LAST question (e.g. Combined → switch to Programming). */
+  onCrossNext?:()=>void;
+  /** Section mode only: called when Previous is pressed on the FIRST question (e.g. Combined → back to MCQ). */
+  onCrossPrev?:()=>void;
+  /** Label for the last-question cross button (e.g. "Next Section" / "Submit Test"). Defaults to "Next". */
+  crossNextLabel?:string;
 }
 
-const MCQ = ({ exercise:propExercise, courseId='', courseName='Course', nodeId='', nodeName='', nodeType='', onCloseExercise, category='Course', subcategory='Assessment', hierarchy=[], embedded=false }:MCQProps) => {
+const MCQ = ({ exercise:propExercise, courseId='', courseName='Course', nodeId='', nodeName='', nodeType='', onCloseExercise, category='Course', subcategory='Assessment', hierarchy=[], embedded=false, onCrossNext, onCrossPrev, crossNextLabel }:MCQProps) => {
   const router=useRouter();
   const searchParams=useSearchParams();
 
@@ -575,28 +677,179 @@ const MCQ = ({ exercise:propExercise, courseId='', courseName='Course', nodeId='
   const urlSubcategory=searchParams.get('subcategory');
   const urlCategory=searchParams.get('category');
 
+// 2. Add state inside MCQ component
+const [showDetailsModal, setShowDetailsModal] = useState(false);
+const [showOverviewModal, setShowOverviewModal] = useState(false);
+
+  // ── Security ────────────────────────────────────────────────────────────────
+  const [showSecurityModal, setShowSecurityModal] = useState(false);
+  const [securityAgreed, setSecurityAgreed] = useState(false);
+  const [securityConfig, setSecurityConfig] = useState(() => normalizeSecurityConfig({}));
+  const [tabSwitchCount, setTabSwitchCount] = useState(0);
+  // Reason for an auto-submit (null = manual USER submit). Set by tab-switch /
+  // timeout / face-proctor before the submit fires; read in sendFinalSubmission.
+  const autoReasonRef = useRef<string | null>(null);
+
+  // Security callbacks — defined before the hook so they're stable references
+  const onSecTabSwitch = useCallback((count: number, max: number) => {
+    setTabSwitchCount(count);
+    toast.warn(`⚠️ Tab switch detected (${count}/${max}). Continued violations will auto-submit.`, { toastId: 'tab-sw' });
+    if (count >= max) {
+      toast.error('Maximum tab switches exceeded — submitting.', { toastId: 'tab-terminate' });
+      autoReasonRef.current = 'Tab switch limit reached';
+      handleTimeUp();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const onSecTimeWarning = useCallback((secs: number) => {
+    toast.warn(`⏰ Only ${secs} seconds remaining!`, { toastId: 'time-warn', autoClose: 8000 });
+  }, []);
+  const onSecTimeUp = useCallback(() => { handleTimeUp(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+
+  // Enforce security after agreement
+  useAssessmentSecurity({
+    config: securityConfig,
+    // In section mode the parent SectionBasedTestPage owns security — don't run a
+    // second instance here (it caused duplicate tab-switch toasts + double submit).
+    isActive: !embedded && quizStarted && securityAgreed,
+    onTabSwitchViolation: onSecTabSwitch,
+    onTimeWarning: onSecTimeWarning,
+    onTimeUp: onSecTimeUp,
+  });
+
+  // ── Screen recording (proctoring) ──────────────────────────────────────────
+  const { isRecording, isSaving: isRecordingSaving, startRecording, stopRecording } = useScreenRecording();
+
+  // ── Face verification gate ─────────────────────────────────────────────────
+  const [showFaceVerification, setShowFaceVerification] = useState(false);
+
+  // courseId derived for recording
+  const urlCourseId_s = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('courseId') : '';
+
   const startTimer=(duration:number)=>{
     if(timerRef.current) clearInterval(timerRef.current);
     setTimeLeft(duration*60);
-    timerRef.current=setInterval(()=>{ setTimeLeft(prev=>{ if(prev<=1){ clearInterval(timerRef.current!); setShowTimeUpDialog(true); handleTimeUp(); return 0; } return prev-1; }); },1000);
+    timerRef.current=setInterval(()=>{ setTimeLeft(prev=>{ if(prev<=1){ clearInterval(timerRef.current!); handleTimeUp(); return 0; } return prev-1; }); },1000);
   };
 
-  const handleTimeUp=async()=>{ if(quizCompleted||isSubmitting) return; setIsSubmitting(true); await saveCurrentAnswer(); setQuizCompleted(true); setIsSubmitting(false); if(exerciseData?._id){ localStorage.removeItem(`mcq_answers_${exerciseData._id}`); localStorage.removeItem(`mcq_flagged_${exerciseData._id}`); } };
+const handleTimeUp = async () => {
+  // Section mode: the parent owns timeout → just bank the current answer and stop.
+  // (No toast, no completion screen, no navigation — prevents the gray screen + spam.)
+  if (embedded) {
+    if (timerRef.current) clearInterval(timerRef.current);
+    try { await saveCurrentAnswer(); } catch {}
+    return;
+  }
+  if (quizCompleted || isSubmitting) return;
+  // Auto-submit path (timer / tab-switch / face proctor). If no specific
+  // violation reason was set, the session timer ran out.
+  if (!autoReasonRef.current) autoReasonRef.current = 'Time limit reached';
+  setIsSubmitting(true);
+  await saveCurrentAnswer();
+  await sendFinalSubmission();
+  stopRecording(); // stop proctoring recording on timeout
+  if (timerRef.current) clearInterval(timerRef.current);
+  if (exerciseData?._id) {
+    localStorage.removeItem(`mcq_answers_${exerciseData._id}`);
+    localStorage.removeItem(`mcq_flagged_${exerciseData._id}`);
+  }
+  setQuizCompleted(true);
+  live.submitted();
+  toast.info("Time's up! Your answers have been submitted.");
+  setTimeout(() => { if (onCloseExercise) onCloseExercise(); else router.back(); }, 1000);
+};
+
+  // ── NEW: send isTestSubmission:true on final MCQ submit ──────────────────
+const sendFinalSubmission = async () => {
+  // In embedded/section mode the parent SectionBasedTestPage fires isTestSubmission
+  if (embedded) return;
+  try {
+    const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
+    const fCId = urlCourseId || courseId;
+    if (!fCId || !exerciseData?._id) return;
+
+    const lastQ = questions[questions.length - 1]; // always use the real last question
+    if (!lastQ) return;
+
+    const fd = new FormData();
+    fd.append('courseId', fCId);
+    fd.append('exerciseId', exerciseData._id);
+    fd.append('questionId', lastQ._id);
+    fd.append('code', '');
+    fd.append('score', '0');
+    fd.append('status', 'submitted');
+    fd.append('category', urlCategory || category);
+    fd.append('subcategory', urlSubcategory || subcategory);
+    fd.append('nodeId', nodeId || '');
+    fd.append('nodeName', exerciseData.exerciseInformation?.exerciseName || 'MCQ Assessment');
+    fd.append('nodeType', nodeType || 'mcq');
+    fd.append('language', 'text');
+    fd.append('isTestSubmission', 'true');  // ← THE KEY FLAG
+    // Submit type: AUTO when a violation/timeout set a reason, else manual USER.
+    const _autoReason = autoReasonRef.current;
+    fd.append('submitType', _autoReason ? 'AUTO' : 'USER');
+    fd.append('autoSubmitReason', _autoReason || '');
+
+    await fetch('https://lms-server-ym1q.onrender.com/courses/answers/submit', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: fd,
+    });
+  } catch (e) {
+    console.error('Error sending final submission flag:', e);
+  }
+};
+
+  // ── Face proctoring: warn on no-face / multiple persons, then auto-submit ──
+  useFaceProctor({
+    isActive: !embedded && quizStarted && securityAgreed && !!securityConfig.enableFaceVerification,
+    multiFaceEnabled: !!securityConfig.multipleFaceDetection,
+    multiFaceLimit: securityConfig.faceWarningLimit ?? 3,
+    noFaceEnabled: !!securityConfig.faceMonitoringDetection,
+    noFaceLimit: securityConfig.faceMonitoringWarningLimit ?? 3,
+    intervalSeconds: 10,
+    onWarning: ({ reason, count, limit }) => {
+      toast.warn(`⚠️ ${reason} (${count}/${limit}). Continued violations will auto-submit.`, { toastId: `face-warn-${count}`, autoClose: 4000 });
+    },
+    onLimitReached: (reason) => {
+      toast.error(`${reason} — submitting.`, { toastId: 'face-terminate' });
+      autoReasonRef.current = reason;
+      handleTimeUp();
+    },
+  });
+
 
   useEffect(()=>{
     const fetch_=async()=>{
       try{
         setLoading(true);
-        // Embedded mode: use the questions already filtered by the parent, skip API fetch
-        if(embedded&&propExercise){
-          let qs=[...propExercise.questions];
-          if(propExercise.questionConfiguration?.mcqQuestionConfiguration?.shuffleQuestions) qs=qs.sort(()=>Math.random()-0.5);
+
+        // ── Embedded mode: section-based test passes pre-filtered questions ──
+        // Skip API re-fetch so we don't overwrite the section-specific question list.
+        if(embedded && propExercise){
+          const ex=propExercise as ExerciseData;
+          setExerciseData(ex);
+          const dur=ex.exerciseInformation?.totalDuration||0;
+          setTotalDuration(dur); if(dur>0) startTimer(dur);
+          let qs=[...(ex.questions||[])];
+          if(ex.questionConfiguration?.mcqQuestionConfiguration?.shuffleQuestions) qs=qs.sort(()=>Math.random()-0.5);
           setQuestions(qs); setFilteredQuestions(qs);
-          const d=propExercise.exerciseInformation?.totalDuration||0;
-          setTotalDuration(d); if(d>0) startTimer(d);
-          setQuizStarted(true); setExerciseData(propExercise);
-          setLoading(false); return;
+          // Retest support (section mode): load a local draft if present,
+          // otherwise pre-fill the previously submitted answers from the backend.
+          const savedEmb=localStorage.getItem(`mcq_answers_${ex._id}`);
+          if(savedEmb){ try{ const m=new Map(Object.entries(JSON.parse(savedEmb))) as Map<string,Answer>; answersRef.current=m; setAnswers(m); }catch(e){} }
+          if(qs[0]) loadAnswersForQuestion(qs[0], answersRef.current);
+          if(!savedEmb) prefillPreviousAnswers(qs, ex._id);
+          // Security already handled by parent SectionBasedTestPage — skip modal
+          setSecurityConfig(normalizeSecurityConfig(ex.securitySettings||{}));
+          setShowSecurityModal(false);
+          setSecurityAgreed(true);
+          setQuizStarted(true);
+          setLoading(false);
+          return;
         }
+
+        // ── Normal (standalone) mode: fetch exercise from API ──────────────
         const finalId=urlExerciseId||propExercise?._id;
         if(!finalId){ toast.error('Exercise ID is required'); setLoading(false); return; }
         const token=localStorage.getItem('smartcliff_token')||localStorage.getItem('token')||'';
@@ -613,18 +866,31 @@ const MCQ = ({ exercise:propExercise, courseId='', courseName='Course', nodeId='
           setQuestions(qs); setFilteredQuestions(qs);
           const saved=localStorage.getItem(`mcq_answers_${finalId}`);
           if(saved){ try{ const m=new Map(Object.entries(JSON.parse(saved))) as Map<string,Answer>; answersRef.current=m; setAnswers(m); if(qs[0]) loadAnswersForQuestion(qs[0],m); }catch(e){} }
+          else { prefillPreviousAnswers(qs, finalId); }
           const savedF=localStorage.getItem(`mcq_flagged_${finalId}`);
           if(savedF){ try{ setFlaggedQuestions(new Set(JSON.parse(savedF))); }catch(e){} }
-          setQuizStarted(true);
+          // Resolve security settings and show agreement modal before starting
+          const sec = normalizeSecurityConfig(ex.securitySettings || {});
+          setSecurityConfig(sec);
+          setShowSecurityModal(true); // show modal; quiz starts after agreement
         }
       }catch(e){
         toast.error('Failed to load assessment');
-        if(propExercise){ let qs=[...propExercise.questions]; if(propExercise.questionConfiguration?.mcqQuestionConfiguration?.shuffleQuestions) qs=qs.sort(()=>Math.random()-0.5); setQuestions(qs); setFilteredQuestions(qs); const d=propExercise.exerciseInformation?.totalDuration||0; setTotalDuration(d); if(d>0) startTimer(d); setQuizStarted(true); setExerciseData(propExercise); }
+        if(propExercise){
+          let qs=[...propExercise.questions];
+          if(propExercise.questionConfiguration?.mcqQuestionConfiguration?.shuffleQuestions) qs=qs.sort(()=>Math.random()-0.5);
+          setQuestions(qs); setFilteredQuestions(qs);
+          const d=propExercise.exerciseInformation?.totalDuration||0; setTotalDuration(d); if(d>0) startTimer(d);
+          const sec = normalizeSecurityConfig(propExercise.securitySettings || {});
+          setSecurityConfig(sec);
+          setShowSecurityModal(true);
+          setExerciseData(propExercise);
+        }
       }finally{ setLoading(false); }
     };
     fetch_();
     return ()=>{ if(timerRef.current) clearInterval(timerRef.current); };
-  },[urlExerciseId,propExercise]);
+  },[urlExerciseId,propExercise,embedded]);
 
   const loadAnswersForQuestion=(q:MCQQuestion,map:Map<string,Answer>)=>{
     setSelectedRadioOption(null); setSelectedCheckboxOptions(new Set()); setSelectedDropdownOption(null); setTrueFalseValue(null); setShortAnswerText(''); setEssayText(''); setNumericValue(null); setMatchingAnswers([]); setOrderingAnswers([]);
@@ -643,10 +909,83 @@ const MCQ = ({ exercise:propExercise, courseId='', courseName='Course', nodeId='
     if(scrollRef.current) scrollRef.current.scrollTop=0;
   };
 
+  // Retest support: when there's no local draft (e.g. an approved retest, where
+  // localStorage was cleared on the previous submit), pre-fill each question with
+  // the student's previously SUBMITTED answer from the backend (editable).
+  const prefillPreviousAnswers = async (qs: MCQQuestion[], exId: string) => {
+    try {
+      const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
+      const fCId = urlCourseId || courseId;
+      const fCat = urlCategory || category;
+      if (!token || !fCId || !exId) return;
+      const m = new Map<string, Answer>(answersRef.current);
+      let changed = false;
+      for (const q of qs) {
+        try {
+          const res = await fetch(`https://lms-server-ym1q.onrender.com/courses/answers/previous-submission?courseId=${fCId}&exerciseId=${exId}&questionId=${q._id}&category=${fCat}`, { headers: { Authorization: `Bearer ${token}` } });
+          if (!res.ok) continue;
+          const data = await res.json();
+          const ca: string = (data?.success && data?.data?.codeAnswer != null) ? String(data.data.codeAnswer) : '';
+          if (ca === '') continue;
+          const marks = q.mcqQuestionScore || 10;
+          switch (q.mcqQuestionType) {
+            case 'multiple_choice':
+            case 'dropdown': {
+              const opt = q.mcqQuestionOptions?.find(o => o.text === ca);
+              if (opt) { const ic = opt.isCorrect === true; m.set(q._id, { questionId: q._id, optionId: opt._id, optionText: opt.text, isCorrect: ic, score: ic ? marks : 0, status: ic ? 'solved' : 'attempted' }); changed = true; }
+              break;
+            }
+            case 'multiple_select': {
+              const opt = q.mcqQuestionOptions?.find(o => o.text === ca);
+              if (opt) { const ic = opt.isCorrect === true; m.set(`${q._id}_${opt._id}`, { questionId: q._id, optionId: opt._id, optionText: opt.text, isCorrect: ic, score: ic ? marks : 0, status: 'attempted' }); changed = true; }
+              break;
+            }
+            case 'true_false': {
+              const v = ca === 'true'; const ic = q.trueFalseAnswer === v;
+              m.set(q._id, { questionId: q._id, booleanAnswer: v, isCorrect: ic, score: ic ? marks : 0, status: ic ? 'solved' : 'attempted' }); changed = true;
+              break;
+            }
+            case 'short_answer':
+            case 'essay': {
+              m.set(q._id, { questionId: q._id, textAnswer: ca, isCorrect: false, score: 0, status: 'submitted' }); changed = true;
+              break;
+            }
+            case 'numeric': {
+              const num = parseFloat(ca);
+              if (!isNaN(num)) { const tol = q.numericTolerance || 0; const ic = Math.abs(num - (q.numericAnswer || 0)) <= tol; m.set(q._id, { questionId: q._id, numericAnswer: num, isCorrect: ic, score: ic ? marks : 0, status: ic ? 'solved' : 'attempted' }); changed = true; }
+              break;
+            }
+            case 'matching': {
+              try { const arr = JSON.parse(ca); if (Array.isArray(arr)) { m.set(q._id, { questionId: q._id, matchingAnswers: arr, isCorrect: false, score: 0, status: 'attempted' }); changed = true; } } catch { /* ignore */ }
+              break;
+            }
+            case 'ordering': {
+              try { const arr = JSON.parse(ca); if (Array.isArray(arr)) { m.set(q._id, { questionId: q._id, orderingAnswers: arr, isCorrect: false, score: 0, status: 'attempted' }); changed = true; } } catch { /* ignore */ }
+              break;
+            }
+          }
+        } catch { /* ignore one question */ }
+      }
+      if (changed) {
+        setAnswers(m); answersRef.current = m;
+        const cur = filteredQuestions[currentQuestionIndex] || qs[0];
+        if (cur) loadAnswersForQuestion(cur, m);
+      }
+    } catch { /* ignore */ }
+  };
+
   useEffect(()=>{
     if(selectedDifficulty){ const f=questions.filter(q=>q.mcqQuestionDifficulty===selectedDifficulty); setFilteredQuestions(f); if(currentQuestionIndex>=f.length){ setCurrentQuestionIndex(0); if(f.length>0) loadAnswersForQuestion(f[0],answersRef.current); } }
     else { setFilteredQuestions(questions); }
   },[selectedDifficulty,questions]);
+
+  // Safety: keep the active index within bounds whenever the list changes,
+  // so the current question is never undefined during render.
+  useEffect(()=>{
+    if(filteredQuestions.length>0 && currentQuestionIndex>=filteredQuestions.length){
+      setCurrentQuestionIndex(0);
+    }
+  },[filteredQuestions.length,currentQuestionIndex]);
 
   const persistAnswers=(updated:Map<string,Answer>)=>{ setAnswers(updated); answersRef.current=updated; if(exerciseData?._id) localStorage.setItem(`mcq_answers_${exerciseData._id}`,JSON.stringify(Object.fromEntries(updated))); };
 
@@ -674,16 +1013,16 @@ const MCQ = ({ exercise:propExercise, courseId='', courseName='Course', nodeId='
 
   const toggleFlag=(index:number)=>{ const actual=filteredQuestions[index]; const ai=questions.findIndex(q=>q._id===actual._id); setFlaggedQuestions(prev=>{ const next=new Set(prev); next.has(ai)?next.delete(ai):next.add(ai); if(exerciseData?._id) localStorage.setItem(`mcq_flagged_${exerciseData._id}`,JSON.stringify([...next])); return next; }); };
 
+  // ── Live Dashboard emitter (student → teacher). assessmentId = exercise _id. ──
+  const liveAssessmentId = quizStarted ? (((exerciseData as any)?._id) || ((propExercise as any)?._id) || "") : "";
+  const live = useExamLiveEmitter(liveAssessmentId, questions.length);
+
   const saveCurrentAnswer=async()=>{
-    // In embedded mode the parent (SectionBasedTestPage) owns submission — skip API calls here.
-    if(embedded) return;
     if(!filteredQuestions[currentQuestionIndex]||!exerciseData) return;
     const q=filteredQuestions[currentQuestionIndex];
     try{
       const token=localStorage.getItem('smartcliff_token')||localStorage.getItem('token')||'';
-      // When embedded the URL may carry a stale courseId from a previous page; always
-      // prefer the explicit prop so we never fire with a wrong courseId.
-      const fCId=embedded?courseId:(urlCourseId||courseId); const fCat=urlCategory||category; const fSub=urlSubcategory||subcategory;
+      const fCId=urlCourseId||courseId; const fCat=urlCategory||category; const fSub=urlSubcategory||subcategory;
       if(!fCId||!exerciseData._id) return;
       const marks=exerciseData.questionConfiguration?.mcqQuestionConfiguration?.marksPerQuestion||q.mcqQuestionScore||10;
       const sub=async(fd:FormData)=>{ await fetch('https://lms-server-ym1q.onrender.com/courses/answers/submit',{method:'POST',headers:{'Authorization':`Bearer ${token}`},body:fd}); };
@@ -699,6 +1038,8 @@ const MCQ = ({ exercise:propExercise, courseId='', courseName='Course', nodeId='
         case 'matching': if(matchingAnswers.length>0){ const fd=base('matching','json'); fd.append('code',JSON.stringify(matchingAnswers)); fd.append('score','0'); fd.append('status','attempted'); await sub(fd); } break;
         case 'ordering': if(orderingAnswers.length>0){ const fd=base('ordering','json'); fd.append('code',JSON.stringify(orderingAnswers)); fd.append('score','0'); fd.append('status','attempted'); await sub(fd); } break;
       }
+      // Live dashboard: report this question as answered (only if it actually has an answer).
+      if(isQuestionAnswered(q)) live.answerSaved(q._id, undefined, 0);
     }catch(e){ console.error('Error saving answer:',e); }
   };
 
@@ -715,11 +1056,28 @@ const MCQ = ({ exercise:propExercise, courseId='', courseName='Course', nodeId='
   };
 
   const getAnsweredCount=()=>questions.filter(isQuestionAnswered).length;
-  const submitQuiz=async()=>{ if(quizCompleted||isSubmitting) return; setIsSubmitting(true); setShowSubmitDialog(false); await saveCurrentAnswer(); setQuizCompleted(true); setIsSubmitting(false); if(timerRef.current) clearInterval(timerRef.current); if(exerciseData?._id){ localStorage.removeItem(`mcq_answers_${exerciseData._id}`); localStorage.removeItem(`mcq_flagged_${exerciseData._id}`); } };
-  const handleSubmitClick=()=>{ const ua=questions.length-getAnsweredCount(); if(ua>0) setShowSubmitDialog(true); else submitQuiz(); };
-  const handlePrev=async()=>{ if(currentQuestionIndex<=0) return; await saveCurrentAnswer(); loadAnswersForQuestion(filteredQuestions[currentQuestionIndex-1],answersRef.current); setCurrentQuestionIndex(p=>p-1); };
-  const handleNext=async()=>{ await saveCurrentAnswer(); if(currentQuestionIndex<filteredQuestions.length-1){ loadAnswersForQuestion(filteredQuestions[currentQuestionIndex+1],answersRef.current); setCurrentQuestionIndex(p=>p+1); } };
-  const handleJumpToQuestion=async(index:number)=>{ if(index<0||index>=filteredQuestions.length) return; await saveCurrentAnswer(); loadAnswersForQuestion(filteredQuestions[index],answersRef.current); setCurrentQuestionIndex(index); setShowSubmitDialog(false); };
+const submitQuiz = async () => {
+  if (quizCompleted || isSubmitting) return;
+  setIsSubmitting(true);
+  setShowSubmitDialog(false);
+  await saveCurrentAnswer();
+  await sendFinalSubmission();
+  stopRecording(); // stop proctoring recording on submit
+  if (timerRef.current) clearInterval(timerRef.current);
+  if (exerciseData?._id) {
+    localStorage.removeItem(`mcq_answers_${exerciseData._id}`);
+    localStorage.removeItem(`mcq_flagged_${exerciseData._id}`);
+  }
+  setQuizCompleted(true);
+  live.submitted();
+  toast.success('Exercise submitted successfully');
+  setTimeout(() => { if (onCloseExercise) onCloseExercise(); else router.back(); }, 800);
+};  const handleSubmitClick=()=>{ const ua=questions.length-getAnsweredCount(); if(ua>0) setShowSubmitDialog(true); else submitQuiz(); };
+  // Section mode: save the current answer only — stay on the question, never advance the section.
+  const handleSubmitQuestion=async()=>{ await saveCurrentAnswer(); toast.success('Answer saved'); };
+  const handlePrev=async()=>{ if(currentQuestionIndex<=0){ if(onCrossPrev){ await saveCurrentAnswer(); onCrossPrev(); } return; } await saveCurrentAnswer(); live.questionChanged(filteredQuestions[currentQuestionIndex]?._id||null, filteredQuestions[currentQuestionIndex-1]?._id||null); loadAnswersForQuestion(filteredQuestions[currentQuestionIndex-1],answersRef.current); setCurrentQuestionIndex(p=>p-1); };
+  const handleNext=async()=>{ await saveCurrentAnswer(); if(currentQuestionIndex<filteredQuestions.length-1){ live.questionChanged(filteredQuestions[currentQuestionIndex]?._id||null, filteredQuestions[currentQuestionIndex+1]?._id||null); loadAnswersForQuestion(filteredQuestions[currentQuestionIndex+1],answersRef.current); setCurrentQuestionIndex(p=>p+1); } else if(onCrossNext){ onCrossNext(); } };
+  const handleJumpToQuestion=async(index:number)=>{ if(index<0||index>=filteredQuestions.length) return; await saveCurrentAnswer(); live.questionChanged(filteredQuestions[currentQuestionIndex]?._id||null, filteredQuestions[index]?._id||null); loadAnswersForQuestion(filteredQuestions[index],answersRef.current); setCurrentQuestionIndex(index); setShowSubmitDialog(false); };
   const handleBack=()=>{ if(onCloseExercise) onCloseExercise(); else router.back(); };
   const handleTimeUpConfirm=()=>{ setShowTimeUpDialog(false); setQuizCompleted(true); };
 
@@ -743,8 +1101,75 @@ const MCQ = ({ exercise:propExercise, courseId='', courseName='Course', nodeId='
   };
   const flaggedForSidebar=new Set(Array.from(flaggedQuestions).map(gi=>questions[gi]?._id).filter(id=>id&&filteredQuestions.some(q=>q._id===id)).map(id=>filteredQuestions.findIndex(q=>q._id===id)).filter(i=>i!==-1));
 
+  const handleSecurityAgree = () => {
+    setShowSecurityModal(false);
+    // If face verification required → show that gate first, then start
+    if (securityConfig.enableFaceVerification) {
+      setShowFaceVerification(true);
+    } else {
+      beginAssessment();
+    }
+  };
+
+  const beginAssessment = () => {
+    setSecurityAgreed(true);
+    const dur = exerciseData?.exerciseInformation?.totalDuration || 0;
+    if (dur > 0) startTimer(dur);
+    setQuizStarted(true);
+
+    const cId    = urlCourseId || courseId || '';
+    const eId    = exerciseData?._id || '';
+    const sId    = typeof window !== 'undefined'
+      ? (localStorage.getItem('smartcliff_userId') || localStorage.getItem('userId') || 'student')
+      : 'student';
+    const subcat = urlSubcategory || subcategory || 'assessments';
+    const base   = { courseId: cId, exerciseId: eId, studentId: sId, category: 'You_Do', subcategory: subcat };
+
+    const hasScreen = securityConfig.screenRecordingEnabled;
+    const hasFace   = securityConfig.enableFaceVerification;
+
+    if (hasScreen) {
+      // Screen recording — include camera PiP if face verification is also on
+      startRecording({ ...base, withCamera: !!hasFace })
+        .catch(err => console.warn('Screen recording start failed:', err));
+    } else if (hasFace) {
+      // Face-only recording (no screen capture)
+      startRecording({ ...base, cameraOnly: true })
+        .catch(err => console.warn('Camera recording start failed:', err));
+    }
+    // if neither → no recording
+  };
+
   if(loading) return <LoadingScreen />;
-  if(quizCompleted) return <><ToastContainer position="top-right" /><CompletionScreen onClose={handleBack} timeUp={timeLeft===0} /></>;
+
+  // Security agreement gate
+  if(showSecurityModal) return (
+    <>
+      <ToastContainer position="top-right" />
+      <MCQSecurityModal
+        isOpen={true}
+        sec={securityConfig}
+        onAgree={handleSecurityAgree}
+        onCancel={() => { setShowSecurityModal(false); if(onCloseExercise) onCloseExercise(); else router.back(); }}
+      />
+    </>
+  );
+
+  // Face verification gate
+  if(showFaceVerification) return (
+    <>
+      <ToastContainer position="top-right" />
+      <FaceVerificationGate
+        isOpen={true}
+        onVerified={() => { setShowFaceVerification(false); beginAssessment(); }}
+        onCancel={() => { setShowFaceVerification(false); if(onCloseExercise) onCloseExercise(); else router.back(); }}
+      />
+    </>
+  );
+
+  // In section mode never paint the full-screen "completed" placeholder — that
+  // showed as a blank gray screen inside the section. The parent advances instead.
+  if(quizCompleted) return embedded ? null : <div style={{ minHeight:'100vh', background:T.pageBg }}><ToastContainer position="top-right" /></div>;
   if(!quizStarted||filteredQuestions.length===0) return (
     <div style={{ minHeight:'100vh',background:T.pageBg,display:'flex',alignItems:'center',justifyContent:'center',padding:24 }}>
       <div style={{ textAlign:'center',maxWidth:320 }}>
@@ -755,7 +1180,10 @@ const MCQ = ({ exercise:propExercise, courseId='', courseName='Course', nodeId='
     </div>
   );
 
-  const cq=filteredQuestions[currentQuestionIndex];
+  // Guard against a stale out-of-range index (e.g. after a difficulty filter
+  // shrinks the list before the index effect resets it) — filteredQuestions has
+  // ≥1 item here (checked above), so [0] is always a safe fallback.
+  const cq=filteredQuestions[currentQuestionIndex] ?? filteredQuestions[0];
   const exerciseTitle=exerciseData?.exerciseInformation?.exerciseName||urlExerciseName||'Assessment';
   const finalCategory=urlCategory||category;
   const finalSubcategory=urlSubcategory||subcategory;
@@ -790,57 +1218,90 @@ const MCQ = ({ exercise:propExercise, courseId='', courseName='Course', nodeId='
       `}</style>
 
       <ToastContainer position="top-right" />
-      {showTimeUpDialog&&<TimeUpDialog onConfirm={handleTimeUpConfirm} />}
-      {showSubmitDialog&&<SubmitDialog unansweredCount={unansweredCount} flaggedCount={flaggedQuestions.size} unansweredIndices={unansweredIndices} flaggedIndices={flaggedIndices} requiredUnansweredIndices={requiredUnansweredIndices} onConfirm={submitQuiz} onCancel={()=>setShowSubmitDialog(false)} onNavigateToQuestion={handleJumpToQuestion} />}
+      {/* Live camera preview — shown whenever face verification is enabled and quiz is active */}
+      <LiveCameraPreview isActive={quizStarted && securityAgreed && !!securityConfig.enableFaceVerification} />
+      {/* Live Screen Monitoring — standalone MCQ (parent owns it in section mode) */}
+      <ScreenShareGuard
+        assessmentId={(((exerciseData as any)?._id) || ((propExercise as any)?._id) || "")}
+        active={!embedded && quizStarted && securityAgreed}
+        courseId={urlCourseId || courseId}
+        waitForSharedStream={!!securityConfig.screenRecordingEnabled}
+      />
 
-      {/* ═══ TOP BAR (fixed height) ═══ */}
-      <div style={{ flexShrink:0,height:TOP_BAR_H,background:T.bg,borderBottom:`1px solid ${T.border}`,display:'flex',flexDirection:'column',zIndex:50 }}>
-        <div style={{ flex:1,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 24px',gap:12 }}>
-          {/* Left */}
-          <div style={{ display:'flex',alignItems:'center',gap:0,minWidth:0,flex:1 }}>
-            <button onClick={handleBack} className="btn-prev"
-              style={{ display:'flex',alignItems:'center',gap:6,padding:'6px 12px',borderRadius:8,border:`1.5px solid ${T.border}`,background:'transparent',color:T.textSub,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',transition:'all 0.13s',flexShrink:0,marginRight:14 }}>
-              <ArrowLeft size={13} /> Back
-            </button>
-            <div style={{ display:'flex',alignItems:'center',gap:7,flexShrink:0,marginRight:14 }}>
-              <div style={{ width:28,height:28,borderRadius:8,background:`linear-gradient(135deg,${T.orange},${T.orangeDark})`,display:'flex',alignItems:'center',justifyContent:'center',boxShadow:`0 3px 10px ${T.orangeGlow}` }}><GraduationCap size={13} color="#fff" /></div>
-              <span style={{ fontSize:13,fontWeight:800,color:T.textMain,letterSpacing:'-0.02em' }}>SmartCliff</span>
-            </div>
-            <div style={{ width:1,height:18,background:T.border,marginRight:14,flexShrink:0 }} />
-            <nav style={{ display:'flex',alignItems:'center',gap:0,minWidth:0,overflow:'hidden' }}>
-              {[{label:courseName!=='Course'&&courseName?courseName:null},{label:finalCategory!=='Course'?finalCategory.replace(/_/g,' '):null},{label:finalSubcategory},{label:exerciseTitle,active:true}].filter(b=>b.label).map((b,i,arr)=>(
-                <React.Fragment key={i}>
-                  <span style={{ fontSize:12,fontWeight:b.active?700:400,color:b.active?T.orange:T.textMuted,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:b.active?200:110 }}>{b.label}</span>
-                  {i<arr.length-1&&<ChevronRight size={12} style={{ color:T.border,margin:'0 5px',flexShrink:0 }} />}
-                </React.Fragment>
-              ))}
-            </nav>
-          </div>
-          {/* Right */}
-          <div style={{ display:'flex',alignItems:'center',gap:10,flexShrink:0 }}>
-            {totalDuration>0&&(
-              <div style={{ display:'flex',alignItems:'center',gap:7,padding:'5px 11px',borderRadius:99,background:timerIsDanger?T.redLight:timerIsWarning?T.amberLight:T.orangeLight,border:`1.5px solid ${timerCol}28`,animation:timerIsDanger?'pulse 1s ease-in-out infinite':'none' }}>
-                <Timer size={12} style={{ color:timerCol }} />
-                <span style={{ fontFamily:'monospace',fontWeight:800,fontSize:13,color:timerCol,letterSpacing:'0.04em' }}>{fmtClock(timeLeft)}</span>
-                <div style={{ width:36,height:3,borderRadius:99,background:`${timerCol}22`,overflow:'hidden' }}>
-                  <div style={{ height:'100%',width:`${timerPct}%`,background:timerCol,borderRadius:99,transition:'width 1s linear' }} />
-                </div>
-              </div>
-            )}
-            <div style={{ width:1,height:18,background:T.border }} />
-            {[{v:questions.length,label:'Total',col:T.textSub},{v:answeredCount,label:'Done',col:T.green},{v:unansweredCount,label:'Left',col:T.textMuted},{v:flaggedQuestions.size,label:'Flagged',col:T.amber}].map(({v,label,col})=>(
-              <div key={label} style={{ display:'flex',alignItems:'center',gap:3 }}>
-                <span style={{ fontSize:14,fontWeight:800,color:col }}>{v}</span>
-                <span style={{ fontSize:10,color:T.textHint,fontWeight:600 }}>{label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-        {/* Progress line */}
-        <div style={{ height:2,background:T.borderLight }}>
-          <div style={{ height:'100%',width:`${progressPct}%`,background:`linear-gradient(90deg,${T.orange},${T.orangeDark})`,transition:'width 0.5s ease' }} />
-        </div>
+      {/* ── Proctor → student messaging (floating chat) ── */}
+      {!embedded && (
+        <StudentMessageChat assessmentId={(((exerciseData as any)?._id) || ((propExercise as any)?._id) || "")} />
+      )}
+      {showSubmitDialog&&<SubmitDialog unansweredCount={unansweredCount} flaggedCount={flaggedQuestions.size} unansweredIndices={unansweredIndices} flaggedIndices={flaggedIndices} requiredUnansweredIndices={requiredUnansweredIndices} onConfirm={submitQuiz} onCancel={()=>setShowSubmitDialog(false)} onNavigateToQuestion={handleJumpToQuestion} />}
+ {/* ── Exercise Info Modals ── ADD HERE ── */}
+  <ExerciseInfoModals
+    exercise={exerciseData}
+    showDetailsModal={showDetailsModal}
+    setShowDetailsModal={setShowDetailsModal}
+    showOverviewModal={showOverviewModal}
+    setShowOverviewModal={setShowOverviewModal}
+    solvedQuestions={new Set(
+      questions
+        .map((q, i) => ({ q, i }))
+        .filter(({ q }) => isQuestionAnswered(q))
+        .map(({ i }) => i)
+    )}
+  />
+
+    {/* ═══ TOP BAR (fixed height) ═══ */}
+<div style={{ flexShrink:0,height:TOP_BAR_H,background:T.bg,borderBottom:`1px solid ${T.border}`,display:'flex',flexDirection:'column',zIndex:50 }}>
+  <div style={{ flex:1,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 24px',gap:12 }}>
+    
+    {/* Left — back + logo + breadcrumb */}
+    <div style={{ display:'flex',alignItems:'center',gap:0,minWidth:0,flex:1 }}>
+      <div style={{ display:'flex',alignItems:'center',gap:7,flexShrink:0,marginRight:14 }}>
+        <div style={{ width:28,height:28,borderRadius:8,background:`linear-gradient(135deg,${T.orange},${T.orangeDark})`,display:'flex',alignItems:'center',justifyContent:'center',boxShadow:`0 3px 10px ${T.orangeGlow}` }}><GraduationCap size={13} color="#fff" /></div>
+        <span style={{ fontSize:13,fontWeight:800,color:T.textMain,letterSpacing:'-0.02em' }}>SmartCliff</span>
       </div>
+      <div style={{ width:1,height:18,background:T.border,marginRight:14,flexShrink:0 }} />
+      <nav style={{ display:'flex',alignItems:'center',gap:0,minWidth:0,overflow:'hidden' }}>
+        {[{label:courseName!=='Course'&&courseName?courseName:null},{label:finalCategory!=='Course'?finalCategory.replace(/_/g,' '):null},{label:finalSubcategory},{label:exerciseTitle,active:true}].filter(b=>b.label).map((b,i,arr)=>(
+          <React.Fragment key={i}>
+            <span style={{ fontSize:12,fontWeight:b.active?700:400,color:b.active?T.orange:T.textMuted,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:b.active?200:110 }}>{b.label}</span>
+            {i<arr.length-1&&<ChevronRight size={12} style={{ color:T.border,margin:'0 5px',flexShrink:0 }} />}
+          </React.Fragment>
+        ))}
+      </nav>
+    </div>
+
+    {/* Right — buttons + timer + stats */}
+    <div style={{ display:'flex',alignItems:'center',gap:10,flexShrink:0 }}>
+
+      {/* ── Exercise Info Buttons ── ADD HERE ── */}
+      <ExerciseInfoButtons
+        onDetailsClick={() => setShowDetailsModal(true)}
+        onOverviewClick={() => setShowOverviewModal(true)}
+        isGraded={exerciseData?.isGraded !== false}
+      />
+
+      <div style={{ width:1,height:18,background:T.border }} />
+
+      {/* Stats — Total / Done / Left / Flagged */}
+      {[
+        {v:questions.length,    label:'Total',  col:T.textSub},
+        {v:answeredCount,       label:'Done',   col:T.green},
+        {v:unansweredCount,     label:'Left',   col:T.textMuted},
+        {v:flaggedQuestions.size,label:'Flagged',col:T.amber}
+      ].map(({v,label,col})=>(
+        <div key={label} style={{ display:'flex',alignItems:'center',gap:3 }}>
+          <span style={{ fontSize:14,fontWeight:800,color:col }}>{v}</span>
+          <span style={{ fontSize:10,color:T.textHint,fontWeight:600 }}>{label}</span>
+        </div>
+      ))}
+
+    </div>
+  </div>
+
+  {/* Progress line */}
+  <div style={{ height:2,background:T.borderLight }}>
+    <div style={{ height:'100%',width:`${progressPct}%`,background:`linear-gradient(90deg,${T.orange},${T.orangeDark})`,transition:'width 0.5s ease' }} />
+  </div>
+</div>
 
       {/* ═══ BODY ═══ */}
       <div style={{ flex:1,minHeight:0,overflow:'hidden',display:'flex' }}>
@@ -862,13 +1323,17 @@ const MCQ = ({ exercise:propExercise, courseId='', courseName='Course', nodeId='
                 <div style={{ width:5,height:5,borderRadius:'50%',background:diff.dot }} />
                 <span style={{ fontSize:10,fontWeight:700,color:diff.text,textTransform:'capitalize' as const }}>{cq.mcqQuestionDifficulty}</span>
               </div>
-              <div style={{ padding:'3px 9px',borderRadius:99,background:qt.bg }}>
-                <span style={{ fontSize:10,fontWeight:700,color:qt.color }}>{qt.label}</span>
-              </div>
-              <div style={{ display:'flex',alignItems:'center',gap:3,padding:'3px 9px',borderRadius:99,background:T.amberLight }}>
-                <Award size={10} style={{ color:T.amber }} />
-                <span style={{ fontSize:10,fontWeight:700,color:T.amber }}>{cq.mcqQuestionScore} pts</span>
-              </div>
+              {cq.mcqQuestionType !== 'multiple_choice' && (
+                <div style={{ padding:'3px 9px',borderRadius:99,background:qt.bg }}>
+                  <span style={{ fontSize:10,fontWeight:700,color:qt.color }}>{qt.label}</span>
+                </div>
+              )}
+              {exerciseData?.isGraded !== false && (
+                <div style={{ display:'flex',alignItems:'center',gap:3,padding:'3px 9px',borderRadius:99,background:T.amberLight }}>
+                  <Award size={10} style={{ color:T.amber }} />
+                  <span style={{ fontSize:10,fontWeight:700,color:T.amber }}>{exerciseData?.questionConfiguration?.mcqQuestionConfiguration?.marksPerQuestion || cq.mcqQuestionScore} marks</span>
+                </div>
+              )}
               {cq.mcqQuestionRequired&&(
                 <div style={{ display:'flex',alignItems:'center',gap:3,padding:'3px 9px',borderRadius:99,background:T.redLight }}>
                   <AlertCircle size={9} style={{ color:T.red }} />
@@ -920,10 +1385,6 @@ const MCQ = ({ exercise:propExercise, courseId='', courseName='Course', nodeId='
 
         {/* Right: Compact question panel */}
         <div style={{ flexShrink:0,width:270,minHeight:0,borderLeft:`1px solid ${T.border}`,background:T.bg,overflowY:'auto',padding:'16px 14px 20px 14px' }} className="mcq-s">
-          <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12,paddingBottom:10,borderBottom:`1px solid ${T.borderLight}` }}>
-            <div style={{ display:'flex',alignItems:'center',gap:6 }}><Grid3x3 size={13} style={{ color:T.orange }} /><span style={{ fontSize:13,fontWeight:800,color:T.textMain }}>Questions</span></div>
-            <span style={{ fontSize:12,fontWeight:700,color:T.orange,background:T.orangeLight,padding:'3px 9px',borderRadius:99 }}>{answeredCount}/{questions.length}</span>
-          </div>
           <QuestionPanel
             questions={filteredQuestions} currentIndex={currentQuestionIndex}
             answers={answers} flaggedQuestions={flaggedForSidebar} onJump={handleJumpToQuestion}
@@ -939,8 +1400,8 @@ const MCQ = ({ exercise:propExercise, courseId='', courseName='Course', nodeId='
       <div style={{ flexShrink:0,height:BOTTOM_BAR_H,background:T.bg,borderTop:`1px solid ${T.border}`,display:'flex',alignItems:'center',padding:'0 28px',gap:16,zIndex:50 }}>
 
         {/* Previous */}
-        <button onClick={handlePrev} disabled={currentQuestionIndex===0} className="btn-prev"
-          style={{ display:'flex',alignItems:'center',gap:7,padding:'10px 20px',borderRadius:10,border:`1.5px solid ${T.border}`,background:'transparent',color:currentQuestionIndex===0?T.textHint:T.textSub,fontSize:13,fontWeight:600,cursor:currentQuestionIndex===0?'not-allowed':'pointer',fontFamily:'inherit',transition:'all 0.13s',flexShrink:0 }}>
+        <button onClick={handlePrev} disabled={currentQuestionIndex===0&&!onCrossPrev} className="btn-prev"
+          style={{ display:'flex',alignItems:'center',gap:7,padding:'10px 20px',borderRadius:10,border:`1.5px solid ${T.border}`,background:'transparent',color:(currentQuestionIndex===0&&!onCrossPrev)?T.textHint:T.textSub,fontSize:13,fontWeight:600,cursor:(currentQuestionIndex===0&&!onCrossPrev)?'not-allowed':'pointer',fontFamily:'inherit',transition:'all 0.13s',flexShrink:0 }}>
           <ChevronLeft size={15} /> Previous
         </button>
 
@@ -957,13 +1418,21 @@ const MCQ = ({ exercise:propExercise, courseId='', courseName='Course', nodeId='
           })}
         </div>
 
+        {/* Section mode: explicit per-question save (does NOT move) */}
+        {embedded&&(
+          <button onClick={handleSubmitQuestion} className="submit-ok"
+            style={{ display:'flex',alignItems:'center',gap:7,padding:'10px 20px',borderRadius:10,border:`1.5px solid ${T.green}`,background:'transparent',color:T.green,fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',transition:'all 0.13s',flexShrink:0 }}>
+            <CheckCircle size={15} /> Submit Question
+          </button>
+        )}
+
         {/* Next / Submit */}
-        {!isLastQ?(
+        {(!isLastQ||(embedded&&onCrossNext))?(
           <button onClick={handleNext} className="btn-next"
             style={{ display:'flex',alignItems:'center',gap:7,padding:'10px 22px',borderRadius:10,border:'none',background:T.orange,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',transition:'all 0.13s',boxShadow:`0 3px 14px ${T.orangeGlow}`,flexShrink:0 }}>
-            Next <ChevronRight size={15} />
+            {isLastQ && embedded && onCrossNext ? (crossNextLabel ?? 'Next') : 'Next'} <ChevronRight size={15} />
           </button>
-        ):(
+        ):embedded?null:(
           <button onClick={handleSubmitClick} disabled={isSubmitting||hasRequiredUnanswered} className={(!isSubmitting&&!hasRequiredUnanswered)?'submit-ok':''}
             style={{ display:'flex',alignItems:'center',gap:7,padding:'10px 22px',borderRadius:10,border:'none',background:hasRequiredUnanswered?T.pageBg:allAnswered?T.green:T.orange,color:hasRequiredUnanswered?T.textHint:'#fff',fontSize:13,fontWeight:700,cursor:hasRequiredUnanswered?'not-allowed':'pointer',fontFamily:'inherit',transition:'all 0.13s',boxShadow:hasRequiredUnanswered?'none':`0 3px 14px ${T.orangeGlow}`,flexShrink:0 }}>
             {isSubmitting?<><div style={{ width:13,height:13,borderRadius:'50%',border:'2px solid rgba(255,255,255,0.3)',borderTopColor:'#fff',animation:'spin 0.6s linear infinite' }} />Submitting…</>:hasRequiredUnanswered?<><AlertCircle size={14} />Answer required</>:<><CheckCircle size={14} />Submit</>}
@@ -971,7 +1440,10 @@ const MCQ = ({ exercise:propExercise, courseId='', courseName='Course', nodeId='
         )}
       </div>
     </div>
+
+    
   );
+  
 };
 
 export default MCQ;

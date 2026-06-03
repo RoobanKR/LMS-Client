@@ -1,4 +1,5 @@
 "use client";
+import { Loading } from "@/components/loading-ui/loading";
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { BookOpen, Clock, Users, Play, ChevronRight, Search, Loader2, Target, DollarSign as Collaboration, Rocket, Sparkles, AlertCircle } from 'lucide-react';
 import { useRouter } from "next/navigation";
@@ -913,7 +914,7 @@ export default function GradePage() {
     if (userRole === null) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 dark:border-blue-400"></div>
+                <Loading size="size-8" />
             </div>
         );
     }
