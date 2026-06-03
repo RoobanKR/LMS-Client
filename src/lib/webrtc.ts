@@ -1,28 +1,3 @@
-// ─── Shared WebRTC ICE server configuration ─────────────────────────────────
-// Used by BOTH the student broadcaster (useLiveScreenShare) and the proctor
-// viewer (useProctorScreens) so their ICE configs can never drift apart.
-//
-// WHY LIVE SCREENS WORK LOCALLY BUT NOT AFTER DEPLOYMENT:
-// On a shared LAN (local dev) the student and proctor reach each other directly,
-// so STUN alone is enough. Across the public internet they sit on different
-// networks behind NAT/firewalls — the socket signaling (offer/answer) still
-// succeeds, so the proctor row appears, but with no TURN *relay* the media path
-// never establishes and the proctor just sees a black "waiting for screen".
-//
-// FIX: provision a TURN server (self-hosted coturn, or a managed provider such
-// as Metered/OpenRelay, Twilio, Cloudflare, or Xirsys) and set these build-time
-// env vars in the CLIENT deployment (.env.local / hosting dashboard):
-//
-//   NEXT_PUBLIC_TURN_URLS=turn:turn.example.com:3478,turns:turn.example.com:5349
-//   NEXT_PUBLIC_TURN_USERNAME=yourTurnUser
-//   NEXT_PUBLIC_TURN_CREDENTIAL=yourTurnPassword
-//
-// Optional STUN override (defaults to Google's public STUN if unset):
-//   NEXT_PUBLIC_STUN_URLS=stun:stun.l.google.com:19302
-//
-// NOTE: NEXT_PUBLIC_* vars are inlined at BUILD time, so rebuild/redeploy the
-// client after changing them. Also serve the app over HTTPS — getDisplayMedia
-// and WebRTC require a secure context.
 
 const DEFAULT_STUN: RTCIceServer[] = [
   { urls: "stun:stun.l.google.com:19302" },
