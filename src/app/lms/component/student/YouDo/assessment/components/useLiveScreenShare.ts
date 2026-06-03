@@ -10,6 +10,7 @@ import {
   clearScreenCaptureInProgress,
 } from "./screenStreamStore";
 import { stopAllAssessmentMedia } from "./mediaRegistry";
+import { getIceServers } from "@/lib/webrtc";
 
 // Wait for whoever is capturing the screen (proctoring recording) to publish
 // it, so we REUSE that one stream instead of opening a second prompt. Resolves
@@ -50,12 +51,6 @@ function waitForSharedCapture(): Promise<MediaStream | null> {
 // It mirrors how useExamLiveEmitter is wired (joined while the test is active)
 // and REUSES the proctoring screen stream when present so the student is asked
 // for screen access only once.
-
-const ICE_SERVERS: RTCIceServer[] = [
-  { urls: "stun:stun.l.google.com:19302" },
-  { urls: "stun:stun1.l.google.com:19302" },
-  // NOTE: cross-NAT/internet deployments also need a TURN server here.
-];
 
 export interface UseLiveScreenShareArgs {
   assessmentId?: string;
@@ -129,7 +124,7 @@ export function useLiveScreenShare({
       if (!viewerId || !streamRef.current) return;
       if (peersRef.current.has(viewerId)) return; // already connected/connecting
 
-      const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+      const pc = new RTCPeerConnection({ iceServers: getIceServers() });
       peersRef.current.set(viewerId, pc);
 
       streamRef.current.getTracks().forEach((t) => pc.addTrack(t, streamRef.current!));

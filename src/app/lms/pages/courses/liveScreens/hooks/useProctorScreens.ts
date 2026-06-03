@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getSocket } from "@/apiServices/socketClient";
+import { getIceServers } from "@/lib/webrtc";
 import type {
   ScreenStudent,
   LiveScreensResponse,
@@ -9,13 +10,7 @@ import type {
   ScreenStudentViolation,
 } from "../types/liveScreens.types";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://lms-server-ym1q.onrender.com";
-
-const ICE_SERVERS: RTCIceServer[] = [
-  { urls: "stun:stun.l.google.com:19302" },
-  { urls: "stun:stun1.l.google.com:19302" },
-  // NOTE: cross-NAT/internet deployments also need a TURN server here.
-];
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5533";
 
 interface UseProctorScreensArgs {
   assessmentId: string;
@@ -115,7 +110,7 @@ export function useProctorScreens({
       // Replace any stale peer for this student.
       closePeer(studentId);
 
-      const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+      const pc = new RTCPeerConnection({ iceServers: getIceServers() });
       pcsRef.current.set(studentId, pc);
 
       pc.ontrack = (e) => {
