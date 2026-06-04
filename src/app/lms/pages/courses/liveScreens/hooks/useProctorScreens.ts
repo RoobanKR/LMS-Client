@@ -107,33 +107,44 @@ export function useProctorScreens({
   // ── answer an incoming offer from a student (we are recv-only viewer) ────────
   const handleOffer = useCallback(
     async (studentId: string, sdp: RTCSessionDescriptionInit) => {
-      // Replace any stale peer for this student.
-      closePeer(studentId);
+      let pc = pcsRef.current.get(studentId);
 
-      const pc = new RTCPeerConnection({ iceServers: getIceServers() });
-      pcsRef.current.set(studentId, pc);
+      // If the student re-offers (e.g. an ICE restart) and we still hold a
+      // healthy peer in a stable signaling state, renegotiate ON IT so the
+      // existing stream/connection isn't torn down. Otherwise (re)build fresh.
+      const canReuse =
+        !!pc &&
+        pc.signalingState === "stable" &&
+        pc.connectionState !== "failed" &&
+        pc.connectionState !== "closed";
 
-      pc.ontrack = (e) => {
-        const stream = e.streams[0];
-        if (stream) setStreams((prev) => new Map(prev).set(studentId, stream));
-      };
-      pc.onicecandidate = (e) => {
-        if (e.candidate) emit("screen:ice", { toUserId: studentId, candidate: e.candidate });
-      };
-      pc.onconnectionstatechange = () => {
-        if (["failed", "closed"].includes(pc.connectionState)) closePeer(studentId);
-      };
+      if (!canReuse) {
+        if (pc) closePeer(studentId);
+        const fresh = new RTCPeerConnection({ iceServers: getIceServers() });
+        pcsRef.current.set(studentId, fresh);
+        fresh.ontrack = (e) => {
+          const stream = e.streams[0];
+          if (stream) setStreams((prev) => new Map(prev).set(studentId, stream));
+        };
+        fresh.onicecandidate = (e) => {
+          if (e.candidate) emit("screen:ice", { toUserId: studentId, candidate: e.candidate });
+        };
+        fresh.onconnectionstatechange = () => {
+          if (["failed", "closed"].includes(fresh.connectionState)) closePeer(studentId);
+        };
+        pc = fresh;
+      }
 
       try {
-        await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+        await pc!.setRemoteDescription(new RTCSessionDescription(sdp));
         // Flush any ICE that arrived early.
         const pending = pendingIceRef.current.get(studentId) || [];
-        for (const c of pending) { try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch {} }
+        for (const c of pending) { try { await pc!.addIceCandidate(new RTCIceCandidate(c)); } catch {} }
         pendingIceRef.current.delete(studentId);
 
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        emit("screen:answer", { toUserId: studentId, sdp: pc.localDescription });
+        const answer = await pc!.createAnswer();
+        await pc!.setLocalDescription(answer);
+        emit("screen:answer", { toUserId: studentId, sdp: pc!.localDescription });
       } catch {
         closePeer(studentId);
       }

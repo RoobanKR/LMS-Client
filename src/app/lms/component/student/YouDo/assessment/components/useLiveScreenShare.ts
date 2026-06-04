@@ -91,6 +91,15 @@ export function useLiveScreenShare({
   const startedRef = useRef(false);
   const qualityRef = useRef<Map<string, "high" | "low">>(new Map());
   const endedHandlerRef = useRef<(() => void) | null>(null);
+  // Self-healing: when a viewer peer fails (e.g. a TURN relay allocation drops
+  // under load) re-offer with backoff instead of leaving a black tile forever.
+  const retryCountRef = useRef<Map<string, number>>(new Map());
+  const retryTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const createPeerRef = useRef<((viewerId: string) => void) | null>(null);
+  // ICE-restart recovery: cheaper than a full rebuild — re-gathers ICE on the
+  // SAME peer. Budgeted per viewer; grace timers debounce transient drops.
+  const iceRestartCountRef = useRef<Map<string, number>>(new Map());
+  const disconnectTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   // ── socket emit helper ──────────────────────────────────────────────────────
   const emit = useCallback(
@@ -108,6 +117,10 @@ export function useLiveScreenShare({
     if (!sender) return;
     const params = sender.getParameters();
     if (!params.encodings || params.encodings.length === 0) params.encodings = [{}];
+    // Screen content: under congestion drop FRAME RATE, keep RESOLUTION, so text
+    // stays legible. WebRTC's congestion control then varies the live send rate
+    // up/down within maxBitrate on its own → true adaptive bitrate.
+    (params as any).degradationPreference = "maintain-resolution";
     if (quality === "high") {
       params.encodings[0].scaleResolutionDownBy = 1;
       params.encodings[0].maxBitrate = 1_500_000;
@@ -116,6 +129,45 @@ export function useLiveScreenShare({
       params.encodings[0].maxBitrate = 200_000;
     }
     try { await sender.setParameters(params); } catch { /* best-effort */ }
+  }, []);
+
+  // ── lightweight recovery: re-gather ICE on the SAME peer (no full rebuild) ───
+  // Returns false when the budget is spent so the caller can escalate.
+  const tryIceRestart = useCallback(
+    async (viewerId: string, pc: RTCPeerConnection): Promise<boolean> => {
+      if (!streamRef.current) return false;
+      const n = (iceRestartCountRef.current.get(viewerId) || 0) + 1;
+      if (n > 2) return false; // ICE-restart budget spent → fall back to rebuild
+      iceRestartCountRef.current.set(viewerId, n);
+      try {
+        const offer = await pc.createOffer({ iceRestart: true });
+        await pc.setLocalDescription(offer);
+        emit("screen:offer", { toUserId: viewerId, sdp: pc.localDescription });
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [emit]
+  );
+
+  // ── heavy recovery: tear the peer down and re-offer with backoff (bounded) ───
+  const rebuildPeer = useCallback((viewerId: string) => {
+    const pc = peersRef.current.get(viewerId);
+    if (pc) { try { pc.close(); } catch {} }
+    peersRef.current.delete(viewerId);
+    if (!streamRef.current) return; // test ended → don't retry
+    const attempts = (retryCountRef.current.get(viewerId) || 0) + 1;
+    if (attempts > 6) return; // give up after ~30s of attempts
+    retryCountRef.current.set(viewerId, attempts);
+    const delay = Math.min(1500 * attempts, 8000);
+    const prevTimer = retryTimersRef.current.get(viewerId);
+    if (prevTimer) clearTimeout(prevTimer);
+    const timer = setTimeout(() => {
+      retryTimersRef.current.delete(viewerId);
+      createPeerRef.current?.(viewerId);
+    }, delay);
+    retryTimersRef.current.set(viewerId, timer);
   }, []);
 
   // ── create (or reuse) a peer connection for one viewer; we send the offer ───
@@ -132,13 +184,39 @@ export function useLiveScreenShare({
       pc.onicecandidate = (e) => {
         if (e.candidate) emit("screen:ice", { toUserId: viewerId, candidate: e.candidate });
       };
-      pc.onconnectionstatechange = () => {
-        if (["failed", "closed", "disconnected"].includes(pc.connectionState)) {
-          // Let the viewer drive re-connection; just drop our dead peer.
-          if (pc.connectionState !== "disconnected") {
-            try { pc.close(); } catch {}
-            peersRef.current.delete(viewerId);
-          }
+      pc.onconnectionstatechange = async () => {
+        const state = pc.connectionState;
+        if (state === "connected") {
+          // Healthy → clear every recovery counter/timer for this viewer.
+          retryCountRef.current.delete(viewerId);
+          iceRestartCountRef.current.delete(viewerId);
+          const dt = disconnectTimersRef.current.get(viewerId);
+          if (dt) { clearTimeout(dt); disconnectTimersRef.current.delete(viewerId); }
+          return;
+        }
+        if (state === "closed") {
+          peersRef.current.delete(viewerId);
+          return;
+        }
+        if (state === "disconnected") {
+          // Usually transient. Debounce: give ICE a few seconds to self-recover;
+          // if it doesn't, try a cheap ICE restart, then a full rebuild.
+          if (disconnectTimersRef.current.has(viewerId)) return;
+          const dt = setTimeout(async () => {
+            disconnectTimersRef.current.delete(viewerId);
+            if (peersRef.current.get(viewerId) !== pc) return;   // already replaced
+            if (pc.connectionState === "connected") return;       // recovered on its own
+            const ok = await tryIceRestart(viewerId, pc);
+            if (!ok) rebuildPeer(viewerId);
+          }, 3500);
+          disconnectTimersRef.current.set(viewerId, dt);
+          return;
+        }
+        if (state === "failed") {
+          // Re-gather ICE on the same peer first (fast, keeps the session); only
+          // if that budget is spent do a full close + re-offer with backoff.
+          const ok = await tryIceRestart(viewerId, pc);
+          if (!ok) rebuildPeer(viewerId);
         }
       };
 
@@ -153,15 +231,35 @@ export function useLiveScreenShare({
         peersRef.current.delete(viewerId);
       }
     },
-    [emit, applyQuality]
+    [emit, applyQuality, tryIceRestart, rebuildPeer]
   );
 
-  const closePeer = useCallback((viewerId: string) => {
-    const pc = peersRef.current.get(viewerId);
-    if (pc) { try { pc.close(); } catch {} peersRef.current.delete(viewerId); }
+  // Keep a stable self-reference so the retry timer can re-invoke the latest
+  // createPeerForViewer without itself being a dependency.
+  useEffect(() => { createPeerRef.current = createPeerForViewer; }, [createPeerForViewer]);
+
+  const clearRetry = useCallback((viewerId: string) => {
+    const t = retryTimersRef.current.get(viewerId);
+    if (t) { clearTimeout(t); retryTimersRef.current.delete(viewerId); }
+    const dt = disconnectTimersRef.current.get(viewerId);
+    if (dt) { clearTimeout(dt); disconnectTimersRef.current.delete(viewerId); }
+    retryCountRef.current.delete(viewerId);
+    iceRestartCountRef.current.delete(viewerId);
   }, []);
 
+  const closePeer = useCallback((viewerId: string) => {
+    clearRetry(viewerId);
+    const pc = peersRef.current.get(viewerId);
+    if (pc) { try { pc.close(); } catch {} peersRef.current.delete(viewerId); }
+  }, [clearRetry]);
+
   const closeAllPeers = useCallback(() => {
+    retryTimersRef.current.forEach((t) => clearTimeout(t));
+    retryTimersRef.current.clear();
+    disconnectTimersRef.current.forEach((t) => clearTimeout(t));
+    disconnectTimersRef.current.clear();
+    retryCountRef.current.clear();
+    iceRestartCountRef.current.clear();
     peersRef.current.forEach((pc) => { try { pc.close(); } catch {} });
     peersRef.current.clear();
   }, []);
@@ -212,6 +310,9 @@ export function useLiveScreenShare({
     if (!stream) { setNeedsReshare(true); setIsSharing(false); return; }
 
     streamRef.current = stream;
+    // Tell the encoder this is detailed screen content (sharp text) rather than
+    // smooth motion — pairs with maintain-resolution for legibility under ABR.
+    stream.getVideoTracks().forEach((t) => { try { (t as any).contentHint = "detail"; } catch {} });
     setNeedsReshare(false);
     setIsSharing(true);
     startedRef.current = true;
