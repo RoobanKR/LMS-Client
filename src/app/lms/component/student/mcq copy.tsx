@@ -913,7 +913,7 @@ const MCQ: React.FC<MCQProps> = ({
         if (!eid) { toast.error('Exercise ID is required'); setLoading(false); return; }
         const tok = getToken();
         if (!tok) { toast.error('Authentication token not found'); setLoading(false); return; }
-        const res = await fetch(`http://localhost:5533/exercise/${eid}`, {
+        const res = await fetch(`https://lms-server-ym1q.onrender.com/exercise/${eid}`, {
           headers: { Authorization: `Bearer ${tok}`, 'Content-Type': 'application/json' },
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -1060,7 +1060,7 @@ const MCQ: React.FC<MCQProps> = ({
   /* â”€â”€â”€ API submit helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const doPost = async (fd: FormData) => {
     try {
-      await fetch('http://localhost:5533/courses/answers/submit', {
+      await fetch('https://lms-server-ym1q.onrender.com/courses/answers/submit', {
         method: 'POST',
         headers: { Authorization: `Bearer ${getToken()}` },
         body: fd,

@@ -2612,7 +2612,7 @@ export default function DBQueryEditorPage({
             toast.error(`${reason} — assessment locked.`, { toastId: 'sql-face-term' });
             try {
                 const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
-                await fetch('http://localhost:5533/exercise/lock', {
+                await fetch('https://lms-server-ym1q.onrender.com/exercise/lock', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                     body: JSON.stringify({
@@ -3103,7 +3103,7 @@ export default function DBQueryEditorPage({
             }
 
             const response = await axios.post(
-                'http://localhost:5533/courses/answers/submit-multiple-files',
+                'https://lms-server-ym1q.onrender.com/courses/answers/submit-multiple-files',
                 payload,
                 {
                     headers: {
@@ -3181,7 +3181,7 @@ export default function DBQueryEditorPage({
             }
 
             const response = await fetch(
-                `http://localhost:5533/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseData._id}&questionId=${currentQuestion._id}&category=${category}`,
+                `https://lms-server-ym1q.onrender.com/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseData._id}&questionId=${currentQuestion._id}&category=${category}`,
                 {
                     headers: {
                         'Authorization': `Bearer ${token}`,
@@ -3275,7 +3275,7 @@ export default function DBQueryEditorPage({
             }
 
             const response = await fetch(
-                `http://localhost:5533/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseData._id}&questionId=${currentQuestion._id}&category=${category}`,
+                `https://lms-server-ym1q.onrender.com/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseData._id}&questionId=${currentQuestion._id}&category=${category}`,
                 {
                     headers: {
                         'Authorization': `Bearer ${token}`,

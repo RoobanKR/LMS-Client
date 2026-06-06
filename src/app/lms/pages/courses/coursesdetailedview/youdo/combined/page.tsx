@@ -342,7 +342,7 @@ const CombinedExerciseMixed = () => {
     formData.append('language', 'text');
     formData.append('isTestSubmission', 'true'); // ← THE KEY FLAG
 
-    const response = await fetch('http://localhost:5533/courses/answers/submit', {
+    const response = await fetch('https://lms-server-ym1q.onrender.com/courses/answers/submit', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}` },
       body: formData,
@@ -380,7 +380,7 @@ const CombinedExerciseMixed = () => {
           throw new Error('Authentication token not found');
         }
 
-        const response = await fetch(`http://localhost:5533/exercise/${exerciseId}`, {
+        const response = await fetch(`https://lms-server-ym1q.onrender.com/exercise/${exerciseId}`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -562,7 +562,7 @@ const CombinedExerciseMixed = () => {
       formData.append('status', 'attempted');
       formData.append('language', 'text');
 
-      const response = await fetch('http://localhost:5533/courses/answers/submit', {
+      const response = await fetch('https://lms-server-ym1q.onrender.com/courses/answers/submit', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData,
@@ -647,7 +647,7 @@ const CombinedExerciseMixed = () => {
         queryLength: query.length
       });
 
-      const response = await fetch('http://localhost:5533/courses/answers/submit-multiple-files', {
+      const response = await fetch('https://lms-server-ym1q.onrender.com/courses/answers/submit-multiple-files', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

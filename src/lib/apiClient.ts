@@ -1,6 +1,6 @@
 import axios, { AxiosError, AxiosRequestConfig } from "axios";
 
-export const API_BASE_URL = "http://localhost:5533";
+export const API_BASE_URL = "https://lms-server-ym1q.onrender.com";
 
 export interface ApiError extends Error {
   status?: number;

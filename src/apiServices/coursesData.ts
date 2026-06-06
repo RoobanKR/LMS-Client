@@ -48,7 +48,7 @@ const modelMap = {
   subtopic: { path: "subtopics" },
 };
 
-const BASE_URL = "http://localhost:5533";
+const BASE_URL = "https://lms-server-ym1q.onrender.com";
 
 // Helper function to get token
 const getToken = (): string | null => {

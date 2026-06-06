@@ -187,7 +187,7 @@ const SmartCliffLogin = () => {
           if (loc) clientInfo.location = loc;
         }
       } catch { /* best effort — login is never blocked beyond the timeout */ }
-      const response = await fetch("http://localhost:5533/user/login", {
+      const response = await fetch("https://lms-server-ym1q.onrender.com/user/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...credentials, clientInfo }),
@@ -243,7 +243,7 @@ const SmartCliffLogin = () => {
           localStorage.setItem("smartcliff_roleId", "");
           localStorage.setItem("smartcliff_originalRole", "User");
         }
-        const verifyResponse = await fetch("http://localhost:5533/user/verify-token", {
+        const verifyResponse = await fetch("https://lms-server-ym1q.onrender.com/user/verify-token", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         });

@@ -1325,7 +1325,7 @@ function PdfPageCanvas({ pdfDoc, pageNum, scale, onContextMenu, onClick, showMcq
 function MCQQuestionForm({
   onClose, onSave, initialPageNumber = 1,
   institution, courses, structureType, tabType, subcategory, fileName,
-  apiBaseUrl = "http://localhost:5533",
+  apiBaseUrl = "https://lms-server-ym1q.onrender.com",
   mcqMode = "default",
   onLinkGenerated,
 }: any) {
@@ -1745,7 +1745,7 @@ export default function PDFViewer({
   institution = "", courses = "",
   tabType = "", subcategory = "",
   folderPath = [],
-  apiBaseUrl = "http://localhost:5533",
+  apiBaseUrl = "https://lms-server-ym1q.onrender.com",
   onClose,
   initialMcqs = [],
   isTeacher = true,

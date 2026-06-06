@@ -247,8 +247,8 @@ const handleFieldChange = (field: string, value: any) => {
     try {
       setIsLoading(true);
       const endpoint = editingQuestion?._id
-        ? `http://localhost:5533/update/question-bank/${editingQuestion._id}`
-        : 'http://localhost:5533/create/question-bank';
+        ? `https://lms-server-ym1q.onrender.com/update/question-bank/${editingQuestion._id}`
+        : 'https://lms-server-ym1q.onrender.com/create/question-bank';
 
       const response = await fetch(endpoint, {
         method: editingQuestion?._id ? 'PUT' : 'POST',
