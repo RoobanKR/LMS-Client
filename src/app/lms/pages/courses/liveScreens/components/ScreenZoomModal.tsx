@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { X, AlertTriangle, ShieldAlert, Clock, Monitor, WifiOff } from "lucide-react";
+import { X, AlertTriangle, ShieldAlert, Clock, Monitor, WifiOff, ChevronDown, Send, MessageSquare, Loader2 } from "lucide-react";
 import type { ScreenStudent, ScreenViolationsResponse, ScreenViolationItem } from "../types/liveScreens.types";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://lms-server-ym1q.onrender.com";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5533";
 
 interface ScreenZoomModalProps {
   assessmentId: string;
@@ -12,6 +12,7 @@ interface ScreenZoomModalProps {
   stream?: MediaStream;
   onClose: () => void;
   onWarn: (studentId: string, message: string) => void;
+  onSendMessage: (studentId: string, message: string) => Promise<{ ok: boolean; error?: string }>;
 }
 
 const VIOLATION_LABEL: Record<string, string> = {
@@ -49,12 +50,36 @@ function fmtAt(iso: string | null): string {
   }
 }
 
-export default function ScreenZoomModal({ assessmentId, student, stream, onClose, onWarn }: ScreenZoomModalProps) {
+export default function ScreenZoomModal({ assessmentId, student, stream, onClose, onWarn, onSendMessage }: ScreenZoomModalProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [violations, setViolations] = useState<ScreenViolationItem[]>([]);
   const [info, setInfo] = useState<ScreenViolationsResponse | null>(null);
   const [loadingV, setLoadingV] = useState(true);
   const [, forceTick] = useState(0); // re-render once a second for the live duration
+
+  // Violation history is collapsed by default so the message box has room.
+  const [violationsOpen, setViolationsOpen] = useState(false);
+
+  // Per-student message box → delivered to the student's in-assessment chat.
+  const [msg, setMsg] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sentOk, setSentOk] = useState(false);
+  const [sendErr, setSendErr] = useState<string | null>(null);
+
+  const handleSend = async () => {
+    const text = msg.trim();
+    if (!text || sending) return;
+    setSending(true); setSendErr(null); setSentOk(false);
+    const res = await onSendMessage(student.id, text);
+    setSending(false);
+    if (res.ok) {
+      setMsg("");
+      setSentOk(true);
+      setTimeout(() => setSentOk(false), 2500);
+    } else {
+      setSendErr(res.error || "Failed to send");
+    }
+  };
 
   // Attach the live stream.
   useEffect(() => {
@@ -155,32 +180,77 @@ export default function ScreenZoomModal({ assessmentId, student, stream, onClose
               <Stat label="Submitted" value={student.submitted ? "Yes" : "No"} />
             </div>
 
-            <div className="px-4 py-2 flex items-center justify-between">
+            {/* Violation History — collapsible, CLOSED by default */}
+            <button
+              type="button"
+              onClick={() => setViolationsOpen((o) => !o)}
+              className="px-4 py-2.5 flex items-center justify-between border-b border-gray-100 hover:bg-gray-50 transition-colors"
+            >
               <span className="text-[12px] font-bold text-gray-700">Violation History</span>
-              <span className="text-[11px] text-gray-400">{violations.length}</span>
-            </div>
-            <div className="flex-1 overflow-y-auto px-4 pb-3" style={{ maxHeight: 260 }}>
-              {loadingV ? (
-                <div className="text-[12px] text-gray-400 py-4 text-center">Loading…</div>
-              ) : violations.length === 0 ? (
-                <div className="text-[12px] text-gray-400 py-4 text-center">No violations recorded.</div>
-              ) : (
-                <ul className="space-y-1.5">
-                  {violations.map((v) => (
-                    <li key={v.id} className="flex items-start gap-2 text-[12px]">
-                      <ShieldAlert size={13} className="text-red-500 mt-0.5 flex-shrink-0" />
-                      <div className="min-w-0">
-                        <div className="font-medium text-gray-700">{VIOLATION_LABEL[v.type] || v.type}</div>
-                        {v.detail && <div className="text-gray-400 truncate">{v.detail}</div>}
-                        <div className="text-gray-400">{fmtAt(v.at)}</div>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <span className="flex items-center gap-2">
+                <span className="text-[11px] font-semibold text-gray-500 bg-gray-100 rounded-full px-1.5 min-w-[18px] text-center">{violations.length}</span>
+                <ChevronDown size={15} className={`text-gray-400 transition-transform ${violationsOpen ? "rotate-180" : ""}`} />
+              </span>
+            </button>
+            {violationsOpen && (
+              <div className="overflow-y-auto px-4 py-2 border-b border-gray-100" style={{ maxHeight: 200 }}>
+                {loadingV ? (
+                  <div className="text-[12px] text-gray-400 py-4 text-center">Loading…</div>
+                ) : violations.length === 0 ? (
+                  <div className="text-[12px] text-gray-400 py-4 text-center">No violations recorded.</div>
+                ) : (
+                  <ul className="space-y-1.5">
+                    {violations.map((v) => (
+                      <li key={v.id} className="flex items-start gap-2 text-[12px]">
+                        <ShieldAlert size={13} className="text-red-500 mt-0.5 flex-shrink-0" />
+                        <div className="min-w-0">
+                          <div className="font-medium text-gray-700">{VIOLATION_LABEL[v.type] || v.type}</div>
+                          {v.detail && <div className="text-gray-400 truncate">{v.detail}</div>}
+                          <div className="text-gray-400">{fmtAt(v.at)}</div>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+
+            {/* Send Message — delivered to the student's in-assessment chat icon */}
+            <div className="flex-1 min-h-0 flex flex-col px-4 py-3">
+              <label className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-1.5">
+                <MessageSquare size={12} /> Send Message
+              </label>
+              <textarea
+                value={msg}
+                onChange={(e) => { setMsg(e.target.value); setSendErr(null); }}
+                onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); handleSend(); } }}
+                maxLength={500}
+                placeholder="Message this student… (shows in their chat)"
+                className="flex-1 min-h-[64px] resize-none rounded-lg border border-gray-200 px-3 py-2 text-[13px] text-gray-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition"
+              />
+              <div className="flex items-center justify-between mt-1.5">
+                <span className="text-[11px]">
+                  {sendErr ? (
+                    <span className="text-red-500">{sendErr}</span>
+                  ) : sentOk ? (
+                    <span className="text-emerald-600 font-medium">Sent ✓</span>
+                  ) : (
+                    <span className="text-gray-400">{msg.length}/500</span>
+                  )}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleSend}
+                  disabled={!msg.trim() || sending}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-[12px] font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {sending ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+                  Send
+                </button>
+              </div>
             </div>
 
-            {/* Actions */}
+            {/* Send Warning */}
             <div className="px-4 py-3 border-t border-gray-100">
               <button
                 onClick={handleWarn}

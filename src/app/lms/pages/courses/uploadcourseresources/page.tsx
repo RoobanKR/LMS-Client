@@ -24,12 +24,14 @@ import dynamic from "next/dynamic";
 import { getCurrentUser } from "@/apiServices/tokenVerify"
 import { postLogout } from "@/apiServices/activityLog"
 // import "react-quill/dist/quill.snow.css";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   courseDataApi, entityApi,
   type CourseStructureData, type Module, type SubModule,
   type Topic, type SubTopic, updateFileSettingsInComponent,
 } from "@/apiServices/coursesData";
+import { useUploadResourceMutation } from "@/queries/courses";
+import { queryKeys } from "@/lib/queryKeys";
 import { useRouter, useSearchParams } from "next/navigation";
 import axios from "axios";
 import { showErrorToast, showSuccessToast } from "@/components/ui/toastUtils";
@@ -442,7 +444,7 @@ const BreadcrumbBar = ({
                 <span
                   data-crumb-label
                   style={{
-                    fontFamily: "'Inter', 'Plus Jakarta Sans', sans-serif",
+                    fontFamily: "'Inter', 'Inter', sans-serif",
                     fontWeight: isLast ? 600 : 500,
                     fontSize: 12.5,
                     color: labelColor,
@@ -653,7 +655,18 @@ export default function DynamicLMSCoordinator() {
   const { isDark, toggleDark } = useDarkMode();
   const searchParams = useSearchParams();
   const courseId = searchParams.get("courseId");
-  const { data: courseStructureResponse } = useQuery(courseDataApi.getById(courseId || ""));
+  const { data: courseStructureResponse, isLoading: isCourseStructureLoading, isFetching: isCourseStructureFetching } = useQuery({
+    ...courseDataApi.getById(courseId || ""),
+    enabled: !!courseId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+  const queryClient = useQueryClient();
+  const uploadResourceMutation = useUploadResourceMutation();
+  // True while the initial course payload is in flight (no cached data yet).
+  // Used to gate the empty-state Welcome card so the user sees a loader, not
+  // a misleading "select a module" screen, before the sidebar/tree exists.
+  const isInitialCourseLoad = (isCourseStructureLoading || isCourseStructureFetching) && !courseStructureResponse?.data;
 
   const getLS = (key: string) => (typeof window !== "undefined" ? localStorage.getItem(key) || "" : "");
   const setLS = (key: string, val: string) => localStorage.setItem(key, val);
@@ -1344,7 +1357,7 @@ const refreshContentData = useCallback(async (node: CourseNode, backendData?: an
     setIsContentLoading(true);
 
     try {
-      const BASE_URL = "https://lms-server-ym1q.onrender.com";
+      const BASE_URL = "http://localhost:5533";
       const token = typeof window !== "undefined" ? localStorage.getItem("smartcliff_token") : null;
 
       const courseRes = await fetch(`${BASE_URL}/getAll/courses-data/${courseId}`, {
@@ -1432,7 +1445,7 @@ const refreshContentData = useCallback(async (node: CourseNode, backendData?: an
     setIsContentLoading(true);
 
     try {
-      const BASE_URL = "https://lms-server-ym1q.onrender.com";
+      const BASE_URL = "http://localhost:5533";
       const token = typeof window !== "undefined" ? localStorage.getItem("smartcliff_token") : null;
 
       const courseRes = await fetch(`${BASE_URL}/getAll/courses-data/${courseId}`, {
@@ -2954,11 +2967,12 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
     renamed.forEach(f => formData.append("files", f));
 
     try {
-      const response = await entityApi.updateEntity(
-        selectedNode.type as any,
-        selectedNode.id,
+      const response = await uploadResourceMutation.mutateAsync({
+        entityType: selectedNode.type as any,
+        entityId: selectedNode.id,
+        courseId: courseId || "",
         formData,
-        onProgress
+        onProgress: onProgress
           ? (evt) => {
             if (evt.total) {
               const pct = Math.min(Math.round((evt.loaded / evt.total) * 100), 98);
@@ -2966,17 +2980,19 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
             }
           }
           : undefined,
-      );
-      if (response.data) {
+      }) as { data?: unknown } | undefined;
+      if (response && (response as { data?: unknown }).data) {
         onProgress?.(100);
         await fetchAndRefresh(selectedNode);
         // No success toast here — the modal already showed a single optimistic toast before closing.
       }
     } catch (err: any) {
+      // Surface a retryable error — mutation state already cleared isPending,
+      // so the modal's submit becomes available again automatically.
       const msg = axios.isAxiosError(err)
         ? (typeof err.response?.data?.message === "string" ? err.response?.data?.message : JSON.stringify(err.response?.data ?? err.message))
         : (err?.message || String(err));
-      showErrorToast(`Upload failed: ${msg}`);
+      showErrorToast(`Upload failed: ${msg}. Tap upload again to retry.`);
     }
   };
 
@@ -3609,7 +3625,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
   );
   if (!courseId) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: T.pageBg, fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif" }}>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: T.pageBg, fontFamily: "'Inter', -apple-system, sans-serif" }}>
         <div className="text-center p-8 rounded-2xl" style={{ background: T.bg, border: `1.5px solid ${T.border}`, boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
           <div className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: T.orangeLight }}>
             <BookOpen size={20} style={{ color: T.orange }} />
@@ -3644,7 +3660,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
     <>
       <style jsx global>{`
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap');
-        * { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif; }
+        * { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
         ::-webkit-scrollbar { width: 4px; height: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background-color: ${T.border}; border-radius: 20px; }
@@ -3659,7 +3675,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
 
       <div style={{
         height: '100vh',
-        fontFamily: "'Inter', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+        fontFamily: "'Inter', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
         WebkitFontSmoothing: 'antialiased',
         MozOsxFontSmoothing: 'grayscale',
         textRendering: 'optimizeLegibility',
@@ -3866,7 +3882,12 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
 
               {/* ── Course content — zero top gap ────────────────────────────── */}
               <div className="flex-1 overflow-hidden" style={{ marginTop: 0, paddingTop: 0 }}>
-                {!isNodeSelected ? (
+                {isInitialCourseLoad ? (
+                  // Course payload is still in flight on first load — show a
+                  // loader instead of the misleading "Welcome / select a module"
+                  // card (the sidebar tree doesn't exist yet to select from).
+                  <LoadingSpinner />
+                ) : !isNodeSelected ? (
                   // Show welcome screen when no node is selected
                   <div className="flex flex-col items-center justify-center h-full text-center p-10" style={{ animation: "ccFadeIn 0.4s ease-out both" }}>      <div className="relative overflow-hidden w-full max-w-md mb-7 rounded-2xl"
                     style={{ background: `linear-gradient(140deg,${T.orange} 0%,#E86440 50%,${T.orangeDark} 100%)`, padding: "32px 28px", boxShadow: `0 12px 40px ${T.orangeGlow}` }}>
@@ -4313,7 +4334,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
               background: T.bg, borderRadius: '22px',
               border: `1.5px solid ${T.border}`,
               boxShadow: '0 24px 60px rgba(0,0,0,0.18)',
-              fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif",
+              fontFamily: "'Inter',-apple-system,sans-serif",
               animation: 'umSlideUp 0.22s cubic-bezier(0.16,1,0.3,1) both',
             }}
             onClick={e => e.stopPropagation()}
@@ -4909,7 +4930,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
 
         return (
           <div className="fixed inset-0 z-[90] flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.52)', backdropFilter: 'blur(4px)' }}>
-            <div className="relative flex flex-col mx-4 overflow-hidden" style={{ background: T.bg, borderRadius: '20px', border: `1.5px solid ${T.border}`, width: 880, maxWidth: 'calc(100vw - 32px)', height: '88vh', maxHeight: '88vh', boxShadow: '0 24px 60px rgba(0,0,0,0.20)', fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif" }} onClick={e => e.stopPropagation()}>
+            <div className="relative flex flex-col mx-4 overflow-hidden" style={{ background: T.bg, borderRadius: '20px', border: `1.5px solid ${T.border}`, width: 880, maxWidth: 'calc(100vw - 32px)', height: '88vh', maxHeight: '88vh', boxShadow: '0 24px 60px rgba(0,0,0,0.20)', fontFamily: "'Inter',-apple-system,sans-serif" }} onClick={e => e.stopPropagation()}>
 
               {/* ── Upload overlay ─────────────────────────────────────────── */}
               {folderBuilderUploading && (
@@ -5520,7 +5541,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
     tabType={activeTab || ""} 
     subcategory={activeSubcategory || ""} 
     folderPath={getCurrentNavState().currentFolderPath} 
-    apiBaseUrl="https://lms-server-ym1q.onrender.com" 
+    apiBaseUrl="http://localhost:5533" 
     onClose={() => { 
       setShowPDFViewer(false); 
       setCurrentPDFUrl(""); 
@@ -5557,7 +5578,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
     tabType={toBackendTab(activeTab)} 
     subcategory={activeSubcategory} 
     folderPath={getCurrentNavState().currentFolderPath} 
-    apiBaseUrl="https://lms-server-ym1q.onrender.com" 
+    apiBaseUrl="http://localhost:5533" 
     isTeacher={true}
     breadcrumbs={breadcrumbs}  // ← ADD THIS
     currentCourseName={courseStructureResponse?.data?.courseName || "Course"}  // ← ADD THIS
@@ -5617,7 +5638,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
       setImagePlaylist([]);
       setCurrentImageIndex(0);
     }}
-    apiBaseUrl="https://lms-server-ym1q.onrender.com"
+    apiBaseUrl="http://localhost:5533"
     isTeacher={true}
     allImages={imagePlaylist}
     currentImageIndex={currentImageIndex}
@@ -5668,7 +5689,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
             setCurrentVideoIndex(0);
             setCurrentVideoFileId("");
           }}
-          apiBaseUrl="https://lms-server-ym1q.onrender.com"
+          apiBaseUrl="http://localhost:5533"
           isTeacher={true}
         />
       )}

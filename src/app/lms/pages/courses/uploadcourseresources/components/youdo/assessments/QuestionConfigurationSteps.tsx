@@ -37,13 +37,13 @@ export const MCQConfiguration: React.FC<BaseConfigProps> = ({
             <List size={13} />
           </div>
           <div>
-            <h3 className="text-xs font-bold" style={{ color: D.textMain, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>MCQ Configuration</h3>
+            <h3 className="text-xs font-bold" style={{ color: D.textMain, fontFamily: 'Inter, sans-serif' }}>MCQ Configuration</h3>
           </div>
         </div>
         {isEqual && (
           <div className="text-right">
             <div className="text-[10px] font-semibold" style={{ color: isMatch ? D.emerald : D.amber }}>Allocated</div>
-            <div className="text-sm font-bold" style={{ color: isMatch ? D.emerald : D.amber, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+            <div className="text-sm font-bold" style={{ color: isMatch ? D.emerald : D.amber, fontFamily: 'Inter, sans-serif' }}>
               {formatDecimal(allocated)}<span className="text-xs font-normal" style={{ color: D.textMuted }}>/{totalToUse}</span>
             </div>
           </div>
@@ -130,7 +130,7 @@ export const MCQConfiguration: React.FC<BaseConfigProps> = ({
                     value={formatDecimal(formData.mcqConfig.scoreSettings.equalDistribution)} 
                     disabled readOnly 
                     className="w-full px-3 py-2 text-sm rounded-lg border" 
-                    style={{ borderColor: D.border, background: D.surface, color: D.textMuted, fontFamily: 'Plus Jakarta Sans, sans-serif' }} 
+                    style={{ borderColor: D.border, background: D.surface, color: D.textMuted, fontFamily: 'Inter, sans-serif' }} 
                   />
                   <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold" style={{ color: D.orange }}>Auto</span>
                 </div>

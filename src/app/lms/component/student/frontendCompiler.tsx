@@ -578,7 +578,7 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
         };
 
         await axios.post(
-          'https://lms-server-ym1q.onrender.com/courses/answers/submit-multiple-files',
+          'http://localhost:5533/courses/answers/submit-multiple-files',
           savePayload,
           {
             headers: {
@@ -591,12 +591,8 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
       }
 
       setIsTestSubmitted(true);
-      toast.success('✅ Exercise submitted successfully!');
-
-      // Show success modal which calls performExit on confirm
-      setTimeout(() => {
-        setShowSubmissionSuccess(true);
-      }, 800);
+      try { sessionStorage.setItem('lms_submit_toast', `"${title}" submitted successfully`); } catch {}
+      setTimeout(() => { performExit(); }, 800);
 
     } catch (error: any) {
       console.error('Final submit error:', error);
@@ -1069,7 +1065,7 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
                   )}
                   {question?.score && (
                     <span className="text-xs px-2 py-1 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
-                      Score: {question.score}
+                      Mark: {question.score}
                     </span>
                   )}
                 </div>
@@ -1865,7 +1861,7 @@ console.log('Project utilities available at window.projectUtils');`,
       try {
         const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
 
-        await axios.post('https://lms-server-ym1q.onrender.com/exercise/lock', {
+        await axios.post('http://localhost:5533/exercise/lock', {
           courseId,
           exerciseId,
           category,
@@ -1897,7 +1893,7 @@ console.log('Project utilities available at window.projectUtils');`,
     }
 
     localStorage.removeItem('currentFrontendExercise');
-    router.push(`/lms/pages/courses/coursesdetailedview/${courseId}`);
+    if (onBack) { onBack(); } else { router.push(`/lms/pages/courses/coursesdetailedview/${courseId}`); }
   }, [cleanupAllMedia, courseId, router, autoRedirectTimer, isAssessmentMode, hasStarted, currentQuestionIndex, questions.length, exerciseId, category, subcategory]);
 
   const saveRecordingSilently = async (): Promise<boolean> => {
@@ -1962,7 +1958,7 @@ console.log('Project utilities available at window.projectUtils');`,
 
     try {
       const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
-      await axios.post('https://lms-server-ym1q.onrender.com/exercise/lock', {
+      await axios.post('http://localhost:5533/exercise/lock', {
         courseId,
         exerciseId,
         category,
@@ -2331,7 +2327,7 @@ console.log('Project utilities available at window.projectUtils');`,
 
       try {
         const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
-        const response = await axios.get('https://lms-server-ym1q.onrender.com/exercise/status', {
+        const response = await axios.get('http://localhost:5533/exercise/status', {
           params: { courseId, exerciseId, category, subcategory },
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -2381,7 +2377,7 @@ console.log('Project utilities available at window.projectUtils');`,
   //     }
 
   //     const response = await fetch(
-  //       `https://lms-server-ym1q.onrender.com/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseId}&questionId=${questionId}&category=${category}`,
+  //       `http://localhost:5533/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseId}&questionId=${questionId}&category=${category}`,
   //       {
   //         headers: {  
   //           'Authorization': `Bearer ${token}`,
@@ -3925,7 +3921,7 @@ document.addEventListener('DOMContentLoaded', init${name.charAt(0).toUpperCase()
       };
 
       const response = await axios.post(
-        'https://lms-server-ym1q.onrender.com/courses/answers/submit-multiple-files',
+        'http://localhost:5533/courses/answers/submit-multiple-files',
         payload,
         {
           headers: {

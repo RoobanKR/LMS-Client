@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import {
@@ -950,7 +950,7 @@ export default function LMSPage(){
 
   useEffect(()=>{
     if(!courseId){setError("No course ID.");setIsLoading(false);return}
-    fetch(`https://lms-server-ym1q.onrender.com/getAll/courses-data/${courseId}`)
+    fetch(`http://localhost:5533/getAll/courses-data/${courseId}`)
       .then(r=>r.json()).then(d=>{
         const info=d.data||d
         setCourseData(info)
@@ -1582,7 +1582,7 @@ const resourcesToDisplay = (() => {
   )
 
   if(error)return(
-    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:T.pageBg,fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:T.pageBg,fontFamily:"'Inter',sans-serif"}}>
       <div style={{textAlign:'center',padding:32,borderRadius:20,background:T.bg,border:`1.5px solid ${T.border}`,maxWidth:340,boxShadow:'0 4px 20px rgba(0,0,0,0.06)'}}>
         <div style={{width:44,height:44,borderRadius:14,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 12px',background:'rgba(239,68,68,0.08)'}}><File size={20} style={{color:'#ef4444'}}/></div>
         <p style={{fontWeight:700,marginBottom:8,color:T.textMain,fontSize:14}}>Error Loading Course</p>
@@ -1621,10 +1621,10 @@ const resourcesToDisplay = (() => {
   }
 
   return(
-    <div style={{background:T.pageBg,fontFamily:"'Plus Jakarta Sans',-apple-system,sans-serif",overflow:'clip',height:'100vh',display:'flex',flexDirection:'column'}}>
+    <div style={{background:T.pageBg,fontFamily:"'Inter',-apple-system,sans-serif",overflow:'clip',height:'100vh',display:'flex',flexDirection:'column'}}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500&display=swap');
-        *{font-family:'Plus Jakarta Sans',-apple-system,sans-serif!important;box-sizing:border-box}
+        *{font-family:'Inter',-apple-system,sans-serif!important;box-sizing:border-box}
         .sb-row{transition:background .12s ease,border-left-color .12s ease;cursor:pointer}
         .sb-row:hover{background:rgba(0,0,0,.02)!important}
         .sb-scroll{scrollbar-width:thin;scrollbar-color:#E4E0ED transparent}

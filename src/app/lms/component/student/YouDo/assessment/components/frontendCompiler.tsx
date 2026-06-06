@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import axios from 'axios';
 import { useExamLiveEmitter } from './useExamLiveEmitter';
 import ScreenShareGuard from './ScreenShareGuard';
-import StudentMessageChat from './StudentMessageChat';
+import TestMessageBell from './TestMessageBell';
 import { setSharedScreenStream, markScreenCaptureStarting, clearScreenCaptureInProgress } from './screenStreamStore';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
@@ -612,7 +612,7 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
         };
 
         await axios.post(
-          'https://lms-server-ym1q.onrender.com/courses/answers/submit-multiple-files',
+          'http://localhost:5533/courses/answers/submit-multiple-files',
           savePayload,
           {
             headers: {
@@ -625,12 +625,8 @@ const FrontendCompiler: React.FC<FrontendCompilerProps> = ({
       }
 
       setIsTestSubmitted(true);
-      toast.success('✅ Exercise submitted successfully!');
-
-      // Show success modal which calls performExit on confirm
-      setTimeout(() => {
-        setShowSubmissionSuccess(true);
-      }, 800);
+      try { sessionStorage.setItem('lms_submit_toast', `"${title}" submitted successfully`); } catch {}
+      setTimeout(() => { performExit(); }, 800);
 
     } catch (error: any) {
       console.error('Final submit error:', error);
@@ -1917,7 +1913,7 @@ console.log('Project utilities available at window.projectUtils');`,
       try {
         const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
 
-        await axios.post('https://lms-server-ym1q.onrender.com/exercise/lock', {
+        await axios.post('http://localhost:5533/exercise/lock', {
           courseId,
           exerciseId,
           category,
@@ -1949,7 +1945,7 @@ console.log('Project utilities available at window.projectUtils');`,
     }
 
     localStorage.removeItem('currentFrontendExercise');
-    router.push(`/lms/pages/courses/coursesdetailedview/${courseId}`);
+    if (onBack) { onBack(); } else { router.back(); }
   }, [cleanupAllMedia, courseId, router, autoRedirectTimer, isAssessmentMode, hasStarted, currentQuestionIndex, questions.length, exerciseId, category, subcategory]);
 
   const saveRecordingSilently = async (): Promise<boolean> => {
@@ -2014,7 +2010,7 @@ console.log('Project utilities available at window.projectUtils');`,
 
     try {
       const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
-      await axios.post('https://lms-server-ym1q.onrender.com/exercise/lock', {
+      await axios.post('http://localhost:5533/exercise/lock', {
         courseId,
         exerciseId,
         category,
@@ -2406,7 +2402,7 @@ console.log('Project utilities available at window.projectUtils');`,
 
       try {
         const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
-        const response = await axios.get('https://lms-server-ym1q.onrender.com/exercise/status', {
+        const response = await axios.get('http://localhost:5533/exercise/status', {
           params: { courseId, exerciseId, category, subcategory },
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -2456,7 +2452,7 @@ console.log('Project utilities available at window.projectUtils');`,
   //     }
 
   //     const response = await fetch(
-  //       `https://lms-server-ym1q.onrender.com/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseId}&questionId=${questionId}&category=${category}`,
+  //       `http://localhost:5533/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseId}&questionId=${questionId}&category=${category}`,
   //       {
   //         headers: {  
   //           'Authorization': `Bearer ${token}`,
@@ -4001,7 +3997,7 @@ document.addEventListener('DOMContentLoaded', init${name.charAt(0).toUpperCase()
       };
 
       const response = await axios.post(
-        'https://lms-server-ym1q.onrender.com/courses/answers/submit-multiple-files',
+        'http://localhost:5533/courses/answers/submit-multiple-files',
         payload,
         {
           headers: {
@@ -4094,7 +4090,7 @@ document.addEventListener('DOMContentLoaded', init${name.charAt(0).toUpperCase()
       try {
         const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
         if (!token) return;
-        const res = await fetch(`https://lms-server-ym1q.onrender.com/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseId}&questionId=${qid}&category=${category}`, { headers: { Authorization: `Bearer ${token}` } });
+        const res = await fetch(`http://localhost:5533/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseId}&questionId=${qid}&category=${category}`, { headers: { Authorization: `Bearer ${token}` } });
         if (!res.ok) return;
         const data = await res.json();
         const sub = data?.success ? data?.data : null;
@@ -4940,10 +4936,7 @@ document.addEventListener('DOMContentLoaded', init${name.charAt(0).toUpperCase()
         waitForSharedStream={!!activeSecurity.screenRecordingEnabled}
       />
 
-      {/* ── Proctor → student messaging (floating chat) ── */}
-      {!embedded && (
-        <StudentMessageChat assessmentId={(exerciseData as any)?._id ? String((exerciseData as any)._id) : ""} />
-      )}
+      {/* Proctor → student messaging is now a header bell (see Top Activity Bar). */}
 
       {/* Top Activity Bar */}
       <div className="flex items-center justify-between px-3 py-2 border-b" style={{
@@ -4972,6 +4965,10 @@ document.addEventListener('DOMContentLoaded', init${name.charAt(0).toUpperCase()
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Proctor message notification (ephemeral, test-only) — standalone only */}
+          {!embedded && (
+            <TestMessageBell assessmentId={(exerciseData as any)?._id ? String((exerciseData as any)._id) : ""} />
+          )}
           {/* Security indicators */}
           {isAssessmentMode && (
             <>

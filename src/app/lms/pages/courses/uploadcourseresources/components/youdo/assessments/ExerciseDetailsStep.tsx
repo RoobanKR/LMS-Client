@@ -216,7 +216,7 @@ const InfoTooltip: React.FC<{ content: string; side?: 'top' | 'bottom' | 'left' 
         <div
           ref={tipRef}
           className="fixed z-[9999] p-2.5 text-xs rounded-xl shadow-2xl leading-relaxed"
-          style={{ left: pos.left, top: pos.top, maxWidth: 'min(280px,calc(100vw - 40px))', width: 'max-content', background: D.textMain, color: '#fff', fontFamily: 'Plus Jakarta Sans, sans-serif' }}
+          style={{ left: pos.left, top: pos.top, maxWidth: 'min(280px,calc(100vw - 40px))', width: 'max-content', background: D.textMain, color: '#fff', fontFamily: 'Inter, sans-serif' }}
         >
           {content}
         </div>
@@ -228,7 +228,7 @@ const InfoTooltip: React.FC<{ content: string; side?: 'top' | 'bottom' | 'left' 
 // ─── SectionLabel Component ──────────────────────────────────────────────────
 const SectionLabel: React.FC<{ children: React.ReactNode; required?: boolean; info?: string; className?: string }> = ({ children, required, info, className = '' }) => (
   <div className={`flex items-center gap-1 mb-1 ${className}`}>
-    <label className="text-xs font-semibold" style={{ color: D.textSub, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{children}</label>
+    <label className="text-xs font-semibold" style={{ color: D.textSub, fontFamily: 'Inter, sans-serif' }}>{children}</label>
     {required && <span className="text-xs font-bold" style={{ color: D.orange }}>*</span>}
     {info && <InfoTooltip content={info} />}
   </div>
@@ -438,10 +438,10 @@ export const ExerciseDetailsStep = forwardRef<ExerciseDetailsStepRef, ExerciseDe
   const isProgramming = formData.exerciseType === "Programming" || isCombined;
   const isMCQ = formData.exerciseType === "MCQ" || isCombined;
 
-  // Show module/language section only for Programming, Combined, or Other types
-  const showModuleSection = !isSectionBased && (formData.exerciseType === "Programming" || 
-                           formData.exerciseType === "Combined" || 
-                           formData.exerciseType === "Other");
+  // Always show the Skill Set (module/languages), regardless of exercise type —
+  // matches the Exercise Settings behaviour. Only hidden in section-based mode,
+  // which replaces the exercise-type area entirely.
+  const showModuleSection = !isSectionBased;
 
   const exerciseTypeOptions = [
     { value: "MCQ", label: "MCQ — Multiple Choice Questions (auto-graded)" },
@@ -645,7 +645,7 @@ export const ExerciseDetailsStep = forwardRef<ExerciseDetailsStepRef, ExerciseDe
             className="text-sm font-bold"
             style={{
               color: D.textMain,
-              fontFamily: "Plus Jakarta Sans, sans-serif",
+              fontFamily: "Inter, sans-serif",
             }}
           >
             Exercise Details
@@ -954,7 +954,7 @@ export const ExerciseDetailsStep = forwardRef<ExerciseDetailsStepRef, ExerciseDe
                         : D.border,
                     background: D.bg,
                     color: formData.exerciseType ? D.textMain : D.textMuted,
-                    fontFamily: "Plus Jakarta Sans, sans-serif",
+                    fontFamily: "Inter, sans-serif",
                     fontWeight: 600,
                     width: "auto",
                     minWidth: "200px",
@@ -1001,28 +1001,32 @@ export const ExerciseDetailsStep = forwardRef<ExerciseDetailsStepRef, ExerciseDe
                 </div>
                 <div className="space-y-2">
                   {hasPreConfiguredLanguages ? (
+                    /* Pre-configured languages → show read-only Skill Set chips,
+                       exactly like Exercise Settings. The actual selection is
+                       auto-applied in the parent (all configured languages). */
                     (() => {
                       const allLangs = buildConfiguredLangList();
+                      if (allLangs.length === 0) {
+                        return (
+                          <span className="text-xs" style={{ color: D.textMuted }}>
+                            No languages configured
+                          </span>
+                        );
+                      }
                       return (
                         <div className="flex flex-wrap gap-1.5">
                           {allLangs.map((lang) => (
                             <span
                               key={lang.name}
-                              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-semibold"
-                              style={{
-                                borderColor: D.orange,
-                                background: D.orangeLight,
-                                color: D.orange,
-                              }}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-semibold"
+                              style={{ borderColor: D.orange, background: D.orangeLight, color: D.orange }}
                             >
                               {lang.icon && (
                                 <img
                                   src={lang.icon}
                                   alt={lang.name}
                                   className="w-3.5 h-3.5 object-contain"
-                                  onError={(e) => {
-                                    (e.target as any).style.display = "none";
-                                  }}
+                                  onError={(e) => { (e.target as any).style.display = 'none'; }}
                                 />
                               )}
                               {lang.name}
@@ -1032,19 +1036,30 @@ export const ExerciseDetailsStep = forwardRef<ExerciseDetailsStepRef, ExerciseDe
                       );
                     })()
                   ) : (
+                    /* No pre-configured languages → manual module + language picker. */
+                    (() => {
+                    // Determine which modules have languages (either pre-configured or default list)
+                    const moduleHasLangs = (mod: string) => {
+                      if (!hasPreConfiguredLanguages) return true;
+                      if (mod === 'Core Programming') return !!(configuredLanguages?.coreProgram?.length);
+                      if (mod === 'Frontend') return !!(configuredLanguages?.frontend?.length);
+                      if (mod === 'Database') return !!(configuredLanguages?.database?.length);
+                      return false;
+                    };
+                    const availableModules = (['Core Programming', 'Frontend', 'Database'] as const)
+                      .filter(m => moduleHasLangs(m));
+                    return (
                     <>
                       <div className="flex gap-2">
-                        {(
-                          ["Core Programming", "Frontend", "Database"] as const
-                        ).map((mod) => {
+                        {availableModules.map((mod) => {
                           const sel = formData.selectedModule === mod;
                           const colors: Record<string, string> = {
-                            "Core Programming": D.blue,
+                            'Core Programming': D.blue,
                             Frontend: D.orange,
                             Database: D.emerald,
                           };
                           const icons: Record<string, React.ReactNode> = {
-                            "Core Programming": <Terminal size={11} />,
+                            'Core Programming': <Terminal size={11} />,
                             Frontend: <Code size={11} />,
                             Database: <Database size={11} />,
                           };
@@ -1067,9 +1082,9 @@ export const ExerciseDetailsStep = forwardRef<ExerciseDetailsStepRef, ExerciseDe
                               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border-2 text-xs font-bold transition-all"
                               style={{
                                 borderColor: sel ? colors[mod] : D.border,
-                                background: sel ? colors[mod] + "10" : D.bg,
+                                background: sel ? colors[mod] + '10' : D.bg,
                                 color: sel ? colors[mod] : D.textMuted,
-                                cursor: "pointer",
+                                cursor: 'pointer',
                               }}
                             >
                               {icons[mod]}
@@ -1078,106 +1093,77 @@ export const ExerciseDetailsStep = forwardRef<ExerciseDetailsStepRef, ExerciseDe
                           );
                         })}
                       </div>
-                      {validationErrors.selectedModule &&
-                        touchedFields.has("selectedModule") && (
-                          <p
-                            className="text-xs flex items-center gap-1"
-                            style={{ color: D.red }}
-                          >
-                            <AlertCircle size={11} />
-                            {validationErrors.selectedModule}
-                          </p>
-                        )}
-                      {formData.selectedModule &&
-                        (() => {
-                          const langs = getFilteredLanguages(
-                            formData.selectedModule,
-                          );
-                          const allSel =
-                            langs.length > 0 &&
-                            langs.every((l) =>
-                              formData.selectedLanguages.includes(l.name),
-                            );
-                          return (
-                            <div>
-                              <div className="flex flex-wrap gap-1.5 items-center">
-                                {langs.map((lang) => {
-                                  const sel = formData.selectedLanguages.includes(
-                                    lang.name,
-                                  );
-                                  return (
-                                    <label
-                                      key={lang.name}
-                                      className="flex items-center gap-1.5 px-2 py-1 rounded-lg border cursor-pointer select-none text-xs font-semibold transition-all"
-                                      style={{
-                                        borderColor: sel ? D.orange : D.border,
-                                        background: sel ? D.orangeLight : D.bg,
-                                        color: sel ? D.orange : D.textSub,
-                                      }}
-                                    >
-                                      <div className="relative flex items-center justify-center">
-                                        <input
-                                          type="checkbox"
-                                          className="w-3.5 h-3.5 cursor-pointer opacity-0 absolute"
-                                          checked={sel}
-                                          onChange={() => toggleLanguage(lang.name)}
-                                        />
-                                        <div
-                                          className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-all ${sel ? "border-orange-500 bg-orange-500" : "border-gray-300 bg-white"}`}
-                                        >
-                                          {sel && (
-                                            <Check
-                                              size={10}
-                                              className="text-white"
-                                              strokeWidth={2.5}
-                                            />
-                                          )}
-                                        </div>
-                                      </div>
-                                      {lang.icon && (
-                                        <img
-                                          src={lang.icon}
-                                          alt={lang.name}
-                                          className="w-3.5 h-3.5 object-contain"
-                                          onError={(e) => {
-                                            (e.target as any).style.display =
-                                              "none";
-                                          }}
-                                        />
-                                      )}
-                                      {lang.name}
-                                    </label>
-                                  );
-                                })}
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const all = langs.map((l) => l.name);
-                                    setFormData((prev) => ({
-                                      ...prev,
-                                      selectedLanguages: allSel ? [] : all,
-                                    }));
-                                  }}
-                                  className="text-xs font-semibold px-2 py-1 rounded transition-all hover:opacity-70 whitespace-nowrap"
-                                  style={{ color: D.orange }}
-                                >
-                                  {allSel ? "Deselect All" : "Select All"}
-                                </button>
-                              </div>
-                              {validationErrors.selectedLanguages &&
-                                touchedFields.has("selectedLanguages") && (
-                                  <p
-                                    className="mt-1 text-xs flex items-center gap-1"
-                                    style={{ color: D.red }}
+                      {validationErrors.selectedModule && touchedFields.has('selectedModule') && (
+                        <p className="text-xs flex items-center gap-1" style={{ color: D.red }}>
+                          <AlertCircle size={11} />
+                          {validationErrors.selectedModule}
+                        </p>
+                      )}
+                      {formData.selectedModule && (() => {
+                        const langs = getFilteredLanguages(formData.selectedModule);
+                        const allSel = langs.length > 0 && langs.every(l => formData.selectedLanguages.includes(l.name));
+                        return (
+                          <div>
+                            <div className="flex flex-wrap gap-1.5 items-center">
+                              {langs.map((lang) => {
+                                const sel = formData.selectedLanguages.includes(lang.name);
+                                return (
+                                  <label
+                                    key={lang.name}
+                                    className="flex items-center gap-1.5 px-2 py-1 rounded-lg border cursor-pointer select-none text-xs font-semibold transition-all"
+                                    style={{
+                                      borderColor: sel ? D.orange : D.border,
+                                      background: sel ? D.orangeLight : D.bg,
+                                      color: sel ? D.orange : D.textSub,
+                                    }}
                                   >
-                                    <AlertCircle size={11} />
-                                    {validationErrors.selectedLanguages}
-                                  </p>
-                                )}
+                                    <div className="relative flex items-center justify-center">
+                                      <input
+                                        type="checkbox"
+                                        className="w-3.5 h-3.5 cursor-pointer opacity-0 absolute"
+                                        checked={sel}
+                                        onChange={() => toggleLanguage(lang.name)}
+                                      />
+                                      <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-all ${sel ? 'border-orange-500 bg-orange-500' : 'border-gray-300 bg-white'}`}>
+                                        {sel && <Check size={10} className="text-white" strokeWidth={2.5} />}
+                                      </div>
+                                    </div>
+                                    {lang.icon && (
+                                      <img
+                                        src={lang.icon}
+                                        alt={lang.name}
+                                        className="w-3.5 h-3.5 object-contain"
+                                        onError={(e) => { (e.target as any).style.display = 'none'; }}
+                                      />
+                                    )}
+                                    {lang.name}
+                                  </label>
+                                );
+                              })}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const all = langs.map(l => l.name);
+                                  setFormData(prev => ({ ...prev, selectedLanguages: allSel ? [] : all }));
+                                }}
+                                className="text-xs font-semibold px-2 py-1 rounded transition-all hover:opacity-70 whitespace-nowrap"
+                                style={{ color: D.orange }}
+                              >
+                                {allSel ? 'Deselect All' : 'Select All'}
+                              </button>
                             </div>
-                          );
-                        })()}
+                            {validationErrors.selectedLanguages && touchedFields.has('selectedLanguages') && (
+                              <p className="mt-1 text-xs flex items-center gap-1" style={{ color: D.red }}>
+                                <AlertCircle size={11} />
+                                {validationErrors.selectedLanguages}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </>
+                    );
+                  })()
                   )}
                 </div>
               </div>
@@ -1209,7 +1195,7 @@ export const ExerciseDetailsStep = forwardRef<ExerciseDetailsStepRef, ExerciseDe
               </button>
             </div>
             
-            <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
+            <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1 ca-dark-scroll">
               {sections.map((section, index) => (
                 <SectionItemComponent
                   key={section.id}
@@ -1269,7 +1255,7 @@ export const ExerciseDetailsStep = forwardRef<ExerciseDetailsStepRef, ExerciseDe
               borderColor: D.border,
               background: D.bg,
               color: D.textMain,
-              fontFamily: "Plus Jakarta Sans, sans-serif",
+              fontFamily: "Inter, sans-serif",
               fontWeight: 600,
               width: "auto",
               minWidth: "200px",

@@ -52,7 +52,7 @@ export const PlainBreadcrumb: React.FC<PlainBreadcrumbProps> = ({ crumbs, style,
       style={{
         borderBottom: `1px solid ${T.border}`,
         background: T.pageBg,
-        fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
+        fontFamily: "'Inter', -apple-system, sans-serif",
         ...style,
       }}
     >

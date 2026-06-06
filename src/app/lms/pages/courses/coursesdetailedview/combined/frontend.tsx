@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Code,
+  Flag,
   CheckCircle,
   Loader2,
   Terminal,
@@ -121,6 +122,12 @@ interface FrontendQuestionProps {
   isLastQuestion: boolean;
   theme?: 'light' | 'dark';
   registerSubmit?: (fn: () => void | Promise<void>) => void;
+  // Question number + flag, surfaced in the Question sidebar (the parent no
+  // longer renders the 52px Q-meta row for frontend questions).
+  questionNumber?: number;
+  totalQuestions?: number;
+  isFlagged?: boolean;
+  onFlagToggle?: () => void;
 }
 
 const FrontendQuestion: React.FC<FrontendQuestionProps> = ({
@@ -137,8 +144,17 @@ const FrontendQuestion: React.FC<FrontendQuestionProps> = ({
   onNext,
   isLastQuestion,
   theme = 'light',
-  registerSubmit
+  registerSubmit,
+  questionNumber,
+  totalQuestions,
+  isFlagged,
+  onFlagToggle
 }) => {
+  // Tracks which question's starter files we've already loaded. The parent
+  // (combined page) rebuilds the `question` object on every render (timer ticks),
+  // so without this guard the init effect below would reset `files` every second
+  // and wipe any file the student just created.
+  const initializedQuestionIdRef = useRef<string | null>(null);
   // State
   const [files, setFiles] = useState<FileType[]>([]);
   const [folders, setFolders] = useState<FolderType[]>([
@@ -173,7 +189,38 @@ const FrontendQuestion: React.FC<FrontendQuestionProps> = ({
   const [editorZoom, setEditorZoom] = useState(100);
   const [currentPreviewFile, setCurrentPreviewFile] = useState<string>('');
   const [showQuestionDetails, setShowQuestionDetails] = useState(false);
-  const [sidebarWidth, setSidebarWidth] = useState(20);
+  // Draggable width (px) for the Question sidebar. Drag the handle on its right edge.
+  const [sidebarWidth, setSidebarWidth] = useState(320);
+  const [isResizingQuestionSidebar, setIsResizingQuestionSidebar] = useState(false);
+  const qSidebarResizeRef = useRef({ startX: 0, startWidth: 320 });
+  const startQuestionSidebarResize = (e: React.MouseEvent) => {
+    e.preventDefault();
+    // If the sidebar is collapsed, dragging the handle opens it and resizes
+    // starting from the collapsed width (so the drag works in both states).
+    const currentWidth = showQuestionDetails ? sidebarWidth : 48;
+    if (!showQuestionDetails) setShowQuestionDetails(true);
+    qSidebarResizeRef.current = { startX: e.clientX, startWidth: currentWidth };
+    setIsResizingQuestionSidebar(true);
+  };
+  useEffect(() => {
+    if (!isResizingQuestionSidebar) return;
+    const onMove = (e: MouseEvent) => {
+      const delta = e.clientX - qSidebarResizeRef.current.startX;
+      const next = Math.min(Math.max(200, qSidebarResizeRef.current.startWidth + delta), 640);
+      setSidebarWidth(next);
+    };
+    const onUp = () => setIsResizingQuestionSidebar(false);
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    document.body.style.cursor = 'ew-resize';
+    document.body.style.userSelect = 'none';
+    return () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isResizingQuestionSidebar]);
   const [layout, setLayout] = useState<'horizontal' | 'vertical'>('horizontal');
   const [isLoadingPrevious, setIsLoadingPrevious] = useState(false);
 
@@ -241,6 +288,13 @@ const FrontendQuestion: React.FC<FrontendQuestionProps> = ({
 
   // Initialize
   useEffect(() => {
+    // Only (re)load starter files when we switch to a DIFFERENT question.
+    // The parent passes a new `question` object reference on every render, so
+    // keying off the stable _id prevents wiping student-created files.
+    const qId = question?._id || question?.id || null;
+    if (initializedQuestionIdRef.current === qId) return;
+    initializedQuestionIdRef.current = qId;
+
     const initialFiles: FileType[] = [];
 
     if (question.solutions?.htmlCode) {
@@ -358,26 +412,55 @@ const FrontendQuestion: React.FC<FrontendQuestionProps> = ({
   }, [files]);
 
   // Combine JS for HTML file
+  // Only include:
+  //   1. Inline <script>...</script> blocks (no src) — always
+  //   2. External <script src="..."></script> blocks WHERE the referenced file
+  //      actually exists in the workspace. Missing files are silently skipped
+  //      so a stale `<script src="script.js">` in the HTML doesn't cause us
+  //      to bundle every random JS file from the folder.
   const combineJsForHtmlFile = useCallback((htmlFile: FileType) => {
     let jsContent = '';
     const htmlFolderPath = htmlFile.folderPath;
 
-    const scriptRegex = /<script\b[^>]*>([\s\S]*?)<\/script>/gi;
+    const scriptRegex = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi;
     let match;
 
     while ((match = scriptRegex.exec(htmlFile.content)) !== null) {
-      if (!match[0].includes('src=')) {
-        jsContent += match[1] + '\n\n';
+      const attrs = match[1] || '';
+      const inlineCode = match[2] || '';
+      const srcMatch = attrs.match(/\bsrc\s*=\s*["']([^"']+)["']/i);
+
+      if (!srcMatch) {
+        // Inline script — include as-is
+        if (inlineCode.trim()) {
+          jsContent += inlineCode + '\n\n';
+        }
+        continue;
       }
+
+      const src = srcMatch[1];
+      // Skip external/CDN scripts — iframe sandbox would block them anyway
+      if (/^(https?:)?\/\//i.test(src)) continue;
+
+      // Resolve the referenced file. Match by full path or by filename in
+      // the same folder as the HTML (mirrors the CSS resolution logic).
+      const referencedFilename = src.split('/').pop() || src;
+      const jsFile = files.find(f => {
+        if (f.language !== 'javascript') return false;
+        if (src.includes('/')) {
+          return f.path === src ||
+                 f.path === `/${src}` ||
+                 f.path.endsWith(src);
+        }
+        return f.folderPath === htmlFolderPath && f.filename === referencedFilename;
+      });
+
+      if (jsFile) {
+        jsContent += `/* ${jsFile.filename} */\n${jsFile.content}\n\n`;
+      }
+      // else: referenced file doesn't exist — skip silently, don't pull in
+      // unrelated JS files from the folder.
     }
-
-    const jsFiles = files.filter(f =>
-      f.language === 'javascript' && f.folderPath === htmlFolderPath
-    );
-
-    jsFiles.forEach(jsFile => {
-      jsContent += jsFile.content + '\n\n';
-    });
 
     return jsContent;
   }, [files]);
@@ -523,15 +606,14 @@ const FrontendQuestion: React.FC<FrontendQuestionProps> = ({
           
           <script>
             ${jsContent}
-            
-            // ========== SAFE NAVIGATION SYSTEM ==========
+
+            // SAFE NAVIGATION SYSTEM
             (function() {
-              // Store HTML files for local navigation
               const htmlFiles = ${JSON.stringify(allHtmlFiles.map(f => ({
       id: f.id,
       filename: f.filename,
       content: f.content
-    })))};
+    }))).replace(/<\/script>/gi, '<\\/script>').replace(/<!--/g, '<\\!--')};
               
               // Function to show link warning
               function showLinkWarning(url) {
@@ -1313,7 +1395,7 @@ console.log('${fileName} loaded');
       }
 
       const response = await fetch(
-        `https://lms-server-ym1q.onrender.com/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseId}&questionId=${question._id}&category=${category}`,
+        `http://localhost:5533/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseId}&questionId=${question._id}&category=${category}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -1323,6 +1405,10 @@ console.log('${fileName} loaded');
       );
 
       if (!response.ok) {
+        if (response.status === 404) {
+          // No previous submission yet — perfectly normal, skip silently
+          return;
+        }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
@@ -1363,7 +1449,11 @@ console.log('${fileName} loaded');
         // Transform folders
         const transformedFolders: FolderType[] = (submission.folders || []).map((folder: any, index: number) => {
           const path = folder.path || `/${folder.name}`;
-          const parentPath = folder.parentPath || '/';
+          let parentPath = folder.parentPath || '/';
+          // A folder must never be its own parent (e.g. the root '/'), otherwise
+          // the recursive file-tree renderer (getSubfolders → renderFolder) loops
+          // forever → "Maximum call stack size exceeded".
+          if (path === parentPath) parentPath = '';
 
           return {
             id: folder.id || `folder-${Date.now()}-${index}`,
@@ -1391,22 +1481,36 @@ console.log('${fileName} loaded');
           setOpenFiles([newActiveFileId]);
         }
 
-        toast.success(`Loaded previous submission with ${transformedFiles.length} files and ${transformedFolders.length} folders`);
-
+        // Silent restore — no toast (auto-restore on reopen should be invisible)
         // Trigger preview compilation
         setTimeout(() => {
           compileCode();
         }, 100);
       } else {
-        toast.info("No previous submission found");
+        // No data — nothing to restore, skip silently
       }
     } catch (error: any) {
       console.error("Error loading previous submission:", error);
-      toast.error(`Failed to load previous submission: ${error.message}`);
+      // Only surface real errors to the user (404 is handled above; other failures
+      // during auto-restore would be confusing, so log-only)
+      // toast.error(`Failed to load previous submission: ${error.message}`);
     } finally {
       setIsLoadingPrevious(false);
     }
   }, [courseId, exerciseId, category, question._id, compileCode]);
+
+  // Auto-restore the student's previously saved files/folders for this question
+  // when they re-open the combined exercise (resume where they left off).
+  // loadPreviousSubmission already fetches + setFiles/setFolders; it was only
+  // wired to a (commented-out) button before, so stored work never reappeared.
+  // Runs once per question; if no submission exists it keeps the starter files.
+  const restoredQuestionIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    const qId = question?._id || question?.id || null;
+    if (!qId || restoredQuestionIdRef.current === qId) return;
+    restoredQuestionIdRef.current = qId;
+    loadPreviousSubmission();
+  }, [question, loadPreviousSubmission]);
 
   // Handle iframe messages - UPDATED WITH NAVIGATION
   useEffect(() => {
@@ -1557,10 +1661,16 @@ console.log('${fileName} loaded');
     };
 
     const getSubfolders = (folderPath: string) => {
-      return folders.filter(folder => folder.parentPath === folderPath);
+      // Exclude self-referential folders (path === parentPath) so a folder can
+      // never be its own child — guards the recursion below against bad data.
+      return folders.filter(folder => folder.parentPath === folderPath && folder.path !== folderPath);
     };
 
-    const renderFolder = (folder: FolderType, depth: number = 0) => {
+    const renderFolder = (folder: FolderType, depth: number = 0, visited: Set<string> = new Set()) => {
+      // Cycle guard: if we've already rendered this folder path in the current
+      // branch, stop — prevents "Maximum call stack size exceeded" on cyclic data.
+      if (visited.has(folder.path)) return null;
+      visited = new Set(visited).add(folder.path);
       const folderFiles = getFilesInFolder(folder.path);
       const subfolders = getSubfolders(folder.path);
       const isSelected = selectedFolderPath === folder.path;
@@ -1658,7 +1768,7 @@ console.log('${fileName} loaded');
 
           {folder.isOpen && (
             <div>
-              {subfolders.map(subfolder => renderFolder(subfolder, depth + 1))}
+              {subfolders.map(subfolder => renderFolder(subfolder, depth + 1, visited))}
 
               {isCreatingFolderHere && (
                 <div
@@ -2084,53 +2194,72 @@ console.log('${fileName} loaded');
     try {
       const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
 
-      const entryPoint = files.find(f => f.isEntryPoint);
-      const htmlFile = files.find(f => f.language === 'html');
-      const mainFile = entryPoint || htmlFile || files[0];
+      // Store structured files/folders via submit-multiple-files — exactly like the
+      // standalone frontendCompiler.tsx (and the combined SQL question). The backend
+      // then persists files:[]/folders:[] instead of a flattened code blob.
+      // The backend rejects empty files, so keep only files that have content.
+      const validFiles = files.filter(f => f.filename && (f.content ?? '') !== '' && f.language);
+      if (validFiles.length === 0) {
+        toast.warning('Add at least one file with content before submitting.');
+        setIsSubmitting(false);
+        return;
+      }
 
-      const htmlCode = files.find(f => f.language === 'html')?.content || '';
-      const cssCode = files.find(f => f.language === 'css')?.content || '';
-      const jsCode = files.find(f => f.language === 'javascript')?.content || '';
+      const payloadFiles = validFiles.map(file => ({
+        id: file.id,
+        filename: file.filename,
+        content: file.content,
+        language: file.language,
+        path: file.path,
+        folderPath: file.folderPath,
+        isEntryPoint: file.isEntryPoint || false,
+        lastModified: file.lastModified || new Date().toISOString(),
+        size: file.size || (file.content ? Buffer.byteLength(file.content, 'utf8') : 0),
+      }));
 
-      const combinedCode = JSON.stringify({
-        html: htmlCode,
-        css: cssCode,
-        js: jsCode,
-        files: files.map(file => ({
-          filename: file.filename,
-          content: file.content,
-          language: file.language,
-          isEntryPoint: file.isEntryPoint
-        })),
-        folders: folders.map(folder => ({
-          name: folder.name,
-          path: folder.path,
-          parentPath: folder.parentPath
-        })),
-        fullHtml: srcDoc
-      });
+      const payloadFolders = folders.map(folder => ({
+        id: folder.id,
+        name: folder.name,
+        path: folder.path,
+        parentPath: folder.parentPath,
+        depth: folder.depth,
+      }));
 
-      const formData = new FormData();
-      formData.append('courseId', courseId);
-      formData.append('exerciseId', exerciseId);
-      formData.append('questionId', question._id);
-      formData.append('code', combinedCode);
-      formData.append('score', "0");
-      formData.append('status', 'submitted');
-      formData.append('category', category);
-      formData.append('subcategory', subcategory);
-      formData.append('nodeId', nodeId);
-      formData.append('nodeName', nodeName);
-      formData.append('nodeType', 'frontend');
-      formData.append('language', 'html');
-
-      const response = await fetch('https://lms-server-ym1q.onrender.com/courses/answers/submit', {
+      const response = await fetch('http://localhost:5533/courses/answers/submit-multiple-files', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
-        body: formData,
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({
+          courseId,
+          exerciseId,
+          questionId: question._id,
+          questionTitle: question.title || 'Frontend Question',
+          exerciseName: question.exerciseName || 'Frontend Exercise',
+          category,
+          subcategory,
+          selectedProgrammingLanguage: 'html/css/javascript',
+          nodeId,
+          nodeName,
+          nodeType: 'frontend',
+          files: payloadFiles,
+          folders: payloadFolders,
+          status: 'submitted',
+          score: 0,
+          attemptCount: 1,
+          studentId: studentId || 'unknown_student',
+          projectStructure: {
+            totalFiles: payloadFiles.length,
+            htmlFiles: payloadFiles.filter(f => f.language === 'html').length,
+            cssFiles: payloadFiles.filter(f => f.language === 'css').length,
+            jsFiles: payloadFiles.filter(f => f.language === 'javascript').length,
+            entryPoints: payloadFiles.filter(f => f.isEntryPoint).map(f => f.filename),
+            folderCount: payloadFolders.length,
+            hasFolders: payloadFolders.length > 0,
+          },
+        }),
       });
 
-      if (response.ok) {
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && data.success !== false) {
         addTerminalLog('success', '✅ Frontend code submitted successfully!');
         toast.success('Frontend submission saved!');
         onComplete();
@@ -2139,12 +2268,12 @@ console.log('${fileName} loaded');
           onNext();
         }, 1500);
       } else {
-        throw new Error('Submission failed');
+        throw new Error(data.message || 'Submission failed');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Submission error:", error);
-      addTerminalLog('error', `❌ ${error}`);
-      toast.error('Submission failed. Please try again.');
+      addTerminalLog('error', `❌ ${error.message || error}`);
+      toast.error(error.message || 'Submission failed. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -2412,10 +2541,13 @@ console.log('${fileName} loaded');
 
       {/* Main Container with Sidebar */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Question Sidebar */}
+        {/* Question Sidebar (resizable — drag the handle on its right edge) */}
         <div
-          className={`h-full border-r transition-all duration-300 flex flex-col ${showQuestionDetails ? 'w-[20%]' : 'w-12'}`}
+          className="h-full border-r flex flex-col"
           style={{
+            width: showQuestionDetails ? sidebarWidth : 48,
+            flexShrink: 0,
+            transition: isResizingQuestionSidebar ? 'none' : 'width 0.3s ease',
             backgroundColor: colors.sidebar,
             borderColor: colors.border
           }}
@@ -2429,14 +2561,26 @@ console.log('${fileName} loaded');
                     Question
                   </span>
                 </div>
-                <button
-                  onClick={() => setShowQuestionDetails(false)}
-                  className="p-1 hover:bg-gray-200 rounded transition-colors"
-                  style={{ color: colors.textSecondary }}
-                  title="Hide Question"
-                >
-                  <ChevronLeft size={16} />
-                </button>
+                <div className="flex items-center gap-1">
+                  {onFlagToggle && (
+                    <button
+                      onClick={onFlagToggle}
+                      className="p-1 rounded transition-colors hover:bg-gray-200"
+                      style={{ color: isFlagged ? '#f59e0b' : colors.textSecondary }}
+                      title={isFlagged ? 'Unflag this question' : 'Flag this question'}
+                    >
+                      <Flag size={15} fill={isFlagged ? '#f59e0b' : 'none'} />
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setShowQuestionDetails(false)}
+                    className="p-1 hover:bg-gray-200 rounded transition-colors"
+                    style={{ color: colors.textSecondary }}
+                    title="Hide Question"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                </div>
               </>
             ) : (
               <button
@@ -2456,7 +2600,7 @@ console.log('${fileName} loaded');
               <div className="space-y-4">
                 <div>
                   <h3 className="text-lg font-semibold mb-2" style={{ color: colors.text }}>
-                    {question.title || 'Frontend Question'}
+                    {questionNumber != null ? `${questionNumber}. ` : ''}{question.title || 'Frontend Question'}
                   </h3>
                   <div className="flex items-center gap-2 mb-3">
                     <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs font-medium">
@@ -2472,7 +2616,15 @@ console.log('${fileName} loaded');
                 <div className="mb-6">
                   <h3 className="text-sm font-semibold text-gray-900 mb-2">Description</h3>
                   <RichTextDisplay
-                    content={question.description?.text || question.description}
+                    content={
+                      // Match frontendCompiler.tsx: render the first content block's
+                      // value. `description.text` is an array of blocks, so passing it
+                      // straight to RichTextDisplay showed "[object Object]".
+                      question.description?.text?.[0]?.value ||
+                      (typeof question.description === 'string' ? question.description : '') ||
+                      (typeof question.description?.text === 'string' ? question.description.text : '') ||
+                      ''
+                    }
                     className="text-sm text-gray-700 whitespace-pre-wrap"
                   />
                 </div>
@@ -2545,23 +2697,24 @@ console.log('${fileName} loaded');
           )}
         </div>
 
+        {/* Drag handle to resize the Question sidebar — works even when collapsed
+            (dragging it open expands the sidebar). */}
+        <div
+          onMouseDown={startQuestionSidebarResize}
+          className="cursor-ew-resize flex-shrink-0 hover:bg-blue-500 transition-colors"
+          style={{ width: 4, backgroundColor: isResizingQuestionSidebar ? '#3b82f6' : 'transparent' }}
+          title="Drag to resize"
+        />
+
         {/* Main Content Area */}
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col min-w-0">
           {/* Top Header */}
-          <div className="p-3 border-b flex items-center justify-between" style={{ borderColor: colors.border }}>
-            <div>
-              <h2 className="text-lg font-semibold" style={{ color: colors.text }}>
+          <div className="px-3 py-1.5 border-b flex items-center justify-between" style={{ borderColor: colors.border }}>
+            <div className="flex items-center gap-1.5">
+              <Code className="w-3.5 h-3.5 text-purple-500" />
+              <h2 className="text-sm font-semibold" style={{ color: colors.text }}>
                 Frontend Editor
               </h2>
-              <div className="flex items-center gap-2 text-sm" style={{ color: colors.textSecondary }}>
-                <Code className="w-4 h-4 text-purple-500" />
-                <span className="text-xs">
-                  {files.length} file{files.length !== 1 ? 's' : ''}
-                  {files.filter(f => f.language === 'html').length > 0 && ` • ${files.filter(f => f.language === 'html').length} HTML`}
-                  {files.filter(f => f.language === 'css').length > 0 && ` • ${files.filter(f => f.language === 'css').length} CSS`}
-                  {files.filter(f => f.language === 'javascript').length > 0 && ` • ${files.filter(f => f.language === 'javascript').length} JS`}
-                </span>
-              </div>
             </div>
 
             <div className="flex items-center gap-2">
@@ -2631,31 +2784,18 @@ console.log('${fileName} loaded');
                 Open Tab
               </button>
 
+              {/* Output — opens the Preview panel from the right and refreshes it */}
               <button
-                onClick={compileCode}
-                disabled={isRunning}
-                className="h-7 px-2 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 flex items-center gap-1"
+                onClick={() => {
+                  setSelectedTab('preview');
+                  compileCode();
+                }}
+                disabled={isRunning || files.length === 0}
+                className="h-7 px-2.5 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 flex items-center gap-1"
+                title="Show Output"
               >
-                {isRunning ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
-                Run
-              </button>
-
-              {/* <button
-                onClick={resetCode}
-                className="h-7 px-2 text-xs border rounded flex items-center gap-1 hover:opacity-90 transition-opacity"
-                style={{ borderColor: colors.border, color: colors.text }}
-              >
-                <RotateCcw className="w-3 h-3" />
-                Reset All
-              </button> */}
-
-              <button
-                onClick={submitCode}
-                disabled={isSubmitting}
-                className="h-7 px-2 text-xs bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50 flex items-center gap-1"
-              >
-                {isSubmitting ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle className="w-3 h-3" />}
-                {isLastQuestion ? 'Complete' : 'Submit & Next'}
+                {isRunning ? <Loader2 className="w-3 h-3 animate-spin" /> : <Eye className="w-3 h-3" />}
+                Output
               </button>
 
               <button
@@ -2852,209 +2992,174 @@ console.log('${fileName} loaded');
                 </div>
               </div>
 
-              {/* Editor or Preview */}
-              <div className="flex-1 relative">
-                {selectedTab === 'preview' ? (
-                  <>
-                    <div className="absolute inset-0 flex flex-col">
-                      <div className="px-3 py-2 border-b flex items-center justify-between" style={{
-                        borderColor: colors.border,
-                        backgroundColor: colors.editorGroup
-                      }}>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium" style={{ color: colors.text }}>Preview</span>
-                          <span className="text-xs px-2 py-0.5 rounded bg-green-100 text-green-800">
-                            {currentPreviewFile || 'No file'}
-                          </span>
-                          <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-800 flex items-center gap-1">
-                            <AlertTriangle size={10} />
-                            Links Secured
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => setSelectedTab('editor')}
-                            className="p-1.5 hover:bg-gray-100 rounded transition-colors flex items-center gap-1 text-xs"
-                            style={{ color: colors.textSecondary }}
-                            title="Back to Editor"
-                          >
-                            <FileCode size={12} />
-                            <span>Editor</span>
-                          </button>
+              {/* Editor + Preview side-by-side (like student/frontendCompiler.tsx) */}
+              <div className="flex-1 relative flex overflow-hidden">
+                {/* Editor — always visible on left */}
+                <div className="flex-1 relative min-w-0">
+                  {!activeFile ? (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center p-8">
+                      <FilePlus className="w-16 h-16 text-gray-300 mb-4" />
+                      <h3 className="text-lg font-medium text-gray-700 mb-2">No file selected</h3>
+                      <p className="text-gray-500 text-center mb-6">
+                        Create a new file or select an existing one to start coding
+                      </p>
+                      <button
+                        onClick={startCreatingFile}
+                        className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center gap-2"
+                      >
+                        <FilePlus className="w-4 h-4" />
+                        Create New File
+                      </button>
+                    </div>
+                  ) : (
+                    <MonacoEditor
+                      language={activeFile.language}
+                      theme={theme === 'light' ? 'vs' : 'vs-dark'}
+                      value={activeFile.content}
+                      onChange={handleFileContentChange}
+                      options={{
+                        fontSize: 14 * (editorZoom / 100),
+                        minimap: { enabled: true },
+                        wordWrap: 'on',
+                        automaticLayout: true,
+                        scrollBeyondLastLine: false,
+                        tabSize: 2,
+                        insertSpaces: true,
+                        formatOnPaste: true,
+                        formatOnType: true,
+                        renderLineHighlight: 'all',
+                        cursorBlinking: 'smooth',
+                        mouseWheelZoom: true,
+                        padding: { top: 10 },
+                        lineNumbers: 'on',
+                        glyphMargin: true,
+                        folding: true,
+                        scrollbar: {
+                          vertical: 'visible',
+                          horizontal: 'visible',
+                          useShadows: false
+                        }
+                      }}
+                    />
+                  )}
+                </div>
 
-                          <button
-                            onClick={() => {
-                              const htmlFile = files.find(f => f.language === 'html' && f.isEntryPoint) ||
-                                files.find(f => f.language === 'html') ||
-                                files[0];
-
-                              if (htmlFile) {
-                                const newWindow = window.open('', '_blank');
-                                if (newWindow) {
-                                  const htmlContent = generateSrcDocForFile(htmlFile);
-                                  newWindow.document.open();
-                                  newWindow.document.write(htmlContent);
-                                  newWindow.document.close();
-                                  toast.success('Opened in new tab');
-                                }
-                              } else {
-                                toast.error('No HTML file found to open');
-                              }
-                            }}
-                            disabled={files.length === 0}
-                            className="p-1.5 hover:bg-gray-100 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            style={{ color: colors.textSecondary }}
-                            title="Open in New Tab"
-                          >
-                            <ExternalLink size={14} />
-                          </button>
-
-                          <button
-                            onClick={compileCode}
-                            className="p-1.5 hover:bg-gray-100 rounded transition-colors"
-                            style={{ color: colors.textSecondary }}
-                            title="Refresh Preview"
-                          >
-                            <RefreshCw size={14} />
-                          </button>
-
-                          <button
-                            onClick={() => setIsFullscreen(!isFullscreen)}
-                            className="p-1.5 hover:bg-gray-100 rounded transition-colors"
-                            style={{ color: colors.textSecondary }}
-                            title="Toggle Fullscreen"
-                          >
-                            {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-                          </button>
-                        </div>
+                {/* Preview — slides in on right when Output is clicked */}
+                {selectedTab === 'preview' && (
+                  <div className="flex flex-col border-l" style={{ width: '50%', borderColor: colors.border, backgroundColor: colors.editorGroup }}>
+                    <div className="px-3 py-2 border-b flex items-center justify-between" style={{
+                      borderColor: colors.border,
+                      backgroundColor: colors.editorGroup
+                    }}>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium" style={{ color: colors.text }}>Output</span>
+                        <span className="text-xs px-2 py-0.5 rounded bg-green-100 text-green-800">
+                          {currentPreviewFile || 'No file'}
+                        </span>
                       </div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={compileCode}
+                          className="p-1.5 hover:bg-gray-100 rounded transition-colors"
+                          style={{ color: colors.textSecondary }}
+                          title="Refresh Preview"
+                        >
+                          <RefreshCw size={14} />
+                        </button>
 
-                      <div className="flex-1 relative">
-                        {isRunning ? (
-                          <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: colors.background }}>
-                            <div className="text-center">
-                              <Loader2 className="w-8 h-8 text-gray-400 animate-spin mx-auto mb-2" />
-                              <p className="text-sm" style={{ color: colors.textSecondary }}>Loading preview...</p>
-                            </div>
+                        <button
+                          onClick={() => {
+                            const htmlFile = files.find(f => f.language === 'html' && f.isEntryPoint) ||
+                              files.find(f => f.language === 'html') ||
+                              files[0];
+
+                            if (htmlFile) {
+                              const newWindow = window.open('', '_blank');
+                              if (newWindow) {
+                                const htmlContent = generateSrcDocForFile(htmlFile);
+                                newWindow.document.open();
+                                newWindow.document.write(htmlContent);
+                                newWindow.document.close();
+                                toast.success('Opened in new tab');
+                              }
+                            } else {
+                              toast.error('No HTML file found to open');
+                            }
+                          }}
+                          disabled={files.length === 0}
+                          className="p-1.5 hover:bg-gray-100 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          style={{ color: colors.textSecondary }}
+                          title="Open in New Tab"
+                        >
+                          <ExternalLink size={14} />
+                        </button>
+
+                        <button
+                          onClick={() => setIsFullscreen(!isFullscreen)}
+                          className="p-1.5 hover:bg-gray-100 rounded transition-colors"
+                          style={{ color: colors.textSecondary }}
+                          title="Toggle Fullscreen"
+                        >
+                          {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                        </button>
+
+                        <button
+                          onClick={() => setSelectedTab('editor')}
+                          className="p-1.5 hover:bg-gray-100 rounded transition-colors"
+                          style={{ color: colors.textSecondary }}
+                          title="Close Output"
+                        >
+                          <XIcon size={14} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex-1 relative">
+                      {isRunning ? (
+                        <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: colors.background }}>
+                          <div className="text-center">
+                            <Loader2 className="w-8 h-8 text-gray-400 animate-spin mx-auto mb-2" />
+                            <p className="text-sm" style={{ color: colors.textSecondary }}>Loading preview...</p>
                           </div>
-                        ) : isFullscreen ? (
-                          <div className="fixed inset-0 z-50" style={{ backgroundColor: colors.background }}>
-                            <div className="h-12 border-b flex items-center justify-between px-4" style={{
-                              borderColor: colors.border,
-                              backgroundColor: colors.sidebar
-                            }}>
-                              <span style={{ color: colors.text }}>Fullscreen Preview - {currentPreviewFile}</span>
-                              <button
-                                onClick={() => setIsFullscreen(false)}
-                                className="p-2 hover:bg-gray-100 rounded"
-                                style={{ color: colors.text }}
-                              >
-                                <XIcon size={16} />
-                              </button>
-                            </div>
-                            <iframe
-                              key={previewKey}
-                              ref={previewFrameRef}
-                              srcDoc={srcDoc}
-                              title="Preview"
-                              className="w-full h-[calc(100vh-3rem)] border-0"
-                              sandbox="allow-scripts allow-same-origin"
-                              referrerPolicy="no-referrer"
-                              onLoad={() => {
-                                // Additional security
-                                const iframe = previewFrameRef.current;
-                                if (iframe) {
-                                  try {
-                                    // Prevent any navigation
-                                    iframe.contentWindow?.addEventListener('beforeunload', (e) => {
-                                      e.preventDefault();
-                                      e.returnValue = '';
-                                    });
-                                  } catch (e) {
-                                    // Cross-origin restriction
-                                  }
-                                }
-                              }}
-                            />
+                        </div>
+                      ) : isFullscreen ? (
+                        <div className="fixed inset-0 z-50" style={{ backgroundColor: colors.background }}>
+                          <div className="h-12 border-b flex items-center justify-between px-4" style={{
+                            borderColor: colors.border,
+                            backgroundColor: colors.sidebar
+                          }}>
+                            <span style={{ color: colors.text }}>Fullscreen Preview - {currentPreviewFile}</span>
+                            <button
+                              onClick={() => setIsFullscreen(false)}
+                              className="p-2 hover:bg-gray-100 rounded"
+                              style={{ color: colors.text }}
+                            >
+                              <XIcon size={16} />
+                            </button>
                           </div>
-                        ) : (
                           <iframe
                             key={previewKey}
                             ref={previewFrameRef}
                             srcDoc={srcDoc}
                             title="Preview"
-                            className="w-full h-full border-0"
+                            className="w-full h-[calc(100vh-3rem)] border-0"
                             sandbox="allow-scripts allow-same-origin"
                             referrerPolicy="no-referrer"
-                            onLoad={() => {
-                              // Additional security
-                              const iframe = previewFrameRef.current;
-                              if (iframe) {
-                                try {
-                                  // Prevent any navigation
-                                  iframe.contentWindow?.addEventListener('beforeunload', (e) => {
-                                    e.preventDefault();
-                                    e.returnValue = '';
-                                  });
-                                } catch (e) {
-                                  // Cross-origin restriction
-                                }
-                              }
-                            }}
                           />
-                        )}
-                      </div>
+                        </div>
+                      ) : (
+                        <iframe
+                          key={previewKey}
+                          ref={previewFrameRef}
+                          srcDoc={srcDoc}
+                          title="Preview"
+                          className="w-full h-full border-0"
+                          sandbox="allow-scripts allow-same-origin"
+                          referrerPolicy="no-referrer"
+                        />
+                      )}
                     </div>
-                  </>
-                ) : (
-                  <>
-                    {!activeFile ? (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center p-8">
-                        <FilePlus className="w-16 h-16 text-gray-300 mb-4" />
-                        <h3 className="text-lg font-medium text-gray-700 mb-2">No file selected</h3>
-                        <p className="text-gray-500 text-center mb-6">
-                          Create a new file or select an existing one to start coding
-                        </p>
-                        <button
-                          onClick={startCreatingFile}
-                          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center gap-2"
-                        >
-                          <FilePlus className="w-4 h-4" />
-                          Create New File
-                        </button>
-                      </div>
-                    ) : (
-                      <MonacoEditor
-                        language={activeFile.language}
-                        theme={theme === 'light' ? 'vs' : 'vs-dark'}
-                        value={activeFile.content}
-                        onChange={handleFileContentChange}
-                        options={{
-                          fontSize: 14 * (editorZoom / 100),
-                          minimap: { enabled: true },
-                          wordWrap: 'on',
-                          automaticLayout: true,
-                          scrollBeyondLastLine: false,
-                          tabSize: 2,
-                          insertSpaces: true,
-                          formatOnPaste: true,
-                          formatOnType: true,
-                          renderLineHighlight: 'all',
-                          cursorBlinking: 'smooth',
-                          mouseWheelZoom: true,
-                          padding: { top: 10 },
-                          lineNumbers: 'on',
-                          glyphMargin: true,
-                          folding: true,
-                          scrollbar: {
-                            vertical: 'visible',
-                            horizontal: 'visible',
-                            useShadows: false
-                          }
-                        }}
-                      />
-                    )}
-                  </>
+                  </div>
                 )}
               </div>
 

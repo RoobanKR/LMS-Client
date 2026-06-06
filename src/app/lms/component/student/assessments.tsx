@@ -1098,8 +1098,22 @@ function RequestRetestModal({ exercise, onClose, onSubmit, submitting }: Request
 // Per-row 3-dot menu → "Request Retest"
 // ═══════════════════════════════════════════════════════════════════════════════
 function RetestRowMenu({
-  exercise, isPending, onRequest,
-}: { exercise: Exercise; isPending: boolean; onRequest: () => void }) {
+  exercise, isPending, onRequest, onGrade, isGradeEnabled, isSubmitted,
+}: {
+  exercise: Exercise;
+  isPending: boolean;
+  onRequest: () => void;
+  // Grade action — kept inside this menu (below "Request Retest") so the
+  // teacher / student only see one three-dot affordance per row. Grade is
+  // disabled until the student has submitted at least one answer for this
+  // exercise; the tooltip explains why.
+  onGrade?: (exercise: Exercise, e: React.MouseEvent) => void;
+  isGradeEnabled?: boolean;
+  // True when the row's Action column shows a Submitted state (inactive +
+  // completed, all attempts used, or submitted-with-retake). Request Retest
+  // is gated on this — there's nothing to "retest" before the first submit.
+  isSubmitted?: boolean;
+}) {
   const [open, setOpen] = useState(false)
   const btnRef = useRef<HTMLButtonElement>(null)
   const [pos, setPos] = useState<{ top: number; right: number } | null>(null)
@@ -1154,22 +1168,68 @@ function RetestRowMenu({
             boxShadow: '0 10px 30px rgba(0,0,0,0.12)', padding: 4, minWidth: 172,
           }}
         >
-          <button
-            disabled={isPending}
-            onClick={() => { if (isPending) return; setOpen(false); onRequest() }}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-              padding: '8px 10px', fontSize: 12, fontWeight: 600, borderRadius: 8,
-              border: 'none', textAlign: 'left',
-              color: isPending ? '#94a3b8' : '#334155',
-              background: 'transparent', cursor: isPending ? 'not-allowed' : 'pointer',
-            }}
-            onMouseEnter={e => { if (!isPending) e.currentTarget.style.background = '#f8fafc' }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
-          >
-            {isPending ? <Clock size={13} /> : <RotateCcw size={13} />}
-            {isPending ? 'Request Pending' : 'Request Retest'}
-          </button>
+          {(() => {
+            // Request Retest is only meaningful AFTER a submission exists.
+            // Disable it while the Action column still shows the Start button
+            // (i.e. nothing submitted yet) so students can't request a retest
+            // for something they haven't taken.
+            const retestDisabled = isPending || !isSubmitted;
+            const retestTitle = isPending
+              ? 'A retest request is already pending'
+              : !isSubmitted
+              ? 'Available after you submit the test'
+              : 'Request a retest for this assessment';
+            const retestLabel = isPending
+              ? 'Request Pending'
+              : !isSubmitted
+              ? 'Request Retest'
+              : 'Request Retest';
+            return (
+              <button
+                disabled={retestDisabled}
+                title={retestTitle}
+                onClick={() => { if (retestDisabled) return; setOpen(false); onRequest() }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                  padding: '8px 10px', fontSize: 12, fontWeight: 600, borderRadius: 8,
+                  border: 'none', textAlign: 'left',
+                  color: retestDisabled ? '#cbd5e1' : '#334155',
+                  background: 'transparent', cursor: retestDisabled ? 'not-allowed' : 'pointer',
+                }}
+                onMouseEnter={e => { if (!retestDisabled) e.currentTarget.style.background = '#f8fafc' }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+              >
+                {isPending ? <Clock size={13} /> : <RotateCcw size={13} />}
+                {retestLabel}
+              </button>
+            );
+          })()}
+          {onGrade && (
+            <>
+              <div style={{ height: 1, margin: '4px 6px', background: '#eef2f7' }} />
+              <button
+                disabled={!isGradeEnabled}
+                title={isGradeEnabled ? 'Open grading' : 'Available after at least one answer is submitted'}
+                onClick={(e) => {
+                  if (!isGradeEnabled) return;
+                  setOpen(false);
+                  onGrade(exercise, e);
+                }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                  padding: '8px 10px', fontSize: 12, fontWeight: 600, borderRadius: 8,
+                  border: 'none', textAlign: 'left',
+                  color: isGradeEnabled ? '#7c3aed' : '#cbd5e1',
+                  background: 'transparent', cursor: isGradeEnabled ? 'pointer' : 'not-allowed',
+                }}
+                onMouseEnter={e => { if (isGradeEnabled) e.currentTarget.style.background = '#faf5ff' }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+              >
+                <Trophy size={13} />
+                Grade
+              </button>
+            </>
+          )}
         </div>,
         document.body
       )}
@@ -1755,12 +1815,21 @@ const handleStartClick = (exercise: Exercise, e: React.MouseEvent) => {
                   {[
                     { label: '#',               cls: 'w-9 pl-4 pr-2' },
                     { label: 'ID',              cls: 'w-[72px] px-3' },
+                    // Assessment Name is the only flexible column (no fixed
+                    // width); the +50px we added to Action below comes out of
+                    // here automatically thanks to `table-fixed`.
                     { label: 'Assessment Name', cls: 'px-3' },
                     { label: 'Start Date',      cls: 'w-[150px] pl-0 pr-2' },
                     { label: 'End Date',        cls: 'w-[150px] pl-0 pr-2' },
                     { label: 'Level',           cls: 'w-[100px] pl-0 pr-2' },
-                    { label: 'Status',          cls: 'w-[85px] pl-0 pr-2 text-center' },
-                    { label: 'Action',          cls: 'w-[120px] px-3 text-center' },
+                    // Asymmetric padding shifts the centred "Status" label
+                    // slightly right so it visually sits above the pill.
+                    { label: 'Status',          cls: 'w-[85px] pl-6 pr-2 text-center' },
+                    // Widened from 120 → 170 so "Start Retest" + the kebab
+                    // fit on one line without wrapping. Extra pl-8 (vs the
+                    // px-3 cells use) shifts the centred "Action" label a
+                    // bit to the right so it visually sits above the button.
+                    { label: 'Action',          cls: 'w-[170px] pl-8 pr-3 text-center' },
                   ].map(h => (
                     <th key={h.label}
                       className={`py-2.5 text-left select-none ${h.cls}`}
@@ -1916,6 +1985,12 @@ const handleStartClick = (exercise: Exercise, e: React.MouseEvent) => {
                             exercise={exercise}
                             isPending={pendingRetestIds.has(exercise._id)}
                             onRequest={() => setRetestModalExercise(exercise)}
+                            onGrade={handleGradeClick}
+                            isGradeEnabled={hasExerciseBeenAttempted(exercise, studentAnswers, method, subcategory)}
+                            // Submitted = the Action column shows a Submitted
+                            // state: inactive+completed, all attempts used, or
+                            // submitted with retake. Mirrors the row's branches.
+                            isSubmitted={isCompleted || limitReached || canRetake}
                           />
                         </div>
                       </td>

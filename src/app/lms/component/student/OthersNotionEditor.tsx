@@ -906,7 +906,7 @@ const OthersNotionEditor: React.FC<OthersNotionEditorProps> = ({
   }, [setBlocks]);
 
   return (
-    <div className={`flex flex-col h-full ${isDark ? 'bg-gray-950' : 'bg-white'}`} style={{ fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif" }}>
+    <div className={`flex flex-col h-full ${isDark ? 'bg-gray-950' : 'bg-white'}`} style={{ fontFamily: "'Inter', -apple-system, sans-serif" }}>
 
       {/* ── Top Bar ─────────────────────────────────────────────────────────── */}
       <div className={`flex-shrink-0 flex items-center justify-between px-4 py-2 border-b ${isDark ? 'border-gray-800 bg-gray-900/60' : 'border-gray-100 bg-white'}`}>

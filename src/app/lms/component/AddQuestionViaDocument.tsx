@@ -32,7 +32,7 @@ import { bulkUploadApi } from "../../../apiServices/bulkUploadApi";
 
 // ─── Design tokens (match ProblemSolving / MCQQuestionForm) ───────────────────
 const JKT: React.CSSProperties = {
-  fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
+  fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
 };
 const OR = "#F27757"; // brand orange
 const OR_LIGHT = "rgba(242,119,87,0.08)";

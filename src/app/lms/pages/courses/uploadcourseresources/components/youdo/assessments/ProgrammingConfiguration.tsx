@@ -48,7 +48,7 @@ export const ProgrammingConfiguration: React.FC<BaseConfigProps> = ({
             <Terminal size={13} />
           </div>
           <div>
-            <h3 className="text-sm font-bold" style={{ color: designTokens.textMain, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+            <h3 className="text-sm font-bold" style={{ color: designTokens.textMain, fontFamily: 'Inter, sans-serif' }}>
               Programming Configuration
             </h3>
             {isCombined && totalToUse > 0 && (

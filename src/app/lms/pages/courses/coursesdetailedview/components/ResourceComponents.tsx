@@ -146,7 +146,7 @@ export const ResourceItem = ({
         background: rowBg,
         borderBottom: '1px solid #eef0f4',
         transition: 'background 0.15s ease',
-        fontFamily: "'Inter','Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,sans-serif",
+        fontFamily: "'Inter','Inter',-apple-system,BlinkMacSystemFont,sans-serif",
         WebkitFontSmoothing: 'antialiased',
         ...animStyle,
       }}
@@ -348,7 +348,7 @@ export const ResourceGroupRow = ({
           background: '#ffffff',
           borderBottom: '1px solid #eef0f4',
           transition: 'background 0.15s ease',
-          fontFamily: "'Inter','Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,sans-serif",
+          fontFamily: "'Inter','Inter',-apple-system,BlinkMacSystemFont,sans-serif",
           WebkitFontSmoothing: 'antialiased',
           ...animStyle,
         }}
@@ -450,7 +450,7 @@ export const ResourceTableHeader = () => (
       position: 'sticky',
       top: 0,
       zIndex: 5,
-      fontFamily: "'Inter','Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,sans-serif",
+      fontFamily: "'Inter','Inter',-apple-system,BlinkMacSystemFont,sans-serif",
     }}
   >
     <div style={{ width: '36%', minWidth: 0, fontSize: '11px', fontWeight: 500, color: '#0F172A', paddingRight: 12, letterSpacing: '0.04em' }}>Name</div>

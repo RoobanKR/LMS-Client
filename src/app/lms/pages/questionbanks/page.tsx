@@ -15,28 +15,52 @@ import DashboardLayout from '../../component/layout';
 import { StaffLayout } from '../../component/stafflayout/staff-layout';
 import { motion, AnimatePresence } from 'framer-motion';
 
+// ─── Category (sub-type) ⇄ stored questionType discriminator ───────────────────
+// The Question Bank stores the *specific* type in `questionType` so that Core,
+// Frontend and Database questions are distinguishable downstream (the assessment
+// flow already expects 'programming' | 'frontend' | 'database' | 'mcq').
+// `questionCategory` is the broad bucket and is always "Programming" for this modal.
+const CATEGORY_TO_QUESTION_TYPE: Record<string, 'programming' | 'frontend' | 'database'> = {
+  core: 'programming',
+  frontend: 'frontend',
+  database: 'database',
+};
+
+const questionTypeFromCategory = (category?: string): 'programming' | 'frontend' | 'database' =>
+  CATEGORY_TO_QUESTION_TYPE[(category as string) || 'core'] || 'programming';
+
+// The sub-type isn't persisted separately, so derive it back from questionType when editing.
+const categoryFromQuestionType = (questionType?: string): 'core' | 'frontend' | 'database' => {
+  const v = (questionType || '').toLowerCase();
+  if (v === 'frontend') return 'frontend';
+  if (v === 'database') return 'database';
+  return 'core';
+};
+
+// Case-insensitive so both new ('mcq') and legacy ('MCQ') data are handled.
+const isMcqType = (questionType?: string) => (questionType || '').toLowerCase() === 'mcq';
+
 // ─── Default empty state ───────────────────────────────────────────────────────
 const DEFAULT_PROGRAMMING_QUESTION = {
-  questionType: 'Programming' as const,
-  questionCategory: '',
+  questionType: 'programming' as const,
+  questionCategory: 'Programming',
   isActive: true,
   // Common programming fields
   title: '',
   description: '',
   difficulty: 'medium' as const,
   // Core-specific
-  constraints: [],
   hints: [],
   testCases: [
     { input: '', expectedOutput: '', isSample: true, isHidden: false, explanation: '' },
   ],
   solutions: { startedCode: '', functionName: '', language: 'javascript' },
-  // Frontend-specific
-  constraints: [], // Ensure this exists
+  // Shared
+  constraints: [],
   // Database-specific
   sampleQuery: '',
   expectedResult: '',
-  // Category selector
+  // Category selector (drives questionType)
   category: 'core' as const,
   // Legacy fields (kept for compatibility)
   sampleInput: '',
@@ -46,11 +70,13 @@ const DEFAULT_PROGRAMMING_QUESTION = {
 
 // ─── Payload builder — only sends fields relevant to the chosen category ──────
 const buildProgrammingPayload = (question: Partial<Question>) => {
-  const category = (question.category as string) || 'core';
+  const category = (question.category as 'core' | 'frontend' | 'database') || 'core';
 
   const base = {
-    questionCategory: question.questionCategory || '',
-    questionType: 'Programming' as const,
+    // Broad bucket — always "Programming" for this modal, regardless of sub-type.
+    questionCategory: 'Programming',
+    // Specific type — derived from the Core / Frontend / Database selector.
+    questionType: questionTypeFromCategory(category),
     isActive: question.isActive !== undefined ? question.isActive : true,
     title: question.title || '',
     description: question.description || '',
@@ -157,14 +183,20 @@ export default function QuestionBankPage() {
 
   const applyFilters = () => {
     let filtered = [...questions];
-    if (filters.questionType) filtered = filtered.filter(q => q.questionType === filters.questionType);
+    if (filters.questionType) {
+      // The dropdown offers the broad buckets MCQ / Programming; "Programming"
+      // matches every non-MCQ sub-type (programming / frontend / database).
+      filtered = filtered.filter(q =>
+        filters.questionType === 'MCQ' ? isMcqType(q.questionType) : !isMcqType(q.questionType)
+      );
+    }
     if (filters.category) filtered = filtered.filter(q => q.questionCategory === filters.category);
     if (filters.difficulty) filtered = filtered.filter(q => q.difficulty === filters.difficulty);
     if (filters.isActive !== '') filtered = filtered.filter(q => q.isActive === (filters.isActive === 'true'));
     if (filters.search) {
       const s = filters.search.toLowerCase();
       filtered = filtered.filter(q =>
-        (q.questionType === 'MCQ' ? q.questionTitle : q.title)?.toLowerCase().includes(s) ||
+        (isMcqType(q.questionType) ? q.questionTitle : q.title)?.toLowerCase().includes(s) ||
         q.description?.toLowerCase().includes(s) ||
         q.questionCategory?.toLowerCase().includes(s)
       );
@@ -215,8 +247,8 @@ const handleFieldChange = (field: string, value: any) => {
     try {
       setIsLoading(true);
       const endpoint = editingQuestion?._id
-        ? `https://lms-server-ym1q.onrender.com/update/question-bank/${editingQuestion._id}`
-        : 'https://lms-server-ym1q.onrender.com/create/question-bank';
+        ? `http://localhost:5533/update/question-bank/${editingQuestion._id}`
+        : 'http://localhost:5533/create/question-bank';
 
       const response = await fetch(endpoint, {
         method: editingQuestion?._id ? 'PUT' : 'POST',
@@ -241,13 +273,20 @@ const handleFieldChange = (field: string, value: any) => {
   // ── Edit / Delete / Toggle ──
   const handleEditQuestion = (question: Question) => {
     setEditingQuestion(question);
-    setSelectedQuestionType(question.questionType);
-    if (question.questionType === 'Programming') {
-      // Ensure testCases has at least one entry when editing core
+    const mcq = isMcqType(question.questionType);
+    // selectedQuestionType only decides which modal opens (MCQ vs Programming).
+    setSelectedQuestionType(mcq ? 'MCQ' : 'Programming');
+    if (!mcq) {
+      // Ensure testCases has at least one entry when editing.
       const tc = question.testCases?.length
         ? question.testCases
         : [{ input: '', expectedOutput: '', isSample: true, isHidden: false, explanation: '' }];
-      setNewQuestion({ ...question, testCases: tc });
+      // Restore the sub-type tab (Core / Frontend / Database) from questionType.
+      setNewQuestion({
+        ...question,
+        testCases: tc,
+        category: categoryFromQuestionType(question.questionType),
+      });
     }
     setShowCreateModal(true);
   };
@@ -277,8 +316,8 @@ const handleFieldChange = (field: string, value: any) => {
   // ── Stats ──
   const stats = [
     { label: 'Total', value: questions.length },
-    { label: 'MCQ', value: questions.filter(q => q.questionType === 'MCQ').length },
-    { label: 'Programming', value: questions.filter(q => q.questionType === 'Programming').length },
+    { label: 'MCQ', value: questions.filter(q => isMcqType(q.questionType)).length },
+    { label: 'Programming', value: questions.filter(q => !isMcqType(q.questionType)).length },
     { label: 'Active', value: questions.filter(q => q.isActive).length },
   ];
 
@@ -534,9 +573,8 @@ const handleFieldChange = (field: string, value: any) => {
       : [{ input: '', expectedOutput: '', isSample: true, isHidden: false, explanation: '' }],
     solutions: newQuestion.solutions || { startedCode: '', functionName: '', language: 'javascript' },
     category: (newQuestion.category as any) || 'core',
-    constraints: newQuestion.constraints || [],
-    sampleQuery: newQuestion.sampleQuery || '',        // ✅ Add this
-    expectedResult: newQuestion.expectedResult || '',  // ✅ Add this
+    sampleQuery: newQuestion.sampleQuery || '',
+    expectedResult: newQuestion.expectedResult || '',
   }}
   onChange={handleFieldChange}
 />

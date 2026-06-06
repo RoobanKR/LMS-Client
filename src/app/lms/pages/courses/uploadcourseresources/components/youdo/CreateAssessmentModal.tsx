@@ -408,17 +408,37 @@ const CreateAssessmentModal: React.FC<ExerciseSettingsProps> = ({
     }
   }, [hierarchyData, nodeId, nodeType, courseId]);
 
+  // Prefer the node-scoped configuredLanguages prop (the topic's OWN
+  // testConfiguration — e.g. just html/css/js) over the whole-course config
+  // fetched below as a fallback. This mirrors how ExerciseSettings receives its
+  // node-scoped languages, so the Skill Set chips match it exactly.
+  const effectiveConfig = useMemo(() => {
+    const hasProp = !!(
+      configuredLanguages &&
+      ((configuredLanguages.coreProgram?.length ?? 0) ||
+        (configuredLanguages.frontend?.length ?? 0) ||
+        (configuredLanguages.database?.length ?? 0))
+    );
+    return hasProp
+      ? {
+          coreProgram: configuredLanguages!.coreProgram ?? [],
+          frontend: configuredLanguages!.frontend ?? [],
+          database: configuredLanguages!.database ?? [],
+        }
+      : courseConfig;
+  }, [configuredLanguages, courseConfig]);
+
   const getFilteredLanguages = useCallback((category: string) => {
     let languages: string[] = [];
-    
+
     if (category === "Core Programming") {
-      languages = courseConfig.coreProgram || [];
+      languages = effectiveConfig.coreProgram || [];
     } else if (category === "Frontend") {
-      languages = courseConfig.frontend || [];
+      languages = effectiveConfig.frontend || [];
     } else if (category === "Database") {
-      languages = courseConfig.database || [];
+      languages = effectiveConfig.database || [];
     }
-    
+
     const languageMap: Record<string, { name: string; icon: string }> = {
       c: { name: "C", icon: "" }, cpp: { name: "C++", icon: "" },
       java: { name: "Java", icon: "" }, python: { name: "Python", icon: "" },
@@ -427,24 +447,47 @@ const CreateAssessmentModal: React.FC<ExerciseSettingsProps> = ({
       next: { name: "Next.js", icon: "" }, sql: { name: "SQL", icon: "" },
       mongodb: { name: "MongoDB", icon: "" },
     };
-    
+
     return languages.map(lang => ({
       name: languageMap[lang]?.name || lang,
       icon: languageMap[lang]?.icon || ""
     }));
-  }, [courseConfig]);
+  }, [effectiveConfig]);
 
   const hasPreConfiguredLanguages = useMemo(() => {
-    return !!(courseConfig.coreProgram?.length || courseConfig.frontend?.length || courseConfig.database?.length);
-  }, [courseConfig]);
+    return !!(effectiveConfig.coreProgram?.length || effectiveConfig.frontend?.length || effectiveConfig.database?.length);
+  }, [effectiveConfig]);
 
   const flatLanguages = useMemo(() => {
     return [
-      ...(courseConfig.coreProgram || []),
-      ...(courseConfig.frontend || []),
-      ...(courseConfig.database || [])
+      ...(effectiveConfig.coreProgram || []),
+      ...(effectiveConfig.frontend || []),
+      ...(effectiveConfig.database || [])
     ];
-  }, [courseConfig]);
+  }, [effectiveConfig]);
+
+  // Auto-select all configured languages as the assessment's Skill Set —
+  // mirrors ExerciseSettings. ExerciseDetailsStep shows the Skill Set read-only
+  // as chips, so the selection must be applied here for it to be saved.
+  useEffect(() => {
+    if (!hasPreConfiguredLanguages || flatLanguages.length === 0) return;
+    let detectedModule = '';
+    if (effectiveConfig.coreProgram?.length) detectedModule = 'Core Programming';
+    else if (effectiveConfig.frontend?.length) detectedModule = 'Frontend';
+    else if (effectiveConfig.database?.length) detectedModule = 'Database';
+    setFormData(prev => ({
+      ...prev,
+      selectedLanguages: flatLanguages,
+      selectedModule: detectedModule || prev.selectedModule,
+    }));
+    setValidationErrors(prev => {
+      const e = { ...prev };
+      delete e.selectedModule;
+      delete e.selectedLanguages;
+      return e;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasPreConfiguredLanguages, flatLanguages.join(',')]);
 
   const mcqScoringOptionsConst = useMemo(() => [
     { value: 'equalDistribution', label: 'Equal Distribution' },
@@ -661,11 +704,16 @@ const CreateAssessmentModal: React.FC<ExerciseSettingsProps> = ({
       // ── Grades / Mark Settings ─────────────────────────────────────
       grades: {
         ...prev.grades,
+        // Hydrate master toggle. Older saved exercises won't have this field
+        // so default to true to preserve their existing behaviour.
+        enablePassMark: gradeSettings.enablePassMark !== false,
         mcqGrade: gradeSettings.mcqGrade ?? null,
         mcqGradeToPass: gradeSettings.mcqGradeToPass ?? null,
         combinedGrade: gradeSettings.combinedGrade ?? null,
         combinedGradeToPass: gradeSettings.combinedGradeToPass ?? null,
         separateMarks: gradeSettings.separateMarks || false,
+        // Hydrate per-section pass marks if the saved exercise has them.
+        sectionPassMarks: gradeSettings.sectionPassMarks || prev.grades.sectionPassMarks || {},
       },
 
       // ── Additional Options ─────────────────────────────────────────
@@ -740,12 +788,36 @@ const CreateAssessmentModal: React.FC<ExerciseSettingsProps> = ({
 
   const validateGradeSettings = useCallback((): ValidationErrors => {
     const e: ValidationErrors = {};
-    const autoGrade = formData.totalMarks;
     const g = formData.grades;
+
+    // Master toggle off → no pass-mark fields are shown, so nothing to validate.
+    if (g.enablePassMark === false) return e;
+
+    // ── Section-based: one overall Mark to Pass, validated against the
+    // aggregated total (sum of every part's totalMarks). Rule: > 0 AND
+    // strictly less than the aggregated total (e.g. parts 50 + 30 + 40 = 120
+    // → max overall pass mark 119). Per-section pass marks were dropped
+    // in favour of a single overall threshold.
+    if (isSectionBased) {
+      const aggregatedTotal = exerciseSections.reduce(
+        (sum, s) => sum + Number(s.totalMarks || 0),
+        0
+      );
+      const v = g.combinedGradeToPass;
+      if (v == null || Number.isNaN(v) || v <= 0) {
+        e.combinedGradeToPass = 'Mark to Pass is required';
+      } else if (aggregatedTotal > 0 && v >= aggregatedTotal) {
+        e.combinedGradeToPass = `Mark to Pass must be less than Total Mark (${aggregatedTotal}) — max ${aggregatedTotal - 1}`;
+      }
+      return e;
+    }
+
+    // ── Non-section path (unchanged) ────────────────────────────────────
+    const autoGrade = formData.totalMarks;
     if (!g.mcqGradeToPass || g.mcqGradeToPass <= 0) e.mcqGradeToPass = 'Mark to Pass is required';
     else if (autoGrade > 0 && g.mcqGradeToPass > autoGrade) e.mcqGradeToPass = `Cannot exceed Mark (${autoGrade})`;
     return e;
-  }, [formData.grades, formData.totalMarks]);
+  }, [formData.grades, formData.totalMarks, isSectionBased, exerciseSections]);
 
   const validateSections = useCallback((): ValidationErrors => {
     const e: ValidationErrors = {};
@@ -855,9 +927,16 @@ const buildFullPayload = useCallback((overrideSectionConfigs?: Record<string, an
       notifyGradersLateSubmissions: formData.notifications.notifyGradersLateSubmissions, 
       notifyStudent: formData.notifications.notifyStudent 
     },
-    gradeSettings: { 
-      mcqGrade: formData.grades.mcqGrade || null, 
-      mcqGradeToPass: formData.grades.mcqGradeToPass || null 
+    gradeSettings: {
+      // Master toggle. When false, downstream consumers should treat the
+      // exercise as having no pass/fail threshold and ignore the mark fields.
+      enablePassMark: formData.grades.enablePassMark !== false,
+      mcqGrade: formData.grades.mcqGrade || null,
+      mcqGradeToPass: formData.grades.mcqGradeToPass || null,
+      // Persist per-section pass marks when the exercise is section-based.
+      // Shape: { [sectionId]: number } — keyed by SectionItem.id so the
+      // backend can map back to the section that owns the pass mark.
+      ...(isSectionBased ? { sectionPassMarks: formData.grades.sectionPassMarks || {} } : {}),
     },
     additionalOptions: { 
       anonymousSubmissions: formData.additionalOptions.anonymousSubmissions, 
@@ -1094,6 +1173,16 @@ const handleComplete = useCallback(async () => {
     const gradeErrors = validateGradeSettings();
     allErrors = { ...allErrors, ...gradeErrors };
 
+    // Surface section-based Mark to Pass validation as a toast so it's not
+    // silently hidden behind the inline field error (Mark Settings step may
+    // not be visible when Save & Finish is clicked from a different step).
+    if (isSectionBased && gradeErrors.combinedGradeToPass) {
+      setValidationErrors(prev => ({ ...prev, ...gradeErrors }));
+      markTouched('combinedGradeToPass');
+      toast.error(String(gradeErrors.combinedGradeToPass), { position: 'top-right', duration: 4000 });
+      return;
+    }
+
     // Validate section-based exercises
     if (isSectionBased && exerciseDetailsStepRef.current) {
       const sectionValidation = exerciseDetailsStepRef.current.validateSectionBased();
@@ -1165,7 +1254,7 @@ const handleComplete = useCallback(async () => {
 
   const SectionLabel = useCallback(({ children, required, info }: { children: React.ReactNode; required?: boolean; info?: string }) => (
     <div className="flex items-center gap-1 mb-1">
-      <label className="text-xs font-semibold" style={{ color: D.textSub, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{children}</label>
+      <label className="text-xs font-semibold" style={{ color: D.textSub, fontFamily: 'Inter, sans-serif' }}>{children}</label>
       {required && <span className="text-xs font-bold" style={{ color: D.orange }}>*</span>}
       {info && <InfoTooltip content={info} />}
     </div>
@@ -1230,7 +1319,7 @@ const handleComplete = useCallback(async () => {
           markTouched={markTouched}
           handleSelectExerciseType={handleSelectExerciseType}
           toggleLanguage={toggleLanguage}
-          configuredLanguages={courseConfig}
+          configuredLanguages={effectiveConfig}
           hasPreConfiguredLanguages={hasPreConfiguredLanguages}
           flatLanguages={flatLanguages}
           getFilteredLanguages={getFilteredLanguages}
@@ -1321,12 +1410,12 @@ if (formData.exerciseType === 'MCQ') {
         return <NotificationsStep formData={formData} setFormData={setFormData} D={D} />;
         
       case 'Mark Settings':
-        return <GradeSettingsStep formData={formData} setFormData={setFormData} validationErrors={validationErrors} touchedFields={touchedFields} markTouched={markTouched} D={D} GradeRow={GradeRow} />;
+        return <GradeSettingsStep formData={formData} setFormData={setFormData} validationErrors={validationErrors} touchedFields={touchedFields} markTouched={markTouched} D={D} GradeRow={GradeRow} isSectionBased={isSectionBased} exerciseSections={exerciseSections} />;
         
       default: 
         return null;
     }
-  }, [steps, currentStep, formData, validationErrors, touchedFields, markTouched, handleSelectExerciseType, toggleLanguage, hasPreConfiguredLanguages, flatLanguages, getFilteredLanguages, courseConfig, isLoadingCourse, TipTapEditor, OInput, ONumberInput, InfoTooltip, ODropdown, OToggle, mcqScoringOptionsConst, isEditing, DateRowPicker, isDateDisabled, GradeRow, SectionLabel, updateLevelScoringConfig, updateOthersLevelScoringConfig, configOptions, questionFlowOptions, getProgrammingTotalQuestions, programmingAllocatedMarks, programmingLevelMismatch, shouldShowScoringSection, othersAllocatedMarks, othersLevelMismatch, othersShouldShowScoringSection, expandedSections, setExpandedSections, combinedConfigTab, setCombinedConfigTab, isSectionBased, exerciseSections]);
+  }, [steps, currentStep, formData, validationErrors, touchedFields, markTouched, handleSelectExerciseType, toggleLanguage, hasPreConfiguredLanguages, flatLanguages, getFilteredLanguages, effectiveConfig, isLoadingCourse, TipTapEditor, OInput, ONumberInput, InfoTooltip, ODropdown, OToggle, mcqScoringOptionsConst, isEditing, DateRowPicker, isDateDisabled, GradeRow, SectionLabel, updateLevelScoringConfig, updateOthersLevelScoringConfig, configOptions, questionFlowOptions, getProgrammingTotalQuestions, programmingAllocatedMarks, programmingLevelMismatch, shouldShowScoringSection, othersAllocatedMarks, othersLevelMismatch, othersShouldShowScoringSection, expandedSections, setExpandedSections, combinedConfigTab, setCombinedConfigTab, isSectionBased, exerciseSections]);
 
   const getBreadcrumbs = useCallback(() => {
     const c = [];
@@ -1349,7 +1438,7 @@ if (formData.exerciseType === 'MCQ') {
   const BreadcrumbArrow = () => <span className="mx-1" style={{ color: D.orange, fontWeight: 700, fontSize: 13 }}>»</span>;
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ background: 'rgba(15,15,30,0.55)', backdropFilter: 'blur(6px)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+    <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ background: 'rgba(15,15,30,0.55)', backdropFilter: 'blur(6px)', fontFamily: 'Inter, sans-serif' }}>
       <div className="es-main bg-white w-full max-w-6xl flex flex-col overflow-hidden" style={{ height: '94vh', borderRadius: 20, boxShadow: '0 32px 80px rgba(0,0,0,0.25), 0 8px 24px rgba(0,0,0,0.12)' }}>
         <header className="flex items-center justify-between px-4 py-2 flex-shrink-0" style={{ borderBottom: `1px solid ${D.border}`, background: D.bg }}>
           <div className="flex items-center gap-2.5 min-w-0 flex-1">
@@ -1370,8 +1459,29 @@ if (formData.exerciseType === 'MCQ') {
           <button onClick={onClose} className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors flex-shrink-0 hover:bg-gray-100" style={{ color: D.textMuted }}><X size={14} /></button>
         </header>
 
+        {/* Dark scrollbar styling — scoped to the Create Assessment modal so
+            the Exercise Details main scroll, the section list scroll, and the
+            steps sidebar all share a visible dark thumb instead of the near-
+            invisible browser default. */}
+        <style>{`
+          .ca-dark-scroll {
+            scrollbar-color: #4b4b66 transparent;
+            scrollbar-width: thin;
+          }
+          .ca-dark-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+          .ca-dark-scroll::-webkit-scrollbar-track { background: transparent; }
+          .ca-dark-scroll::-webkit-scrollbar-thumb {
+            background: #4b4b66;
+            border-radius: 6px;
+            border: 2px solid transparent;
+            background-clip: padding-box;
+          }
+          .ca-dark-scroll::-webkit-scrollbar-thumb:hover { background: #2e2e44; background-clip: padding-box; }
+          .ca-dark-scroll::-webkit-scrollbar-corner { background: transparent; }
+        `}</style>
+
         <div className="flex flex-1 overflow-hidden">
-          <aside className="w-44 flex-shrink-0 flex flex-col py-2.5 px-2 overflow-y-auto" style={{ background: D.surface, borderRight: `1px solid ${D.border}` }}>
+          <aside className="w-44 flex-shrink-0 flex flex-col py-2.5 px-2 overflow-y-auto ca-dark-scroll" style={{ background: D.surface, borderRight: `1px solid ${D.border}` }}>
             <div className="space-y-0.5">
               {steps.map((step, idx) => {
                 const active = step.active;
@@ -1397,8 +1507,8 @@ if (formData.exerciseType === 'MCQ') {
             </div>
           </aside>
 
-          <main className="flex-1 overflow-y-auto flex flex-col" style={{ background: D.bg }}>
-            <div className="flex-1 overflow-y-auto">
+          <main className="flex-1 overflow-y-auto flex flex-col ca-dark-scroll" style={{ background: D.bg }}>
+            <div className="flex-1 overflow-y-auto ca-dark-scroll">
               {isLocked && (<div className="mx-4 mt-3 mb-0 flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: D.emerald + '12', border: `1px solid ${D.emerald}35` }}><Lock size={12} style={{ color: D.emerald }} /><span className="text-xs font-semibold" style={{ color: D.emerald }}>This exercise has been submitted and is now read-only.</span></div>)}
               <div style={isLocked ? { pointerEvents: 'none', userSelect: 'none', opacity: 0.82 } : {}}>{renderCurrentStep()}</div>
             </div>

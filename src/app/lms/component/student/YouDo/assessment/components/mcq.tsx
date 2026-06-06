@@ -17,7 +17,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import { useAssessmentSecurity, normalizeSecurityConfig } from './useAssessmentSecurity';
 import { useExamLiveEmitter } from './useExamLiveEmitter';
 import ScreenShareGuard from './ScreenShareGuard';
-import StudentMessageChat from './StudentMessageChat';
+import TestMessageBell from './TestMessageBell';
 import { useScreenRecording } from './useScreenRecording';
 import FaceVerificationGate from './FaceVerificationGate';
 import LiveCameraPreview from './LiveCameraPreview';
@@ -578,7 +578,7 @@ const MCQSecurityModal: React.FC<{
   const activeItems = items.filter(i => i.active);
   return (
     <div style={{ position:'fixed',inset:0,zIndex:9999,background:'rgba(0,0,0,0.55)',backdropFilter:'blur(4px)',display:'flex',alignItems:'center',justifyContent:'center',padding:16 }}>
-      <div style={{ background:'#fff',borderRadius:16,boxShadow:'0 20px 60px rgba(0,0,0,0.18)',width:'100%',maxWidth:480,padding:28,fontFamily:"'Plus Jakarta Sans',-apple-system,sans-serif" }}>
+      <div style={{ background:'#fff',borderRadius:16,boxShadow:'0 20px 60px rgba(0,0,0,0.18)',width:'100%',maxWidth:480,padding:28,fontFamily:"'Inter',-apple-system,sans-serif" }}>
         <div style={{ display:'flex',alignItems:'center',gap:12,marginBottom:18 }}>
           <div style={{ width:40,height:40,borderRadius:10,background:'rgba(99,102,241,0.1)',display:'flex',alignItems:'center',justifyContent:'center' }}>
             <ShieldCheck size={20} style={{ color:'#6366f1' }} />
@@ -790,7 +790,7 @@ const sendFinalSubmission = async () => {
     fd.append('submitType', _autoReason ? 'AUTO' : 'USER');
     fd.append('autoSubmitReason', _autoReason || '');
 
-    await fetch('https://lms-server-ym1q.onrender.com/courses/answers/submit', {
+    await fetch('http://localhost:5533/courses/answers/submit', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}` },
       body: fd,
@@ -853,7 +853,7 @@ const sendFinalSubmission = async () => {
         const finalId=urlExerciseId||propExercise?._id;
         if(!finalId){ toast.error('Exercise ID is required'); setLoading(false); return; }
         const token=localStorage.getItem('smartcliff_token')||localStorage.getItem('token')||'';
-        const res=await fetch(`https://lms-server-ym1q.onrender.com/exercise/${finalId}`,{ method:'GET',headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'} });
+        const res=await fetch(`http://localhost:5533/exercise/${finalId}`,{ method:'GET',headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'} });
         if(!res.ok) throw new Error(`HTTP ${res.status}`);
         const data=await res.json();
         if(data.message?.[0]?.key==='success'&&data.data?.exercise){
@@ -922,7 +922,7 @@ const sendFinalSubmission = async () => {
       let changed = false;
       for (const q of qs) {
         try {
-          const res = await fetch(`https://lms-server-ym1q.onrender.com/courses/answers/previous-submission?courseId=${fCId}&exerciseId=${exId}&questionId=${q._id}&category=${fCat}`, { headers: { Authorization: `Bearer ${token}` } });
+          const res = await fetch(`http://localhost:5533/courses/answers/previous-submission?courseId=${fCId}&exerciseId=${exId}&questionId=${q._id}&category=${fCat}`, { headers: { Authorization: `Bearer ${token}` } });
           if (!res.ok) continue;
           const data = await res.json();
           const ca: string = (data?.success && data?.data?.codeAnswer != null) ? String(data.data.codeAnswer) : '';
@@ -1025,7 +1025,7 @@ const sendFinalSubmission = async () => {
       const fCId=urlCourseId||courseId; const fCat=urlCategory||category; const fSub=urlSubcategory||subcategory;
       if(!fCId||!exerciseData._id) return;
       const marks=exerciseData.questionConfiguration?.mcqQuestionConfiguration?.marksPerQuestion||q.mcqQuestionScore||10;
-      const sub=async(fd:FormData)=>{ await fetch('https://lms-server-ym1q.onrender.com/courses/answers/submit',{method:'POST',headers:{'Authorization':`Bearer ${token}`},body:fd}); };
+      const sub=async(fd:FormData)=>{ await fetch('http://localhost:5533/courses/answers/submit',{method:'POST',headers:{'Authorization':`Bearer ${token}`},body:fd}); };
       const base=(nt:string,lang:string)=>{ const fd=new FormData(); fd.append('courseId',fCId); fd.append('exerciseId',exerciseData._id); fd.append('questionId',q._id); fd.append('category',fCat); fd.append('subcategory',fSub); fd.append('nodeId',nodeId||''); fd.append('nodeName',exerciseData.exerciseInformation?.exerciseName||'MCQ Assessment'); fd.append('nodeType',nt); fd.append('language',lang); return fd; };
       switch(q.mcqQuestionType){
         case 'multiple_choice': if(selectedRadioOption){ const opt=q.mcqQuestionOptions.find(o=>o._id===selectedRadioOption); if(opt){ const ic=opt.isCorrect===true; const fd=base('mcq','text'); fd.append('code',opt.text); fd.append('score',(ic?marks:0).toString()); fd.append('status',ic?'solved':'attempted'); await sub(fd); } } break;
@@ -1198,7 +1198,7 @@ const submitQuiz = async () => {
   const isLastQ=currentQuestionIndex>=filteredQuestions.length-1;
 
   return (
-    <div style={{ position:'fixed',inset:0,background:T.pageBg,fontFamily:"'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,sans-serif",color:T.textMain,display:'flex',flexDirection:'column',overflow:'hidden' }}>
+    <div style={{ position:'fixed',inset:0,background:T.pageBg,fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,sans-serif",color:T.textMain,display:'flex',flexDirection:'column',overflow:'hidden' }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
         *{box-sizing:border-box;}
@@ -1228,10 +1228,7 @@ const submitQuiz = async () => {
         waitForSharedStream={!!securityConfig.screenRecordingEnabled}
       />
 
-      {/* ── Proctor → student messaging (floating chat) ── */}
-      {!embedded && (
-        <StudentMessageChat assessmentId={(((exerciseData as any)?._id) || ((propExercise as any)?._id) || "")} />
-      )}
+      {/* Proctor → student messaging is now a header bell (see TOP BAR below). */}
       {showSubmitDialog&&<SubmitDialog unansweredCount={unansweredCount} flaggedCount={flaggedQuestions.size} unansweredIndices={unansweredIndices} flaggedIndices={flaggedIndices} requiredUnansweredIndices={requiredUnansweredIndices} onConfirm={submitQuiz} onCancel={()=>setShowSubmitDialog(false)} onNavigateToQuestion={handleJumpToQuestion} />}
  {/* ── Exercise Info Modals ── ADD HERE ── */}
   <ExerciseInfoModals
@@ -1293,6 +1290,11 @@ const submitQuiz = async () => {
           <span style={{ fontSize:10,color:T.textHint,fontWeight:600 }}>{label}</span>
         </div>
       ))}
+
+      <div style={{ width:1,height:18,background:T.border }} />
+
+      {/* Proctor message notification (ephemeral, test-only) */}
+      <TestMessageBell assessmentId={(((exerciseData as any)?._id) || ((propExercise as any)?._id) || "")} />
 
     </div>
   </div>

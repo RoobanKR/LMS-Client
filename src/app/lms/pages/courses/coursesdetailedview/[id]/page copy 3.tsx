@@ -1,4 +1,4 @@
-// page.tsx - Main component
+﻿// page.tsx - Main component
 "use client"
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
@@ -198,7 +198,7 @@ export default function LMSPage() {
   // Data fetching
   useEffect(() => {
     if(!courseId) { setError("No course ID."); setIsLoading(false); return }
-    fetch(`https://lms-server-ym1q.onrender.com/getAll/courses-data/${courseId}`)
+    fetch(`http://localhost:5533/getAll/courses-data/${courseId}`)
       .then(r => r.json()).then(d => {
         const info = d.data || d
         setCourseData(info)
@@ -613,7 +613,7 @@ useEffect(() => {
   if(isLoading) return <div className="flex justify-center items-center h-screen"><Loader2 className="animate-spin" size={36} style={{color: T.orange}}/></div>
 
   return (
-    <div style={{background: T.pageBg, fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif", overflow: 'clip', height: '100vh', display: 'flex', flexDirection: 'column'}}>
+    <div style={{background: T.pageBg, fontFamily: "'Inter',-apple-system,sans-serif", overflow: 'clip', height: '100vh', display: 'flex', flexDirection: 'column'}}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
         .sb-row{transition:background .12s ease;cursor:pointer}

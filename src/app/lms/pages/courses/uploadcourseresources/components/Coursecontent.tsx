@@ -19,7 +19,11 @@ import { isFolderItem } from "./Types";
 import ProblemSolving from "../../../../component/ProblemSolving";
 import TestYourSkills from "./youdo/TestYourSkills";
 import Assessment from "./youdo/Assessment";
-import SelfWork from "./youdo/SelfWork";
+// SelfWork mock component no longer used — You Do > Self Work now reuses
+// the same <ProblemSolving> UI that We Do > Assignments uses, so the data
+// flow, search/filter/pagination, exercise creation, and student-side
+// rendering all come for free.
+// import SelfWork from "./youdo/SelfWork";
 import { PageCreationModal, type PageBlock, type PagesPayload, type HierarchyInfo } from "./Pagecreationmodal";
 import { entityApi } from "@/apiServices/coursesData";
 
@@ -1643,7 +1647,7 @@ const FileList: React.FC<{
       await runDeleteWithProgress(`Deleting group "${groupName}"…`, items);
     };
 
-    const FONT_STACK = "'Inter', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+    const FONT_STACK = "'Inter', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
     const rowBase: React.CSSProperties = {
       display: "grid", gridTemplateColumns: "28px minmax(0,1fr) 90px 110px 90px 80px",
       gap: 14, alignItems: "center", borderBottom: `1px solid ${T.border}`,
@@ -2078,7 +2082,7 @@ const renderFileRow = (file: UploadedFile, isPage: boolean = false, extraRowStyl
               borderBottom: `1px solid ${T.border}`,
               padding: `6px 20px 6px ${headerPad}px`,
               background: T.bg, minHeight: 36,
-              fontFamily: "'Inter','Plus Jakarta Sans',-apple-system,sans-serif",
+              fontFamily: "'Inter','Inter',-apple-system,sans-serif",
             }}
             onClick={e => { e.stopPropagation(); toggleGroup(subGroup.groupId); }}
             onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "#f8fafc"}
@@ -3068,7 +3072,7 @@ const TabBar: React.FC<{
                   fontSize: 12.5,
                   fontWeight: 600,
                   letterSpacing: "-0.005em",
-                  fontFamily: "'Inter', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+                  fontFamily: "'Inter', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
                   WebkitFontSmoothing: "antialiased",
                   border: "none",
                   background: "transparent",
@@ -3455,7 +3459,7 @@ export const CourseContent: React.FC<CourseContentProps> = ({
   const hasContent = combinedOrder.length > 0;
 
   return (
-    <div className="flex flex-col h-full overflow-hidden" style={{ fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif" }}>
+    <div className="flex flex-col h-full overflow-hidden" style={{ fontFamily: "'Inter',-apple-system,sans-serif" }}>
 
       {/* ── Breadcrumbs ── */}
       <div className="flex-shrink-0 px-5" style={{ background: T.bg }}>
@@ -3520,7 +3524,7 @@ export const CourseContent: React.FC<CourseContentProps> = ({
                     fontSize: 12.5,
                     fontWeight: 600,
                     letterSpacing: "-0.005em",
-                    fontFamily: "'Inter', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+                    fontFamily: "'Inter', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
                     WebkitFontSmoothing: "antialiased",
                     background: "transparent",
                     border: "none",
@@ -3673,6 +3677,7 @@ export const CourseContent: React.FC<CourseContentProps> = ({
   subcategoryLabel: subcategories["You_Do"].find(s => s.key === activeSubcategory)?.label || activeSubcategory,
   courseId,
   nodeType: selectedNode!.type,
+  configuredLanguages,
   hierarchyData: {
     courseName: courseStructureName || "",
     moduleName: selectedNode!.type === "module" ? selectedNode!.name : getParentNodeName(selectedNode!, "module"),
@@ -3685,7 +3690,17 @@ export const CourseContent: React.FC<CourseContentProps> = ({
 };
 if (activeSubcategory === "test_your_skills") return <TestYourSkills key={`you_do-${activeSubcategory}`} {...youDoBaseProps} />;
 if (activeSubcategory === "assesment") return <Assessment key={`you_do-${activeSubcategory}`} {...youDoBaseProps} />;
-if (activeSubcategory === "self_work") return <SelfWork key={`you_do-${activeSubcategory}`} {...youDoBaseProps} />;              return null;
+// You Do > Self Work now reuses the SAME ProblemSolving UI as We Do > Assignments.
+// Data isolation is automatic — the backend filters by (section=You_Do, subcategory=self_work)
+// so nothing leaks to/from We Do > Assignments. Students will see these on the
+// detailed view via the existing pedagogy-method + activity flow (no extra wiring).
+if (activeSubcategory === "self_work") return (
+  <ProblemSolving
+    key={`${activeTab}-${activeSubcategory}`}
+    {...youDoBaseProps}
+    activeTab={activeTab}
+  />
+);              return null;
             })()
 
           ) : viewingPage ? (
@@ -3853,7 +3868,7 @@ if (activeSubcategory === "self_work") return <SelfWork key={`you_do-${activeSub
             gap: 10,
             padding: "12px 20px",
             borderRadius: 12,
-            fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
+            fontFamily: "'Inter', -apple-system, sans-serif",
             fontSize: 13,
             fontWeight: 600,
             color: "#fff",

@@ -1,8 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { X, Search, Filter, Loader, Check, ChevronRight, ChevronLeft, BookOpen, Code, Database, Layout, AlertCircle } from 'lucide-react';
 import { questionBankService } from '@/apiServices/questionBankService';
-import { toast } from 'react-toastify';
+// IMPORTANT: use react-hot-toast (the same toaster mounted in app/layout.tsx).
+// react-toastify's ToastContainer is NOT mounted in this app, so toasts from
+// "react-toastify" never render — that was the bug that made the quota
+// warnings appear silent to teachers picking questions from the bank.
+import toast from 'react-hot-toast';
 import { Question } from '../../QuestionsView';
+
+// Open-slot quota passed by the parent so the selector can block over-selection.
+// 'general' → one total cap (any difficulty); 'difficulty' → per-difficulty caps.
+export type SelectionQuota =
+  | { mode: 'general'; remainingTotal: number }
+  | { mode: 'difficulty'; remainingByDifficulty: { easy: number; medium: number; hard: number } };
 
 interface QuestionBankSelectorProps {
   exerciseData: {
@@ -27,6 +37,11 @@ interface QuestionBankSelectorProps {
   existingQuestions: Question[];
   // ✅ NEW: Add filterType prop to filter by question type
   filterByType?: 'mcq' | 'programming' | 'frontend' | 'database' | 'all';
+  // Selection quota (opt-in) — blocks ticking beyond the exercise's open slots.
+  selectionQuota?: SelectionQuota;
+  // Optional context passed by some callers (currently informational).
+  remainingQuestions?: number;
+  marksPerQuestion?: number;
 }
 
 const QuestionBankSelector: React.FC<QuestionBankSelectorProps> = ({
@@ -37,7 +52,8 @@ const QuestionBankSelector: React.FC<QuestionBankSelectorProps> = ({
   onSelect,
   existingQuestionIds,
   existingQuestions = [],
-  filterByType = 'all' // ✅ Default to 'all' to show all question types
+  filterByType = 'all', // ✅ Default to 'all' to show all question types
+  selectionQuota,
 }) => {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,11 +85,11 @@ const QuestionBankSelector: React.FC<QuestionBankSelectorProps> = ({
         setQuestions(questionsData);
         
         if (questionsData.length === 0) {
-          toast.info('No questions found in question bank');
+          toast('No questions found in question bank', { icon: 'ℹ️' });
         }
       } else {
         setQuestions([]);
-        toast.info('No questions found in question bank');
+        toast('No questions found in question bank', { icon: 'ℹ️' });
       }
     } catch (error: any) {
       console.error('Error fetching question bank:', error);
@@ -243,25 +259,113 @@ const QuestionBankSelector: React.FC<QuestionBankSelectorProps> = ({
     });
   };
 
+  // ── Selection quota helpers ──
+  const getQuestionDifficulty = (q: any): 'easy' | 'medium' | 'hard' => {
+    const d = (q?.difficulty || q?.mcqQuestionDifficulty || 'medium').toString().toLowerCase();
+    return d === 'easy' || d === 'hard' ? d : 'medium';
+  };
+
+  const countSelectedByDifficulty = (diff: 'easy' | 'medium' | 'hard') =>
+    Array.from(selectedQuestions).reduce((n, id) => {
+      const q = questions.find(x => x._id === id);
+      return q && getQuestionDifficulty(q) === diff ? n + 1 : n;
+    }, 0);
+
   const handleSelectAll = () => {
     const filtered = getFilteredQuestions();
     if (selectAll) {
       setSelectedQuestions(new Set());
-    } else {
-      const newSelected = new Set<string>();
-      filtered.forEach(q => newSelected.add(q._id));
-      setSelectedQuestions(newSelected);
+      setSelectAll(false);
+      return;
     }
-    setSelectAll(!selectAll);
+
+    if (!selectionQuota) {
+      setSelectedQuestions(new Set(filtered.map(q => q._id)));
+      setSelectAll(true);
+      return;
+    }
+
+    // Respect the open-slot quota when selecting all.
+    const newSelected = new Set<string>();
+    if (selectionQuota.mode === 'general') {
+      for (const q of filtered) {
+        if (newSelected.size >= selectionQuota.remainingTotal) break;
+        newSelected.add(q._id);
+      }
+    } else {
+      const used = { easy: 0, medium: 0, hard: 0 };
+      for (const q of filtered) {
+        const d = getQuestionDifficulty(q);
+        if (used[d] < (selectionQuota.remainingByDifficulty[d] ?? 0)) {
+          newSelected.add(q._id);
+          used[d] += 1;
+        }
+      }
+    }
+    setSelectedQuestions(newSelected);
+    setSelectAll(false);
+    if (newSelected.size < filtered.length) {
+      toast('Selected up to the available open slots.', { icon: 'ℹ️' });
+    }
   };
 
   const handleSelectQuestion = (questionId: string) => {
-    const newSelected = new Set(selectedQuestions);
-    if (newSelected.has(questionId)) {
-      newSelected.delete(questionId);
-    } else {
-      newSelected.add(questionId);
+    const isSelected = selectedQuestions.has(questionId);
+
+    // Enforce the exercise's open-slot quota when ticking (deselecting is always allowed).
+    // Toasts here are intentionally clear and stay on screen for ~5s so the
+    // teacher sees exactly WHY a question was rejected and WHAT to do next.
+    if (!isSelected && selectionQuota) {
+      const q = questions.find(x => x._id === questionId);
+      if (selectionQuota.mode === 'general') {
+        if (selectedQuestions.size >= selectionQuota.remainingTotal) {
+          const msg = selectionQuota.remainingTotal > 0
+            ? `Exercise quota reached — only ${selectionQuota.remainingTotal} slot(s) open in total. Deselect one of the questions you've already ticked before picking another.`
+            : 'No open slots left in this exercise. Remove an existing question (or increase the configured count) before adding more from the bank.';
+          toast(msg, { icon: '⚠️', duration: 5000, style: { maxWidth: 420 } });
+          return;
+        }
+      } else {
+        const diff = getQuestionDifficulty(q);
+        const limit = selectionQuota.remainingByDifficulty[diff] ?? 0;
+        const label = diff.charAt(0).toUpperCase() + diff.slice(1);
+        if (limit === 0) {
+          // This difficulty isn't configured at all for this exercise
+          const openOther = (['easy', 'medium', 'hard'] as const)
+            .filter(d => d !== diff && (selectionQuota.remainingByDifficulty[d] ?? 0) > 0)
+            .map(d => `${d.charAt(0).toUpperCase() + d.slice(1)}`)
+            .join(' / ');
+          toast(
+            openOther
+              ? `This exercise doesn't accept ${label} questions. Open slots are for: ${openOther}.`
+              : `This exercise doesn't accept ${label} questions and no other difficulty slots remain.`,
+            { icon: '⚠️', duration: 5000, style: { maxWidth: 460 } },
+          );
+          return;
+        }
+        if (countSelectedByDifficulty(diff) >= limit) {
+          // This difficulty IS configured but the teacher has already ticked the max
+          const openOther = (['easy', 'medium', 'hard'] as const)
+            .filter(d => d !== diff)
+            .map(d => ({ d, rem: (selectionQuota.remainingByDifficulty[d] ?? 0) - countSelectedByDifficulty(d) }))
+            .filter(x => x.rem > 0)
+            .map(x => `${x.d.charAt(0).toUpperCase() + x.d.slice(1)} (${x.rem})`)
+            .join(', ');
+          toast(
+            `${label} quota is full — you've already selected ${limit} of ${limit} allowed ${label.toLowerCase()} question${limit === 1 ? '' : 's'} for this exercise.` +
+            (openOther
+              ? ` You can still pick from: ${openOther}. Or deselect a ${label.toLowerCase()} question to swap.`
+              : ` Deselect a ${label.toLowerCase()} question to swap, or change the exercise's per-difficulty quota.`),
+            { icon: '⚠️', duration: 6000, style: { maxWidth: 520 } },
+          );
+          return;
+        }
+      }
     }
+
+    const newSelected = new Set(selectedQuestions);
+    if (isSelected) newSelected.delete(questionId);
+    else newSelected.add(questionId);
     setSelectedQuestions(newSelected);
     setSelectAll(false);
   };
@@ -280,6 +384,14 @@ const QuestionBankSelector: React.FC<QuestionBankSelectorProps> = ({
       case 'database': return <Database className="h-4 w-4 text-emerald-600" />;
       default: return <BookOpen className="h-4 w-4 text-gray-600" />;
     }
+  };
+
+  const getDifficultyBadge = (difficulty?: string) => {
+    const d = (difficulty || '').toLowerCase();
+    if (d === 'easy')   return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+    if (d === 'hard')   return 'bg-rose-100 text-rose-700 border-rose-200';
+    if (d === 'medium') return 'bg-amber-100 text-amber-700 border-amber-200';
+    return '';
   };
 
   const getQuestionTypeBadge = (type?: string) => {
@@ -305,35 +417,35 @@ const QuestionBankSelector: React.FC<QuestionBankSelectorProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center" style={{ padding: '10px 0' }}>
+      <div className="bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden" style={{ width: '60%', height: '100%' }}>
         {/* Header */}
-        <div className="flex items-center justify-between p-6 pb-4 border-b border-gray-200">
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-200">
+          <div className="flex items-center gap-2">
             {onBack && (
               <button
                 onClick={onBack}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors"
+                className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold transition-colors"
                 style={{ background: 'rgba(168,85,247,0.08)', color: '#7c3aed', border: '1px solid rgba(168,85,247,0.2)' }}
                 onMouseEnter={e => { e.currentTarget.style.background = 'rgba(168,85,247,0.15)'; }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'rgba(168,85,247,0.08)'; }}
               >
-                <ChevronLeft className="h-4 w-4" />
+                <ChevronLeft className="h-3 w-3" />
                 Back
               </button>
             )}
             <div>
-              <h2 className="text-xl font-bold text-gray-900">{getHeaderTitle()}</h2>
-              <p className="text-gray-600 text-sm mt-1">
-                Select {filterByType !== 'all' ? filterByType : ''} questions to add to "{exerciseData.exerciseName}"
+              <h2 className="text-sm font-bold text-gray-900 leading-tight">{getHeaderTitle()}</h2>
+              <p className="text-gray-400 text-xs mt-0.5">
+                Assignment: <span className="text-gray-600 font-medium">{exerciseData.exerciseName}</span>
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
           >
-            <X className="h-5 w-5 text-gray-500" />
+            <X className="h-4 w-4 text-gray-500" />
           </button>
         </div>
 
@@ -381,7 +493,7 @@ const QuestionBankSelector: React.FC<QuestionBankSelectorProps> = ({
         </div>
 
         {/* Question List */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto px-4 py-2">
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader className="h-8 w-8 animate-spin text-purple-600" />
@@ -399,78 +511,76 @@ const QuestionBankSelector: React.FC<QuestionBankSelectorProps> = ({
               </p>
             </div>
           ) : (
-            <div className="space-y-2">
-              {/* Select All Row */}
-              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200 mb-4">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={selectAll}
-                    onChange={handleSelectAll}
-                    className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                  />
-                  <span className="text-sm font-medium text-gray-700">
-                    Select All ({filteredQuestions.length} question{filteredQuestions.length !== 1 ? 's' : ''})
-                  </span>
-                </label>
+            <div className="border border-gray-200">
+              {/* Column header row */}
+              <div className="flex items-center bg-gray-50 border-b border-gray-200">
+                <div className="px-2 flex-shrink-0 w-7" />
+                <div className="py-1.5 px-2 border-l border-gray-200 overflow-hidden" style={{ width: '25%' }}>
+                  <span className="text-xs font-semibold text-gray-500">Title</span>
+                </div>
+                <div className="py-1.5 px-2 border-l border-gray-200 overflow-hidden" style={{ width: '50%' }}>
+                  <span className="text-xs font-semibold text-gray-500">Description</span>
+                </div>
+                <div className="py-1.5 px-2 border-l border-gray-200 overflow-hidden" style={{ width: '25%' }}>
+                  <span className="text-xs font-semibold text-gray-500">Difficulty</span>
+                </div>
               </div>
 
-              {filteredQuestions.map((question) => {
+              {filteredQuestions.map((question, idx) => {
                 const title = getQuestionTitle(question);
                 const description = getQuestionDescription(question);
                 const isDuplicateQuestion = isDuplicate(question);
                 const isSelected = selectedQuestions.has(question._id);
-                const questionType = question.questionType?.toLowerCase() || '';
+                const diff = ((question as any).difficulty || '').toLowerCase();
 
                 return (
                   <div
                     key={question._id}
-                    className={`flex items-start gap-3 p-3 border rounded-lg transition-all ${
-                      isDuplicateQuestion 
-                        ? 'opacity-50 cursor-not-allowed bg-gray-50 border-gray-200' 
-                        : isSelected 
-                          ? 'border-purple-400 bg-purple-50 cursor-pointer' 
-                          : 'border-gray-200 hover:border-purple-200 hover:bg-purple-50/50 cursor-pointer'
-                    }`}
                     onClick={() => !isDuplicateQuestion && handleSelectQuestion(question._id)}
+                    className={`flex items-center border-b border-gray-100 transition-colors ${
+                      isDuplicateQuestion
+                        ? 'opacity-50 cursor-not-allowed'
+                        : isSelected
+                          ? 'bg-purple-50 cursor-pointer'
+                          : 'hover:bg-gray-50 cursor-pointer'
+                    }`}
                   >
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => !isDuplicateQuestion && handleSelectQuestion(question._id)}
-                      disabled={isDuplicateQuestion}
-                      className="mt-1 w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 disabled:opacity-50"
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                    
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full border ${getQuestionTypeBadge(question.questionType)}`}>
-                          {question.questionType?.toUpperCase() || 'UNKNOWN'}
-                        </span>
-                        
-                        {/* Duplicate indicator */}
-                        {isDuplicateQuestion && (
-                          <span className="text-[10px] px-2 py-0.5 rounded-full border bg-amber-100 text-amber-800 border-amber-200 flex items-center gap-1">
-                            <AlertCircle className="h-3 w-3" />
-                            Already exists
-                          </span>
-                        )}
-                      </div>
-                      
-                      <p className="text-sm font-medium text-gray-900 line-clamp-2">
-                        {title}
-                        {isDuplicateQuestion && <span className="ml-2 text-amber-600 text-xs">(Duplicate)</span>}
-                      </p>
-                      
-                      <p className="text-xs text-gray-500 mt-1 line-clamp-2">
-                        {description}
-                      </p>
+                    {/* Checkbox */}
+                    <div className="px-2 flex items-center flex-shrink-0 w-7">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => !isDuplicateQuestion && handleSelectQuestion(question._id)}
+                        disabled={isDuplicateQuestion}
+                        className="w-3.5 h-3.5 rounded border-gray-300 text-purple-600 focus:ring-purple-500 disabled:opacity-50"
+                        onClick={(e) => e.stopPropagation()}
+                      />
                     </div>
 
-                    {isSelected && !isDuplicateQuestion && (
-                      <Check className="h-5 w-5 text-purple-600 flex-shrink-0" />
-                    )}
+                    {/* Title — 25% */}
+                    <div className="py-1.5 px-2 border-l border-gray-100 overflow-hidden" style={{ width: '25%' }}>
+                      <span className="text-sm text-gray-800 truncate block">
+                        {title}
+                        {isDuplicateQuestion && <span className="ml-1 text-amber-500 text-xs">· exists</span>}
+                      </span>
+                    </div>
+
+                    {/* Description — 50% */}
+                    <div className="py-1.5 px-2 border-l border-gray-100 overflow-hidden" style={{ width: '50%' }}>
+                      <span className="text-xs text-gray-500 truncate block">{description || '—'}</span>
+                    </div>
+
+                    {/* Difficulty — 25% */}
+                    <div className="py-1.5 px-2 border-l border-gray-100 flex items-center gap-1 overflow-hidden" style={{ width: '25%' }}>
+                      <span className={`text-xs font-medium capitalize ${
+                        diff === 'easy' ? 'text-emerald-600' : diff === 'hard' ? 'text-rose-600' : diff === 'medium' ? 'text-amber-600' : 'text-gray-400'
+                      }`}>
+                        {diff || '—'}
+                      </span>
+                      {isSelected && !isDuplicateQuestion && (
+                        <Check className="h-3 w-3 text-purple-600 flex-shrink-0" />
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -482,6 +592,16 @@ const QuestionBankSelector: React.FC<QuestionBankSelectorProps> = ({
         <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 bg-gray-50">
           <div className="text-sm text-gray-600">
             {selectedQuestions.size} question{selectedQuestions.size !== 1 ? 's' : ''} selected
+            {selectionQuota && (
+              <span className="ml-2 text-xs text-gray-500">
+                {selectionQuota.mode === 'general'
+                  ? `· ${selectedQuestions.size}/${selectionQuota.remainingTotal} open slot${selectionQuota.remainingTotal !== 1 ? 's' : ''}`
+                  : `· ${(['easy', 'medium', 'hard'] as const)
+                      .filter(d => selectionQuota.remainingByDifficulty[d] > 0)
+                      .map(d => `${d.charAt(0).toUpperCase() + d.slice(1)} ${countSelectedByDifficulty(d)}/${selectionQuota.remainingByDifficulty[d]}`)
+                      .join(' · ')}`}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-3">
             <button

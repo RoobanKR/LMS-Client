@@ -46,8 +46,9 @@ onSave?: (payload: any) => void;
   exercise_Id?: string;
   exerciseData?: any;   // pre-loaded raw exercise — skips API fetch on edit
   courseId?: string;
-
- 
+  // Node-scoped skill set (the topic's own testConfiguration). Preferred over
+  // the whole-course config when rendering the Skill Set chips.
+  configuredLanguages?: { coreProgram?: string[]; frontend?: string[]; database?: string[] };
 }
 // assessments/types.ts - Add these to existing types
 
@@ -142,6 +143,15 @@ export interface FormDataType {
     combinedGrade: number | null;
     combinedGradeToPass: number | null;
     separateMarks: boolean;
+    // Master toggle for the Mark / Mark to Pass fields. When false, the
+    // Total Mark and Mark to Pass inputs are hidden and skipped during
+    // validation — the exercise simply has no pass/fail threshold.
+    // Defaults to true to preserve existing behaviour.
+    enablePassMark?: boolean;
+    // Per-section pass mark when the exercise is section-based (Part A / B / C …).
+    // Key is the section id; value must be > 0 and strictly less than that
+    // section's totalMarks (e.g. Part A total 50 → max pass mark 49).
+    sectionPassMarks?: Record<string, number | null>;
   };
   additionalOptions: {
     anonymousSubmissions: boolean;

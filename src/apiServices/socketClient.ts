@@ -4,7 +4,7 @@ import { io, Socket } from "socket.io-client";
 // The app had no socket client before this. Everything real-time (live
 // dashboard, student emissions, future features) MUST reuse this one
 // connection — never call io() anywhere else.
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://lms-server-ym1q.onrender.com";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5533";
 
 let socket: Socket | null = null;
 

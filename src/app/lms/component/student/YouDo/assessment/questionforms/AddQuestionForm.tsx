@@ -17,6 +17,9 @@ interface AddQuestionFormProps {
   initialData?: any;
   isEditing?: boolean;
   initialQuestionId?: string;          // ← ADD THIS
+  // Questions chosen in the external Question Bank — forwarded to the MCQ form to
+  // pre-fill for review (Save & Next through each).
+  initialBankQuestions?: any[];
 
   onClose: () => void;
   onSave: (data: any) => void;
@@ -82,6 +85,7 @@ const AddQuestionForm: React.FC<AddQuestionFormProps> = ({
   initialData,
   isEditing = false,
   initialQuestionId,
+  initialBankQuestions,
   onClose,
   onSave,
   onOpenQuestionBank,
@@ -977,6 +981,7 @@ if (isCombined && !isEditing && !selectedType && !isInSaveAndContinueFlow.curren
       <MCQQuestionForm
         breadcrumbs={breadcrumbs}
         initialQuestionId={initialQuestionId}
+        initialBankQuestions={initialBankQuestions}
         {...formProps}
         onEditExercise={onEditExercise}
       />

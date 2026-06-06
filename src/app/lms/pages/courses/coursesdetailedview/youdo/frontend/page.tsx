@@ -22,6 +22,7 @@ const CompilerPageContent = () => {
   const exerciseName = searchParams.get('exerciseName');
   const urlCourseId = searchParams.get('courseId') || "";
   const exerciseId = searchParams.get('exerciseId');
+  const nodeId = searchParams.get('nodeId');
   const hierarchy = searchParams.get('hierarchy')?.split(',') || [];
 
   // Function to fetch exercise data from API
@@ -41,7 +42,7 @@ const CompilerPageContent = () => {
         return;
       }
 
-      const response = await fetch(`https://lms-server-ym1q.onrender.com/exercise/${exerciseId}`, {
+      const response = await fetch(`http://localhost:5533/exercise/${exerciseId}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -114,7 +115,7 @@ const CompilerPageContent = () => {
       }
 
       const response = await fetch(
-        `https://lms-server-ym1q.onrender.com/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseId}&questionId=${questionId}&category=${category}`,
+        `http://localhost:5533/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseId}&questionId=${questionId}&category=${category}`,
         {
           method: 'GET',
           headers: {
@@ -242,7 +243,18 @@ const CompilerPageContent = () => {
   }, [exerciseId, urlCourseId]);
 
   const handleBack = () => {
-    router.back();
+    const cId = courseId || urlCourseId;
+    if (cId) {
+      // Return to the EXACT spot: re-open the same node + tab + activity (exercise list).
+      const method = category === 'We_Do' ? 'we-do' : category === 'I_Do' ? 'i-do' : category === 'You_Do' ? 'you-do' : '';
+      const qp = new URLSearchParams();
+      if (nodeId) qp.set('restoreNodeId', nodeId);
+      if (method) qp.set('method', method);
+      if (subcategory) qp.set('activity', subcategory);
+      router.push(`/lms/pages/courses/coursesdetailedview/${cId}?${qp.toString()}`);
+    } else {
+      router.back();
+    }
   };
 
   if (isLoading) {

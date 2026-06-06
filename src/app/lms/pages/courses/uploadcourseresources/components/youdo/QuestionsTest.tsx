@@ -820,7 +820,7 @@ const QuestionsTest: React.FC<QuestionsTestProps> = ({
   );
 
   return (
-    <div className="flex flex-col h-full" style={{ background: T.pageBg, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+    <div className="flex flex-col h-full" style={{ background: T.pageBg, fontFamily: "'Inter', sans-serif" }}>
       {/* Header */}
       <div className="flex-shrink-0 bg-white px-4 py-3 flex items-center justify-between" style={{ borderBottom: `1px solid ${T.border}` }}>
         <div className="flex items-center gap-3">

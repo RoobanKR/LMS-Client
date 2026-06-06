@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { Question, QuestionBankResponse, ApiResponse } from './type/question';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://lms-server-ym1q.onrender.com';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5533';
 
 const questionBankApi = axios.create({
   baseURL: API_BASE_URL,
@@ -19,78 +19,70 @@ questionBankApi.interceptors.request.use((config) => {
   return config;
 });
 
-// Clean payload for simple question format (Programming & Simple MCQ)
+// Clean payload for simple question format (Programming family & Simple MCQ).
+// `questionType` carries the specific type: 'mcq' | 'programming' | 'frontend' | 'database'
+// (legacy capitalised values are tolerated). MCQ rich questions go through FormData instead.
 const cleanSimpleQuestionPayload = (question: Partial<Question>): Partial<Question> => {
   const { questionType } = question;
-  
-  const baseFields = {
+  const isMcq = (questionType || '').toLowerCase() === 'mcq';
+
+  const baseFields: Partial<Question> = {
     questionCategory: question.questionCategory || '',
-    questionType: questionType as 'MCQ' | 'Programming',
+    questionType,
     isActive: question.isActive ?? true,
   };
 
-  if (questionType === 'MCQ') {
+  if (isMcq) {
     return {
       ...baseFields,
       questionTitle: question.questionTitle || '',
       options: question.options || [],
       correctAnswer: question.correctAnswer || '',
     };
-  } else if (questionType === 'Programming') {
-    const cleanedQuestion: Partial<Question> = {
-      ...baseFields,
-      title: question.title || '',
-      description: question.description || '',
-      difficulty: question.difficulty || 'medium',
-      sampleInput: question.sampleInput || '',
-      sampleOutput: question.sampleOutput || '',
-      score: question.score || 0,
-      category: question.category || 'core',
-    };
-
-    // ✅ Add sampleQuery and expectedResult for database category
-    if (question.sampleQuery) {
-      cleanedQuestion.sampleQuery = question.sampleQuery;
-    }
-    
-    if (question.expectedResult) {
-      cleanedQuestion.expectedResult = question.expectedResult;
-    }
-
-    // ✅ CRITICAL FIX: Add constraints for frontend category
-    // Make sure to send it as a plain array of strings
-    if (question.constraints && Array.isArray(question.constraints) && question.constraints.length > 0) {
-      cleanedQuestion.constraints = question.constraints.filter(c => c && c.trim() !== '');
-    }
-
-    // ✅ Also handle constraints for core/database
-    if (question.constraints && Array.isArray(question.constraints) && question.constraints.length > 0) {
-      cleanedQuestion.constraints = question.constraints.filter(c => c && c.trim() !== '');
-    }
-
-    if (question.hints && Array.isArray(question.hints) && question.hints.length > 0) {
-      cleanedQuestion.hints = question.hints.filter(h => h.hintText?.trim() !== '');
-    }
-
-    if (question.testCases && Array.isArray(question.testCases) && question.testCases.length > 0) {
-      cleanedQuestion.testCases = question.testCases.filter(t => 
-        t.input?.trim() !== '' || t.expectedOutput?.trim() !== ''
-      );
-    }
-
-    if (question.solutions && 
-        (question.solutions.startedCode?.trim() !== '' || 
-         question.solutions.functionName?.trim() !== '')) {
-      cleanedQuestion.solutions = question.solutions;
-    }
-
-    // Log for debugging
-    console.log('📤 Sending constraints:', cleanedQuestion.constraints);
-    
-    return cleanedQuestion;
   }
 
-  return baseFields;
+  // Programming family: programming (core) / frontend / database
+  const cleanedQuestion: Partial<Question> = {
+    ...baseFields,
+    title: question.title || '',
+    description: question.description || '',
+    difficulty: question.difficulty || 'medium',
+    sampleInput: question.sampleInput || '',
+    sampleOutput: question.sampleOutput || '',
+    score: question.score || 0,
+    category: question.category || 'core',
+  };
+
+  // Database-specific fields
+  if (question.sampleQuery) {
+    cleanedQuestion.sampleQuery = question.sampleQuery;
+  }
+  if (question.expectedResult) {
+    cleanedQuestion.expectedResult = question.expectedResult;
+  }
+
+  // Constraints (frontend / core / database) — send a plain array of non-empty strings
+  if (Array.isArray(question.constraints) && question.constraints.length > 0) {
+    cleanedQuestion.constraints = question.constraints.filter(c => c && c.trim() !== '');
+  }
+
+  if (Array.isArray(question.hints) && question.hints.length > 0) {
+    cleanedQuestion.hints = question.hints.filter(h => h.hintText?.trim() !== '');
+  }
+
+  if (Array.isArray(question.testCases) && question.testCases.length > 0) {
+    cleanedQuestion.testCases = question.testCases.filter(t =>
+      t.input?.trim() !== '' || t.expectedOutput?.trim() !== ''
+    );
+  }
+
+  if (question.solutions &&
+      (question.solutions.startedCode?.trim() !== '' ||
+       question.solutions.functionName?.trim() !== '')) {
+    cleanedQuestion.solutions = question.solutions;
+  }
+
+  return cleanedQuestion;
 };
 
 export const questionBankService = {

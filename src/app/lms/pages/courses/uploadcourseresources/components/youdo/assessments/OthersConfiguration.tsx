@@ -27,7 +27,7 @@ export const OthersConfiguration: React.FC<BaseConfigProps> = ({
           <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: designTokens.orangeLight, color: designTokens.orange }}>
             <FolderOpen size={13} />
           </div>
-          <h3 className="text-sm font-bold" style={{ color: designTokens.textMain, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+          <h3 className="text-sm font-bold" style={{ color: designTokens.textMain, fontFamily: 'Inter, sans-serif' }}>
             Others Configuration
           </h3>
         </div>

@@ -1,20 +1,23 @@
 "use client";
 import { Loading } from "@/components/loading-ui/loading";
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   BookOpen, Users, Loader2,
   Target, LayoutGrid, List, GraduationCap, ArrowRight,
   ChevronDown, ChevronLeft, ChevronRight,
 } from 'lucide-react';
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { motion, AnimatePresence, cubicBezier } from 'framer-motion';
 import {
-  useCoursesInfiniteQuery,
-  useFilteredCourses,
   getAuthToken,
   getCurrentUserIdFromAuth,
   Course
 } from '../.../../../../../apiServices/studentcoursepage';
+import {
+  useCoursesListQuery,
+  useFilteredCourses,
+  usePrefetchCourseDetail,
+} from '@/queries/courses';
 import { StudentLayout } from '../../component/student/student-layout';
 import DashboardLayout from '../../component/layout';
 import { StaffLayout } from '../../component/stafflayout/staff-layout';
@@ -27,6 +30,8 @@ const T = {
 };
 
 const defaultCategories = ["All", "Web Development", "Data Science", "Mobile Development", "Design", "Cloud Computing", "Marketing", "Security"];
+const LEVEL_OPTIONS = ['All', 'Beginner', 'Intermediate', 'Advanced', 'Expert'] as const;
+const ITEMS_PER_PAGE = 8;
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 interface UserData { _id: string; email: string; firstName: string; lastName: string; role: { _id: string; originalRole: string; renameRole: string; roleValue: string } | string; permissions?: any[]; [key: string]: any }
@@ -37,38 +42,36 @@ const containerV = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: 
 const cardV = { hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0, transition: { duration: 0.28, ease: cubicBezier(0.22, 1, 0.36, 1) } } };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const getUser = (): { valid: boolean; user: UserData | null } => { 
-  try { 
-    const s = localStorage.getItem("smartcliff_userData"); 
-    if (!s) return { valid: false, user: null }; 
-    return { valid: true, user: JSON.parse(s) } 
-  } catch { 
-    return { valid: false, user: null } 
-  } 
+const getUser = (): { valid: boolean; user: UserData | null } => {
+  try {
+    const s = localStorage.getItem("smartcliff_userData");
+    if (!s) return { valid: false, user: null };
+    return { valid: true, user: JSON.parse(s) }
+  } catch {
+    return { valid: false, user: null }
+  }
 };
 
 
-const isDummyMode = (): boolean => { 
-  try { 
-    const s = localStorage.getItem('smartcliff_roleSwitch'); 
-    if (s) { 
-      const d: RoleSwitchState = JSON.parse(s); 
-      return d.isDummyStudent === true 
-    } 
-    return localStorage.getItem('smartcliff_isDummyStudent') === 'true' 
-  } catch { 
-    return false 
-  } 
+const isDummyMode = (): boolean => {
+  try {
+    const s = localStorage.getItem('smartcliff_roleSwitch');
+    if (s) {
+      const d: RoleSwitchState = JSON.parse(s);
+      return d.isDummyStudent === true
+    }
+    return localStorage.getItem('smartcliff_isDummyStudent') === 'true'
+  } catch {
+    return false
+  }
 };
 
 // Function to get the actual user role from localStorage
 const getUserRole = (): string | null => {
   try {
-    // First try to get from smartcliff_roleValue
     const roleValue = localStorage.getItem('smartcliff_roleValue');
     if (roleValue) return roleValue.toLowerCase();
-    
-    // If not, try from userData
+
     const { valid, user } = getUser();
     if (valid && user) {
       if (typeof user.role === 'object' && user.role !== null) {
@@ -78,27 +81,27 @@ const getUserRole = (): string | null => {
         return user.role.toLowerCase();
       }
     }
-    
+
     return null;
   } catch {
     return null;
   }
 };
 
-const getLevelCfg = (l: string) => { 
-  switch (l) { 
-    case 'Beginner': return { bg: '#ecfdf5', text: '#059669', dot: '#10b981' }; 
-    case 'Intermediate': return { bg: '#fff7ed', text: '#ea580c', dot: '#f97316' }; 
-    default: return { bg: '#fff1f2', text: '#e11d48', dot: '#f43f5e' }; 
-  } 
+const getLevelCfg = (l: string) => {
+  switch (l) {
+    case 'Beginner': return { bg: '#ecfdf5', text: '#059669', dot: '#10b981' };
+    case 'Intermediate': return { bg: '#fff7ed', text: '#ea580c', dot: '#f97316' };
+    default: return { bg: '#fff1f2', text: '#e11d48', dot: '#f43f5e' };
+  }
 };
 
 // ─── Banner gradient per course level ────────────────────────────────────────
 const BANNER_GRADIENTS: Record<string, string> = {
-  Beginner:     'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
+  Beginner: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
   Intermediate: 'linear-gradient(135deg, #F27757 0%, #f5a623 100%)',
-  Advanced:     'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-  Expert:       'linear-gradient(135deg, #e11d48 0%, #7c3aed 100%)',
+  Advanced: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+  Expert: 'linear-gradient(135deg, #e11d48 0%, #7c3aed 100%)',
 };
 const fallbackGradient = (name: string) => {
   const hues = [210, 150, 270, 30, 180, 320, 60, 0];
@@ -109,7 +112,7 @@ const getBanner = (course: Course) =>
   BANNER_GRADIENTS[course.courseLevel] || fallbackGradient(course.courseName || '');
 
 // ─── Course Card ──────────────────────────────────────────────────────────────
-const CourseCard = ({ course, isStudent, onStart, viewMode, isDark }: { course: Course; isStudent: boolean; onStart: (id: string) => void; viewMode: 'grid' | 'list'; isDark: boolean }) => {
+const CourseCard = React.memo(function CourseCard({ course, isStudent, onStart, onPrefetch, viewMode, isDark }: { course: Course; isStudent: boolean; onStart: (id: string) => void; onPrefetch: (id: string) => void; viewMode: 'grid' | 'list'; isDark: boolean }) {
   const [imgError, setImgError] = useState(false);
 
   const lv = getLevelCfg(course.courseLevel);
@@ -117,14 +120,18 @@ const CourseCard = ({ course, isStudent, onStart, viewMode, isDark }: { course: 
   const banner = getBanner(course);
   const hasImg = !!(course as any).courseImage && !imgError;
 
+  const handlePrefetch = useCallback(() => onPrefetch(course._id), [onPrefetch, course._id]);
+  const handleStart = useCallback(() => onStart(course._id), [onStart, course._id]);
+
   // ── LIST view ────────────────────────────────────────────────────────────────
   if (viewMode === 'list') {
     return (
       <motion.div layout variants={cardV}
         className="group flex items-center gap-4 p-3.5 rounded-xl cursor-pointer"
         style={{ background: isDark ? T.dark.card : T.bg, border: `1px solid ${isDark ? T.dark.border : T.border}`, transition: 'border-color .15s, box-shadow .15s' }}
-        onClick={() => onStart(course._id)}
-        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = T.orange; (e.currentTarget as HTMLElement).style.boxShadow = `0 4px 16px ${T.orangeGlow}` }}
+        onClick={handleStart}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = T.orange; (e.currentTarget as HTMLElement).style.boxShadow = `0 4px 16px ${T.orangeGlow}`; handlePrefetch(); }}
+        onFocus={handlePrefetch}
         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = isDark ? T.dark.border : T.border; (e.currentTarget as HTMLElement).style.boxShadow = 'none' }}
       >
         {/* Thumbnail */}
@@ -161,11 +168,11 @@ const CourseCard = ({ course, isStudent, onStart, viewMode, isDark }: { course: 
           </div>
         </div>
         <button
-          onClick={e => { e.stopPropagation(); onStart(course._id) }}
+          onClick={e => { e.stopPropagation(); handleStart(); }}
+          onMouseEnter={handlePrefetch}
+          onFocus={handlePrefetch}
           className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-lg text-[12px] font-semibold text-white"
           style={{ background: T.orange, transition: 'background .15s' }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = T.orangeDark }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.orange }}
         >
           {isStudent ? 'Start' : 'Manage'}<ArrowRight className="w-3 h-3" />
         </button>
@@ -183,8 +190,9 @@ const CourseCard = ({ course, isStudent, onStart, viewMode, isDark }: { course: 
         boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
         transition: 'transform .18s, box-shadow .18s, border-color .18s',
       }}
-      onClick={() => onStart(course._id)}
-      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(-4px)'; (e.currentTarget as HTMLElement).style.boxShadow = `0 12px 32px ${T.orangeGlow}`; (e.currentTarget as HTMLElement).style.borderColor = T.orange + '88' }}
+      onClick={handleStart}
+      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(-4px)'; (e.currentTarget as HTMLElement).style.boxShadow = `0 12px 32px ${T.orangeGlow}`; (e.currentTarget as HTMLElement).style.borderColor = T.orange + '88'; handlePrefetch(); }}
+      onFocus={handlePrefetch}
       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(0)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 1px 4px rgba(0,0,0,0.06)'; (e.currentTarget as HTMLElement).style.borderColor = isDark ? T.dark.border : T.border }}
     >
       {/* ── Thumbnail ── */}
@@ -260,18 +268,18 @@ const CourseCard = ({ course, isStudent, onStart, viewMode, isDark }: { course: 
 
         {/* CTA */}
         <button
-          onClick={e => { e.stopPropagation(); onStart(course._id) }}
+          onClick={e => { e.stopPropagation(); handleStart(); }}
+          onMouseEnter={handlePrefetch}
+          onFocus={handlePrefetch}
           className="w-full mt-3 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[12.5px] font-bold text-white"
           style={{ background: T.orange, transition: 'background .15s' }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = T.orangeDark }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.orange }}
         >
           {isStudent ? 'Start Course' : 'Manage'}<ArrowRight className="w-3.5 h-3.5" />
         </button>
       </div>
     </motion.div>
   );
-};
+});
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 const Skel = ({ isDark }: { isDark: boolean }) => (
@@ -303,7 +311,7 @@ const Empty = ({ onClear, hasSearch, isDark }: { onClear: () => void; hasSearch:
   </motion.div>
 );
 
-const Err = ({ onRetry, isDark }: { onRetry: () => void; isDark: boolean }) => (
+const Err = ({ onRetry, isDark, message }: { onRetry: () => void; isDark: boolean; message?: string }) => (
   <motion.div key="error" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
     className="flex flex-col items-center justify-center py-20 rounded-xl"
     style={{ background: isDark ? T.dark.card : T.bg, border: `1px solid ${isDark ? T.dark.border : T.border}` }}>
@@ -311,7 +319,7 @@ const Err = ({ onRetry, isDark }: { onRetry: () => void; isDark: boolean }) => (
       <Target className="w-6 h-6" style={{ color: '#e11d48' }} />
     </div>
     <h3 className="text-[14px] font-bold mb-1" style={{ color: isDark ? T.dark.textMain : T.textMain }}>Failed to load courses</h3>
-    <p className="text-[12px] mb-4" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>Something went wrong.</p>
+    <p className="text-[12px] mb-4" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>{message || 'Something went wrong.'}</p>
     <button onClick={onRetry} className="px-4 py-2 rounded-lg text-[12px] font-semibold text-white" style={{ background: T.orange }}>Try Again</button>
   </motion.div>
 );
@@ -319,136 +327,204 @@ const Err = ({ onRetry, isDark }: { onRetry: () => void; isDark: boolean }) => (
 // ─── MAIN PAGE ────────────────────────────────────────────────────────────────
 export default function CoursesPage() {
   const sp = useSearchParams();
-  const [searchTerm, setSearchTerm] = useState(sp?.get('q') || "");
+  const router = useRouter();
+  const pathname = usePathname();
 
-  // Keep in sync when navbar search updates the URL
-  useEffect(() => { setSearchTerm(sp?.get('q') || "") }, [sp]);
-  const [selectedCategory, setSelectedCategory] = useState("All");
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  // URL-synced filter state — survives refresh, supports back/forward
+  const urlSearchTerm = sp?.get('q') || '';
+  const urlCategory = sp?.get('category') || 'All';
+  const urlLevel = (LEVEL_OPTIONS as readonly string[]).includes(sp?.get('level') || '') ? (sp?.get('level') as string) : 'All';
+  const urlPage = Math.max(1, parseInt(sp?.get('page') || '1', 10) || 1);
+  const urlView = (sp?.get('view') === 'list' ? 'list' : 'grid') as 'grid' | 'list';
+
+  const [searchTerm, setSearchTerm] = useState(urlSearchTerm);
+  const [selectedCategory, setSelectedCategory] = useState(urlCategory);
+  const [selectedLevel, setSelectedLevel] = useState(urlLevel);
+  const [currentPage, setCurrentPage] = useState(urlPage);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>(urlView);
+
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [categories, setCategories] = useState<string[]>(defaultCategories);
   const [isStudent, setIsStudent] = useState(false);
-  const [isDummyStudent, setIsDummyStudent] = useState(false);
+  const [, setIsDummyStudent] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isDark, setIsDark] = useState(false);
   const [showCatDrop, setShowCatDrop] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [selectedLevel, setSelectedLevel] = useState('All');
   const [showLevelDrop, setShowLevelDrop] = useState(false);
-  const [userName, setUserName] = useState('');
+  const [, setUserName] = useState('');
   const [isRoleLoading, setIsRoleLoading] = useState(true);
-  const router = useRouter();
 
-  useEffect(() => { 
-    const c = () => setIsDark(document.documentElement.classList.contains('dark')); 
-    c(); 
-    const o = new MutationObserver(c); 
-    o.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] }); 
-    return () => o.disconnect() 
+  useEffect(() => {
+    const c = () => setIsDark(document.documentElement.classList.contains('dark'));
+    c();
+    const o = new MutationObserver(c);
+    o.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => o.disconnect()
   }, []);
 
   useEffect(() => {
-    const initializeRole = async () => {
+    try {
+      const role = getUserRole();
+      setUserRole(role);
+      const isStudentRole = role === 'student';
+      const dummyMode = isDummyMode();
+      setIsDummyStudent(dummyMode);
+      setIsStudent(isStudentRole || dummyMode);
+      setAuthToken(getAuthToken());
+      setUserId(getCurrentUserIdFromAuth());
       try {
-        // Get user role from localStorage
-        const role = getUserRole();
-        console.log('User role from localStorage:', role);
-        
-        setUserRole(role);
-        
-        // Set isStudent based on role
-        const isStudentRole = role === 'student';
-        setIsStudent(isStudentRole);
-        
-        // Check dummy mode
-        const dummyMode = isDummyMode();
-        setIsDummyStudent(dummyMode);
-        
-        // If in dummy mode, override isStudent to true
-        if (dummyMode) {
-          setIsStudent(true);
+        const userData = localStorage.getItem('smartcliff_userData');
+        if (userData) {
+          const parsed = JSON.parse(userData);
+          setUserName(parsed.firstName || '');
         }
-        
-        // Set auth token and user ID
-        setAuthToken(getAuthToken());
-        setUserId(getCurrentUserIdFromAuth());
-        
-        // Get user name
-        try {
-          const userData = localStorage.getItem('smartcliff_userData');
-          if (userData) {
-            const parsed = JSON.parse(userData);
-            setUserName(parsed.firstName || '');
-          }
-        } catch (e) {
-          console.error('Error parsing user data:', e);
-        }
-        
-        // Listen for role changes
-        const handleStorageChange = () => {
-          const newRole = getUserRole();
-          const newDummyMode = isDummyMode();
-          
-          setUserRole(newRole);
-          setIsStudent(newRole === 'student' || newDummyMode);
-          setIsDummyStudent(newDummyMode);
-        };
-        
-        window.addEventListener('storage', handleStorageChange);
-        return () => window.removeEventListener('storage', handleStorageChange);
-        
-      } catch (error) {
-        console.error('Error initializing role:', error);
-      } finally {
-        setIsRoleLoading(false);
-      }
-    };
-    
-    initializeRole();
+      } catch { /* noop */ }
+      const handleStorageChange = () => {
+        const newRole = getUserRole();
+        const newDummyMode = isDummyMode();
+        setUserRole(newRole);
+        setIsStudent(newRole === 'student' || newDummyMode);
+        setIsDummyStudent(newDummyMode);
+      };
+      window.addEventListener('storage', handleStorageChange);
+      return () => window.removeEventListener('storage', handleStorageChange);
+    } finally {
+      setIsRoleLoading(false);
+    }
   }, []);
 
-  const ITEMS_PER_PAGE = 8;
+  // Keep local state in sync with URL navigation (back/forward, navbar search updates)
+  useEffect(() => { setSearchTerm(urlSearchTerm); }, [urlSearchTerm]);
+  useEffect(() => { setSelectedCategory(urlCategory); }, [urlCategory]);
+  useEffect(() => { setSelectedLevel(urlLevel); }, [urlLevel]);
+  useEffect(() => { setCurrentPage(urlPage); }, [urlPage]);
+  useEffect(() => { setViewMode(urlView); }, [urlView]);
 
-  const filters = { searchTerm, selectedCategory };
-  const { data, isLoading, isError, error, fetchNextPage, hasNextPage, isFetchingNextPage, refetch } = useCoursesInfiniteQuery(authToken, userId, filters);
+  // Write filter/page changes back to URL (replace, so we don't pollute history per keypress)
+  const syncUrl = useCallback((next: { q?: string; category?: string; level?: string; page?: number; view?: 'grid' | 'list' }) => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (next.q !== undefined) {
+      if (next.q) params.set('q', next.q); else params.delete('q');
+    }
+    if (next.category !== undefined) {
+      if (next.category && next.category !== 'All') params.set('category', next.category); else params.delete('category');
+    }
+    if (next.level !== undefined) {
+      if (next.level && next.level !== 'All') params.set('level', next.level); else params.delete('level');
+    }
+    if (next.page !== undefined) {
+      if (next.page > 1) params.set('page', String(next.page)); else params.delete('page');
+    }
+    if (next.view !== undefined) {
+      if (next.view !== 'grid') params.set('view', next.view); else params.delete('view');
+    }
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname);
+  }, [router, pathname]);
+
+  // Stable filter object for downstream memoization
+  const filters = useMemo(
+    () => ({ searchTerm, selectedCategory, selectedLevel }),
+    [searchTerm, selectedCategory, selectedLevel]
+  );
+
+  const {
+    data: allCourses,
+    isLoading,
+    isError,
+    error,
+    isFetching,
+    refetch,
+  } = useCoursesListQuery(userId);
 
   useEffect(() => {
     if (isError && (error as any)?.status === 401) {
-      localStorage.removeItem('smartcliff_token');
       router.push('/login');
     }
   }, [isError, error, router]);
-  const allCourses = useMemo(() => data?.pages.flatMap(p => p.data) || [], [data]);
-  const uniqueTypes = useMemo(() => allCourses.length ? Array.from(new Set(allCourses.map(c => c.serviceType).filter(Boolean))) : [], [allCourses]);
-  useEffect(() => { setCategories(uniqueTypes.length > 0 ? ["All", ...uniqueTypes] : defaultCategories) }, [uniqueTypes]);
-  const filteredBase = useFilteredCourses(allCourses, filters);
-  const filtered = useMemo(() =>
-    selectedLevel === 'All' ? filteredBase : filteredBase.filter(c => c.courseLevel === selectedLevel),
-    [filteredBase, selectedLevel]
-  );
 
-  // Reset to page 1 when filters change
-  useEffect(() => { setCurrentPage(1) }, [searchTerm, selectedCategory, selectedLevel]);
+  const uniqueTypes = useMemo(
+    () => (allCourses && allCourses.length ? Array.from(new Set(allCourses.map((c) => c.serviceType).filter(Boolean))) : []),
+    [allCourses]
+  );
+  useEffect(() => {
+    setCategories(uniqueTypes.length > 0 ? ["All", ...uniqueTypes] : defaultCategories);
+  }, [uniqueTypes]);
+
+  const filtered = useFilteredCourses(allCourses, filters);
+
+  // Reset page to 1 when filter changes; reflect in URL.
+  useEffect(() => {
+    if (currentPage !== 1) {
+      setCurrentPage(1);
+      syncUrl({ page: 1 });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, selectedCategory, selectedLevel]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
-  const paginatedCourses = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedCourses = useMemo(
+    () => filtered.slice((safePage - 1) * ITEMS_PER_PAGE, safePage * ITEMS_PER_PAGE),
+    [filtered, safePage]
+  );
 
-  // Eagerly fetch next backend pages when user reaches last available page
+  const prefetchCourseDetail = usePrefetchCourseDetail();
+
+  // Prefetch the next-page course details — by the time the user clicks Next,
+  // detail data for those cards is already warm.
   useEffect(() => {
-    if (currentPage >= totalPages && hasNextPage && !isFetchingNextPage) {
-      fetchNextPage();
-    }
-  }, [currentPage, totalPages, hasNextPage, isFetchingNextPage, fetchNextPage]);
+    if (!filtered.length || safePage >= totalPages) return;
+    const nextPageItems = filtered.slice(safePage * ITEMS_PER_PAGE, (safePage + 1) * ITEMS_PER_PAGE);
+    nextPageItems.forEach((c) => prefetchCourseDetail(c._id));
+  }, [filtered, safePage, totalPages, prefetchCourseDetail]);
 
-  const onStart = (id: string) => {
-    if (isStudent) 
+  const onStart = useCallback((id: string) => {
+    if (isStudent)
       router.push(`/lms/pages/courses/coursesdetailedview/${id}`);
-    else 
+    else
       router.push(`/lms/pages/courses/uploadcourseresources?${new URLSearchParams({ courseId: id }).toString()}`);
-  };
+  }, [isStudent, router]);
 
-  const loading = isLoading && !data;
+  const onPrefetch = useCallback((id: string) => {
+    // staff path lands on a different page that doesn't share the detail query,
+    // so prefetch only when it will be used (student detail view).
+    if (isStudent) prefetchCourseDetail(id);
+  }, [isStudent, prefetchCourseDetail]);
+
+  const handlePageChange = useCallback((p: number) => {
+    const clamped = Math.max(1, Math.min(totalPages, p));
+    setCurrentPage(clamped);
+    syncUrl({ page: clamped });
+  }, [totalPages, syncUrl]);
+
+  const handleViewModeChange = useCallback((m: 'grid' | 'list') => {
+    setViewMode(m);
+    syncUrl({ view: m });
+  }, [syncUrl]);
+
+  const handleCategoryChange = useCallback((c: string) => {
+    setSelectedCategory(c);
+    syncUrl({ category: c });
+    setShowCatDrop(false);
+  }, [syncUrl]);
+
+  const handleLevelChange = useCallback((l: string) => {
+    setSelectedLevel(l);
+    syncUrl({ level: l });
+    setShowLevelDrop(false);
+  }, [syncUrl]);
+
+  const handleClearFilters = useCallback(() => {
+    setSearchTerm('');
+    setSelectedCategory('All');
+    setSelectedLevel('All');
+    syncUrl({ q: '', category: 'All', level: 'All' });
+  }, [syncUrl]);
+
+  const loading = isLoading && !allCourses;
 
   // ── Content ────────────────────────────────────────────────────────────────
   const content = (
@@ -490,7 +566,7 @@ export default function CoursesPage() {
             <div className="absolute top-full left-0 mt-1 w-48 py-1 z-50 rounded-xl"
               style={{ background: isDark ? T.dark.card : T.bg, border: `1px solid ${isDark ? T.dark.border : T.border}`, boxShadow: '0 8px 24px rgba(0,0,0,0.10)' }}>
               {categories.map(c => (
-                <button key={c} onClick={() => { setSelectedCategory(c); setShowCatDrop(false) }}
+                <button key={c} onClick={() => handleCategoryChange(c)}
                   className="w-full text-left px-3 py-1.5 text-[12px]"
                   style={{ fontWeight: selectedCategory === c ? 700 : 500, color: selectedCategory === c ? T.orange : isDark ? T.dark.textSub : T.textSub, background: selectedCategory === c ? (isDark ? 'rgba(242,119,87,0.08)' : T.orangeLight) : 'transparent' }}
                   onMouseEnter={e => { if (selectedCategory !== c) (e.currentTarget as HTMLElement).style.background = isDark ? 'rgba(255,255,255,0.04)' : '#f7f7f9' }}
@@ -514,8 +590,8 @@ export default function CoursesPage() {
           {showLevelDrop && (
             <div className="absolute top-full left-0 mt-1 w-36 py-1 z-50 rounded-xl"
               style={{ background: isDark ? T.dark.card : T.bg, border: `1px solid ${isDark ? T.dark.border : T.border}`, boxShadow: '0 8px 24px rgba(0,0,0,0.10)' }}>
-              {['All', 'Beginner', 'Intermediate', 'Advanced', 'Expert'].map(l => (
-                <button key={l} onClick={() => { setSelectedLevel(l); setShowLevelDrop(false) }}
+              {LEVEL_OPTIONS.map(l => (
+                <button key={l} onClick={() => handleLevelChange(l)}
                   className="w-full text-left px-3 py-1.5 text-[12px]"
                   style={{ fontWeight: selectedLevel === l ? 700 : 500, color: selectedLevel === l ? T.orange : isDark ? T.dark.textSub : T.textSub, background: selectedLevel === l ? (isDark ? 'rgba(242,119,87,0.08)' : T.orangeLight) : 'transparent' }}
                   onMouseEnter={e => { if (selectedLevel !== l) (e.currentTarget as HTMLElement).style.background = isDark ? 'rgba(255,255,255,0.04)' : '#f7f7f9' }}
@@ -531,12 +607,14 @@ export default function CoursesPage() {
 
         {/* View toggle */}
         <div className="flex items-center p-0.5 rounded-lg" style={{ background: isDark ? T.dark.card : T.bg, border: `1.5px solid ${isDark ? T.dark.border : T.border}` }}>
-          {(['grid', 'list'] as const).map(m => { const a = viewMode === m; const I = m === 'grid' ? LayoutGrid : List; return (
-            <button key={m} onClick={() => setViewMode(m)} className="p-1.5 rounded-md"
-              style={{ background: a ? (isDark ? 'rgba(242,119,87,0.12)' : T.orangeLight) : 'transparent', color: a ? T.orange : isDark ? T.dark.textMuted : T.textMuted, transition: 'background .15s' }}>
-              <I className="w-3.5 h-3.5" />
-            </button>
-          )})}
+          {(['grid', 'list'] as const).map(m => {
+            const a = viewMode === m; const I = m === 'grid' ? LayoutGrid : List; return (
+              <button key={m} onClick={() => handleViewModeChange(m)} className="p-1.5 rounded-md"
+                style={{ background: a ? (isDark ? 'rgba(242,119,87,0.12)' : T.orangeLight) : 'transparent', color: a ? T.orange : isDark ? T.dark.textMuted : T.textMuted, transition: 'background .15s' }}>
+                <I className="w-3.5 h-3.5" />
+              </button>
+            )
+          })}
         </div>
       </div>
 
@@ -551,23 +629,33 @@ export default function CoursesPage() {
             )}
           </motion.div>
         ) : isError ? (
-          <Err onRetry={() => refetch()} isDark={isDark} />
+          <Err onRetry={() => refetch()} isDark={isDark} message={(error as any)?.message} />
         ) : filtered.length === 0 ? (
-          <Empty onClear={() => { setSearchTerm(''); setSelectedCategory('All'); setSelectedLevel('All') }} hasSearch={!!searchTerm} isDark={isDark} />
+          <Empty onClear={handleClearFilters} hasSearch={!!searchTerm} isDark={isDark} />
         ) : (
-          <motion.div key={`${viewMode}-${currentPage}`} variants={containerV} initial="hidden" animate="visible"
+          <motion.div key={`${viewMode}-${safePage}`} variants={containerV} initial="hidden" animate="visible"
             className={viewMode === 'grid' ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5" : "space-y-2.5"}>
-            {paginatedCourses.map(c => <CourseCard key={c._id} course={c} isStudent={isStudent} onStart={onStart} viewMode={viewMode} isDark={isDark} />)}
+            {paginatedCourses.map(c => (
+              <CourseCard
+                key={c._id}
+                course={c}
+                isStudent={isStudent}
+                onStart={onStart}
+                onPrefetch={onPrefetch}
+                viewMode={viewMode}
+                isDark={isDark}
+              />
+            ))}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Background fetch indicator */}
-      {isFetchingNextPage && (
+      {/* Background refresh indicator — keeps list visible while refetch happens */}
+      {isFetching && !loading && (
         <div className="flex justify-center mt-4">
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full" style={{ background: isDark ? T.dark.card : T.bg, border: `1px solid ${isDark ? T.dark.border : T.border}` }}>
             <Loader2 className="w-3 h-3 animate-spin" style={{ color: T.orange }} />
-            <span className="text-[10px] font-semibold" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>Loading…</span>
+            <span className="text-[10px] font-semibold" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>Refreshing…</span>
           </div>
         </div>
       )}
@@ -577,10 +665,10 @@ export default function CoursesPage() {
         <div className="flex items-center justify-center gap-1.5 mt-8 mb-2">
           {/* Prev */}
           <button
-            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-            disabled={currentPage === 1}
+            onClick={() => handlePageChange(safePage - 1)}
+            disabled={safePage === 1}
             className="w-8 h-8 rounded-lg flex items-center justify-center transition-all"
-            style={{ background: isDark ? T.dark.card : T.bg, border: `1.5px solid ${isDark ? T.dark.border : T.border}`, color: currentPage === 1 ? (isDark ? T.dark.border : T.border) : isDark ? T.dark.textMuted : T.textSub, cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}
+            style={{ background: isDark ? T.dark.card : T.bg, border: `1.5px solid ${isDark ? T.dark.border : T.border}`, color: safePage === 1 ? (isDark ? T.dark.border : T.border) : isDark ? T.dark.textMuted : T.textSub, cursor: safePage === 1 ? 'not-allowed' : 'pointer' }}
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
@@ -592,21 +680,21 @@ export default function CoursesPage() {
               for (let i = 1; i <= totalPages; i++) pages.push(i);
             } else {
               pages.push(1);
-              if (currentPage > 3) pages.push('...');
-              for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) pages.push(i);
-              if (currentPage < totalPages - 2) pages.push('...');
+              if (safePage > 3) pages.push('...');
+              for (let i = Math.max(2, safePage - 1); i <= Math.min(totalPages - 1, safePage + 1); i++) pages.push(i);
+              if (safePage < totalPages - 2) pages.push('...');
               pages.push(totalPages);
             }
             return pages.map((p, i) => p === '...'
               ? <span key={`e${i}`} className="w-8 h-8 flex items-center justify-center text-[12px]" style={{ color: isDark ? T.dark.textHint : T.textHint }}>…</span>
               : (
-                <button key={p} onClick={() => setCurrentPage(p as number)}
+                <button key={p} onClick={() => handlePageChange(p as number)}
                   className="w-8 h-8 rounded-lg text-[12.5px] font-semibold transition-all"
                   style={{
-                    background: currentPage === p ? T.orange : isDark ? T.dark.card : T.bg,
-                    border: `1.5px solid ${currentPage === p ? T.orange : isDark ? T.dark.border : T.border}`,
-                    color: currentPage === p ? '#fff' : isDark ? T.dark.textSub : T.textSub,
-                    boxShadow: currentPage === p ? `0 2px 8px ${T.orangeGlow}` : 'none',
+                    background: safePage === p ? T.orange : isDark ? T.dark.card : T.bg,
+                    border: `1.5px solid ${safePage === p ? T.orange : isDark ? T.dark.border : T.border}`,
+                    color: safePage === p ? '#fff' : isDark ? T.dark.textSub : T.textSub,
+                    boxShadow: safePage === p ? `0 2px 8px ${T.orangeGlow}` : 'none',
                   }}
                 >{p}</button>
               )
@@ -615,10 +703,10 @@ export default function CoursesPage() {
 
           {/* Next */}
           <button
-            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-            disabled={currentPage === totalPages}
+            onClick={() => handlePageChange(safePage + 1)}
+            disabled={safePage === totalPages}
             className="w-8 h-8 rounded-lg flex items-center justify-center transition-all"
-            style={{ background: isDark ? T.dark.card : T.bg, border: `1.5px solid ${isDark ? T.dark.border : T.border}`, color: currentPage === totalPages ? (isDark ? T.dark.border : T.border) : isDark ? T.dark.textMuted : T.textSub, cursor: currentPage === totalPages ? 'not-allowed' : 'pointer' }}
+            style={{ background: isDark ? T.dark.card : T.bg, border: `1.5px solid ${isDark ? T.dark.border : T.border}`, color: safePage === totalPages ? (isDark ? T.dark.border : T.border) : isDark ? T.dark.textMuted : T.textSub, cursor: safePage === totalPages ? 'not-allowed' : 'pointer' }}
           >
             <ChevronRight className="w-4 h-4" />
           </button>
@@ -627,7 +715,6 @@ export default function CoursesPage() {
     </div>
   );
 
-  // Show loading state while role is being determined
   if (isRoleLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: isDark ? T.dark.pageBg : T.pageBg }}>
@@ -636,17 +723,13 @@ export default function CoursesPage() {
     );
   }
 
-  // Role-based layout rendering
-  // Admin role → DashboardLayout
   if (userRole === 'admin') {
     return <DashboardLayout>{content}</DashboardLayout>;
   }
-  
-  // Student role → StudentLayout
+
   if (userRole === 'student' || isStudent) {
     return <StudentLayout>{content}</StudentLayout>;
   }
-  
-  // Any other role (staff, instructor, etc.) → StaffLayout
+
   return <StaffLayout>{content}</StaffLayout>;
 }

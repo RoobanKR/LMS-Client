@@ -55,10 +55,20 @@ export interface Solution {
   language?: string;
 }
 
+// Specific question type stored in the Question Bank.
+// Lowercase values are the current convention; capitalised values exist in legacy data.
+export type QuestionTypeValue =
+  | 'mcq'
+  | 'programming'
+  | 'frontend'
+  | 'database'
+  | 'MCQ'
+  | 'Programming';
+
 export interface Question {
   _id?: string;
   questionCategory: string;
-  questionType: 'MCQ' | 'Programming';
+  questionType: QuestionTypeValue;
   isActive: boolean;
     questionTitle?: string;
 options?: MCQOption[];
@@ -98,7 +108,15 @@ correctAnswer?: string;
   solutions?: Solution;
   timeLimit?: number;
   memoryLimit?: number;
-  
+  // Programming sub-type selector (UI only — questionType is the persisted discriminator)
+  category?: 'core' | 'frontend' | 'database';
+  // Database-specific
+  sampleQuery?: string;
+  expectedResult?: string;
+  // Legacy sub-type flags still referenced by some assessment-flow components
+  isFrontend?: boolean;
+  isDatabase?: boolean;
+
   // Metadata
   createdBy?: string;
   updatedBy?: string;
@@ -124,7 +142,7 @@ export interface ApiResponse<T> {
 
 export interface QuestionFormData {
   questionCategory: string;
-  questionType: 'MCQ' | 'Programming';
+  questionType: QuestionTypeValue;
   isActive: boolean;
   
   // MCQ Specific Fields

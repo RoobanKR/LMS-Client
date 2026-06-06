@@ -1,4 +1,4 @@
-// page.tsx - Complete with Progress Tracking
+﻿// page.tsx - Complete with Progress Tracking
 "use client"
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
@@ -443,7 +443,7 @@ export default function LMSPage() {
 
   useEffect(() => {
     if (!courseId) { setError("No course ID."); setIsLoading(false); return }
-    fetch(`https://lms-server-ym1q.onrender.com/getAll/courses-data/${courseId}`)
+    fetch(`http://localhost:5533/getAll/courses-data/${courseId}`)
       .then(r => r.json()).then(d => {
         const info = d.data || d
         setCourseData(info)
@@ -1364,7 +1364,7 @@ export default function LMSPage() {
   return (
     <div
       className="bg-[#f1f2f6] overflow-clip h-screen flex flex-col"
-      style={{ fontFamily: "'Inter','Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif", WebkitFontSmoothing: 'antialiased' }}
+      style={{ fontFamily: "'Inter','Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif", WebkitFontSmoothing: 'antialiased' }}
     >
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');

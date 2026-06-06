@@ -10,7 +10,7 @@ import type {
   ScreenStudentViolation,
 } from "../types/liveScreens.types";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://lms-server-ym1q.onrender.com";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5533";
 
 interface UseProctorScreensArgs {
   assessmentId: string;
@@ -29,6 +29,7 @@ interface UseProctorScreensResult {
   sharingCount: number;
   warnStudent: (studentId: string, message: string) => void;
   setQuality: (studentId: string, quality: "high" | "low") => void;
+  sendMessage: (studentId: string, message: string) => Promise<{ ok: boolean; error?: string }>;
 }
 
 function readToken(): string {
@@ -273,10 +274,34 @@ export function useProctorScreens({
     emit("proctor:set_quality", { studentId, quality });
   }, [emit]);
 
+  // Send a one-to-one message to a student — delivered to their in-assessment
+  // chat widget (StudentMessageChat) via the shared `proctor:send_message` event,
+  // the SAME path the Live Dashboard "Send Message" uses. Resolves with the ack.
+  const sendMessage = useCallback(
+    (studentId: string, message: string): Promise<{ ok: boolean; error?: string }> =>
+      new Promise((resolve) => {
+        const text = (message || "").trim();
+        if (!assessmentId || !studentId || !text) {
+          resolve({ ok: false, error: "Empty message" });
+          return;
+        }
+        try {
+          getSocket().emit(
+            "proctor:send_message",
+            { assessmentId, studentId, message: text },
+            (res: any) => resolve(res?.ok ? { ok: true } : { ok: false, error: res?.error || "Failed to send" })
+          );
+        } catch {
+          resolve({ ok: false, error: "Connection error" });
+        }
+      }),
+    [assessmentId]
+  );
+
   const sharingCount = students.filter((s) => s.isSharingScreen).length;
 
   return {
     students, streams, assessmentName, isLoading, error, accessDenied,
-    sharingCount, warnStudent, setQuality,
+    sharingCount, warnStudent, setQuality, sendMessage,
   };
 }

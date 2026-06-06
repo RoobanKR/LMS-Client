@@ -13,6 +13,7 @@ import {
   Library
 } from 'lucide-react';
 import QuestionBankSelector from './mcq/QuestionBankSelector';
+import GenerateProgFamilyAI from './GenerateProgFamilyAI';
 import { toast } from 'react-toastify';
 // ─── FONT INJECTION ───────────────────────────────────────────────────────────
 const injectFonts = (() => {
@@ -63,7 +64,7 @@ const injectFonts = (() => {
         --lms-radius-sm:     8px;
         --lms-radius-md:     10px;
         --lms-radius-lg:     14px;
-        --lms-font:          'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+        --lms-font:          'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
         --lms-shadow-sm:     0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
         --lms-shadow-md:     0 4px 14px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.04);
       }
@@ -368,6 +369,8 @@ export interface ProgrammingQuestionFormProps {
   lockedDifficulty?: 'easy' | 'medium' | 'hard';
   onEditExercise?: () => void;
   sectionData?: any;
+  // Bank questions to pre-load into the flow on open (review-then-save).
+  initialBankQuestions?: any[];
 }
 
 interface TC {
@@ -654,7 +657,7 @@ const ProgImageUploadModal: React.FC<{
       const token = localStorage.getItem('smartcliff_token');
       const fd = new FormData();
       fd.append('image', file);
-      const res = await fetch('https://lms-server-ym1q.onrender.com/upload/question-image', {
+      const res = await fetch('http://localhost:5533/upload/question-image', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: fd,
@@ -2498,7 +2501,7 @@ const PreviewModal: React.FC<{
                       )}
                       {configuredDiffs.length > 0 && (
                         <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 0 }}>
-                          {configuredDiffs.map(d => {
+                          {configuredDiffs.filter(d => d === currentDiff).map(d => {
                             const levelMarks = getTotalMarksForDiff(d);
                             const usedD = savedQuestions.filter(q => q.difficulty === d).reduce((acc, q) => acc + (q.score || 0), 0);
                             const perQ = getFixedScore(d);
@@ -3092,7 +3095,7 @@ const TitleEditor: React.FC<{
 const ProgrammingQuestionForm: React.FC<ProgrammingQuestionFormProps> = ({
   exerciseData, tabType, initialData, isEditing = false,
   onClose, onSave, onDeleteQuestion, isSaving, saveProgress, saveMessage,
-  lockedDifficulty, onEditExercise, sectionData,
+  lockedDifficulty, onEditExercise, sectionData, initialBankQuestions,
 }) => {
   injectFonts();
 
@@ -3224,8 +3227,43 @@ const getQuotaForDiff = useCallback((d: Diff): number => {
   const initialDiff: Diff = useMemo(() => {
     if (isEditing && initialData?.difficulty) return initialData.difficulty as Diff;
     if (lockedDifficulty) return lockedDifficulty;
-    return getConfiguredDiffs()[0] || 'easy';
-  }, [isEditing, initialData, lockedDifficulty, getConfiguredDiffs]);
+
+    const configured = getConfiguredDiffs();
+    if (configured.length === 0) return 'easy';
+
+    // "Has open slots" = existing-in-DB count for this difficulty is below quota.
+    const hasOpen = (d: Diff): boolean => {
+      try {
+        return getDbQuestionsForDiff(d).length < getQuotaForDiff(d);
+      } catch { return false; }
+    };
+
+    // If the teacher arrived here from the Question Bank with selected questions,
+    // prefer to START on a difficulty that BOTH matches one of those bank picks
+    // AND still has open slots — so they aren't dumped on an "Easy Questions
+    // Complete!" popup just because easy is full and the bank pick was a medium.
+    // Walk in canonical order so the sequence remains easy → medium → hard.
+    if (initialBankQuestions && initialBankQuestions.length > 0) {
+      const bankDiffs = new Set<Diff>(
+        initialBankQuestions.map((q: any) => {
+          const d = String(q?.difficulty ?? 'medium').toLowerCase();
+          return (d === 'easy' || d === 'hard') ? (d as Diff) : 'medium';
+        })
+      );
+      for (const d of configured) {
+        if (bankDiffs.has(d) && hasOpen(d)) return d;
+      }
+    }
+
+    // Otherwise, just start on the first configured difficulty that still has
+    // open slots (also walking in canonical easy → medium → hard order).
+    for (const d of configured) {
+      if (hasOpen(d)) return d;
+    }
+
+    // All quotas are already full — fall back to the first configured difficulty.
+    return configured[0] || 'easy';
+  }, [isEditing, initialData, lockedDifficulty, getConfiguredDiffs, getDbQuestionsForDiff, getQuotaForDiff, initialBankQuestions]);
 
   const buildInitialFlow = useCallback((): { questions: FlowQuestion[]; startIndex: number } => {
     if ((isEditing || initialData?._id) && initialData) {
@@ -3346,6 +3384,10 @@ const getQuotaForDiff = useCallback((d: Diff): number => {
   useEffect(() => {
     if (isGeneral) return;
     if (lockedDifficulty) return; // user already picked a difficulty from the selector — don't re-show "complete" popup
+    // If the form was opened with bank questions, the bank-preload effect will
+    // place us on the right difficulty (matching the picks). Showing the
+    // "Easy Questions Complete!" popup here would interrupt that flow — skip it.
+    if (initialBankQuestions && initialBankQuestions.length > 0) return;
     const flow = flowQuestionsRef.current;
     const idx = currentIndexRef.current;
     if (idx < flow.length || flow.length === 0) return; // normal case — nothing to do
@@ -3910,13 +3952,18 @@ const getQuotaForDiff = useCallback((d: Diff): number => {
     const existingQ = flow[idx];
     const snap = snapshotForm({ isSaved: existingQ?.isSaved || !!(getServerId(existingQ)), _id: getServerId(existingQ), isDirty: !!(getServerId(existingQ)), isPreExisting: existingQ?.isPreExisting });
     const newFlow = [...flow]; newFlow[idx] = snap; flowQuestionsRef.current = newFlow; setFlowQuestions(newFlow);
-    const prevIdx = idx - 1; currentIndexRef.current = prevIdx; setCurrentIndex(prevIdx); loadQuestionIntoForm(newFlow[prevIdx]);
+    const prevIdx = idx - 1; currentIndexRef.current = prevIdx; setCurrentIndex(prevIdx);
+    // Switch difficulty if the previous question lives in a different one (level mode only)
+    if (!isGeneral && newFlow[prevIdx]?.difficulty) {
+      setCurrentDiff(newFlow[prevIdx].difficulty as Diff);
+    }
+    loadQuestionIntoForm(newFlow[prevIdx]);
     setTimeout(() => titleRef.current?.focus(), 80);
   };
 const handleBankSelectedQuestions = useCallback((selected: any[]) => {
-  // Filter only programming questions (as a safeguard)
-  const programmingQuestions = selected.filter(q => 
-    q.questionType?.toLowerCase() === 'programming'
+  // Accept the whole programming family — core programming, frontend and database.
+  const programmingQuestions = selected.filter(q =>
+    ['programming', 'frontend', 'database'].includes((q.questionType || '').toLowerCase())
   );
   
   if (!selected.length) {
@@ -4117,20 +4164,27 @@ const handleBankSelectedQuestions = useCallback((selected: any[]) => {
     return;
   }
 
-  // Add the new questions to the flow
-  setFlowQuestions(prev => [...prev, ...newQuestions]);
-  
-  // Navigate to the first new question
-  const newStartIndex = flowQuestions.length;
+  // Append the new questions to the flow, then navigate to the FIRST new one.
+  // Use the live ref (not the closure's stale `flowQuestions.length`) — the
+  // closure-captured value can lag behind a freshly-saved Q on Save & Continue,
+  // which would otherwise put currentIndex one slot AHEAD of the first new
+  // question and silently skip it.
+  const liveFlowLen = flowQuestionsRef.current.length;
+  const merged = [...flowQuestionsRef.current, ...newQuestions];
+  flowQuestionsRef.current = merged;
+  setFlowQuestions(merged);
+
+  const newStartIndex = liveFlowLen; // position of the FIRST new question
+  currentIndexRef.current = newStartIndex;
   setCurrentIndex(newStartIndex);
-  
+
   // Load the first new question into the form
   if (newQuestions[0]) {
     setTimeout(() => {
       loadQuestionIntoForm(newQuestions[0]);
     }, 100);
   }
-  
+
   toast.success(`${newQuestions.length} programming question${newQuestions.length > 1 ? 's' : ''} added from bank`);
   
   if (autoScore !== undefined && autoScore > 0) {
@@ -4138,6 +4192,15 @@ const handleBankSelectedQuestions = useCallback((selected: any[]) => {
   }
 // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [currentDiff, isGeneral, isScoreEditable, getFixedScore, getRemainingMarksForDiff, generalMPQ, flowQuestions.length, loadQuestionIntoForm]);
+
+  // Pre-load bank questions handed in from the Question Bank selector (run once on open).
+  const bankPreloadedRef = useRef(false);
+  useEffect(() => {
+    if (!bankPreloadedRef.current && initialBankQuestions && initialBankQuestions.length > 0) {
+      bankPreloadedRef.current = true;
+      handleBankSelectedQuestions(initialBankQuestions);
+    }
+  }, [initialBankQuestions, handleBankSelectedQuestions]);
   
 
 
@@ -4301,6 +4364,43 @@ const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean
         if (!isGeneral && flow[returnIdx]?.difficulty) setCurrentDiff(flow[returnIdx].difficulty as Diff);
         setTimeout(() => titleRef.current?.focus(), 80);
         return;
+      }
+    }
+
+    // ── PRIORITY: completed-current-difficulty handover ─────────────────────
+    // If the question we just saved was the LAST open slot for its difficulty
+    // AND any OTHER configured difficulty still has open slots, show the
+    // DifficultyPopup so the teacher chooses where to continue. This prevents
+    // the previous flat "go to nextIdx in flow" behaviour, which would silently
+    // jump backward from Medium 2/2 to an empty Easy 4 slot.
+    // Within the same difficulty (e.g. Medium 1 → Medium 2), this check
+    // doesn't fire — the quota isn't met yet, so the form continues to the
+    // next medium slot naturally.
+    if (!isGeneral && !isEditing) {
+      const savedQ_priority = flow[idx];
+      const justDiff = (savedQ_priority?.difficulty as Diff | undefined) || currentDiff;
+      if (justDiff) {
+        const savedCountForJustDiff = flow.filter(q =>
+          q.difficulty === justDiff &&
+          !!(q._id || q.isSaved || q.isPreExisting || serverIdMap.current.get(q.__localId) || q.__localId === savedLocalId)
+        ).length;
+        if (savedCountForJustDiff >= getQuotaForDiff(justDiff)) {
+          const otherDiffsWithOpenSlots = getConfiguredDiffs().filter(d => {
+            if (d === justDiff) return false;
+            const c = flow.filter(q =>
+              q.difficulty === d &&
+              !!(q._id || q.isSaved || q.isPreExisting || serverIdMap.current.get(q.__localId))
+            ).length;
+            return c < getQuotaForDiff(d);
+          });
+          if (otherDiffsWithOpenSlots.length > 0) {
+            setCompletedDiff(justDiff);
+            setShowDiffPopup(true);
+            return;
+          }
+          // else: all other diffs are also full — fall through to the existing
+          //       "everything done → onClose" path below.
+        }
       }
     }
 
@@ -4525,21 +4625,27 @@ const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean
     return currentIndex >= flowQuestions.length - 1;
   }, [currentIndex, totalSlotsAll, flowQuestions.length]);
 
-  // Continuous global question number across all difficulties (easy→medium→hard)
+  // Continuous global question number across all difficulties (easy→medium→hard).
+  // In level mode this is the position WITHIN the current difficulty so e.g. the
+  // second medium question shows "2" not "3" (its global flow index would be 3
+  // if Easy 1+2 sit before it).
   const globalQuestionNumber = useMemo((): number => {
     if (isGeneral) return currentIndex + 1;
 
-    // Count only questions of current difficulty
-    const dQuestions = flowQuestions.filter(q => q.difficulty === currentDiff);
-    const posInDiff = dQuestions.findIndex(
-      q => q.__localId === flowQuestions[currentIndex]?.__localId
-    );
-
-    // If not found (new unsaved question not yet in flow), it's next after saved ones
-    if (posInDiff === -1) {
-      return dQuestions.length + 1;
+    // Normalise difficulty comparisons — bank/AI questions sometimes arrive
+    // with "Medium" or "MEDIUM" casing that wouldn't match the lowercase
+    // currentDiff state, which would silently fall to the +1 branch and over-count.
+    const normDiff = (d: any): string => String(d || 'medium').toLowerCase();
+    const cur = normDiff(currentDiff);
+    const dQuestions = flowQuestions.filter(q => normDiff(q.difficulty) === cur);
+    const currentQ = flowQuestions[currentIndex];
+    if (currentQ) {
+      const posInDiff = dQuestions.findIndex(q => q.__localId === currentQ.__localId);
+      if (posInDiff !== -1) return posInDiff + 1;
     }
-    return posInDiff + 1;
+    // Current index is past the end of the flow (new blank question being added)
+    // → it's the slot after the last one of this difficulty.
+    return dQuestions.length + 1;
   }, [isGeneral, currentDiff, currentIndex, flowQuestions]);
 
   const totalMarksForDiff = isGeneral ? 0 : getTotalMarksForDiff(currentDiff);
@@ -5135,7 +5241,18 @@ const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean
 
                 <div style={{ flex: 1 }} />
 
-                {/* Score — straight line input (only for graded exercises) */}
+                {/* Score — graded: editable/fixed input; non-graded: label only */}
+                {!exerciseIsGraded && (
+                  <div style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0,
+                    padding: '4px 10px', borderRadius: 8,
+                    border: '1.5px solid var(--lms-border)',
+                    background: 'var(--lms-bg-surface)',
+                  }}>
+                    <Award size={12} style={{ color: 'var(--lms-text-muted)', flexShrink: 0 }} />
+                    <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--lms-text-muted)', fontFamily: 'var(--lms-font)', whiteSpace: 'nowrap' }}>Non-graded</span>
+                  </div>
+                )}
                 {exerciseIsGraded && (
                   <span ref={scoreSectionRef} style={{
                     display: 'inline',
@@ -5792,10 +5909,10 @@ const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean
                           </div>
                         )}
                       </div>
-                      {/* Per-difficulty question breakdown */}
+                      {/* Per-difficulty question breakdown — current difficulty only */}
                       {!isGeneral && configuredDiffs.length > 0 && (
                         <div style={{ marginBottom: 12 }}>
-                          {configuredDiffs.map(d => {
+                          {configuredDiffs.filter(d => d === currentDiff).map(d => {
                             const quota = getQuotaForDiff(d);
                             const created = getCreatedCount(d);
                             const diffColor = d === 'easy' ? 'var(--lms-success)' : d === 'medium' ? 'var(--lms-warning)' : 'var(--lms-danger)';
@@ -5888,7 +6005,7 @@ const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean
                                 <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--lms-text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                                   By Difficulty
                                 </div>
-                                {configuredDiffs.map(d => {
+                                {configuredDiffs.filter(d => d === currentDiff).map(d => {
                                   const levelMarks = getTotalMarksForDiff(d);
                                   const usedD = getDbMarksUsedForDiff(d);
                                   const isQuestSpecific = getScoringType(d) === 'question_specific';
@@ -6081,7 +6198,9 @@ const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {/* Previous */}
+            {/* Previous — show whenever there's any earlier question in the flow,
+                regardless of difficulty. Clicking will auto-switch the form's
+                current difficulty if the previous question lives in a different one. */}
             {currentIndex > 0 && (
               <button onClick={handlePrevious} disabled={isSaving} className="lms-nav-btn"
                 style={{ opacity: isSaving ? 0.5 : 1 }}>
@@ -6496,56 +6615,20 @@ const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean
   </div>
 )}
 
-{/* AI Generation Modal */}
-{showAIModal && (
-  <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ background: 'rgba(26,26,46,0.55)', backdropFilter: 'blur(2px)' }}>
-    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" style={{ border: '1.5px solid var(--lms-border)' }}>
-      <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderBottomColor: 'var(--lms-border)', background: 'var(--lms-bg-surface)' }}>
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'rgba(242,119,87,0.1)' }}>
-            <Sparkles size={18} style={{ color: '#F27757' }} />
-          </div>
-          <h2 className="text-base font-bold" style={{ fontFamily: 'var(--lms-font)', color: 'var(--lms-text-main)' }}>Generate with AI</h2>
-        </div>
-        <button onClick={() => setShowAIModal(false)} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
-          <X className="h-4 w-4" style={{ color: 'var(--lms-text-muted)' }} />
-        </button>
-      </div>
-      
-      <div className="p-6 text-center">
-        <div className="flex items-center justify-center mb-4">
-          <div className="w-20 h-20 rounded-full flex items-center justify-center" style={{ background: 'rgba(242,119,87,0.1)' }}>
-            <Sparkles size={40} style={{ color: '#F27757' }} />
-          </div>
-        </div>
-        
-        <h3 className="text-xl font-bold mb-2" style={{ color: 'var(--lms-text-main)', fontFamily: 'var(--lms-font)' }}>
-          Coming Soon! 🚀
-        </h3>
-        
-        <p className="text-sm mb-6" style={{ color: 'var(--lms-text-sec)', fontFamily: 'var(--lms-font)', lineHeight: 1.6 }}>
-          AI-powered programming question generation is currently under development.
-          <br /><br />
-          Soon you'll be able to generate complete programming questions 
-          with test cases, constraints, and hints just by describing the problem.
-        </p>
-        
-        <div className="flex items-center justify-center gap-2 mb-6 p-3 rounded-xl" style={{ background: 'var(--lms-orange-50)', border: '1px solid var(--lms-orange-100)' }}>
-          <div className="w-2 h-2 rounded-full" style={{ background: '#F27757', animation: 'pulse 1.5s infinite' }} />
-          <span className="text-xs font-medium" style={{ color: '#c85a30', fontFamily: 'var(--lms-font)' }}>In Development — Release coming soon</span>
-        </div>
-        
-        <button
-          onClick={() => setShowAIModal(false)}
-          className="px-6 py-2.5 rounded-xl font-semibold transition-all w-full"
-          style={{ background: 'var(--lms-orange)', color: '#fff', fontFamily: 'var(--lms-font)' }}
-        >
-          Got it
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+{/* AI Generation — uses Gemini to author programming questions, then funnels
+    them through the same `handleBankSelectedQuestions` path the bank uses. */}
+<GenerateProgFamilyAI
+  formType="programming"
+  isOpen={showAIModal}
+  onClose={() => setShowAIModal(false)}
+  initialDifficulty={(isGeneral ? 'medium' : currentDiff) as any}
+  maxCount={isGeneral
+    ? Math.max(1, getRemainingSlots(undefined, flowQuestionsRef.current) || 10)
+    : Math.max(1, getRemainingSlots(currentDiff, flowQuestionsRef.current) || 10)}
+  contextHint={exerciseData?.selectedLanguages?.join(', ')}
+  onGenerated={(qs) => handleBankSelectedQuestions(qs as any)}
+/>
+
     </div>
   );
 };

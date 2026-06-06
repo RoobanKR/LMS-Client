@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
 import {
@@ -11,7 +11,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
-/* ─── Design tokens (matches SmartCliff login + LMS theme) ─────────────── */
+/* â”€â”€â”€ Design tokens (matches SmartCliff login + LMS theme) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 const T = {
   orange:      '#F27757',
   orangeDark:  '#E0623F',
@@ -36,7 +36,7 @@ const T = {
   purpleLight: 'rgba(139,92,246,0.08)',
 } as const;
 
-/* ─── Types ─────────────────────────────────────────────────────────────── */
+/* â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 interface MCQOption {
   _id: string; text: string; isCorrect: boolean;
   imageUrl: string | null; imageAlignment: string; imageSizePercent: number;
@@ -82,7 +82,7 @@ interface Answer {
   numericAnswer?: number; booleanAnswer?: boolean;
 }
 
-/* ─── Config maps ────────────────────────────────────────────────────────── */
+/* â”€â”€â”€ Config maps â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 const DIFF_CFG: Record<string, { text: string; bg: string }> = {
   easy:   { text: T.green,  bg: T.greenLight  },
   medium: { text: T.amber,  bg: T.amberLight  },
@@ -111,11 +111,11 @@ const HINT_TEXT: Record<string, string> = {
   ordering:        'Drag items to arrange in the correct order.',
 };
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    SMALL UI COMPONENTS
-   ═══════════════════════════════════════════════════════════════════════════ */
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
-/* ─── Modal overlay ──────────────────────────────────────────────────────── */
+/* â”€â”€â”€ Modal overlay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 const Overlay: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div style={{
     position: 'fixed', inset: 0,
@@ -127,7 +127,7 @@ const Overlay: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   </div>
 );
 
-/* ─── Time-up dialog ─────────────────────────────────────────────────────── */
+/* â”€â”€â”€ Time-up dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 const TimeUpDialog: React.FC<{ onConfirm: () => void }> = ({ onConfirm }) => (
   <Overlay>
     <div style={{ background: T.bg, borderRadius: 20, width: 360, overflow: 'hidden', boxShadow: '0 24px 60px rgba(0,0,0,0.2)', animation: 'mcqSlideUp .3s ease' }}>
@@ -147,7 +147,7 @@ const TimeUpDialog: React.FC<{ onConfirm: () => void }> = ({ onConfirm }) => (
   </Overlay>
 );
 
-/* ─── Submit confirmation dialog ─────────────────────────────────────────── */
+/* â”€â”€â”€ Submit confirmation dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 interface SubmitDialogProps {
   unansweredCount: number; flaggedCount: number;
   unansweredIndices: number[]; flaggedIndices: number[];
@@ -244,7 +244,7 @@ const SubmitDialog: React.FC<SubmitDialogProps> = ({
   );
 };
 
-/* ─── Completion screen ──────────────────────────────────────────────────── */
+/* â”€â”€â”€ Completion screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 const CompletionScreen: React.FC<{ onClose: () => void; timeUp?: boolean }> = ({ onClose, timeUp = false }) => (
   <div style={{ height: '100vh', background: T.pageBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
     <div style={{ textAlign: 'center' }}>
@@ -265,19 +265,19 @@ const CompletionScreen: React.FC<{ onClose: () => void; timeUp?: boolean }> = ({
   </div>
 );
 
-/* ─── Loading screen ─────────────────────────────────────────────────────── */
+/* â”€â”€â”€ Loading screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 const LoadingScreen: React.FC = () => (
   <div style={{ height: '100vh', background: T.pageBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
     <div style={{ textAlign: 'center' }}>
       <div style={{ width: 38, height: 38, borderRadius: '50%', border: `3px solid ${T.orangeLight}`, borderTopColor: T.orange, animation: 'mcqSpin 0.7s linear infinite', margin: '0 auto 12px' }} />
-      <p style={{ fontSize: 13, color: T.textMuted }}>Loading assessment…</p>
+      <p style={{ fontSize: 13, color: T.textMuted }}>Loading assessmentâ€¦</p>
     </div>
   </div>
 );
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    ANSWER INPUT COMPONENTS
-   ═══════════════════════════════════════════════════════════════════════════ */
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 const RadioOption: React.FC<{ option: MCQOption; checked: boolean; onChange: () => void; index: number; disabled: boolean }> = ({ option, checked, onChange, index, disabled }) => {
   const lbl = String.fromCharCode(65 + index);
@@ -344,7 +344,7 @@ const DropdownInput: React.FC<{ options: MCQOption[]; selectedValue: string | nu
     <div ref={ref} style={{ position: 'relative', maxWidth: 460 }}>
       <button onClick={() => !disabled && setOpen(!open)}
         style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 15px', borderRadius: 11, border: `1.5px solid ${open ? T.orange : T.border}`, background: T.bg, color: sel ? T.textMain : T.textHint, fontSize: 14, fontWeight: sel ? 600 : 400, cursor: disabled ? 'default' : 'pointer', boxShadow: open ? `0 0 0 3px ${T.orangeLight}` : 'none', transition: 'all 0.12s', fontFamily: 'inherit' }}>
-        <span>{sel ? sel.text : 'Select an answer…'}</span>
+        <span>{sel ? sel.text : 'Select an answerâ€¦'}</span>
         <ChevronDown size={14} style={{ color: T.textHint, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.18s', flexShrink: 0 }} />
       </button>
       {open && (
@@ -368,7 +368,7 @@ const DropdownInput: React.FC<{ options: MCQOption[]; selectedValue: string | nu
 const ShortAnswerInput: React.FC<{ value: string; onChange: (v: string) => void; disabled: boolean }> = ({ value, onChange, disabled }) => (
   <div style={{ position: 'relative', maxWidth: 540 }}>
     <input type="text" value={value} onChange={e => onChange(e.target.value)} disabled={disabled}
-      placeholder="Type your answer here…"
+      placeholder="Type your answer hereâ€¦"
       style={{ width: '100%', padding: '11px 40px 11px 15px', borderRadius: 11, border: `1.5px solid ${T.border}`, background: T.bg, fontSize: 14, color: T.textMain, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', transition: 'all 0.12s' }}
       onFocus={e => { e.currentTarget.style.borderColor = T.orange; e.currentTarget.style.boxShadow = `0 0 0 3px ${T.orangeLight}`; }}
       onBlur={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = 'none'; }}
@@ -379,7 +379,7 @@ const ShortAnswerInput: React.FC<{ value: string; onChange: (v: string) => void;
 
 const EssayInput: React.FC<{ value: string; onChange: (v: string) => void; disabled: boolean }> = ({ value, onChange, disabled }) => (
   <textarea value={value} onChange={e => onChange(e.target.value)} disabled={disabled}
-    rows={6} placeholder="Write your detailed answer here…"
+    rows={6} placeholder="Write your detailed answer hereâ€¦"
     style={{ width: '100%', maxWidth: 700, padding: '11px 15px', borderRadius: 11, border: `1.5px solid ${T.border}`, background: T.bg, fontSize: 14, color: T.textMain, outline: 'none', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6, boxSizing: 'border-box', transition: 'all 0.12s', display: 'block' }}
     onFocus={e => { e.currentTarget.style.borderColor = T.orange; e.currentTarget.style.boxShadow = `0 0 0 3px ${T.orangeLight}`; }}
     onBlur={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = 'none'; }}
@@ -391,7 +391,7 @@ const NumericInput: React.FC<{ value: number | null; onChange: (v: number) => vo
   return (
     <div style={{ maxWidth: 240 }}>
       <div style={{ position: 'relative' }}>
-        <input type="number" value={inp} disabled={disabled} step="any" placeholder="Enter a number…"
+        <input type="number" value={inp} disabled={disabled} step="any" placeholder="Enter a numberâ€¦"
           onChange={e => { setInp(e.target.value); const n = Number(e.target.value); if (e.target.value.trim() !== '' && !isNaN(n)) onChange(n); }}
           style={{ width: '100%', padding: '11px 40px 11px 15px', borderRadius: 11, border: `1.5px solid ${T.border}`, background: T.bg, fontSize: 14, color: T.textMain, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', transition: 'all 0.12s' }}
           onFocus={e => { e.currentTarget.style.borderColor = T.orange; e.currentTarget.style.boxShadow = `0 0 0 3px ${T.orangeLight}`; }}
@@ -400,7 +400,7 @@ const NumericInput: React.FC<{ value: number | null; onChange: (v: number) => vo
         <Hash size={13} style={{ position: 'absolute', right: 13, top: '50%', transform: 'translateY(-50%)', color: T.textHint, pointerEvents: 'none' }} />
       </div>
       {tolerance != null && tolerance > 0 && (
-        <p style={{ fontSize: 11, color: T.textMuted, marginTop: 5 }}>Accepted range: ±{tolerance}</p>
+        <p style={{ fontSize: 11, color: T.textMuted, marginTop: 5 }}>Accepted range: Â±{tolerance}</p>
       )}
     </div>
   );
@@ -471,7 +471,7 @@ const MatchingInput: React.FC<{ pairs: MatchingPair[]; answers: { left: string; 
                   }}
                   style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '10px 13px', borderRadius: 10, border: `1.5px solid ${ml ? T.green : T.border}`, background: ml ? T.greenLight : T.bg, cursor: disabled ? 'default' : 'pointer', transition: 'all 0.12s' }}>
                   <span style={{ fontSize: 13, color: T.textMain }}>{r}</span>
-                  {ml && <span style={{ fontSize: 9, fontWeight: 700, color: T.green, background: 'rgba(16,185,129,0.15)', padding: '2px 7px', borderRadius: 5, whiteSpace: 'nowrap' }}>← {ml}</span>}
+                  {ml && <span style={{ fontSize: 9, fontWeight: 700, color: T.green, background: 'rgba(16,185,129,0.15)', padding: '2px 7px', borderRadius: 5, whiteSpace: 'nowrap' }}>â† {ml}</span>}
                 </div>
               );
             })}
@@ -538,7 +538,7 @@ const OrderingInput: React.FC<{ items: OrderingItem[]; answers: { itemId: string
   );
 };
 
-/* ─── Question sidebar ───────────────────────────────────────────────────── */
+/* â”€â”€â”€ Question sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 interface SidebarProps {
   questions: MCQQuestion[];
   currentIndex: number;
@@ -630,7 +630,7 @@ const QuestionSidebar: React.FC<SidebarProps> = ({
         </select>
       </div>
 
-      {/* Question grid — only this scrolls */}
+      {/* Question grid â€” only this scrolls */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px' }}>
         <p style={{ fontSize: 9, fontWeight: 700, color: T.textHint, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 9 }}>
           Jump to Question
@@ -663,9 +663,9 @@ const QuestionSidebar: React.FC<SidebarProps> = ({
   );
 };
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    MAIN MCQ COMPONENT
-   ═══════════════════════════════════════════════════════════════════════════ */
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 interface MCQProps {
   exercise?: ExerciseData;
   courseId?: string; courseName?: string;
@@ -675,7 +675,7 @@ interface MCQProps {
   studentId?: string; moduleName?: string; topicName?: string;
   hierarchy?: string[];
 }
-// ─── Content Block Renderer (student view) ───────────────────────────────────
+// â”€â”€â”€ Content Block Renderer (student view) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const ContentBlockRenderer: React.FC<{ title: unknown }> = ({ title }) => {
   if (Array.isArray(title)) {
     return (
@@ -752,13 +752,13 @@ const MCQ: React.FC<MCQProps> = ({
   const router      = useRouter();
   const searchParams = useSearchParams();
 
-  /* ── Core state ──────────────────────────────────────────────────────── */
+  /* â”€â”€ Core state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const [currentIdx,    setCurrentIdx]    = useState(0);
   const [questions,     setQuestions]     = useState<MCQQuestion[]>([]);
   const [filteredQs,    setFilteredQs]    = useState<MCQQuestion[]>([]);
   const [selectedDiff,  setSelectedDiff]  = useState<string | null>(null);
 
-  /* ── Per-question answer state ───────────────────────────────────────── */
+  /* â”€â”€ Per-question answer state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const [selRadio,    setSelRadio]    = useState<string | null>(null);
   const [selCheckbox, setSelCheckbox] = useState<Set<string>>(new Set());
   const [selDropdown, setSelDropdown] = useState<string | null>(null);
@@ -769,7 +769,7 @@ const MCQ: React.FC<MCQProps> = ({
   const [matchAns,    setMatchAns]    = useState<{ left: string; right: string }[]>([]);
   const [orderAns,    setOrderAns]    = useState<{ itemId: string; order: number }[]>([]);
 
-  /* ── Quiz lifecycle ──────────────────────────────────────────────────── */
+  /* â”€â”€ Quiz lifecycle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const [quizStarted,   setQuizStarted]   = useState(false);
   const [quizCompleted, setQuizCompleted] = useState(false);
   const [isSubmitting,  setIsSubmitting]  = useState(false);
@@ -777,25 +777,25 @@ const MCQ: React.FC<MCQProps> = ({
   const [showTimeUp,    setShowTimeUp]    = useState(false);
   const [loading,       setLoading]       = useState(true);
 
-  /* ── Answers & flags ─────────────────────────────────────────────────── */
+  /* â”€â”€ Answers & flags â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const [answers,  setAnswers]  = useState<Map<string, Answer>>(new Map());
   const [flagged,  setFlagged]  = useState<Set<number>>(new Set());
   const [exData,   setExData]   = useState<ExerciseData | null>(null);
 
-  /* ── Timer ───────────────────────────────────────────────────────────── */
+  /* â”€â”€ Timer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const [timeLeft,  setTimeLeft]  = useState(0);
   const [totalDur,  setTotalDur]  = useState(0);
   const timerRef   = useRef<ReturnType<typeof setInterval> | null>(null);
   const answersRef = useRef<Map<string, Answer>>(new Map());
 
-  /* ── URL params ──────────────────────────────────────────────────────── */
+  /* â”€â”€ URL params â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const urlCourseId = searchParams.get('courseId');
   const urlExId     = searchParams.get('exerciseId');
   const urlExName   = searchParams.get('exerciseName');
   const urlSub      = searchParams.get('subcategory');
   const urlCat      = searchParams.get('category');
 
-  /* ─── Helpers ────────────────────────────────────────────────────────── */
+  /* â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const getToken   = () => localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
   const getCourseId = () => urlCourseId || courseId;
   const getCategory = () => urlCat || category;
@@ -808,7 +808,7 @@ const MCQ: React.FC<MCQProps> = ({
     return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
   };
 
-  /* ─── Timer logic ────────────────────────────────────────────────────── */
+  /* â”€â”€â”€ Timer logic â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const startTimer = (dur: number) => {
     if (timerRef.current) clearInterval(timerRef.current);
     setTimeLeft(dur * 60);
@@ -824,7 +824,7 @@ const MCQ: React.FC<MCQProps> = ({
     }, 1000);
   };
 
-  /* ─── isQuestionAnswered ─────────────────────────────────────────────── */
+  /* â”€â”€â”€ isQuestionAnswered â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const isQAns = (q: MCQQuestion): boolean => {
     switch (q.mcqQuestionType) {
       case 'multiple_select': return Array.from(answers.values()).some(a => a?.questionId === q._id);
@@ -838,18 +838,18 @@ const MCQ: React.FC<MCQProps> = ({
     }
   };
 
-  /* ─── persist answers to state + localStorage ────────────────────────── */
+  /* â”€â”€â”€ persist answers to state + localStorage â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const persist = (m: Map<string, Answer>) => {
     setAnswers(m);
     answersRef.current = m;
     if (exData?._id) localStorage.setItem(`mcq_answers_${exData._id}`, JSON.stringify(Object.fromEntries(m)));
   };
 
-  /* ─── marks per question ─────────────────────────────────────────────── */
+  /* â”€â”€â”€ marks per question â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const qm = (q: MCQQuestion) =>
     exData?.questionConfiguration?.mcqQuestionConfiguration?.marksPerQuestion ?? q.mcqQuestionScore ?? 10;
 
-  /* ─── load saved answers for a question into UI state ───────────────── */
+  /* â”€â”€â”€ load saved answers for a question into UI state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const loadFor = (q: MCQQuestion, map: Map<string, Answer>) => {
     setSelRadio(null); setSelCheckbox(new Set()); setSelDropdown(null);
     setTfVal(null); setShortTxt(''); setEssayTxt(''); setNumVal(null);
@@ -872,7 +872,7 @@ const MCQ: React.FC<MCQProps> = ({
     }
   };
 
-  /* ─── initialise exercise data ───────────────────────────────────────── */
+  /* â”€â”€â”€ initialise exercise data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const initExercise = (ex: ExerciseData, eid: string) => {
     setExData(ex);
     const dur = ex.exerciseInformation?.totalDuration ?? 0;
@@ -904,7 +904,7 @@ const MCQ: React.FC<MCQProps> = ({
     setQuizStarted(true);
   };
 
-  /* ─── Fetch exercise ─────────────────────────────────────────────────── */
+  /* â”€â”€â”€ Fetch exercise â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   useEffect(() => {
     const load = async () => {
       try {
@@ -913,7 +913,7 @@ const MCQ: React.FC<MCQProps> = ({
         if (!eid) { toast.error('Exercise ID is required'); setLoading(false); return; }
         const tok = getToken();
         if (!tok) { toast.error('Authentication token not found'); setLoading(false); return; }
-        const res = await fetch(`https://lms-server-ym1q.onrender.com/exercise/${eid}`, {
+        const res = await fetch(`http://localhost:5533/exercise/${eid}`, {
           headers: { Authorization: `Bearer ${tok}`, 'Content-Type': 'application/json' },
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -935,7 +935,7 @@ const MCQ: React.FC<MCQProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlExId, propExercise?._id]);
 
-  /* ─── Difficulty filter ──────────────────────────────────────────────── */
+  /* â”€â”€â”€ Difficulty filter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   useEffect(() => {
     const f = selectedDiff ? questions.filter(q => q.mcqQuestionDifficulty === selectedDiff) : questions;
     setFilteredQs(f);
@@ -945,7 +945,7 @@ const MCQ: React.FC<MCQProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDiff, questions]);
 
-  /* ─── Answer handlers ────────────────────────────────────────────────── */
+  /* â”€â”€â”€ Answer handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const handleRadio = (id: string, q: MCQQuestion) => {
     setSelRadio(id);
     const opt = q.mcqQuestionOptions.find(o => o._id === id);
@@ -1057,10 +1057,10 @@ const MCQ: React.FC<MCQProps> = ({
     });
   };
 
-  /* ─── API submit helpers ─────────────────────────────────────────────── */
+  /* â”€â”€â”€ API submit helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const doPost = async (fd: FormData) => {
     try {
-      await fetch('https://lms-server-ym1q.onrender.com/courses/answers/submit', {
+      await fetch('http://localhost:5533/courses/answers/submit', {
         method: 'POST',
         headers: { Authorization: `Bearer ${getToken()}` },
         body: fd,
@@ -1159,11 +1159,11 @@ const MCQ: React.FC<MCQProps> = ({
     }
   };
 
-  /* ─── Handle time-up (called from timer interval) ────────────────────── */
+  /* â”€â”€â”€ Handle time-up (called from timer interval) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const handleTimeUp = async () => {
     setIsSubmitting(true);
     await saveCurrentAnswer();
-    // answers state may be stale in closure — use ref
+    // answers state may be stale in closure â€” use ref
     const currentAnswers = answersRef.current;
     for (const q of questions) {
       const answered = (() => {
@@ -1187,13 +1187,13 @@ const MCQ: React.FC<MCQProps> = ({
     }
   };
 
-  // Wire showTimeUp → handleTimeUp
+  // Wire showTimeUp â†’ handleTimeUp
   useEffect(() => {
     if (showTimeUp) { handleTimeUp(); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showTimeUp]);
 
-  /* ─── Navigation ─────────────────────────────────────────────────────── */
+  /* â”€â”€â”€ Navigation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const goPrev = async () => {
     if (currentIdx <= 0) return;
     await saveCurrentAnswer();
@@ -1244,7 +1244,7 @@ const MCQ: React.FC<MCQProps> = ({
 
   const handleBack = () => { if (onCloseExercise) onCloseExercise(); else router.back(); };
 
-  /* ─── Computed values ────────────────────────────────────────────────── */
+  /* â”€â”€â”€ Computed values â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const difficultyCounts = {
     easy:   questions.filter(q => q.mcqQuestionDifficulty === 'easy').length,
     medium: questions.filter(q => q.mcqQuestionDifficulty === 'medium').length,
@@ -1260,7 +1260,7 @@ const MCQ: React.FC<MCQProps> = ({
   const progressPct     = questions.length ? Math.round((answeredCount / questions.length) * 100) : 0;
   const filteredAnswered = filteredQs.filter(q => isQAns(q)).length;
 
-  /* ─── Guards ─────────────────────────────────────────────────────────── */
+  /* â”€â”€â”€ Guards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   if (loading)       return <LoadingScreen />;
   if (quizCompleted) return (<><ToastContainer /><CompletionScreen onClose={handleBack} timeUp={timeLeft === 0} /></>);
 
@@ -1284,7 +1284,7 @@ const MCQ: React.FC<MCQProps> = ({
     </div>
   );
 
-  /* ─── Derive current question metadata ───────────────────────────────── */
+  /* â”€â”€â”€ Derive current question metadata â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const cq       = filteredQs[currentIdx];
   const diff     = DIFF_CFG[cq.mcqQuestionDifficulty] ?? { text: T.orange, bg: T.orangeLight };
   const qt       = QTYPE_CFG[cq.mcqQuestionType] ?? { label: cq.mcqQuestionType, color: T.textMuted, bg: T.pageBg };
@@ -1298,7 +1298,7 @@ const MCQ: React.FC<MCQProps> = ({
     : cq.mcqQuestionOptionsPerRow === 4 ? 'repeat(4,1fr)'
     : 'repeat(2,1fr)';
 
-  /* ─── Sidebar flagged set (mapped to filtered index space) ───────────── */
+  /* â”€â”€â”€ Sidebar flagged set (mapped to filtered index space) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const sidebarFlagged = new Set(
     Array.from(flagged)
       .map(ai => questions[ai]?._id)
@@ -1307,20 +1307,20 @@ const MCQ: React.FC<MCQProps> = ({
       .filter(i => i !== -1)
   );
 
-  /* ─── Timer display values ───────────────────────────────────────────── */
+  /* â”€â”€â”€ Timer display values â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const timerIsDanger  = timeLeft < 60;
   const timerIsWarning = timeLeft < 300 && !timerIsDanger;
   const timerColor     = timerIsDanger ? T.red : timerIsWarning ? T.amber : T.green;
   const timerPct       = totalDur > 0 ? Math.max(0, (timeLeft / (totalDur * 60)) * 100) : 100;
 
-  /* ─── Spinner element ────────────────────────────────────────────────── */
+  /* â”€â”€â”€ Spinner element â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const Spinner = () => <div style={{ width: 13, height: 13, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.35)', borderTopColor: '#fff', animation: 'mcqSpin 0.6s linear infinite', flexShrink: 0 }} />;
 
-  /* ═══════════════════════════════════════════════════════════════════════
-     RENDER — Fixed viewport: header + [scrollable content | sidebar] + nav
-     ═══════════════════════════════════════════════════════════════════════ */
+  /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+     RENDER â€” Fixed viewport: header + [scrollable content | sidebar] + nav
+     â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', fontFamily: "'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,sans-serif", background: T.pageBg, overflow: 'hidden' }}>
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', fontFamily: "'Inter',-apple-system,BlinkMacSystemFont,sans-serif", background: T.pageBg, overflow: 'hidden' }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap');
         *{box-sizing:border-box;}
@@ -1354,10 +1354,10 @@ const MCQ: React.FC<MCQProps> = ({
         />
       )}
 
-      {/* ══════════════════════════ HEADER ════════════════════════════════ */}
+      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• HEADER â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
       <div style={{ flexShrink: 0, background: T.bg, borderBottom: `1px solid ${T.border}`, zIndex: 40 }}>
 
-        {/* Row 1 — brand + timer + stats */}
+        {/* Row 1 â€” brand + timer + stats */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', height: 50, gap: 14 }}>
 
           {/* Left: back + logo + title */}
@@ -1416,7 +1416,7 @@ const MCQ: React.FC<MCQProps> = ({
           </div>
         </div>
 
-        {/* Row 2 — progress bar */}
+        {/* Row 2 â€” progress bar */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 20px 9px' }}>
           <div style={{ flex: 1, height: 3, borderRadius: 99, background: T.pageBg, overflow: 'hidden' }}>
             <div style={{ height: '100%', width: `${progressPct}%`, background: `linear-gradient(90deg,${T.orange},${T.orangeDark})`, borderRadius: 99, transition: 'width 0.5s ease', boxShadow: progressPct > 0 ? `0 0 6px ${T.orangeGlow}` : 'none' }} />
@@ -1425,20 +1425,20 @@ const MCQ: React.FC<MCQProps> = ({
         </div>
       </div>
 
-      {/* ══════════════════════════ BODY ══════════════════════════════════ */}
+      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• BODY â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
       {/*
         Layout:
           - flex row: [left column | right sidebar]
           - left column is a flex column: [meta bar | SCROLLABLE content | NAV BAR]
-          - The nav bar is always at the bottom — it's a flexShrink:0 child after the flex:1 scroll area
-          - Nothing in the scroll area has its own overflow — content just flows naturally
+          - The nav bar is always at the bottom â€” it's a flexShrink:0 child after the flex:1 scroll area
+          - Nothing in the scroll area has its own overflow â€” content just flows naturally
       */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
 
-        {/* ── Left: question column ── */}
+        {/* â”€â”€ Left: question column â”€â”€ */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
 
-          {/* Question meta bar — never scrolls */}
+          {/* Question meta bar â€” never scrolls */}
           <div style={{ flexShrink: 0, padding: '11px 20px', borderBottom: `1px solid ${T.border}`, background: T.bg, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -1485,7 +1485,7 @@ const MCQ: React.FC<MCQProps> = ({
             </button>
           </div>
 
-          {/* ── THE SCROLL ZONE — question title + inputs, no nested scroll ── */}
+          {/* â”€â”€ THE SCROLL ZONE â€” question title + inputs, no nested scroll â”€â”€ */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '22px 20px 12px' }}>
 
             {/* Question title */}
@@ -1508,7 +1508,7 @@ const MCQ: React.FC<MCQProps> = ({
               </span>
             </div>
 
-            {/* Answer inputs — no inner scroll, content flows naturally */}
+            {/* Answer inputs â€” no inner scroll, content flows naturally */}
             {cq.mcqQuestionType === 'dropdown' && (
               <DropdownInput options={cq.mcqQuestionOptions} selectedValue={selDropdown} onChange={id => handleDropdown(id, cq)} disabled={quizCompleted} />
             )}
@@ -1546,7 +1546,7 @@ const MCQ: React.FC<MCQProps> = ({
             <div style={{ height: 8 }} />
           </div>
 
-          {/* ══ NAV BAR — flexShrink:0, always at the very bottom, never moves ══ */}
+          {/* â•â• NAV BAR â€” flexShrink:0, always at the very bottom, never moves â•â• */}
           <div style={{ flexShrink: 0, height: 58, borderTop: `1px solid ${T.border}`, background: T.bg, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', gap: 12 }}>
 
             {/* Prev */}
@@ -1579,13 +1579,13 @@ const MCQ: React.FC<MCQProps> = ({
             ) : (
               <button onClick={handleSubmitClick} disabled={isSubmitting}
                 style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 20px', borderRadius: 9, border: 'none', background: allDone ? `linear-gradient(135deg,${T.green},#059669)` : `linear-gradient(135deg,${T.orange},${T.orangeDark})`, color: '#fff', fontSize: 13, fontWeight: 700, cursor: isSubmitting ? 'not-allowed' : 'pointer', boxShadow: allDone ? '0 4px 12px rgba(16,185,129,0.3)' : `0 4px 12px ${T.orangeGlow}`, fontFamily: 'inherit', transition: 'all 0.12s' }}>
-                {isSubmitting ? <><Spinner /> Submitting…</> : <><CheckCircle size={13} /> Submit</>}
+                {isSubmitting ? <><Spinner /> Submittingâ€¦</> : <><CheckCircle size={13} /> Submit</>}
               </button>
             )}
           </div>
         </div>
 
-        {/* ── Right: Sidebar ── */}
+        {/* â”€â”€ Right: Sidebar â”€â”€ */}
         <div style={{ width: 256, flexShrink: 0, borderLeft: `1px solid ${T.border}`, background: T.bg, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
           {/* Sidebar title */}
@@ -1615,12 +1615,12 @@ const MCQ: React.FC<MCQProps> = ({
             />
           </div>
 
-          {/* Submit — pinned to sidebar bottom */}
+          {/* Submit â€” pinned to sidebar bottom */}
           <div style={{ flexShrink: 0, padding: '11px 14px', borderTop: `1px solid ${T.border}` }}>
             <button onClick={handleSubmitClick} disabled={isSubmitting}
               style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '9px', borderRadius: 9, border: 'none', background: allDone ? `linear-gradient(135deg,${T.green},#059669)` : `linear-gradient(135deg,${T.orange},${T.orangeDark})`, color: '#fff', fontSize: 12, fontWeight: 700, cursor: isSubmitting ? 'not-allowed' : 'pointer', boxShadow: allDone ? '0 4px 12px rgba(16,185,129,0.3)' : `0 4px 12px ${T.orangeGlow}`, fontFamily: 'inherit', transition: 'all 0.12s' }}>
               {isSubmitting
-                ? <><Spinner /> Submitting…</>
+                ? <><Spinner /> Submittingâ€¦</>
                 : <><CheckCircle size={12} /> {allDone ? 'Submit Assessment' : 'Submit Now'}</>}
             </button>
             {!allDone && (

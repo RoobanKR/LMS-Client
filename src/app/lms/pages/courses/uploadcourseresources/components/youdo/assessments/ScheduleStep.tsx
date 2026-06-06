@@ -362,7 +362,7 @@ export const ScheduleStep: React.FC<ScheduleStepProps> = ({
         <div className="w-7 h-7 rounded-xl flex items-center justify-center" style={{ background: D.orangeLight, color: D.orange }}>
           <Calendar size={14} />
         </div>
-        <h3 className="text-sm font-bold text-[#1a1a2e]" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+        <h3 className="text-sm font-bold text-[#1a1a2e]" style={{ fontFamily: 'Inter, sans-serif' }}>
           Schedule Exercise
         </h3>
       </div>

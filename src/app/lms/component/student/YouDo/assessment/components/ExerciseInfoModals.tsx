@@ -20,7 +20,7 @@ const T = {
   red: '#ef4444',
 } as const;
 
-const FONT = "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif";
+const FONT = "'Inter', -apple-system, BlinkMacSystemFont, sans-serif";
 
 interface ExerciseInfoModalsProps {
   exercise: any;

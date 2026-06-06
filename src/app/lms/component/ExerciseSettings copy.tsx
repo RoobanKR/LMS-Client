@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo, useRef, ChangeEvent } from 'react';
+﻿import React, { useEffect, useState, useCallback, useMemo, useRef, ChangeEvent } from 'react';
 import {
   X, ChevronRight, Settings2, FileCode,
   ArrowLeft, ArrowRight, Code, FileText,
@@ -24,7 +24,7 @@ import { toast } from 'react-hot-toast';
 import { exerciseApi } from '@/apiServices/exercise';
 import TipTapEditor from './tiptopEditor';
 
-// ─── Design Tokens ────────────────────────────────────────────────────────────
+// â”€â”€â”€ Design Tokens â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const D = {
   orange: '#F27757',
   orangeLight: 'rgba(242,119,87,0.08)',
@@ -47,7 +47,7 @@ const D = {
   red: '#ef4444',
 };
 
-// ─── Font injection (once) ───────────────────────────────────────────────────
+// â”€â”€â”€ Font injection (once) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const injectFonts = (() => {
   let injected = false;
   return () => {
@@ -61,7 +61,7 @@ const injectFonts = (() => {
   };
 })();
 
-// ─── Interfaces ───────────────────────────────────────────────────────────────
+// â”€â”€â”€ Interfaces â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export interface ExercisePayload {
   configurationType: 'manual';
   tabType: "I_Do" | "We_Do" | "You_Do";
@@ -139,11 +139,11 @@ interface ValidationErrors {
   startDate?: string; endDate?: string; gracePeriod?: string;[key: string]: any;
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const isApproximatelyEqual = (a: number, b: number, tolerance = 0.01) => Math.abs(a - b) < tolerance;
 const formatDecimal = (v: number) => v % 1 === 0 ? v.toString() : v.toFixed(2);
 
-// ─── InfoTooltip ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ InfoTooltip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const InfoTooltip: React.FC<{ content: string; side?: 'top' | 'bottom' | 'left' | 'right' }> = ({ content, side = 'top' }) => {
   const [show, setShow] = useState(false);
   const [pos, setPos] = useState({ left: 0, top: 0 });
@@ -179,7 +179,7 @@ const InfoTooltip: React.FC<{ content: string; side?: 'top' | 'bottom' | 'left' 
       {show && (
         <div ref={tipRef}
           className="fixed z-[9999] p-2.5 text-xs rounded-xl shadow-2xl leading-relaxed"
-          style={{ left: pos.left, top: pos.top, maxWidth: 'min(280px,calc(100vw - 40px))', width: 'max-content', background: D.textMain, color: '#fff', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+          style={{ left: pos.left, top: pos.top, maxWidth: 'min(280px,calc(100vw - 40px))', width: 'max-content', background: D.textMain, color: '#fff', fontFamily: 'Inter, sans-serif' }}>
           {content}
         </div>
       )}
@@ -187,7 +187,7 @@ const InfoTooltip: React.FC<{ content: string; side?: 'top' | 'bottom' | 'left' 
   );
 };
 
-// ─── OInput ──────────────────────────────────────────────────────────────────
+// â”€â”€â”€ OInput â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const OInput: React.FC<{
   type?: 'text' | 'number' | 'textarea'; value: string | number; onChange: (v: string) => void;
   onBlur?: () => void; placeholder?: string; className?: string; disabled?: boolean;
@@ -232,7 +232,7 @@ const OInput: React.FC<{
   );
 };
 
-// ─── ONumberInput ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ ONumberInput â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const ONumberInput: React.FC<{
   value: number; onChange: (v: number) => void; onBlur?: () => void;
   min?: number; max?: number; placeholder?: string; className?: string;
@@ -277,7 +277,7 @@ const ONumberInput: React.FC<{
   );
 };
 
-// ─── OToggle ──────────────────────────────────────────────────────────────────
+// â”€â”€â”€ OToggle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const OToggle: React.FC<{
   enabled: boolean; onChange: (v: boolean) => void;
   label?: string; description?: string; className?: string;
@@ -297,7 +297,7 @@ const OToggle: React.FC<{
   </div>
 );
 
-// ─── PortalDropdown (FIXED: removed invalid style2 prop) ─────────────────────
+// â”€â”€â”€ PortalDropdown (FIXED: removed invalid style2 prop) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const PortalDropdown: React.FC<{
   isOpen: boolean; onClose: () => void; triggerRef: React.RefObject<HTMLButtonElement>; children: React.ReactNode; minWidth?: number;
 }> = ({ isOpen, onClose, triggerRef, children, minWidth }) => {
@@ -339,7 +339,7 @@ const PortalDropdown: React.FC<{
     : null;
 };
 
-// ─── ExpandableSection ────────────────────────────────────────────────────────
+// â”€â”€â”€ ExpandableSection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const ExpandableSection: React.FC<{
   id: string; title: string; subtitle: string; icon: React.ReactNode;
   isExpanded: boolean; onToggle: (id: string) => void; children: React.ReactNode;
@@ -357,7 +357,7 @@ const ExpandableSection: React.FC<{
           {icon}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="text-xs font-bold" style={{ color: D.textMain, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{title}</div>
+          <div className="text-xs font-bold" style={{ color: D.textMain, fontFamily: 'Inter, sans-serif' }}>{title}</div>
           <div className="text-[10px]" style={{ color: D.textMuted }}>{subtitle}</div>
         </div>
         {headerExtra && <span className="flex-shrink-0" onClick={e => e.stopPropagation()}>{headerExtra}</span>}
@@ -376,7 +376,7 @@ const ExpandableSection: React.FC<{
   );
 };
 
-// ─── TimePicker ───────────────────────────────────────────────────────────────
+// â”€â”€â”€ TimePicker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const TimePicker: React.FC<{
   value: { hour: number; minute: number };
   onChange: (t: { hour: number; minute: number }) => void;
@@ -482,7 +482,7 @@ const TimePicker: React.FC<{
           borderColor: open ? D.orange : D.border,
           background: D.bg,
           color: D.textMain,
-          fontFamily: 'Plus Jakarta Sans, sans-serif'
+          fontFamily: 'Inter, sans-serif'
         }}>
         <Clock size={13} style={{ color: D.orange }} />
         {fmt(value.hour, value.minute)}
@@ -515,7 +515,7 @@ const TimePicker: React.FC<{
                         background: active ? D.orangeLight : 'transparent',
                         color: active ? D.orange : isDisabled ? D.textHint : D.textSub,
                         fontWeight: active ? 700 : 500,
-                        fontFamily: 'Plus Jakarta Sans, sans-serif',
+                        fontFamily: 'Inter, sans-serif',
                         borderLeft: isCompareHour && !active ? `2px solid ${D.orange}` : 'none'
                       }}>
                       {`${dh}:00 ${p}`}
@@ -551,12 +551,12 @@ const TimePicker: React.FC<{
                         background: active ? D.orangeLight : 'transparent',
                         color: active ? D.orange : isDisabled ? D.textHint : D.textSub,
                         fontWeight: active ? 700 : 500,
-                        fontFamily: 'Plus Jakarta Sans, sans-serif',
+                        fontFamily: 'Inter, sans-serif',
                         borderTop: isFirstEnabledMinute ? `1px dashed ${D.orange}` : 'none'
                       }}>
                       {String(minute).padStart(2, '0')}
                       {isFirstEnabledMinute && (
-                        <span className="ml-1 text-[8px]" style={{ color: D.orange }}>✓</span>
+                        <span className="ml-1 text-[8px]" style={{ color: D.orange }}>âœ“</span>
                       )}
                     </button>
                   );
@@ -568,7 +568,7 @@ const TimePicker: React.FC<{
           {/* Info text showing disabled range */}
           {isSameDay() && (
             <div className="mt-2 pt-2 text-[10px] border-t" style={{ borderColor: D.border, color: D.orange }}>
-              ⏰ Available times must be after {String(compareWithDate!.hour).padStart(2, '0')}:{String(compareWithDate!.minute).padStart(2, '0')}
+              â° Available times must be after {String(compareWithDate!.hour).padStart(2, '0')}:{String(compareWithDate!.minute).padStart(2, '0')}
             </div>
           )}
 
@@ -608,20 +608,20 @@ const TimePicker: React.FC<{
     </div>
   );
 };
-// ─── Section label ────────────────────────────────────────────────────────────
+// â”€â”€â”€ Section label â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const SectionLabel: React.FC<{ children: React.ReactNode; required?: boolean; info?: string }> = ({ children, required, info }) => (
   <div className="flex items-center gap-1 mb-1">
-    <label className="text-xs font-semibold" style={{ color: D.textSub, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{children}</label>
+    <label className="text-xs font-semibold" style={{ color: D.textSub, fontFamily: 'Inter, sans-serif' }}>{children}</label>
     {required && <span className="text-xs font-bold" style={{ color: D.orange }}>*</span>}
     {info && <InfoTooltip content={info} />}
   </div>
 );
 
-// ─── ODropdown ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ ODropdown â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const ODropdown: React.FC<{
   value: string; options: { label: string; value: string }[]; onChange: (v: string) => void;
   placeholder?: string; disabled?: boolean; error?: string; touched?: boolean; className?: string;
-}> = ({ value, options, onChange, placeholder = 'Select…', disabled, error, touched, className = '' }) => {
+}> = ({ value, options, onChange, placeholder = 'Selectâ€¦', disabled, error, touched, className = '' }) => {
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   const selected = options.find(o => o.value === value);
@@ -634,7 +634,7 @@ const ODropdown: React.FC<{
           borderColor: open ? D.orange : error && touched ? D.red : D.border,
           background: disabled ? D.surface : D.bg,
           color: selected ? D.textMain : D.textMuted,
-          fontFamily: 'Plus Jakarta Sans, sans-serif',
+          fontFamily: 'Inter, sans-serif',
           boxShadow: open ? `0 0 0 2px ${D.orangeLight}` : '',
         }}>
         <span className="truncate">{selected?.label || placeholder}</span>
@@ -647,7 +647,7 @@ const ODropdown: React.FC<{
           {options.map(opt => (
             <button key={opt.value} type="button" onClick={() => { onChange(opt.value); setOpen(false); }}
               className="w-full text-left px-3 py-2 text-sm font-semibold flex items-center justify-between transition-colors hover:bg-[#fafafa]"
-              style={{ color: value === opt.value ? D.orange : D.textSub, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+              style={{ color: value === opt.value ? D.orange : D.textSub, fontFamily: 'Inter, sans-serif' }}>
               {opt.label}
               {value === opt.value && <Check size={13} style={{ color: D.orange }} />}
             </button>
@@ -658,7 +658,7 @@ const ODropdown: React.FC<{
   );
 };
 
-// ─── DateRowPicker (FIXED: extracted as proper component to avoid hooks-in-map) ──
+// â”€â”€â”€ DateRowPicker (FIXED: extracted as proper component to avoid hooks-in-map) â”€â”€
 const DateRowPicker: React.FC<{
   label: string; fieldKey: string; icon: string; color: string; toggleable: boolean;
   data: any; isEnabled: boolean; activePicker: { field: string | null; type: string | null };
@@ -747,12 +747,12 @@ const DateRowPicker: React.FC<{
           )}
           <div className="w-6 h-6 rounded-lg flex items-center justify-center text-sm flex-shrink-0"
             style={{ background: color + '12', color }}>
-            {icon === '▶' && <ArrowRight size={12} />}
-            {icon === '⏹' && <Square size={12} />}
-            {icon === '↗' && <ArrowUpRight size={12} />}
+            {icon === 'â–¶' && <ArrowRight size={12} />}
+            {icon === 'â¹' && <Square size={12} />}
+            {icon === 'â†—' && <ArrowUpRight size={12} />}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-xs font-bold" style={{ color: isEnabled ? color : D.textMuted, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{label}</div>
+            <div className="text-xs font-bold" style={{ color: isEnabled ? color : D.textMuted, fontFamily: 'Inter, sans-serif' }}>{label}</div>
           </div>
           <div className="relative">
             <button
@@ -769,7 +769,7 @@ const DateRowPicker: React.FC<{
                 borderColor: isOpen('date') || isOpen('time') ? color : D.border,
                 background: isOpen('date') || isOpen('time') ? color + '08' : D.surface,
                 color: (data?.day && data.day > 0) ? D.textMain : D.textMuted,
-                fontFamily: 'Plus Jakarta Sans, sans-serif'
+                fontFamily: 'Inter, sans-serif'
               }}>
               <Calendar size={12} style={{ color: isEnabled ? color : D.textMuted }} />
               {dateStr}
@@ -808,7 +808,7 @@ const DateRowPicker: React.FC<{
                     style={{ color: D.textMuted }}>
                     <ChevronLeft size={13} />
                   </button>
-                  <span className="text-xs font-bold" style={{ color: D.textMain, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                  <span className="text-xs font-bold" style={{ color: D.textMain, fontFamily: 'Inter, sans-serif' }}>
                     {monthsFull[calMonth - 1]} {calYear}
                   </span>
                   <button
@@ -850,7 +850,7 @@ const DateRowPicker: React.FC<{
                           color: sel ? '#fff' : disabled ? D.textHint : D.textSub,
                           cursor: !day || disabled ? 'default' : 'pointer',
                           fontWeight: sel ? 700 : 500,
-                          fontFamily: 'Plus Jakarta Sans, sans-serif'
+                          fontFamily: 'Inter, sans-serif'
                         }}>
                         {day}
                       </button>
@@ -903,7 +903,7 @@ const DateRowPicker: React.FC<{
                     )
                     : 'auto'
                 }}>
-                <h4 className="text-xs font-bold mb-2" style={{ color: D.textMain, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Select Time</h4>
+                <h4 className="text-xs font-bold mb-2" style={{ color: D.textMain, fontFamily: 'Inter, sans-serif' }}>Select Time</h4>
                 <TimePicker
                   value={{ hour: data?.hour ?? (fieldKey === 'startDate' ? 0 : 23), minute: data?.minute ?? (fieldKey === 'startDate' ? 0 : 59) }}
                   onChange={t => {
@@ -1007,7 +1007,7 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
     notifyUsers: true, notifyGmail: false, notifyWhatsApp: false, gradeSheet: true,
   });
 
-  // ── Populate formData when editing ─────────────────────────────────────────
+  // â”€â”€ Populate formData when editing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     if (!isEditing || !initialData) return;
     const ex = initialData as any;
@@ -1212,7 +1212,7 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
     { value: 'question_specific', label: 'Question-specific marks' },
   ], []);
 
-  // ── Steps ──────────────────────────────────────────────────────────────────
+  // â”€â”€ Steps â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const getSteps = (): Step[] => {
     const steps: Step[] = [];
     if (!isEditing) steps.push({ id: 1, title: 'Exercise Type', subtitle: 'Select type', completed: currentStep > 1, active: currentStep === 1, icon: <Settings2 size={12} /> });
@@ -1239,7 +1239,7 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
 
   const steps = useMemo(() => getSteps(), [formData.exerciseType, currentStep]);
 
-  // ── Auto-calc marks ────────────────────────────────────────────────────────
+  // â”€â”€ Auto-calc marks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     if ((formData.exerciseType === 'Programming' || formData.exerciseType === 'Combined') && formData.programmingConfig.questionConfigType === 'general' && formData.programmingConfig.scoreSettings.scoreType === 'equalDistribution') {
       const qc = formData.programmingConfig.generalQuestionCount;
@@ -1266,7 +1266,7 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
     }
   }, [formData.exerciseType, formData.totalMarks, formData.mcqConfig.scoreSettings.scoreType]);
 
-  // ── Computed ───────────────────────────────────────────────────────────────
+  // â”€â”€ Computed â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const programmingAllocatedMarks = useMemo(() => {
     let m = 0;
     const pc = formData.programmingConfig;
@@ -1336,7 +1336,7 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
     );
   }, [formData.programmingConfig.questionConfigType, formData.programmingConfig.levelBasedCounts]);
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
+  // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const getEntityType = useCallback((nt: string) => {
     const m: Record<string, any> = { module: 'modules', submodule: 'submodules', topic: 'topics', subtopic: 'subtopics' };
     return m[nt?.toLowerCase()] || 'topics';
@@ -1376,7 +1376,7 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
     return false;
   }, [formData.exerciseType, mcqAllocatedMarks, programmingAllocatedMarks, formData.totalMarks, formData.mcqConfig.scoreSettings.scoreType]);
 
-  // ── Validation functions ───────────────────────────────────────────────────
+  // â”€â”€ Validation functions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const validateExerciseType = useCallback(() => (!formData.exerciseType ? 'Please select an exercise type' : undefined), [formData.exerciseType]);
   const validateModule = useCallback(() => {
     const e: any = {};
@@ -1595,7 +1595,7 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
         }
         break;
       }
-      // Schedule, Notification, Question Configuration — free, no validation
+      // Schedule, Notification, Question Configuration â€” free, no validation
       default:
         return true;
     }
@@ -1607,36 +1607,36 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
     validateMCQConfiguration, validateProgrammingConfiguration, markAllTouched,
     formData.exerciseType, programmingLevelMismatch]);
 
-  // ── handleComplete ──────────────────────────────────────────────────────────
+  // â”€â”€ handleComplete â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const handleComplete = useCallback(async () => {
     let allErrors: ValidationErrors = {};
     let allFields: string[] = [];
 
-    // 1. Exercise Type — always required
+    // 1. Exercise Type â€” always required
     const typeError = validateExerciseType();
     if (typeError) { allErrors.exerciseType = typeError; allFields.push('exerciseType'); }
 
-    // 2. Module — required for Programming / Combined
+    // 2. Module â€” required for Programming / Combined
     if (formData.exerciseType === 'Programming' || formData.exerciseType === 'Combined') {
       const me = validateModule();
       if (me.module) { allErrors.selectedModule = me.module; allFields.push('selectedModule'); }
       if (me.languages) { allErrors.selectedLanguages = me.languages; allFields.push('selectedLanguages'); }
     }
 
-    // 3. Exercise Details — always required
+    // 3. Exercise Details â€” always required
     const detailsErrors = validateExerciseDetails();
     allErrors = { ...allErrors, ...detailsErrors };
     allFields.push('exerciseName', 'totalDuration', 'totalMarks');
     if (formData.exerciseType === 'Combined') allFields.push('totalMarksMCQ', 'totalMarksProgramming');
 
-    // 4. MCQ Configuration — required for MCQ / Combined
+    // 4. MCQ Configuration â€” required for MCQ / Combined
     if (formData.exerciseType === 'MCQ' || formData.exerciseType === 'Combined') {
       const mcqErrors = validateMCQConfiguration();
       allErrors = { ...allErrors, ...mcqErrors };
       allFields.push('mcqGeneralQuestionCount', 'mcqMarksPerQuestion', 'mcqTotalMarks');
     }
 
-    // 5. Programming Configuration — required for Programming / Combined
+    // 5. Programming Configuration â€” required for Programming / Combined
     if (formData.exerciseType === 'Programming' || formData.exerciseType === 'Combined') {
       const progErrors = validateProgrammingConfiguration();
       allErrors = { ...allErrors, ...progErrors };
@@ -1674,7 +1674,7 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
 
       toast.error(
         incompleteSteps.length > 0
-          ? `Please complete: ${incompleteSteps.join(' · ')}`
+          ? `Please complete: ${incompleteSteps.join(' Â· ')}`
           : 'Please complete all required fields',
         { position: 'top-right', duration: 5000, id: 'validation-error' }
       );
@@ -1925,14 +1925,14 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
         onClose();
       }, 1500);
 
-      // Explicitly dismiss toast after its duration — prevents it getting stuck
+      // Explicitly dismiss toast after its duration â€” prevents it getting stuck
       // when the Toaster inside this component unmounts before auto-dismiss fires
       setTimeout(() => {
         toast.dismiss('exercise-save-success');
       }, 3200);
 
     } catch (error: any) {
-      console.error('❌ Error in handleComplete:', error);
+      console.error('âŒ Error in handleComplete:', error);
 
       // Format error message
       let msg = `Failed to ${isEditing ? 'update' : 'create'} exercise: `;
@@ -2024,7 +2024,7 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
     }
   }, [currentStep, formData.exerciseType, steps]);
 
-  // ── Sidebar step click — direct navigation, no validation ──────────────────
+  // â”€â”€ Sidebar step click â€” direct navigation, no validation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const handleStepClick = useCallback((targetStepId: number) => {
     if (targetStepId === currentStep) return;
     setCurrentStep(targetStepId);
@@ -2073,7 +2073,7 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
     return false;
   }, [formData.programmingConfig]);
 
-  // ── Calendar helpers ───────────────────────────────────────────────────────
+  // â”€â”€ Calendar helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const generateCalendarDays = useCallback((year: number, month: number) => {
     const dim = new Date(year, month, 0).getDate();
     const fd = new Date(year, month - 1, 1).getDay();
@@ -2133,7 +2133,7 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
       <div className="px-4 py-3">
         <div className="mb-3 flex items-center gap-2">
           <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: D.orangeLight, color: D.orange }}><Settings2 size={13} /></div>
-          <h3 className="text-sm font-bold" style={{ color: D.textMain, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Select Exercise Type</h3>
+          <h3 className="text-sm font-bold" style={{ color: D.textMain, fontFamily: 'Inter, sans-serif' }}>Select Exercise Type</h3>
         </div>
         <div className="grid grid-cols-3 gap-3">
           {types.map(t => {
@@ -2148,7 +2148,7 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
                   {t.icon}
                 </div>
                 <div className="text-[10px] font-bold px-1.5 py-0.5 rounded-full mb-1.5 inline-block" style={{ background: t.color + '15', color: t.color }}>{t.badge}</div>
-                <h3 className="text-sm font-bold mb-0.5" style={{ color: sel ? t.color : D.textMain, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{t.label}</h3>
+                <h3 className="text-sm font-bold mb-0.5" style={{ color: sel ? t.color : D.textMain, fontFamily: 'Inter, sans-serif' }}>{t.label}</h3>
                 <p className="text-[11px] font-semibold mb-1" style={{ color: sel ? t.color + 'cc' : D.textMuted }}>{t.sub}</p>
                 <p className="text-[11px] leading-relaxed" style={{ color: D.textMuted }}>{t.desc}</p>
               </button>
@@ -2175,7 +2175,7 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
       <div className="px-4 py-3">
         <div className="mb-3 flex items-center gap-2">
           <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: D.orangeLight, color: D.orange }}><Code size={13} /></div>
-          <h3 className="text-sm font-bold" style={{ color: D.textMain, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Module & Languages</h3>
+          <h3 className="text-sm font-bold" style={{ color: D.textMain, fontFamily: 'Inter, sans-serif' }}>Module & Languages</h3>
         </div>
 
         <div className="space-y-4">
@@ -2240,7 +2240,7 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
                     }}>
                       {icons[mod]}
                     </div>
-                    <div className="text-xs font-bold" style={{ color: sel ? colors[mod] : D.textMain, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                    <div className="text-xs font-bold" style={{ color: sel ? colors[mod] : D.textMain, fontFamily: 'Inter, sans-serif' }}>
                       {mod}
                     </div>
                   </button>
@@ -2324,7 +2324,7 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
         <div className="mb-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: D.orangeLight, color: D.orange }}><FileText size={13} /></div>
-            <h3 className="text-sm font-bold" style={{ color: D.textMain, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Exercise Details</h3>
+            <h3 className="text-sm font-bold" style={{ color: D.textMain, fontFamily: 'Inter, sans-serif' }}>Exercise Details</h3>
           </div>
           {isCombined && (
             <div className="flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-bold" style={{ background: combinedTotal > 0 ? D.emerald + '15' : D.surface, color: combinedTotal > 0 ? D.emerald : D.textMuted, border: `1px solid ${combinedTotal > 0 ? D.emerald + '30' : D.border}` }}>
@@ -2427,14 +2427,14 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: D.blue + '20', color: D.blue }}><List size={13} /></div>
             <div>
-              <h3 className="text-xs font-bold" style={{ color: D.textMain, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>MCQ Configuration</h3>
+              <h3 className="text-xs font-bold" style={{ color: D.textMain, fontFamily: 'Inter, sans-serif' }}>MCQ Configuration</h3>
               {isCombined && <p className="text-[10px]" style={{ color: D.blue }}>Section: {formData.totalMarksMCQ} marks</p>}
             </div>
           </div>
           {isEqual && (
             <div className="text-right">
               <div className="text-[10px] font-semibold" style={{ color: isMatch ? D.emerald : D.amber }}>Allocated</div>
-              <div className="text-sm font-bold" style={{ color: isMatch ? D.emerald : D.amber, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{formatDecimal(allocated)}<span className="text-xs font-normal" style={{ color: D.textMuted }}>/{totalToUse}</span></div>
+              <div className="text-sm font-bold" style={{ color: isMatch ? D.emerald : D.amber, fontFamily: 'Inter, sans-serif' }}>{formatDecimal(allocated)}<span className="text-xs font-normal" style={{ color: D.textMuted }}>/{totalToUse}</span></div>
             </div>
           )}
         </div>
@@ -2471,11 +2471,11 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
                   <SectionLabel info="Auto-calculated">Marks Per Question</SectionLabel>
                   <div className="relative">
                     <input type="text" value={formatDecimal(formData.mcqConfig.scoreSettings.equalDistribution)} disabled readOnly
-                      className="w-full px-3 py-2 text-sm rounded-lg border" style={{ borderColor: D.border, background: D.surface, color: D.textMuted, fontFamily: 'Plus Jakarta Sans, sans-serif' }} />
+                      className="w-full px-3 py-2 text-sm rounded-lg border" style={{ borderColor: D.border, background: D.surface, color: D.textMuted, fontFamily: 'Inter, sans-serif' }} />
                     <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold" style={{ color: D.orange }}>Auto</span>
                   </div>
                   {formData.mcqConfig.generalQuestionCount > 0 && formData.mcqConfig.scoreSettings.equalDistribution > 0 && (
-                    <p className="mt-1 text-[11px]" style={{ color: D.textMuted }}>{totalToUse} ÷ {formData.mcqConfig.generalQuestionCount} = <strong style={{ color: D.textSub }}>{formatDecimal(formData.mcqConfig.scoreSettings.equalDistribution)}</strong></p>
+                    <p className="mt-1 text-[11px]" style={{ color: D.textMuted }}>{totalToUse} Ã· {formData.mcqConfig.generalQuestionCount} = <strong style={{ color: D.textSub }}>{formatDecimal(formData.mcqConfig.scoreSettings.equalDistribution)}</strong></p>
                   )}
                 </div>
               </div>
@@ -2552,14 +2552,14 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
                   borderColor: hasError ? D.red + '40' : style.border // Using neutral border
                 }}>
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold" style={{ color: style.color, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{style.label}</span>
+                  <span className="text-[11px] font-bold" style={{ color: style.color, fontFamily: 'Inter, sans-serif' }}>{style.label}</span>
                   <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: style.color + '20', color: style.color }}>{count}Question</span>
                 </div>
                 <div>
                   <div className="text-[9px] font-semibold mb-1" style={{ color: D.textMuted }}>TYPE</div>
                   <select value={scoring?.type || 'level_specific'} onChange={e => updateLevelScoringConfig(level, { type: e.target.value as any, ...(e.target.value === 'level_specific' ? { marksPerQuestion: 2, totalMarks: undefined } : { totalMarks: 10, marksPerQuestion: undefined }) })}
                     className="w-full px-2 py-1 text-[11px] rounded-md border font-semibold outline-none"
-                    style={{ borderColor: D.border2, background: '#fff', color: D.textMain, fontFamily: 'Plus Jakarta Sans, sans-serif' }}> {/* Changed to neutral border */}
+                    style={{ borderColor: D.border2, background: '#fff', color: D.textMain, fontFamily: 'Inter, sans-serif' }}> {/* Changed to neutral border */}
                     <option value="level_specific">Level-specific</option>
                     <option value="question_specific">Question-specific</option>
                   </select>
@@ -2588,13 +2588,13 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: D.surface2, color: D.textMain }}><Terminal size={13} /></div>
             <div>
-              <h3 className="text-xs font-bold" style={{ color: D.textMain, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Programming Configuration</h3>
+              <h3 className="text-xs font-bold" style={{ color: D.textMain, fontFamily: 'Inter, sans-serif' }}>Programming Configuration</h3>
               {isCombined && <p className="text-[10px]" style={{ color: D.textSub }}>Section: {formData.totalMarksProgramming} marks</p>}
             </div>
           </div>
           <div className="text-right">
             <div className="text-[10px] font-semibold" style={{ color: isMatch ? D.emerald : D.amber }}>{isMatch ? 'Balanced' : 'Mismatch'}</div>
-            <div className="text-sm font-bold" style={{ color: isMatch ? D.emerald : D.amber, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+            <div className="text-sm font-bold" style={{ color: isMatch ? D.emerald : D.amber, fontFamily: 'Inter, sans-serif' }}>
               {formatDecimal(programmingAllocatedMarks)}<span className="text-xs font-normal" style={{ color: D.textMuted }}>/{totalToUse}</span>
             </div>
           </div>
@@ -2670,7 +2670,7 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
                     <SectionLabel info="Auto-calculated from total marks">Marks per Question</SectionLabel>
                     <div className="relative">
                       <input type="text" value={formData.programmingConfig.scoreSettings.equalDistribution > 0 ? formatDecimal(formData.programmingConfig.scoreSettings.equalDistribution) : '0'} disabled readOnly
-                        className="w-full px-3 py-2 text-sm rounded-lg border" style={{ borderColor: D.border, background: D.surface, color: D.textMuted, fontFamily: 'Plus Jakarta Sans, sans-serif' }} />
+                        className="w-full px-3 py-2 text-sm rounded-lg border" style={{ borderColor: D.border, background: D.surface, color: D.textMuted, fontFamily: 'Inter, sans-serif' }} />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold" style={{ color: D.orange }}>Auto</span>
                     </div>
                   </div>
@@ -2696,7 +2696,7 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
                 </div>
               ) : (
                 <div>
-                  <div className="text-xs mb-2" style={{ color: D.textMuted }}>💡 Select up to 2 difficulty levels. Selecting all 3 auto-switches to Level Based.</div>
+                  <div className="text-xs mb-2" style={{ color: D.textMuted }}>ðŸ’¡ Select up to 2 difficulty levels. Selecting all 3 auto-switches to Level Based.</div>
                   <div className="grid grid-cols-3 gap-3">
                     {(['easy', 'medium', 'hard'] as const).map(level => {
                       const colors = { easy: D.emerald, medium: D.amber, hard: D.red };
@@ -2760,7 +2760,7 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
                         <div className="w-5 h-5 rounded-md flex items-center justify-center" style={{ background: sel ? D.orange + '20' : D.surface, color: sel ? D.orange : D.textMuted }}>{opt.icon}</div>
                         {sel && <Check size={11} style={{ color: D.orange }} />}
                       </div>
-                      <div className="text-xs font-bold mb-0.5" style={{ color: sel ? D.orange : D.textMain, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{opt.label}</div>
+                      <div className="text-xs font-bold mb-0.5" style={{ color: sel ? D.orange : D.textMain, fontFamily: 'Inter, sans-serif' }}>{opt.label}</div>
                       <div className="text-[10px]" style={{ color: D.textMuted }}>{opt.description}</div>
                     </button>
                   );
@@ -2806,16 +2806,16 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
     };
 
     const dateRows = [
-      { label: 'Start Date & Time', fieldKey: 'startDate', icon: '▶', color: D.blue, toggleable: false },
-      { label: 'End Date & Time', fieldKey: 'cutoffDate', icon: '⏹', color: D.red, toggleable: false },
-      { label: 'Grace Period', fieldKey: 'gracePeriodDate', icon: '↗', color: D.purple, toggleable: true },
+      { label: 'Start Date & Time', fieldKey: 'startDate', icon: 'â–¶', color: D.blue, toggleable: false },
+      { label: 'End Date & Time', fieldKey: 'cutoffDate', icon: 'â¹', color: D.red, toggleable: false },
+      { label: 'Grace Period', fieldKey: 'gracePeriodDate', icon: 'â†—', color: D.purple, toggleable: true },
     ];
 
     return (
       <div className="px-4 py-3">
         <div className="mb-3 flex items-center gap-2">
           <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: D.orangeLight, color: D.orange }}><Calendar size={13} /></div>
-          <h3 className="text-sm font-bold" style={{ color: D.textMain, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Schedule Configuration</h3>
+          <h3 className="text-sm font-bold" style={{ color: D.textMain, fontFamily: 'Inter, sans-serif' }}>Schedule Configuration</h3>
         </div>
         <div className="space-y-2">
           {dateRows.map(({ label, fieldKey, icon, color, toggleable }) => {
@@ -2856,7 +2856,7 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
   const renderNotificationSettings = useCallback(() => {
     const rows = [
       { key: 'gradeSheet', label: 'Grade Sheet', sub: 'Auto-generate grade sheets after submission', icon: <Award size={14} />, color: D.blue, val: formData.gradeSheet, set: (v: boolean) => setFormData(prev => ({ ...prev, gradeSheet: v })) },
-      { key: 'notify-dashboard', label: 'Dashboard Notification', sub: 'Always on — visible in student dashboard', icon: <Home size={14} />, color: D.orange, val: true, set: null, locked: true },
+      { key: 'notify-dashboard', label: 'Dashboard Notification', sub: 'Always on â€” visible in student dashboard', icon: <Home size={14} />, color: D.orange, val: true, set: null, locked: true },
       { key: 'notifyUsers', label: 'User Notifications', sub: 'Send notifications to enrolled students', icon: <Bell size={14} />, color: D.orange, val: formData.notifyUsers, set: (v: boolean) => setFormData(prev => ({ ...prev, notifyUsers: v, notifyGmail: v ? prev.notifyGmail : false, notifyWhatsApp: v ? prev.notifyWhatsApp : false })) },
       ...(formData.notifyUsers ? [
         { key: 'notifyGmail', label: 'Email', sub: 'Notify via email / Gmail', icon: <Mail size={14} />, color: D.red, val: formData.notifyGmail, set: (v: boolean) => setFormData(prev => ({ ...prev, notifyGmail: v })), indent: true },
@@ -2868,7 +2868,7 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
       <div className="px-4 py-3">
         <div className="mb-3 flex items-center gap-2">
           <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: D.orangeLight, color: D.orange }}><Bell size={13} /></div>
-          <h3 className="text-sm font-bold" style={{ color: D.textMain, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Notifications & Grades</h3>
+          <h3 className="text-sm font-bold" style={{ color: D.textMain, fontFamily: 'Inter, sans-serif' }}>Notifications & Grades</h3>
         </div>
         <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${D.border}` }}>
           {rows.map((row: any, idx: number) => (
@@ -2882,7 +2882,7 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
               <div className="flex items-center gap-2.5">
                 <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: row.color + '12', color: row.color }}>{row.icon}</div>
                 <div>
-                  <div className="text-xs font-semibold leading-tight" style={{ color: D.textMain, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{row.label}</div>
+                  <div className="text-xs font-semibold leading-tight" style={{ color: D.textMain, fontFamily: 'Inter, sans-serif' }}>{row.label}</div>
                   <div className="text-[10.5px] mt-0.5 leading-tight" style={{ color: D.textMuted }}>{row.sub}</div>
                 </div>
               </div>
@@ -2922,14 +2922,14 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
           <div className="px-4 py-3">
             <div className="mb-3 flex items-center gap-2">
               <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: D.orangeLight, color: D.orange }}><Layers size={13} /></div>
-              <h3 className="text-sm font-bold" style={{ color: D.textMain, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Question Configuration</h3>
+              <h3 className="text-sm font-bold" style={{ color: D.textMain, fontFamily: 'Inter, sans-serif' }}>Question Configuration</h3>
             </div>
             <p className="text-xs mb-2" style={{ color: D.textMuted }}>Configure MCQ and Programming questions separately in the next steps.</p>
             <div className="grid grid-cols-2 gap-3">
               {[{ title: 'MCQ Configuration', sub: 'Multiple choice questions with auto-grading', icon: <List size={15} />, color: D.blue }, { title: 'Programming Config', sub: 'Code challenges with test cases', icon: <Terminal size={15} />, color: D.orange }].map(c => (
                 <div key={c.title} className="p-2.5 rounded-lg border" style={{ borderColor: c.color + '25', background: c.color + '05' }}>
                   <div className="w-7 h-7 rounded-lg flex items-center justify-center mb-1.5" style={{ background: c.color + '15', color: c.color }}>{c.icon}</div>
-                  <h4 className="text-xs font-bold mb-0.5" style={{ color: D.textMain, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{c.title}</h4>
+                  <h4 className="text-xs font-bold mb-0.5" style={{ color: D.textMain, fontFamily: 'Inter, sans-serif' }}>{c.title}</h4>
                   <p className="text-[11px]" style={{ color: D.textMuted }}>{c.sub}</p>
                 </div>
               ))}
@@ -2947,15 +2947,15 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
   // ==========================================================================
   // MAIN RENDER
   // ==========================================================================
-  const BreadcrumbArrow = () => <span className="mx-1" style={{ color: D.orange, fontWeight: 700, fontSize: 13 }}>»</span>;
+  const BreadcrumbArrow = () => <span className="mx-1" style={{ color: D.orange, fontWeight: 700, fontSize: 13 }}>Â»</span>;
   const isLastStep = currentStep === steps[steps.length - 1]?.id;
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ background: 'rgba(15,15,30,0.55)', backdropFilter: 'blur(6px)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+    <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ background: 'rgba(15,15,30,0.55)', backdropFilter: 'blur(6px)', fontFamily: 'Inter, sans-serif' }}>
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap');
-        .es-main, .es-main * { font-family: 'Plus Jakarta Sans', sans-serif !important; }
+        .es-main, .es-main * { font-family: 'Inter', sans-serif !important; }
         .es-main ::-webkit-scrollbar { width: 5px; height: 5px; }
         .es-main ::-webkit-scrollbar-track { background: transparent; }
         .es-main ::-webkit-scrollbar-thumb { background: #ddd; border-radius: 10px; }
@@ -2991,7 +2991,7 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
       <div className="es-main bg-white w-full max-w-6xl flex flex-col overflow-hidden"
         style={{ height: '94vh', borderRadius: 20, boxShadow: '0 32px 80px rgba(0,0,0,0.25), 0 8px 24px rgba(0,0,0,0.12)' }}>
 
-        {/* ── HEADER ── */}
+        {/* â”€â”€ HEADER â”€â”€ */}
         <header className="flex items-center justify-between px-4 py-2 flex-shrink-0"
           style={{ borderBottom: `1px solid ${D.border}`, background: D.bg }}>
           <div className="flex items-center gap-2.5 min-w-0 flex-1">
@@ -3029,9 +3029,9 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
           </div>
         </header>
 
-        {/* ── BODY ── */}
+        {/* â”€â”€ BODY â”€â”€ */}
         <div className="flex flex-1 overflow-hidden">
-          {/* ── SIDEBAR ── */}
+          {/* â”€â”€ SIDEBAR â”€â”€ */}
           <aside className="w-44 flex-shrink-0 flex flex-col py-2.5 px-2 overflow-y-auto" style={{ background: D.surface, borderRight: `1px solid ${D.border}` }}>
             <div className="space-y-0.5">
               {steps.map((step, idx) => {
@@ -3060,7 +3060,7 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
                   }
                 })();
 
-                // Schedule & Notification never show tick — always neutral
+                // Schedule & Notification never show tick â€” always neutral
                 const isOptionalStep = step.title === 'Schedule' || step.title === 'Notification';
                 const showDone = done && !isOptionalStep;
 
@@ -3069,7 +3069,7 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
                   ? <Check size={9} strokeWidth={3} />
                   : <span style={{ fontSize: 8 }}>{step.icon}</span>;
 
-                // Dot colour — no amber/warning tint
+                // Dot colour â€” no amber/warning tint
                 const dotBg = active ? D.orange : (showDone && !stepHasError) ? D.emerald : D.surface2;
                 const dotColor = active || (showDone && !stepHasError) ? '#fff' : D.textMuted;
                 const dotShadow = active ? `0 2px 6px ${D.orangeGlow}` : 'none';
@@ -3101,7 +3101,7 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
                       <div className="flex-1 min-w-0 flex items-center gap-1">
                         <div className="flex-1 min-w-0">
                           <div className="text-[11px] font-bold truncate leading-tight"
-                            style={{ color: labelColor, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                            style={{ color: labelColor, fontFamily: 'Inter, sans-serif' }}>
                             {step.title}
                           </div>
                           {active && <div className="text-[9px] mt-0.5 font-medium" style={{ color: D.orange + 'aa' }}>{step.subtitle}</div>}
@@ -3129,13 +3129,13 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
             </div>
           </aside>
 
-          {/* ── MAIN FORM ── */}
+          {/* â”€â”€ MAIN FORM â”€â”€ */}
           <main className="flex-1 overflow-y-auto" style={{ background: D.bg }}>
             {renderCurrentStep()}
           </main>
         </div>
 
-        {/* ── FOOTER ── */}
+        {/* â”€â”€ FOOTER â”€â”€ */}
         <footer className="flex items-center justify-between px-4 py-2 flex-shrink-0"
           style={{ borderTop: `1px solid ${D.border}`, background: D.bg }}>
           <div className="flex items-center gap-2">
@@ -3162,7 +3162,7 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
               style={{ background: `linear-gradient(135deg, ${D.orange}, ${D.orangeDark})`, boxShadow: `0 3px 10px ${D.orangeGlow}` }}>
               {isLoading && <Loader2 size={12} className="animate-spin" />}
               {isLastStep
-                ? (isLoading ? 'Saving…' : isEditing ? '✓ Update Exercise' : '✓ Create Exercise')
+                ? (isLoading ? 'Savingâ€¦' : isEditing ? 'âœ“ Update Exercise' : 'âœ“ Create Exercise')
                 : 'Continue'}
               {!isLoading && !isLastStep && <ArrowRight size={12} />}
             </button>

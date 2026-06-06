@@ -56,7 +56,7 @@ const injectFonts = (() => {
         --lms-radius-sm:     8px;
         --lms-radius-md:     10px;
         --lms-radius-lg:     14px;
-        --lms-font:          'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+        --lms-font:          'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
         --lms-shadow-sm:     0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
         --lms-shadow-md:     0 4px 14px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.04);
       }
@@ -113,8 +113,13 @@ const injectFonts = (() => {
 })();
 
 // ─── GEMINI API CONFIGURATION ──────────────────────────────────────────────
-const GEMINI_API_KEY = "AIzaSyCL0ui5QXP3OEsxf7l4Wv4wjq7L_MA4Hlg";
-const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
+// Read from env only — never hard-code a key in source (GitHub Push
+// Protection blocks commits containing real GCP/Google API keys). Set
+// NEXT_PUBLIC_GEMINI_API_KEY in .env.local for local dev and in your
+// deployment env for production. Same shape as `questionforms/geminiClient.ts`.
+const GEMINI_API_KEY: string =
+  (typeof process !== 'undefined' && (process as any).env?.NEXT_PUBLIC_GEMINI_API_KEY) || '';
+const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 const GEMINI_API_URL_FALLBACK = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
 // ─── TYPES ─────────────────────────────────────────────────────────────────

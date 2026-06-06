@@ -12,7 +12,7 @@ import { MessageCircle, X, Megaphone } from "lucide-react";
 import { getSocket } from "@/apiServices/socketClient";
 import { useAuthStore } from "@/stores/authStore";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://lms-server-ym1q.onrender.com";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5533";
 
 interface Msg {
   _id: string;
@@ -122,7 +122,7 @@ export default function StudentMessageChat({ assessmentId }: { assessmentId?: st
       {open && (
         <div
           className="fixed bottom-40 right-5 z-[2147483000] w-[340px] max-w-[calc(100vw-2.5rem)] rounded-2xl bg-white shadow-2xl border border-gray-200 flex flex-col overflow-hidden"
-          style={{ height: 420, maxHeight: "calc(100vh - 8rem)", animation: "smc-pop 0.16s ease-out" }}
+          style={{ height: 380, maxHeight: "calc(100vh - 11rem)", animation: "smc-pop 0.16s ease-out" }}
         >
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 bg-indigo-600 text-white">

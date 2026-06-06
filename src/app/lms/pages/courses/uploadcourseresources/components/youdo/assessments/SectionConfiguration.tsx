@@ -1509,7 +1509,7 @@ useImperativeHandle(ref, () => ({
               {section.mcqConfig?.generalQuestionCount > 0 && effectiveTotal > 0 && (
                 <div className="mt-2 px-2 py-1 rounded text-[10px] flex items-center gap-1.5" style={{ background: D.blue + '10', color: D.blue }}>
                   <Calculator size={10} />
-                  <span>{section.mcqConfig.generalQuestionCount} × {formatDecimal(section.mcqConfig.scoreSettings?.equalDistribution || 0)} = <strong>{formatDecimal(section.totalMarks)}</strong> marks</span>
+                  <span>{section.mcqConfig.generalQuestionCount} × {formatDecimal(section.mcqConfig.scoreSettings?.equalDistribution || 0)} = <strong>{formatDecimal(section.mcqConfig.generalQuestionCount * (section.mcqConfig.scoreSettings?.equalDistribution || 0))}</strong> marks</span>
                 </div>
               )}
             </>

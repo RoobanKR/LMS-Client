@@ -8,7 +8,7 @@ import {
   Loader2, CheckCircle, X, ChevronRight, ChevronLeft,
   Terminal as TerminalIcon, FileCode, Award, Clock, Menu, Search,
   ArrowUpDown, X as XIcon, AlertCircle, RefreshCw, Bug,
-  Maximize2, Minimize2, FileText,
+  Maximize2, Minimize2, FileText, Eye,
 } from "lucide-react"
 import {
   LANGUAGE_CONFIG, LANGUAGE_ORDER, STARTER_CODE,
@@ -247,13 +247,20 @@ export default function MultiFileCodeEditor({
   const [showOverviewModal, setShowOverviewModal] = useState(false)
   const [pendingNavLevel, setPendingNavLevel] = useState<null | "course" | "hierarchy" | "category">(null)
 
+  // ─── Visualizer (Python Tutor embed) ────────────────────────────────────────
+  // State lives here so it's in scope for both `openVisualizer` (declared
+  // further down, after `readWorkspaceFiles`) and the modal JSX.
+  const [showVisualizer, setShowVisualizer] = useState(false)
+  const [visualizerUrl, setVisualizerUrl] = useState<string>("")
+  const [visualizerLoading, setVisualizerLoading] = useState(false)
+
   // ─── Full exercise (re-fetched to get totalMarks etc.) ──────────────────────
   const [fullExercise, setFullExercise] = useState<any>(exercise || null)
   useEffect(() => {
     setFullExercise(exercise || null)
     if (!exercise?._id) return
     const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || ''
-    fetch(`https://lms-server-ym1q.onrender.com/exercise/${exercise._id}`, {
+    fetch(`http://localhost:5533/exercise/${exercise._id}`, {
       headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
     })
       .then(r => r.ok ? r.json() : null)
@@ -367,6 +374,58 @@ export default function MultiFileCodeEditor({
     return files
   }, [files, studentSubdir])
 
+  // Visualizer (Python Tutor embed) — opens after `readWorkspaceFiles` is in
+  // scope, otherwise we'd hit a temporal-dead-zone error on initial render.
+  // Reads the LIVE workspace file content, encodes it into a Python Tutor
+  // iframe URL, and shows the step-through visualizer in a centred overlay.
+  // Supports the languages Python Tutor supports (py / js / java / c / cpp);
+  // anything else falls back to Python and warns via toast.
+  const openVisualizer = useCallback(async () => {
+    if (seeding) return
+    setVisualizerLoading(true)
+    setShowVisualizer(true)
+    try {
+      const realFiles = await readWorkspaceFiles()
+      const langFiles = realFiles.filter((f) => detectLanguageFromFilename(f.filename) === selectedLanguage)
+      const codeFile = (langFiles[0] || realFiles[0])
+      const code = codeFile?.content || ""
+      if (!code.trim()) {
+        toast("Write some code first, then click Visualize.", { icon: "ℹ️" })
+        setShowVisualizer(false)
+        return
+      }
+      const ptLangMap: Record<string, string> = {
+        python: "311",
+        javascript: "js",
+        java: "java",
+        c: "c",
+        cpp: "cpp",
+      }
+      const py = ptLangMap[selectedLanguage] || "311"
+      if (!ptLangMap[selectedLanguage]) {
+        toast(`Visualizer doesn't support ${selectedLanguage} — showing Python view.`, { icon: "ℹ️" })
+      }
+      const params = new URLSearchParams({
+        code,
+        codeDivHeight: "400",
+        codeDivWidth: "350",
+        cumulative: "false",
+        curInstr: "0",
+        heapPrimitives: "nevernest",
+        origin: "opt-frontend.js",
+        py,
+        rawInputLstJSON: "[]",
+        textReferences: "false",
+      })
+      setVisualizerUrl(`https://pythontutor.com/iframe-embed.html#${params.toString()}`)
+    } catch (e: any) {
+      toast.error(`Could not open Visualizer: ${e?.message || e}`)
+      setShowVisualizer(false)
+    } finally {
+      setVisualizerLoading(false)
+    }
+  }, [seeding, readWorkspaceFiles, selectedLanguage])
+
   // Fetch this question's last saved submission from the LMS backend.
   const fetchPreviousSubmission = useCallback(async (): Promise<{ files: any[]; language: string } | null> => {
     const exerciseId = exercise?._id
@@ -375,7 +434,7 @@ export default function MultiFileCodeEditor({
     try {
       const token = localStorage.getItem("smartcliff_token") || localStorage.getItem("token") || ""
       const res = await fetch(
-        `https://lms-server-ym1q.onrender.com/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseId}&questionId=${questionId}&category=${category}`,
+        `http://localhost:5533/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseId}&questionId=${questionId}&category=${category}`,
         { headers: { Authorization: `Bearer ${token}` } },
       )
       if (!res.ok) return null
@@ -560,7 +619,7 @@ export default function MultiFileCodeEditor({
       isTestSubmission,
     }
     const res = await axios.post(
-      "https://lms-server-ym1q.onrender.com/courses/answers/submit-multiple-files",
+      "http://localhost:5533/courses/answers/submit-multiple-files",
       payload,
       { headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` } },
     )
@@ -601,8 +660,11 @@ export default function MultiFileCodeEditor({
           const exName = exercise?.exerciseInformation?.exerciseName || "Exercise"
           toast.success(opts?.auto ? `Time's up! "${exName}" submitted successfully.` : `"${exName}" submitted successfully`)
         }
-        // Close & redirect back to the exercise list.
-        setTimeout(() => { if (onCloseExercise) onCloseExercise(); else if (onBack) onBack() }, 1200)
+        // Close promptly and return to the exercise list (inline: the list is
+        // already underneath with the same node + tab + activity selected). The
+        // react-hot-toast success above is rendered by the page-level Toaster, so
+        // it survives this overlay unmounting and stays visible on the list.
+        setTimeout(() => { if (onCloseExercise) onCloseExercise(); else if (onBack) onBack() }, 700)
       } else {
         addLog("error", `Submission failed: ${result.message}`)
         if (opts?.auto) toast.error("Auto-submit failed. Please submit manually.")
@@ -711,13 +773,9 @@ export default function MultiFileCodeEditor({
       {/* ═══ TOP CHROME (hidden in full-screen) ═══ */}
       {exercise && !isFull && (
         <div style={{ flexShrink: 0, borderBottom: `1px solid #e5e7eb` }}>
-          {/* Row 1 */}
-          <div style={{ display: "flex", alignItems: "center", padding: "6px 12px", gap: 8, borderBottom: `1px solid #f0f0f0`, background: "#f8f9fa" }}>
-            <button onClick={() => setShowBackConfirm(true)} title="Go back"
-              style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 26, height: 26, flexShrink: 0, borderRadius: 6, border: `1px solid #d1d5db`, background: "#fff", color: "#6b7280", cursor: "pointer" }}>
-              <ChevronLeft style={{ width: 14, height: 14 }} />
-            </button>
-            <div style={{ width: 1, height: 16, background: "#e5e7eb", flexShrink: 0 }} />
+          {/* Row 1 — back button + left separator intentionally removed.
+              The only exit is Submit Exercise, which prevents accidental data loss. */}
+          <div style={{ display: "flex", alignItems: "center", padding: "6px 12px", gap: 8, borderBottom: `1px solid #f0f0f0`, background: "#ffffff" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap", flex: 1, minWidth: 0 }}>
               <button onClick={() => setPendingNavLevel("course")} style={{ fontFamily: FONT, fontSize: 12.5, fontWeight: 500, color: "#2563eb", background: "none", border: "none", cursor: "pointer", padding: 0, whiteSpace: "nowrap" }}>
                 {courseName || "Course"}
@@ -751,15 +809,12 @@ export default function MultiFileCodeEditor({
                 {isSubmitting ? <Loader2 style={{ width: 14, height: 14 }} className="animate-spin" /> : <CheckCircle style={{ width: 14, height: 14 }} />}
                 Submit Exercise
               </button>
-              <button onClick={() => setShowBackConfirm(true)} title="Close exercise"
-                style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, flexShrink: 0, borderRadius: 6, border: "1px solid #fca5a5", background: "#fef2f2", color: "#dc2626", cursor: "pointer" }}>
-                <X style={{ width: 13, height: 13 }} />
-              </button>
+              {/* Red X close button removed — Submit Exercise is the only exit. */}
             </div>
           </div>
 
           {/* Row 2 */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 14px", background: "#f9fafb", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 14px", background: "#ffffff", gap: 10, flexWrap: "wrap" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
               {availableDifficulties.length > 0 && (
                 <>
@@ -904,11 +959,11 @@ export default function MultiFileCodeEditor({
         {!isFull && (
           <>
             <div className="flex flex-col flex-shrink-0 overflow-hidden border-r" style={{ width: questionWidth, background: "#fff", borderColor: "#e5e7eb" }}>
-              <div className="px-3 py-2 border-b flex items-center justify-between gap-2" style={{ borderColor: "#e5e7eb", background: "#f8f9fa" }}>
+              <div className="px-3 py-2 border-b flex items-center justify-between gap-2" style={{ borderColor: "#e5e7eb", background: "#ffffff" }}>
                 <div className="flex items-center gap-2 min-w-0">
                   <button
                     onClick={() => setShowSidebar(!showSidebar)}
-                    className="flex items-center justify-center w-6 h-6 rounded transition-colors hover:bg-gray-200 text-gray-700 flex-shrink-0"
+                    className="flex items-center justify-center w-6 h-6 rounded transition-colors hover:bg-gray-100 text-gray-700 flex-shrink-0"
                     title={showSidebar ? "Hide problems list" : "Show problems list"}
                   >
                     {showSidebar ? <ChevronLeft className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
@@ -928,21 +983,21 @@ export default function MultiFileCodeEditor({
         )}
 
         {/* RIGHT: Language selector + code-server iframe */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden" style={{ background: "#1e1e1e" }}>
-          {/* Language selector (dropdown) + actions */}
-          <div className="flex items-center justify-between flex-shrink-0 px-3" style={{ background: "#252526", borderBottom: "1px solid #1a1a1a", minHeight: 38 }}>
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden" style={{ background: "#ffffff" }}>
+          {/* Language selector (dropdown) + actions — WHITE toolbar */}
+          <div className="flex items-center justify-between flex-shrink-0 px-3" style={{ background: "#ffffff", borderBottom: "1px solid #e5e7eb", minHeight: 38 }}>
             <div className="flex items-center gap-2">
               {isFull && (
                 <button
                   onClick={() => setShowQDrawer((v) => !v)}
                   title={showQDrawer ? "Hide question" : "Show question (Prev / Next inside)"}
                   className="flex items-center gap-1 h-6 px-2 rounded text-[11px] font-semibold transition-colors"
-                  style={{ background: showQDrawer ? "#0e639c" : "#37373d", color: "#fff" }}
+                  style={{ background: showQDrawer ? "#2563eb" : "#f3f4f6", color: showQDrawer ? "#fff" : "#374151", border: showQDrawer ? "none" : "1px solid #e5e7eb" }}
                 >
                   <FileText size={13} /> Question
                 </button>
               )}
-              <span className="text-[11px] text-gray-400">Language</span>
+              <span className="text-[11px] text-gray-600">Language</span>
               <div className="relative flex items-center">
                 <select
                   value={selectedLanguage}
@@ -952,20 +1007,20 @@ export default function MultiFileCodeEditor({
                   style={{
                     appearance: "none", WebkitAppearance: "none",
                     height: 26, padding: "0 26px 0 10px", borderRadius: 6,
-                    border: `1px solid ${LANGUAGE_CONFIG[selectedLanguage]?.color || "#3c3c3c"}`,
-                    background: "#1e1e1e", color: "#fff",
+                    border: `1px solid ${LANGUAGE_CONFIG[selectedLanguage]?.color || "#d1d5db"}`,
+                    background: "#ffffff", color: "#111827",
                     fontSize: 12, fontWeight: 600, fontFamily: "ui-monospace, monospace",
                     cursor: seeding ? "not-allowed" : "pointer", outline: "none",
                     opacity: seeding ? 0.6 : 1,
                   }}
                 >
                   {availableLanguages.map((lang) => (
-                    <option key={lang} value={lang} style={{ background: "#1e1e1e", color: "#fff" }}>
+                    <option key={lang} value={lang} style={{ background: "#ffffff", color: "#111827" }}>
                       {LANGUAGE_CONFIG[lang].label}  ({LANGUAGE_CONFIG[lang].filename})
                     </option>
                   ))}
                 </select>
-                <svg viewBox="0 0 12 12" fill="none" stroke={LANGUAGE_CONFIG[selectedLanguage]?.color || "#9ca3af"} strokeWidth="1.5"
+                <svg viewBox="0 0 12 12" fill="none" stroke={LANGUAGE_CONFIG[selectedLanguage]?.color || "#6b7280"} strokeWidth="1.5"
                   style={{ position: "absolute", right: 8, pointerEvents: "none", width: 12, height: 12 }}>
                   <path d="M2 4l4 4 4-4" />
                 </svg>
@@ -975,22 +1030,19 @@ export default function MultiFileCodeEditor({
               </span>
             </div>
             <div className="flex items-center gap-3 pr-3 flex-shrink-0">
-              {seeding && <span className="flex items-center gap-1 text-[11px] text-gray-400"><Loader2 size={11} className="animate-spin" /> preparing…</span>}
-              <button
-                onClick={createNewFile}
-                disabled={seeding}
-                title={`Create a new ${LANGUAGE_CONFIG[selectedLanguage]?.label} file (.${LANGUAGE_CONFIG[selectedLanguage]?.ext})`}
-                className="flex items-center gap-1 h-6 px-2 rounded text-[11px] font-semibold transition-colors"
-                style={{ background: "#0e639c", color: "#fff", opacity: seeding ? 0.6 : 1, cursor: seeding ? "not-allowed" : "pointer" }}
-              >
-                <FileCode size={12} /> New File
-              </button>
-              <button onClick={refreshFiles} title="Reload files from the editor (sync before submit)" className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-gray-200">
+              {seeding && <span className="flex items-center gap-1 text-[11px] text-gray-600"><Loader2 size={11} className="animate-spin" /> preparing…</span>}
+              <button onClick={refreshFiles} title="Reload files from the editor (sync before submit)" className="flex items-center gap-1 text-[11px] text-gray-600 hover:text-gray-900">
                 <RefreshCw size={11} /> Sync
+              </button>
+              {/* Visualizer — opens Python Tutor step-through view of the current code */}
+              <button onClick={openVisualizer} disabled={seeding || visualizerLoading} title="Step through your code visually (Python Tutor)"
+                style={{ display: "flex", alignItems: "center", gap: 5, height: 26, padding: "0 12px", fontSize: 11, fontFamily: FONT, fontWeight: 600, borderRadius: 6, border: "1px solid #c7d2fe", background: "#eef2ff", color: "#4338ca", cursor: (seeding || visualizerLoading) ? "not-allowed" : "pointer", opacity: (seeding || visualizerLoading) ? 0.6 : 1 }}>
+                {visualizerLoading ? <Loader2 style={{ width: 12, height: 12 }} className="animate-spin" /> : <Eye style={{ width: 12, height: 12 }} />}
+                Visualizer
               </button>
               {exercise && (
                 <button onClick={submitQuestion} disabled={isSubmittingQuestion || isSubmitting} title="Save this question (reads your real files from the editor)"
-                  style={{ display: "flex", alignItems: "center", gap: 5, height: 26, padding: "0 12px", fontSize: 11, fontFamily: FONT, fontWeight: 600, borderRadius: 6, border: "none", background: (isSubmittingQuestion || isSubmitting) ? "#4b5563" : "#22c55e", color: "#fff", cursor: (isSubmittingQuestion || isSubmitting) ? "not-allowed" : "pointer", opacity: (isSubmittingQuestion || isSubmitting) ? 0.7 : 1 }}>
+                  style={{ display: "flex", alignItems: "center", gap: 5, height: 26, padding: "0 12px", fontSize: 11, fontFamily: FONT, fontWeight: 600, borderRadius: 6, border: "none", background: (isSubmittingQuestion || isSubmitting) ? "#9ca3af" : "#22c55e", color: "#fff", cursor: (isSubmittingQuestion || isSubmitting) ? "not-allowed" : "pointer", opacity: (isSubmittingQuestion || isSubmitting) ? 0.7 : 1 }}>
                   {isSubmittingQuestion ? <Loader2 style={{ width: 12, height: 12 }} className="animate-spin" /> : <CheckCircle style={{ width: 12, height: 12 }} />}
                   Submit Question
                 </button>
@@ -998,17 +1050,21 @@ export default function MultiFileCodeEditor({
               <button
                 onClick={() => { setShowQDrawer(false); setIsFull((v) => !v) }}
                 title={isFull ? "Exit full screen" : "Full screen editor"}
-                className="flex items-center justify-center w-7 h-7 rounded text-gray-300 transition-colors hover:bg-[#37373d] hover:text-white"
+                className="flex items-center justify-center w-7 h-7 rounded text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
               >
                 {isFull ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
               </button>
             </div>
           </div>
 
-          {/* Status bar */}
+          {/* Status bar — light backgrounds matching the white toolbar above */}
           {lastLog && (
             <div className="flex items-center gap-2 px-3 py-1 text-xs flex-shrink-0"
-              style={{ background: lastLog.kind === "error" ? "#3a1d1d" : lastLog.kind === "success" ? "#16301d" : "#1d2a3a", color: lastLog.kind === "error" ? "#fca5a5" : lastLog.kind === "success" ? "#86efac" : "#93c5fd", borderBottom: "1px solid #1a1a1a" }}>
+              style={{
+                background: lastLog.kind === "error" ? "#fef2f2" : lastLog.kind === "success" ? "#f0fdf4" : "#eff6ff",
+                color: lastLog.kind === "error" ? "#b91c1c" : lastLog.kind === "success" ? "#15803d" : "#1d4ed8",
+                borderBottom: "1px solid #e5e7eb",
+              }}>
               {lastLog.kind === "error" ? <AlertCircle size={12} /> : lastLog.kind === "success" ? <CheckCircle size={12} /> : <TerminalIcon size={12} />}
               <span className="truncate flex-1 font-mono">{lastLog.message}</span>
               <button onClick={() => setLastLog(null)} className="opacity-60 hover:opacity-100"><X size={12} /></button>
@@ -1023,11 +1079,11 @@ export default function MultiFileCodeEditor({
                 className="absolute top-0 left-0 bottom-0 z-20 flex flex-col bg-white shadow-2xl"
                 style={{ width: Math.min(questionWidth, 460), borderRight: "1px solid #e5e7eb" }}
               >
-                <div className="px-3 py-2 border-b flex items-center justify-between gap-2" style={{ borderColor: "#e5e7eb", background: "#f8f9fa" }}>
+                <div className="px-3 py-2 border-b flex items-center justify-between gap-2" style={{ borderColor: "#e5e7eb", background: "#ffffff" }}>
                   <div className="flex items-center gap-2 min-w-0">
                     <button
                       onClick={() => setShowQDrawer(false)}
-                      className="flex items-center justify-center w-6 h-6 rounded hover:bg-gray-200 text-gray-700 flex-shrink-0"
+                      className="flex items-center justify-center w-6 h-6 rounded hover:bg-gray-100 text-gray-700 flex-shrink-0"
                       title="Hide question"
                     >
                       <X className="w-4 h-4" />
@@ -1036,16 +1092,17 @@ export default function MultiFileCodeEditor({
                   </div>
                   {questionNav}
                 </div>
+
                 <div className="flex-1 overflow-y-auto p-4 text-xs leading-relaxed text-gray-800">
                   {questionContent}
                 </div>
               </div>
             )}
             {(!workspaceReady || iframeLoading) && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 z-10" style={{ background: "#1e1e1e" }}>
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 z-10" style={{ background: "#ffffff" }}>
                 <Loader2 className="w-7 h-7 animate-spin" style={{ color: LANGUAGE_CONFIG[selectedLanguage]?.color }} />
-                <div className="text-sm text-gray-400">{!workspaceReady ? "Preparing your workspace…" : "Loading VS Code…"}</div>
-                <div className="text-[11px] text-gray-600 font-mono">{iframeSrc}</div>
+                <div className="text-sm text-gray-700">{!workspaceReady ? "Preparing your workspace…" : "Loading VS Code…"}</div>
+                <div className="text-[11px] text-gray-400 font-mono">{iframeSrc}</div>
               </div>
             )}
             {everReady && (
@@ -1101,6 +1158,50 @@ export default function MultiFileCodeEditor({
 
       {exData && (
         <ExerciseInfoModals exercise={exData} showDetailsModal={showDetailsModal} setShowDetailsModal={setShowDetailsModal} showOverviewModal={showOverviewModal} setShowOverviewModal={setShowOverviewModal} solvedQuestions={solvedQuestions} />
+      )}
+
+      {/* Visualizer modal — full-screen overlay that embeds Python Tutor.
+          Click backdrop or X to close. */}
+      {showVisualizer && (
+        <div
+          onClick={(e) => { if (e.target === e.currentTarget) setShowVisualizer(false) }}
+          style={{ position: "fixed", inset: 0, zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, background: "rgba(15,23,42,0.55)", backdropFilter: "blur(3px)" }}
+        >
+          <div style={{ width: "min(1200px, 96vw)", height: "min(820px, 92vh)", background: "#ffffff", borderRadius: 12, overflow: "hidden", boxShadow: "0 24px 60px rgba(0,0,0,0.25)", display: "flex", flexDirection: "column", fontFamily: FONT }}>
+            {/* Header */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderBottom: "1px solid #e5e7eb", background: "#ffffff" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Eye style={{ width: 16, height: 16, color: "#4338ca" }} />
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Code Visualizer</span>
+                <span style={{ fontSize: 11, color: "#6b7280" }}>· step through your code line by line</span>
+              </div>
+              <button
+                onClick={() => setShowVisualizer(false)}
+                title="Close visualizer"
+                style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 6, border: "1px solid #fca5a5", background: "#fef2f2", color: "#dc2626", cursor: "pointer" }}
+              >
+                <X style={{ width: 14, height: 14 }} />
+              </button>
+            </div>
+            {/* Body — Python Tutor iframe */}
+            <div style={{ flex: 1, position: "relative", background: "#ffffff" }}>
+              {visualizerLoading && (
+                <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, background: "#ffffff", zIndex: 1 }}>
+                  <Loader2 className="animate-spin" style={{ width: 24, height: 24, color: "#4338ca" }} />
+                  <span style={{ fontSize: 12, color: "#6b7280" }}>Preparing visualizer…</span>
+                </div>
+              )}
+              {visualizerUrl && (
+                <iframe
+                  src={visualizerUrl}
+                  title="Python Tutor visualizer"
+                  style={{ width: "100%", height: "100%", border: "none", display: "block", background: "#ffffff" }}
+                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+                />
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       <style>{`@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }`}</style>

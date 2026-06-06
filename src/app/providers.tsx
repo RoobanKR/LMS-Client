@@ -1,5 +1,5 @@
 'use client'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { ReactNode, useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
@@ -8,6 +8,7 @@ import { toast } from "react-toastify"
 import { showSuccessToast } from '@/components/ui/toastUtils'
 import { Settings2 } from 'lucide-react'
 import { Loading } from '@/components/loading-ui/loading'
+import { createQueryClient } from '@/lib/queryClient'
 
 interface Permission {
   permissionName: string;
@@ -377,28 +378,16 @@ function AuthWrapper({ children }: { children: ReactNode }) {
 }
 
 export function Providers({ children }: { children: ReactNode }) {
-  const [queryClient] = useState(() => new QueryClient({
-    defaultOptions: {
-      queries: {
-        staleTime: 15 * 60 * 1000,
-        gcTime: 30 * 60 * 1000,
-        retry: 1,
-        refetchOnWindowFocus: false,
-        refetchOnReconnect: false,
-        refetchOnMount: false,
-        refetchInterval: false,
-      },
-      mutations: {
-        retry: 1,
-      },
-    },
-  }))
+  const [queryClient] = useState(() => createQueryClient())
 
   return (
     <QueryClientProvider client={queryClient}>
       <AuthWrapper>
         {children}
       </AuthWrapper>
+      {process.env.NODE_ENV === 'development' && (
+        <ReactQueryDevtools initialIsOpen={false} />
+      )}
     </QueryClientProvider>
   )
 }

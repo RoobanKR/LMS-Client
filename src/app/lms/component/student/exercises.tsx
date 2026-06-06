@@ -7,7 +7,8 @@ import {
   CheckSquare, Code2, Layers, HelpCircle, BookOpen,
   Calendar, Hourglass, Lock, CheckCircle, Code,
   Info, Target, Settings, FileText, BarChart2, Shield, Cpu,
-  Search, Filter, ChevronDown, ChevronLeft, ChevronRight, Eye
+  Search, Filter, ChevronDown, ChevronLeft, ChevronRight, Eye,
+  MoreVertical
 } from "lucide-react"
 import { useRouter } from "next/navigation"
 
@@ -495,6 +496,100 @@ function hasExerciseBeenAttempted(
     console.error('hasExerciseBeenAttempted error:', err)
     return false
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Per-row three-dot menu — currently exposes the Grade action only. Grade is
+// enabled once the student has at least one submission for this exercise;
+// the option stays in the menu but is greyed out + tooltipped before that.
+// ═══════════════════════════════════════════════════════════════════════════════
+function RowActionsMenu({
+  exercise, onGrade, isGradeEnabled,
+}: {
+  exercise: Exercise;
+  onGrade: (exercise: Exercise, e: React.MouseEvent) => void;
+  isGradeEnabled: boolean;
+}) {
+  const [open, setOpen] = useState(false)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const [pos, setPos] = useState<{ top: number; right: number } | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const update = () => {
+      const el = btnRef.current
+      if (!el) return
+      const r = el.getBoundingClientRect()
+      setPos({ top: r.bottom + 6, right: window.innerWidth - r.right })
+    }
+    update()
+    const close = (e: MouseEvent) => {
+      const t = e.target as Element
+      if (btnRef.current && !btnRef.current.contains(t) && !t.closest?.('.row-actions-menu')) {
+        setOpen(false)
+      }
+    }
+    window.addEventListener('scroll', update, true)
+    window.addEventListener('resize', update)
+    document.addEventListener('mousedown', close)
+    return () => {
+      window.removeEventListener('scroll', update, true)
+      window.removeEventListener('resize', update)
+      document.removeEventListener('mousedown', close)
+    }
+  }, [open])
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        onClick={(e) => { e.stopPropagation(); setOpen(o => !o) }}
+        title="More actions"
+        style={{
+          padding: 4, borderRadius: 6, border: 'none', lineHeight: 0,
+          color: '#94a3b8', background: open ? '#f1f5f9' : 'transparent', cursor: 'pointer',
+          transition: 'all 0.12s',
+        }}
+        onMouseEnter={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.color = '#475569' }}
+        onMouseLeave={e => { e.currentTarget.style.background = open ? '#f1f5f9' : 'transparent'; e.currentTarget.style.color = '#94a3b8' }}
+      >
+        <MoreVertical size={15} />
+      </button>
+      {open && pos && typeof document !== 'undefined' && ReactDOM.createPortal(
+        <div
+          className="row-actions-menu"
+          style={{
+            position: 'fixed', top: pos.top, right: pos.right, zIndex: 100000,
+            background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10,
+            boxShadow: '0 10px 30px rgba(0,0,0,0.12)', padding: 4, minWidth: 172,
+          }}
+        >
+          <button
+            disabled={!isGradeEnabled}
+            title={isGradeEnabled ? 'Open grading' : 'Available after at least one answer is submitted'}
+            onClick={(e) => {
+              if (!isGradeEnabled) return
+              setOpen(false)
+              onGrade(exercise, e)
+            }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+              padding: '8px 10px', fontSize: 12, fontWeight: 600, borderRadius: 8,
+              border: 'none', textAlign: 'left',
+              color: isGradeEnabled ? '#7c3aed' : '#cbd5e1',
+              background: 'transparent', cursor: isGradeEnabled ? 'pointer' : 'not-allowed',
+            }}
+            onMouseEnter={e => { if (isGradeEnabled) e.currentTarget.style.background = '#faf5ff' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+          >
+            <Trophy size={13} />
+            Grade
+          </button>
+        </div>,
+        document.body
+      )}
+    </>
+  )
 }
 
 function getTimeRemaining(date: Date): string {
@@ -1442,40 +1537,49 @@ const handleStartClick = (exercise: Exercise, e: React.MouseEvent) => {
 
                       {/* Action */}
                       <td className="px-3 py-3 align-middle text-center">
-                        {/* Inactive: text only */}
-                        {!availability.canStart ? (
-                          <span className="text-[10px] font-semibold" style={{ color: isCompleted ? '#15803d' : '#94a3b8' }}>
-                            {isCompleted ? 'Submitted' : 'Not Submitted'}
-                          </span>
-                        ) : limitReached ? (
-                          /* Active, all attempts used */
-                          <span className="text-[10px] font-semibold" style={{ color: '#15803d' }}>Submitted</span>
-                        ) : canRetake ? (
-                          /* Active, submitted, retake available */
+                        <div className="flex items-center justify-center gap-1">
                           <div className="flex flex-col items-center gap-0.5">
-                            <button
-                              onClick={e => handleStartClick(exercise, e)}
-                              className="px-3 py-1 text-[11px] font-semibold rounded-lg transition-all"
-                              style={{ background: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', cursor: 'pointer' }}
-                              onMouseEnter={e => { e.currentTarget.style.opacity = '0.82' }}
-                              onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}>
-                              Re Submit
-                            </button>
-                            <span className="text-[9px] font-medium" style={{ color: '#15803d' }}>Submitted</span>
+                            {/* Inactive: text only */}
+                            {!availability.canStart ? (
+                              <span className="text-[10px] font-semibold" style={{ color: isCompleted ? '#15803d' : '#94a3b8' }}>
+                                {isCompleted ? 'Submitted' : 'Not Submitted'}
+                              </span>
+                            ) : limitReached ? (
+                              /* Active, all attempts used */
+                              <span className="text-[10px] font-semibold" style={{ color: '#15803d' }}>Submitted</span>
+                            ) : canRetake ? (
+                              /* Active, submitted, retake available */
+                              <>
+                                <button
+                                  onClick={e => handleStartClick(exercise, e)}
+                                  className="px-3 py-1 text-[11px] font-semibold rounded-lg transition-all"
+                                  style={{ background: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', cursor: 'pointer' }}
+                                  onMouseEnter={e => { e.currentTarget.style.opacity = '0.82' }}
+                                  onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}>
+                                  Re Submit
+                                </button>
+                                <span className="text-[9px] font-medium" style={{ color: '#15803d' }}>Submitted</span>
+                              </>
+                            ) : (
+                              /* Active, not submitted yet */
+                              <button
+                                onClick={e => handleStartClick(exercise, e)}
+                                className="px-3 py-1 text-[11px] font-semibold rounded-lg transition-all"
+                                style={isGraded
+                                  ? { background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', cursor: 'pointer' }
+                                  : { background: '#f0fdfa', color: '#0f766e', border: '1px solid #99f6e4', cursor: 'pointer' }}
+                                onMouseEnter={e => { e.currentTarget.style.opacity = '0.82' }}
+                                onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}>
+                                Start
+                              </button>
+                            )}
                           </div>
-                        ) : (
-                          /* Active, not submitted yet */
-                          <button
-                            onClick={e => handleStartClick(exercise, e)}
-                            className="px-3 py-1 text-[11px] font-semibold rounded-lg transition-all"
-                            style={isGraded
-                              ? { background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', cursor: 'pointer' }
-                              : { background: '#f0fdfa', color: '#0f766e', border: '1px solid #99f6e4', cursor: 'pointer' }}
-                            onMouseEnter={e => { e.currentTarget.style.opacity = '0.82' }}
-                            onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}>
-                            Start
-                          </button>
-                        )}
+                          <RowActionsMenu
+                            exercise={exercise}
+                            onGrade={handleGradeClick}
+                            isGradeEnabled={hasExerciseBeenAttempted(exercise, studentAnswers, method, subcategory)}
+                          />
+                        </div>
                       </td>
                     </tr>
                   )

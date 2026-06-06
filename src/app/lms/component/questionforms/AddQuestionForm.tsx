@@ -24,6 +24,8 @@ interface AddQuestionFormProps {
   onOpenQuestionBank?: (type: string) => void;
   onOpenDocumentUpload?: () => void;
   onMCQBankSelect?: (questions: any[]) => void;
+  // Bank questions to pre-load into the dispatched form (review-then-save).
+  initialBankQuestions?: any[];
   showTypeSelector?: boolean;
   onEditExercise?: () => void;
   remainingQuestions?: number;
@@ -88,6 +90,7 @@ const AddQuestionForm: React.FC<AddQuestionFormProps> = ({
   onOpenQuestionBank,
   onOpenDocumentUpload,
   onMCQBankSelect,
+  initialBankQuestions,
   showTypeSelector,
   onEditExercise,
   shouldRefreshOnMount,
@@ -156,7 +159,26 @@ const [diffRefreshTrigger, setDiffRefreshTrigger] = useState(0);
         if (initialData.questionType === 'mcq') return 'mcq';
         if (initialData.questionType === 'frontend') return 'frontend';
         if (initialData.questionType === 'database') return 'database';
-        if (initialData.questionType === 'programming') return 'programming';
+        if (initialData.questionType === 'programming') {
+          // Frontend & Database questions are persisted with questionType:'programming'
+          // (the FrontendQuestionForm saves as 'programming', and the server only tags
+          // database questions with moduleType:'Database'). So a stored 'programming'
+          // type is ambiguous on edit — refine it exactly the way the "add" path does:
+          // via the question's own module markers, falling back to the exercise's module.
+          const mod = (
+            initialData.moduleType ||
+            fullEx?.programmingSettings?.selectedModule ||
+            exerciseData.programmingSettings?.selectedModule ||
+            ''
+          ).toString().toLowerCase();
+          if (initialData.isFrontend === true || mod === 'frontend') return 'frontend';
+          if (
+            initialData.isDatabase === true ||
+            mod === 'database' ||
+            ['mysql', 'sqlite', 'postgresql', 'mongodb'].includes(mod)
+          ) return 'database';
+          return 'programming';
+        }
       }
 
       // Check 2: MCQ-specific fields (most reliable for MCQ)
@@ -204,6 +226,43 @@ const [diffRefreshTrigger, setDiffRefreshTrigger] = useState(0);
 
       // Default to programming if we can't determine
       return 'programming';
+    }
+
+    // ── ADD via Question Bank — route by the BANK QUESTION's own type ──
+    // The form picker for a brand-new question normally relies on the
+    // exercise's selectedModule. But when the teacher comes from the bank,
+    // the question they picked carries its own `questionType` (e.g. a
+    // question stored as questionCategory:"Programming" with questionType:
+    // "frontend" must open the FrontendQuestionForm — NOT ProgrammingQuestionForm
+    // — because frontend questions don't have constraints / test-cases
+    // fields and would fill the wrong form). This check mirrors the edit-path
+    // logic above so the bank flow stays in sync.
+    if (!isEditing && initialBankQuestions && initialBankQuestions.length > 0) {
+      const bankQ: any = initialBankQuestions[0] || {};
+      const bankType = (bankQ.questionType || '').toString().toLowerCase();
+      if (bankType === 'mcq') return 'mcq';
+      if (bankType === 'frontend') return 'frontend';
+      if (bankType === 'database') return 'database';
+      if (bankType === 'programming') {
+        // "programming" is sometimes used as a catch-all by the bank — refine
+        // it via the question's module markers, falling back to the exercise's.
+        const mod = (
+          bankQ.moduleType ||
+          bankQ.module ||
+          (bankQ.metadata && bankQ.metadata.moduleType) ||
+          fullEx?.programmingSettings?.selectedModule ||
+          exerciseData.programmingSettings?.selectedModule ||
+          ''
+        ).toString().toLowerCase();
+        if (bankQ.isFrontend === true || mod === 'frontend') return 'frontend';
+        if (
+          bankQ.isDatabase === true ||
+          mod === 'database' ||
+          ['mysql', 'sqlite', 'postgresql', 'mongodb'].includes(mod)
+        ) return 'database';
+        return 'programming';
+      }
+      // bankType is empty / unknown — fall through to the existing exercise-based logic
     }
 
     // For combined exercises, use selectedType
@@ -907,7 +966,7 @@ const DiffPopup = () => {
 
   // ─── DECISION TREE ─────────────────────────────────────────────────────────
 
-  if (showDiffPopup && !isEditing && lockedDiff === null && !isInSaveAndContinueFlow.current) {
+  if (showDiffPopup && !isEditing && lockedDiff === null && !isInSaveAndContinueFlow.current && !(initialBankQuestions && initialBankQuestions.length)) {
     return <DiffPopup />;
   }
 
@@ -936,7 +995,7 @@ const DiffPopup = () => {
     );
   }
 // Skip CombinedSelector when we're in Manage Test (sectionData provided)
-if (isCombined && !isEditing && !selectedType && !isInSaveAndContinueFlow.current && !sectionData) {
+if (isCombined && !isEditing && !selectedType && !isInSaveAndContinueFlow.current && !sectionData && !(initialBankQuestions && initialBankQuestions.length)) {
   return <CombinedSelector />;
 }
 
@@ -966,6 +1025,7 @@ if (isCombined && !isEditing && !selectedType && !isInSaveAndContinueFlow.curren
     saveProgress,
     saveMessage,
     sectionData,
+    initialBankQuestions,
   }
   const renderForm = () => {
     if (isMCQ) return (

@@ -50,7 +50,7 @@ const injectFonts = (() => {
         --lms-radius-sm:     8px;
         --lms-radius-md:     10px;
         --lms-radius-lg:     14px;
-        --lms-font:          'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+        --lms-font:          'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
         --lms-shadow-sm:     0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
         --lms-shadow-md:     0 4px 14px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.04);
       }
@@ -583,6 +583,9 @@ interface MCQQuestionFormProps {
   breadcrumbs: any; exerciseData: any; tabType: string;
   initialData?: any; isEditing?: boolean;
   initialQuestionId?: string;          // ← ADD THIS
+  // Questions chosen in the external Question Bank (QuestionsView). Seeded into
+  // the form on mount so the teacher reviews each pre-filled and Save & Next.
+  initialBankQuestions?: any[];
   onClose: () => void; onSave: (questionData: any) => void;
   isSaving?: boolean; saveProgress?: number; saveMessage?: string;
   onEditExercise?: () => void;
@@ -1321,7 +1324,7 @@ const ImageUploadModal: React.FC<{
       const token = localStorage.getItem('smartcliff_token');
       const fd = new FormData();
       fd.append('image', file);
-      const res = await fetch('https://lms-server-ym1q.onrender.com/upload/question-image', {
+      const res = await fetch('http://localhost:5533/upload/question-image', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: fd,
@@ -3302,6 +3305,7 @@ const CodeBlock: React.FC<{
 const MCQQuestionForm: React.FC<MCQQuestionFormProps> = ({
   breadcrumbs, exerciseData, tabType, initialData, isEditing = false,
   initialQuestionId,
+  initialBankQuestions,
   onClose, onSave, isSaving = false, saveProgress, saveMessage,
   onEditExercise,
   sectionData,
@@ -3341,6 +3345,11 @@ const MCQQuestionForm: React.FC<MCQQuestionFormProps> = ({
   const [deleteTarget, setDeleteTarget] = useState<{ blockIdx: number } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [loadingExercise, setLoadingExercise] = useState(false);
+  // Flips true once fetchExercise has finished loading the exercise's existing
+  // questions. Gates the external-bank seeding so bank questions are inserted
+  // after the existing ones (and never wiped by the load).
+  const [existingLoaded, setExistingLoaded] = useState(false);
+  const bankSeededRef = useRef(false);
   const [hasLoadedFromStorage, setHasLoadedFromStorage] = useState(false);
   const [questionTextEmpty, setQuestionTextEmpty] = useState<{ [id: string]: boolean }>({});
   const [showScoreRed, setShowScoreRed] = useState(false);
@@ -3518,7 +3527,7 @@ const MCQQuestionForm: React.FC<MCQQuestionFormProps> = ({
   );
   useEffect(() => {
     const fetchExercise = async () => {
-      if (!exerciseDbId) return;
+      if (!exerciseDbId) { setExistingLoaded(true); return; }
       setLoadingExercise(true);
       try {
         // ── Prefer cached questions already passed via exerciseData ──────────
@@ -3579,6 +3588,7 @@ const MCQQuestionForm: React.FC<MCQQuestionFormProps> = ({
         }
       } finally {
         setLoadingExercise(false);
+        setExistingLoaded(true);
       }
     };
     fetchExercise();
@@ -4151,6 +4161,17 @@ const MCQQuestionForm: React.FC<MCQQuestionFormProps> = ({
     // Compute fillability locally (same logic as isCurrentBlockFillable but self-contained)
     const currentIsFillable = !!(currentBlock && currentBlock.origin !== 'db' && !isBlockComplete(currentBlock));
 
+    // 🌱 TEMP DIAGNOSTIC — remove once bank seeding is confirmed working.
+    console.log('🌱 handleBankSelectedQuestions', {
+      selectedLen: selected.length,
+      currentIsFillable,
+      currentIndex,
+      currentBlockOrigin: currentBlock?.origin,
+      scoringType,
+      totalMcqQuestions,
+      savedBlocksLen: savedBlocks.length,
+    });
+
     // Feature 2: slot / marks constraints
     // Use savedBlocks.length (committed questions only) — same baseline as isLimitReached()
     // so unsaved/empty slots don't incorrectly consume quota
@@ -4284,6 +4305,30 @@ const MCQQuestionForm: React.FC<MCQQuestionFormProps> = ({
     if (autoScore !== undefined)
       toast.info('Marks distributed', `Each question assigned ${autoScore} mark${autoScore !== 1 ? 's' : ''} from remaining balance.`);
   };
+
+  // ─── Seed questions chosen in the EXTERNAL Question Bank (QuestionsView) ──────
+  // Runs once, after existing questions have loaded, reusing the same flow as the
+  // inline bank: the first selection fills the current empty slot and the rest are
+  // inserted after it, so the teacher reviews each pre-filled and Save & Next.
+  useEffect(() => {
+    // 🌱 TEMP DIAGNOSTIC — remove once bank seeding is confirmed working.
+    console.log('🌱 SEED effect fired', {
+      existingLoaded,
+      alreadySeeded: bankSeededRef.current,
+      bankCount: initialBankQuestions?.length ?? 0,
+      currentIndex,
+      currentBlockId: currentBlock?.id,
+      currentBlockOrigin: currentBlock?.origin,
+      questionBlocksLen: questionBlocks.length,
+    });
+    if (bankSeededRef.current) return;
+    if (!existingLoaded) return;
+    if (!initialBankQuestions || initialBankQuestions.length === 0) return;
+    bankSeededRef.current = true;
+    console.log('🌱 SEED → calling handleBankSelectedQuestions with', initialBankQuestions.length, 'question(s)', initialBankQuestions);
+    handleBankSelectedQuestions(initialBankQuestions);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [existingLoaded, initialBankQuestions]);
 
   const base64ToFile = (b64: string, name: string): File | null => {
     try {

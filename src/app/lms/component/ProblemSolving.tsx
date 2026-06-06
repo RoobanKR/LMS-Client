@@ -34,7 +34,7 @@ import { Play } from 'next/font/google';
 
 // ─── Design tokens (parity with QuestionsView) ────────────────────────────────
 const JKT: React.CSSProperties = {
-  fontFamily: "'Inter', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+  fontFamily: "'Inter', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
 };
 
 
@@ -439,7 +439,7 @@ const MCQ_T = {
   amber:'#f59e0b', amberLight:'rgba(245,158,11,0.09)',
   blue:'#3b82f6', blueLight:'rgba(59,130,246,0.09)',
 } as const;
-const MCQ_FONT = "'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,sans-serif";
+const MCQ_FONT = "'Inter',-apple-system,BlinkMacSystemFont,sans-serif";
 const MCQ_DIFF: Record<string,{text:string;bg:string;dot:string}> = {
   easy:{text:MCQ_T.greenDark,bg:MCQ_T.greenLight,dot:MCQ_T.green},
   medium:{text:'#b45309',bg:MCQ_T.amberLight,dot:MCQ_T.amber},
@@ -1543,6 +1543,18 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
     currentPage: 1, totalPages: 1, totalItems: 0, itemsPerPage: 10,
   });
 
+  // Derive readable subcategory labels for search placeholder + "New" button.
+  // Plural form is used in "Search …" / column headers; singular for "+ New …".
+  // Falls back to a basic trailing-s strip when subcategoryLabel is set
+  // (e.g. "Assignments" → "Assignment"), or to a sensible default per subcat.
+  const subLabelPlural = subcategoryLabel || (subcategory ? subcategory.replace(/_/g, ' ') : 'Items');
+  const subLabelSingular = (() => {
+    if (subcategory === 'self_work') return 'Self Work';
+    if (subcategory === 'Assignments') return 'Assignment';
+    if (subLabelPlural.endsWith('s') && subLabelPlural.length > 3) return subLabelPlural.slice(0, -1);
+    return subLabelPlural;
+  })();
+
 
   useEffect(() => {
     if (configuredLanguages) {
@@ -1707,7 +1719,7 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
       const ids = exerciseList.map(e => e._id).join(',');
       const params = new URLSearchParams({ courseId, tabType: activeTab, subcategory, exerciseIds: ids });
       const resp = await fetch(
-        `https://lms-server-ym1q.onrender.com/analytics/exercise-submission-status?${params}`,
+        `http://localhost:5533/analytics/exercise-submission-status?${params}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (!resp.ok) return;
@@ -2645,7 +2657,7 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
     <div className="relative flex-1 min-w-0">
       <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#bcbccc' }} />
       <input
-        placeholder="Search Assignments"
+        placeholder={`Search ${subLabelPlural}`}
         value={searchQuery}
         onChange={e => { setSearchQuery(e.target.value); setPagination(p => ({ ...p, currentPage: 1 })); }}
         className="pl-7 pr-7 h-7 w-full text-[12px] rounded-lg outline-none transition-all"
@@ -2727,15 +2739,15 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
       <RefreshCw size={14} className={loadingExercises ? 'animate-spin' : ''} style={{ color: loadingExercises ? '#F27757' : undefined }} />
     </button>
 
-    {/* New Assignment button */}
+    {/* New {Subcategory} button — label matches the active subcategory */}
     <button onClick={handleNewExercise} disabled={isLoading || !subcategory}
-      title="Create new assignment"
+      title={`Create new ${subLabelSingular.toLowerCase()}`}
       className="h-7 px-3 text-[12px] font-semibold rounded-lg flex items-center gap-1 transition-all select-none disabled:opacity-50 flex-shrink-0"
       style={{ ...JKT, background: '#F27757', color: '#fff', boxShadow: '0 2px 8px rgba(242,119,87,0.3)', cursor: 'pointer', border: 'none' }}
       onMouseEnter={e => { if (!isLoading && subcategory) { e.currentTarget.style.background = '#e0623f'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(242,119,87,0.4)'; e.currentTarget.style.transform = 'translateY(-1px)'; } }}
       onMouseLeave={e => { e.currentTarget.style.background = '#F27757'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(242,119,87,0.3)'; e.currentTarget.style.transform = 'none'; }}>
       {isLoading ? <Loader2 size={12} className="animate-spin" /> : <Plus size={13} strokeWidth={2.5} />}
-      <span className="hidden sm:inline">New Assignment</span>
+      <span className="hidden sm:inline">New {subLabelSingular}</span>
     </button>
   </div>
 
@@ -2821,7 +2833,7 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
                           fontWeight: 600,
                           letterSpacing: '0.04em',
                           color: '#64748b',
-                          fontFamily: "'Inter', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+                          fontFamily: "'Inter', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
                         }}>
                         {h.label}
                       </th>

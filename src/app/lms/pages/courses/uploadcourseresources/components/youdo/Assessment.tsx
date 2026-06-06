@@ -586,7 +586,7 @@ const isAssessmentComplete = (ex: any): boolean => {
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function Assessment({
   nodeId, nodeName, subcategory, subcategoryLabel,
-  courseId, nodeType, hierarchyData,
+  courseId, nodeType, hierarchyData, configuredLanguages,
 }: YouDoProps) {
   const router = useRouter();
   const [assessments, setAssessments] = useState<AssessmentRecord[]>([]);
@@ -955,7 +955,7 @@ export default function Assessment({
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden" style={{ fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif", background: T.pageBg }}>
+    <div className="flex flex-col h-full overflow-hidden" style={{ fontFamily: "'Inter',-apple-system,sans-serif", background: T.pageBg }}>
 
       {/* ── Header bar ── */}
       <div className="flex-shrink-0" style={{ background: T.bg, borderBottom: `1px solid ${T.border}` }}>
@@ -1300,6 +1300,7 @@ export default function Assessment({
           onSave={handleSave}
           nodeId={nodeId} nodeName={nodeName} nodeType={nodeType}
           subcategory={subcategory} courseId={courseId} hierarchyData={hierarchyData}
+          configuredLanguages={configuredLanguages}
           isEditing={!!editingAsm}
           exercise_Id={editingAsm?._id || editingAsm?.id}
           exerciseData={

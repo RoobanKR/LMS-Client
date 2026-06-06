@@ -3,8 +3,8 @@
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
-  Loader2, CheckCircle, ArrowLeft, FileText, Code, XCircle, Monitor, Database,
-  Flag, ChevronLeft, ChevronRight, Timer, AlertCircle,
+  Loader2, CheckCircle, FileText, Code, XCircle, Monitor, Database,
+  Flag, ChevronLeft, ChevronRight, Timer, AlertCircle, PanelRightClose, PanelRightOpen,
 } from 'lucide-react';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -68,6 +68,7 @@ const CombinedQuestionPanel = ({
   onJump,
   timeLeft,
   totalDuration,
+  onClose,
 }: {
   questions: any[];
   currentIndex: number;
@@ -76,6 +77,7 @@ const CombinedQuestionPanel = ({
   onJump: (i: number) => void;
   timeLeft: number;
   totalDuration: number;
+  onClose?: () => void;
 }) => {
   const getStatus = (idx: number) => {
     const isCompleted = completedQuestions.has(idx);
@@ -101,21 +103,43 @@ const CombinedQuestionPanel = ({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-      {/* Timer */}
-      {totalDuration > 0 && (
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <Timer size={13} style={{ color: timerCol }} />
-              <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>Time Left</span>
-            </div>
-            <span style={{ fontFamily: 'monospace', fontSize: 15, fontWeight: 800, color: timerCol, animation: timerIsDanger ? 'pulse 1s ease-in-out infinite' : 'none' }}>
-              {fmtTime(timeLeft)}
-            </span>
+      {/* Timer row — Timer label/value sit in a flex column on the LEFT, X is
+          a separate sibling on the RIGHT. This way the progress bar (which
+          lives inside the left column) ends exactly where MM:SS ends instead
+          of stretching under the close button. */}
+      {(totalDuration > 0 || onClose) && (
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 12 }}>
+          {/* Left column: Time Left header + progress bar (auto-shrinks to leave X room) */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {totalDuration > 0 && (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <Timer size={13} style={{ color: timerCol }} />
+                    <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>Time Left</span>
+                  </div>
+                  <span style={{ fontFamily: 'monospace', fontSize: 15, fontWeight: 800, color: timerCol, animation: timerIsDanger ? 'pulse 1s ease-in-out infinite' : 'none' }}>
+                    {fmtTime(timeLeft)}
+                  </span>
+                </div>
+                <div style={{ height: 4, borderRadius: 99, background: T.borderLight, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${timerPct}%`, background: timerCol, borderRadius: 99, transition: 'width 1s linear' }} />
+                </div>
+              </>
+            )}
           </div>
-          <div style={{ height: 4, borderRadius: 99, background: T.borderLight, overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${timerPct}%`, background: timerCol, borderRadius: 99, transition: 'width 1s linear' }} />
-          </div>
+
+          {/* Right: close X — sibling of the timer column so the progress bar
+              ends at MM:SS and does NOT extend under this button. */}
+          {onClose && (
+            <button
+              onClick={onClose}
+              title="Close right panel"
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, padding: 0, borderRadius: 5, border: `1px solid ${T.red}40`, background: 'transparent', color: T.red, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0, transition: 'all 0.13s' }}
+            >
+              <XCircle size={12} />
+            </button>
+          )}
         </div>
       )}
 
@@ -201,6 +225,7 @@ const CombinedExerciseMixed = () => {
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
   const [totalDuration, setTotalDuration] = useState(0);
+  const [showRightSidebar, setShowRightSidebar] = useState(true);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   // Holds the active code/sql/frontend question's own submit fn, registered by the child
   const questionSubmitRef = useRef<null | (() => void | Promise<void>)>(null);
@@ -255,7 +280,7 @@ const CombinedExerciseMixed = () => {
         const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
         if (!token) throw new Error('Authentication token not found');
 
-        const response = await fetch(`https://lms-server-ym1q.onrender.com/exercise/${exerciseId}`, {
+        const response = await fetch(`http://localhost:5533/exercise/${exerciseId}`, {
           method: 'GET',
           headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         });
@@ -382,7 +407,7 @@ const CombinedExerciseMixed = () => {
       formData.append('status', 'attempted');
       formData.append('language', 'text');
 
-      const response = await fetch('https://lms-server-ym1q.onrender.com/courses/answers/submit', {
+      const response = await fetch('http://localhost:5533/courses/answers/submit', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData,
@@ -432,7 +457,7 @@ const CombinedExerciseMixed = () => {
         lastModified: new Date().toISOString(), size: Buffer.byteLength(query, 'utf8'),
       }];
 
-      const response = await fetch('https://lms-server-ym1q.onrender.com/courses/answers/submit-multiple-files', {
+      const response = await fetch('http://localhost:5533/courses/answers/submit-multiple-files', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
@@ -458,6 +483,27 @@ const CombinedExerciseMixed = () => {
     }
   };
 
+  // ── Auto-submit when the timer expires.
+  //    No confirmation dialog — when time hits 00:00 we just submit and
+  //    redirect back to where the student clicked Start (module → topic →
+  //    method tab → activity list), exactly the same path as manual submit.
+  //    Guarded by `autoSubmitFiredRef` so we never submit twice even if the
+  //    effect re-runs (e.g. React strict mode double-invoke). ─────────────────
+  const autoSubmitFiredRef = useRef(false);
+  useEffect(() => {
+    if (autoSubmitFiredRef.current) return;
+    if (isTestSubmitted) return;
+    if (totalDuration <= 0) return;     // exercise has no time limit
+    if (timeLeft !== 0) return;          // not at 00:00 yet
+    autoSubmitFiredRef.current = true;
+    try { sessionStorage.setItem('lms_submit_toast', `Time's up — "${exerciseName || exerciseData?.exerciseInformation?.exerciseName || 'Exercise'}" auto-submitted`); } catch {}
+    toast.info("Time's up — submitting your exercise…");
+    // Close the confirm dialog if it happened to be open
+    setShowSubmitConfirm(false);
+    handleFinalTestSubmission();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeLeft, totalDuration, isTestSubmitted]);
+
   // ── Submit the whole exercise. THIS is the only place isTestSubmission='true'
   //    is sent, so it's the only action that flips the exercise to "Submitted"
   //    in exercises.tsx. Submit Question never sends that flag. ──────────────
@@ -481,7 +527,7 @@ const CombinedExerciseMixed = () => {
       formData.append('language', 'text');
       formData.append('isTestSubmission', 'true'); // ← THE KEY FLAG (Submit Exercise only)
 
-      const response = await fetch('https://lms-server-ym1q.onrender.com/courses/answers/submit', {
+      const response = await fetch('http://localhost:5533/courses/answers/submit', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData,
@@ -508,7 +554,7 @@ const CombinedExerciseMixed = () => {
       style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(26,26,46,0.45)', backdropFilter: 'blur(3px)' }}
       onClick={(e) => { if (e.target === e.currentTarget) setShowSubmitConfirm(false); }}
     >
-      <div style={{ background: T.bg, borderRadius: 16, width: '100%', maxWidth: 400, overflow: 'hidden', boxShadow: '0 20px 56px rgba(0,0,0,0.18)', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+      <div style={{ background: T.bg, borderRadius: 16, width: '100%', maxWidth: 400, overflow: 'hidden', boxShadow: '0 20px 56px rgba(0,0,0,0.18)', fontFamily: "'Inter', sans-serif" }}>
         <div style={{ padding: '18px 22px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ width: 40, height: 40, borderRadius: 12, background: T.orangeLight, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <AlertCircle size={18} style={{ color: T.orange }} />
@@ -646,7 +692,6 @@ const CombinedExerciseMixed = () => {
   const isSqlQuestion         = questionType === 'sql';
   const isCurrentFlagged = flaggedQuestions.has(currentQuestionIndex);
   const isLastQuestion = currentQuestionIndex === totalQuestions - 1;
-  const progressPct = Math.round((completedQuestions.size / Math.max(1, totalQuestions)) * 100);
   const hasMcqAnswer = !!mcqAnswers[currentQuestion._id];
 
   // Q-type info for non-MCQ meta row
@@ -680,7 +725,7 @@ const CombinedExerciseMixed = () => {
     <div style={{
       position: 'fixed', inset: 0,
       background: T.pageBg,
-      fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
+      fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
       color: T.textMain,
       display: 'flex', flexDirection: 'column',
       overflow: 'hidden',
@@ -717,15 +762,9 @@ const CombinedExerciseMixed = () => {
       <div style={{ flexShrink: 0, height: TOP_BAR_H, background: T.bg, borderBottom: `1px solid ${T.border}`, display: 'flex', flexDirection: 'column', zIndex: 50 }}>
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', gap: 12 }}>
 
-          {/* Left: back + logo + breadcrumb */}
+          {/* Left: breadcrumb (back button intentionally removed — students leave
+              via Submit Exercise so they don't accidentally lose progress). */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 0, minWidth: 0, flex: 1 }}>
-            <button
-              onClick={handleBack}
-              style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', borderRadius: 8, border: 'none', background: 'transparent', color: T.textMuted, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0, transition: 'color 0.13s' }}
-            >
-              <ArrowLeft size={14} />
-            </button>
-            <div style={{ width: 1, height: 18, background: T.border, margin: '0 10px', flexShrink: 0 }} />
             <nav style={{ display: 'flex', alignItems: 'center', gap: 0, minWidth: 0, overflow: 'hidden' }}>
               {breadcrumbs.map((b, i, arr) => (
                 <React.Fragment key={i}>
@@ -740,8 +779,9 @@ const CombinedExerciseMixed = () => {
             </nav>
           </div>
 
-          {/* Center: Exercise Info + Score/Question Overview buttons */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          {/* Center: Exercise Info + Score/Question Overview buttons
+              + compact timer (only when right sidebar is hidden) + sidebar toggle */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, gap: 8 }}>
             <ExerciseInfoButtons
               onDetailsClick={() => setShowDetailsModal(true)}
               onOverviewClick={() => setShowOverviewModal(true)}
@@ -749,24 +789,44 @@ const CombinedExerciseMixed = () => {
               detailsActive={showDetailsModal}
               overviewActive={showOverviewModal}
             />
+
+            {/* Compact timer — shows ONLY when the right sidebar is collapsed,
+                so the student still sees the clock without the full panel. */}
+            {!showRightSidebar && totalDuration > 0 && (() => {
+              const isDanger = timeLeft < 60;
+              const isWarn = timeLeft < 300 && !isDanger;
+              const col = isDanger ? T.red : isWarn ? T.amber : T.green;
+              const fmt = (s: number) => {
+                if (s <= 0) return '00:00';
+                const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+                if (h > 0) return `${h}h ${m}m`;
+                return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+              };
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 7, border: `1px solid ${col}40`, background: isDanger ? T.amberLight : 'transparent' }}>
+                  <Timer size={12} style={{ color: col }} />
+                  <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 800, color: col, animation: isDanger ? 'pulse 1s ease-in-out infinite' : 'none' }}>
+                    {fmt(timeLeft)}
+                  </span>
+                </div>
+              );
+            })()}
+
+            {/* Toggle right sidebar — styled to match Score Overview button exactly */}
+            <button
+              onClick={() => setShowRightSidebar(v => !v)}
+              title={showRightSidebar ? 'Hide Question Navigator' : 'Show Question Navigator'}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, fontFamily: 'inherit', border: `1.5px solid ${T.border}`, background: 'transparent', color: T.textSub, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.13s' }}
+            >
+              {showRightSidebar
+                ? <PanelRightClose style={{ width: 13, height: 13 }} />
+                : <PanelRightOpen style={{ width: 13, height: 13 }} />}
+              {showRightSidebar ? 'Hide Questions' : 'Show Questions'}
+            </button>
           </div>
 
           {/* Right: stats + submit exercise */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, justifyContent: 'flex-end' }}>
-            {[
-              { v: totalQuestions,               label: 'Total',   col: T.textSub },
-              { v: completedQuestions.size,       label: 'Done',    col: T.green },
-              { v: totalQuestions - completedQuestions.size, label: 'Left', col: T.textMuted },
-              { v: flaggedQuestions.size,         label: 'Flagged', col: T.amber },
-            ].map(({ v, label, col }) => (
-              <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                <span style={{ fontSize: 14, fontWeight: 800, color: col }}>{v}</span>
-                <span style={{ fontSize: 10, color: T.textHint, fontWeight: 600 }}>{label}</span>
-              </div>
-            ))}
-
-            <div style={{ width: 1, height: 18, background: T.border }} />
-
             {!isTestSubmitted ? (
               <button
                 onClick={() => setShowSubmitConfirm(true)}
@@ -782,10 +842,6 @@ const CombinedExerciseMixed = () => {
           </div>
         </div>
 
-        {/* Progress line */}
-        <div style={{ height: 2, background: T.borderLight }}>
-          <div style={{ height: '100%', width: `${progressPct}%`, background: `linear-gradient(90deg,${T.orange},${T.orangeDark})`, transition: 'width 0.5s ease' }} />
-        </div>
       </div>
 
       {/* ═══ BODY ═══ */}
@@ -794,8 +850,10 @@ const CombinedExerciseMixed = () => {
         {/* Left column */}
         <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-          {/* Q-meta row — only for non-MCQ (MCQ component renders its own) */}
-          {!isMcqQuestion && (
+          {/* Q-meta row — now shown ONLY for SQL. MCQ, Frontend, and Programming
+              each render their own Q-number + Flag in their question's header
+              (saves the wasted 52px above the editor). */}
+          {!isMcqQuestion && !isFrontendQuestion && !isProgrammingQuestion && (
             <div style={{ flexShrink: 0, height: 52, background: T.bg, borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 28px', gap: 10, zIndex: 20 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
@@ -851,6 +909,11 @@ const CombinedExerciseMixed = () => {
                 nodeName={nodeName}
                 nodeType={nodeType}
                 studentId={studentId}
+                questionNumber={currentQuestionIndex + 1}
+                totalQuestions={totalQuestions}
+                isFlagged={isCurrentFlagged}
+                onFlagToggle={toggleFlag}
+                isGraded={exerciseData?.isGraded !== false}
                 onComplete={() => handleProgrammingComplete()}
                 onNext={handleNextQuestion}
                 isLastQuestion={isLastQuestion}
@@ -868,6 +931,10 @@ const CombinedExerciseMixed = () => {
                 nodeName={nodeName}
                 nodeType={nodeType}
                 studentId={studentId}
+                questionNumber={currentQuestionIndex + 1}
+                totalQuestions={totalQuestions}
+                isFlagged={isCurrentFlagged}
+                onFlagToggle={toggleFlag}
                 onComplete={() => handleFrontendComplete()}
                 onNext={handleNextQuestion}
                 isLastQuestion={isLastQuestion}
@@ -905,7 +972,10 @@ const CombinedExerciseMixed = () => {
           </div>
         </div>
 
-        {/* Right panel — mirrors mcq.tsx */}
+        {/* Right panel — collapsible. The toggle button lives in the top bar
+            (next to Score Overview); when hidden, a compact timer appears there
+            so the student can still see the clock. */}
+        {showRightSidebar && (
         <div
           className="comb-s"
           style={{ flexShrink: 0, width: 270, minHeight: 0, borderLeft: `1px solid ${T.border}`, background: T.bg, overflowY: 'auto', padding: '16px 14px 20px 14px' }}
@@ -918,25 +988,17 @@ const CombinedExerciseMixed = () => {
             onJump={handleJumpToQuestion}
             timeLeft={timeLeft}
             totalDuration={totalDuration}
+            onClose={() => setShowRightSidebar(false)}
           />
         </div>
+        )}
       </div>
 
       {/* ═══ BOTTOM NAV BAR ═══ */}
-      <div style={{ flexShrink: 0, height: BOTTOM_BAR_H, background: T.bg, borderTop: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', padding: '0 28px', gap: 16, zIndex: 50 }}>
+      <div style={{ flexShrink: 0, height: BOTTOM_BAR_H, background: T.bg, borderTop: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', padding: '0 20px', gap: 10, zIndex: 50 }}>
 
-        {/* Previous */}
-        <button
-          onClick={handlePreviousQuestion}
-          disabled={currentQuestionIndex === 0}
-          className="btn-prev"
-          style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 20px', borderRadius: 10, border: `1.5px solid ${T.border}`, background: 'transparent', color: currentQuestionIndex === 0 ? T.textHint : T.textSub, fontSize: 13, fontWeight: 600, cursor: currentQuestionIndex === 0 ? 'not-allowed' : 'pointer', fontFamily: 'inherit', transition: 'all 0.13s', flexShrink: 0 }}
-        >
-          <ChevronLeft size={15} /> Previous
-        </button>
-
-        {/* Step dots — centered */}
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, overflow: 'hidden' }}>
+        {/* Step dots — left/flex */}
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 4, overflow: 'hidden' }}>
           {processedQuestions.slice(
             Math.max(0, currentQuestionIndex - 4),
             Math.min(totalQuestions, currentQuestionIndex + 5)
@@ -948,20 +1010,30 @@ const CombinedExerciseMixed = () => {
               <button
                 key={absIdx}
                 onClick={() => handleJumpToQuestion(absIdx)}
-                style={{ width: isCurr ? 22 : 7, height: 7, borderRadius: 99, background: isCurr ? T.orange : isDone ? T.green : T.border, border: 'none', cursor: 'pointer', transition: 'all 0.2s', padding: 0, flexShrink: 0 }}
+                style={{ width: isCurr ? 18 : 6, height: 6, borderRadius: 99, background: isCurr ? T.orange : isDone ? T.green : T.border, border: 'none', cursor: 'pointer', transition: 'all 0.2s', padding: 0, flexShrink: 0 }}
               />
             );
           })}
         </div>
+
+        {/* Previous — next to Next */}
+        <button
+          onClick={handlePreviousQuestion}
+          disabled={currentQuestionIndex === 0}
+          className="btn-prev"
+          style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 7, border: `1px solid ${T.border}`, background: 'transparent', color: currentQuestionIndex === 0 ? T.textHint : T.textSub, fontSize: 12, fontWeight: 600, cursor: currentQuestionIndex === 0 ? 'not-allowed' : 'pointer', fontFamily: 'inherit', transition: 'all 0.13s', flexShrink: 0 }}
+        >
+          <ChevronLeft size={13} /> Previous
+        </button>
 
         {/* Skip (Next without submitting) */}
         <button
           onClick={handleNextQuestion}
           disabled={isLastQuestion}
           className="btn-skip"
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 10, border: `1.5px solid ${T.border}`, background: 'transparent', color: isLastQuestion ? T.textHint : T.textSub, fontSize: 13, fontWeight: 600, cursor: isLastQuestion ? 'not-allowed' : 'pointer', fontFamily: 'inherit', transition: 'all 0.13s', flexShrink: 0 }}
+          style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 7, border: `1px solid ${T.border}`, background: 'transparent', color: isLastQuestion ? T.textHint : T.textSub, fontSize: 12, fontWeight: 600, cursor: isLastQuestion ? 'not-allowed' : 'pointer', fontFamily: 'inherit', transition: 'all 0.13s', flexShrink: 0, marginRight: 16 }}
         >
-          Next <ChevronRight size={14} />
+          Next <ChevronRight size={13} />
         </button>
 
         {/* Submit Question — primary action */}
@@ -969,13 +1041,13 @@ const CombinedExerciseMixed = () => {
           onClick={handleSubmitQuestion}
           disabled={isMcqQuestion && !hasMcqAnswer}
           className="btn-next"
-          style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 22px', borderRadius: 10, border: 'none', background: (isMcqQuestion && !hasMcqAnswer) ? T.pageBg : T.orange, color: (isMcqQuestion && !hasMcqAnswer) ? T.textHint : '#fff', fontSize: 13, fontWeight: 700, cursor: (isMcqQuestion && !hasMcqAnswer) ? 'not-allowed' : 'pointer', fontFamily: 'inherit', transition: 'all 0.13s', boxShadow: (isMcqQuestion && !hasMcqAnswer) ? 'none' : `0 3px 14px ${T.orangeGlow}`, flexShrink: 0 }}
+          style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 14px', borderRadius: 7, border: 'none', background: (isMcqQuestion && !hasMcqAnswer) ? T.pageBg : T.orange, color: (isMcqQuestion && !hasMcqAnswer) ? T.textHint : '#fff', fontSize: 12, fontWeight: 700, cursor: (isMcqQuestion && !hasMcqAnswer) ? 'not-allowed' : 'pointer', fontFamily: 'inherit', transition: 'all 0.13s', boxShadow: (isMcqQuestion && !hasMcqAnswer) ? 'none' : `0 2px 8px ${T.orangeGlow}`, flexShrink: 0 }}
         >
           {isMcqQuestion && !hasMcqAnswer
-            ? <><AlertCircle size={14} /> Select Answer</>
+            ? <><AlertCircle size={12} /> Select Answer</>
             : isLastQuestion
-              ? <><CheckCircle size={14} /> Submit Question</>
-              : <>Submit Question <ChevronRight size={15} /></>
+              ? <><CheckCircle size={12} /> Submit Question</>
+              : <>Submit Question <ChevronRight size={13} /></>
           }
         </button>
       </div>

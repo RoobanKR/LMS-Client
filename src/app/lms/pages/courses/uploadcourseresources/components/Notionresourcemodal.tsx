@@ -176,7 +176,7 @@ export const NotionResourceModal: React.FC<NotionResourceModalProps> = ({
             border: `1.5px solid ${T.border}`,
             boxShadow: "0 24px 60px rgba(0,0,0,0.18)",
             animation: "nrmSlideUp 0.22s cubic-bezier(0.16,1,0.3,1) both",
-            fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif",
+            fontFamily: "'Inter',-apple-system,sans-serif",
           }}
           onClick={e => e.stopPropagation()}
         >

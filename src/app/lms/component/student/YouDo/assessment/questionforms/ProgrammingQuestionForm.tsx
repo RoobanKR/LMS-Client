@@ -59,7 +59,7 @@ const injectFonts = (() => {
         --lms-radius-sm:     8px;
         --lms-radius-md:     10px;
         --lms-radius-lg:     14px;
-        --lms-font:          'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+        --lms-font:          'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
         --lms-shadow-sm:     0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
         --lms-shadow-md:     0 4px 14px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.04);
       }
@@ -650,7 +650,7 @@ const ProgImageUploadModal: React.FC<{
       const token = localStorage.getItem('smartcliff_token');
       const fd = new FormData();
       fd.append('image', file);
-      const res = await fetch('https://lms-server-ym1q.onrender.com/upload/question-image', {
+      const res = await fetch('http://localhost:5533/upload/question-image', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: fd,

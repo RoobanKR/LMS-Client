@@ -1325,7 +1325,7 @@ function PdfPageCanvas({ pdfDoc, pageNum, scale, onContextMenu, onClick, showMcq
 function MCQQuestionForm({
   onClose, onSave, initialPageNumber = 1,
   institution, courses, structureType, tabType, subcategory, fileName,
-  apiBaseUrl = "https://lms-server-ym1q.onrender.com",
+  apiBaseUrl = "http://localhost:5533",
   mcqMode = "default",
   onLinkGenerated,
 }: any) {
@@ -1420,7 +1420,7 @@ function MCQQuestionForm({
     setIsSaving(true)
     try {
       const linkToken = generateLinkToken()
-      const origin = typeof window !== "undefined" ? window.location.origin : "https://lms-client-jade-three.vercel.app"
+      const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000"
       const shareableUrl = `${origin}/lms/pages/courses/live-mcq/${linkToken}`
 
       const payload: Record<string, any> = {
@@ -1745,7 +1745,7 @@ export default function PDFViewer({
   institution = "", courses = "",
   tabType = "", subcategory = "",
   folderPath = [],
-  apiBaseUrl = "https://lms-server-ym1q.onrender.com",
+  apiBaseUrl = "http://localhost:5533",
   onClose,
   initialMcqs = [],
   isTeacher = true,

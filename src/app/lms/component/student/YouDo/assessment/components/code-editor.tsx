@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { useRouter } from 'next/navigation';
 import { useExamLiveEmitter } from './useExamLiveEmitter';
 import ScreenShareGuard from './ScreenShareGuard';
-import StudentMessageChat from './StudentMessageChat';
+import TestMessageBell from './TestMessageBell';
 import { setSharedScreenStream, markScreenCaptureStarting, clearScreenCaptureInProgress } from './screenStreamStore';
 
 // Then, inside your CodeEditor component, add the router hook:
@@ -756,7 +756,7 @@ const InteractiveTerminal = ({
     );
 };
 
-const FONT = "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif";
+const FONT = "'Inter', -apple-system, BlinkMacSystemFont, sans-serif";
 
 const InfoRow = ({ label, value, theme, mono }: { label: string; value?: string | null; theme: string; mono?: boolean }) => {
     if (value == null || value === '') return null;
@@ -921,7 +921,7 @@ export default function CodeEditor({
         if (!exercise?._id) return;
         // Always re-fetch so totalMarks / totalMarksProgramming are complete
         const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
-        fetch(`https://lms-server-ym1q.onrender.com/exercise/${exercise._id}`, {
+        fetch(`http://localhost:5533/exercise/${exercise._id}`, {
             headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
         })
             .then(r => r.ok ? r.json() : null)
@@ -1408,7 +1408,7 @@ function solve() {
                 subcategory: subcategory || ""
             });
 
-            const response = await fetch(`https://lms-server-ym1q.onrender.com/courses/answers/single?${params.toString()}`, {
+            const response = await fetch(`http://localhost:5533/courses/answers/single?${params.toString()}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
 
@@ -2148,7 +2148,7 @@ function solve() {
             // Save recording URL to backend
             try {
                 const token = localStorage.getItem('smartcliff_token') || '';
-                const saveResponse = await fetch('https://lms-server-ym1q.onrender.com/assessment/recording', {
+                const saveResponse = await fetch('http://localhost:5533/assessment/recording', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -2337,7 +2337,7 @@ function solve() {
                 formData.append('screenRecording', screenRecordingBlob, filename);
             }
 
-            await fetch('https://lms-server-ym1q.onrender.com/exercise/lock', {
+            await fetch('http://localhost:5533/exercise/lock', {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`
@@ -2641,7 +2641,7 @@ function solve() {
                 || localStorage.getItem('token')
                 || '';
 
-            const response = await fetch('https://lms-server-ym1q.onrender.com/courses/answers/submit', {
+            const response = await fetch('http://localhost:5533/courses/answers/submit', {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}` },
                 body: formData,
@@ -3157,7 +3157,7 @@ function solve() {
 
             try {
                 const token = localStorage.getItem('smartcliff_token') || '';
-                const response = await fetch(`https://lms-server-ym1q.onrender.com/exercise/status?courseId=${courseId}&exerciseId=${exercise._id}&category=You_Do&subcategory=${subcategory}`, {
+                const response = await fetch(`http://localhost:5533/exercise/status?courseId=${courseId}&exerciseId=${exercise._id}&category=You_Do&subcategory=${subcategory}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
 
@@ -3243,10 +3243,7 @@ function solve() {
                 waitForSharedStream={!!(securitySettings as any)?.screenRecordingEnabled}
             />
 
-            {/* ── Proctor → student messaging (floating chat) ── */}
-            {!embedded && (
-                <StudentMessageChat assessmentId={exercise?._id ? String(exercise._id) : ""} />
-            )}
+            {/* Proctor → student messaging is now a header bell (see breadcrumb row). */}
 
             {/* Security Agreement Modal */}
             <SecurityAgreementModal
@@ -3455,6 +3452,10 @@ function solve() {
 
                         {/* Right corner of breadcrumb row — Submit Test + Close */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, marginLeft: 8 }}>
+                            {/* Proctor message notification (ephemeral, test-only) — standalone only; section header owns it in section mode */}
+                            {!embedded && (
+                                <TestMessageBell assessmentId={exercise?._id ? String(exercise._id) : ""} />
+                            )}
                             {/* Whole-test submit is hidden in section mode — the parent footer owns final submission */}
                             {!embedded && (
                             <button

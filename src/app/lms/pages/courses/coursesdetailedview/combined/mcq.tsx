@@ -635,7 +635,7 @@ const MCQQuestion: React.FC<MCQQuestionProps> = ({
   }
 
   return (
-    <div className={`w-full h-full flex flex-col ${montserrat.variable} ${inter.variable} font-sans`} style={{ background: T.pageBg, fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif" }}>
+    <div className={`w-full h-full flex flex-col ${montserrat.variable} ${inter.variable} font-sans`} style={{ background: T.pageBg, fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif" }}>
       <style jsx global>{`
         .font-montserrat { font-family: var(--font-montserrat), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
         .font-inter { font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }

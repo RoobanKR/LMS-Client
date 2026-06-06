@@ -342,7 +342,7 @@ const CombinedExerciseMixed = () => {
     formData.append('language', 'text');
     formData.append('isTestSubmission', 'true'); // ← THE KEY FLAG
 
-    const response = await fetch('https://lms-server-ym1q.onrender.com/courses/answers/submit', {
+    const response = await fetch('http://localhost:5533/courses/answers/submit', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}` },
       body: formData,
@@ -380,7 +380,7 @@ const CombinedExerciseMixed = () => {
           throw new Error('Authentication token not found');
         }
 
-        const response = await fetch(`https://lms-server-ym1q.onrender.com/exercise/${exerciseId}`, {
+        const response = await fetch(`http://localhost:5533/exercise/${exerciseId}`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -562,7 +562,7 @@ const CombinedExerciseMixed = () => {
       formData.append('status', 'attempted');
       formData.append('language', 'text');
 
-      const response = await fetch('https://lms-server-ym1q.onrender.com/courses/answers/submit', {
+      const response = await fetch('http://localhost:5533/courses/answers/submit', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData,
@@ -647,7 +647,7 @@ const CombinedExerciseMixed = () => {
         queryLength: query.length
       });
 
-      const response = await fetch('https://lms-server-ym1q.onrender.com/courses/answers/submit-multiple-files', {
+      const response = await fetch('http://localhost:5533/courses/answers/submit-multiple-files', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -954,40 +954,40 @@ const getBreadcrumbs = () => {
         </div>
       </div>
 
-      {/* Question Navigation - Centered Previous and Next buttons */}
-      <div className="bg-gray-50 border-b border-gray-200 py-2">
+      {/* Question Navigation - Compact, Previous next to Next */}
+      <div className="bg-gray-50 border-b border-gray-200 py-1.5">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-center gap-4">
+          <div className="flex items-center justify-center gap-2">
             <button
               onClick={handlePreviousQuestion}
               disabled={currentQuestionIndex === 0}
-              className="flex items-center gap-2 px-4 py-2 text-sm border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+              className="flex items-center gap-1 px-2.5 py-1 text-xs border border-gray-300 rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
             >
-              <ChevronLeft size={16} />
+              <ChevronLeft size={12} />
               Previous
             </button>
 
             {/* Question Counter */}
-            <span className="text-sm text-gray-600">
-              Question {currentQuestionIndex + 1} of {totalQuestions}
+            <span className="text-xs text-gray-600 px-2">
+              {currentQuestionIndex + 1} / {totalQuestions}
             </span>
 
             {isMcqQuestion ? (
               <button
                 onClick={submitCurrentMcqAnswer}
                 disabled={!mcqAnswers[currentQuestion?._id]}
-                className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="flex items-center gap-1 px-2.5 py-1 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {isLastQuestion ? 'Complete' : 'Save & Next'}
-                <ChevronRight size={16} />
+                <ChevronRight size={12} />
               </button>
             ) : (
               <button
                 onClick={handleNextQuestion}
-                className="flex items-center gap-2 px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors"
+                className="flex items-center gap-1 px-2.5 py-1 text-xs border border-gray-300 rounded-md hover:bg-gray-100 transition-colors"
               >
                 {isLastQuestion ? 'Complete' : 'Next'}
-                <ChevronRight size={16} />
+                <ChevronRight size={12} />
               </button>
             )}
           </div>

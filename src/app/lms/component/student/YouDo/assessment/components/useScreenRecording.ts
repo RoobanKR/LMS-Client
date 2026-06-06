@@ -6,7 +6,7 @@ import { setSharedScreenStream, markScreenCaptureStarting, clearScreenCaptureInP
 const CLOUDINARY_CLOUD_NAME = 'dusxfgvhi';
 const CLOUDINARY_UPLOAD_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`;
 const CLOUDINARY_PRESET = 'dusxfgvhi';
-const BACKEND_API_URL = 'https://lms-server-ym1q.onrender.com';
+const BACKEND_API_URL = 'http://localhost:5533';
 
 export interface RecordingOptions {
   courseId?: string;

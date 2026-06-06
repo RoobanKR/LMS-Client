@@ -78,7 +78,7 @@ export const ExerciseTypeStep: React.FC<ExerciseTypeStepProps> = ({
           className="text-sm font-bold"
           style={{
             color: D.textMain,
-            fontFamily: "Plus Jakarta Sans, sans-serif",
+            fontFamily: "Inter, sans-serif",
           }}
         >
           Select Exercise Type
@@ -129,7 +129,7 @@ export const ExerciseTypeStep: React.FC<ExerciseTypeStepProps> = ({
                 className="text-sm font-bold mb-0.5"
                 style={{
                   color: sel ? t.color : D.textMain,
-                  fontFamily: "Plus Jakarta Sans, sans-serif",
+                  fontFamily: "Inter, sans-serif",
                 }}
               >
                 {t.label}

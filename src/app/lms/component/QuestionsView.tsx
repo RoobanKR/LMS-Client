@@ -33,7 +33,7 @@ import ProgrammingQuestionForm from './questionforms/ProgrammingQuestionForm';
 
 // ─── Design tokens (Login page parity) ────────────────────────────────────────
 const JKT: React.CSSProperties = {
-  fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
+  fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
 };
 
 // ─── Interfaces ────────────────────────────────────────────────────────────────
@@ -89,7 +89,7 @@ interface QuestionsProps {
   breadcrumbs?: any[];
 }
 
-const API_BASE_URL = 'https://lms-server-ym1q.onrender.com';
+const API_BASE_URL = 'http://localhost:5533';
 const stripHtml = (html: string) => (html || '').replace(/<[^>]*>/g, '');
 
 // ─── Component ─────────────────────────────────────────────────────────────────
@@ -123,6 +123,8 @@ const Questions: React.FC<QuestionsProps> = ({
   const [showDuplicateConfirmation, setShowDuplicateConfirmation] = useState(false);
   const [duplicateQuestions, setDuplicateQuestions]         = useState<{ original: Question; duplicate: Question }[]>([]);
   const [pendingBankQuestions, setPendingBankQuestions]     = useState<Question[]>([]);
+  // Bank questions handed to AddQuestionForm to pre-load for review-then-save.
+  const [bankReviewQuestions, setBankReviewQuestions]       = useState<Question[]>([]);
   const [editingDuplicateQuestion, setEditingDuplicateQuestion] = useState<Question | null>(null);
   const [showEditDuplicateModal, setShowEditDuplicateModal] = useState(false);
   const [isAddingQuestions, setIsAddingQuestions]           = useState(false);
@@ -552,83 +554,33 @@ const handleAction = async (type: string, q: Question) => {
  const handleBankSelect = async (selected: Question[]) => {
   if (!selected.length) return;
   
-  // Filter programming questions
-  const programmingQuestions = selected.filter(q => 
-    q.questionType?.toLowerCase() === 'programming'
+  // Accept every supported question type — MCQ plus the programming family
+  // (core programming, frontend and database). The bank selector already filters
+  // to the exercise's module type, so this only guards against questions with a
+  // missing/unknown type.
+  const acceptedTypes = ['mcq', 'programming', 'frontend', 'database'];
+  const acceptedQuestions = selected.filter(q =>
+    acceptedTypes.includes((q.questionType || '').toLowerCase())
   );
-  
-  if (programmingQuestions.length === 0) {
-    toast.warning('No programming questions selected', 
-      'Please select programming questions from the bank.');
+
+  if (acceptedQuestions.length === 0) {
+    toast('Please select valid questions from the bank.', { icon: '⚠️' });
     return;
   }
-  
-  // If there's only one programming question selected, open the form directly
-  if (programmingQuestions.length === 1) {
-    setSelectedProgrammingQuestion(programmingQuestions[0]);
-    setShowProgrammingForm(true);
-    setShowQuestionBank(false);
-    return;
-  }
-  
-  // For multiple questions, show confirmation or process in bulk
-  const confirmAdd = window.confirm(
-    `Add ${programmingQuestions.length} programming question(s) to this exercise?`
-  );
-  
-  if (confirmAdd) {
-    setIsAddingQuestions(true);
-    const tid = toast.loading(`Adding ${programmingQuestions.length} question(s)…`);
-    
-    let successCount = 0;
-    let errorCount = 0;
-    
-    for (const q of programmingQuestions) {
-      try {
-        // Convert the bank question to the format expected by the API
-        const questionData = {
-          questionType: 'programming',
-          title: q.title || q.mcqQuestionTitle || 'Untitled',
-          description: q.description || '',
-          difficulty: q.difficulty || q.mcqQuestionDifficulty || 'medium',
-          score: q.score || q.mcqQuestionScore || 10,
-          timeLimit: q.timeLimit || 2000,
-          memoryLimit: q.memoryLimit || 256,
-          testCases: q.testCases || [],
-          constraints: q.constraints || [],
-          hints: q.hints || [],
-          isActive: true,
-        };
-        
-        await questionApi.addQuestion(
-          nodeType.toLowerCase(),
-          nodeId,
-          exercise._id,
-          questionData,
-          tabType,
-          subcategory
-        );
-        successCount++;
-      } catch (err) {
-        errorCount++;
-      }
-    }
-    
-    toast.dismiss(tid);
-    toast.success(`${successCount} question(s) added!`);
-    if (errorCount > 0) toast.error(`${errorCount} failed.`);
-    
-    setShowQuestionBank(false);
-    await fetchQuestions();
-    setIsAddingQuestions(false);
-  }
+
+  // Open the matching question form (per exercise module) with the selected questions
+  // pre-loaded into its flow — the teacher reviews each and Save & Continues, so nothing
+  // is silently added or missed. (No confirm popup, no direct bulk-add.)
+  setShowQuestionBank(false);
+  setBankReviewQuestions(acceptedQuestions);
+  setShowAddQuestion(true);
 };
 
   const handleDupConfirm = async (action: 'addAll' | 'skip' | 'edit') => {
     setShowDuplicateConfirmation(false);
     if (action === 'addAll') {
       const all = [...pendingBankQuestions, ...duplicateQuestions.map(d => d.duplicate)];
-      if (!all.length) { toast.info('No questions to add.'); return; }
+      if (!all.length) { toast('No questions to add.', { icon: 'ℹ️' }); return; }
       setIsAddingQuestions(true); const tid = toast.loading(`Adding ${all.length} question(s)…`);
       const r = await addBatch(all); toast.dismiss(tid); setIsAddingQuestions(false);
       if (r.successCount > 0) toast.success(`${r.successCount} added!`);
@@ -638,8 +590,8 @@ const handleAction = async (type: string, q: Question) => {
         setIsAddingQuestions(true); const tid = toast.loading(`Adding ${pendingBankQuestions.length} unique…`);
         const r = await addBatch(pendingBankQuestions); toast.dismiss(tid); setIsAddingQuestions(false);
         if (r.successCount > 0) toast.success(`${r.successCount} added!`);
-        if (duplicateQuestions.length > 0) toast.info(`${duplicateQuestions.length} duplicate(s) skipped.`);
-      } else toast.info('No new questions to add.');
+        if (duplicateQuestions.length > 0) toast(`${duplicateQuestions.length} duplicate(s) skipped.`, { icon: 'ℹ️' });
+      } else toast('No new questions to add.', { icon: 'ℹ️' });
       setShowQuestionBank(false); await fetchQuestions(); setDuplicateQuestions([]); setPendingBankQuestions([]);
     } else if (action === 'edit' && duplicateQuestions.length > 0) {
       setEditingMode('edit'); setCurrentEditIndex(0);
@@ -684,6 +636,50 @@ const isPureProg = !isCombined && (
   exercise.exerciseType?.toLowerCase() === 'programming' ||
   (exercise.configurationType?.programmingMode === true && !exercise.configurationType?.mcqMode)
 );
+
+// Frontend / Database are sub-modules of a "programming" exercise
+// (programmingSettings.selectedModule). Map them so the question-bank selector
+// shows the matching specific type instead of lumping everything into "programming".
+const progModule = (exercise.programmingSettings?.selectedModule || '').toLowerCase();
+const progBankFilterType: 'programming' | 'frontend' | 'database' =
+  progModule === 'frontend'
+    ? 'frontend'
+    : (progModule === 'database' || ['mysql', 'sqlite', 'postgresql', 'mongodb'].includes(progModule))
+      ? 'database'
+      : 'programming';
+
+// Open-slot quota handed to the bank selector so it blocks over-selection at tick time.
+// General → one total cap; levelBased / selectionLevel → per-difficulty caps.
+// remaining = configured count − questions of that difficulty already in the exercise.
+const bankSelectionQuota = (() => {
+  if (!isPureProg) return undefined;
+  const progCfg: any = effectiveQConfig?.programmingQuestionConfiguration;
+  if (!progCfg) return undefined;
+  const cfgType: string = progCfg.questionConfigType || 'general';
+  const family = ['programming', 'frontend', 'database'];
+  const existing = (questions || []).filter((q: any) => family.includes((q.questionType || '').toLowerCase()));
+  const diffOf = (q: any) => {
+    const d = (q?.difficulty || '').toString().toLowerCase();
+    return d === 'easy' || d === 'hard' ? d : 'medium';
+  };
+  if (cfgType === 'general') {
+    const total = progCfg.generalQuestionCount || 0;
+    return { mode: 'general' as const, remainingTotal: Math.max(0, total - existing.length) };
+  }
+  const quotaFor = (d: 'easy' | 'medium' | 'hard') =>
+    cfgType === 'selectionLevel'
+      ? (progCfg.selectionLevelCounts?.[d] || 0)
+      : (progCfg.levelBasedCounts?.[d] || progCfg.scoreSettings?.levelScoringConfiguration?.[d]?.questionCount || 0);
+  const addedFor = (d: 'easy' | 'medium' | 'hard') => existing.filter((q: any) => diffOf(q) === d).length;
+  return {
+    mode: 'difficulty' as const,
+    remainingByDifficulty: {
+      easy: Math.max(0, quotaFor('easy') - addedFor('easy')),
+      medium: Math.max(0, quotaFor('medium') - addedFor('medium')),
+      hard: Math.max(0, quotaFor('hard') - addedFor('hard')),
+    },
+  };
+})();
 
 const isPureOthers = !isCombined && exercise.exerciseType?.toLowerCase() === 'other';
   const isExerciseGraded = fullExData?.isGraded !== false;
@@ -1531,7 +1527,8 @@ const addBtnDisabled = isAddingQuestions || (() => {
     existingQuestions={questions}
     remainingQuestions={calcRemaining()}
     marksPerQuestion={calcMarksPerQ()}
-    filterByType={isPureProg ? 'programming' : isPureMCQ ? 'mcq' : 'all'}
+    filterByType={isPureProg ? progBankFilterType : isPureMCQ ? 'mcq' : 'all'}
+    selectionQuota={bankSelectionQuota}
   />
 )}
 
@@ -1547,13 +1544,13 @@ const addBtnDisabled = isAddingQuestions || (() => {
             exerciseType: exercise.exerciseType, programmingSettings: exercise.programmingSettings, subcategoryLabel: subcategory,
           }}
           breadcrumbs={breadcrumbs} tabType={tabType}
-          onClose={async () => { await Promise.all([fetchQuestions(), refreshFullExData()]); setShowAddQuestion(false); }}
+          onClose={async () => { await Promise.all([fetchQuestions(), refreshFullExData()]); setShowAddQuestion(false); setBankReviewQuestions([]); }}
           onSave={handleQuestionSaved} onOpenQuestionBank={() => { setShowAddQuestion(false); setShowQuestionBank(true); }}
           onOpenDocumentUpload={() => { setShowAddQuestion(false); setShowDocumentUpload(true); }}
           onMCQBankSelect={async (qs) => { setShowAddQuestion(false); await handleBankSelect(qs); }}
           showTypeSelector={isCombined} remainingQuestions={calcRemaining()} marksPerQuestion={calcMarksPerQ()}
           onEditExercise={async () => { await refreshFullExData(); setShowAddQuestion(false); if (onEditExercise) onEditExercise(exercise); }}
-          shouldRefreshOnMount={true} />
+          shouldRefreshOnMount={true} initialBankQuestions={bankReviewQuestions} />
       )}
 
 {showEditQuestionModal && editingQuestion && (

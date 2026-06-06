@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+﻿import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Plus, RefreshCw,
   ArrowLeft, Eye,
@@ -30,12 +30,12 @@ import RichTextDisplay from './RichTextDisplay';
 import QuestionBankSelector from './questionforms/mcq/QuestionBankSelector';
 import QuestionPreview from './QuestionPreview';
 
-// ─── Design tokens (Login page parity) ────────────────────────────────────────
+// â”€â”€â”€ Design tokens (Login page parity) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const JKT: React.CSSProperties = {
-  fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
+  fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
 };
 
-// ─── Interfaces ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Interfaces â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface Exercise {
   _id: string;
@@ -88,17 +88,17 @@ interface QuestionsProps {
   breadcrumbs?: any[];
 }
 
-const API_BASE_URL = 'https://lms-server-ym1q.onrender.com';
+const API_BASE_URL = 'http://localhost:5533';
 const stripHtml = (html: string) => (html || '').replace(/<[^>]*>/g, '');
 
-// ─── Component ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const Questions: React.FC<QuestionsProps> = ({
   hierarchyData, exercise, breadcrumbs, nodeId, nodeName,
   subcategory, nodeType, tabType, onBack,
   isModal = false, onClose, quickAddMode = false, onEditExercise,
 }) => {
 
-  // ── State ──────────────────────────────────────────────────────────────────
+  // â”€â”€ State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [questions, setQuestions]               = useState<Question[]>([]);
   const [loadingQuestions, setLoadingQuestions] = useState(true);
   const [showAddQuestion, setShowAddQuestion]   = useState(false);
@@ -132,13 +132,13 @@ const [showDocumentUpload, setShowDocumentUpload] = useState(false);
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const [autoItemsPerPage, setAutoItemsPerPage] = useState(10);
   const [showSlotInfo, setShowSlotInfo]         = useState(false);
-  // Full exercise data fetched from API — ensures questionConfiguration is always fresh
+  // Full exercise data fetched from API â€” ensures questionConfiguration is always fresh
   const [fullExData, setFullExData]             = useState<any>(null);
 
-  // ── Dynamic rows ──────────────────────────────────────────────────────────
+  // â”€â”€ Dynamic rows â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 
-// ── Dynamic rows ──────────────────────────────────────────────────────────
+// â”€â”€ Dynamic rows â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 useEffect(() => {
   const calcRows = () => {
     const c = tableContainerRef.current; if (!c) return;
@@ -154,7 +154,7 @@ useEffect(() => {
   return () => { clearTimeout(t1); clearTimeout(t2); ro.disconnect(); };
 }, [loadingQuestions]);
 
-  // ── Effects ────────────────────────────────────────────────────────────────
+  // â”€â”€ Effects â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => { if (!quickAddMode) fetchQuestions(); }, [exercise._id, includeInactive, quickAddMode]);
   useEffect(() => () => { setEditingQuestion(null); setShowEditQuestionModal(false); }, []);
   useEffect(() => {
@@ -171,14 +171,14 @@ useEffect(() => {
         const ex = res?.data?.exercise || res?.data || res?.exercise || null;
         if (ex && !cancelled) setFullExData(ex);
       } catch {
-        // fall back to the prop — no error shown
+        // fall back to the prop â€” no error shown
       }
     };
     fetchFull();
     return () => { cancelled = true; };
   }, [exercise._id]);
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
+  // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
  const getTitle = (q: Question) => {
     if (q.questionType === 'mcq') {
       const t = q.mcqQuestionTitle;
@@ -209,11 +209,11 @@ useEffect(() => {
 const getScore = (q: Question) => Math.round(q.questionType === 'mcq' ? q.mcqQuestionScore || 0 : q.score || q.points || 0);
   const getOptDisplay = (q: Question) => {
     if (q.questionType !== 'mcq' || !q.mcqQuestionOptions) return [];
-    return q.mcqQuestionOptions.map(o => { const t = o.text.replace(/<[^>]*>/g, '').trim(); return t.length > 18 ? t.substring(0, 18) + '…' : t; });
+    return q.mcqQuestionOptions.map(o => { const t = o.text.replace(/<[^>]*>/g, '').trim(); return t.length > 18 ? t.substring(0, 18) + 'â€¦' : t; });
   };
   const hasMcqQs = useCallback((qs: Question[]) => qs.some(q => q.questionType === 'mcq'), []);
 
-  // ── Badges ────────────────────────────────────────────────────────────────
+  // â”€â”€ Badges â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const TYPE_CFG: Record<string, { label: string; color: string; bg: string; border: string; dot: string }> = {
     mcq:         { label: 'MCQ',      color: 'text-purple-700', bg: 'bg-purple-50',  border: 'border-purple-200', dot: 'bg-purple-400'  },
     programming: { label: 'Coding',   color: 'text-blue-700',   bg: 'bg-blue-50',    border: 'border-blue-200',   dot: 'bg-blue-400'    },
@@ -243,7 +243,7 @@ const getScore = (q: Question) => Math.round(q.questionType === 'mcq' ? q.mcqQue
     );
   };
 
-  // ── Slot helpers ──────────────────────────────────────────────────────────
+  // â”€â”€ Slot helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Always use freshly fetched fullExData when available so quota display stays
   // in sync after exercise settings are changed without a browser reload.
   const effectiveQConfig = fullExData?.questionConfiguration ?? exercise?.questionConfiguration;
@@ -265,7 +265,7 @@ const getScore = (q: Question) => Math.round(q.questionType === 'mcq' ? q.mcqQue
     return false;
   };
 
-  // ── FIXED: isProgGeneralFull now handles selectionLevel ──────────────────
+  // â”€â”€ FIXED: isProgGeneralFull now handles selectionLevel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const isProgGeneralFull = () => {
     const pc = effectiveQConfig?.programmingQuestionConfiguration;
     if (!pc) return false;
@@ -321,7 +321,7 @@ const getScore = (q: Question) => Math.round(q.questionType === 'mcq' ? q.mcqQue
   const total = (counts.easy || 0) + (counts.medium || 0) + (counts.hard || 0);
   return total > 0 && othersQs.length >= total;
 };
-  // ── NEW: per-difficulty full check for selectionLevel ────────────────────
+  // â”€â”€ NEW: per-difficulty full check for selectionLevel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const isSelectionLevelDiffFull = (diff: 'easy' | 'medium' | 'hard'): boolean => {
     const pc = effectiveQConfig?.programmingQuestionConfiguration;
     if (!pc || pc.questionConfigType !== 'selectionLevel') return false;
@@ -335,7 +335,7 @@ const getScore = (q: Question) => Math.round(q.questionType === 'mcq' ? q.mcqQue
     return used >= quota;
   };
 
-  // ── FIXED: getProgSlotInfo now handles selectionLevel with byDifficulty ──
+  // â”€â”€ FIXED: getProgSlotInfo now handles selectionLevel with byDifficulty â”€â”€
   const getProgSlotInfo = (): {
     used: number;
     total: number;
@@ -392,7 +392,7 @@ const getScore = (q: Question) => Math.round(q.questionType === 'mcq' ? q.mcqQue
     return w1.filter(w => w2.includes(w)).length / new Set([...w1, ...w2]).size;
   };
 
-  // ── API ────────────────────────────────────────────────────────────────────
+  // â”€â”€ API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const fetchQuestions = async () => {
     setLoadingQuestions(true);
     try {
@@ -510,7 +510,7 @@ const handleAction = async (type: string, q: Question) => {
     } else {
       await fetchQuestions();
       toast.success(
-        isSaveAndNext ? (isUpdate ? 'Updated — continue!' : 'Saved — continue!') : (isUpdate ? 'Question updated!' : 'Question created!')
+        isSaveAndNext ? (isUpdate ? 'Updated â€” continue!' : 'Saved â€” continue!') : (isUpdate ? 'Question updated!' : 'Question created!')
       );
       if (!isSaveAndNext) { setShowAddQuestion(false); setShowQuestionBank(false); if (quickAddMode) setTimeout(() => onClose?.(), 1500); }
     }
@@ -562,7 +562,7 @@ const handleAction = async (type: string, q: Question) => {
     });
     if (dupes.length > 0) { setDuplicateQuestions(dupes); setPendingBankQuestions(nonDupes); setShowDuplicateConfirmation(true); setCurrentEditIndex(0); }
     else {
-      setIsAddingQuestions(true); const tid = toast.loading(`Adding ${nonDupes.length} question(s)…`);
+      setIsAddingQuestions(true); const tid = toast.loading(`Adding ${nonDupes.length} question(s)â€¦`);
       const r = await addBatch(nonDupes); toast.dismiss(tid); setIsAddingQuestions(false);
       if (r.successCount > 0) toast.success(`${r.successCount} question(s) added!`);
       if (r.errorCount > 0)   toast.error(`${r.errorCount} failed.`);
@@ -576,13 +576,13 @@ const handleAction = async (type: string, q: Question) => {
     if (action === 'addAll') {
       const all = [...pendingBankQuestions, ...duplicateQuestions.map(d => d.duplicate)];
       if (!all.length) { toast.info('No questions to add.'); return; }
-      setIsAddingQuestions(true); const tid = toast.loading(`Adding ${all.length} question(s)…`);
+      setIsAddingQuestions(true); const tid = toast.loading(`Adding ${all.length} question(s)â€¦`);
       const r = await addBatch(all); toast.dismiss(tid); setIsAddingQuestions(false);
       if (r.successCount > 0) toast.success(`${r.successCount} added!`);
       setShowQuestionBank(false); await fetchQuestions(); setDuplicateQuestions([]); setPendingBankQuestions([]);
     } else if (action === 'skip') {
       if (pendingBankQuestions.length > 0) {
-        setIsAddingQuestions(true); const tid = toast.loading(`Adding ${pendingBankQuestions.length} unique…`);
+        setIsAddingQuestions(true); const tid = toast.loading(`Adding ${pendingBankQuestions.length} uniqueâ€¦`);
         const r = await addBatch(pendingBankQuestions); toast.dismiss(tid); setIsAddingQuestions(false);
         if (r.successCount > 0) toast.success(`${r.successCount} added!`);
         if (duplicateQuestions.length > 0) toast.info(`${duplicateQuestions.length} duplicate(s) skipped.`);
@@ -609,7 +609,7 @@ const handleAction = async (type: string, q: Question) => {
     automationEvaluation: effectiveQConfig?.programmingQuestionConfiguration?.enableTestCases || false,
   });
 
-  // ── Filtering & Pagination ─────────────────────────────────────────────────
+  // â”€â”€ Filtering & Pagination â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const filteredQs = questions.filter(q => {
     const t = getTitle(q).toLowerCase(), d = getDesc(q).toLowerCase(), diff = getDiff(q);
     return (!searchTerm || t.includes(searchTerm.toLowerCase()) || d.includes(searchTerm.toLowerCase()))
@@ -624,7 +624,7 @@ const handleAction = async (type: string, q: Question) => {
   const pagedQs      = filteredQs.slice(startIdx, startIdx + itemsPerPage);
   const showMcqCol   = hasMcqQs(filteredQs);
 
-  // ── Exercise type ─────────────────────────────────────────────────────────
+  // â”€â”€ Exercise type â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const isCombined = exercise.exerciseType?.toLowerCase() === 'combined' || exercise.configurationType?.combinedMode === true;
   const isPureMCQ  = !isCombined && (exercise.exerciseType?.toLowerCase() === 'mcq' || (exercise.configurationType?.mcqMode === true && !exercise.configurationType?.programmingMode));
 const isPureProg = !isCombined && (
@@ -673,12 +673,12 @@ const addBtnDisabled = isAddingQuestions || (() => {
     return p;
   };
 
-  // ─── Overlay backdrop helper ───────────────────────────────────────────────
+  // â”€â”€â”€ Overlay backdrop helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const Backdrop = ({ zIndex = 100 }: { zIndex?: number }) => (
     <div className="fixed inset-0" style={{ zIndex, background: 'rgba(26,26,46,0.45)', backdropFilter: 'blur(4px)' }} />
   );
 
-  // ─── Add Question Option Modal ─────────────────────────────────────────────
+  // â”€â”€â”€ Add Question Option Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const AddQuestionOptions = () => (
     <>
       <Backdrop zIndex={100} />
@@ -694,7 +694,7 @@ const addBtnDisabled = isAddingQuestions || (() => {
                   <div className="flex items-center flex-wrap gap-0.5 mb-2">
                     {breadcrumbs.map((c: any, i: number) => (
                       <span key={i} className="flex items-center gap-0.5">
-                        {i > 0 && <span style={{ color: '#F27757' }} className="mx-1 text-sm">›</span>}
+                        {i > 0 && <span style={{ color: '#F27757' }} className="mx-1 text-sm">â€º</span>}
                         <span className="text-[11px] font-medium" style={{ color: c.type === 'subcategory' ? '#F27757' : '#6b6b7e' }}>{c.name}</span>
                       </span>
                     ))}
@@ -759,7 +759,7 @@ const addBtnDisabled = isAddingQuestions || (() => {
               </button>
             )}
 
-            {/* Add via Document — NEW */}
+            {/* Add via Document â€” NEW */}
 {isPureMCQ && (
   <button onClick={() => { setShowAddOption(false); setShowDocumentUpload(true); }}
     className="group w-full text-left rounded-xl p-4 transition-all"
@@ -772,7 +772,7 @@ const addBtnDisabled = isAddingQuestions || (() => {
       </div>
       <div className="flex-1 min-w-0">
         <div className="text-[13px] font-semibold" style={{ color: '#1a1a2e' }}>Create Question From Document</div>
-        <div className="text-[11px] mt-0.5" style={{ color: '#8b8b9e' }}>Bulk import from JSON · CSV · TXT</div>
+        <div className="text-[11px] mt-0.5" style={{ color: '#8b8b9e' }}>Bulk import from JSON Â· CSV Â· TXT</div>
       </div>
       <ChevronRight size={15} className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-all" style={{ color: '#0891b2' }} />
     </div>
@@ -794,7 +794,7 @@ const addBtnDisabled = isAddingQuestions || (() => {
     </>
   );
 
-  // ─── Duplicate Confirmation Dialog ────────────────────────────────────────
+  // â”€â”€â”€ Duplicate Confirmation Dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const DuplicateConfirmationDialog = () => {
     if (!showDuplicateConfirmation) return null;
     return (
@@ -817,7 +817,7 @@ const addBtnDisabled = isAddingQuestions || (() => {
                 <div className="max-h-40 overflow-y-auto mb-4 rounded-xl divide-y" style={{ border: '1px solid #e4e4ed' }}>
                   {duplicateQuestions.map((item, i) => (
                     <div key={i} className="px-3 py-2.5">
-                      <p className="text-[12px] font-semibold" style={{ color: '#1a1a2e' }}>#{i + 1} — {getTitle(item.duplicate)}</p>
+                      <p className="text-[12px] font-semibold" style={{ color: '#1a1a2e' }}>#{i + 1} â€” {getTitle(item.duplicate)}</p>
                       <p className="text-[10px] mt-0.5" style={{ color: '#bcbccc' }}>Matches: "{getTitle(item.original)}"</p>
                     </div>
                   ))}
@@ -856,7 +856,7 @@ const addBtnDisabled = isAddingQuestions || (() => {
                 onMouseEnter={e => (e.currentTarget.style.background = '#b45309')}
                 onMouseLeave={e => (e.currentTarget.style.background = '#d97706')}
                 onClick={() => { const el = document.querySelector('input[name="dupAction"]:checked') as HTMLInputElement; handleDupConfirm((el?.value || 'skip') as any); }}>
-                {isAddingQuestions ? <><Loader className="h-3 w-3 animate-spin" />Processing…</> : 'Continue'}
+                {isAddingQuestions ? <><Loader className="h-3 w-3 animate-spin" />Processingâ€¦</> : 'Continue'}
               </button>
             </div>
           </div>
@@ -865,7 +865,7 @@ const addBtnDisabled = isAddingQuestions || (() => {
     );
   };
 
-  // ─── RENDER ────────────────────────────────────────────────────────────────
+  // â”€â”€â”€ RENDER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   return (
   <div className="h-full flex flex-col overflow-hidden" style={{ ...JKT, background: '#ffffff', color: '#1a1a2e' }}>
   {/* Header - fixed height */}
@@ -882,16 +882,16 @@ const addBtnDisabled = isAddingQuestions || (() => {
       <ArrowLeft size={15} />
     </button>
 
-    {/* Title + ID — single row */}
+    {/* Title + ID â€” single row */}
     <div className="flex items-center gap-3 min-w-0 flex-wrap">
       <span className="text-[11px] font-medium flex-shrink-0" style={{ color: '#8b8b9e', ...JKT }}>
         Id: <span style={{ color: '#1a1a2e', fontWeight: 600 }}>{exercise.exerciseInformation.exerciseId || exercise._id}</span>
       </span>
-      <span style={{ color: '#d4d4de', flexShrink: 0 }}>·</span>
+      <span style={{ color: '#d4d4de', flexShrink: 0 }}>Â·</span>
       <span className="text-[11px] font-medium flex-shrink-0" style={{ color: '#8b8b9e', ...JKT }}>
         Exercise name: <span style={{ color: '#1a1a2e', fontWeight: 600 }}>{exercise.exerciseInformation.exerciseName}</span>
       </span>
-      <span style={{ color: '#d4d4de', flexShrink: 0 }}>·</span>
+      <span style={{ color: '#d4d4de', flexShrink: 0 }}>Â·</span>
       <span className="text-[11px] font-medium flex-shrink-0" style={{ color: '#8b8b9e', ...JKT }}>
         Exercise type: <span style={{ color: '#1a1a2e', fontWeight: 600 }}>
           {isCombined ? 'Combined' : isPureMCQ ? 'MCQ' : isPureProg ? 'Programming' : isPureOthers ? 'Other' : (exercise.exerciseType || '')}
@@ -904,7 +904,7 @@ const addBtnDisabled = isAddingQuestions || (() => {
     {/* Search */}
     <div className="relative">
       <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#bcbccc' }} />
-      <input placeholder="Search questions…" value={searchTerm}
+      <input placeholder="Search questionsâ€¦" value={searchTerm}
         onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
         className="pl-7 pr-7 h-7 w-40 sm:w-52 text-[12px] rounded-lg outline-none transition-all"
         style={{ ...JKT, background: '#fafafa', border: '1.5px solid #e4e4ed', color: '#1a1a2e', cursor: 'text' }}
@@ -981,7 +981,7 @@ const addBtnDisabled = isAddingQuestions || (() => {
       </DropdownMenuContent>
     </DropdownMenu>
 
-    {/* ── Add Question button + Slot tooltip ── */}
+    {/* â”€â”€ Add Question button + Slot tooltip â”€â”€ */}
     <div className="relative flex-shrink-0"
       onMouseEnter={() => { if (!isAddingQuestions) setShowSlotInfo(true); }}
       onMouseLeave={() => setShowSlotInfo(false)}>
@@ -1016,7 +1016,7 @@ const addBtnDisabled = isAddingQuestions || (() => {
           }
         }}>
         {isAddingQuestions ? (
-          <><Loader size={12} className="animate-spin" /><span className="hidden sm:inline">Adding…</span></>
+          <><Loader size={12} className="animate-spin" /><span className="hidden sm:inline">Addingâ€¦</span></>
         ) : addBtnDisabled ? (
           <><AlertTriangle size={13} /><span className="hidden sm:inline">Slot Full</span></>
         ) : (
@@ -1024,7 +1024,7 @@ const addBtnDisabled = isAddingQuestions || (() => {
         )}
       </button>
 
-      {/* ── Slot tooltip (shown on hover always) ── */}
+      {/* â”€â”€ Slot tooltip (shown on hover always) â”€â”€ */}
       {showSlotInfo && !isAddingQuestions && (
         <div className="absolute right-0 top-8 z-50 bg-white rounded-xl shadow-2xl overflow-hidden"
           style={{ ...JKT, border: addBtnDisabled ? '1px solid #fde68a' : '1px solid #e4e4ed', width: '240px', boxShadow: '0 12px 40px rgba(26,26,46,0.16)' }}>
@@ -1157,16 +1157,16 @@ const addBtnDisabled = isAddingQuestions || (() => {
   })()}
 
             <p className="text-[10px] pt-1 font-medium" style={{ color: addBtnDisabled ? '#d97706' : '#F27757', borderTop: '1px solid #f0f0f5' }}>
-              {addBtnDisabled ? '⚠ Delete a question to free up a slot' : '→ Click to add question'}
+              {addBtnDisabled ? 'âš  Delete a question to free up a slot' : 'â†’ Click to add question'}
             </p>
           </div>
         </div>
       )}
     </div>
-    {/* ── /Add Question ── */}
+    {/* â”€â”€ /Add Question â”€â”€ */}
   </div>
 </div>
-      {/* ══ Active filters bar ══ */}
+      {/* â•â• Active filters bar â•â• */}
       {(filterDifficulty !== 'all' || filterType !== 'all' || searchTerm) && (
         <div className="flex-none flex items-center gap-2 px-4 py-1.5"
           style={{ background: 'rgba(242,119,87,0.05)', borderBottom: '1px solid rgba(242,119,87,0.15)' }}>
@@ -1204,7 +1204,7 @@ const addBtnDisabled = isAddingQuestions || (() => {
         </div>
       )}
 
-      {/* ══ Table area ══════════════════════════════════════════════════════ */}
+      {/* â•â• Table area â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
 <div ref={tableContainerRef} className="flex-1 min-h-0 bg-white overflow-auto">
         {loadingQuestions ? (
           <div className="h-full flex flex-col items-center justify-center gap-3">
@@ -1212,11 +1212,11 @@ const addBtnDisabled = isAddingQuestions || (() => {
               <div className="w-10 h-10 border-4 rounded-full" style={{ borderColor: '#f5f5f8' }} />
               <div className="absolute inset-0 border-4 rounded-full animate-spin" style={{ borderColor: '#F27757', borderTopColor: 'transparent' }} />
             </div>
-            <p className="text-[12px] font-medium" style={{ color: '#8b8b9e' }}>Loading questions…</p>
+            <p className="text-[12px] font-medium" style={{ color: '#8b8b9e' }}>Loading questionsâ€¦</p>
           </div>
         ) : pagedQs.length > 0 ? (
           <table className="w-full border-collapse text-sm table-fixed">
-            {/* ── thead ── */}
+            {/* â”€â”€ thead â”€â”€ */}
             <thead>
               <tr style={{ background: '#fafbfc', borderBottom: '1px solid #eef0f4' }}>
                 {[
@@ -1237,7 +1237,7 @@ const addBtnDisabled = isAddingQuestions || (() => {
               </tr>
             </thead>
 
-            {/* ── tbody ── */}
+            {/* â”€â”€ tbody â”€â”€ */}
             <tbody>
               {pagedQs.map((q, idx) => {
                 const title     = getTitle(q);
@@ -1311,7 +1311,7 @@ const addBtnDisabled = isAddingQuestions || (() => {
                         ) : isMcq ? (
                           <span className="text-[10px] italic" style={{ color: '#bcbccc' }}>No options</span>
                         ) : (
-                          <span className="text-[10px]" style={{ color: '#e4e4ed' }}>—</span>
+                          <span className="text-[10px]" style={{ color: '#e4e4ed' }}>â€”</span>
                         )}
                       </td>
                     )}
@@ -1324,7 +1324,7 @@ const addBtnDisabled = isAddingQuestions || (() => {
                     {isExerciseGraded && (
                       <td className="px-3 py-2.5 align-middle text-center">
                         <span className="block text-center text-[11px] font-medium" style={{ color: score > 0 ? '#1a1a2e' : '#e4e4ed', ...JKT }}>
-                          {score > 0 ? Math.round(score) : '—'}
+                          {score > 0 ? Math.round(score) : 'â€”'}
                         </span>
                       </td>
                     )}
@@ -1366,7 +1366,7 @@ const addBtnDisabled = isAddingQuestions || (() => {
             </tbody>
           </table>
         ) : (
-          /* ── Empty state ── */
+          /* â”€â”€ Empty state â”€â”€ */
           <div className="h-full flex flex-col items-center justify-center text-center p-8">
             <div className="mb-4 p-5 rounded-2xl" style={{ background: 'rgba(242,119,87,0.06)', border: '1.5px dashed rgba(242,119,87,0.25)' }}>
               <Code2 size={32} style={{ color: 'rgba(242,119,87,0.4)' }} />
@@ -1396,13 +1396,13 @@ const addBtnDisabled = isAddingQuestions || (() => {
         )}
       </div>
 
-      {/* ══ Pagination ══════════════════════════════════════════════════════ */}
+      {/* â•â• Pagination â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
       {filteredQs.length > 0 && (
         <div className="flex-none bg-white px-4 py-2 flex items-center justify-between" style={{ borderTop: '1px solid #e4e4ed' }}>
           <div className="text-[11px]" style={{ color: '#8b8b9e', ...JKT }}>
             Showing{' '}
             <span className="font-semibold" style={{ color: '#1a1a2e' }}>{startIdx + 1}</span>
-            {' '}–{' '}
+            {' '}â€“{' '}
             <span className="font-semibold" style={{ color: '#1a1a2e' }}>{Math.min(startIdx + itemsPerPage, filteredQs.length)}</span>
             {' '}of{' '}
             <span className="font-semibold" style={{ color: '#1a1a2e' }}>{filteredQs.length}</span>
@@ -1422,7 +1422,7 @@ const addBtnDisabled = isAddingQuestions || (() => {
               <div className="flex gap-0.5">
                 {getPageNums().map((p, i) =>
                   p === '...' ? (
-                    <span key={`e-${i}`} className="px-1 text-[11px] self-center" style={{ color: '#bcbccc' }}>…</span>
+                    <span key={`e-${i}`} className="px-1 text-[11px] self-center" style={{ color: '#bcbccc' }}>â€¦</span>
                   ) : (
                     <button key={p} onClick={() => setCurrentPage(p as number)}
                       title={`Page ${p}`}
@@ -1450,7 +1450,7 @@ const addBtnDisabled = isAddingQuestions || (() => {
         </div>
       )}
 
-      {/* ══ Modals ══ */}
+      {/* â•â• Modals â•â• */}
       {showAddOption && <AddQuestionOptions />}
 
       {showQuestionBank && (
@@ -1573,7 +1573,7 @@ const addBtnDisabled = isAddingQuestions || (() => {
           onClose={() => setPreviewQuestion(null)} onNavigate={q => setPreviewQuestion(q)} />
       )}
 
-      {/* ── Delete Modal ── */}
+      {/* â”€â”€ Delete Modal â”€â”€ */}
       {showDeleteQuestionModal && questionToDelete && (
         <>
           <Backdrop zIndex={60} />
@@ -1611,7 +1611,7 @@ const addBtnDisabled = isAddingQuestions || (() => {
                   style={{ ...JKT, background: '#ef4444', cursor: deletingQuestion ? 'not-allowed' : 'pointer' }}
                   onMouseEnter={e => { if (!deletingQuestion) e.currentTarget.style.background = '#dc2626'; }}
                   onMouseLeave={e => { e.currentTarget.style.background = '#ef4444'; }}>
-                  {deletingQuestion ? <><Loader className="h-3 w-3 animate-spin" />Deleting…</> : <><Trash2 className="h-3 w-3" />Delete Question</>}
+                  {deletingQuestion ? <><Loader className="h-3 w-3 animate-spin" />Deletingâ€¦</> : <><Trash2 className="h-3 w-3" />Delete Question</>}
                 </button>
               </div>
             </div>

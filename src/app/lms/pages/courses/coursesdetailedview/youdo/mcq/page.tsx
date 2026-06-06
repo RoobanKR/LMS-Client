@@ -52,7 +52,7 @@ const MCQPageContent = () => {
         console.log("Fetching exercise data for ID:", finalExerciseId);
 
         // Fetch exercise data from API
-        const response = await fetch(`https://lms-server-ym1q.onrender.com/exercise/${finalExerciseId}`, {
+        const response = await fetch(`http://localhost:5533/exercise/${finalExerciseId}`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${token}`,

@@ -20,7 +20,7 @@ function LiveScreensInner() {
 
   const {
     students, streams, assessmentName, isLoading, error, accessDenied,
-    sharingCount, warnStudent, setQuality,
+    sharingCount, warnStudent, setQuality, sendMessage,
   } = useProctorScreens({ assessmentId, courseId, nodeId, nodeType });
 
   const [view, setView] = useState<"grid" | "list">("grid");
@@ -144,6 +144,7 @@ function LiveScreensInner() {
           stream={streams.get(selected.id)}
           onClose={() => setSelectedId(null)}
           onWarn={warnStudent}
+          onSendMessage={sendMessage}
         />
       )}
     </div>

@@ -151,7 +151,7 @@ export const BreadcrumbBar: React.FC<BreadcrumbBarProps> = ({ crumbs, onNavigate
               boxShadow:   "0 20px 50px rgba(0,0,0,0.22)",
               maxWidth:    340,
               width:       "calc(100vw - 40px)",
-              fontFamily:  "'Plus Jakarta Sans',-apple-system,sans-serif",
+              fontFamily:  "'Inter',-apple-system,sans-serif",
             }}
             onClick={e => e.stopPropagation()}
           >

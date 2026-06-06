@@ -836,7 +836,7 @@ const YouDoResultScreen = ({
       position: 'fixed', 
       inset: 0, 
       background: T.pageBg, 
-      fontFamily: "'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,sans-serif", 
+      fontFamily: "'Inter',-apple-system,BlinkMacSystemFont,sans-serif", 
       display: 'flex', 
       flexDirection: 'column', 
       overflow: 'hidden',
@@ -1932,7 +1932,7 @@ const StudentTestYourSkillsMCQQuestion: React.FC<YouDoMCQProps> = ({
         const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
         const entityTypeToPath: Record<string, string> = { topic: 'topics', subtopic: 'subtopics', submodule: 'submodules', module: 'modules' };
         const path = entityTypeToPath[nodeType] || 'topics';
-        const res = await fetch(`https://lms-server-ym1q.onrender.com/you-do/getAllQuestions/${path}/${nodeId}/you-do`, {
+        const res = await fetch(`http://localhost:5533/you-do/getAllQuestions/${path}/${nodeId}/you-do`, {
           headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -1980,7 +1980,7 @@ const StudentTestYourSkillsMCQQuestion: React.FC<YouDoMCQProps> = ({
   }
   if (questions.length === 0) {
     return (
-      <div style={{ minHeight: '100vh', background: T.pageBg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, fontFamily: "'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,sans-serif" }}>
+      <div style={{ minHeight: '100vh', background: T.pageBg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, fontFamily: "'Inter',-apple-system,BlinkMacSystemFont,sans-serif" }}>
         <div style={{ textAlign: 'center', maxWidth: 320 }}>
           <AlertCircle size={40} style={{ color: T.amber, marginBottom: 16 }} />
           <h2 style={{ fontSize: 20, fontWeight: 800, color: T.textMain, marginBottom: 8 }}>No Questions Found</h2>
@@ -2006,7 +2006,7 @@ const StudentTestYourSkillsMCQQuestion: React.FC<YouDoMCQProps> = ({
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: T.pageBg, fontFamily: "'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,sans-serif", color: T.textMain, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div style={{ position: 'fixed', inset: 0, background: T.pageBg, fontFamily: "'Inter',-apple-system,BlinkMacSystemFont,sans-serif", color: T.textMain, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
         *{box-sizing:border-box;}

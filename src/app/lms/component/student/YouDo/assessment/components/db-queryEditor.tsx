@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useExamLiveEmitter } from "./useExamLiveEmitter"
 import ScreenShareGuard from "./ScreenShareGuard"
-import StudentMessageChat from "./StudentMessageChat"
+import TestMessageBell from "./TestMessageBell"
 import {
     Play, RotateCcw, CheckCircle, X, Search, AlertTriangle,
     XCircle, ArrowLeft, Plus, RefreshCw, History, ChevronLeft,
@@ -2612,7 +2612,7 @@ export default function DBQueryEditorPage({
             toast.error(`${reason} — assessment locked.`, { toastId: 'sql-face-term' });
             try {
                 const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
-                await fetch('https://lms-server-ym1q.onrender.com/exercise/lock', {
+                await fetch('http://localhost:5533/exercise/lock', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                     body: JSON.stringify({
@@ -3103,7 +3103,7 @@ export default function DBQueryEditorPage({
             }
 
             const response = await axios.post(
-                'https://lms-server-ym1q.onrender.com/courses/answers/submit-multiple-files',
+                'http://localhost:5533/courses/answers/submit-multiple-files',
                 payload,
                 {
                     headers: {
@@ -3181,7 +3181,7 @@ export default function DBQueryEditorPage({
             }
 
             const response = await fetch(
-                `https://lms-server-ym1q.onrender.com/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseData._id}&questionId=${currentQuestion._id}&category=${category}`,
+                `http://localhost:5533/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseData._id}&questionId=${currentQuestion._id}&category=${category}`,
                 {
                     headers: {
                         'Authorization': `Bearer ${token}`,
@@ -3275,7 +3275,7 @@ export default function DBQueryEditorPage({
             }
 
             const response = await fetch(
-                `https://lms-server-ym1q.onrender.com/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseData._id}&questionId=${currentQuestion._id}&category=${category}`,
+                `http://localhost:5533/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseData._id}&questionId=${currentQuestion._id}&category=${category}`,
                 {
                     headers: {
                         'Authorization': `Bearer ${token}`,
@@ -3513,10 +3513,7 @@ export default function DBQueryEditorPage({
                 waitForSharedStream={!!securityConfig.screenRecordingEnabled}
             />
 
-            {/* ── Proctor → student messaging (floating chat) ── */}
-            {!embedded && (
-                <StudentMessageChat assessmentId={exerciseData?._id ? String(exerciseData._id) : ""} />
-            )}
+            {/* Proctor → student messaging is now a header bell (see Top Navigation Bar). */}
 
             {/* Top Navigation Bar */}
             <div className={`flex items-center justify-between px-3 py-2 border-b transition-colors ${currentTheme === 'dark'
@@ -3594,6 +3591,10 @@ export default function DBQueryEditorPage({
                 </div>
 
                 <div className="flex items-center gap-2">
+                    {/* Proctor message notification (ephemeral, test-only) — standalone only */}
+                    {!embedded && (
+                        <TestMessageBell assessmentId={exerciseData?._id ? String(exerciseData._id) : ""} />
+                    )}
                     <button
                         onClick={loadPreviousSubmission}
                         disabled={isLoadingPrevious}

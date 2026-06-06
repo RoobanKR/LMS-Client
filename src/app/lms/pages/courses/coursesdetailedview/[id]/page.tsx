@@ -68,12 +68,17 @@ import {
 import { fetchAllPedagogyViews, fetchPedagogyViewById } from '../.../../../../../../../apiServices/pedagogyAndModuleAdd/pedagogy';
 import StudentTestYourSkillsMCQQuestion from "@/app/lms/component/student/YouDo/testYourSkillMcqquestion"
 import { Loading } from "@/components/loading-ui/loading"
+import { useCourseDetailQuery } from "@/queries/courses"
+import { useQueryClient } from "@tanstack/react-query"
+import { queryKeys } from "@/lib/queryKeys"
 
 export default function LMSPage() {
   const params = useParams()
   const router = useRouter()
   const { resolvedTheme } = useNextTheme()
   const courseId = params?.id as string
+  const queryClient = useQueryClient()
+  const courseDetailQuery = useCourseDetailQuery(courseId)
   const save = (k: string, v: string) => { if (typeof window !== 'undefined') localStorage.setItem(k, v) }
   const load = (k: string) => { if (typeof window !== 'undefined') return localStorage.getItem(k); return null }
 
@@ -121,6 +126,9 @@ export default function LMSPage() {
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false)
   const canToggleHeader = activeTab !== "Overview"
 const sortDropdownRef = useRef<HTMLDivElement>(null)
+// True while we're restoring node+tab+activity after returning from an exercise,
+// so the full-screen loader stays up until the whole view is in place.
+const isRestoringRef = useRef(false)
 const [showTestComponent, setShowTestComponent] = useState(false);
 const [testQuestions, setTestQuestions] = useState<any[]>([]);
 const [testConfig, setTestConfig] = useState<any>(null);
@@ -290,26 +298,35 @@ useEffect(() => {
     }
   }, [courseData?.courseDescription])
 
-  // Fetch student progress on page load
+  // Fetch student progress on page load — cached so re-visits hit cache.
+  const progressUserIdRef = useRef<string | null>(null)
   useEffect(() => {
-    const loadStudentProgress = async () => {
-      if (!courseId) return;
-
-      const userId = getCurrentUserId();
-      if (!userId) {
-        console.warn('No user ID found, cannot load progress');
-        return;
-      }
-
-      const progress = await fetchStudentProgress(userId, courseId);
-      if (progress) {
-        setStudentProgress(progress);
-        console.log('📊 Student progress loaded:', progress);
-      }
-    };
-
-    loadStudentProgress();
-  }, [courseId]);
+    if (!courseId) return
+    const userId = getCurrentUserId()
+    progressUserIdRef.current = userId
+    if (!userId) {
+      console.warn('No user ID found, cannot load progress')
+      return
+    }
+    const cacheKey = queryKeys.progress.forUserCourse(userId, courseId)
+    const cached = queryClient.getQueryData<StudentProgress | null>(cacheKey)
+    if (cached) {
+      setStudentProgress(cached)
+      return
+    }
+    queryClient
+      .fetchQuery({
+        queryKey: cacheKey,
+        queryFn: () => fetchStudentProgress(userId, courseId),
+        staleTime: 3 * 60 * 1000,
+      })
+      .then((progress) => {
+        if (progress) {
+          setStudentProgress(progress as StudentProgress)
+        }
+      })
+      .catch((e) => { console.error('Progress fetch failed:', e) })
+  }, [courseId, queryClient])
 
   // ── Pedagogy counter helpers ──────────────────────────────────────────────
   const countPedActivities = (pedagogy: any, method: "I_Do" | "We_Do" | "You_Do"): number => {
@@ -354,46 +371,38 @@ useEffect(() => {
     return buildHoursMap([pedagogyViewData], courseId)
   }, [pedagogyViewData, courseId])
 
-  // Add this useEffect to fetch pedagogy view data
+  // Fetch pedagogy view data through the cache so repeat visits are instant.
   useEffect(() => {
-    const fetchPedagogyView = async () => {
-      if (!courseId) return;
-
-      try {
-        console.log('=== Fetching Pedagogy View ===');
-        console.log('Looking for pedagogy view with courses:', courseId);
-
-        // Fetch all pedagogy views
-        const allViews = await fetchAllPedagogyViews();
-
-        // Find the one that matches this course
-        const matchingView = allViews.find(view => {
-          // Handle both string and ObjectId formats
-          const viewCourseId = typeof view.courses === 'string'
-            ? view.courses
-            : view.courses?.toString();
-          return viewCourseId === courseId;
-        });
-
-        if (matchingView) {
-          console.log('✅ Found pedagogy view:', matchingView._id);
-
-          // Fetch detailed data
-          const detailedView = await fetchPedagogyViewById(matchingView._id);
-          setPedagogyViewData(detailedView);
-
-          console.log('=== Pedagogy View Data ===');
-          console.log('Total pedagogy entries:', detailedView.pedagogies?.length);
-        } else {
-          console.log('⚠️ No pedagogy view found for this course');
-        }
-      } catch (error) {
-        console.error('Error:', error);
-      }
-    };
-
-    fetchPedagogyView();
-  }, [courseId]);
+    if (!courseId) return
+    let cancelled = false
+    const cacheKey = queryKeys.pedagogy.viewForCourse(courseId)
+    const cached = queryClient.getQueryData<any>(cacheKey)
+    if (cached) {
+      setPedagogyViewData(cached)
+      return () => { cancelled = true }
+    }
+    queryClient
+      .fetchQuery({
+        queryKey: cacheKey,
+        staleTime: 3 * 60 * 1000,
+        queryFn: async () => {
+          const allViews = await fetchAllPedagogyViews()
+          const match = allViews.find(view => {
+            const viewCourseId = typeof view.courses === 'string'
+              ? view.courses
+              : (view.courses as any)?.toString()
+            return viewCourseId === courseId
+          })
+          if (!match) return null
+          return await fetchPedagogyViewById(match._id)
+        },
+      })
+      .then((detailedView) => {
+        if (!cancelled && detailedView) setPedagogyViewData(detailedView)
+      })
+      .catch((e) => { console.error('Pedagogy view fetch failed:', e) })
+    return () => { cancelled = true }
+  }, [courseId, queryClient])
 
   // ── FIXED: Find description for any node (module, submodule, topic, subtopic) ──
   const findNodeDescription = useCallback((nodeId: string): string | null => {
@@ -621,12 +630,13 @@ const subcategories = useMemo(() => {
   }
   const openViewer = (type: "video" | "pdf" | "ppt" | "zip" | "image" | "word", resource: Resource) => setActiveViewer({ type, resource })
 
+  // Invalidate this course's cache (and the legacy ["course", id] cache used by
+  // sibling features) so the next render reflects fresh server state.
   const refreshCourseData = useCallback(() => {
     if (!courseId) return
-    fetch(`https://lms-server-ym1q.onrender.com/getAll/courses-data/${courseId}`)
-      .then(r => r.json()).then(d => { setCourseData(d.data || d) })
-      .catch(() => { })
-  }, [courseId])
+    queryClient.invalidateQueries({ queryKey: queryKeys.courses.detail(courseId) })
+    queryClient.invalidateQueries({ queryKey: ["course", courseId] })
+  }, [courseId, queryClient])
 
   // Show the "submitted successfully" toast handed over by the exam page after
   // it redirected back here (survives the navigation reliably via sessionStorage).
@@ -637,18 +647,27 @@ const subcategories = useMemo(() => {
     } catch { /* ignore */ }
   }, [])
 
+  // Bridge useQuery → existing local state model. The TanStack cache is the
+  // source of network truth; courseData is the rendering source the tree below
+  // already binds to. This avoids touching the deep tree wiring.
   useEffect(() => {
     if (!courseId) { setError("No course ID."); setIsLoading(false); return }
-    fetch(`https://lms-server-ym1q.onrender.com/getAll/courses-data/${courseId}`)
-      .then(r => r.json()).then(d => {
-        const info = d.data || d
-        setCourseData(info)
-        if (!load('lms_student_selected_node_id')) {
-          setIsLoading(false)
-          if (info.modules?.length > 0) setExpandedModules(new Set([info.modules[0]._id]))
-        }
-      }).catch(e => { setError(e.message || "Error"); setIsLoading(false) })
-  }, [courseId])
+    if (courseDetailQuery.error) {
+      const e = courseDetailQuery.error as { message?: string }
+      setError(e.message || "Error")
+      setIsLoading(false)
+      return
+    }
+    const payload = courseDetailQuery.data
+    if (!payload) return
+    const info = (payload.data ?? payload) as CourseData
+    setCourseData(info)
+    const hasRestore = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('restoreNodeId')
+    if (!hasRestore && !load('lms_student_selected_node_id')) {
+      setIsLoading(false)
+      if (info?.modules?.length && info.modules.length > 0) setExpandedModules(prev => prev.size === 0 ? new Set([info.modules![0]._id]) : prev)
+    }
+  }, [courseId, courseDetailQuery.data, courseDetailQuery.error])
 
   const getStudentAnswers = useCallback((): Record<string, any> | undefined => {
     if (!courseData?.singleParticipants || !Array.isArray(courseData.singleParticipants)) return undefined
@@ -803,7 +822,9 @@ const subcategories = useMemo(() => {
 
   useEffect(() => {
     if (!courseData?.modules) return
-    if (selectedItem) { setIsLoading(false); return }
+    // While a restore is in flight, keep the loader up; restore() turns it off
+    // once the tab + activity are applied (otherwise this would flash early).
+    if (selectedItem) { if (!isRestoringRef.current) setIsLoading(false); return }
 
     // Restore the EXACT node + method + activity ONLY when returning from an
     // exercise (the exam page sends ?restoreNodeId/method/activity). Normal
@@ -814,10 +835,14 @@ const subcategories = useMemo(() => {
     const sa = restoreParams.get('activity')  // e.g. 'Assignments'
     if (nid) {
       const restore = (id: string, title: string, type: SelectedItemType, hier: string[], ped?: any) => {
+        isRestoringRef.current = true
         handleItemSelect(id, title, type, hier, ped)
         // handleItemSelect clears method/activity when the node changes, so set
         // them just after, to re-open the same tab + activity (the exercises list).
-        if (sm && sa) setTimeout(() => { setSelectedMethod(sm); setSelectedActivity(sa) }, 120)
+        // Keep the full-screen loader up until the tab + activity are applied so
+        // the user doesn't see the page flash through Overview → node → We Do.
+        if (sm && sa) setTimeout(() => { setSelectedMethod(sm); setSelectedActivity(sa); isRestoringRef.current = false; setIsLoading(false) }, 150)
+        else setTimeout(() => { isRestoringRef.current = false; setIsLoading(false) }, 150)
       }
       const walk = (modules: any[]): boolean => {
         for (const m of modules) {
@@ -836,9 +861,12 @@ const subcategories = useMemo(() => {
         }
         return false
       }
-      walk(courseData.modules as any)
+      const found = walk(courseData.modules as any)
       // Strip the restore params so a manual refresh doesn't re-trigger this.
       router.replace(`/lms/pages/courses/coursesdetailedview/${courseId}`)
+      // When a node was found, the restore() helper turns off the loader after
+      // the tab + activity are applied. If nothing matched, fall through below.
+      if (found) return
     }
     setIsLoading(false)
   }, [courseData, handleItemSelect, selectedItem])
@@ -1203,8 +1231,8 @@ const getExercisesForActivity = (): any[] => {
       router.push(`/lms/pages/courses/coursesdetailedview/${prefix}${path}?${new URLSearchParams({ courseId, courseName: cname, exerciseId: eid || '', subcategory: selectedActivity || '', category: catP, questionCount: qs.length.toString(), ...extra })}`)
     }
 
-    if (exercise.exerciseType === "Combined") nav('combined', 'currentCombinedExercise', { exerciseName: exercise.exerciseInformation?.exerciseName || 'Combined Exercise' })
-    else if (exercise.programmingSettings?.selectedModule === 'Frontend') nav('frontend', 'currentFrontendExercise', { exerciseName: exercise.exerciseInformation?.exerciseName || 'Frontend Exercise', hierarchy: currentHierarchy.toString() })
+    if (exercise.exerciseType === "Combined") nav('combined', 'currentCombinedExercise', { exerciseName: exercise.exerciseInformation?.exerciseName || 'Combined Exercise', nodeId: selectedItem?.id || '', nodeName: selectedItem?.title || '', nodeType: selectedItem?.type || '', hierarchy: currentHierarchy.join(',') })
+    else if (exercise.programmingSettings?.selectedModule === 'Frontend') nav('frontend', 'currentFrontendExercise', { exerciseName: exercise.exerciseInformation?.exerciseName || 'Frontend Exercise', nodeId: selectedItem?.id || '', nodeName: selectedItem?.title || '', nodeType: selectedItem?.type || '', hierarchy: currentHierarchy.join(',') })
     else if (exercise.programmingSettings?.selectedModule === 'Database') { toast.info("Opening SQL Exercise...", { autoClose: 2000 }); nav('sql', 'currentSQLExercise', { exerciseName: exercise.exerciseInformation?.exerciseName || 'SQL Exercise' }) }
     else if (exercise.exerciseType === "MCQ") nav('mcq', 'currentMCQExercise', { exerciseName: exercise.exerciseInformation?.exerciseName || 'MCQ Exercise', nodeId: selectedItem?.id || '', nodeName: selectedItem?.title || '', nodeType: selectedItem?.type || '', hierarchy: currentHierarchy.join(',') })
     else if (exercise.exerciseType === "Other") nav('others', 'currentOthersExercise', { exerciseName: exercise.exerciseInformation?.exerciseName || 'Other Exercise', nodeId: selectedItem?.id || '', nodeName: selectedItem?.title || '', nodeType: selectedItem?.type || '', hierarchy: currentHierarchy.join(',') })
@@ -1224,7 +1252,7 @@ const getExercisesForActivity = (): any[] => {
         setExerciseResetProgress(options?.resetProgress ?? false)
         try {
           const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || ''
-          const res = await fetch(`https://lms-server-ym1q.onrender.com/exercise/${exercise._id}`, {
+          const res = await fetch(`http://localhost:5533/exercise/${exercise._id}`, {
             headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
           })
           if (res.ok) {
@@ -2443,7 +2471,7 @@ const getExercisesForActivity = (): any[] => {
                         style={{
                           borderBottom: '1px solid #eef0f4',
                           background: '#fafafb',
-                          fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
+                          fontFamily: "'Inter', -apple-system, sans-serif",
                         }}
                       >
                         {/* Root crumb = subcategory */}

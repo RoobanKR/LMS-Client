@@ -30,6 +30,8 @@ import {
   Hash,
   Plus,
   Minus,
+  Layout,
+  Database,
 } from 'lucide-react';
 import { Question, MCQOption, MatchingPair, OrderingItem } from '@/apiServices/type/question';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -78,12 +80,22 @@ const QuestionList: React.FC<QuestionListProps> = ({
     return styles[key] || 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300';
   };
 
+  // Case-insensitive MCQ check — handles both new ('mcq') and legacy ('MCQ') data.
+  const isMcqQuestion = (question: Question) => (question.questionType || '').toLowerCase() === 'mcq';
+
   // Get question type icon and label
   const getQuestionTypeInfo = (question: Question) => {
-    if (question.questionType === 'Programming') {
+    const qt = (question.questionType || '').toLowerCase();
+    if (qt === 'frontend') {
+      return { icon: <Layout size={10} />, label: 'Frontend', color: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300' };
+    }
+    if (qt === 'database') {
+      return { icon: <Database size={10} />, label: 'Database', color: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300' };
+    }
+    if (qt === 'programming') {
       return { icon: <Hash size={10} />, label: 'Programming', color: 'bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-300' };
     }
-    
+
     const mcqType = question.mcqQuestionType;
     switch (mcqType) {
       case 'multiple_choice':
@@ -111,7 +123,7 @@ const QuestionList: React.FC<QuestionListProps> = ({
 
   // Helper function to get the plain text from mcqQuestionTitle
   const getQuestionTitleText = (question: Question): string => {
-    if (question.questionType === 'Programming') {
+    if (!isMcqQuestion(question)) {
       return question.title || 'Untitled Programming Question';
     }
     
@@ -129,7 +141,7 @@ const QuestionList: React.FC<QuestionListProps> = ({
 
   // Helper function to get HTML content (for rendering with dangerouslySetInnerHTML)
   const getQuestionTitleHtml = (question: Question): string => {
-    if (question.questionType === 'Programming') {
+    if (!isMcqQuestion(question)) {
       return question.title || 'Untitled Programming Question';
     }
     
@@ -145,7 +157,7 @@ const QuestionList: React.FC<QuestionListProps> = ({
 
   // Helper function to get question image URL
   const getQuestionImageUrl = (question: Question): string | null => {
-    if (question.questionType !== 'MCQ') return null;
+    if (!isMcqQuestion(question)) return null;
     
     if (question.mcqQuestionTitle && typeof question.mcqQuestionTitle === 'object') {
       return question.mcqQuestionTitle.imageUrl || null;
@@ -156,7 +168,7 @@ const QuestionList: React.FC<QuestionListProps> = ({
 
   // Helper function to get question image alignment
   const getQuestionImageAlignment = (question: Question): 'left' | 'center' | 'right' => {
-    if (question.questionType !== 'MCQ') return 'center';
+    if (!isMcqQuestion(question)) return 'center';
     
     if (question.mcqQuestionTitle && typeof question.mcqQuestionTitle === 'object') {
       return question.mcqQuestionTitle.imageAlignment || 'center';
@@ -167,7 +179,7 @@ const QuestionList: React.FC<QuestionListProps> = ({
 
   // Helper function to get question image size
   const getQuestionImageSize = (question: Question): number => {
-    if (question.questionType !== 'MCQ') return 60;
+    if (!isMcqQuestion(question)) return 60;
     
     if (question.mcqQuestionTitle && typeof question.mcqQuestionTitle === 'object') {
       return question.mcqQuestionTitle.imageSizePercent || 60;
@@ -178,7 +190,7 @@ const QuestionList: React.FC<QuestionListProps> = ({
 
   // Helper function to get description text
   const getDescriptionText = (question: Question): string => {
-    if (question.questionType === 'Programming') {
+    if (!isMcqQuestion(question)) {
       return question.description || '';
     }
     
@@ -194,7 +206,7 @@ const QuestionList: React.FC<QuestionListProps> = ({
 
   // Helper function to get explanation HTML
   const getExplanationHtml = (question: Question): string => {
-    if (question.questionType === 'Programming') {
+    if (!isMcqQuestion(question)) {
       return '';
     }
     
@@ -452,7 +464,7 @@ const QuestionList: React.FC<QuestionListProps> = ({
 
       <div className="space-y-1.5">
         {questions.map((q, idx) => {
-          const isMCQ = q.questionType === 'MCQ';
+          const isMCQ = isMcqQuestion(q);
           const typeInfo = getQuestionTypeInfo(q);
           
           // Get the correct title using the helper functions

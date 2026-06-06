@@ -50,7 +50,7 @@ const injectFonts = (() => {
         --lms-radius-sm:     8px;
         --lms-radius-md:     10px;
         --lms-radius-lg:     14px;
-        --lms-font:          'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+        --lms-font:          'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
         --lms-shadow-sm:     0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
         --lms-shadow-md:     0 4px 14px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.04);
       }
@@ -583,6 +583,10 @@ interface MCQQuestionFormProps {
   breadcrumbs: any; exerciseData: any; tabType: string;
   initialData?: any; isEditing?: boolean;
   initialQuestionId?: string;          // ← ADD THIS
+  // Bank-flow input: when the user picks questions from the Question Bank,
+  // each is pre-loaded as a NEW (origin: 'new') block so the teacher reviews
+  // and Save & Continues — nothing is silently inserted or skipped.
+  initialBankQuestions?: any[];
   onClose: () => void; onSave: (questionData: any) => void;
   isSaving?: boolean; saveProgress?: number; saveMessage?: string;
   onEditExercise?: () => void;
@@ -1321,7 +1325,7 @@ const ImageUploadModal: React.FC<{
       const token = localStorage.getItem('smartcliff_token');
       const fd = new FormData();
       fd.append('image', file);
-      const res = await fetch('https://lms-server-ym1q.onrender.com/upload/question-image', {
+      const res = await fetch('http://localhost:5533/upload/question-image', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: fd,
@@ -3302,6 +3306,7 @@ const CodeBlock: React.FC<{
 const MCQQuestionForm: React.FC<MCQQuestionFormProps> = ({
   breadcrumbs, exerciseData, tabType, initialData, isEditing = false,
   initialQuestionId,
+  initialBankQuestions,
   onClose, onSave, isSaving = false, saveProgress, saveMessage,
   onEditExercise,
   sectionData,
@@ -3323,6 +3328,12 @@ const MCQQuestionForm: React.FC<MCQQuestionFormProps> = ({
   const [isSavingNext, setIsSavingNext] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(() => {
     if (isEditing) return 0;
+    // Bank flow: questionBlocks initially holds ONLY the bank-selected blocks
+    // (DB blocks get prepended by fetchExercise later, at which point that
+    // effect re-points currentIndex to dbBlocks.length so the first bank
+    // question stays visible). Start at 0 so the first bank question shows
+    // immediately on open.
+    if (initialBankQuestions && initialBankQuestions.length > 0) return 0;
     const cached = exerciseData?.fullExerciseData?.questions;
     if (!cached?.length) return 0;
     // point straight to the new empty block slot from the very first render
@@ -3445,16 +3456,36 @@ const buildBlockFromDbQuestion = (q: any): QuestionBlock => {
       shortAnswerValue = q.shortAnswer;
     }
   }
-  
+
+  // Normalize mcqQuestionTitle to a string regardless of how the source
+  // (DB / Question Bank / legacy payload) stored it. Bank rows in particular
+  // sometimes ship `{ text: '…' }` or `{ value: '…' }`, which broke
+  // .replace(...) when the old code used `(q.mcqQuestionTitle || '')` directly.
+  const titleRaw: any = q.mcqQuestionTitle;
+  const titleAsString = (() => {
+    if (typeof titleRaw === 'string') return titleRaw;
+    if (Array.isArray(titleRaw)) {
+      return titleRaw
+        .filter((cb: any) => cb && cb.type === 'text')
+        .map((cb: any) => String(cb.value ?? ''))
+        .join(' ');
+    }
+    if (titleRaw && typeof titleRaw === 'object') {
+      const fromKnown = titleRaw.text ?? titleRaw.value ?? titleRaw.title;
+      if (typeof fromKnown === 'string') return fromKnown;
+    }
+    return '';
+  })();
+
   return {
     ...makeDefaultBlock(id), id, dbId: q._id, origin: 'db', isDirty: false,
     type: mapApiTypeToInternal(q.mcqQuestionType || 'multiple_choice'),
-    questionText: Array.isArray(q.mcqQuestionTitle)
-      ? q.mcqQuestionTitle.filter((cb: any) => cb.type === 'text').map((cb: any) => cb.value || '').join(' ')
-      : (q.mcqQuestionTitle || ''),
-    title: Array.isArray(q.mcqQuestionTitle)
-      ? q.mcqQuestionTitle.filter((cb: any) => cb.type === 'text').map((cb: any) => (cb.value || '').replace(/<[^>]*>/g, '').trim()).filter(Boolean).join(' ') || 'Untitled Question'
-      : (q.mcqQuestionTitle || '').replace(/<[^>]*>/g, '').trim() || 'Untitled Question',
+    questionText: Array.isArray(titleRaw)
+      ? titleRaw.filter((cb: any) => cb && cb.type === 'text').map((cb: any) => String(cb.value ?? '')).join(' ')
+      : titleAsString,
+    title: Array.isArray(titleRaw)
+      ? titleRaw.filter((cb: any) => cb && cb.type === 'text').map((cb: any) => String(cb.value ?? '').replace(/<[^>]*>/g, '').trim()).filter(Boolean).join(' ') || 'Untitled Question'
+      : titleAsString.replace(/<[^>]*>/g, '').trim() || 'Untitled Question',
     options: (q.mcqQuestionOptions || []).length > 0
       ? q.mcqQuestionOptions.map((o: any, oi: number) => ({
         id: o._id || `opt-${id}-${oi}`, text: o.text || '', isCorrect: o.isCorrect || false,
@@ -3474,10 +3505,14 @@ const buildBlockFromDbQuestion = (q: any): QuestionBlock => {
     questionImageUrl: q.mcqQuestionImageUrl || q.questionImage || q.imageUrl || '',
     questionContent: (() => {
       try {
-        const t = q.mcqQuestionTitle;
+        const t = titleRaw;
         if (Array.isArray(t)) return t;
         if (typeof t === 'string' && t.trim()) {
           return [{ id: generateId('cb-text'), type: 'text' as const, value: t }];
+        }
+        // Object-shaped title (e.g. { text: '…' }) — use the normalized string.
+        if (titleAsString.trim()) {
+          return [{ id: generateId('cb-text'), type: 'text' as const, value: titleAsString }];
         }
         return [{ id: generateId('cb-text'), type: 'text' as const, value: '' }];
       } catch {
@@ -3513,9 +3548,33 @@ const buildBlockFromDbQuestion = (q: any): QuestionBlock => {
     },
     [currentSectionId, currentSectionName]
   );
+  // Map a Question Bank record → editable QuestionBlock. Bank questions use
+  // the same `mcq*` field names as DB questions, so we reuse the DB mapper
+  // then overwrite origin/dbId so the save flow treats each as a NEW question
+  // (POST, not PUT) — critical so nothing collides with the bank's source row.
+  const buildBlockFromBankQuestion = (q: any): QuestionBlock => {
+    const dbShaped = buildBlockFromDbQuestion(q);
+    return {
+      ...dbShaped,
+      id: generateId('block-bank'),
+      dbId: undefined,
+      origin: 'new',
+      isDirty: true,
+    };
+  };
+
   const [questionBlocks, setQuestionBlocks] = useState<QuestionBlock[]>(() => {
     // When editing, start empty — fetchExercise will populate from DB
     if (isEditing) return [];
+
+    // Bank flow: pre-load every selected question as a new editable block so
+    // the teacher can review and Save & Continue without losing any of them.
+    if (initialBankQuestions && initialBankQuestions.length > 0) {
+      return initialBankQuestions.map((q, i) => {
+        const block = buildBlockFromBankQuestion(q);
+        return { ...block, sequence: i };
+      });
+    }
 
     if (initialData) {
       const arr = Array.isArray(initialData) ? initialData : [initialData];
@@ -3614,6 +3673,16 @@ const buildBlockFromDbQuestion = (q: any): QuestionBlock => {
   }, [exerciseDbId]);
 
   useEffect(() => {
+    // Skip the localStorage hydration when bank questions are being reviewed —
+    // a stale draft from a previous session would silently overwrite the
+    // freshly-selected bank questions and the user would see an empty form
+    // (the bug we're fixing). The bank-selected blocks are the authoritative
+    // source for this flow.
+    const hasBankSelection = !!(initialBankQuestions && initialBankQuestions.length > 0);
+    if (hasBankSelection) {
+      setHasLoadedFromStorage(true);
+      return;
+    }
     if (!isEditing && exerciseData?.id && !hasLoadedFromStorage) {
       const key = getStorageKey(exerciseData.id);
       if (key) {
@@ -3632,7 +3701,7 @@ const buildBlockFromDbQuestion = (q: any): QuestionBlock => {
       }
       setHasLoadedFromStorage(true);
     }
-  }, [isEditing, exerciseData?.id, hasLoadedFromStorage]);
+  }, [isEditing, exerciseData?.id, hasLoadedFromStorage, initialBankQuestions]);
 
   useEffect(() => {
     if (!isEditing && exerciseData?.id && hasLoadedFromStorage) {

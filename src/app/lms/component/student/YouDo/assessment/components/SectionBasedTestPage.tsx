@@ -8,7 +8,7 @@ import {
 } from "lucide-react"
 
 import CodeEditor from "./code-editor"
-import StudentMessageChat from "./StudentMessageChat"
+import TestMessageBell from "./TestMessageBell"
 import DbQueryEditor from "./db-queryEditor"
 import FrontendCompiler from "./frontendCompiler"
 import ScreenShareGuard from "./ScreenShareGuard"
@@ -428,7 +428,7 @@ export default function SectionBasedTestPage({
       fd.append("submitType",       _secAuto ? "AUTO" : "USER")
       fd.append("autoSubmitReason", _secAuto || "")
 
-      const res = await fetch("https://lms-server-ym1q.onrender.com/courses/answers/submit", {
+      const res = await fetch("http://localhost:5533/courses/answers/submit", {
         method:  "POST",
         headers: { "Authorization": `Bearer ${token}` },
         body:    fd,
@@ -909,8 +909,7 @@ export default function SectionBasedTestPage({
         waitForSharedStream={!!securityConfig.screenRecordingEnabled}
       />
 
-      {/* ── Proctor → student messaging (floating chat) ── */}
-      <StudentMessageChat assessmentId={exercise?._id ? String(exercise._id) : ""} />
+      {/* Proctor → student messaging is now a header bell (see COMPACT HEADER). */}
 
       {/* ── COMPACT HEADER ── */}
       <div style={{
@@ -981,6 +980,9 @@ export default function SectionBasedTestPage({
 
         {/* Right: progress pill + timer + next-section + submit + exit */}
         <div style={{ display:"flex", alignItems:"center", gap:5, flex:"0 0 auto" }}>
+
+          {/* Proctor message notification (ephemeral, test-only) */}
+          <TestMessageBell assessmentId={exercise?._id ? String(exercise._id) : ""} />
 
           {/* answered / total pill */}
           {totalForSection > 0 && (
