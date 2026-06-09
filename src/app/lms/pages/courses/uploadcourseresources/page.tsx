@@ -30,6 +30,11 @@ import {
   type CourseStructureData, type Module, type SubModule,
   type Topic, type SubTopic, updateFileSettingsInComponent,
 } from "@/apiServices/coursesData";
+// Used during the restore-from-liveDashboard flow: the parent subscribes to
+// the same YouDo exercises query that Assessment.tsx consumes so the full-
+// page overlay stays up until the assessment rows are ready to paint.
+import { useYouDoExercises } from "@/apiServices/hooks/useYouDoExercises";
+import type { EntityType } from "@/apiServices/exercise";
 import { useUploadResourceMutation } from "@/queries/courses";
 import { queryKeys } from "@/lib/queryKeys";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -655,8 +660,14 @@ export default function DynamicLMSCoordinator() {
   const { isDark, toggleDark } = useDarkMode();
   const searchParams = useSearchParams();
   const courseId = searchParams.get("courseId");
+  // Switched from `courseDataApi.getById` (heavy: pulls `singleParticipants`
+  // + every node's pedagogy) to `courseDataApi.getLight` (tree skeleton +
+  // course meta only). Per-node pedagogy now loads on demand inside
+  // `fetchAndRefresh` via `courseDataApi.getNodePedagogy`. The heavy route
+  // stays untouched for callers that actually need it (reviewSubmission,
+  // dashboard marks computation).
   const { data: courseStructureResponse, isLoading: isCourseStructureLoading, isFetching: isCourseStructureFetching } = useQuery({
-    ...courseDataApi.getById(courseId || ""),
+    ...courseDataApi.getLight(courseId || ""),
     enabled: !!courseId,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
@@ -685,7 +696,14 @@ export default function DynamicLMSCoordinator() {
   const [sidebarWidth, setSidebarWidth] = useState(280);
   const [isResizing, setIsResizing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [isRestoringFromAnalytics, setIsRestoringFromAnalytics] = useState(false);
+  // NOTE: previously this was a state flag set true → 300 ms timeout → false to
+  // guard the auto-select effect while we restored selection from localStorage.
+  // It caused two real perf bugs: (a) a guaranteed 300 ms delay on every back
+  // navigation from analytics/liveDashboard, and (b) because the fetchAndRefresh
+  // effect's dep array doesn't include the flag, when the timeout cleared the
+  // flag the fetch never re-ran — leaving the page stuck on the loader. We now
+  // use the synchronous `hasAutoSelected` ref + a URL check inside auto-select
+  // to coordinate the two effects without any artificial wait.
   const [currentPPTFileId, setCurrentPPTFileId] = useState("");
   const [currentVideoFileId, setCurrentVideoFileId] = useState("");
   const [currentPDFFileId, setCurrentPDFFileId] = useState("");
@@ -849,14 +867,68 @@ export default function DynamicLMSCoordinator() {
   const lastFetchedDataRef = useRef<string>("");
   const initialDataLoadedRef = useRef(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
-  const [isNodeSelected, setIsNodeSelected] = useState(false);
+  // When we land here via the liveDashboard / analytics back path
+  // (`?fromAnalytics=true`), we know up-front that we're going to restore a
+  // node from localStorage. Seed both flags to true so the very first render
+  // shows the loader — not the "Welcome to Your Course" card — instead of
+  // briefly flashing welcome before the fromAnalytics effect can run.
+  const isFromAnalyticsMount = typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("fromAnalytics") === "true";
+  // Full-page overlay flag for the restore flow. While true we render ONLY
+  // a centered spinner — sidebar + content area stay hidden so the user
+  // doesn't see the staggered "sidebar then spinner then list" sequence.
+  // Cleared when contentData for the restored node arrives (see useEffect
+  // further below).
+  const [isRestoringSelection, setIsRestoringSelection] = useState(isFromAnalyticsMount);
+  const [isNodeSelected, setIsNodeSelected] = useState(isFromAnalyticsMount);
   const [isSidebarLoading, setIsSidebarLoading] = useState(true);
   const [cachedContentData, setCachedContentData] = useState<Record<string, ContentData>>({});
   const [loadingNodes, setLoadingNodes] = useState<Set<string>>(new Set());
   const [referenceDisplayName, setReferenceDisplayName] = useState("Reference Material");
   // Add these state variables with your other state declarations
-  const [isContentLoading, setIsContentLoading] = useState(false);
+  const [isContentLoading, setIsContentLoading] = useState(isFromAnalyticsMount);
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+
+  // ── Parent-side prefetch for the YouDo exercises list during restore ──
+  // When we land here from liveDashboard with `?fromAnalytics=true`, the
+  // user was previously on `You Do → <subcategory>` and wants that list back.
+  // We subscribe to the same React Query key Assessment.tsx will consume, so:
+  //   1. The fetch starts as soon as we know the restored node — it doesn't
+  //      have to wait for CourseContent → Assessment to mount.
+  //   2. The "clear overlay" effect below can gate on this hook's success,
+  //      keeping the single full-page spinner up until the list is actually
+  //      ready (instead of dismissing on pedagogy content and then showing
+  //      Assessment.tsx's own internal "Loading assessments..." spinner).
+  //   3. When Assessment.tsx mounts a moment later it reads cached data and
+  //      paints instantly — no second loader, no flicker.
+  // Only enabled while the overlay is up AND the restored tab is You_Do;
+  // otherwise this is a noop and Assessment.tsx (if rendered) owns its own
+  // fetch lifecycle.
+  const restoreEntityType: EntityType | null = useMemo(() => {
+    if (!selectedNode?.type) return null;
+    switch (selectedNode.type) {
+      case "module": return "modules";
+      case "submodule": return "submodules";
+      case "topic": return "topics";
+      case "subtopic": return "subtopics";
+      default: return null;
+    }
+  }, [selectedNode?.type]);
+
+  const restoreShouldPrefetchExercises =
+    isRestoringSelection && activeTab === "You_Do" && !!restoreEntityType && !!selectedNode?.id && !!activeSubcategory;
+
+  const {
+    isSuccess: isRestoreExercisesSuccess,
+    isError: isRestoreExercisesError,
+    fetchStatus: restoreExercisesFetchStatus,
+  } = useYouDoExercises({
+    entityType: restoreEntityType,
+    entityId: selectedNode?.id ?? null,
+    tabType: "You_Do",
+    subcategory: activeSubcategory || null,
+    enabled: restoreShouldPrefetchExercises,
+  });
 
   // Add these state variables in DynamicLMSCoordinator component
   const [showWordViewer, setShowWordViewer] = useState(false);
@@ -1348,6 +1420,24 @@ const refreshContentData = useCallback(async (node: CourseNode, backendData?: an
   setIsInitialLoad(false);
 }, [processNodeContent]);
 
+  // Walk the in-memory course tree and return a NEW tree with the matching
+  // node's `originalData` replaced. Used after `fetchAndRefresh` lands fresh
+  // pedagogy for one node so the rest of the tree sees the same updated
+  // payload (`findFolderInTree`, breadcrumb lookups, etc.).
+  const patchNodeOriginalDataInTree = (
+    nodes: CourseNode[],
+    targetId: string,
+    nextOriginalData: any,
+  ): CourseNode[] => {
+    return nodes.map((n) => {
+      if (n.id === targetId) {
+        return { ...n, originalData: nextOriginalData };
+      }
+      if (!n.children?.length) return n;
+      return { ...n, children: patchNodeOriginalDataInTree(n.children, targetId, nextOriginalData) };
+    });
+  };
+
   const fetchAndRefresh = useCallback(async (node: CourseNode) => {
     const fetchKey = `${node.id}`;
     if (isFetchingRef.current === fetchKey) return;
@@ -1357,62 +1447,78 @@ const refreshContentData = useCallback(async (node: CourseNode, backendData?: an
     setIsContentLoading(true);
 
     try {
+      // ── Why this got rewritten ──
+      // Previously this called `GET /getAll/courses-data/{courseId}` and
+      // walked the entire returned tree just to find one node's pedagogy.
+      // That endpoint returns the FULL course payload + every student's
+      // submission history → multi-MB response + a heavy
+      // `JSON.stringify`-based diff. We now hit the targeted
+      // `/getAll/courses-data/node-pedagogy/{type}/{id}` endpoint which
+      // returns only this node's pedagogy + testConfiguration. The tree
+      // skeleton lives in the React Query `course-light` cache from the
+      // initial page load — unchanged.
       const BASE_URL = "https://lms-server-ym1q.onrender.com";
       const token = typeof window !== "undefined" ? localStorage.getItem("smartcliff_token") : null;
 
-      const courseRes = await fetch(`${BASE_URL}/getAll/courses-data/${courseId}`, {
-        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      });
+      // Tree node types are `course | module | submodule | topic | subtopic`.
+      // The slim endpoint accepts the last four. A course-level node has no
+      // pedagogy of its own — fall back to re-processing whatever we already
+      // have.
+      const ALLOWED_TYPES = new Set(["module", "submodule", "topic", "subtopic"]);
+      if (!ALLOWED_TYPES.has(node.type)) {
+        await refreshContentData(node);
+        setInitialLoadComplete(true);
+        return;
+      }
 
-      if (!courseRes.ok) {
+      const nodeRes = await fetch(
+        `${BASE_URL}/getAll/courses-data/node-pedagogy/${node.type}/${node.id}`,
+        {
+          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        },
+      );
+
+      if (!nodeRes.ok) {
         await refreshContentData(node);
         return;
       }
 
-      const courseJson = await courseRes.json();
-      if (!courseJson?.data) {
+      const nodeJson = await nodeRes.json();
+      const freshNodeData = nodeJson?.data;
+      if (!freshNodeData) {
         await refreshContentData(node);
         return;
       }
 
-      const findInFresh = (modules: any[]): any | null => {
-        for (const mod of modules) {
-          if (mod._id === node.id) return mod;
-          for (const topic of mod.topics || []) {
-            if (topic._id === node.id) return topic;
-            for (const st of topic.subTopics || []) {
-              if (st._id === node.id) return st;
-            }
-          }
-          for (const sm of mod.subModules || []) {
-            if (sm._id === node.id) return sm;
-            for (const topic of sm.topics || []) {
-              if (topic._id === node.id) return topic;
-              for (const st of topic.subTopics || []) {
-                if (st._id === node.id) return st;
-              }
-            }
-          }
-        }
-        return null;
+      // Merge into existing originalData so we preserve any sibling fields
+      // (counts, dates, etc.) the slim endpoint didn't ship back. Only
+      // pedagogy + testConfiguration are authoritative from this response.
+      const mergedOriginalData = {
+        ...(node.originalData || {}),
+        pedagogy: freshNodeData.pedagogy,
+        ...(freshNodeData.testConfiguration !== undefined
+          ? { testConfiguration: freshNodeData.testConfiguration }
+          : {}),
       };
+      const freshNode: CourseNode = { ...node, originalData: mergedOriginalData };
 
-      const freshNodeData = findInFresh(courseJson.data.modules || []);
-      if (freshNodeData) {
-        const freshNode: CourseNode = { ...node, originalData: freshNodeData };
+      // Cheap pedagogy-only diff. Previously we stringified the entire node
+      // (folders + files + AI notes + …) — orders of magnitude bigger than
+      // just the pedagogy section, and ran on every fetchAndRefresh call
+      // from ~20+ sites. Stringifying only pedagogy keeps the change-detect
+      // accurate without the main-thread stall.
+      const oldPed = JSON.stringify(node.originalData?.pedagogy ?? null);
+      const newPed = JSON.stringify(freshNodeData.pedagogy ?? null);
+      const nodeChanged = oldPed !== newPed;
 
-        const nodeChanged = JSON.stringify(node.originalData) !== JSON.stringify(freshNodeData);
-
-        if (nodeChanged) {
-          const transformed = transformToCourseNodes(courseJson.data);
-          setCourseData(transformed);
-          setSelectedNode(freshNode);
-        }
-
-        await refreshContentData(freshNode);
-      } else {
-        await refreshContentData(node);
+      if (nodeChanged) {
+        setSelectedNode(freshNode);
+        // Patch the same node inside the tree so subsequent lookups via
+        // courseData see the fresh pedagogy too.
+        setCourseData((prev) => patchNodeOriginalDataInTree(prev, node.id, mergedOriginalData));
       }
+
+      await refreshContentData(freshNode);
 
       setInitialLoadComplete(true);
     } catch (err) {
@@ -1422,7 +1528,7 @@ const refreshContentData = useCallback(async (node: CourseNode, backendData?: an
       setIsContentLoading(false);
       isFetchingRef.current = null;
     }
-  }, [courseId, refreshContentData]);
+  }, [refreshContentData]);
 
   const generateBreadcrumbs = useCallback((node: CourseNode | null): BreadcrumbItem[] => {
     const base: BreadcrumbItem[] = [{ label: "Dashboard", type: "dashboard", id: "dashboard", path: "/lms/pages/dashboard" }, { label: "Courses", type: "courses", id: "courses", path: "/lms/pages/courses" }];
@@ -1445,70 +1551,62 @@ const refreshContentData = useCallback(async (node: CourseNode, backendData?: an
     setIsContentLoading(true);
 
     try {
+      // Same migration as `fetchAndRefresh` — use the targeted node-pedagogy
+      // endpoint instead of re-downloading the whole course. See the long
+      // comment in `fetchAndRefresh` for the rationale.
       const BASE_URL = "https://lms-server-ym1q.onrender.com";
       const token = typeof window !== "undefined" ? localStorage.getItem("smartcliff_token") : null;
 
-      const courseRes = await fetch(`${BASE_URL}/getAll/courses-data/${courseId}`, {
-        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      });
+      const ALLOWED_TYPES = new Set(["module", "submodule", "topic", "subtopic"]);
+      if (!ALLOWED_TYPES.has(node.type)) {
+        await refreshContentData(node);
+        setInitialLoadComplete(true);
+        return;
+      }
 
-      if (!courseRes.ok) {
+      const nodeRes = await fetch(
+        `${BASE_URL}/getAll/courses-data/node-pedagogy/${node.type}/${node.id}`,
+        {
+          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        },
+      );
+
+      if (!nodeRes.ok) {
         await refreshContentData(node);
         return;
       }
 
-      const courseJson = await courseRes.json();
-      if (!courseJson?.data) {
+      const nodeJson = await nodeRes.json();
+      const freshNodeData = nodeJson?.data;
+      if (!freshNodeData) {
         await refreshContentData(node);
         return;
       }
 
-      // Find the updated node data in the fresh response
-      const findInFresh = (modules: any[]): any | null => {
-        for (const mod of modules) {
-          if (mod._id === node.id) return mod;
-          for (const topic of mod.topics || []) {
-            if (topic._id === node.id) return topic;
-            for (const st of topic.subTopics || []) {
-              if (st._id === node.id) return st;
-            }
-          }
-          for (const sm of mod.subModules || []) {
-            if (sm._id === node.id) return sm;
-            for (const topic of sm.topics || []) {
-              if (topic._id === node.id) return topic;
-              for (const st of topic.subTopics || []) {
-                if (st._id === node.id) return st;
-              }
-            }
-          }
-        }
-        return null;
+      // Merge into existing skeleton originalData, then process pedagogy.
+      const mergedOriginalData = {
+        ...(node.originalData || {}),
+        pedagogy: freshNodeData.pedagogy,
+        ...(freshNodeData.testConfiguration !== undefined
+          ? { testConfiguration: freshNodeData.testConfiguration }
+          : {}),
       };
+      const freshNode: CourseNode = { ...node, originalData: mergedOriginalData };
 
-      const freshNodeData = findInFresh(courseJson.data.modules || []);
-      if (freshNodeData) {
-        const freshNode: CourseNode = { ...node, originalData: freshNodeData };
+      const oldPed = JSON.stringify(node.originalData?.pedagogy ?? null);
+      const newPed = JSON.stringify(freshNodeData.pedagogy ?? null);
+      const nodeChanged = oldPed !== newPed;
 
-        // Check if node structure changed
-        const nodeChanged = JSON.stringify(node.originalData) !== JSON.stringify(freshNodeData);
-
-        if (nodeChanged) {
-          const transformed = transformToCourseNodes(courseJson.data);
-          setCourseData(transformed);
-          setSelectedNode(freshNode);
-        }
-
-        // Process and cache the content data
-        const processedContent = await processNodeContent(freshNode);
-
-        // Store in both caches
-        setCachedContentData(prev => ({ ...prev, [node.id]: processedContent }));
-        setContentData(prev => ({ ...prev, [node.id]: processedContent }));
-
-      } else {
-        await refreshContentData(node);
+      if (nodeChanged) {
+        setSelectedNode(freshNode);
+        setCourseData((prev) => patchNodeOriginalDataInTree(prev, node.id, mergedOriginalData));
       }
+
+      // Process and cache the content data — pedagogy is now ready on
+      // `freshNode.originalData`, so this is just the local processing pass.
+      const processedContent = await processNodeContent(freshNode);
+      setCachedContentData(prev => ({ ...prev, [node.id]: processedContent }));
+      setContentData(prev => ({ ...prev, [node.id]: processedContent }));
 
       setInitialLoadComplete(true);
     } catch (err) {
@@ -1522,7 +1620,10 @@ const refreshContentData = useCallback(async (node: CourseNode, backendData?: an
         return newSet;
       });
     }
-  }, [courseId, loadingNodes]);
+  // `courseId` is no longer referenced inside this callback (the slim
+  // node-pedagogy endpoint is keyed by node id + type, not course id), so
+  // it's dropped from the dep array. `loadingNodes` remains.
+  }, [loadingNodes]);
 
   const selectNode = useCallback(async (node: CourseNode) => {
     // Prevent duplicate selections
@@ -3405,6 +3506,17 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
       !subcategories.I_Do.length
     ) return;
 
+    // If the caller (analytics page / liveDashboard back button) asked us to
+    // restore the previous selection from localStorage, skip the auto-select
+    // entirely — the fromAnalytics effect below will set the node/tab/sub.
+    // Without this bail, auto-select fires first in the same commit cycle and
+    // wastes a render setting the wrong node + isContentLoading=true.
+    if (typeof window !== "undefined" &&
+        new URLSearchParams(window.location.search).get("fromAnalytics") === "true") {
+      hasAutoSelected.current = true;
+      return;
+    }
+
     // Helper: walk down first child at each level until no more children
     const getDeepestFirstLeaf = (node: CourseNode): CourseNode => {
       if (!node.children || node.children.length === 0) return node;
@@ -3445,7 +3557,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
 
   useEffect(() => { setBreadcrumbs(generateBreadcrumbs(selectedNode)); }, [selectedNode, courseData, generateBreadcrumbs]);
   useEffect(() => {
-    if (selectedNode && !isRestoringFromAnalytics && !contentData[selectedNode.id]) {
+    if (selectedNode && !contentData[selectedNode.id]) {
       fetchAndRefresh(selectedNode);
     }
   }, [selectedNode?.id]); // Only depends on node ID, not the whole object
@@ -3454,11 +3566,18 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
 
     const params = new URLSearchParams(window.location.search);
     if (params.get("fromAnalytics") === "true") {
-      setIsRestoringFromAnalytics(true);
+      // Synchronously mark auto-select as done so even if React runs the
+      // auto-select effect later in this commit (or on the next courseData
+      // change) it short-circuits and doesn't fight us.
+      hasAutoSelected.current = true;
 
-      const cleanUrl = new URL(window.location.href);
-      cleanUrl.searchParams.delete("fromAnalytics");
-      window.history.replaceState({}, "", cleanUrl.toString());
+      // NOTE: do NOT clean `fromAnalytics` from the URL here. In React 18
+      // Strict Mode (dev) the component mounts → unmounts → remounts. If we
+      // strip the flag on the first mount, the second mount's `useState`
+      // lazy initializer reads a clean URL, isRestoringSelection seeds to
+      // false, and the full-page overlay never shows on subsequent mounts.
+      // The URL is cleaned in the "Clear restore overlay" effect below,
+      // AFTER the restore has visibly completed.
 
       const storedTab = getLS("lms_selected_tab") as "I_Do" | "We_Do" | "You_Do" | null;
       const storedSub = getLS("lms_selected_subcategory");
@@ -3479,7 +3598,17 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
 
         const found = findNode(courseData);
         if (found) {
+          // Mirror what auto-select does so the content area renders the
+          // restored node instead of the "Welcome to Your Course" card:
+          //   - isNodeSelected = true → hides the welcome card
+          //   - isContentLoading = true → shows the spinner (not welcome)
+          //     while fetchAndRefresh is in flight for this node
+          //   - breadcrumbs / nav state reset like a fresh node selection
+          setIsNodeSelected(true);
+          setIsContentLoading(true);
           setSelectedNodePersistent(found);
+          setBreadcrumbs(generateBreadcrumbs(found));
+          updateNavState({ currentFolderPath: [], currentFolderId: null });
           const path = findPathToNode(courseData, storedId);
           if (path) {
             setExpandedNodes((prev) => {
@@ -3488,12 +3617,95 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
               return n;
             });
           }
+          // Hot-cache shortcut: if this node was loaded earlier in the same
+          // session we already have its processed content. Hydrate
+          // `contentData` synchronously so the fetchAndRefresh effect (which
+          // gates on `!contentData[selectedNode.id]`) skips the network
+          // round-trip entirely. The clear-overlay effect then fires on the
+          // next render — the user sees the spinner for one frame, not the
+          // full network round-trip duration.
+          if (cachedContentData[storedId]) {
+            setContentData((prev) => (
+              prev[storedId] ? prev : { ...prev, [storedId]: cachedContentData[storedId] }
+            ));
+            setIsContentLoading(false);
+          }
+        } else {
+          // Saved node is gone (deleted / different course). Don't strand the
+          // user on the full-page overlay — release auto-select to run, drop
+          // the overlay so the welcome / auto-selected view can show, and
+          // strip the URL flag so a refresh doesn't replay this branch.
+          hasAutoSelected.current = false;
+          setIsRestoringSelection(false);
+          const u = new URL(window.location.href);
+          u.searchParams.delete("fromAnalytics");
+          window.history.replaceState({}, "", u.toString());
         }
+      } else {
+        // No stored node id at all — same fallback as above.
+        hasAutoSelected.current = false;
+        setIsRestoringSelection(false);
+        const u = new URL(window.location.href);
+        u.searchParams.delete("fromAnalytics");
+        window.history.replaceState({}, "", u.toString());
       }
-
-      setTimeout(() => setIsRestoringFromAnalytics(false), 300);
+      // No 300 ms timeout: fetchAndRefresh below will fire as soon as
+      // selectedNode.id flips and fetch immediately.
     }
   }, [courseData]);
+
+  // Clear the full-page restore overlay only once EVERYTHING the user is
+  // about to see is ready to paint in one shot. Three conditions:
+  //   (a) Pedagogy / files / pages payload for the node is in `contentData`
+  //       (so CourseContent has its tree, breadcrumbs, etc.).
+  //   (b) If the restored tab is You_Do, the exercises list query has also
+  //       settled — so Assessment.tsx will paint rows immediately from the
+  //       shared React Query cache instead of showing its own internal
+  //       "Loading assessments..." spinner.
+  //   (c) (For other tabs / subcategories that own their own fetch we
+  //       currently only wait on (a). If you add similar prefetches for
+  //       I_Do / We_Do later, extend this same gate.)
+  //
+  // Without (b), the parent overlay was dismissing as soon as pedagogy
+  // arrived — leaving the user staring at a second small spinner inside
+  // CourseContent. That's the staggered reveal the user reported.
+  //
+  // We also strip `?fromAnalytics=true` from the URL HERE (not in the
+  // restore effect) so the flag survives React 18's Strict Mode double-mount
+  // — otherwise the second mount sees a clean URL and never shows the
+  // overlay. After this point a manual refresh will go through the normal
+  // auto-select path, as intended.
+  useEffect(() => {
+    if (!isRestoringSelection) return;
+    const contentReady = !!selectedNode && !!contentData[selectedNode.id];
+    if (!contentReady) return;
+    // Are we expected to wait on the YouDo exercises prefetch?
+    const exercisesReady =
+      !restoreShouldPrefetchExercises ||
+      isRestoreExercisesSuccess ||
+      isRestoreExercisesError ||
+      // `fetchStatus === "idle"` means the query is not in flight (e.g. it
+      // got disabled mid-flight) — don't wait on a query that isn't running.
+      restoreExercisesFetchStatus === "idle";
+    if (!exercisesReady) return;
+
+    setIsRestoringSelection(false);
+    if (typeof window !== "undefined") {
+      const cleanUrl = new URL(window.location.href);
+      if (cleanUrl.searchParams.has("fromAnalytics")) {
+        cleanUrl.searchParams.delete("fromAnalytics");
+        window.history.replaceState({}, "", cleanUrl.toString());
+      }
+    }
+  }, [
+    isRestoringSelection,
+    selectedNode?.id,
+    contentData,
+    restoreShouldPrefetchExercises,
+    isRestoreExercisesSuccess,
+    isRestoreExercisesError,
+    restoreExercisesFetchStatus,
+  ]);
 
   useEffect(() => {
     if (!isResizing) return;
@@ -3654,6 +3866,29 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
         </div>
       </button>
     )
+  }
+
+  // Full-page restore overlay: while we're hydrating selection + first
+  // content fetch on the back-from-liveDashboard path, render ONLY a
+  // centered spinner — no sidebar, no content panel. This avoids the
+  // staggered reveal the user complained about (sidebar appearing, then
+  // a content spinner, then the list popping in). Cleared by the effect
+  // above as soon as contentData[selectedNode.id] arrives.
+  if (isRestoringSelection) {
+    return (
+      <div
+        style={{
+          height: "100vh",
+          width: "100vw",
+          background: T.pageBg,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Loading size="size-16" color="orange" label="Loading Course Content" />
+      </div>
+    );
   }
 
   return (
@@ -3925,7 +4160,14 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
                   <LoadingSpinner />
                 ) : (
                   <CourseContent
-                    key={`${selectedNode?.id}-${Date.now()}`} // This forces re-render on content change
+                    // Key on the selected node id only. The previous version
+                    // appended `Date.now()` so the key changed on every parent
+                    // render, which unmounted & remounted the entire
+                    // CourseContent subtree on every state update — throwing
+                    // away child state, DOM, and memoization on every tick of
+                    // the loader. React already re-renders on prop changes;
+                    // we only need a fresh mount when the node identity flips.
+                    key={selectedNode?.id ?? "no-node"}
 
                     selectedNode={selectedNode}
                     activeTab={activeTab}

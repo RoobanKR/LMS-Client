@@ -1107,6 +1107,25 @@ export default function EnhancedSubmissionReview() {
   const [courseId] = useState(searchParams.get('courseId') || '');
   const exerciseId = searchParams.get('exerciseId');
 
+  // ── Single-student "direct grading" mode ───────────────────────────────────
+  // When the page is opened from the Live Dashboard's StudentRow "Check
+  // Answers" menu item, the URL carries a `studentId`. In that mode we:
+  //   1. Skip the participants-list view entirely (the user just picked a
+  //      student from the dashboard — sending them to ANOTHER list view is
+  //      pointless).
+  //   2. Auto-invoke `handleStartGrading` for that student as soon as both
+  //      the participants and the target exercise have loaded.
+  //   3. Re-route the "Exit Panel" button and the "All graded!" follow-up
+  //      back to the Live Dashboard instead of the (now hidden) list.
+  //
+  // When `studentId` is absent, the legacy entry-point behavior is preserved.
+  const studentIdParam = searchParams.get('studentId');
+  const returnToParam = searchParams.get('returnTo'); // e.g. "liveDashboard"
+  const isSingleStudentMode = !!studentIdParam;
+  // Guard so the auto-grade effect runs once per studentId — not on every
+  // participants-state mutation triggered by the grading flow itself.
+  const hasAutoStartedGradingRef = useRef(false);
+
   const [loading, setLoading] = useState(true);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [exercises, setExercises] = useState<Exercise[]>([]);
@@ -1560,6 +1579,39 @@ const isNonGraded = !!(
     }
     return () => clearTimeout(timer);
   }, [saveSuccess]);
+
+  // ── Single-student direct-grading auto-trigger ─────────────────────────────
+  // Once the participants list and the target exercise have loaded, if a
+  // `studentId` is in the URL, find that participant and jump straight to
+  // their grading view. Runs at most once per studentId (the ref guard
+  // prevents re-triggering when participants state mutates during grading,
+  // e.g. after a score save).
+  useEffect(() => {
+    if (!isSingleStudentMode) return;
+    if (hasAutoStartedGradingRef.current) return;
+    if (!selectedExercise) return;
+    if (!participants || participants.length === 0) return;
+
+    // Backend uses `_id` for User document ids; the dashboard passes the
+    // user id (StudentProgress.id). Match against the user side, with a
+    // fallback to the participant document id in case any caller passes
+    // that instead.
+    const target = participants.find((p) =>
+      p.user?._id === studentIdParam || p._id === studentIdParam
+    );
+
+    if (!target) {
+      // Studen id didn't resolve — surface clearly, but don't strand the
+      // user on a hidden empty page. Let `viewMode` fall through to 'list'
+      // so they at least see the participants table.
+      toast.error('Could not find that student in this assessment.');
+      hasAutoStartedGradingRef.current = true;
+      return;
+    }
+
+    hasAutoStartedGradingRef.current = true;
+    handleStartGrading(target);
+  }, [isSingleStudentMode, selectedExercise, participants, studentIdParam]);
 
   // --- DATA FETCHING & LOGIC ---
   const initEngines = async () => {
@@ -2358,7 +2410,10 @@ const isNonGraded = !!(
             handleNextStudent();
           } else {
             toast.success('All graded!');
-            setViewMode('list');
+            // Single-student mode has no list to fall back to — return to
+            // the Live Dashboard the user came from.
+            if (isSingleStudentMode) handleBack();
+            else setViewMode('list');
           }
         }
       }, 800);
@@ -2366,6 +2421,31 @@ const isNonGraded = !!(
   };
 
   const handleBack = () => {
+    // Single-student mode came from the Live Dashboard. Route back there
+    // so the user lands in their original context (the student list with
+    // the same selected node + assessment). Forward the originating params
+    // so the dashboard can rebuild itself without another LS lookup.
+    if (returnToParam === 'liveDashboard') {
+      const params = new URLSearchParams();
+      // Copy the context params the dashboard needs back.
+      const passthrough = [
+        'courseId', 'nodeId', 'nodeType', 'moduleName', 'submoduleName',
+        'topicName', 'subtopicName', 'tabType', 'subcategory',
+      ];
+      for (const key of passthrough) {
+        const v = searchParams.get(key);
+        if (v) params.set(key, v);
+      }
+      // The dashboard reads either assessmentId or exerciseId — pass both
+      // for safety, mirroring how `goBackToCourses` was built on the
+      // dashboard side.
+      const exId = searchParams.get('exerciseId');
+      if (exId) { params.set('assessmentId', exId); params.set('exerciseId', exId); }
+      router.push(`/lms/pages/courses/liveDashboard?${params.toString()}`);
+      return;
+    }
+    // Legacy path: bounce back to the courses upload page with the
+    // localStorage-restore flag so the user lands in the right node + tab.
     const params = new URLSearchParams(window.location.search);
     params.set('fromAnalytics', 'true');
     router.push(`/lms/pages/courses/uploadcourseresources?${params.toString()}`);
@@ -2573,7 +2653,12 @@ builtins.input = _async_input
   const pendingCount = submissionsCount - evaluatedCount;
 
   // --- RENDER LOADING ---
-  if (loading) {
+  // Show the full-page spinner during the initial data fetch. In
+  // single-student mode we ALSO keep the spinner up until the auto-grade
+  // effect has finished selecting the participant — otherwise the grading
+  // view renders for one render with `selectedParticipant: null` and
+  // momentarily shows an empty header/breadcrumb.
+  if (loading || (isSingleStudentMode && !selectedParticipant)) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <Loader2 className="h-10 w-10 animate-spin text-indigo-600" />
@@ -2664,7 +2749,11 @@ builtins.input = _async_input
 
       {/* MAIN CONTENT */}
       <div className="flex-1 overflow-hidden relative">
-        {viewMode === 'list' ? (
+        {/* In single-student mode the list view is suppressed entirely. The
+            auto-grade effect above flips viewMode to 'grading' as soon as
+            data lands; until then we render a lightweight loading frame
+            instead of momentarily flashing the participants table. */}
+        {(viewMode === 'list' && !isSingleStudentMode) ? (
           /* STUDENT LIST VIEW */
           <div className="flex flex-col h-full bg-white">
             {/* Search Bar */}
@@ -2962,11 +3051,16 @@ builtins.input = _async_input
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setViewMode('list')}
+                    // In single-student mode there's no "list" to go back to
+                    // (it's hidden). Route back to the Live Dashboard via
+                    // `handleBack` so the user lands in the context they
+                    // came from. Otherwise keep the legacy "back to list"
+                    // behavior intact.
+                    onClick={() => (isSingleStudentMode ? handleBack() : setViewMode('list'))}
                     className={`h-9 px-4 text-xs font-bold text-slate-600 border-slate-200 bg-white hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 transition-all duration-200 rounded-full group ${montserrat.className}`}
                   >
                     <ArrowLeft className="h-3.5 w-3.5 mr-2 text-slate-400 group-hover:text-rose-500 transition-colors" />
-                    Exit Panel
+                    {isSingleStudentMode ? 'Back to Dashboard' : 'Exit Panel'}
                   </Button>
                 </div>
                 <div className="flex items-center space-x-6">
@@ -3750,7 +3844,10 @@ builtins.input = _async_input
                         handleNextStudent();
                       } else {
                         toast.success('All graded!');
-                        setViewMode('list');
+                        // Single-student mode: bounce back to the Live
+                        // Dashboard. Otherwise fall back to the list view.
+                        if (isSingleStudentMode) handleBack();
+                        else setViewMode('list');
                       }
                     }, 800);
                   }

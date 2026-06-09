@@ -4,22 +4,61 @@ import React, { Suspense, useCallback, useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   ArrowLeft, ChevronLeft, ChevronRight, MonitorPlay, Send,
-  Users, CheckCircle2, Loader2, Clock, XCircle, Flag,
-  GraduationCap, Layers, BookOpen, ClipboardList, Tag,
+  GraduationCap, Layers, BookOpen, ClipboardList, Tag, Filter, FileText,
+  Download,
 } from "lucide-react";
 import { getSocket } from "@/apiServices/socketClient";
+import { useQuery } from "@tanstack/react-query";
+import { courseDataApi } from "@/apiServices/coursesData";
 import { useLiveDashboard } from "./hooks/useLiveDashboard";
-import StudentRow from "./components/StudentRow";
+import StudentRow, { deriveTestStatus } from "./components/StudentRow";
+import ReportRow from "./components/ReportRow";
 import StudentDetailsPage from "./components/StudentDetailsPage";
 import MessageStudentModal from "./components/MessageStudentModal";
 import BroadcastMessageModal from "./components/BroadcastMessageModal";
+import ReportExportModal from "./components/ReportExportModal";
+import type { StudentProgress, TestStatus } from "./types/liveDashboard.types";
+import { computeStudentMarks, getStudentQuestionsBreakdown, type QuestionBreakdownRow } from "./utils/computeStudentMarks";
+
+// ── Top-level view: list (default), or report (the Caller Report table).
+//    The per-student details view is keyed by `selectedStudentId` and overlays
+//    either view.
+type DashboardView = "list" | "report";
+
+// Action column was removed (the only menu item it housed — "View Detailed
+// Report" — is now reached via the inline expand chevron when the "Detailed
+// Report" toggle is on). When the toggle is on we prepend a chevron column
+// at the start; when off there's no expand affordance at all.
+// "Percentage" sits right after "Scored Marks" — Reports view only. The
+// list view doesn't show it because the list is the live-monitoring board
+// and percentage is a post-hoc analysis number.
+// "S. No." was removed from both views per design feedback — the row counter
+// added visual noise without much value (student name + email already
+// identify the row). The cell renderers in StudentRow / ReportRow have been
+// updated to drop their leading index <td> to keep the column count in sync.
+const REPORT_HEADERS_BASE = [
+  "Student Name", "Email", "Total Questions",
+  "Completed", "Non Completed", "Test Status",
+  "Total Marks", "Scored Marks", "Percentage",
+];
+const REPORT_LEFT_ALIGN = new Set(["Student Name", "Email"]);
+// Sentinel used in the headers array when the chevron column is shown.
+// Empty-string is safe because no real header label is "".
+const CHEVRON_COL = "";
 
 const HEADERS = [
-  "S. No.", "Student Name", "Email", "Total Questions", "Completed",
-  "Yet To Complete", "Not Attempted", "In Progress", "Completion %",
-  "Test Status", "Actions",
+  "Student ID", "Student Name", "Email", "Test Status", "Time Duration", "Action",
 ];
-const LEFT_ALIGN = new Set(["S. No.", "Student Name", "Email"]);
+const LEFT_ALIGN = new Set(["Student ID", "Student Name", "Email"]);
+
+// Filter options surfaced in the Test Status dropdown.
+type StatusFilter = "all" | TestStatus;
+const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
+  { value: "all",          label: "All Statuses"  },
+  { value: "not-started",  label: "Not Started"   },
+  { value: "started",      label: "Started"       },
+  { value: "submitted",    label: "Submitted"     },
+];
 
 // Emit a proctor message over the shared socket and resolve with the server ack.
 function emitWithAck(event: string, payload: Record<string, any>) {
@@ -73,19 +112,256 @@ function LiveDashboardInner() {
     router.push(`/lms/pages/courses/liveScreens?${qs.toString()}`);
   };
 
+  // (`goBackToCourses` moved further down — it has to be declared after the
+  // `view` useState because it reads + writes that state. JavaScript
+  // temporal-dead-zone rules don't allow a `useCallback` whose dependency
+  // array references `view` before the binding is initialized.)
+
   const { students, totalStudents, assessmentName, courseName, isLoading, error } = useLiveDashboard({
     assessmentId, courseId, nodeId, nodeType,
   });
 
+  // ── Marks side-channel ───────────────────────────────────────────────────
+  // The `/api/assessment/live-dashboard` endpoint that powers the row list
+  // doesn't return per-question scoring data — it's a summary stream. To
+  // populate the Report view's Total Marks / Scored Marks columns, we
+  // separately read the same `/getAll/courses-data/{courseId}` payload the
+  // reviewSubmission page already uses. We deliberately reuse `courseDataApi.getById`
+  // here so the query key (`["course", courseId]`) is shared with the courses
+  // page — most users arrive at the dashboard FROM the courses page, so this
+  // is a cache hit and adds zero network overhead.
+  //
+  // Computation runs frontend-side (`computeStudentMarks`) and mirrors
+  // reviewSubmission's scoring rules 1:1, so the dashboard total matches what
+  // a grader would see when opening that student's submission.
+  const { data: courseDataResponse } = useQuery({
+    ...courseDataApi.getById(courseId || ""),
+    enabled: !!courseId && !!assessmentId,
+    // Same cache settings used by the courses page so the query is shared,
+    // not duplicated under different keys.
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+
+  // Recompute marks whenever the course payload or the live student list
+  // changes. The student list itself can grow via socket joins; merging here
+  // (instead of inside `useLiveDashboard`) keeps the marks logic out of the
+  // socket plumbing.
+  const studentsWithMarks: StudentProgress[] = useMemo(() => {
+    const courseData = (courseDataResponse as any)?.data;
+    if (!courseData || !assessmentId) return students;
+    const participants = courseData.singleParticipants || [];
+    return students.map((s) => {
+      // Backend's live-dashboard rows key off the user's `_id`. Match by both
+      // user._id and the participant document _id as a safety net for any
+      // alternate caller that passes the participant id instead.
+      const participant = participants.find((p: any) => p?.user?._id === s.id || p?._id === s.id);
+      if (!participant) return s;
+      const { totalMarks, scoredMarks, hasSubmitted } = computeStudentMarks({
+        courseData,
+        courseId: courseId || "",
+        exerciseId: assessmentId,
+        participant,
+      });
+      return {
+        ...s,
+        totalMarks,
+        // Render "—" for never-attempted students (downstream UI checks
+        // status !== 'not-started' too, this is the data-side equivalent).
+        scoredMarks: hasSubmitted ? scoredMarks : undefined,
+      };
+    });
+  }, [students, courseDataResponse, assessmentId, courseId]);
+
+  // `selectedStudentId` + StudentDetailsPage route stay intact — they are not
+  // currently triggered from the row menu (the View Details entry was removed),
+  // but the page still renders the details view if any other flow sets this.
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [messageStudentId, setMessageStudentId] = useState<string | null>(null);
   const [broadcastOpen, setBroadcastOpen] = useState(false);
+  // Drives the Report Export Preview modal — opened from the "Export" button
+  // that lives just to the left of the Detailed Report toggle in the Reports
+  // view's filter row.
+  const [exportModalOpen, setExportModalOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+
+  // ── Top-level view switch (list ↔ report). When the user opens the per-
+  //    student details view from the report, we remember the originating view
+  //    so the breadcrumb / back button returns to the correct table.
+  const [view, setView] = useState<DashboardView>("list");
+
+  // Page-level Back action — context-aware. Declared HERE (and not near the
+  // top of the function) because it reads `view` in its dependency array,
+  // and JS's temporal dead zone would throw if the `useCallback` registered
+  // before the `useState` above ran.
+  //
+  //   - If the user is in the Report view  → switch to the List view.
+  //   - Otherwise (in the List view)        → return to the Courses page
+  //     with `?fromAnalytics=true` so it re-hydrates the saved
+  //     tab/subcategory/selected-node from localStorage.
+  //
+  // If we don't know the courseId we can't navigate explicitly, so fall
+  // back to plain history back.
+  const goBackToCourses = useCallback(() => {
+    if (view === "report") {
+      // Switch back to the list view in-place. Expanded inline rows aren't
+      // cleared here — `handleSwitchView` (called for other entry points)
+      // does that, but preserving the expansion across a quick toggle is a
+      // small UX courtesy if the user clicks back, peeks, and re-enters.
+      setView("list");
+      return;
+    }
+    if (!courseId) { router.back(); return; }
+    const qs = new URLSearchParams();
+    qs.set("courseId", courseId);
+    qs.set("fromAnalytics", "true");
+    router.push(`/lms/pages/courses/uploadcourseresources?${qs.toString()}`);
+  }, [view, courseId, router]);
+
+  // ── "Detailed Report" toggle (Report view only) ──
+  // OFF → plain rows, no chevron, no Action column.
+  // ON  → leading chevron column appears; clicking a row's chevron expands
+  //       it inline to show the per-question breakdown table (accordion:
+  //       only one row open at a time, matching the reference screenshot).
+  const [isDetailedReport, setIsDetailedReport] = useState(false);
+  const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
+  // Reset the expanded row whenever the toggle flips off or the view changes —
+  // otherwise the bookkeeping would carry into states where the chevron is
+  // not visible and the user couldn't collapse it.
+  const handleToggleDetailedReport = useCallback(() => {
+    setIsDetailedReport((prev) => {
+      const next = !prev;
+      if (!next) setExpandedRowId(null);
+      return next;
+    });
+  }, []);
+  const handleToggleExpandRow = useCallback((studentId: string) => {
+    setExpandedRowId((prev) => (prev === studentId ? null : studentId));
+  }, []);
+
+  // Reset pagination when switching views so the report view starts at page 1.
+  // Also collapse any expanded detail row when leaving the report view — the
+  // chevron disappears with the view, so leaving a row "open" would be invisible
+  // state that confuses returning to Reports later.
+  const handleSwitchView = useCallback((v: DashboardView) => {
+    setView(v);
+    setPage(1);
+    if (v !== "report") setExpandedRowId(null);
+  }, []);
+
+  // Lazy per-student breakdown: only compute for the currently expanded row.
+  // The detail data is identical to what the StudentDetailsPage overlay shows,
+  // but derived from the already-fetched `courseDataResponse` (no extra
+  // network round-trip).
+  // Lazy fetch of the same `/api/assessment/student-details` payload the
+  // existing "View Detailed Report" overlay uses — but ONLY for the currently
+  // expanded student, so collapsed rows don't trigger any network traffic.
+  // We use this endpoint solely as the source for per-question `timeTakenSeconds`
+  // because the courses-data payload that powers marks doesn't reliably carry
+  // that field; everything else (scored marks, status) still comes from the
+  // courses-data computation, which is what makes the row total match the
+  // column total.
+  const { data: expandedStudentDetails } = useQuery<{
+    questions?: Array<{ id: string; timeTakenSeconds?: number }>;
+  } | null>({
+    queryKey: ["studentDetails", assessmentId, expandedRowId],
+    queryFn: async () => {
+      if (!assessmentId || !expandedRowId) return null;
+      const token =
+        (typeof window !== "undefined" &&
+          (localStorage.getItem("smartcliff_token") || localStorage.getItem("token"))) || "";
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || "https://lms-server-ym1q.onrender.com";
+      const qs = new URLSearchParams({ assessmentId, studentId: expandedRowId });
+      const res = await fetch(`${apiBase}/api/assessment/student-details?${qs.toString()}`, {
+        method: "GET",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          "Content-Type": "application/json",
+        },
+      });
+      if (!res.ok) throw new Error(`student-details ${res.status}`);
+      return res.json();
+    },
+    enabled: !!assessmentId && !!expandedRowId,
+    staleTime: 30 * 1000,
+    gcTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
+  const expandedBreakdown: QuestionBreakdownRow[] | null = useMemo(() => {
+    if (!expandedRowId || !assessmentId) return null;
+    const courseData = (courseDataResponse as any)?.data;
+    if (!courseData) return null;
+    const participants = courseData.singleParticipants || [];
+    const participant = participants.find(
+      (p: any) => p?.user?._id === expandedRowId || p?._id === expandedRowId,
+    );
+    if (!participant) return null;
+
+    // Build the per-question time-taken override map from the student-details
+    // fetch. `null` (not loaded yet) → no override → helper falls back to
+    // courses-data values (likely "—"). Once details land, this Map populates
+    // and the column re-renders with accurate seconds.
+    const timeTakenByQuestionId: Map<string, number> | null =
+      expandedStudentDetails?.questions
+        ? new Map(
+            expandedStudentDetails.questions
+              .filter((q) => q && q.id && typeof q.timeTakenSeconds === "number")
+              .map((q) => [String(q.id), q.timeTakenSeconds as number]),
+          )
+        : null;
+
+    // Forward the test-level submission state so the helper can label
+    // unanswered questions correctly: "not_answered" if the student has
+    // already submitted the whole test, "pending" if the test is still live.
+    const expandedStudent = students.find((st) => st.id === expandedRowId);
+    return getStudentQuestionsBreakdown({
+      courseData,
+      courseId: courseId || "",
+      exerciseId: assessmentId,
+      participant,
+      studentSubmitted: !!expandedStudent?.submitted,
+      timeTakenByQuestionId,
+    });
+  }, [expandedRowId, courseDataResponse, assessmentId, courseId, students, expandedStudentDetails]);
+
+  // (`handleViewDetailedReport` was removed along with the Report view's
+  // Actions column — per-question details are now reached via the inline
+  // "Detailed Report" toggle + expand chevron. The `selectedStudentId` /
+  // StudentDetailsPage overlay code path stays in place for any future
+  // caller that still wants the fullscreen variant.)
 
   // Stable callbacks → StudentRow memoization stays intact.
-  const handleViewDetails = useCallback((id: string) => setSelectedStudentId(id), []);
   const handleSendMessage = useCallback((id: string) => setMessageStudentId(id), []);
+  // Check Answers — opens the reviewSubmission page in single-student grading
+  // mode. We pass `studentId` (the new param) so the review page skips its
+  // participants-list view entirely and lands directly on the per-question
+  // grading UI for THIS student. The other params (courseId, nodeId, etc.)
+  // give the page enough context to render its breadcrumb / Back button.
+  const handleCheckAnswers = useCallback((studentId: string) => {
+    if (!assessmentId || !studentId) return;
+    const qs = new URLSearchParams();
+    qs.set("exerciseId", assessmentId);
+    qs.set("studentId", studentId);
+    if (courseId) qs.set("courseId", courseId);
+    if (nodeId) qs.set("nodeId", nodeId);
+    if (nodeType) qs.set("nodeType", nodeType);
+    if (moduleName) qs.set("moduleName", moduleName);
+    if (submoduleName) qs.set("submoduleName", submoduleName);
+    if (topicName) qs.set("topicName", topicName);
+    if (subtopicName) qs.set("subtopicName", subtopicName);
+    if (tabType) qs.set("tabType", tabType);
+    if (subcategory) qs.set("subcategory", subcategory);
+    // Hint so the review page's Back button can return to this dashboard
+    // instead of `router.back()` (which can be unreliable across tabs).
+    qs.set("returnTo", "liveDashboard");
+    router.push(`/lms/pages/courses/reviewSubmission?${qs.toString()}`);
+  }, [
+    assessmentId, courseId, nodeId, nodeType, moduleName, submoduleName,
+    topicName, subtopicName, tabType, subcategory, router,
+  ]);
 
   const messageStudent = useMemo(
     () => students.find(s => s.id === messageStudentId) || null,
@@ -102,34 +378,54 @@ function LiveDashboardInner() {
     [assessmentId],
   );
 
-  // ── Summary stats (top cards) ──────────────────────────────────────────────
+  // ── Inline stats (overall totals — NOT affected by the status filter) ──────
   const total = totalStudents || students.length;
   const stats = useMemo(() => {
-    const completed = students.filter(s => (s.completionPercent ?? 0) >= 100).length;
-    const inProgress = students.filter(s => s.inProgress).length;
-    const notAttempted = students.filter(
-      s => (s.completed ?? 0) === 0 && !s.inProgress && (s.completionPercent ?? 0) < 100,
-    ).length;
-    const yetToComplete = Math.max(0, total - completed - inProgress);
-    const totalQuestions = students.reduce((m, s) => Math.max(m, s.totalQuestions || 0), 0);
-    const pct = (n: number) => (total ? `${((n / total) * 100).toFixed(2)}%` : "0%");
-    return { completed, inProgress, notAttempted, yetToComplete, totalQuestions, pct };
-  }, [students, total]);
+    // Tallies for the inline stats strip. Names match the new TestStatus
+    // values: `started` (currently attending live) and `submitted` (final
+    // submission), with `notStarted` covering everyone else.
+    let notStarted = 0;
+    let started = 0;
+    let submitted = 0;
+    for (const s of students) {
+      const st = deriveTestStatus(s);
+      if (st === "not-started") notStarted++;
+      else if (st === "started") started++;
+      else submitted++; // "submitted"
+    }
+    return { notStarted, started, submitted };
+  }, [students]);
 
-  const totalPages = Math.max(1, Math.ceil(students.length / rowsPerPage));
+  // ── Apply the status filter (list view only), THEN paginate ───────────────
+  // Reads from `studentsWithMarks` (not the raw `students`) so the Report
+  // view's marks columns reflect what reviewSubmission would show.
+  const filteredStudents = useMemo(() => {
+    if (statusFilter === "all") return studentsWithMarks;
+    return studentsWithMarks.filter(s => deriveTestStatus(s) === statusFilter);
+  }, [studentsWithMarks, statusFilter]);
+
+  // Both list and Report tables share the same status-filter result.
+  const displayStudents = filteredStudents;
+
+  const totalPages = Math.max(1, Math.ceil(displayStudents.length / rowsPerPage));
   const safePage = Math.min(page, totalPages);
   const startIdx = (safePage - 1) * rowsPerPage;
   const pageStudents = useMemo(
-    () => students.slice(startIdx, startIdx + rowsPerPage),
-    [students, startIdx, rowsPerPage],
+    () => displayStudents.slice(startIdx, startIdx + rowsPerPage),
+    [displayStudents, startIdx, rowsPerPage],
   );
   const pageItems = useMemo(() => buildPageItems(safePage, totalPages), [safePage, totalPages]);
 
-  // ── Breadcrumb trail: course › module › submodule › topic › subtopic › tab › subcategory ──
-  // (course name comes from the dashboard API; every other level comes from the URL, shown only when present.)
+  // Reset to page 1 whenever the filter changes (don't reset on every render).
+  const handleStatusChange = useCallback((v: StatusFilter) => {
+    setStatusFilter(v);
+    setPage(1);
+  }, []);
+
+  // ── Breadcrumb trail ──
   const tabLabel = tabType.replace(/_/g, " ").trim(); // "You_Do" → "You Do"
   const baseCrumbs: { label: string; Icon?: any; onClick?: () => void }[] = [
-    ...(courseName ? [{ label: courseName, Icon: GraduationCap, onClick: () => router.back() }] : []),
+    ...(courseName ? [{ label: courseName, Icon: GraduationCap, onClick: goBackToCourses }] : []),
     ...(moduleName ? [{ label: moduleName, Icon: Layers }] : []),
     ...(submoduleName ? [{ label: submoduleName, Icon: Layers }] : []),
     ...(topicName ? [{ label: topicName, Icon: BookOpen }] : []),
@@ -144,10 +440,14 @@ function LiveDashboardInner() {
     onBack: () => void,
   ) => (
     <div className="flex items-center gap-2.5 px-5 py-3 border-b border-gray-100 flex-shrink-0">
+      {/* Page-level Back button — red, matches the in-Report-view "Back"
+          toggle. Context-aware: clicking it from the Report view drops to
+          the List view; from the List view (or student-details overlay) it
+          navigates to the Courses page. */}
       <button
         type="button"
         onClick={onBack}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-[13px] font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium text-white bg-red-600 hover:bg-red-700 transition-colors"
       >
         <ArrowLeft size={15} /> Back
       </button>
@@ -178,13 +478,19 @@ function LiveDashboardInner() {
     </div>
   );
 
-  // ── Student details view (after "View Details") — same breadcrumb, then details ──
+  // ── Student details view — kept intact, now actually triggered from the
+  //    Report view's "View Detailed Report" menu item. ─────────────────────
   if (selectedStudentId) {
-    const studentCrumbs = [
-      ...baseCrumbs,
-      { label: "Live Dashboard", onClick: () => setSelectedStudentId(null) },
-      { label: "Student Details" },
+    // Preserve which view the user came from in the trail so the breadcrumb
+    // reads naturally: ... > Dashboard > [Report >] Student Details.
+    const trail: { label: string; onClick?: () => void }[] = [
+      { label: "Dashboard", onClick: () => { setSelectedStudentId(null); setView("list"); } },
     ];
+    if (view === "report") {
+      trail.push({ label: "Report", onClick: () => setSelectedStudentId(null) });
+    }
+    trail.push({ label: "Student Details" });
+    const studentCrumbs = [...baseCrumbs, ...trail];
     return (
       <div className="h-screen flex flex-col bg-white">
         {renderBreadcrumbBar(studentCrumbs, () => setSelectedStudentId(null))}
@@ -199,121 +505,287 @@ function LiveDashboardInner() {
     );
   }
 
-  const cards = [
-    { label: "Total Students", value: total, sub: "All Enrolled", subClass: "text-gray-400", Icon: Users, iconBg: "bg-blue-50", iconColor: "text-blue-500" },
-    { label: "Completed", value: stats.completed, sub: stats.pct(stats.completed), subClass: "text-green-600", Icon: CheckCircle2, iconBg: "bg-green-50", iconColor: "text-green-600" },
-    { label: "In Progress", value: stats.inProgress, sub: stats.pct(stats.inProgress), subClass: "text-amber-500", Icon: Loader2, iconBg: "bg-amber-50", iconColor: "text-amber-500" },
-    { label: "Yet To Complete", value: stats.yetToComplete, sub: stats.pct(stats.yetToComplete), subClass: "text-purple-600", Icon: Clock, iconBg: "bg-purple-50", iconColor: "text-purple-600" },
-    { label: "Not Attempted", value: stats.notAttempted, sub: stats.pct(stats.notAttempted), subClass: "text-red-500", Icon: XCircle, iconBg: "bg-red-50", iconColor: "text-red-500" },
-    { label: "Total Questions", value: stats.totalQuestions, sub: "Across Test", subClass: "text-gray-400", Icon: Flag, iconBg: "bg-indigo-50", iconColor: "text-indigo-600" },
+  const breadcrumbs = [
+    ...baseCrumbs,
+    { label: "Dashboard", onClick: view === "report" ? () => setView("list") : undefined },
+    ...(view === "report" ? [{ label: "Report" }] : []),
   ];
-
-  const breadcrumbs = [...baseCrumbs, { label: "Live Dashboard" }];
 
   // ── All-students dashboard ──────────────────────────────────────────────────
   return (
     <div className="h-screen flex flex-col bg-white">
-      {renderBreadcrumbBar(breadcrumbs, () => router.back())}
+      {/* Custom scrollbar — the default WebKit scrollbar on this page rendered
+          as a thin near-black bar on the table area; users reported it was hard
+          to spot AND too narrow to grab. This block widens it to ~10px, gives
+          it a soft slate thumb on a slate-100 track, and adds the matching
+          Firefox properties. Applied via the `lmsd-scroll` className so it
+          stays scoped to elements we opt in. */}
+      <style jsx global>{`
+        .lmsd-scroll::-webkit-scrollbar {
+          width: 10px;
+          height: 10px;
+        }
+        .lmsd-scroll::-webkit-scrollbar-track {
+          background: #f1f5f9; /* slate-100 */
+          border-radius: 8px;
+        }
+        .lmsd-scroll::-webkit-scrollbar-thumb {
+          background: #cbd5e1; /* slate-300 — clearly visible but not heavy */
+          border-radius: 8px;
+          /* The 2px transparent border preserves the track gutter on either
+             side of the thumb, so the thumb visually "floats" instead of
+             touching the edges of the column. */
+          border: 2px solid #f1f5f9;
+        }
+        .lmsd-scroll::-webkit-scrollbar-thumb:hover {
+          background: #94a3b8; /* slate-400 on hover for affordance */
+        }
+        .lmsd-scroll::-webkit-scrollbar-corner {
+          background: #f1f5f9;
+        }
+        /* Firefox uses a different property set. */
+        .lmsd-scroll {
+          scrollbar-width: thin;
+          scrollbar-color: #cbd5e1 #f1f5f9;
+        }
+      `}</style>
+      {renderBreadcrumbBar(breadcrumbs, goBackToCourses)}
 
-      {/* Content area — header + cards stay fixed; only the table below scrolls */}
-      <div className="flex-1 min-h-0 flex flex-col p-5 gap-5">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 flex-shrink-0">
+      {/* Content area — header + inline stats stay fixed; only the table scrolls */}
+      <div className="flex-1 min-h-0 flex flex-col p-5 gap-4">
+        {/* Header — minimal styling per design feedback:
+            - Smaller title + subtitle so the table gets more vertical room.
+            - Header buttons trimmed from chunky pills to compact, lower-key
+              chrome.
+            - Send Message to All + Live Screens are hidden in the Report
+              view: that view is read-only stats, and both actions are
+              already accessible from the (default) list view. Showing them
+              in Report view was redundant + cluttered. */}
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 flex-shrink-0">
           <div className="min-w-0">
-            <h1 className="text-[22px] font-bold text-gray-900">Live Dashboard – Students Progress</h1>
-            <p className="text-[13px] text-gray-500 mt-0.5">
+            <h1 className="text-[16px] font-semibold text-gray-900 leading-tight">
+              {view === "report" ? "Reports" : "Dashboard – Students Progress"}
+            </h1>
+            <p className="text-[11.5px] text-gray-500 mt-0.5">
               {assessmentName || "Assessment"} · Live Session
             </p>
           </div>
-          <div className="flex items-center gap-2.5 flex-shrink-0">
-            <button
-              type="button"
-              onClick={() => setBroadcastOpen(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-semibold text-indigo-600 bg-white border border-indigo-200 hover:bg-indigo-50 transition-colors shadow-sm"
-              title="Send a message to all students in live session"
-            >
-              <Send size={16} />
-              Send Message to All
-            </button>
-            <button
-              type="button"
-              onClick={openLiveScreens}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-semibold text-white bg-indigo-600 hover:bg-indigo-700 transition-colors shadow-sm"
-              title="View students' live screens"
-            >
-              <MonitorPlay size={16} />
-              Live Screens
-            </button>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            {/* List view → green "Reports" button to enter Reports view.
+                Report view → NO toggle here. Users go back via the
+                page-level red ← Back button at the top-left of the page,
+                which is context-aware (Report → List → Courses). */}
+            {view !== "report" && (
+              <button
+                type="button"
+                onClick={() => handleSwitchView("report")}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[12px] font-medium text-white bg-emerald-600 hover:bg-emerald-700 transition-colors"
+                title="Open the Reports view"
+              >
+                <FileText size={13} />
+                Reports
+              </button>
+            )}
+            {/* Message All + Live Screens stay list-view-only. They belong
+                to the live-monitoring board, not the read-only Reports view. */}
+            {view !== "report" && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setBroadcastOpen(true)}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[12px] font-medium text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 transition-colors"
+                  title="Send a message to all students in live session"
+                >
+                  <Send size={13} />
+                  Message All
+                </button>
+                <button
+                  type="button"
+                  onClick={openLiveScreens}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[12px] font-medium text-white bg-indigo-600 hover:bg-indigo-700 transition-colors"
+                  title="View students' live screens"
+                >
+                  <MonitorPlay size={13} />
+                  Live Screens
+                </button>
+              </>
+            )}
           </div>
         </div>
 
-        {/* Summary cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 flex-shrink-0">
-          {cards.map(c => (
-            <div key={c.label} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-              <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-lg ${c.iconBg} flex items-center justify-center flex-shrink-0`}>
-                  <c.Icon size={18} className={c.iconColor} />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[12px] font-medium text-gray-500 truncate">{c.label}</p>
-                  <p className="text-[22px] font-bold text-gray-900 leading-tight">{c.value}</p>
-                </div>
+        {/* ── Inline stats strip + Test Status filter ──────────────────────── */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 flex-shrink-0">
+          {/* Overall totals — NOT affected by the filter, per spec. */}
+          <div className="flex items-center flex-wrap gap-x-1 gap-y-1 text-[13px] text-gray-700">
+            <span><span className="text-gray-500">Total Students:</span> <span className="font-semibold text-gray-900">{total}</span></span>
+            <span className="text-gray-300 mx-2">|</span>
+            <span><span className="text-gray-500">Not Started:</span> <span className="font-semibold text-gray-700">{stats.notStarted}</span></span>
+            <span className="text-gray-300 mx-2">|</span>
+            <span><span className="text-gray-500">Started:</span> <span className="font-semibold text-amber-600">{stats.started}</span></span>
+            <span className="text-gray-300 mx-2">|</span>
+            <span><span className="text-gray-500">Submitted:</span> <span className="font-semibold text-green-600">{stats.submitted}</span></span>
+          </div>
+
+          {/* Right-side controls cluster: "Detailed Report" toggle (Report
+              view only) sits to the LEFT of the Test Status filter, per the
+              wireframe. Both rows share the same alignment so the eye reads
+              them as one group. */}
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Export button — sits to the LEFT of the Detailed Report toggle
+                per the latest design pass. Opens the Report Export Preview
+                modal (90% × 90%) that handles column selection + Print / Excel
+                / PDF export. */}
+            {view === "report" && (
+              <button
+                type="button"
+                onClick={() => setExportModalOpen(true)}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[12px] font-medium text-white bg-indigo-600 hover:bg-indigo-700 transition-colors"
+                title="Open the Report Export Preview"
+              >
+                <Download size={13} />
+                Export
+              </button>
+            )}
+            {view === "report" && (
+              <div className="flex items-center gap-2">
+                <label className="text-[12.5px] font-medium text-gray-500 whitespace-nowrap">
+                  Detailed Report:
+                </label>
+                {/* iOS-style toggle. Click anywhere on the pill to flip it;
+                    `aria-pressed` for screen readers. */}
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={isDetailedReport}
+                  onClick={handleToggleDetailedReport}
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                    isDetailedReport ? "bg-indigo-600" : "bg-gray-200"
+                  }`}
+                  title={
+                    isDetailedReport
+                      ? "Hide per-question detail expanders"
+                      : "Show per-question detail expanders on each row"
+                  }
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${
+                      isDetailedReport ? "translate-x-[18px]" : "translate-x-[2px]"
+                    }`}
+                  />
+                </button>
               </div>
-              <p className={`text-[11px] font-semibold mt-2 ${c.subClass}`}>{c.sub}</p>
+            )}
+
+            {/* Test Status filter — applies to BOTH the list and the Report
+                view tables. Stats strip above stays as overall totals
+                (unaffected). */}
+            <div className="flex items-center gap-2">
+              <Filter size={14} className="text-gray-400" />
+              <label htmlFor="status-filter" className="text-[12.5px] font-medium text-gray-500 whitespace-nowrap">
+                Filter by status:
+              </label>
+              <select
+                id="status-filter"
+                value={statusFilter}
+                onChange={e => handleStatusChange(e.target.value as StatusFilter)}
+                className="border border-gray-200 rounded-lg px-2.5 py-1.5 text-[13px] text-gray-700 outline-none focus:border-indigo-400"
+              >
+                {STATUS_OPTIONS.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
             </div>
-          ))}
+          </div>
         </div>
 
-        {/* Table — fills remaining height; body scrolls, pagination stays pinned */}
+        {/* Table — fills remaining height; body scrolls, pagination pinned */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm flex-1 min-h-0 flex flex-col overflow-hidden">
           {isLoading ? (
-            <div className="p-10 text-center text-[13px] text-gray-400">Loading live dashboard…</div>
+            <div className="p-10 text-center text-[13px] text-gray-400">Loading dashboard…</div>
           ) : error ? (
             <div className="p-10 text-center text-[13px] text-red-500">{error}</div>
           ) : (
             <>
-              <div className="overflow-auto flex-1 min-h-0">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-gray-200 bg-gray-50">
-                      {HEADERS.map(h => (
-                        <th
-                          key={h}
-                          className={`sticky top-0 z-10 bg-gray-50 px-4 py-3 text-[12px] font-semibold text-gray-600 whitespace-nowrap ${LEFT_ALIGN.has(h) ? "text-left" : "text-center"}`}
-                        >
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pageStudents.map((s, i) => (
-                      <StudentRow
-                        key={s.id}
-                        student={s}
-                        index={startIdx + i}
-                        onViewDetails={handleViewDetails}
-                        onSendMessage={handleSendMessage}
-                      />
-                    ))}
-                    {students.length === 0 && (
-                      <tr>
-                        <td colSpan={HEADERS.length} className="px-4 py-10 text-center text-[13px] text-gray-400">
-                          No students have joined yet.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+              {/* Compute the active header list once per render. In the
+                  Report view the chevron column is prepended ONLY when the
+                  Detailed Report toggle is on; the Action column is gone in
+                  both states. */}
+              {(() => {
+                // Chevron column lives at the END of the row, after "Scored
+                // Marks" — per latest design feedback. When the toggle is off
+                // it's omitted entirely; when on it sits where the Action
+                // column used to live, so the eye-flow stays consistent with
+                // the rest of the dashboard.
+                const reportHeaders = isDetailedReport
+                  ? [...REPORT_HEADERS_BASE, CHEVRON_COL]
+                  : REPORT_HEADERS_BASE;
+                const activeHeaders = view === "report" ? reportHeaders : HEADERS;
+                const activeLeftAlign = view === "report" ? REPORT_LEFT_ALIGN : LEFT_ALIGN;
+                return (
+                  <div className="overflow-auto flex-1 min-h-0 lmsd-scroll">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-gray-200 bg-gray-50">
+                          {activeHeaders.map((h, idx) => (
+                            <th
+                              // Empty-string headers (chevron col) can't share
+                              // a key with each other; fall back to index.
+                              key={h || `col-${idx}`}
+                              className={`sticky top-0 z-10 bg-gray-50 px-4 py-3 text-[12px] font-semibold text-gray-600 whitespace-nowrap ${activeLeftAlign.has(h) ? "text-left" : "text-center"} ${h === CHEVRON_COL ? "w-10" : ""}`}
+                            >
+                              {h}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pageStudents.map((s, i) =>
+                          view === "report" ? (
+                            <ReportRow
+                              key={s.id}
+                              student={s}
+                              index={startIdx + i}
+                              isDetailedReport={isDetailedReport}
+                              isExpanded={expandedRowId === s.id}
+                              onToggleExpand={handleToggleExpandRow}
+                              // Only pass the breakdown for THE expanded row.
+                              // Other rows get `undefined` so the memoization
+                              // keeps them stable across re-renders.
+                              breakdown={expandedRowId === s.id ? expandedBreakdown : null}
+                              columnCount={activeHeaders.length}
+                            />
+                          ) : (
+                            <StudentRow
+                              key={s.id}
+                              student={s}
+                              index={startIdx + i}
+                              onSendMessage={handleSendMessage}
+                              onCheckAnswers={handleCheckAnswers}
+                            />
+                          )
+                        )}
+                        {displayStudents.length === 0 && (
+                          <tr>
+                            <td colSpan={activeHeaders.length}
+                              className="px-4 py-10 text-center text-[13px] text-gray-400">
+                              {students.length === 0
+                                ? "No students have joined yet."
+                                : "No students match this filter."}
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
 
-              {/* Footer / pagination — pinned at the bottom of the card, always visible */}
+              {/* Footer / pagination */}
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-5 py-3.5 border-t border-gray-100 flex-shrink-0">
                 <span className="text-[13px] text-gray-500">
-                  {students.length === 0
+                  {displayStudents.length === 0
                     ? "No students"
-                    : `Showing ${startIdx + 1} to ${Math.min(startIdx + rowsPerPage, students.length)} of ${students.length} students`}
+                    : `Showing ${startIdx + 1} to ${Math.min(startIdx + rowsPerPage, displayStudents.length)} of ${displayStudents.length} ${statusFilter === "all" ? "students" : "matched"}`}
                 </span>
 
                 <div className="flex items-center gap-4">
@@ -385,6 +857,28 @@ function LiveDashboardInner() {
         open={broadcastOpen}
         onClose={() => setBroadcastOpen(false)}
         onSend={sendBroadcast}
+      />
+
+      {/* Report Export Preview — 90% × 90% modal. Reads the same student
+          rows the table renders (`studentsWithMarks`, includes the
+          computed marks columns) and the cached `courseDataResponse` so
+          the Detailed mode can walk the per-question breakdown without
+          any extra network calls. */}
+      <ReportExportModal
+        open={exportModalOpen}
+        onClose={() => setExportModalOpen(false)}
+        students={studentsWithMarks}
+        assessmentName={assessmentName || "Assessment"}
+        courseData={(courseDataResponse as any)?.data ?? null}
+        courseId={courseId || ""}
+        exerciseId={assessmentId || ""}
+        // Context labels for the meta header — the dashboard already pulls
+        // these from URL search params at the top of LiveDashboardInner.
+        courseName={courseName}
+        moduleName={moduleName}
+        submoduleName={submoduleName}
+        topicName={topicName}
+        subtopicName={subtopicName}
       />
     </div>
   );

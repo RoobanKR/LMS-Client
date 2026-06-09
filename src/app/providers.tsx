@@ -1,7 +1,8 @@
 'use client'
 import { QueryClientProvider } from '@tanstack/react-query'
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
-import { ReactNode, useState, useEffect } from 'react'
+import { ReactNode, useState, useEffect, useMemo } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { useAuthStore } from '@/stores/authStore'
 import { toast } from "react-toastify"
@@ -9,6 +10,7 @@ import { showSuccessToast } from '@/components/ui/toastUtils'
 import { Settings2 } from 'lucide-react'
 import { Loading } from '@/components/loading-ui/loading'
 import { createQueryClient } from '@/lib/queryClient'
+import { buildQueryPersister, queryPersistOptions } from '@/lib/queryPersister'
 
 interface Permission {
   permissionName: string;
@@ -380,6 +382,32 @@ function AuthWrapper({ children }: { children: ReactNode }) {
 export function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(() => createQueryClient())
 
+  // Build the persister once. Returns `null` on the server (SSR has no
+  // `localStorage`), in which case we fall back to a plain QueryClientProvider —
+  // identical behavior to the previous version, no SSR breakage.
+  const persister = useMemo(() => buildQueryPersister(), [])
+
+  if (persister) {
+    // Persistence path: cache reads/writes localStorage. Hard reloads now
+    // paint instantly from the persisted state while background refetches
+    // keep things fresh.
+    return (
+      <PersistQueryClientProvider
+        client={queryClient}
+        persistOptions={queryPersistOptions(persister)}
+      >
+        <AuthWrapper>
+          {children}
+        </AuthWrapper>
+        {process.env.NODE_ENV === 'development' && (
+          <ReactQueryDevtools initialIsOpen={false} />
+        )}
+      </PersistQueryClientProvider>
+    )
+  }
+
+  // SSR fallback — server can't access `localStorage`, so we use the plain
+  // provider. Client-side, this branch is never taken.
   return (
     <QueryClientProvider client={queryClient}>
       <AuthWrapper>

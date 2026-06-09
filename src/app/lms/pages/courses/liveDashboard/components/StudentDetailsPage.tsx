@@ -78,7 +78,7 @@ export default function StudentDetailsPage({ assessmentId, studentId }: StudentD
         ) : error ? (
           <div className="p-8 text-center text-[13px] text-red-500">{error}</div>
         ) : (
-          <div className="overflow-auto flex-1 min-h-0">
+          <div className="overflow-auto flex-1 min-h-0 lmsd-scroll">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50">

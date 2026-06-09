@@ -14,6 +14,7 @@ import { toast } from "react-hot-toast";
 import type { YouDoProps } from "./TestYourSkills";
 import CreateAssessmentModal from "./CreateAssessmentModal";
 import { exerciseApi, EntityType } from "@/apiServices/exercise";
+import { useYouDoExercises } from "@/apiServices/hooks/useYouDoExercises";
 import AddQuestionForm from "@/app/lms/component/student/YouDo/assessment/questionforms/AddQuestionForm";
 import QuestionsTest from "./QuestionsTest";
 
@@ -92,6 +93,65 @@ const getEntityType = (nodeType: string): EntityType => {
     case 'subtopic': return 'subtopics';
     default: return 'topics';
   }
+};
+
+// Moved out of the component body so the `assessments` useMemo can reference
+// it from above. The function is pure — it doesn't read any component state
+// or hooks — so this is a no-op behavior change, only a scoping change.
+const transformExerciseToAssessment = (ex: any): AssessmentRecord => {
+  const src = ex?.exerciseInformation ? ex : (ex?._doc || ex || {});
+  const info = src.exerciseInformation || {};
+  const config = src.questionConfiguration || {};
+
+  let testType: AssessmentRecord["testType"] = "mock";
+  if (info.testType === "final") testType = "final";
+  else if (info.testType === "practice") testType = "practice";
+
+  let scoring: AssessmentRecord["scoring"] = "—";
+  if (ex.exerciseType === "Programming" || ex.exerciseType === "Combined") {
+    const progConfig = config.programmingQuestionConfiguration;
+    if (progConfig?.scoreSettings) {
+      const scoreType = progConfig.scoreSettings.scoreType;
+      if (scoreType === 'evenMarks') scoring = "testcase";
+      else if (scoreType === 'separateMarks') scoring = "manual";
+      else if (scoreType === 'levelBasedMarks') scoring = "hybrid";
+    }
+  }
+
+  let questions = 0;
+  if (config.mcqQuestionConfiguration) questions += config.mcqQuestionConfiguration.totalMcqQuestions || 0;
+  if (config.programmingQuestionConfiguration) {
+    const prog = config.programmingQuestionConfiguration;
+    if (prog.questionConfigType === 'general') questions += prog.generalQuestionCount || 0;
+    else {
+      const counts = prog.levelBasedCounts || { easy: 0, medium: 0, hard: 0 };
+      questions += (counts.easy || 0) + (counts.medium || 0) + (counts.hard || 0);
+    }
+  }
+
+  let status: AssessmentRecord["status"] = "draft";
+  const startDate = src.availabilityPeriod?.startDate;
+  const endDate = src.availabilityPeriod?.endDate;
+  const now = new Date();
+  if (startDate) {
+    const start = new Date(startDate);
+    if (start <= now) {
+      if (endDate) { const end = new Date(endDate); status = end >= now ? "active" : "ended"; }
+      else status = "active";
+    }
+  }
+
+  return {
+    id: info.exerciseId || src._id || ex._id,
+    _id: src._id || ex._id,
+    name: info.exerciseName || "Untitled Assessment",
+    testType, totalMarks: info.totalMarks || 0, questions, scoring,
+    level: info.exerciseLevel || "beginner", status,
+    startDate: startDate ? new Date(startDate).toLocaleDateString() : "",
+    endDate: endDate ? new Date(endDate).toLocaleDateString() : "",
+    createdAt: src.createdAt, subcategory: src.subcategory,
+    isSectionBased: src.isSectionBased || false,
+  };
 };
 
 // ─── Delete Confirmation Modal ────────────────────────────────────────────────
@@ -589,16 +649,45 @@ export default function Assessment({
   courseId, nodeType, hierarchyData, configuredLanguages,
 }: YouDoProps) {
   const router = useRouter();
-  const [assessments, setAssessments] = useState<AssessmentRecord[]>([]);
-  const [rawExercises, setRawExercises] = useState<any[]>([]);
+  // Source-of-truth for the list moved out of local state into React Query
+  // (see `useYouDoExercises` hook below). `assessments` / `rawExercises` are
+  // now derived via `useMemo` and stay referentially stable across renders
+  // when the underlying data hasn't changed.
   const [showModal, setShowModal] = useState(false);
   const [editingAsm, setEditingAsm] = useState<AssessmentRecord | null>(null);
 
   // ── CHANGED: openDrop now tracks id + anchor element ──
   const [openDrop, setOpenDrop] = useState<{ id: string; el: HTMLElement } | null>(null);
 
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // ── React Query owns the exercises list ──
+  // The parent page subscribes to the SAME query key during a restore-from-
+  // analytics navigation, so the loader the parent shows stays up until this
+  // hook resolves. After the first successful fetch, switching back to this
+  // node within `staleTime` (60 s) hydrates instantly from cache.
+  const {
+    data: exercisesData,
+    isLoading: isExercisesLoading,
+    isFetching: isExercisesFetching,
+    error: exercisesError,
+    refetch: refetchExercises,
+  } = useYouDoExercises({
+    entityType: getEntityType(nodeType),
+    entityId: nodeId,
+    tabType: "You_Do",
+    subcategory,
+  });
+
+  const rawExercises = useMemo(() => exercisesData?.exercises ?? [], [exercisesData]);
+  const assessments = useMemo(
+    () => rawExercises.map(transformExerciseToAssessment),
+    [rawExercises],
+  );
+
+  // Preserve the names the JSX further down already uses (`isLoading`,
+  // `error`) without changing the rendering branches.
+  const isLoading = isExercisesLoading;
+  const error = exercisesError ? (exercisesError as Error).message ?? "Failed to load assessments" : null;
+
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; id: string; name: string; _id?: string }>({
     isOpen: false, id: "", name: "", _id: undefined
   });
@@ -658,88 +747,17 @@ export default function Assessment({
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
   const currentAssessments = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
-  const transformExerciseToAssessment = (ex: any): AssessmentRecord => {
-    const src = ex?.exerciseInformation ? ex : (ex?._doc || ex || {});
-    const info = src.exerciseInformation || {};
-    const config = src.questionConfiguration || {};
+  // `transformExerciseToAssessment` lives at module scope above — it doesn't
+  // touch component state and was needed earlier in the render than its
+  // previous in-component declaration allowed.
+  // `fetchExercises` is gone too: the React Query hook owns the fetch
+  // lifecycle now; any code path that previously called `fetchExercises()`
+  // calls `refetchExercises()` instead and gets the same outcome (with the
+  // bonus of cache dedupe across components).
 
-    let testType: AssessmentRecord["testType"] = "mock";
-    if (info.testType === "final") testType = "final";
-    else if (info.testType === "practice") testType = "practice";
-
-    let scoring: AssessmentRecord["scoring"] = "—";
-    if (ex.exerciseType === "Programming" || ex.exerciseType === "Combined") {
-      const progConfig = config.programmingQuestionConfiguration;
-      if (progConfig?.scoreSettings) {
-        const scoreType = progConfig.scoreSettings.scoreType;
-        if (scoreType === 'evenMarks') scoring = "testcase";
-        else if (scoreType === 'separateMarks') scoring = "manual";
-        else if (scoreType === 'levelBasedMarks') scoring = "hybrid";
-      }
-    }
-
-    let questions = 0;
-    if (config.mcqQuestionConfiguration) questions += config.mcqQuestionConfiguration.totalMcqQuestions || 0;
-    if (config.programmingQuestionConfiguration) {
-      const prog = config.programmingQuestionConfiguration;
-      if (prog.questionConfigType === 'general') questions += prog.generalQuestionCount || 0;
-      else {
-        const counts = prog.levelBasedCounts || { easy: 0, medium: 0, hard: 0 };
-        questions += (counts.easy || 0) + (counts.medium || 0) + (counts.hard || 0);
-      }
-    }
-
-    let status: AssessmentRecord["status"] = "draft";
-    const startDate = src.availabilityPeriod?.startDate;
-    const endDate = src.availabilityPeriod?.endDate;
-    const now = new Date();
-    if (startDate) {
-      const start = new Date(startDate);
-      if (start <= now) {
-        if (endDate) { const end = new Date(endDate); status = end >= now ? "active" : "ended"; }
-        else status = "active";
-      }
-    }
-
-    return {
-      id: info.exerciseId || src._id || ex._id,
-      _id: src._id || ex._id,
-      name: info.exerciseName || "Untitled Assessment",
-      testType, totalMarks: info.totalMarks || 0, questions, scoring,
-      level: info.exerciseLevel || "beginner", status,
-      startDate: startDate ? new Date(startDate).toLocaleDateString() : "",
-      endDate: endDate ? new Date(endDate).toLocaleDateString() : "",
-      createdAt: src.createdAt, subcategory: src.subcategory,
-      isSectionBased: src.isSectionBased || false,
-    };
-  };
-
-  const fetchExercises = useCallback(async () => {
-    if (!nodeId || !subcategory) { setIsLoading(false); return; }
-    setIsLoading(true);
-    setError(null);
+  const handleSave = useCallback(async (_payload: any) => {
     try {
-      const response = await exerciseApi.getYouDoExercises(getEntityType(nodeType), nodeId, 'You_Do', subcategory);
-      let exercises = [];
-      if (response?.data?.exercises) exercises = response.data.exercises;
-      else if (response?.data && Array.isArray(response.data)) exercises = response.data;
-      else if (response?.exercises) exercises = response.exercises;
-      setRawExercises(exercises);
-      setAssessments(exercises.map(transformExerciseToAssessment));
-    } catch (err: any) {
-      console.error('Failed to fetch exercises:', err);
-      setError(err.message || 'Failed to load assessments');
-      toast.error('Failed to load assessments');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [nodeId, subcategory, nodeType]);
-
-  useEffect(() => { fetchExercises(); }, [fetchExercises]);
-
-  const handleSave = useCallback(async (payload: any) => {
-    try {
-      await fetchExercises();
+      await refetchExercises();
       toast.success(editingAsm ? 'Assessment updated!' : 'Assessment created!');
     } catch (err: any) {
       toast.error(err.message || 'Failed to save assessment');
@@ -747,7 +765,7 @@ export default function Assessment({
       setShowModal(false);
       setEditingAsm(null);
     }
-  }, [fetchExercises, editingAsm]);
+  }, [refetchExercises, editingAsm]);
 
   const openDeleteModal = (id: string, name: string, _id?: string) => {
     setDeleteModal({ isOpen: true, id, name, _id });
@@ -758,7 +776,14 @@ export default function Assessment({
     setIsDeleting(true);
     try {
       await exerciseApi.deleteExercise(getEntityType(nodeType), nodeId, deleteModal._id || deleteModal.id, 'You_Do', subcategory);
-      setAssessments(prev => prev.filter(a => a.id !== deleteModal.id && a._id !== deleteModal._id));
+      // Trigger a refetch so the React Query cache (shared with the parent
+      // page) reflects the deletion. Previously this used a local
+      // `setAssessments(prev => prev.filter(...))` optimistic remove; with
+      // the data source moved into the cache, a refetch is the canonical
+      // update path. The list paints from cache while the refetch runs in
+      // the background, so the deleted row disappears immediately if
+      // present in the response.
+      await refetchExercises();
       toast.success('Assessment deleted successfully');
       setDeleteModal({ isOpen: false, id: "", name: "", _id: undefined });
     } catch (err: any) {
@@ -947,7 +972,7 @@ export default function Assessment({
     return (
       <QuestionsTest
         assessment={selectedAssessmentForTest}
-        onBack={() => { setShowQuestionsTest(false); setSelectedAssessmentForTest(null); fetchExercises(); }}
+        onBack={() => { setShowQuestionsTest(false); setSelectedAssessmentForTest(null); refetchExercises(); }}
         nodeId={nodeId} nodeName={nodeName} subcategory={subcategory}
         nodeType={nodeType} tabType="You_Do" hierarchyData={hierarchyData}
       />
@@ -1014,12 +1039,14 @@ export default function Assessment({
           <div className="h-5 w-px flex-shrink-0" style={{ background: T.border }} />
 
           {/* Refresh */}
-          <button onClick={fetchExercises} title="Refresh"
+          <button onClick={() => refetchExercises()} title="Refresh"
             className="h-7 w-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-all"
             style={{ color: T.textMuted, background: 'transparent', border: 'none', cursor: 'pointer' }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = T.blue; (e.currentTarget as HTMLElement).style.background = T.blueLight; }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = T.textMuted; (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
-            <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
+            {/* `isFetching` covers both first-load AND background refetch — gives users
+                a refresh affordance even when stale data is on screen. */}
+            <RefreshCw size={14} className={isExercisesFetching ? 'animate-spin' : ''} />
           </button>
 
           {/* Create Assessment */}
@@ -1059,7 +1086,7 @@ export default function Assessment({
         {error && (
           <div className="mx-4 mt-4 p-3 rounded-lg text-center" style={{ background: '#fee2e2', color: '#dc2626' }}>
             <p className="text-sm font-medium">{error}</p>
-            <button onClick={() => fetchExercises()} className="mt-2 text-xs font-semibold underline">Try Again</button>
+            <button onClick={() => refetchExercises()} className="mt-2 text-xs font-semibold underline">Try Again</button>
           </div>
         )}
 
@@ -1182,23 +1209,12 @@ export default function Assessment({
 
                       {openDrop?.id === asm.id && (
                         <PortalDropMenu anchorEl={openDrop.el} onClose={() => setOpenDrop(null)}>
-                          <DropItem
-                            icon={<BarChart2 size={11} />} label="Review Submission"
-                            onClick={() => {
-                              setOpenDrop(null);
-                              const q = new URLSearchParams({
-                                exerciseId: asm._id || asm.id || '',
-                                nodeId: nodeId || '',
-                                nodeType: nodeType || '',
-                                sourceTab: 'You_Do',
-                                sourceSubcategory: subcategory || '',
-                                courseId: courseId || '',
-                                moduleName: hierarchyData?.moduleName || '',
-                                returnUrl: '/lms/pages/coursestructure/uploadcourseresources',
-                              }).toString();
-                              router.push(`/lms/pages/courses/reviewSubmission?${q}`);
-                            }}
-                          />
+                          {/* "Review Submission" entry removed: the review-submission
+                              page is being repurposed for per-student grading
+                              triggered from the Live Dashboard's StudentRow
+                              "Check Answers" menu item, so the courses-page
+                              dropdown shouldn't lead to the (now bypassed)
+                              participants-list view. */}
                           {/* ── Live Dashboard — only while the assessment window is open ── */}
                           {(() => {
                             const ap = rawEx?.availabilityPeriod;
@@ -1224,7 +1240,7 @@ export default function Assessment({
                                     <style>{`@keyframes liveDashPulse{0%{box-shadow:0 0 0 0 rgba(34,197,94,0.6)}70%{box-shadow:0 0 0 5px rgba(34,197,94,0)}100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}}`}</style>
                                   </span>
                                 }
-                                label="Live Dashboard"
+                                label="Dashboard"
                                 onClick={() => {
                                   setOpenDrop(null);
                                   const q = new URLSearchParams({
@@ -1359,8 +1375,8 @@ export default function Assessment({
             exerciseData={exData}
             tabType="You_Do"
             sectionData={addQ.section}
-            onClose={async () => { closeAddQ(); await fetchExercises(); }}
-            onSave={async () => { await fetchExercises(); }}
+            onClose={async () => { closeAddQ(); await refetchExercises(); }}
+            onSave={async () => { await refetchExercises(); }}
             showTypeSelector={(exData.exerciseType || '').toLowerCase() === 'combined'}
             shouldRefreshOnMount={true}
           />

@@ -632,6 +632,62 @@ export const courseDataApi = {
       return response.data;
     },
   }),
+
+  // ── Lightweight variants used by `uploadcourseresources` ──
+  //
+  // `getById` above returns the FULL payload (singleParticipants + every
+  // node's pedagogy). The Resources page only renders the sidebar tree +
+  // selected-node pedagogy, so it would otherwise download ~95% wasted data
+  // on every cold load. These two backed-by-projection endpoints give it
+  // exactly what it needs:
+  //
+  //   • `getLight(id)`         — tree skeleton (id + title at each level)
+  //                              plus course-level fields (courseName,
+  //                              resourcesType, testConfiguration). No
+  //                              pedagogy, no singleParticipants.
+  //   • `getNodePedagogy(...)` — pedagogy + a couple of small siblings for
+  //                              ONE specific module/submodule/topic/subtopic.
+  //                              Used in place of the second full
+  //                              `/getAll/courses-data` fetch the page
+  //                              previously did inside `fetchAndRefresh`.
+  //
+  // Cache keys are namespaced under `["course-light", id]` and
+  // `["course-node-pedagogy", type, id]` so they don't clash with the heavy
+  // `["course", id]` query that other pages (reviewSubmission, etc.) still
+  // rely on. The heavy `getById` is intentionally left intact.
+  getLight: (id: string) => ({
+    queryKey: ["course-light", id],
+    queryFn: async (): Promise<{ data: CourseStructureData }> => {
+      const token = getToken();
+      const response = await axios.get(`${BASE_URL}/getAll/courses-data/light/${id}`, {
+        headers: {
+          ...(token && { 'Authorization': `Bearer ${token}` }),
+        },
+      });
+      return response.data;
+    },
+  }),
+
+  getNodePedagogy: (
+    type: "module" | "submodule" | "topic" | "subtopic",
+    id: string,
+  ) => ({
+    queryKey: ["course-node-pedagogy", type, id],
+    queryFn: async (): Promise<{
+      data: { _id: string; title: string; pedagogy?: any; testConfiguration?: any };
+    }> => {
+      const token = getToken();
+      const response = await axios.get(
+        `${BASE_URL}/getAll/courses-data/node-pedagogy/${type}/${id}`,
+        {
+          headers: {
+            ...(token && { 'Authorization': `Bearer ${token}` }),
+          },
+        },
+      );
+      return response.data;
+    },
+  }),
 };
 
 // Helper function to use file settings API from component

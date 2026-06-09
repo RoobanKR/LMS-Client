@@ -127,7 +127,8 @@ export default function MultiFileCodeEditor({
   hierarchy = [],
 }: MultiFileCodeEditorProps) {
   const CODE_SERVER_URL =
-    process.env.NEXT_PUBLIC_CODE_SERVER_URL || "http://localhost:8080"
+    process.env.NEXT_PUBLIC_CODE_SERVER_URL || "https://docker-file-production-9bf1.up.railway.app"
+    // process.env.NEXT_PUBLIC_CODE_SERVER_URL || "https://docker-file-production-9bf1.up.railway.app"
 
   // ─── Per-student workspace isolation ─────────────────────────────────────────
   // Each student gets their OWN folder inside the shared workspace so they can

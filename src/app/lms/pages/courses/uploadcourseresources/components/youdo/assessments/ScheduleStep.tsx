@@ -294,6 +294,23 @@ const CalendarPopup: React.FC<CalendarPopupProps> = ({ fieldLabel, value, onConf
   );
 };
 
+// ── Helpers: DateValue ↔ Date ────────────────────────────────────────────────
+const dvToDate = (v: DateValue): Date | null =>
+  hasDate(v) ? new Date(v.year, v.month - 1, v.day, v.hour, v.minute) : null;
+const dateToDV = (d: Date): DateValue => ({
+  day: d.getDate(), month: d.getMonth() + 1, year: d.getFullYear(),
+  hour: d.getHours(), minute: d.getMinutes(),
+});
+
+// Quick offset presets — applied relative to the previous row's date.
+const QUICK_OFFSETS: { label: string; ms: number }[] = [
+  { label: '+30m', ms: 30 * 60 * 1000 },
+  { label: '+1h',  ms: 60 * 60 * 1000 },
+  { label: '+2h',  ms: 2 * 60 * 60 * 1000 },
+  { label: '+1d',  ms: 24 * 60 * 60 * 1000 },
+  { label: '+1w',  ms: 7 * 24 * 60 * 60 * 1000 },
+];
+
 // ── Schedule Step ─────────────────────────────────────────────────────────────
 export const ScheduleStep: React.FC<ScheduleStepProps> = ({
   formData, setFormData, setValidationErrors, validationErrors, touchedFields, isEditing,
@@ -315,6 +332,25 @@ export const ScheduleStep: React.FC<ScheduleStepProps> = ({
     });
   }, [setFormData, setValidationErrors]);
 
+  // The "base" date a quick-offset chip is added to.
+  // endDate offsets from startDate; cutOffDate offsets from endDate;
+  // gracePeriodDate offsets from cutOffDate (if enabled) else endDate.
+  const getOffsetBase = useCallback((fieldKey: string): Date | null => {
+    if (fieldKey === 'endDate')         return dvToDate(get('startDate'));
+    if (fieldKey === 'cutOffDate')      return dvToDate(get('endDate'));
+    if (fieldKey === 'gracePeriodDate') {
+      const co = (formData.schedule as any).cutOffEnabled ? dvToDate(get('cutOffDate')) : null;
+      return co ?? dvToDate(get('endDate'));
+    }
+    return null;
+  }, [get, formData.schedule]);
+
+  const applyOffset = useCallback((fieldKey: string, ms: number) => {
+    const base = getOffsetBase(fieldKey);
+    if (!base) return;
+    set(fieldKey, dateToDV(new Date(base.getTime() + ms)));
+  }, [getOffsetBase, set]);
+
   const toggle = useCallback((enabledKey: string) => {
     setFormData(prev => ({
       ...prev,
@@ -327,7 +363,10 @@ export const ScheduleStep: React.FC<ScheduleStepProps> = ({
     if (key === 'startDate') return isEditing ? undefined : now;
     if (key === 'endDate') {
       const s = get('startDate');
-      return hasDate(s) ? new Date(s.year, s.month-1, s.day, s.hour, s.minute) : (isEditing ? undefined : now);
+      // End must be at least 30 minutes after Start.
+      return hasDate(s)
+        ? new Date(s.year, s.month-1, s.day, s.hour, s.minute + 30)
+        : (isEditing ? undefined : now);
     }
     if (key === 'cutOffDate') {
       const e = get('endDate');
@@ -349,10 +388,10 @@ export const ScheduleStep: React.FC<ScheduleStepProps> = ({
   };
 
   const FIELDS = [
-    { label: 'Start Date & Time',   fieldKey: 'startDate',      icon: <Calendar size={15} />, iconColor: D.emerald,  iconBg: 'rgba(16,185,129,0.10)', toggleable: false, enabledKey: '',                  required: true,  tooltip: 'The date from which students can start submitting.' },
-    { label: 'End Date & Time',     fieldKey: 'endDate',        icon: <Clock size={15} />,    iconColor: D.amber,    iconBg: 'rgba(245,158,11,0.10)',  toggleable: false, enabledKey: '',                  required: true,  tooltip: 'The submission deadline.' },
-    { label: 'Cut-off Date & Time', fieldKey: 'cutOffDate',     icon: <Lock size={15} />,     iconColor: D.red,      iconBg: 'rgba(239,68,68,0.10)',   toggleable: true,  enabledKey: 'cutOffEnabled',      required: false, tooltip: 'Optional hard late boundary after end date.' },
-    { label: 'Remind Me to Mark By',fieldKey: 'gracePeriodDate',icon: <Bell size={15} />,     iconColor: D.purple,   iconBg: 'rgba(139,92,246,0.10)', toggleable: true,  enabledKey: 'gracePeriodEnabled', required: false, tooltip: 'Reminder to finish grading by this date.' },
+    { label: 'Start Date & Time',   fieldKey: 'startDate',      icon: <Calendar size={15} />, iconColor: D.emerald,  iconBg: 'rgba(16,185,129,0.10)', toggleable: false, enabledKey: '',                  required: true,  tooltip: 'The date from which students can start submitting.',     showOffsets: false },
+    { label: 'End Date & Time',     fieldKey: 'endDate',        icon: <Clock size={15} />,    iconColor: D.amber,    iconBg: 'rgba(245,158,11,0.10)',  toggleable: false, enabledKey: '',                  required: true,  tooltip: 'The submission deadline. Quick-add adds time after start.', showOffsets: true  },
+    { label: 'Cut-off Date & Time', fieldKey: 'cutOffDate',     icon: <Lock size={15} />,     iconColor: D.red,      iconBg: 'rgba(239,68,68,0.10)',   toggleable: true,  enabledKey: 'cutOffEnabled',      required: false, tooltip: 'Optional hard late boundary after end date.',            showOffsets: true  },
+    { label: 'Remind Me to Mark By',fieldKey: 'gracePeriodDate',icon: <Bell size={15} />,     iconColor: D.purple,   iconBg: 'rgba(139,92,246,0.10)', toggleable: true,  enabledKey: 'gracePeriodEnabled', required: false, tooltip: 'Reminder to finish grading by this date.',               showOffsets: true  },
   ] as const;
 
   return (
@@ -369,13 +408,15 @@ export const ScheduleStep: React.FC<ScheduleStepProps> = ({
 
       {/* Rows */}
       <div className="divide-y divide-[#ecedf1]">
-        {FIELDS.map(({ label, fieldKey, icon, iconColor, iconBg, toggleable, enabledKey, required, tooltip }) => {
+        {FIELDS.map(({ label, fieldKey, icon, iconColor, iconBg, toggleable, enabledKey, required, tooltip, showOffsets }) => {
           const enabled  = !toggleable || !!(formData.schedule as any)[enabledKey];
           const val      = get(fieldKey);
           const hasDt    = hasDate(val);
           const error    = getError(fieldKey);
           const touched  = touchedFields.has(fieldKey === 'gracePeriodDate' ? 'gracePeriod' : fieldKey);
           const isOpen   = openField === fieldKey;
+          const offsetBase = showOffsets ? getOffsetBase(fieldKey) : null;
+          const canOffset  = showOffsets && enabled && !!offsetBase;
 
           return (
             <div
@@ -440,6 +481,33 @@ export const ScheduleStep: React.FC<ScheduleStepProps> = ({
                   >
                     <Calendar size={14} />
                   </button>
+
+                  {/* Quick-offset chips: auto-fill date relative to prior step */}
+                  {showOffsets && (
+                    <div className="ml-2 flex items-center gap-1 flex-wrap">
+                      {QUICK_OFFSETS.map(o => (
+                        <button
+                          key={o.label}
+                          type="button"
+                          disabled={!canOffset}
+                          onClick={() => applyOffset(fieldKey, o.ms)}
+                          title={offsetBase
+                            ? `Set to ${o.label} after ${fmtDateTime(dateToDV(offsetBase))}`
+                            : 'Fill the previous date first'}
+                          className="px-1.5 h-5 rounded-md border font-semibold transition-all"
+                          style={{
+                            fontSize: 10,
+                            background: canOffset ? '#fff' : '#f8f9fb',
+                            color: canOffset ? iconColor : D.textHint,
+                            borderColor: canOffset ? iconColor + '55' : D.border,
+                            cursor: canOffset ? 'pointer' : 'not-allowed',
+                          }}
+                        >
+                          {o.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="flex items-center gap-1.5 text-xs" style={{ color: D.textMuted }}>
