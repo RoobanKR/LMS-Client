@@ -3,17 +3,19 @@
 import {
   Bell, User, Settings, Menu, Sparkles, ChevronDown,
   Search, X, LogOut, HelpCircle, MessageSquare, Zap,
-  Sun, Moon, BookOpen, ChevronRight, UserCheck2, Command
+  Sun, Moon, UserCheck2
 } from "lucide-react"
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { notificationsService } from "@/apiServices/notifications"
-import { postLogout } from "@/apiServices/activityLog"
+import { notificationsService } from "@/app/lms/pages/notifications/api/notifications"
+import { postLogout } from "@/app/lms/pages/logs/api/activityLog"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { notificationKeys } from "@/apiServices/notifications"
+import { staffRouteForCurrentCourse, studentRouteForCurrentCourse } from "../../pages/courses/coursesdetailedview/components/useAccountMenu"
+import { notificationKeys } from "@/app/lms/pages/notifications/api/notifications"
 import { getCurrentUser } from "@/apiServices/tokenVerify"
 import { cn } from "@/lib/utils"
+import { clearAllStorage } from "@/lib/session"
 
 interface StudentNavbarProps {
   onMenuClick?: () => void
@@ -41,7 +43,25 @@ interface RoleSwitchState {
   switchTimestamp?: number
 }
 
-export function StudentNavbar({ onMenuClick, onAIClick, onSummaryClick }: StudentNavbarProps) {
+// Brand accent (matches reference dashboard design)
+const ACCENT = "#F97316"
+
+const ROUTE_TITLES: Record<string, string> = {
+  dashboard: "Dashboard",
+  courses: "Courses",
+  assignments: "Assignments",
+  grades: "Grades",
+  notifications: "Notifications",
+  messages: "Messages",
+  resources: "Resources",
+  schedule: "Schedule",
+  progress: "Progress",
+  profile: "Profile",
+  settings: "Settings",
+  ai: "AI Assistant",
+}
+
+export function StudentNavbar({ onMenuClick, onAIClick, onSummaryClick, isSidebarOpen = true, activeRoute }: StudentNavbarProps) {
   const router = useRouter()
   const queryClient = useQueryClient()
 
@@ -57,6 +77,8 @@ export function StudentNavbar({ onMenuClick, onAIClick, onSummaryClick }: Studen
   const notificationRef = useRef<HTMLDivElement>(null)
   const aiRef = useRef<HTMLDivElement>(null)
   const userRef = useRef<HTMLDivElement>(null)
+
+  const pageTitle = ROUTE_TITLES[activeRoute || 'dashboard'] || 'Dashboard'
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme') as 'light' | 'dark'
@@ -131,23 +153,124 @@ export function StudentNavbar({ onMenuClick, onAIClick, onSummaryClick }: Studen
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const handleLogout = async () => {
-    setIsLoggingOut(true)
-    try {
-      await postLogout()
-      localStorage.removeItem('smartcliff_roleSwitch')
-      localStorage.removeItem('smartcliff_isDummyStudent')
-      localStorage.clear()
-      toast.success("Logged out successfully")
-      router.push("/login")
-    } catch (error) {
-      toast.error("Logout failed")
-    } finally {
-      setIsLoggingOut(false)
-    }
-  }
+// Helper function to clear all localStorage items including React Query cache
+const clearLocalStorage = () => {
+  // Sign-out wipe. The old hand-maintained key list only covered
+  // `smartcliff_*` and cache keys, so everything else the app writes
+  // survived into the next session. See clearAllStorage in lib/session.
+  clearAllStorage()
+}
 
-  const handleProfileClick = () => {
+// Helper function to clear React Query cache
+const clearReactQueryCache = () => {
+  try {
+    // Clear the React Query client cache
+    queryClient.clear()
+    queryClient.cancelQueries()
+    queryClient.removeQueries()
+
+    // Remove React Query persisted cache from localStorage
+    const reactQueryKeys = [
+      "smartcliff:rq-cache:v1",
+      "rq-cache:v1",
+      "react-query:cache",
+      "tanstack:cache",
+      "smartcliff:rq-cache",
+      "smartcliff_persist_cache",
+      "persist:smartcliff:rq-cache",
+      "smartcliff:react-query",
+      "REACT_QUERY_OFFLINE_CACHE"
+    ]
+
+    reactQueryKeys.forEach(key => {
+      localStorage.removeItem(key)
+      sessionStorage.removeItem(key) // Also check sessionStorage
+    })
+
+    // Remove any other cache items that might be in localStorage
+    const keysToRemove: string[] = []
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (key && (
+        key.includes('rq-cache') ||
+        key.includes('react-query') ||
+        key.includes('tanstack') ||
+        key.includes('smartcliff:rq') ||
+        key.includes('persist') ||
+        key.includes('cache') ||
+        key.includes('offline')
+      )) {
+        keysToRemove.push(key)
+      }
+    }
+    keysToRemove.forEach(key => localStorage.removeItem(key))
+
+    // Clear sessionStorage too
+    const sessionKeysToRemove: string[] = []
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i)
+      if (key && (
+        key.includes('rq-cache') ||
+        key.includes('react-query') ||
+        key.includes('tanstack') ||
+        key.includes('smartcliff') ||
+        key.includes('cache')
+      )) {
+        sessionKeysToRemove.push(key)
+      }
+    }
+    sessionKeysToRemove.forEach(key => sessionStorage.removeItem(key))
+
+    console.log('React Query cache cleared successfully')
+  } catch (error) {
+    console.error('Error clearing React Query cache:', error)
+  }
+}
+
+const handleLogout = async () => {
+  setIsLoggingOut(true)
+  try {
+    // Clear React Query cache first
+    clearReactQueryCache()
+
+    // Call logout API
+    await postLogout()
+
+    // Clear all localStorage items (this will remove everything)
+    clearLocalStorage()
+
+    // Clear sessionStorage as well
+    sessionStorage.clear()
+
+    // One more pass to ensure everything is cleared
+    setTimeout(() => {
+      clearReactQueryCache()
+      clearLocalStorage()
+    }, 100)
+
+    toast.success("Logged out successfully")
+
+    // Use window.location for a full page reload to ensure clean state
+    window.location.href = "/login"
+    // router.push("/login") // Replace with the above if you want a full reload
+
+  } catch (error) {
+    // Ensure cache is cleared even on error
+    clearReactQueryCache()
+    clearLocalStorage()
+    sessionStorage.clear()
+    toast.error("Logout failed")
+
+    // Still redirect on error
+    setTimeout(() => {
+      window.location.href = "/login"
+    }, 1000)
+  } finally {
+    setIsLoggingOut(false)
+  }
+}
+
+ const handleProfileClick = () => {
     setShowUserMenu(false)
     router.push("/lms/pages/studentdashboard/student/profile")
   }
@@ -166,7 +289,7 @@ export function StudentNavbar({ onMenuClick, onAIClick, onSummaryClick }: Studen
       setOriginalRoleInfo({ roleName: user?.role?.roleName || '', renameRole: user?.role?.renameRole || '' })
       setShowUserMenu(false)
       toast.success("Switched to Student View")
-      router.push("/lms/pages/courses")
+      router.push(studentRouteForCurrentCourse())
       setTimeout(() => window.dispatchEvent(new Event('storage')), 100)
     } catch (error) {
       toast.error("Failed to switch role")
@@ -181,10 +304,14 @@ export function StudentNavbar({ onMenuClick, onAIClick, onSummaryClick }: Studen
       setOriginalRoleInfo(null)
       setShowUserMenu(false)
       toast.success(`Switched back to ${originalRoleInfo?.renameRole || 'your original role'}`)
-      const originalRole = originalRoleInfo?.renameRole?.toLowerCase() || ''
-      if (originalRole.includes('poc')) router.push("/lms/pages/poc/dashboard")
-      else if (originalRole.includes('admin')) router.push("/lms/pages/admin/dashboard")
-      else router.push("/lms/pages/dashboard")
+      const backToCourse = staffRouteForCurrentCourse()
+      if (backToCourse) router.push(backToCourse)
+      else {
+        const originalRole = originalRoleInfo?.renameRole?.toLowerCase() || ''
+        if (originalRole.includes('poc')) router.push("/lms/pages/poc/dashboard")
+        else if (originalRole.includes('admin')) router.push("/lms/pages/admin/dashboard")
+        else router.push("/lms/pages/dashboard")
+      }
       setTimeout(() => window.dispatchEvent(new Event('storage')), 100)
     } catch (error) {
       toast.error("Failed to switch role")
@@ -216,7 +343,7 @@ export function StudentNavbar({ onMenuClick, onAIClick, onSummaryClick }: Studen
           <input
             autoFocus
             type="text"
-            placeholder="Search courses, assignments..."
+            placeholder="Search anything..."
             className="flex-1 bg-transparent border-none outline-none text-sm text-gray-800 dark:text-white placeholder-gray-400"
           />
           <button onClick={() => setShowMobileSearch(false)} className="p-1.5 ml-2">
@@ -225,50 +352,46 @@ export function StudentNavbar({ onMenuClick, onAIClick, onSummaryClick }: Studen
         </div>
       )}
 
-      <header className="fixed top-0 left-0 right-0 z-40 h-[60px] bg-white/95 dark:bg-gray-950/95 backdrop-blur-md border-b border-gray-100 dark:border-gray-800/80">
-        <div className="flex h-full items-center justify-between px-4 lg:px-5 gap-4 max-w-[1920px] mx-auto">
+      <header className={cn(
+        "fixed top-0 right-0 z-40 h-[64px] bg-white dark:bg-gray-950 border-b border-gray-100 dark:border-gray-800/80 transition-[left] duration-300 ease-out",
+        isSidebarOpen ? "left-0 md:left-[224px]" : "left-0"
+      )}>
+        <div className="flex h-full items-center px-4 lg:px-5 gap-4">
 
-          {/* LEFT */}
-          <div className="flex items-center gap-3">
+          {/* LEFT: hamburger + page title */}
+          <div className="flex items-center gap-2.5 flex-shrink-0">
             <button
               onClick={onMenuClick}
-              className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+              className="p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
             >
-              <Menu className="w-4 h-4" strokeWidth={2.5} />
+              <Menu className="w-[18px] h-[18px]" strokeWidth={2.2} />
             </button>
-
-            <div className="h-5 w-px bg-gray-200 dark:bg-gray-700 hidden sm:block" />
-
-            <div className="hidden sm:block">
-              <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-none font-medium">Welcome back</p>
-              <h1 className="text-sm font-bold text-gray-900 dark:text-white mt-0.5 leading-none">
-                {user?.firstName || 'Student'} 
-                <span className="text-violet-600 dark:text-violet-400"> ✦</span>
-              </h1>
-            </div>
+            {/* <h1 className="text-lg font-bold text-gray-900 dark:text-white hidden sm:block">
+              {pageTitle}
+            </h1> */}
           </div>
 
           {/* CENTER: Search */}
-          <div className="flex-1 max-w-md hidden md:block">
+          <div className="flex-1 max-w-lg mx-auto hidden md:block">
             <div className="relative group">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 group-focus-within:text-violet-500 transition-colors" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 group-focus-within:text-orange-500 transition-colors" />
               <input
                 type="text"
-                placeholder="Search courses, assignments..."
-                className="w-full h-8 pl-9 pr-10 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-[13px] text-gray-700 dark:text-gray-300 placeholder-gray-400 focus:bg-white dark:focus:bg-gray-800 focus:border-violet-300 dark:focus:border-violet-600 focus:ring-2 focus:ring-violet-500/10 transition-all outline-none"
+                placeholder="Search anything..."
+                className="w-full h-9 pl-9 pr-9 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-700 dark:text-gray-300 placeholder-gray-400 focus:bg-white dark:focus:bg-gray-800 focus:border-orange-300 dark:focus:border-orange-600 focus:ring-2 focus:ring-orange-500/10 transition-all outline-none"
               />
-              <kbd className="absolute right-2 top-1/2 -translate-y-1/2 hidden lg:inline-flex items-center gap-0.5 text-[10px] text-gray-400 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded px-1.5 py-0.5 font-mono">
-                <Command className="w-2.5 h-2.5" />K
+              <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 hidden lg:inline-flex items-center text-2xs text-gray-400 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded px-1.5 py-0.5 font-mono">
+                /
               </kbd>
             </div>
           </div>
 
           {/* RIGHT: Actions */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 ml-auto flex-shrink-0">
 
             {/* Mobile Search */}
             <button className="md:hidden p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" onClick={() => setShowMobileSearch(true)}>
-              <Search className="w-4 h-4" />
+              <Search className="w-[18px] h-[18px]" />
             </button>
 
             {/* AI Button */}
@@ -276,11 +399,12 @@ export function StudentNavbar({ onMenuClick, onAIClick, onSummaryClick }: Studen
               <button
                 onClick={() => setShowAISubmenu(!showAISubmenu)}
                 className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-all border",
+                  "flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold transition-all border",
                   showAISubmenu
-                    ? "bg-violet-600 text-white border-violet-600"
-                    : "bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-violet-300 hover:text-violet-600 dark:hover:border-violet-600 dark:hover:text-violet-400"
+                    ? "text-white border-transparent"
+                    : "bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-orange-300 hover:text-orange-600 dark:hover:border-orange-600 dark:hover:text-orange-400"
                 )}
+                style={showAISubmenu ? { background: `linear-gradient(135deg, ${ACCENT}, #FDBA74)` } : undefined}
               >
                 <Sparkles className="w-3.5 h-3.5" />
                 Ask AI
@@ -289,36 +413,34 @@ export function StudentNavbar({ onMenuClick, onAIClick, onSummaryClick }: Studen
 
               {showAISubmenu && (
                 <div className="absolute top-full right-0 mt-2 w-52 bg-white dark:bg-gray-900 rounded-xl shadow-lg shadow-gray-100 dark:shadow-gray-950 ring-1 ring-gray-100 dark:ring-gray-800 p-1.5 z-50 animate-in fade-in zoom-in-95 origin-top-right">
-                  <button onClick={onAIClick} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-violet-50 dark:hover:bg-violet-900/20 text-left group transition-colors">
-                    <div className="w-7 h-7 rounded-md bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center text-violet-600 dark:text-violet-400">
+                  <button onClick={onAIClick} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-900/20 text-left group transition-colors">
+                    <div className="w-7 h-7 rounded-md bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-orange-600 dark:text-orange-400">
                       <MessageSquare className="w-3.5 h-3.5" />
                     </div>
                     <div>
-                      <p className="text-[12px] font-semibold text-gray-800 dark:text-white">Chat Assistant</p>
-                      <p className="text-[10px] text-gray-400">Ask anything instantly</p>
+                      <p className="text-xs font-semibold text-gray-800 dark:text-white">Chat Assistant</p>
+                      <p className="text-2xs text-gray-400">Ask anything instantly</p>
                     </div>
                   </button>
-                  <button onClick={onSummaryClick} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-fuchsia-50 dark:hover:bg-fuchsia-900/20 text-left group transition-colors">
-                    <div className="w-7 h-7 rounded-md bg-fuchsia-100 dark:bg-fuchsia-900/30 flex items-center justify-center text-fuchsia-600 dark:text-fuchsia-400">
+                  <button onClick={onSummaryClick} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/20 text-left group transition-colors">
+                    <div className="w-7 h-7 rounded-md bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-amber-600 dark:text-amber-400">
                       <Zap className="w-3.5 h-3.5" />
                     </div>
                     <div>
-                      <p className="text-[12px] font-semibold text-gray-800 dark:text-white">Summarize</p>
-                      <p className="text-[10px] text-gray-400">Condense current content</p>
+                      <p className="text-xs font-semibold text-gray-800 dark:text-white">Summarize</p>
+                      <p className="text-2xs text-gray-400">Condense current content</p>
                     </div>
                   </button>
                 </div>
               )}
             </div>
 
-            <div className="w-px h-4 bg-gray-200 dark:bg-gray-700 mx-0.5 hidden sm:block" />
-
             {/* Theme Toggle */}
             <button
               onClick={toggleTheme}
               className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100 transition-colors hidden sm:flex"
             >
-              {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+              {theme === 'light' ? <Moon className="w-[18px] h-[18px]" /> : <Sun className="w-[18px] h-[18px]" />}
             </button>
 
             {/* Notifications */}
@@ -332,11 +454,13 @@ export function StudentNavbar({ onMenuClick, onAIClick, onSummaryClick }: Studen
                     : "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100"
                 )}
               >
-                <Bell className="w-4 h-4" />
+                <Bell className="w-[18px] h-[18px]" />
                 {unreadCount > 0 && (
-                  <span className="absolute top-1 right-1 flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+                  <span
+                    className="absolute top-0 right-0 min-w-[15px] h-[15px] px-0.5 flex items-center justify-center rounded-full text-white text-2xs font-bold"
+                    style={{ backgroundColor: ACCENT }}
+                  >
+                    {unreadCount > 9 ? '9+' : unreadCount}
                   </span>
                 )}
               </button>
@@ -345,11 +469,11 @@ export function StudentNavbar({ onMenuClick, onAIClick, onSummaryClick }: Studen
                 <div className="absolute top-full right-0 mt-2 w-80 bg-white dark:bg-gray-900 rounded-xl shadow-lg shadow-gray-100 dark:shadow-gray-950 ring-1 ring-gray-100 dark:ring-gray-800 z-50 overflow-hidden animate-in fade-in zoom-in-95 origin-top-right">
                   <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center">
                     <div>
-                      <h3 className="text-[13px] font-bold text-gray-900 dark:text-white">Notifications</h3>
-                      {unreadCount > 0 && <p className="text-[10px] text-gray-400 mt-0.5">{unreadCount} unread</p>}
+                      <h3 className="text-sm font-bold text-gray-900 dark:text-white">Notifications</h3>
+                      {unreadCount > 0 && <p className="text-2xs text-gray-400 mt-0.5">{unreadCount} unread</p>}
                     </div>
                     {unreadCount > 0 && (
-                      <button onClick={() => markAllAsReadMutation.mutate()} className="text-[11px] font-semibold text-violet-600 dark:text-violet-400 hover:underline">
+                      <button onClick={() => markAllAsReadMutation.mutate()} className="text-2xs font-semibold text-orange-600 dark:text-orange-400 hover:underline">
                         Mark all read
                       </button>
                     )}
@@ -358,7 +482,7 @@ export function StudentNavbar({ onMenuClick, onAIClick, onSummaryClick }: Studen
                     {notifications.length === 0 ? (
                       <div className="py-8 text-center">
                         <Bell className="w-6 h-6 text-gray-200 dark:text-gray-700 mx-auto mb-2" />
-                        <p className="text-[12px] text-gray-400">No notifications</p>
+                        <p className="text-xs text-gray-400">No notifications</p>
                       </div>
                     ) : notifications.map((n) => (
                       <div
@@ -366,15 +490,15 @@ export function StudentNavbar({ onMenuClick, onAIClick, onSummaryClick }: Studen
                         onClick={() => markAsReadMutation.mutate(n._id)}
                         className={cn(
                           "px-4 py-3 border-b border-gray-50 dark:border-gray-800/50 cursor-pointer transition-colors flex gap-3",
-                          !n.isRead ? "bg-violet-50/40 dark:bg-violet-900/10 hover:bg-violet-50 dark:hover:bg-violet-900/20" : "hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                          !n.isRead ? "bg-orange-50/40 dark:bg-orange-900/10 hover:bg-orange-50 dark:hover:bg-orange-900/20" : "hover:bg-gray-50 dark:hover:bg-gray-800/50"
                         )}
                       >
-                        <div className={cn("mt-1.5 h-1.5 w-1.5 rounded-full flex-shrink-0", !n.isRead ? "bg-violet-500" : "bg-gray-200 dark:bg-gray-600")} />
+                        <div className={cn("mt-1.5 h-1.5 w-1.5 rounded-full flex-shrink-0", !n.isRead ? "bg-orange-500" : "bg-gray-200 dark:bg-gray-600")} />
                         <div className="min-w-0">
-                          <p className={cn("text-[12px] leading-tight", !n.isRead ? "font-semibold text-gray-900 dark:text-white" : "font-medium text-gray-500 dark:text-gray-400")}>
+                          <p className={cn("text-xs leading-tight", !n.isRead ? "font-semibold text-gray-900 dark:text-white" : "font-medium text-gray-500 dark:text-gray-400")}>
                             {n.title}
                           </p>
-                          <p className="text-[11px] text-gray-400 mt-0.5 line-clamp-2">{n.message}</p>
+                          <p className="text-2xs text-gray-400 mt-0.5 line-clamp-2">{n.message}</p>
                         </div>
                       </div>
                     ))}
@@ -383,33 +507,31 @@ export function StudentNavbar({ onMenuClick, onAIClick, onSummaryClick }: Studen
               )}
             </div>
 
-            <div className="w-px h-4 bg-gray-200 dark:bg-gray-700 mx-0.5" />
+            <div className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1 hidden sm:block" />
 
             {/* User Menu */}
             <div ref={userRef} className="relative">
               <button
                 onClick={() => setShowUserMenu(!showUserMenu)}
                 className={cn(
-                  "flex items-center gap-2 px-2 py-1.5 rounded-lg transition-colors",
+                  "flex items-center gap-2.5 px-1.5 py-1.5 rounded-xl transition-colors",
                   showUserMenu ? "bg-gray-100 dark:bg-gray-800" : "hover:bg-gray-50 dark:hover:bg-gray-800"
                 )}
               >
                 {userLoading ? (
-                  <div className="h-7 w-7 rounded-lg bg-gray-100 dark:bg-gray-700 animate-pulse" />
+                  <div className="h-7 w-7 rounded-full bg-gray-100 dark:bg-gray-700 animate-pulse" />
                 ) : (
-                  <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-white text-[11px] font-bold shadow-sm">
+                  <div
+                    className="h-7 w-7 rounded-full flex items-center justify-center text-white text-2xs font-bold shadow-sm"
+                    style={{ background: `linear-gradient(135deg, ${ACCENT}, #FB923C)` }}
+                  >
                     {getUserInitials()}
                   </div>
                 )}
-                <div className="hidden lg:block text-left">
-                  <p className="text-[12px] font-bold text-gray-900 dark:text-white leading-tight">
-                    {user?.firstName || 'Student'}
-                  </p>
-                  <p className="text-[10px] text-gray-400 leading-tight">
-                    {isDummyStudent ? 'Student View' : user?.role?.renameRole || 'Account'}
-                  </p>
-                </div>
-                <ChevronDown className={cn("w-3 h-3 text-gray-400 hidden lg:block transition-transform", showUserMenu ? "rotate-180" : "")} />
+                <span className="text-sm font-semibold text-gray-800 dark:text-white hidden lg:block">
+                  {user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : 'Student'}
+                </span>
+                <ChevronDown className={cn("w-3.5 h-3.5 text-gray-400 hidden lg:block transition-transform", showUserMenu ? "rotate-180" : "")} />
               </button>
 
               {showUserMenu && (
@@ -417,16 +539,19 @@ export function StudentNavbar({ onMenuClick, onAIClick, onSummaryClick }: Studen
                   {/* User Info */}
                   <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800">
                     <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-white text-sm font-bold shadow-sm flex-shrink-0">
+                      <div
+                        className="h-10 w-10 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-sm flex-shrink-0"
+                        style={{ background: `linear-gradient(135deg, ${ACCENT}, #FB923C)` }}
+                      >
                         {getUserInitials()}
                       </div>
                       <div className="min-w-0">
-                        <p className="text-[13px] font-bold text-gray-900 dark:text-white truncate">{user?.firstName} {user?.lastName}</p>
-                        <p className="text-[11px] text-gray-400 truncate">{user?.email}</p>
+                        <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{user?.firstName} {user?.lastName}</p>
+                        <p className="text-2xs text-gray-400 truncate">{user?.email}</p>
                         <div className="flex items-center gap-1 mt-0.5">
                           <span className={cn(
-                            "inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded-md",
-                            isDummyStudent ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400" : "bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400"
+                            "inline-flex items-center text-2xs font-semibold px-1.5 py-0.5 rounded-md",
+                            isDummyStudent ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400" : "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400"
                           )}>
                             {isDummyStudent ? '⚡ Student View' : user?.role?.renameRole || 'Account'}
                           </span>
@@ -440,14 +565,14 @@ export function StudentNavbar({ onMenuClick, onAIClick, onSummaryClick }: Studen
                     {!actualStudent && !isDummyStudent && (
                       <button
                         onClick={handleSwitchToStudent}
-                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 text-left transition-colors mb-1 group"
+                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-900/20 text-left transition-colors mb-1 group"
                       >
-                        <div className="w-7 h-7 rounded-md bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                        <div className="w-7 h-7 rounded-md bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-orange-600 dark:text-orange-400 group-hover:bg-orange-600 group-hover:text-white transition-colors">
                           <UserCheck2 className="w-3.5 h-3.5" />
                         </div>
                         <div>
-                          <p className="text-[12px] font-semibold text-blue-600 dark:text-blue-400">Switch to Student</p>
-                          <p className="text-[10px] text-gray-400">Preview student experience</p>
+                          <p className="text-xs font-semibold text-orange-600 dark:text-orange-400">Switch to Student</p>
+                          <p className="text-2xs text-gray-400">Preview student experience</p>
                         </div>
                       </button>
                     )}
@@ -462,8 +587,8 @@ export function StudentNavbar({ onMenuClick, onAIClick, onSummaryClick }: Studen
                           <Zap className="w-3.5 h-3.5" />
                         </div>
                         <div>
-                          <p className="text-[12px] font-semibold text-amber-600 dark:text-amber-400">Back to {originalRoleInfo.renameRole}</p>
-                          <p className="text-[10px] text-gray-400">Return to original role</p>
+                          <p className="text-xs font-semibold text-amber-600 dark:text-amber-400">Back to {originalRoleInfo.renameRole}</p>
+                          <p className="text-2xs text-gray-400">Return to original role</p>
                         </div>
                       </button>
                     )}
@@ -472,15 +597,15 @@ export function StudentNavbar({ onMenuClick, onAIClick, onSummaryClick }: Studen
 
                     <button onClick={handleProfileClick} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 text-left transition-colors">
                       <User className="w-3.5 h-3.5 text-gray-400" />
-                      <span className="text-[12px] font-medium text-gray-700 dark:text-gray-300">My Profile</span>
+                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300">My Profile</span>
                     </button>
                     <button className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 text-left transition-colors">
                       <Settings className="w-3.5 h-3.5 text-gray-400" />
-                      <span className="text-[12px] font-medium text-gray-700 dark:text-gray-300">Settings</span>
+                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Settings</span>
                     </button>
                     <button className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 text-left transition-colors">
                       <HelpCircle className="w-3.5 h-3.5 text-gray-400" />
-                      <span className="text-[12px] font-medium text-gray-700 dark:text-gray-300">Help & Support</span>
+                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Help & Support</span>
                     </button>
                   </div>
 
@@ -491,7 +616,7 @@ export function StudentNavbar({ onMenuClick, onAIClick, onSummaryClick }: Studen
                       className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-left transition-colors group"
                     >
                       <LogOut className="w-3.5 h-3.5 text-red-400 group-hover:text-red-500" />
-                      <span className="text-[12px] font-semibold text-red-500 dark:text-red-400">
+                      <span className="text-xs font-semibold text-red-500 dark:text-red-400">
                         {isLoggingOut ? 'Signing out...' : 'Sign Out'}
                       </span>
                     </button>

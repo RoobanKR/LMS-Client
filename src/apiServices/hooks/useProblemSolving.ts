@@ -9,7 +9,7 @@ import {
   deleteProgrammingQuestion,
   toggleQuestionStatus,
   executeCode
-} from '../services/problemSolvingService';
+} from '../problemSolvingService';
 
 // Query keys
 export const problemSolvingQueryKeys = {

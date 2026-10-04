@@ -4,6 +4,20 @@ import { Terminal, AlertCircle, Check, Shuffle, Calculator } from 'lucide-react'
 import { D, formatDecimal, isApproximatelyEqual, configOptions, questionFlowOptions } from './constants';
 import { BaseConfigProps } from './types';
 import { SectionLabel, ODropdown, ONumberInput, OToggle } from './UIComponents';
+import { MarksMeter, MarksIssue } from './MarksMeter';
+import {
+  EvaluationMethodConfig,
+  DEFAULT_EVALUATION_METHOD,
+  type EvaluationMethod,
+} from '@/app/lms/pages/courses/coursesdetailedview/components/EvaluationMethodConfig';
+
+// You_Do assessments only ever grade themselves — the whole point of the tab.
+// Manual is deliberately absent: the config picker is Test Case OR AI, and the
+// student's Submit routes to exactly the one method the trainer picked.
+// EvaluationMethodConfig migrates any pre-restriction You_Do saved as Manual
+// up to the first allowed method silently on mount, so switching to this
+// narrower list can't strand an old exercise on an invalid value.
+const YOUDO_ALLOWED_METHODS: EvaluationMethod[] = ['testcase', 'ai'];
 
 export const ProgrammingConfiguration: React.FC<BaseConfigProps> = ({
   formData, setFormData, setValidationErrors, validationErrors, touchedFields, markTouched,
@@ -15,6 +29,12 @@ export const ProgrammingConfiguration: React.FC<BaseConfigProps> = ({
   const isCombined = formData.exerciseType === 'Combined';
   const totalToUse = isCombined ? formData.totalMarksProgramming : formData.totalMarks;
   const isMatch = isApproximatelyEqual(programmingAllocatedMarks || 0, totalToUse);
+  const graded = formData.isGraded !== false;
+  // A graded assessment splits its marks across the questions configured
+  // here, so nothing can be configured until there are marks to split: the
+  // strategy picker stays locked (and the fields under it hidden) until the
+  // total is entered.
+  const strategyLocked = graded && !(totalToUse > 0);
 
   // Update marks when general question count changes
   const updateGeneralMarks = (questionCount: number) => {
@@ -42,15 +62,15 @@ export const ProgrammingConfiguration: React.FC<BaseConfigProps> = ({
 
   return (
     <div className="px-4 py-3">
-      <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: designTokens.orangeLight, color: designTokens.orange }}>
-            <Terminal size={13} />
+      <div className="mb-5 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: '#ede9fe', color: '#7c3aed' }}>
+            <Terminal size={16} />
           </div>
           <div>
-            <h3 className="text-sm font-bold" style={{ color: designTokens.textMain, fontFamily: 'Inter, sans-serif' }}>
+            <h2 className="text-[15px] font-bold leading-tight" style={{ color: designTokens.textMain }}>
               Programming Configuration
-            </h3>
+            </h2>
             {isCombined && totalToUse > 0 && (
               <p className="text-[10px] mt-0.5" style={{ color: designTokens.textMuted }}>
                 Total Programming Marks: <strong style={{ color: designTokens.orange }}>{totalToUse}</strong>
@@ -58,32 +78,28 @@ export const ProgrammingConfiguration: React.FC<BaseConfigProps> = ({
             )}
           </div>
         </div>
-        {isMatch && programmingAllocatedMarks > 0 && totalToUse > 0 && (
-          <div className="text-right">
-            <div className="text-[10px] font-semibold" style={{ color: designTokens.emerald }}>Allocated</div>
-            <div className="text-sm font-bold" style={{ color: designTokens.emerald }}>
-              {formatDecimal(programmingAllocatedMarks)}<span className="text-xs font-normal" style={{ color: designTokens.textMuted }}>/{totalToUse}</span>
-            </div>
-          </div>
-        )}
+        {/* Live Total / Used / Remaining — re-validates on every keystroke. */}
+        {graded && <MarksMeter total={totalToUse || 0} used={programmingAllocatedMarks || 0} />}
       </div>
 
-      {programmingLevelMismatch && (
-        <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: designTokens.red + '10', border: `1px solid ${designTokens.red}40` }}>
-          <AlertCircle size={13} style={{ color: designTokens.red }} />
-          <p className="text-xs font-semibold flex-1" style={{ color: designTokens.red }}>{programmingLevelMismatch}</p>
+      {graded && (
+        <div className="mb-3">
+          <MarksIssue issue={programmingLevelMismatch ?? null}
+            ok={isMatch && programmingAllocatedMarks > 0 && totalToUse > 0} />
         </div>
       )}
 
-      <div className="space-y-3">
+      <div className="space-y-3" style={{ border: `1px solid ${designTokens.border}`, borderRadius: 14, background: '#fff', padding: '16px 18px' }}>
         {/* Config Strategy */}
         <div>
           <SectionLabel info="General: fixed question count; Level Based: questions by difficulty (Easy/Medium/Hard); Selection Level: pick up to 2 difficulty levels">
             Config Strategy
           </SectionLabel>
           <ODropdown
-            value={formData.programmingConfig.questionConfigType}
+            value={strategyLocked ? '' : formData.programmingConfig.questionConfigType}
             options={configOptions}
+            disabled={strategyLocked}
+            placeholder={isCombined ? 'Enter Programming marks first' : 'Enter Total Marks first'}
             onChange={v => {
               setFormData(prev => ({
                 ...prev,
@@ -101,7 +117,7 @@ export const ProgrammingConfiguration: React.FC<BaseConfigProps> = ({
         </div>
 
         {/* General Configuration */}
-        {formData.programmingConfig.questionConfigType === 'general' && (
+        {!strategyLocked && formData.programmingConfig.questionConfigType === 'general' && (
           <div className="grid grid-cols-2 gap-3">
             <div>
               <SectionLabel required info="Total number of programming questions">Total Questions</SectionLabel>
@@ -114,6 +130,7 @@ export const ProgrammingConfiguration: React.FC<BaseConfigProps> = ({
                   }
                 }}
                 onBlur={() => markTouched('programmingGeneralQuestionCount')}
+                liveUpdate
                 min={1}
                 placeholder="e.g. 5"
                 error={validationErrors.programmingGeneralQuestionCount}
@@ -148,7 +165,7 @@ export const ProgrammingConfiguration: React.FC<BaseConfigProps> = ({
         )}
 
         {/* Level Based / Selection Level Configuration */}
-        {(formData.programmingConfig.questionConfigType === 'levelBased' || formData.programmingConfig.questionConfigType === 'selectionLevel') && (
+        {!strategyLocked && (formData.programmingConfig.questionConfigType === 'levelBased' || formData.programmingConfig.questionConfigType === 'selectionLevel') && (
           <>
             <div className="flex items-center gap-1">
               <Calculator size={12} style={{ color: designTokens.textMuted }} />
@@ -218,6 +235,7 @@ export const ProgrammingConfiguration: React.FC<BaseConfigProps> = ({
                             value={val}
                             onChange={handleChange}
                             onBlur={isSelLevel ? undefined : () => markTouched('programmingLevelCounts')}
+                            liveUpdate
                             disabled={isSelLevel && !checked}
                             min={0}
                             placeholder={isSelLevel && !checked ? '—' : 'Count'}
@@ -264,6 +282,9 @@ export const ProgrammingConfiguration: React.FC<BaseConfigProps> = ({
                           <ONumberInput
                             value={isQSpec ? (scoring?.totalMarks || 0) : (scoring?.marksPerQuestion || 0)}
                             onChange={v => updateLevelScoringConfig?.(level, isQSpec ? { totalMarks: v } : { marksPerQuestion: v })}
+                            liveUpdate
+                            error={graded && count > 0 && !((isQSpec ? scoring?.totalMarks : scoring?.marksPerQuestion) > 0) ? 'Enter marks' : undefined}
+                            touched
                           />
                           {hasError && <span className="text-[10px]" style={{ color: designTokens.red }}>{scoringErrors[level]}</span>}
                         </div>
@@ -320,6 +341,31 @@ export const ProgrammingConfiguration: React.FC<BaseConfigProps> = ({
             })}
           </div>
         </div>
+
+        {/* Evaluation Method — Test Case OR AI (no Manual for You_Do; the
+            allowed set is enforced by the shared config). The picked method is
+            the single source of truth for the student's Submit: Test Case runs
+            the question's authored cases via Piston; AI hands the (multi-file
+            or single-file) submission to the shared client-side AI grader.
+            See the You_Do editor's `resolveEvaluationMethod` branch.
+
+            Hidden entirely on a NON-GRADED assessment: nothing is scored, so
+            there is nothing to evaluate and the stored method stays Manual.
+            The row's top divider goes with it — an empty bordered strip reads
+            as a section that failed to load. */}
+        {formData.isGraded !== false && (
+        <div className="pt-3 border-t" style={{ borderColor: designTokens.border }}>
+          <EvaluationMethodConfig
+            value={formData.evaluationMethod || DEFAULT_EVALUATION_METHOD}
+            onChange={next => setFormData(prev => ({ ...prev, evaluationMethod: next }))}
+            D={designTokens}
+            ODropdown={ODropdown}
+            SectionLabel={SectionLabel}
+            allowedMethods={YOUDO_ALLOWED_METHODS}
+            graded
+          />
+        </div>
+        )}
 
         {/* Attempt Limit */}
         <div className="pt-2 border-t" style={{ borderColor: designTokens.border }}>

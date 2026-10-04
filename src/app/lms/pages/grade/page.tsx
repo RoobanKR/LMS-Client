@@ -1,10 +1,10 @@
 "use client";
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { BookOpen, Clock, Users, Play, ChevronRight, Search, Loader2, Target, DollarSign as Collaboration, Rocket, Sparkles, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { BookOpen, Clock, Users, Play, ChevronRight, Search, Target, DollarSign as Collaboration, Rocket, Sparkles, AlertCircle } from 'lucide-react';
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    useCoursesInfiniteQuery,
+    useCoursesQuery,
     useFilteredCourses,
     getAuthToken,
     getCurrentUserIdFromAuth,
@@ -163,14 +163,14 @@ const Breadcrumbs = () => {
     return (
         <div className="flex items-center gap-1 text-xs mb-3 px-1 text-gray-800 dark:text-gray-200">
             <div
-                className="flex items-center gap-1 px-2 py-1 text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                className="flex items-center gap-1 px-2 py-1 text-gray-600 dark:text-gray-300 hover:text-orange-600 dark:hover:text-orange-400 cursor-pointer rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                 onClick={() => router.push('/lms/pages/studentdashboard')}
             >
                 <BookOpen className="w-3 h-3" />
                 <span className="text-xs">Dashboard</span>
             </div>
             <ChevronRight className="w-3 h-3 text-gray-400 dark:text-gray-600 mx-1" />
-            <div className="flex items-center gap-1 px-2 py-1 text-blue-600 dark:text-blue-400 font-medium bg-blue-50 dark:bg-blue-900/30 rounded transition-colors">
+            <div className="flex items-center gap-1 px-2 py-1 text-orange-600 dark:text-orange-400 font-medium bg-orange-50 dark:bg-orange-900/30 rounded transition-colors">
                 <BookOpen className="w-3 h-3" />
                 <span className="text-xs">Courses</span>
             </div>
@@ -229,21 +229,16 @@ export default function GradePage() {
         selectedCategory,
     };
 
+    // One request, the whole enrolled list — this endpoint does not page.
     const {
         data,
         isLoading,
         error,
         isError,
-        fetchNextPage,
-        hasNextPage,
-        isFetchingNextPage,
         refetch
-    } = useCoursesInfiniteQuery(authToken, userId, filters);
+    } = useCoursesQuery(authToken, userId);
 
-    const allCourses = useMemo(() =>
-        data?.pages.flatMap(page => page.data) || [],
-        [data]
-    );
+    const allCourses = useMemo(() => data || [], [data]);
 
     const uniqueServiceTypes = useMemo(() => {
         if (allCourses.length === 0) return [];
@@ -263,23 +258,6 @@ export default function GradePage() {
     }, [uniqueServiceTypes]);
 
     const filteredCourses = useFilteredCourses(allCourses, filters);
-
-    const handleScroll = useCallback(() => {
-        if (isFetchingNextPage || !hasNextPage || isLoading) return;
-
-        const scrollTop = window.scrollY || document.documentElement.scrollTop;
-        const scrollHeight = document.documentElement.scrollHeight;
-        const clientHeight = window.innerHeight;
-
-        if (scrollTop + clientHeight >= scrollHeight - 300) {
-            fetchNextPage();
-        }
-    }, [isFetchingNextPage, hasNextPage, fetchNextPage, isLoading]);
-
-    useEffect(() => {
-        window.addEventListener('scroll', handleScroll);
-        return () => window.removeEventListener('scroll', handleScroll);
-    }, [handleScroll]);
 
     const handleStartCourse = (courseId: string) => {
         console.log("Role-based navigation check - isStudent:", isStudent);
@@ -307,7 +285,7 @@ export default function GradePage() {
             <style jsx global>{`
                 .custom-scrollbar {
                     scrollbar-width: thin;
-                    scrollbar-color: rgba(59, 130, 246, 0.6) transparent;
+                    scrollbar-color: rgba(251, 146, 60, 0.6) transparent;
                 }
                 
                 .custom-scrollbar::-webkit-scrollbar {
@@ -321,26 +299,26 @@ export default function GradePage() {
                 }
                 
                 .custom-scrollbar::-webkit-scrollbar-thumb {
-                    background: linear-gradient(45deg, #3b82f6, #2563eb);
+                    background: linear-gradient(45deg, #fb923c, #f97316);
                     border-radius: 1px;
-                    box-shadow: 0 0 4px rgba(59, 130, 246, 0.3);
+                    box-shadow: 0 0 4px rgba(251, 146, 60, 0.3);
                     transition: all 0.3s ease;
                 }
                 
                 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-                    background: linear-gradient(45deg, #2563eb, #1d4ed8);
-                    box-shadow: 0 0 8px rgba(59, 130, 246, 0.6);
+                    background: linear-gradient(45deg, #f97316, #ea580c);
+                    box-shadow: 0 0 8px rgba(251, 146, 60, 0.6);
                     width: 4px;
                 }
 
                 .dark .custom-scrollbar::-webkit-scrollbar-thumb {
-                    background: linear-gradient(45deg, #60a5fa, #3b82f6);
-                    box-shadow: 0 0 4px rgba(96, 165, 250, 0.4);
+                    background: linear-gradient(45deg, #fdba74, #fb923c);
+                    box-shadow: 0 0 4px rgba(253, 186, 116, 0.4);
                 }
                 
                 .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-                    background: linear-gradient(45deg, #3b82f6, #2563eb);
-                    box-shadow: 0 0 8px rgba(96, 165, 250, 0.6);
+                    background: linear-gradient(45deg, #fb923c, #f97316);
+                    box-shadow: 0 0 8px rgba(253, 186, 116, 0.6);
                 }
 
                 .custom-scrollbar {
@@ -417,7 +395,7 @@ export default function GradePage() {
             `}</style>
 
             <StudentLayout>
-                <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
+                <div className="min-h-full flex flex-col">
                     {/* Fixed Header with Breadcrumbs and Filters */}
                     <motion.div
                         className="flex-shrink-0 border-b bg-white/80 dark:bg-gray-900/80 glass-header sticky top-0 z-10 border-gray-200 dark:border-gray-800"
@@ -446,11 +424,11 @@ export default function GradePage() {
                                 </div>
 
                                 <div className="flex items-center gap-3">
-                                    <div className="flex items-center gap-1 text-xs text-gray-700 dark:text-gray-300 bg-blue-50 dark:bg-blue-900/30 px-3 py-1.5 rounded-lg border border-blue-100 dark:border-blue-800/50">
+                                    <div className="flex items-center gap-1 text-xs text-gray-700 dark:text-gray-300 bg-orange-50 dark:bg-orange-900/30 px-3 py-1.5 rounded-lg border border-orange-100 dark:border-orange-800/50">
                                         <BookOpen className="w-3 h-3" />
                                         <span>{allCourses.length} {isStudent ? 'enrolled courses' : 'courses'}</span>
                                     </div>
-                                    <div className="flex items-center gap-1 text-xs text-gray-700 dark:text-gray-300 bg-blue-50 dark:bg-blue-900/30 px-3 py-1.5 rounded-lg border border-blue-100 dark:border-blue-800/50">
+                                    <div className="flex items-center gap-1 text-xs text-gray-700 dark:text-gray-300 bg-orange-50 dark:bg-orange-900/30 px-3 py-1.5 rounded-lg border border-orange-100 dark:border-orange-800/50">
                                         <Users className="w-3 h-3" />
                                         <span>{isStudent ? 'Student' : 'Staff'}</span>
                                     </div>
@@ -473,7 +451,7 @@ export default function GradePage() {
                                     <input
                                         type="text"
                                         placeholder="Search courses by name..."
-                                        className="w-full text-xs pl-9 pr-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 focus:border-blue-500 dark:focus:border-blue-600 transition-all bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+                                        className="w-full text-xs pl-9 pr-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-orange-500 dark:focus:ring-orange-600 focus:border-orange-500 dark:focus:border-orange-600 transition-all bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
                                     />
@@ -487,7 +465,7 @@ export default function GradePage() {
                                     transition={{ delay: 0.3 }}
                                 >
                                     <select
-                                        className="text-xs px-2.5 py-1.5 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 focus:border-blue-500 dark:focus:border-blue-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white min-w-[130px]"
+                                        className="text-xs px-2.5 py-1.5 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-orange-500 dark:focus:ring-orange-600 focus:border-orange-500 dark:focus:border-orange-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white min-w-[130px]"
                                         value={selectedCategory}
                                         onChange={(e) => setSelectedCategory(e.target.value)}
                                     >
@@ -497,14 +475,13 @@ export default function GradePage() {
                                     </select>
 
                                     <motion.div
-                                        className="text-xs text-gray-700 dark:text-gray-300 bg-blue-50 dark:bg-blue-900/30 px-2.5 py-1.5 rounded-lg border border-blue-100 dark:border-blue-800/50"
+                                        className="text-xs text-gray-700 dark:text-gray-300 bg-orange-50 dark:bg-orange-900/30 px-2.5 py-1.5 rounded-lg border border-orange-100 dark:border-orange-800/50"
                                         key={filteredCourses.length}
                                         initial={{ scale: 0.8, opacity: 0 }}
                                         animate={{ scale: 1, opacity: 1 }}
                                         transition={{ type: "spring", stiffness: 150 }}
                                     >
                                         {showCourseLoading ? 'Loading...' : `${filteredCourses.length} ${filteredCourses.length === 1 ? 'course' : 'courses'}`}
-                                        {hasNextPage && !showCourseLoading && ' + more'}
                                     </motion.div>
                                 </motion.div>
                             </motion.div>
@@ -564,7 +541,7 @@ export default function GradePage() {
                                         <div className="flex gap-2 justify-center mt-3">
                                             <motion.button
                                                 onClick={handleRetry}
-                                                className="text-xs bg-gradient-to-r from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 hover:from-blue-600 hover:to-blue-700 dark:hover:from-blue-700 dark:hover:to-blue-800 text-white px-3 py-1.5 rounded-lg transition-all duration-200 shadow-sm"
+                                                className="text-xs bg-gradient-to-r from-orange-500 to-orange-600 dark:from-orange-600 dark:to-orange-700 hover:from-orange-600 hover:to-orange-700 dark:hover:from-orange-700 dark:hover:to-orange-800 text-white px-3 py-1.5 rounded-lg transition-all duration-200 shadow-sm"
                                                 whileHover={{ scale: 1.05 }}
                                                 whileTap={{ scale: 0.95 }}
                                             >
@@ -590,7 +567,7 @@ export default function GradePage() {
                                         </p>
                                         <motion.button
                                             onClick={() => router.push('/login')}
-                                            className="mt-3 text-xs bg-gradient-to-r from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 hover:from-blue-600 hover:to-blue-700 dark:hover:from-blue-700 dark:hover:to-blue-800 text-white px-3 py-1.5 rounded-lg transition-all duration-200 shadow-sm"
+                                            className="mt-3 text-xs bg-gradient-to-r from-orange-500 to-orange-600 dark:from-orange-600 dark:to-orange-700 hover:from-orange-600 hover:to-orange-700 dark:hover:from-orange-700 dark:hover:to-orange-800 text-white px-3 py-1.5 rounded-lg transition-all duration-200 shadow-sm"
                                             whileHover={{ scale: 1.05 }}
                                             whileTap={{ scale: 0.95 }}
                                         >
@@ -622,7 +599,7 @@ export default function GradePage() {
                                         <div className="flex gap-2 justify-center mt-3">
                                             <motion.button
                                                 onClick={() => router.push('/lms')}
-                                                className="text-xs bg-gradient-to-r from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 hover:from-blue-600 hover:to-blue-700 dark:hover:from-blue-700 dark:hover:to-blue-800 text-white px-3 py-1.5 rounded-lg transition-all duration-200 shadow-sm"
+                                                className="text-xs bg-gradient-to-r from-orange-500 to-orange-600 dark:from-orange-600 dark:to-orange-700 hover:from-orange-600 hover:to-orange-700 dark:hover:from-orange-700 dark:hover:to-orange-800 text-white px-3 py-1.5 rounded-lg transition-all duration-200 shadow-sm"
                                                 whileHover={{ scale: 1.05 }}
                                                 whileTap={{ scale: 0.95 }}
                                             >
@@ -667,7 +644,7 @@ export default function GradePage() {
                                                         
                                                         {/* Badge for course level */}
                                                         <div className="absolute -top-1 -right-1">
-                                                            <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full ${course.courseLevel === 'Beginner' ? 'bg-green-500 text-white' :
+                                                            <span className={`text-2xs font-bold px-1.5 py-0.5 rounded-full ${course.courseLevel === 'Beginner' ? 'bg-green-500 text-white' :
                                                                     course.courseLevel === 'Intermediate' ? 'bg-yellow-500 text-white' :
                                                                     'bg-red-500 text-white'
                                                                 }`}>
@@ -676,9 +653,9 @@ export default function GradePage() {
                                                         </div>
                                                         
                                                         {/* Hover overlay */}
-                                                        <div className="absolute inset-0 rounded-full bg-blue-600/0 group-hover:bg-blue-600/20 transition-all duration-300 flex items-center justify-center">
+                                                        <div className="absolute inset-0 rounded-full bg-orange-600/0 group-hover:bg-orange-600/20 transition-all duration-300 flex items-center justify-center">
                                                             <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                                                <div className="bg-blue-600 text-white rounded-full p-1.5">
+                                                                <div className="bg-orange-600 text-white rounded-full p-1.5">
                                                                     <ChevronRight className="w-4 h-4" />
                                                                 </div>
                                                             </div>
@@ -687,10 +664,10 @@ export default function GradePage() {
 
                                                     {/* Course Title */}
                                                     <div className="text-center">
-                                                        <h3 className="text-xs font-semibold text-gray-900 dark:text-white line-clamp-2 leading-tight mb-0.5 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors duration-200">
+                                                        <h3 className="text-xs font-semibold text-gray-900 dark:text-white line-clamp-2 leading-tight mb-0.5 group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors duration-200">
                                                             {course.courseName}
                                                         </h3>
-                                                        <span className="text-[10px] text-gray-500 dark:text-gray-400">
+                                                        <span className="text-2xs text-gray-500 dark:text-gray-400">
                                                             {course.serviceType}
                                                         </span>
                                                     </div>
@@ -698,30 +675,16 @@ export default function GradePage() {
                                             ))}
                                         </motion.div>
 
-                                        {/* Loading indicator for infinite scroll */}
-                                        {isFetchingNextPage && (
-                                            <motion.div
-                                                className="flex justify-center py-6"
-                                                initial={{ opacity: 0, y: 20 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                            >
-                                                <div className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400">
-                                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                                    Loading more courses...
-                                                </div>
-                                            </motion.div>
-                                        )}
-
                                         {/* End of results message */}
-                                        {!hasNextPage && filteredCourses.length > 0 && (
+                                        {filteredCourses.length > 0 && (
                                             <motion.div
                                                 className="text-center py-6"
                                                 initial={{ opacity: 0 }}
                                                 animate={{ opacity: 1 }}
                                             >
-                                                <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-900/40 rounded-lg border border-blue-100 dark:border-blue-800">
-                                                    <BookOpen className="w-4 h-4 text-blue-500 dark:text-blue-400" />
-                                                    <p className="text-xs text-blue-600 dark:text-blue-400">
+                                                <div className="inline-flex items-center gap-2 px-4 py-2 bg-orange-50 dark:bg-orange-900/40 rounded-lg border border-orange-100 dark:border-orange-800">
+                                                    <BookOpen className="w-4 h-4 text-orange-500 dark:text-orange-400" />
+                                                    <p className="text-xs text-orange-600 dark:text-orange-400">
                                                         You've viewed all {isStudent ? 'your enrolled courses' : 'assigned courses'} ({filteredCourses.length})
                                                     </p>
                                                 </div>

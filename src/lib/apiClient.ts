@@ -1,6 +1,8 @@
 import axios, { AxiosError, AxiosRequestConfig } from "axios";
+import { API_BASE_URL } from "./http";
+import { getToken } from "./session";
 
-export const API_BASE_URL = "https://lms-server-ym1q.onrender.com";
+export { API_BASE_URL };
 
 export interface ApiError extends Error {
   status?: number;
@@ -24,11 +26,6 @@ const buildApiError = (
     status === undefined ||
     (status >= 500 && status < 600);
   return err;
-};
-
-const getToken = (): string | null => {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("smartcliff_token");
 };
 
 const extractMessage = (data: unknown, fallback: string): string => {
@@ -113,6 +110,22 @@ export const api = {
         ...config,
         headers: {
           "Content-Type": "multipart/form-data",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(config.headers || {}),
+        },
+      });
+      return res.data;
+    } catch (err) {
+      throw toApiError(err);
+    }
+  },
+  del: async <T>(path: string, config: AxiosRequestConfig = {}): Promise<T> => {
+    try {
+      const token = getToken();
+      const res = await axios.delete<T>(`${API_BASE_URL}${path}`, {
+        ...config,
+        headers: {
+          "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
           ...(config.headers || {}),
         },

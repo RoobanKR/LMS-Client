@@ -1,26 +1,7 @@
 "use client";
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Report Export Preview modal.
-//
-// Opens at 90% × 90% from the Reports view. Lets the user:
-//   1. Toggle which columns appear (Student Summary + optional Question-by-
-//      Question breakdown when in Detailed Report mode).
-//   2. Switch between Summary Report (paginated table) and Detailed Report
-//      (one student per card with their per-question breakdown).
-//   3. Export the result as Print (browser print dialog), Excel (.xlsx via
-//      `exceljs` + `file-saver`), or PDF (browser print → "Save as PDF").
-//
-// The PDF path piggybacks on `window.print()`. We don't ship a PDF library —
-// the browser's print dialog has a built-in "Save as PDF" destination on every
-// modern OS, and the print stylesheet we open in a new window is tuned for
-// that flow. If you need a true generated PDF (no print dialog) later, drop
-// in `jspdf` and replace the body of `exportPdf`.
-// ─────────────────────────────────────────────────────────────────────────────
-
 import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronLeft, ChevronRight, FileText, Printer, X } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, FileText, Printer, Search, X } from "lucide-react";
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 import { jsPDF } from "jspdf";
@@ -29,7 +10,9 @@ import type { StudentProgress } from "../types/liveDashboard.types";
 import { deriveTestStatus } from "./StudentRow";
 import {
   getStudentQuestionsBreakdown,
+  getExerciseSectionInfo,
   type QuestionBreakdownRow,
+  type ExerciseSection,
 } from "../utils/computeStudentMarks";
 
 // ─── Column definitions (single source of truth — used by checkboxes,
@@ -53,10 +36,13 @@ interface StudentExportRow {
 }
 
 // Status badge palette reused from ReportRow so the preview matches.
+// Labels aligned with the dashboard row status badges — "In Progress" /
+// "Completed" instead of the older "Started" / "Submitted" so the exported
+// report reads the same as the on-screen table.
 const STATUS_BADGE = {
   "not-started": { label: "Not Started", cls: "bg-gray-100  text-gray-600" },
-  "started":     { label: "Started",     cls: "bg-amber-50  text-amber-700" },
-  "submitted":   { label: "Submitted",   cls: "bg-green-50  text-green-700" },
+  "started":     { label: "In Progress", cls: "bg-amber-50  text-amber-700" },
+  "submitted":   { label: "Completed",   cls: "bg-green-50  text-green-700" },
 } as const;
 
 const QUESTION_STATUS_META = {
@@ -116,7 +102,7 @@ const SUMMARY_COLUMNS: ColumnDef<StudentExportRow>[] = [
     value: r => r.student.completed ?? 0,
   },
   {
-    key: "nonCompleted", label: "Non Completed", excelWidth: 14,
+    key: "nonCompleted", label: "Remaining", excelWidth: 14,
     render: r => {
       const total = r.student.totalQuestions ?? 0;
       const done = r.student.completed ?? 0;
@@ -142,47 +128,56 @@ const SUMMARY_COLUMNS: ColumnDef<StudentExportRow>[] = [
     value: r => (typeof r.student.totalMarks === "number" && r.student.totalMarks > 0 ? r.student.totalMarks : ""),
   },
   {
+    // Same rule as ReportRow: show the stored score whenever it exists,
+    // independent of the live-session Test Status. A student who answered
+    // earlier (auto-graded) and walked away still has real marks to report.
     key: "scoredMarks", label: "Scored Marks", excelWidth: 14,
     render: r => {
-      const status = deriveTestStatus(r.student);
-      const has = typeof r.student.scoredMarks === "number" && status !== "not-started";
+      const has = typeof r.student.scoredMarks === "number";
       return has
         ? <span className="font-semibold text-green-600">{r.student.scoredMarks}</span>
         : <span className="text-gray-400">—</span>;
     },
     value: r => {
-      const status = deriveTestStatus(r.student);
-      const has = typeof r.student.scoredMarks === "number" && status !== "not-started";
+      const has = typeof r.student.scoredMarks === "number";
       return has ? (r.student.scoredMarks as number) : "";
     },
   },
   {
-    // Percentage = scoredMarks / totalMarks * 100, rounded to 1 dp. Shows
-    // "—" for unattempted students (mirrors the live dashboard row).
+    // Percentage = scoredMarks / totalMarks * 100, rounded to 1 dp. Shown
+    // whenever we have both a positive max and a stored scored value.
     // Color brackets in the preview render: green ≥ 80, amber ≥ 50,
     // rose < 50, gray for "—". The exported `value` is a plain number so
     // Excel/CSV consumers can sort or chart on it.
     key: "percentage", label: "Percentage", excelWidth: 12,
     render: r => {
-      const status = deriveTestStatus(r.student);
       const max = typeof r.student.totalMarks === "number" && r.student.totalMarks > 0 ? r.student.totalMarks : 0;
       const got = typeof r.student.scoredMarks === "number" ? r.student.scoredMarks : null;
-      const canShow = max > 0 && got !== null && status !== "not-started";
+      const canShow = max > 0 && got !== null;
       if (!canShow) return <span className="text-gray-400">—</span>;
       const pct = (got / max) * 100;
       const cls = pct >= 80 ? "text-green-600" : pct >= 50 ? "text-amber-600" : "text-rose-600";
       return <span className={`font-semibold ${cls}`}>{`${Math.round(pct * 10) / 10}%`}</span>;
     },
     value: r => {
-      const status = deriveTestStatus(r.student);
       const max = typeof r.student.totalMarks === "number" && r.student.totalMarks > 0 ? r.student.totalMarks : 0;
       const got = typeof r.student.scoredMarks === "number" ? r.student.scoredMarks : null;
-      const canShow = max > 0 && got !== null && status !== "not-started";
+      const canShow = max > 0 && got !== null;
       if (!canShow) return "";
       // Round to 1 dp before stringifying so the exported value matches the
       // on-screen value exactly.
       return `${Math.round(((got / max) * 100) * 10) / 10}%`;
     },
+  },
+  {
+    // Performance scale — the configured grade band for this student's
+    // percentage (e.g. 50% → "Average"). Precomputed in the marks pipeline so
+    // the export matches the on-screen report exactly.
+    key: "scale", label: "Scale", excelWidth: 14,
+    render: r => r.student.scaleLabel
+      ? <span className="font-semibold text-indigo-700">{r.student.scaleLabel}</span>
+      : <span className="text-gray-400">—</span>,
+    value: r => r.student.scaleLabel || "",
   },
 ];
 
@@ -246,8 +241,8 @@ type ExportStatusFilter = "all" | "not-started" | "started" | "submitted";
 const STATUS_FILTER_OPTIONS: { value: ExportStatusFilter; label: string }[] = [
   { value: "all",         label: "All Statuses"  },
   { value: "not-started", label: "Not Started"   },
-  { value: "started",     label: "Started"       },
-  { value: "submitted",   label: "Submitted"     },
+  { value: "started",     label: "In Progress"   },
+  { value: "submitted",   label: "Completed"     },
 ];
 
 const PAGE_SIZES = [10, 25, 50];
@@ -275,6 +270,37 @@ export default function ReportExportModal({
   // Applies to BOTH the preview AND the Print/Excel/PDF exporters — so what
   // the user sees is what they ship.
   const [statusFilter, setStatusFilter] = useState<ExportStatusFilter>("all");
+  // Three extra filters mirroring the Reports view (search by name/email,
+  // scale percentage range, and pass/fail). They feed into the same
+  // `filteredRows` pipeline, so every export honours them the same way the
+  // status filter does — what's previewed is what's exported.
+  const [searchQuery, setSearchQuery] = useState("");
+  const [scaleFromPct, setScaleFromPct] = useState("");
+  const [scaleToPct, setScaleToPct] = useState("");
+  const PASS_THRESHOLD = 50;
+  const [passFailFilter, setPassFailFilter] = useState<"all" | "pass" | "fail">("all");
+
+  // Columns picker → multi-select dropdown. Open state kept local to the
+  // modal since it never opens more than one column picker at a time.
+  const [columnsDropdownOpen, setColumnsDropdownOpen] = useState(false);
+  // Advanced-filter strip (Scale / Result / Page Layout / Section-Based)
+  // starts collapsed to keep the main toolbar minimal.
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+
+  // ── Section-based grouping ──
+  // When the assessment is section-based (Part A / Part B …) the Detailed
+  // Report can render each section as its OWN table instead of one flat
+  // question-by-question table. The "Section Based" checkbox is only shown
+  // when the test is section-based; default ON since that's the expected view
+  // for those tests. Section info is resolved from the cached courseData.
+  const sectionInfo = useMemo(
+    () => getExerciseSectionInfo(courseData, exerciseId),
+    [courseData, exerciseId],
+  );
+  const isSectionBased = sectionInfo.isSectionBased;
+  const [groupBySection, setGroupBySection] = useState(true);
+  // Effective flag: only meaningful in Detailed mode on a section-based test.
+  const sectionMode = reportMode === "detailed" && isSectionBased && groupBySection;
 
   // Page layout for the Detailed PDF / Print exports:
   //   "one"    → each student on its own page (forced page break per student)
@@ -289,7 +315,7 @@ export default function ReportExportModal({
   // Reset pagination whenever the mode, rows-per-page, or status filter
   // changes so the user doesn't get parked on a page index that no longer
   // exists after the filter shrinks the row set.
-  useEffect(() => { setPage(1); }, [reportMode, rowsPerPage, statusFilter]);
+  useEffect(() => { setPage(1); }, [reportMode, rowsPerPage, statusFilter, searchQuery, scaleFromPct, scaleToPct, passFailFilter]);
 
   // Close on Escape (matches the standard modal contract).
   useEffect(() => {
@@ -352,9 +378,51 @@ export default function ReportExportModal({
   // detailed-mode breakdown computation, AND each exporter) reads from
   // `filteredRows` so the preview and the exports never disagree. ──
   const filteredRows = useMemo(() => {
-    if (statusFilter === "all") return indexedRows;
-    return indexedRows.filter(r => deriveTestStatus(r.student) === statusFilter);
-  }, [indexedRows, statusFilter]);
+    let rows = indexedRows;
+
+    if (statusFilter !== "all") {
+      rows = rows.filter(r => deriveTestStatus(r.student) === statusFilter);
+    }
+
+    // Name / email search — case-insensitive substring on either field.
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      rows = rows.filter(r =>
+        (r.student.name || "").toLowerCase().includes(q) ||
+        (r.student.email || "").toLowerCase().includes(q)
+      );
+    }
+
+    // Scale percentage range — both bounds optional. Ungraded rows
+    // (no scoredMarks) drop out the moment any bound is set so an
+    // unattempted student isn't surfaced as a "scale match".
+    const fromNum = scaleFromPct.trim() === "" ? null : Number(scaleFromPct);
+    const toNum = scaleToPct.trim() === "" ? null : Number(scaleToPct);
+    const fromActive = fromNum != null && Number.isFinite(fromNum);
+    const toActive = toNum != null && Number.isFinite(toNum);
+    if (fromActive || toActive) {
+      rows = rows.filter(r => {
+        const s = r.student;
+        if (typeof s.scoredMarks !== "number" || !s.totalMarks) return false;
+        const pct = (s.scoredMarks / s.totalMarks) * 100;
+        if (fromActive && pct < (fromNum as number)) return false;
+        if (toActive && pct > (toNum as number)) return false;
+        return true;
+      });
+    }
+
+    // Pass / Fail — 50% threshold. Ungraded students excluded from both.
+    if (passFailFilter !== "all") {
+      rows = rows.filter(r => {
+        const s = r.student;
+        if (typeof s.scoredMarks !== "number" || !s.totalMarks) return false;
+        const pct = (s.scoredMarks / s.totalMarks) * 100;
+        return passFailFilter === "pass" ? pct >= PASS_THRESHOLD : pct < PASS_THRESHOLD;
+      });
+    }
+
+    return rows;
+  }, [indexedRows, statusFilter, searchQuery, scaleFromPct, scaleToPct, passFailFilter]);
 
   // Pagination math — same shape as the dashboard table.
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / rowsPerPage));
@@ -372,7 +440,7 @@ export default function ReportExportModal({
     if (reportMode !== "detailed") return new Map<string, QuestionBreakdownRow[]>();
     if (!courseData || !exerciseId) return new Map();
     const out = new Map<string, QuestionBreakdownRow[]>();
-    const participants: any[] = courseData.singleParticipants || [];
+    const participants: any[] = (courseData.batchAndParticipants || []).flatMap((b: any) => b?.users || []);
     for (const row of pageRows) {
       const participant = participants.find(p => p?.user?._id === row.student.id || p?._id === row.student.id);
       if (!participant) { out.set(row.student.id, []); continue; }
@@ -395,7 +463,7 @@ export default function ReportExportModal({
   const buildAllBreakdowns = (): Map<string, QuestionBreakdownRow[]> => {
     const out = new Map<string, QuestionBreakdownRow[]>();
     if (!courseData || !exerciseId) return out;
-    const participants: any[] = courseData.singleParticipants || [];
+    const participants: any[] = (courseData.batchAndParticipants || []).flatMap((b: any) => b?.users || []);
     for (const row of filteredRows) {
       const participant = participants.find(p => p?.user?._id === row.student.id || p?._id === row.student.id);
       if (!participant) { out.set(row.student.id, []); continue; }
@@ -409,6 +477,60 @@ export default function ReportExportModal({
     }
     return out;
   };
+
+  // Split a student's flat breakdown into ordered section groups (Part A,
+  // Part B …). Sections follow the exercise's declared order; any questions
+  // whose section can't be resolved fall into a trailing "Other" bucket so
+  // nothing is silently dropped. Empty sections are omitted.
+  const groupBreakdownBySection = (
+    rows: QuestionBreakdownRow[],
+  ): { name: string; rows: QuestionBreakdownRow[] }[] => {
+    const order = sectionInfo.sections.map((s: ExerciseSection) => s.name).filter(Boolean);
+    const byName = new Map<string, QuestionBreakdownRow[]>();
+    for (const r of rows) {
+      const nm = r.sectionName || "Other";
+      if (!byName.has(nm)) byName.set(nm, []);
+      byName.get(nm)!.push(r);
+    }
+    const out: { name: string; rows: QuestionBreakdownRow[] }[] = [];
+    for (const nm of order) {
+      if (byName.has(nm)) { out.push({ name: nm, rows: byName.get(nm)! }); byName.delete(nm); }
+    }
+    for (const [nm, rs] of byName) out.push({ name: nm, rows: rs }); // leftovers (incl. "Other")
+    return out;
+  };
+
+  // Preview renderer for one question table (shared by the flat and the
+  // per-section detailed views so they stay visually identical).
+  const renderPreviewDetailTable = (rows: QuestionBreakdownRow[]) => (
+    <div className="overflow-auto lmsd-scroll border border-gray-200 rounded-md">
+      <table className="w-full text-[12.5px]">
+        <thead>
+          <tr className="bg-indigo-50/60 border-b border-gray-200">
+            {activeDetailCols.map(c => (
+              <th key={c.key} className="px-3 py-2 text-left font-semibold text-gray-700 whitespace-nowrap border-r last:border-r-0 border-gray-200">{c.label}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(q => (
+            <tr key={q.questionId} className="border-b border-gray-50 last:border-b-0">
+              {activeDetailCols.map(c => (
+                <td key={c.key} className="px-3 py-2 whitespace-nowrap border-r last:border-r-0 border-gray-100">{c.render(q)}</td>
+              ))}
+            </tr>
+          ))}
+          {rows.length === 0 && (
+            <tr>
+              <td colSpan={Math.max(1, activeDetailCols.length)} className="px-3 py-6 text-center text-gray-400 text-[12px]">
+                No questions recorded.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
 
   // ── Column toggle handlers ──
   const toggleColumn = (which: "summary" | "detail", key: string) => {
@@ -491,19 +613,24 @@ export default function ReportExportModal({
         const extraStyle = forceBreak ? ' style="page-break-after: always;"' : "";
         const breakdown = allBreakdowns!.get(r.student.id) ?? [];
         const detailHeader = `<tr>${activeDetailCols.map(c => `<th>${escape(c.label)}</th>`).join("")}</tr>`;
-        const detailRows = breakdown.map(q =>
-          `<tr>${activeDetailCols.map(c => `<td>${escape(c.value(q))}</td>`).join("")}</tr>`
-        ).join("");
+        // Render one detail table from a set of rows.
+        const detailTableHtml = (rows: QuestionBreakdownRow[]) => `
+          <table class="report-table">
+            <thead>${detailHeader}</thead>
+            <tbody>${rows.map(q => `<tr>${activeDetailCols.map(c => `<td>${escape(c.value(q))}</td>`).join("")}</tr>`).join("") || `<tr><td colspan="${activeDetailCols.length}">No questions recorded.</td></tr>`}</tbody>
+          </table>`;
+        // Section-based → one labelled table per section; otherwise one flat table.
+        const detailHtml = !activeDetailCols.length ? "" : (
+          sectionMode
+            ? (groupBreakdownBySection(breakdown).map(g => `<h4>${escape(g.name)}</h4>${detailTableHtml(g.rows)}`).join("")
+               || `<h4>Question-by-Question Details</h4>${detailTableHtml([])}`)
+            : `<h4>Question-by-Question Details</h4>${detailTableHtml(breakdown)}`
+        );
         return `
           <section class="student-card"${extraStyle}>
             <h3>Student #${r.index + 1}</h3>
             <div class="kv-grid">${fields}</div>
-            ${activeDetailCols.length ? `
-              <h4>Question-by-Question Details</h4>
-              <table class="report-table">
-                <thead>${detailHeader}</thead>
-                <tbody>${detailRows || `<tr><td colspan="${activeDetailCols.length}">No questions recorded.</td></tr>`}</tbody>
-              </table>` : ""}
+            ${detailHtml}
           </section>`;
       }).join("");
     }
@@ -513,7 +640,7 @@ export default function ReportExportModal({
 <meta charset="utf-8" />
 <title>${escape(title)}</title>
 <style>
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif; color: #111; padding: 24px; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Poppins, sans-serif; color: #111; padding: 24px; }
   h1 { font-size: 20px; margin: 0 0 4px; }
   h2 { font-size: 14px; color: #4f46e5; margin: 20px 0 8px; }
   h3 { font-size: 13px; margin: 24px 0 6px; }
@@ -705,29 +832,40 @@ ${body}
         doc.text(lines, margin, cursorY + lineHeight - 3);
         cursorY += lineHeight * lines.length + 8;
 
-        // Per-question table.
+        // Per-question table(s). One labelled table per section when in
+        // section mode, otherwise a single flat table.
         if (activeDetailCols.length > 0) {
-          ensureSpace(80);
-          doc.setFont("helvetica", "bold");
-          doc.setFontSize(10);
-          doc.setTextColor(79, 70, 229);
-          doc.text("Question-by-Question Details", margin, cursorY);
-          cursorY += 8;
-
           const breakdown = all.get(r.student.id) ?? [];
-          autoTable(doc, {
-            startY: cursorY + 4,
-            margin: { left: margin, right: margin },
-            head: [activeDetailCols.map(c => c.label)],
-            body: breakdown.length > 0
-              ? breakdown.map(q => activeDetailCols.map(c => String(c.value(q) ?? "")))
-              : [["No questions recorded for this student.", ...Array(activeDetailCols.length - 1).fill("")]],
-            styles: { fontSize: 8, cellPadding: 5, lineColor: [229, 231, 235], lineWidth: 0.5 },
-            headStyles: { fillColor: [238, 242, 255], textColor: [55, 65, 81], fontStyle: "bold" },
-            alternateRowStyles: { fillColor: [249, 250, 251] },
-            theme: "grid",
-          });
-          cursorY = (doc as any).lastAutoTable.finalY + 22;
+
+          const drawDetailTable = (label: string, rows: QuestionBreakdownRow[]) => {
+            ensureSpace(80);
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(10);
+            doc.setTextColor(79, 70, 229);
+            doc.text(label, margin, cursorY);
+            cursorY += 8;
+            autoTable(doc, {
+              startY: cursorY + 4,
+              margin: { left: margin, right: margin },
+              head: [activeDetailCols.map(c => c.label)],
+              body: rows.length > 0
+                ? rows.map(q => activeDetailCols.map(c => String(c.value(q) ?? "")))
+                : [["No questions recorded for this student.", ...Array(activeDetailCols.length - 1).fill("")]],
+              styles: { fontSize: 8, cellPadding: 5, lineColor: [229, 231, 235], lineWidth: 0.5 },
+              headStyles: { fillColor: [238, 242, 255], textColor: [55, 65, 81], fontStyle: "bold" },
+              alternateRowStyles: { fillColor: [249, 250, 251] },
+              theme: "grid",
+            });
+            cursorY = (doc as any).lastAutoTable.finalY + 22;
+          };
+
+          if (sectionMode) {
+            const groups = groupBreakdownBySection(breakdown);
+            if (groups.length === 0) drawDetailTable("Question-by-Question Details", []);
+            else groups.forEach(g => drawDetailTable(g.name, g.rows));
+          } else {
+            drawDetailTable("Question-by-Question Details", breakdown);
+          }
         }
         renderedSinceBreak += 1;
       }
@@ -810,14 +948,9 @@ ${body}
     };
 
     if (reportMode === "summary") {
-      // ─── SUMMARY MODE — single sheet, single table ─────────────────────────
+      // ─── SUMMARY MODE — single sheet, single filterable table ──────────────
       const sheet = workbook.addWorksheet("Student Summary");
-      // Meta header lands BEFORE the column definitions so the column widths
-      // applied below still reflect the summary table — meta cells inherit
-      // the same widths (which is fine, they're all short labels/values).
       writeMetaHeader(sheet, activeSummaryCols.length);
-      // Add a separator title row so the summary table doesn't look glued to
-      // the meta strip.
       const lbl = sheet.addRow(["Student Summary (Overall)"]);
       sheet.mergeCells(lbl.number, 1, lbl.number, activeSummaryCols.length);
       const lblCell = lbl.getCell(1);
@@ -825,18 +958,11 @@ ${body}
       applyFill(lblCell, PALETTE.lavender);
       lbl.height = 20;
       sheet.addRow([]);
-      // Now write the actual table header. The first data row is whatever
-      // `addRow` lands on next.
-      const headerRowIdx = (sheet.lastRow?.number ?? 0) + 1;
-      const hdrColumns = activeSummaryCols.map(c => c.label);
-      const hdr = sheet.addRow(hdrColumns);
-      // Apply column widths individually (we can't set `sheet.columns` after
-      // we've started writing rows, but `sheet.getColumn(i).width` works).
+      const hdr = sheet.addRow(activeSummaryCols.map(c => c.label));
       activeSummaryCols.forEach((c, i) => {
         const col = sheet.getColumn(i + 1);
         col.width = Math.max(col.width || 0, c.excelWidth ?? 16);
       });
-      void headerRowIdx; // kept for clarity / future use
       hdr.height = 22;
       activeSummaryCols.forEach((_, i) => {
         const cell = hdr.getCell(i + 1);
@@ -845,10 +971,6 @@ ${body}
         applyBorder(cell);
         cell.alignment = { vertical: "middle", horizontal: "left" };
       });
-      // Data rows with subtle alternating tint for readability. Array-based
-      // `addRow` here (rather than the object form) because we no longer
-      // register `sheet.columns` with `key` fields — the meta header rows
-      // would have stomped on those columns anyway.
       filteredRows.forEach((r, idx) => {
         const added = sheet.addRow(activeSummaryCols.map(c => c.value(r)));
         added.eachCell((cell, colNum) => {
@@ -857,45 +979,77 @@ ${body}
           if (idx % 2 === 1) applyFill(cell, PALETTE.altRow);
         });
       });
+      // AutoFilter dropdowns on every summary header + frozen header row.
+      const lastSummaryDataRow = sheet.lastRow?.number ?? hdr.number;
+      sheet.autoFilter = { from: { row: hdr.number, column: 1 }, to: { row: lastSummaryDataRow, column: activeSummaryCols.length } };
+      sheet.views = [{ state: "frozen", ySplit: hdr.number }];
     } else {
       // ─── DETAILED MODE — single sheet, per-student block layout ────────────
-      // For each student we write, in order:
-      //   • Student banner row (full-width, dark-lavender fill, bold name)
-      //   • Summary column-header row (indigo fill, white text)
-      //   • Summary data row (light indigo tint, bold)
-      //   • Question-by-Question section label row
-      //   • Question column-header row (light blue fill)
-      //   • Question data rows (alternating rows tinted)
-      //   • Spacer empty row before the next student
-      // Each row span equals max(summaryCols, detailCols) so the colour bands
-      // align nicely visually.
+      // Mirrors the modal preview: for each student we write their detail
+      // (summary header + single data row) then the question table(s) stacked
+      // directly below — split into Part A / Part B … tables when the test is
+      // section-based, otherwise one Question-by-Question table. A single blank
+      // row separates students. Everything stays on ONE sheet (no per-section
+      // tabs).
       const sheet = workbook.addWorksheet("Detailed Report");
       const all = buildAllBreakdowns();
       const span = Math.max(activeSummaryCols.length, activeDetailCols.length);
 
-      // Set column widths once. We pick the max of the summary/detail widths
-      // per column index so neither view feels cramped.
       for (let i = 0; i < span; i++) {
         const sum = activeSummaryCols[i]?.excelWidth ?? 0;
         const det = activeDetailCols[i]?.excelWidth ?? 0;
         sheet.getColumn(i + 1).width = Math.max(sum, det, 12);
       }
 
-      // ── Meta header (Course / Module / Topic / Test / Total Marks) ──
       writeMetaHeader(sheet, span);
 
-      // Title row.
       const title = sheet.addRow([`Detailed Report — ${assessmentName || "Assessment"}`]);
       sheet.mergeCells(title.number, 1, title.number, span);
       const tCell = title.getCell(1);
       tCell.font = { bold: true, size: 14, color: { argb: PALETTE.indigoFill } };
       title.height = 24;
 
-      // Generated-at sub-row.
       const sub = sheet.addRow([`Generated ${new Date().toLocaleString("en-GB")}`]);
       sheet.mergeCells(sub.number, 1, sub.number, span);
       sub.getCell(1).font = { italic: true, size: 9, color: { argb: PALETTE.grey } };
       sheet.addRow([]); // spacer
+
+      // Writes one question table (section/label band + column header + rows)
+      // for a set of breakdown rows. Shared by the section + non-section paths.
+      const writeQuestionTable = (label: string, rows: QuestionBreakdownRow[]) => {
+        const sectionLbl = sheet.addRow([label]);
+        sheet.mergeCells(sectionLbl.number, 1, sectionLbl.number, span);
+        const lCell = sectionLbl.getCell(1);
+        lCell.font = { bold: true, color: { argb: PALETTE.indigoFill }, size: 11 };
+        applyFill(lCell, PALETTE.lavender);
+        sectionLbl.height = 20;
+
+        const qHdr = sheet.addRow(activeDetailCols.map(c => c.label));
+        qHdr.eachCell((cell, colNum) => {
+          if (colNum > activeDetailCols.length) return;
+          cell.font = { bold: true, color: { argb: PALETTE.black } };
+          applyFill(cell, PALETTE.questionHdr);
+          applyBorder(cell);
+          cell.alignment = { vertical: "middle", horizontal: "left" };
+        });
+
+        if (rows.length === 0) {
+          const empty = sheet.addRow(["No questions recorded for this student."]);
+          sheet.mergeCells(empty.number, 1, empty.number, activeDetailCols.length);
+          const eCell = empty.getCell(1);
+          eCell.font = { italic: true, color: { argb: PALETTE.grey } };
+          applyBorder(eCell);
+        } else {
+          rows.forEach((q, qIdx) => {
+            const qRow = sheet.addRow(activeDetailCols.map(c => c.value(q)));
+            qRow.eachCell((cell, colNum) => {
+              if (colNum > activeDetailCols.length) return;
+              applyBorder(cell);
+              if (qIdx % 2 === 1) applyFill(cell, PALETTE.altRow);
+            });
+          });
+        }
+      };
 
       for (const r of filteredRows) {
         // ── Student banner ──
@@ -907,12 +1061,9 @@ ${body}
         bCell.alignment = { vertical: "middle", horizontal: "left" };
         banner.height = 22;
 
-        // Spacer row between the banner and the summary table — keeps the
-        // student name visually separated from the column headers, per the
-        // latest design feedback.
-        sheet.addRow([]);
+        sheet.addRow([]); // spacer between banner and the student-detail row
 
-        // ── Summary header row ──
+        // ── Student detail (summary header + single data row) ──
         const sumHdr = sheet.addRow(activeSummaryCols.map(c => c.label));
         sumHdr.eachCell((cell, colNum) => {
           if (colNum > activeSummaryCols.length) return;
@@ -921,8 +1072,6 @@ ${body}
           applyBorder(cell);
           cell.alignment = { vertical: "middle", horizontal: "left" };
         });
-
-        // ── Summary single data row ──
         const sumRow = sheet.addRow(activeSummaryCols.map(c => c.value(r)));
         sumRow.eachCell((cell, colNum) => {
           if (colNum > activeSummaryCols.length) return;
@@ -931,48 +1080,19 @@ ${body}
           applyBorder(cell);
         });
 
+        // ── Question table(s): Part A / Part B … or single Q-by-Q ──
         if (activeDetailCols.length > 0) {
-          // ── Question-by-Question section label ──
-          const sectionLbl = sheet.addRow(["Question-by-Question Details"]);
-          sheet.mergeCells(sectionLbl.number, 1, sectionLbl.number, span);
-          const lCell = sectionLbl.getCell(1);
-          lCell.font = { bold: true, color: { argb: PALETTE.indigoFill }, size: 11 };
-          applyFill(lCell, PALETTE.lavender);
-          sectionLbl.height = 20;
-
-          // ── Question header row ──
-          const qHdr = sheet.addRow(activeDetailCols.map(c => c.label));
-          qHdr.eachCell((cell, colNum) => {
-            if (colNum > activeDetailCols.length) return;
-            cell.font = { bold: true, color: { argb: PALETTE.black } };
-            applyFill(cell, PALETTE.questionHdr);
-            applyBorder(cell);
-            cell.alignment = { vertical: "middle", horizontal: "left" };
-          });
-
-          // ── Question rows ──
-          const questions = all.get(r.student.id) ?? [];
-          if (questions.length === 0) {
-            const empty = sheet.addRow(["No questions recorded for this student."]);
-            sheet.mergeCells(empty.number, 1, empty.number, activeDetailCols.length);
-            const eCell = empty.getCell(1);
-            eCell.font = { italic: true, color: { argb: PALETTE.grey } };
-            applyBorder(eCell);
+          const breakdown = all.get(r.student.id) ?? [];
+          if (sectionMode) {
+            const groups = groupBreakdownBySection(breakdown);
+            if (groups.length === 0) writeQuestionTable("Question-by-Question Details", []);
+            else groups.forEach(g => writeQuestionTable(g.name, g.rows));
           } else {
-            questions.forEach((q, qIdx) => {
-              const qRow = sheet.addRow(activeDetailCols.map(c => c.value(q)));
-              qRow.eachCell((cell, colNum) => {
-                if (colNum > activeDetailCols.length) return;
-                applyBorder(cell);
-                if (qIdx % 2 === 1) applyFill(cell, PALETTE.altRow);
-              });
-            });
+            writeQuestionTable("Question-by-Question Details", breakdown);
           }
         }
 
-        // Spacer row before the next student so the blocks read as separate
-        // entities, not one giant table.
-        sheet.addRow([]);
+        sheet.addRow([]); // one blank row between students
       }
     }
 
@@ -1013,185 +1133,241 @@ ${body}
 
         {/* ── Body ── */}
         <div className="flex-1 min-h-0 overflow-auto p-4 lmsd-scroll">
-          {/* Top control row: column picker | report options | export buttons */}
-          <div className="grid grid-cols-12 gap-3 mb-4">
-            {/* Columns — narrowed to col-span-6 (from 7) to make room for the
-                widened Report Options card that now houses the status filter
-                in addition to the mode radios. 6 + 3 + 3 = 12. */}
-            <div className="col-span-12 lg:col-span-6 border border-gray-200 rounded-lg p-3 bg-white">
-              <div className="text-[13px] font-semibold text-gray-900 mb-2.5">Select Columns to Include</div>
+          {/* ── Compact toolbar row — all essential controls on one line ──
+              The old 3-card layout (Columns + Report Options + Export
+              Options) is collapsed into a single horizontal strip. Column
+              picker becomes a "Columns ▾" dropdown (multi-select checkboxes
+              inside). Advanced filters (Scale, Result, Page Layout,
+              Section-Based) move behind an "Advanced ▾" toggle so they
+              only cost vertical space when the user asks for them. */}
+          <div className="mb-3 border border-gray-200 rounded-md bg-white p-2 flex flex-wrap items-center gap-2">
+            {/* Report Type — segmented control (2 buttons act as radios) */}
+            <div className="inline-flex rounded-md border border-gray-200 overflow-hidden flex-shrink-0">
+              {(["summary", "detailed"] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setReportMode(m)}
+                  className={`px-3 py-1.5 text-[12px] font-medium transition-colors ${
+                    reportMode === m
+                      ? "bg-gray-800 text-white"
+                      : "bg-white text-gray-700 hover:bg-gray-50"
+                  }`}
+                >
+                  {m === "summary" ? "Summary" : "Detailed"}
+                </button>
+              ))}
+            </div>
 
-              {/* Student Summary checkboxes — laid out in a responsive grid
-                  (2 / 3 / 4 columns) so labels of different lengths line up
-                  in clean rows instead of wrapping unevenly. Each item is a
-                  light "chip" with a soft border + hover lift so the cluster
-                  reads as one coordinated control, not a loose pile. */}
-              <div className="text-[12px] font-semibold text-gray-700 mb-2">Student Summary (Overall)</div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 mb-3">
-                {SUMMARY_COLUMNS.map(c => {
-                  const checked = selectedSummary.has(c.key);
-                  return (
-                    <label
-                      key={c.key}
-                      className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md border text-[12px] cursor-pointer transition-colors ${
-                        checked
-                          ? "border-blue-200 bg-blue-50/60 text-gray-900"
-                          : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleColumn("summary", c.key)}
-                        className="accent-blue-600 flex-shrink-0"
-                      />
-                      <span className="truncate">{c.label}</span>
-                    </label>
-                  );
-                })}
-              </div>
-
-              {/* Question-by-Question checkboxes — same grid treatment. Only
-                  rendered in Detailed mode; Summary mode hides them since
-                  they'd be inert there anyway. */}
-              {reportMode === "detailed" && (
+            {/* Columns — multi-select dropdown. Shows a compact "N selected"
+                pill; opening it reveals Student Summary checkboxes (and, in
+                Detailed mode, Question-by-Question checkboxes). Fixed
+                click-catcher overlay closes it when clicking anywhere else. */}
+            <div className="relative flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setColumnsDropdownOpen(v => !v)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-gray-200 bg-white text-[12px] font-medium text-gray-700 hover:bg-gray-50"
+                title="Choose which columns appear in the report"
+              >
+                Columns
+                <span className="text-gray-500 tabular-nums">
+                  ({selectedSummary.size}{reportMode === "detailed" ? ` + ${selectedDetail.size}` : ""})
+                </span>
+                <ChevronDown size={12} className={`text-gray-400 transition-transform ${columnsDropdownOpen ? "rotate-180" : ""}`} />
+              </button>
+              {columnsDropdownOpen && (
                 <>
-                  <div className="text-[12px] font-semibold text-gray-700 mb-2">Question-by-Question Details</div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-                    {DETAIL_COLUMNS.map(c => {
-                      const checked = selectedDetail.has(c.key);
-                      return (
-                        <label
-                          key={c.key}
-                          className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md border text-[12px] cursor-pointer transition-colors ${
-                            checked
-                              ? "border-blue-200 bg-blue-50/60 text-gray-900"
-                              : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => toggleColumn("detail", c.key)}
-                            className="accent-blue-600 flex-shrink-0"
-                          />
-                          <span className="truncate">{c.label}</span>
-                        </label>
-                      );
-                    })}
+                  <div className="fixed inset-0 z-[1990]" onClick={() => setColumnsDropdownOpen(false)} aria-hidden />
+                  <div className="absolute z-[1991] mt-1.5 min-w-[320px] max-h-[60vh] overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg p-2 left-0">
+                    <div className="flex items-center justify-between mb-1.5 px-1">
+                      <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Student Summary</span>
+                      <div className="flex items-center gap-2 text-[11px]">
+                        <button type="button" onClick={() => setSelectedSummary(new Set(SUMMARY_COLUMNS.map(c => c.key)))} className="text-blue-600 hover:underline">All</button>
+                        <button type="button" onClick={() => setSelectedSummary(new Set())} className="text-gray-500 hover:underline">None</button>
+                      </div>
+                    </div>
+                    <div className="space-y-0.5 mb-2">
+                      {SUMMARY_COLUMNS.map(c => {
+                        const checked = selectedSummary.has(c.key);
+                        return (
+                          <label key={c.key} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-50 cursor-pointer text-[12px] text-gray-700">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleColumn("summary", c.key)}
+                              className="accent-blue-600 flex-shrink-0"
+                            />
+                            <span>{c.label}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    {reportMode === "detailed" && (
+                      <>
+                        <div className="flex items-center justify-between mb-1.5 px-1 mt-2 border-t border-gray-100 pt-2">
+                          <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Question Details</span>
+                          <div className="flex items-center gap-2 text-[11px]">
+                            <button type="button" onClick={() => setSelectedDetail(new Set(DETAIL_COLUMNS.map(c => c.key)))} className="text-blue-600 hover:underline">All</button>
+                            <button type="button" onClick={() => setSelectedDetail(new Set())} className="text-gray-500 hover:underline">None</button>
+                          </div>
+                        </div>
+                        <div className="space-y-0.5">
+                          {DETAIL_COLUMNS.map(c => {
+                            const checked = selectedDetail.has(c.key);
+                            return (
+                              <label key={c.key} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-50 cursor-pointer text-[12px] text-gray-700">
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => toggleColumn("detail", c.key)}
+                                  className="accent-blue-600 flex-shrink-0"
+                                />
+                                <span>{c.label}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </>
+                    )}
                   </div>
                 </>
               )}
             </div>
 
-            {/* Report Options — now also houses the status filter so the
-                user can scope what gets previewed AND exported. */}
-            <div className="col-span-6 lg:col-span-3 border border-gray-200 rounded-lg p-3 bg-white">
-              <div className="text-[13px] font-semibold text-gray-900 mb-2">Report Options</div>
-              <label className="flex items-center gap-2 text-[12.5px] text-gray-700 cursor-pointer mb-1.5">
-                <input type="radio" name="reportMode" value="detailed" checked={reportMode === "detailed"} onChange={() => setReportMode("detailed")} className="accent-blue-600" />
-                Detailed Report
-              </label>
-              <label className="flex items-center gap-2 text-[12.5px] text-gray-700 cursor-pointer mb-3">
-                <input type="radio" name="reportMode" value="summary" checked={reportMode === "summary"} onChange={() => setReportMode("summary")} className="accent-blue-600" />
-                Summary Report
-              </label>
-              {/* Status filter — sits below the radios, separated by a thin
-                  border so it's visually distinct from the mode selector but
-                  still part of the same Options card. Label color matches
-                  "Report Options" (gray-900, semibold) so the two headings
-                  read as siblings instead of label / sublabel. */}
-              <div className="border-t border-gray-100 pt-2">
-                <label htmlFor="export-status-filter" className="block text-[13px] font-semibold text-gray-900 mb-1">
-                  Filter by status:
-                </label>
+            {/* Status filter — compact dropdown */}
+            <select
+              value={statusFilter}
+              onChange={e => setStatusFilter(e.target.value as ExportStatusFilter)}
+              className="border border-gray-200 rounded-md px-2 py-1.5 text-[12px] text-gray-700 bg-white outline-none focus:border-indigo-400 flex-shrink-0"
+              title="Filter by student status"
+            >
+              {STATUS_FILTER_OPTIONS.map(o => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+
+            {/* Search — grows to fill the remaining space in the row */}
+            <div className="relative flex-1 min-w-[180px] max-w-[280px]">
+              <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Search name or email…"
+                className="w-full border border-gray-200 rounded-md pl-7 pr-2 py-1.5 text-[12px] text-gray-700 outline-none focus:border-indigo-400"
+              />
+            </div>
+
+            {/* Advanced ▾ — reveals the compact secondary filter row below */}
+            <button
+              type="button"
+              onClick={() => setAdvancedOpen(v => !v)}
+              className={`inline-flex items-center gap-1 px-2 py-1.5 rounded-md border text-[12px] font-medium flex-shrink-0 transition-colors ${
+                advancedOpen
+                  ? "border-gray-300 bg-gray-100 text-gray-800"
+                  : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+              }`}
+              title="Scale · Result · Page Layout · Section-Based"
+            >
+              Advanced
+              <ChevronDown size={12} className={`text-gray-500 transition-transform ${advancedOpen ? "rotate-180" : ""}`} />
+            </button>
+
+            {/* Export buttons — right-aligned, same row */}
+            <div className="ml-auto flex items-center gap-1.5 flex-shrink-0">
+              <button type="button" onClick={exportPrint} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[12px] font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50">
+                <Printer size={12} /> Print
+              </button>
+              <button type="button" onClick={exportExcel} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[12px] font-medium text-white bg-emerald-600 hover:bg-emerald-700">
+                <FileText size={12} /> Excel
+              </button>
+              <button type="button" onClick={exportPdf} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[12px] font-medium text-white bg-rose-600 hover:bg-rose-700">
+                <FileText size={12} /> PDF
+              </button>
+            </div>
+          </div>
+
+          {/* ── Advanced filters strip — collapsible, compact ────────────── */}
+          {advancedOpen && (
+            <div className="mb-3 border border-gray-200 rounded-md bg-gray-50/60 p-2 flex flex-wrap items-center gap-x-4 gap-y-2">
+              {/* Scale % range */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-medium text-gray-600">Scale %:</span>
+                <input
+                  type="number" min={0} max={100} step={1} inputMode="numeric"
+                  value={scaleFromPct}
+                  onChange={e => setScaleFromPct(e.target.value)}
+                  placeholder="From"
+                  aria-label="Scale from percent"
+                  className="w-16 border border-gray-200 rounded-md px-1.5 py-1 text-[12px] text-gray-700 bg-white outline-none focus:border-indigo-400"
+                />
+                <span className="text-[11px] text-gray-400">to</span>
+                <input
+                  type="number" min={0} max={100} step={1} inputMode="numeric"
+                  value={scaleToPct}
+                  onChange={e => setScaleToPct(e.target.value)}
+                  placeholder="To"
+                  aria-label="Scale to percent"
+                  className="w-16 border border-gray-200 rounded-md px-1.5 py-1 text-[12px] text-gray-700 bg-white outline-none focus:border-indigo-400"
+                />
+              </div>
+
+              {/* Result */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-medium text-gray-600">Result:</span>
                 <select
-                  id="export-status-filter"
-                  value={statusFilter}
-                  onChange={e => setStatusFilter(e.target.value as ExportStatusFilter)}
-                  className="w-full border border-gray-200 rounded-md px-2 py-1.5 text-[12.5px] text-gray-700 bg-white outline-none focus:border-indigo-400"
+                  value={passFailFilter}
+                  onChange={e => setPassFailFilter(e.target.value as "all" | "pass" | "fail")}
+                  className="border border-gray-200 rounded-md px-2 py-1 text-[12px] text-gray-700 bg-white outline-none focus:border-indigo-400"
                 >
-                  {STATUS_FILTER_OPTIONS.map(o => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
+                  <option value="all">All</option>
+                  <option value="pass">Pass ≥ {PASS_THRESHOLD}%</option>
+                  <option value="fail">Fail &lt; {PASS_THRESHOLD}%</option>
                 </select>
               </div>
 
-              {/* Page Layout — controls how Print / PDF detailed exports
-                  arrange students across pages. Excel and the in-modal
-                  preview ignore this (Excel has no pages; the preview is a
-                  single scrollable card). */}
-              <div className="border-t border-gray-100 pt-2 mt-2">
-                <div className="text-[13px] font-semibold text-gray-900 mb-1.5">Page Layout:</div>
-                <label className="flex items-center gap-2 text-[12.5px] text-gray-700 cursor-pointer mb-1">
+              {/* Page Layout */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-medium text-gray-600">Layout:</span>
+                <select
+                  value={pageLayout}
+                  onChange={e => setPageLayout(e.target.value as PageLayoutMode)}
+                  className="border border-gray-200 rounded-md px-2 py-1 text-[12px] text-gray-700 bg-white outline-none focus:border-indigo-400"
+                >
+                  <option value="flow">Flow as is</option>
+                  <option value="one">One per page</option>
+                  <option value="custom">Custom N per page</option>
+                </select>
+                {pageLayout === "custom" && (
                   <input
-                    type="radio"
-                    name="pageLayout"
-                    value="one"
-                    checked={pageLayout === "one"}
-                    onChange={() => setPageLayout("one")}
-                    className="accent-blue-600"
-                  />
-                  Per page per student
-                </label>
-                <label className="flex items-center gap-2 text-[12.5px] text-gray-700 cursor-pointer mb-1">
-                  <input
-                    type="radio"
-                    name="pageLayout"
-                    value="flow"
-                    checked={pageLayout === "flow"}
-                    onChange={() => setPageLayout("flow")}
-                    className="accent-blue-600"
-                  />
-                  Flow as it is
-                </label>
-                <label className="flex items-center gap-2 text-[12.5px] text-gray-700 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="pageLayout"
-                    value="custom"
-                    checked={pageLayout === "custom"}
-                    onChange={() => setPageLayout("custom")}
-                    className="accent-blue-600"
-                  />
-                  Custom:
-                  <input
-                    type="number"
-                    min={1}
-                    max={50}
+                    type="number" min={1} max={50}
                     value={customStudentsPerPage}
                     onChange={(e) => {
                       const n = parseInt(e.target.value, 10);
                       if (!Number.isNaN(n)) setCustomStudentsPerPage(Math.max(1, Math.min(50, n)));
                     }}
-                    // Focusing or editing the number implies the user wants
-                    // the custom mode — flip the radio so they don't have to
-                    // click it separately.
-                    onFocus={() => setPageLayout("custom")}
-                    disabled={pageLayout !== "custom"}
-                    className="w-14 border border-gray-200 rounded-md px-1.5 py-0.5 text-[12.5px] text-gray-700 bg-white outline-none focus:border-indigo-400 disabled:bg-gray-50 disabled:text-gray-400"
+                    className="w-14 border border-gray-200 rounded-md px-1.5 py-1 text-[12px] text-gray-700 bg-white outline-none focus:border-indigo-400"
+                    aria-label="Custom students per page"
                   />
-                  <span className="text-gray-500 text-[11.5px]">per page</span>
-                </label>
+                )}
               </div>
-            </div>
 
-            {/* Export Options (top — duplicated in footer per the screenshots) */}
-            <div className="col-span-6 lg:col-span-3 border border-gray-200 rounded-lg p-3 bg-white">
-              <div className="text-[13px] font-semibold text-gray-900 mb-2">Export Options</div>
-              <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={exportPrint} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-[12.5px] font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50">
-                  <Printer size={14} /> Print
-                </button>
-                <button type="button" onClick={exportExcel} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-[12.5px] font-medium text-white bg-blue-600 hover:bg-blue-700">
-                  <FileText size={14} /> Excel
-                </button>
-                <button type="button" onClick={exportPdf} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-[12.5px] font-medium text-white bg-rose-600 hover:bg-rose-700">
-                  <FileText size={14} /> PDF
-                </button>
-              </div>
+              {/* Section-Based grouping — shown only for section-based tests */}
+              {isSectionBased && (
+                <label className={`flex items-center gap-1.5 text-[12px] cursor-pointer ${reportMode === "detailed" ? "text-gray-700" : "text-gray-400"}`}>
+                  <input
+                    type="checkbox"
+                    checked={groupBySection}
+                    onChange={() => setGroupBySection(v => !v)}
+                    disabled={reportMode !== "detailed"}
+                    className="accent-blue-600"
+                  />
+                  Section-Based tables (Detailed only)
+                </label>
+              )}
             </div>
-          </div>
+          )}
 
           {/* ── Preview ── */}
           <div className="border border-gray-200 rounded-lg bg-white">
@@ -1288,34 +1464,27 @@ ${body}
 
                       {activeDetailCols.length > 0 && (
                         <div className="px-3 pb-3">
-                          <div className="text-[12.5px] font-bold text-indigo-600 my-2">Question-by-Question Details</div>
-                          <div className="overflow-auto lmsd-scroll border border-gray-200 rounded-md">
-                            <table className="w-full text-[12.5px]">
-                              <thead>
-                                <tr className="bg-indigo-50/60 border-b border-gray-200">
-                                  {activeDetailCols.map(c => (
-                                    <th key={c.key} className="px-3 py-2 text-left font-semibold text-gray-700 whitespace-nowrap border-r last:border-r-0 border-gray-200">{c.label}</th>
-                                  ))}
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {breakdown.map(q => (
-                                  <tr key={q.questionId} className="border-b border-gray-50 last:border-b-0">
-                                    {activeDetailCols.map(c => (
-                                      <td key={c.key} className="px-3 py-2 whitespace-nowrap border-r last:border-r-0 border-gray-100">{c.render(q)}</td>
-                                    ))}
-                                  </tr>
-                                ))}
-                                {breakdown.length === 0 && (
-                                  <tr>
-                                    <td colSpan={Math.max(1, activeDetailCols.length)} className="px-3 py-6 text-center text-gray-400 text-[12px]">
-                                      No questions recorded for this student.
-                                    </td>
-                                  </tr>
-                                )}
-                              </tbody>
-                            </table>
-                          </div>
+                          {sectionMode ? (
+                            // One table per section (Part A / Part B …).
+                            groupBreakdownBySection(breakdown).length === 0 ? (
+                              <>
+                                <div className="text-[12.5px] font-bold text-indigo-600 my-2">Question-by-Question Details</div>
+                                {renderPreviewDetailTable([])}
+                              </>
+                            ) : (
+                              groupBreakdownBySection(breakdown).map(g => (
+                                <div key={g.name} className="mb-3 last:mb-0">
+                                  <div className="text-[12.5px] font-bold text-indigo-600 my-2">{g.name}</div>
+                                  {renderPreviewDetailTable(g.rows)}
+                                </div>
+                              ))
+                            )
+                          ) : (
+                            <>
+                              <div className="text-[12.5px] font-bold text-indigo-600 my-2">Question-by-Question Details</div>
+                              {renderPreviewDetailTable(breakdown)}
+                            </>
+                          )}
                         </div>
                       )}
                     </div>

@@ -2,7 +2,7 @@ import React from 'react';
 import {
   AlertCircle, Check, FolderOpen, Layers, List, Settings2, Terminal,
 } from 'lucide-react';
-import { D, FONT } from '../shared/tokens';
+import { D, FONT } from '../../../pages/courses/uploadcourseresources/components/youdo/assessments/shared/tokens';
 
 interface ExerciseTypeStepProps {
   formData: any;
@@ -22,7 +22,7 @@ export const ExerciseTypeStep: React.FC<ExerciseTypeStepProps> = ({
   ];
 
   return (
-    <div className="px-4 py-3">
+    <div className="px-10 pt-4 pb-6">
       <div className="mb-3 flex items-center gap-2">
         <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: D.orangeLight, color: D.orange }}><Settings2 size={13} /></div>
         <h3 className="text-sm font-bold" style={{ color: D.textMain, fontFamily: FONT }}>Select Exercise Type</h3>

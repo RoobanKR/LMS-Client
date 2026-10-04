@@ -1,4 +1,5 @@
 "use client";
+import { getToken } from "@/lib/session";
 
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -9,8 +10,9 @@ import {
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import dynamic from 'next/dynamic';
-import ExerciseInfoModals, { ExerciseInfoButtons } from '@/app/lms/component/student/ExerciseInfoModals';
+import ExerciseInfoModals, { ExerciseInfoButtons } from '@/app/lms/pages/courses/coursesdetailedview/components/ExerciseInfoModals';
 import { Loading } from '@/components/loading-ui/loading';
+import { API_ORIGIN } from '@/lib/apiBase'
 
 const MCQQuestion = dynamic(() => import('./mcq'), {
   ssr: false,
@@ -277,10 +279,10 @@ const CombinedExerciseMixed = () => {
       try {
         setIsLoading(true);
         if (!exerciseId) throw new Error('Exercise ID is required');
-        const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
+        const token = getToken() || localStorage.getItem('token') || '';
         if (!token) throw new Error('Authentication token not found');
 
-        const response = await fetch(`https://lms-server-ym1q.onrender.com/exercise/${exerciseId}`, {
+        const response = await fetch(`${API_ORIGIN}/exercise/${exerciseId}`, {
           method: 'GET',
           headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         });
@@ -392,7 +394,7 @@ const CombinedExerciseMixed = () => {
     if (!answer) { toast.error('Please select an answer first'); return; }
 
     try {
-      const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
+      const token = getToken() || localStorage.getItem('token') || '';
       const formData = new FormData();
       formData.append('courseId', courseId);
       formData.append('exerciseId', exerciseId);
@@ -407,13 +409,12 @@ const CombinedExerciseMixed = () => {
       formData.append('status', 'attempted');
       formData.append('language', 'text');
 
-      const response = await fetch('https://lms-server-ym1q.onrender.com/courses/answers/submit', {
+      const response = await fetch(`${API_ORIGIN}/courses/answers/submit`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData,
       });
       if (response.ok) {
-        toast.success('Answer submitted!');
         setCompletedQuestions(prev => new Set([...prev, currentQuestionIndex]));
         handleNextQuestion();
       } else {
@@ -447,7 +448,7 @@ const CombinedExerciseMixed = () => {
     try {
       const currentQuestion = processedQuestions[currentQuestionIndex];
       if (!currentQuestion) return;
-      const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
+      const token = getToken() || localStorage.getItem('token') || '';
       if (!token) { toast.error('Please login to submit'); return; }
       if (!query.trim()) { toast.warning('Please write a SQL query first'); return; }
 
@@ -457,7 +458,7 @@ const CombinedExerciseMixed = () => {
         lastModified: new Date().toISOString(), size: Buffer.byteLength(query, 'utf8'),
       }];
 
-      const response = await fetch('https://lms-server-ym1q.onrender.com/courses/answers/submit-multiple-files', {
+      const response = await fetch(`${API_ORIGIN}/courses/answers/submit-multiple-files`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
@@ -472,7 +473,6 @@ const CombinedExerciseMixed = () => {
       });
       const data = await response.json();
       if (data.success) {
-        toast.success('SQL answer submitted!');
         handleSqlComplete();
         handleNextQuestion();
       } else {
@@ -510,7 +510,7 @@ const CombinedExerciseMixed = () => {
   const handleFinalTestSubmission = async () => {
     if (isTestSubmitted) return;
     try {
-      const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
+      const token = getToken() || localStorage.getItem('token') || '';
       const lastQuestion = processedQuestions[processedQuestions.length - 1];
       const formData = new FormData();
       formData.append('courseId', courseId);
@@ -527,7 +527,7 @@ const CombinedExerciseMixed = () => {
       formData.append('language', 'text');
       formData.append('isTestSubmission', 'true'); // ← THE KEY FLAG (Submit Exercise only)
 
-      const response = await fetch('https://lms-server-ym1q.onrender.com/courses/answers/submit', {
+      const response = await fetch(`${API_ORIGIN}/courses/answers/submit`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData,
@@ -554,7 +554,7 @@ const CombinedExerciseMixed = () => {
       style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(26,26,46,0.45)', backdropFilter: 'blur(3px)' }}
       onClick={(e) => { if (e.target === e.currentTarget) setShowSubmitConfirm(false); }}
     >
-      <div style={{ background: T.bg, borderRadius: 16, width: '100%', maxWidth: 400, overflow: 'hidden', boxShadow: '0 20px 56px rgba(0,0,0,0.18)', fontFamily: "'Inter', sans-serif" }}>
+      <div style={{ background: T.bg, borderRadius: 16, width: '100%', maxWidth: 400, overflow: 'hidden', boxShadow: '0 20px 56px rgba(0,0,0,0.18)', fontFamily: "'Poppins', sans-serif" }}>
         <div style={{ padding: '18px 22px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ width: 40, height: 40, borderRadius: 12, background: T.orangeLight, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <AlertCircle size={18} style={{ color: T.orange }} />
@@ -606,7 +606,7 @@ const CombinedExerciseMixed = () => {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="w-12 h-12 text-blue-600 animate-spin mx-auto mb-4" />
+          <Loader2 className="w-12 h-12 text-orange-600 animate-spin mx-auto mb-4" />
           <p className="text-gray-600">Loading Combined Exercise…</p>
         </div>
       </div>
@@ -620,7 +620,7 @@ const CombinedExerciseMixed = () => {
           <XCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
           <h2 className="text-xl font-bold text-gray-900 mb-2">Unable to Load Exercise</h2>
           <p className="text-gray-600 mb-4">{error}</p>
-          <button onClick={handleBack} className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 w-full">
+          <button onClick={handleBack} className="bg-orange-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-orange-700 w-full">
             Go Back
           </button>
         </div>
@@ -634,7 +634,7 @@ const CombinedExerciseMixed = () => {
         <div className="text-center">
           <XCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
           <h2 className="text-xl font-bold text-gray-900 mb-2">No Exercise Data</h2>
-          <button onClick={handleBack} className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700">
+          <button onClick={handleBack} className="bg-orange-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-orange-700">
             Go Back
           </button>
         </div>
@@ -725,7 +725,7 @@ const CombinedExerciseMixed = () => {
     <div style={{
       position: 'fixed', inset: 0,
       background: T.pageBg,
-      fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+      fontFamily: "'Poppins', -apple-system, BlinkMacSystemFont, sans-serif",
       color: T.textMain,
       display: 'flex', flexDirection: 'column',
       overflow: 'hidden',
@@ -952,7 +952,7 @@ const CombinedExerciseMixed = () => {
                   nodeName={nodeName}
                   nodeType={nodeType}
                   studentId={studentId}
-                  initialQuery={currentQuestion.solutions?.startedCode || `-- ${currentQuestion.description || 'Write your SQL query here'}\n\n`}
+                  initialQuery={currentQuestion.starterCode || currentQuestion.solutions?.startedCode || `-- ${currentQuestion.description || 'Write your SQL query here'}\n\n`}
                   theme="light"
                   showSubmitButton={true}
                   submitLabel="Submit Answer"
@@ -1059,7 +1059,7 @@ const CombinedExerciseMixed = () => {
 const CombinedExerciseMixedWrapper = () => (
   <Suspense fallback={
     <div className="min-h-screen bg-white flex items-center justify-center">
-      <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
+      <Loader2 className="w-10 h-10 text-orange-600 animate-spin" />
     </div>
   }>
     <CombinedExerciseMixed />

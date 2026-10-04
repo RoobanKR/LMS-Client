@@ -1,30 +1,47 @@
 "use client";
+import { getToken } from "@/lib/session";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useSectionHref } from "@/lib/sectionRoute";
+import GradesFlow from '@/app/lms/pages/grades/GradesFlow';
+import ContentSkeleton from "@/components/ContentSkeleton";
 import ReactDOM from "react-dom";
 import {
   FileText, CheckCircle, Clock, BarChart2,
   ChevronRight, MoreVertical, Plus, Edit2, Trash2,
   List, Code, Layers, Brain, FlaskConical, PenLine, Settings,
   X, AlertTriangle, ChevronLeft, ChevronsLeft, ChevronRight as ChevronRightIcon, ChevronsRight,
-  Check, Calendar, Search, RefreshCw, Activity, Users
+  Check, Calendar, Search, RefreshCw, Activity, Users, ClipboardCheck,
+  GraduationCap, ChevronDown,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { useQuery } from "@tanstack/react-query";
+import TableFooter from "@/app/lms/shared/listing/TableFooter";
+import { getCurrentUser } from "@/apiServices/tokenVerify";
 import type { YouDoProps } from "./TestYourSkills";
 import CreateAssessmentModal from "./CreateAssessmentModal";
-import { exerciseApi, EntityType } from "@/apiServices/exercise";
-import { useYouDoExercises } from "@/apiServices/hooks/useYouDoExercises";
-import AddQuestionForm from "@/app/lms/component/student/YouDo/assessment/questionforms/AddQuestionForm";
+import { exerciseApi, EntityType } from "@/app/lms/pages/courses/api/exercise";
+import { resubmitExerciseForApproval } from "@/app/lms/pages/usermanagement/api/userService";
+import { useYouDoExercises } from "@/app/lms/pages/courses/hooks/useYouDoExercises";
+// Unified with We_Do — see QuestionsTest.tsx for context.
+import AddQuestionForm from "@/app/lms/pages/courses/components/questionforms/AddQuestionForm";
 import QuestionsTest from "./QuestionsTest";
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
+// Brand palette. Keys are named `blue*` for historical reasons — this file
+// carries ~60 references and renaming every one is churn without benefit —
+// but the values are the app's brand orange (see globals.css: brand-500
+// through brand-wash), so the whole assessment surface (Create button,
+// active-search chip, hover fills, filter panel, focus ring, empty-state
+// tile, pagination active pill) reads as one orange theme instead of the
+// out-of-palette indigo it used to be.
 const T = {
-  blue: "#6366f1",
-  blueDark: "#4f46e5",
-  blueLight: "rgba(99,102,241,0.08)",
-  blueMid: "rgba(99,102,241,0.15)",
-  blueGlow: "rgba(99,102,241,0.22)",
+  blue: "#f97316",          // brand-500 — the primary action tone
+  blueDark: "#c2540f",      // brand-700 — hover / pressed
+  blueLight: "rgba(249,115,22,0.08)",  // wash background
+  blueMid: "rgba(249,115,22,0.15)",    // chip background
+  blueGlow: "rgba(249,115,22,0.22)",   // soft glow for CTA shadow
   textMain: "#1a1a2e",
   textSub: "#6b6b7e",
   textMuted: "#8b8b9e",
@@ -32,7 +49,7 @@ const T = {
   border: "#ece9f1",
   bg: "#ffffff",
   pageBg: "#ffffff",
-  warm: "#f5f3ff",
+  warm: "#fff7f1",          // brand-wash equivalent (was the old indigo hue)
   red: "#ef4444",
   redLight: "rgba(239,68,68,0.1)",
   emerald: "#10b981",
@@ -49,12 +66,47 @@ interface AssessmentRecord {
   questions: number;
   scoring: "testcase" | "ai" | "manual" | "hybrid" | "—";
   level: "beginner" | "intermediate" | "expert";
-  status: "active" | "draft" | "ended";
+  /** Lifecycle position, derived from `availabilityPeriod`:
+   *    scheduled → the window has not opened yet
+   *    active    → the window is open right now ("In Progress")
+   *    ended     → the window has closed ("Completed")
+   *    draft     → never scheduled, so it holds no lifecycle position
+   *  Drives the Status badge AND the toolbar's status filter, so the two can
+   *  never disagree about what a row is. */
+  status: "active" | "scheduled" | "draft" | "ended";
   startDate: string;
   endDate?: string;
   createdAt?: string;
   subcategory?: string;
   isSectionBased: boolean;
+  // Approval workflow snapshot for the creator's view. `null` means the
+  // exercise has no workflow attached (nothing to show). Otherwise the trainer
+  // sees a pill so they know why students can't see it yet.
+  approvalStatus?: "in_progress" | "approved" | "rejected" | null;
+  approvalStepRole?: string | null;
+  // Latest rejection message (comment on the step that rejected the workflow).
+  // Non-empty ⇒ we render a "See rejection" callout + a Resubmit action.
+  rejectionMessage?: string | null;
+  rejectedByRole?: string | null;
+  // True when an approver rejected individual questions (per-question rejects
+  // don't flip the workflow's overallStatus). Either this or a rejected
+  // workflow enables "Request Approval".
+  hasRejectedQuestions: boolean;
+  // > 0 while in_progress means the current run is a re-request after a
+  // reject — the pill reads "Re-requested" instead of "Waiting".
+  resubmissionCount: number;
+  /**
+   * True once at least one student has ever started this assessment (an
+   * ExamSession row exists). Stamped by the server on the list endpoint.
+   * The row is never deleted, so this stays `true` for the rest of the
+   * assessment's life — even after the schedule ends — which matches the
+   * product rule: hide the Live Dashboard menu entry until someone joins,
+   * then keep it visible permanently.
+   *
+   * Undefined on legacy responses that predate the field: treat as `false`
+   * (dashboard hidden), the safer default.
+   */
+  hasParticipants?: boolean;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -64,11 +116,26 @@ const TEST_TYPE_META: Record<string, { label: string; color: string; bg: string 
   practice: { label: "Practice", color: "#10b981", bg: "rgba(16,185,129,0.09)" },
 };
 
+// Labels match the toolbar's status filter one-for-one, so picking "Completed"
+// can never surface rows whose badge reads something else. Colours, shape and
+// sizing are unchanged; only the wording moved onto the shared vocabulary.
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
-  active: { label: "Active", color: "#059669", bg: "rgba(5,150,105,0.09)" },
+  active: { label: "In Progress", color: "#059669", bg: "rgba(5,150,105,0.09)" },
+  scheduled: { label: "Scheduled", color: "#3b82f6", bg: "rgba(59,130,246,0.09)" },
   draft: { label: "Draft", color: "#f59e0b", bg: "rgba(245,158,11,0.09)" },
-  ended: { label: "Ended", color: T.textMuted, bg: T.pageBg },
+  ended: { label: "Completed", color: T.textMuted, bg: T.pageBg },
 };
+
+// Toolbar status menu — order and wording follow the reference: All Status,
+// then the three lifecycle states. Values are `AssessmentRecord["status"]`
+// keys; "" means no filter.
+type StatusFilterValue = "" | "active" | "scheduled" | "ended";
+const STATUS_FILTER_OPTIONS: { value: StatusFilterValue; label: string }[] = [
+  { value: "", label: "All Status" },
+  { value: "active", label: "In Progress" },
+  { value: "scheduled", label: "Scheduled" },
+  { value: "ended", label: "Completed" },
+];
 
 const SCORING_META: Record<string, { label: string; icon: React.ReactNode; color: string; bg: string }> = {
   testcase: { label: "Test Case", icon: <FlaskConical size={10} />, color: "#059669", bg: "rgba(5,150,105,0.09)" },
@@ -138,6 +205,29 @@ const transformExerciseToAssessment = (ex: any): AssessmentRecord => {
     if (start <= now) {
       if (endDate) { const end = new Date(endDate); status = end >= now ? "active" : "ended"; }
       else status = "active";
+    } else {
+      // Window opens in the future. This used to fall through to "draft",
+      // which reads as "unfinished" for an assessment that is fully set up and
+      // simply waiting for its start time — and left the Scheduled filter with
+      // nothing to match.
+      status = "scheduled";
+    }
+  }
+
+  const wf = src.approvalWorkflow;
+  let approvalStatus: AssessmentRecord["approvalStatus"] = null;
+  let approvalStepRole: string | null = null;
+  let rejectionMessage: string | null = null;
+  let rejectedByRole: string | null = null;
+  if (wf && Array.isArray(wf.steps) && wf.steps.length > 0) {
+    approvalStatus = wf.overallStatus || "in_progress";
+    if (approvalStatus === "in_progress") {
+      const idx = (wf.currentStep || 1) - 1;
+      approvalStepRole = wf.steps[idx]?.roleName || null;
+    } else if (approvalStatus === "rejected") {
+      const rejStep = wf.steps.find((s: any) => s.status === "rejected");
+      rejectionMessage = rejStep?.comment || null;
+      rejectedByRole = rejStep?.roleName || null;
     }
   }
 
@@ -151,6 +241,17 @@ const transformExerciseToAssessment = (ex: any): AssessmentRecord => {
     endDate: endDate ? new Date(endDate).toLocaleDateString() : "",
     createdAt: src.createdAt, subcategory: src.subcategory,
     isSectionBased: src.isSectionBased || false,
+    approvalStatus,
+    approvalStepRole,
+    rejectionMessage,
+    rejectedByRole,
+    hasRejectedQuestions: Array.isArray(src.questions) &&
+      src.questions.some((q: any) => q?.approval?.status === "rejected"),
+    resubmissionCount: wf?.resubmissionCount || 0,
+    // Passed straight through from the You_Do list endpoint. See the
+    // AssessmentRecord interface note above for why this stays permanently
+    // true once flipped.
+    hasParticipants: !!src.hasParticipants,
   };
 };
 
@@ -225,28 +326,30 @@ const PortalDropMenu: React.FC<{
   onClose: () => void;
   children: React.ReactNode;
 }> = ({ anchorEl, onClose, children }) => {
-  const [style, setStyle] = React.useState<React.CSSProperties>({});
+  // Compute position from the anchor rect BEFORE first paint — otherwise the
+  // menu briefly renders at (0,0) with only `position:fixed` set, then jumps
+  // to the anchor once useEffect runs. useLayoutEffect fires synchronously
+  // after DOM mutation and before the browser paints, so the initial render
+  // shows the menu in its final spot with no visible "buffer" flash.
+  const [style, setStyle] = React.useState<React.CSSProperties>(() => {
+    if (!anchorEl) return {};
+    const rect = anchorEl.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const menuH = 200;
+    return spaceBelow < menuH
+      ? { position: "fixed", right: window.innerWidth - rect.right, bottom: window.innerHeight - rect.top + 4, zIndex: 9999 }
+      : { position: "fixed", right: window.innerWidth - rect.right, top: rect.bottom + 4, zIndex: 9999 };
+  });
 
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     if (!anchorEl) return;
     const rect = anchorEl.getBoundingClientRect();
     const spaceBelow = window.innerHeight - rect.bottom;
     const menuH = 200;
-
     setStyle(
       spaceBelow < menuH
-        ? {
-            position: "fixed",
-            right: window.innerWidth - rect.right,
-            bottom: window.innerHeight - rect.top + 4,
-            zIndex: 9999,
-          }
-        : {
-            position: "fixed",
-            right: window.innerWidth - rect.right,
-            top: rect.bottom + 4,
-            zIndex: 9999,
-          }
+        ? { position: "fixed", right: window.innerWidth - rect.right, bottom: window.innerHeight - rect.top + 4, zIndex: 9999 }
+        : { position: "fixed", right: window.innerWidth - rect.right, top: rect.bottom + 4, zIndex: 9999 }
     );
   }, [anchorEl]);
 
@@ -269,11 +372,16 @@ const PortalDropMenu: React.FC<{
       style={{
         ...style,
         background: T.bg,
-        border: `1px solid ${T.border}`,
+        // Match the We Do assignments (ProblemSolving) dropdown chrome so the
+        // two menus look like the same component to the trainer — same border
+        // token, same shadow, same corner rounding, and the same 288px width
+        // (w-72) as `<DropdownMenuContent className="w-72" ...>` uses over
+        // there.
+        border: "1px solid #e4e4ed",
         borderRadius: 12,
-        boxShadow: "0 10px 32px rgba(0,0,0,0.12)",
+        boxShadow: "0 8px 32px rgba(26,26,46,0.14)",
         padding: 4,
-        minWidth: 148,
+        width: 288,
         animation: "asmFadeIn 0.12s cubic-bezier(0.16,1,0.3,1) both",
       }}
     >
@@ -284,29 +392,41 @@ const PortalDropMenu: React.FC<{
 };
 
 // ─── DropItem Component ───────────────────────────────────────────────────────
+// Sized + coloured to match the We Do assignments dropdown (see
+// ProblemSolving.tsx `<DropdownMenuItem className="cursor-pointer text-xs
+// gap-2" style={{ color: '#1a1a2e' }}>`) so the two three-dot menus read as
+// one system: same 12px text, same near-black label colour, same 8px gap
+// between icon and label, same 6px item radius. Only rows that pass a
+// semantic `color` (Delete, See rejection) override the neutral label.
 const DropItem: React.FC<{
   icon: React.ReactNode; label: string; color?: string; divider?: boolean; onClick: () => void;
 }> = ({ icon, label, color, divider, onClick }) => (
-  <button
-    type="button" onClick={onClick}
-    className="flex items-center gap-2 w-full px-2.5 py-2 text-[11px] font-semibold rounded-lg"
-    style={{
-      color: color || T.textSub,
-      borderTop: divider ? `1px solid ${T.border}` : "none",
-      marginTop: divider ? 3 : 0,
-      background: "transparent", transition: "all 0.12s",
-    }}
-    onMouseEnter={e => {
-      (e.currentTarget as HTMLElement).style.background = color ? `${color}10` : T.pageBg;
-      (e.currentTarget as HTMLElement).style.color = color || T.textMain;
-    }}
-    onMouseLeave={e => {
-      (e.currentTarget as HTMLElement).style.background = "transparent";
-      (e.currentTarget as HTMLElement).style.color = color || T.textSub;
-    }}
-  >
-    {icon}{label}
-  </button>
+  <>
+    {/* 1px hairline separator that matches ProblemSolving's
+        `<Separator className="my-1" style={{ height: '1px', background:
+        '#e4e4ed' }} />` — rendered as a sibling above the button so the
+        item can still round its own corners on hover without a
+        borderTop cutting through the highlight. */}
+    {divider && (
+      <div style={{ height: 1, background: "rgba(15,23,42,0.06)", margin: "4px 0" }} aria-hidden />
+    )}
+    <button
+      type="button" onClick={onClick}
+      className="flex items-center gap-2 w-full px-2 py-1.5 text-xs font-normal rounded-md"
+      style={{
+        color: color || "#1a1a2e",
+        background: "transparent", transition: "background 0.12s",
+      }}
+      onMouseEnter={e => {
+        (e.currentTarget as HTMLElement).style.background = color ? `${color}10` : "#f4f4f5";
+      }}
+      onMouseLeave={e => {
+        (e.currentTarget as HTMLElement).style.background = "transparent";
+      }}
+    >
+      {icon}{label}
+    </button>
+  </>
 );
 
 // ─── Pagination Component ─────────────────────────────────────────────────────
@@ -571,7 +691,18 @@ const isAssessmentComplete = (ex: any): boolean => {
   const info = ex.exerciseInformation || {};
   if (!info.exerciseName?.trim()) return false;
   if (!ex.availabilityPeriod?.startDate) return false;
-  if ((info.totalMarks ?? 0) <= 0 && (info.totalMarksMCQ ?? 0) <= 0) return false;
+  // Marks are only required for graded exercises — non-graded ones
+  // (isGraded === false) legitimately carry totalMarks = 0.
+  if (ex.isGraded !== false
+      && (info.totalMarks ?? 0) <= 0 && (info.totalMarksMCQ ?? 0) <= 0) return false;
+
+  // Scope-aware baseline (mirrors the server): for "settings_and_questions",
+  // require at least one actual question. Without this, an exercise saved
+  // before any question-count is configured would silently pass the per-type
+  // checks below (they only trigger when `maxQ > 0`).
+  const scope = ex.availabilityPeriod?.approvalScope || 'settings';
+  const hasQuestions = Array.isArray(ex.questions) && ex.questions.length > 0;
+  if (scope === 'settings_and_questions' && !hasQuestions) return false;
 
   // ── 2. Questions completeness ─────────────────────────────────────────────
   if (ex.isSectionBased) {
@@ -646,9 +777,18 @@ const isAssessmentComplete = (ex: any): boolean => {
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function Assessment({
   nodeId, nodeName, subcategory, subcategoryLabel,
-  courseId, nodeType, hierarchyData, configuredLanguages,
+  courseId, nodeType, hierarchyData, configuredLanguages, batchId,
 }: YouDoProps) {
   const router = useRouter();
+  // Manage Users opens under the section this screen was reached through.
+  const sectionHref = useSectionHref();
+  const searchParams = useSearchParams();
+  // Deep-link: notifications from a rejection carry `highlightExerciseId` so
+  // the trainer lands directly on the row. Kept in a ref so it can be cleared
+  // after the first highlight fades — we don't want the URL param to keep
+  // re-triggering the animation on unrelated re-renders.
+  const highlightExerciseId = searchParams?.get("highlightExerciseId") || null;
+  const [rejectionViewer, setRejectionViewer] = useState<AssessmentRecord | null>(null);
   // Source-of-truth for the list moved out of local state into React Query
   // (see `useYouDoExercises` hook below). `assessments` / `rawExercises` are
   // now derived via `useMemo` and stay referentially stable across renders
@@ -675,6 +815,9 @@ export default function Assessment({
     entityId: nodeId,
     tabType: "You_Do",
     subcategory,
+    // Part of this list's identity: batch 1 and batch 2 have genuinely
+    // different assessments at the same node.
+    batchId,
   });
 
   const rawExercises = useMemo(() => exercisesData?.exercises ?? [], [exercisesData]);
@@ -693,7 +836,14 @@ export default function Assessment({
   });
   const [isDeleting, setIsDeleting] = useState(false);
   const [showQuestionsTest, setShowQuestionsTest] = useState(false);
+  // Grade opens IN PLACE like Manage Questions — same URL, same syllabus
+  // rail, only this panel swaps. See the early return below.
+  const [gradeAssessment, setGradeAssessment] = useState<AssessmentRecord | null>(null);
   const [selectedAssessmentForTest, setSelectedAssessmentForTest] = useState<any>(null);
+  // The FULL exercise doc that pairs with the slim `selectedAssessmentForTest`
+  // record — carries sectionConfigs / questionSource / customSources that the
+  // slim view record drops. Handed to QuestionsTest as `preloadedExercise`.
+  const [selectedFullExercise, setSelectedFullExercise] = useState<any>(null);
   const [addQ, setAddQ] = useState<{
     step: 'section' | 'type' | 'form' | null;
     exercise?: any;
@@ -703,8 +853,35 @@ export default function Assessment({
   const [loadingFullExercise, setLoadingFullExercise] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterTestType, setFilterTestType] = useState<string>('');
+  // Mock/Final tab strip. The "mock" tab also catches legacy values
+  // (practice/blank) so no existing record is hidden by the two-tab split.
+  const [activeTestTab, setActiveTestTab] = useState<'mock' | 'final'>('mock');
   const [filterStatus, setFilterStatus] = useState<string>('');
+
+  // Mock/Final split is a student-only affordance. Trainers/admins see one
+  // combined Assessment list — the tab strip and the mock/final filter both
+  // gate on this. Respects the role-switch localStorage flag so a trainer
+  // previewing as a student still sees the split.
+  const { data: __userData } = useQuery({
+    queryKey: ['currentUser'],
+    queryFn: getCurrentUser,
+    retry: 1,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    enabled: typeof window !== 'undefined' && !!getToken(),
+  });
+  const isStudentView = useMemo(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const raw = localStorage.getItem('smartcliff_roleSwitch');
+        if (raw && JSON.parse(raw)?.isDummyStudent) return true;
+      }
+    } catch {}
+    const u: any = (__userData as any)?.user || null;
+    const rn = u?.role?.roleName?.toLowerCase() || '';
+    const rr = u?.role?.renameRole?.toLowerCase() || '';
+    return rn.includes('student') || rr.includes('student');
+  }, [__userData]);
 
   // ── CHANGED: outside-click handler also ignores portal-dropmenu clicks ──
   React.useEffect(() => {
@@ -725,27 +902,82 @@ export default function Assessment({
     setOpenDrop({ id, el: e.currentTarget as HTMLElement });
   };
 
-  useEffect(() => { setCurrentPage(1); }, [assessments.length, searchQuery, filterTestType, filterStatus]);
+  // Status menu (the "All Status (20)" control). Closes on outside click and
+  // Escape, like the row kebab.
+  const [statusMenuOpen, setStatusMenuOpen] = useState(false);
+  const statusMenuRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!statusMenuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (statusMenuRef.current && !statusMenuRef.current.contains(e.target as Node)) setStatusMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setStatusMenuOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [statusMenuOpen]);
 
-  const filtered = useMemo(() => {
+  useEffect(() => { setCurrentPage(1); }, [assessments.length, searchQuery, activeTestTab, filterStatus]);
+
+  // Deep-links (highlightExerciseId) must land on the tab that actually
+  // contains the highlighted row, or the flash animation plays off-screen.
+  // One-shot: the URL param survives refetches, and re-applying it would yank
+  // the user back after they manually switch tabs.
+  const highlightTabAppliedRef = useRef(false);
+  useEffect(() => {
+    if (!highlightExerciseId || highlightTabAppliedRef.current) return;
+    const hit = assessments.find(a => a._id === highlightExerciseId || a.id === highlightExerciseId);
+    if (hit) {
+      highlightTabAppliedRef.current = true;
+      setActiveTestTab(hit.testType === 'final' ? 'final' : 'mock');
+    }
+  }, [highlightExerciseId, assessments]);
+
+  // Search + (student) test-tab scope — everything EXCEPT the status filter,
+  // so the status menu can count what each choice would show.
+  const baseFiltered = useMemo(() => {
     return assessments.filter(asm => {
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
         if (!asm.name.toLowerCase().includes(q) && !asm.id.toLowerCase().includes(q)) return false;
       }
-      if (filterTestType && asm.testType !== filterTestType) return false;
-      if (filterStatus) {
-        const rawEx = rawExercises.find((e: any) => (e._id || e.id) === (asm._id || asm.id));
-        const complete = isAssessmentComplete(rawEx);
-        if (filterStatus === 'complete' && !complete) return false;
-        if (filterStatus === 'incomplete' && complete) return false;
-      }
+      if (isStudentView && (activeTestTab === 'final' ? asm.testType !== 'final' : asm.testType === 'final')) return false;
       return true;
     });
-  }, [assessments, rawExercises, searchQuery, filterTestType, filterStatus]);
+  }, [assessments, searchQuery, activeTestTab, isStudentView]);
+
+  // Per-status counts for the menu — "In Progress (10)".
+  const statusCounts = useMemo(() => {
+    const c = { all: baseFiltered.length, active: 0, scheduled: 0, ended: 0 };
+    for (const a of baseFiltered) {
+      if (a.status === 'active' || a.status === 'scheduled' || a.status === 'ended') c[a.status]++;
+    }
+    return c;
+  }, [baseFiltered]);
+  const activeStatusOption =
+    STATUS_FILTER_OPTIONS.find(o => o.value === filterStatus) ?? STATUS_FILTER_OPTIONS[0];
+
+  // Status filter — matches the row's OWN lifecycle status, so what the menu
+  // says and what the Status column shows are the same thing. Never-scheduled
+  // ("Draft") rows hold no lifecycle position and so appear under All Status
+  // only.
+  const filtered = useMemo(
+    () => (filterStatus ? baseFiltered.filter(asm => asm.status === filterStatus) : baseFiltered),
+    [baseFiltered, filterStatus],
+  );
 
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
   const currentAssessments = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
+  // Per-tab counts for the Mock/Final strip. Mirrors the tab filter above:
+  // everything that isn't "final" counts under Mock.
+  const tabCounts = useMemo(() => {
+    const finals = assessments.filter(a => a.testType === 'final').length;
+    return { mock: assessments.length - finals, final: finals };
+  }, [assessments]);
 
   // `transformExerciseToAssessment` lives at module scope above — it doesn't
   // touch component state and was needed earlier in the render than its
@@ -755,10 +987,17 @@ export default function Assessment({
   // calls `refetchExercises()` instead and gets the same outcome (with the
   // bonus of cache dedupe across components).
 
-  const handleSave = useCallback(async (_payload: any) => {
+  const handleSave = useCallback(async (payload: any) => {
     try {
       await refetchExercises();
-      toast.success(editingAsm ? 'Assessment updated!' : 'Assessment created!');
+      // Land on the tab the assessment was saved under — the modal's Exercise
+      // Details step still lets the user flip Mock ⇄ Final before finishing.
+      const savedType = payload?.exerciseInformation?.testType;
+      if (savedType === 'final' || savedType === 'mock') setActiveTestTab(savedType);
+      // No success toast here — CreateAssessmentModal already fired one for the
+      // write it performed, and both landing together was two toasts for one
+      // action. The error below stays: a refetch failure is this component's
+      // own problem, and the modal knows nothing about it.
     } catch (err: any) {
       toast.error(err.message || 'Failed to save assessment');
     } finally {
@@ -818,21 +1057,51 @@ export default function Assessment({
 
   const closeAddQ = () => setAddQ({ step: null });
 
-  const handleManageQuestion = async (asm: AssessmentRecord) => {
+  // Explicit resubmit: resets the workflow to step 1 (in_progress) and flips
+  // every question approval back to pending on the server, so the approver
+  // sees Approve/Reject again on both the assessment row and each question.
+  const [resubmittingId, setResubmittingId] = useState<string | null>(null);
+  const handleResubmit = async (asm: AssessmentRecord) => {
     setOpenDrop(null);
-    setLoadingFullExercise(true);
+    const token = getToken();
+    if (!token) { toast.error("You're not signed in — please log in again."); return; }
+    setResubmittingId(asm._id || asm.id);
     try {
-      const exId = asm._id || asm.id;
-      const res = await exerciseApi.getExerciseById(exId);
-      const fullExercise = res?.data?.exercise || res?.exercise || res?.data;
-      if (!fullExercise) { toast.error('Could not load assessment details'); return; }
-      setSelectedAssessmentForTest(fullExercise);
-      setShowQuestionsTest(true);
+      const resp = await resubmitExerciseForApproval({
+        entityType: getEntityType(nodeType) as any,
+        entityId: nodeId,
+        tabType: "You_Do",
+        subcategory,
+        exerciseId: String(asm._id || asm.id),
+      }, token);
+      toast.success(resp?.message || "Resubmitted for approval");
+      await refetchExercises();
     } catch (err: any) {
-      toast.error(err?.message || 'Failed to load assessment details');
+      toast.error(err?.message || "Failed to resubmit for approval");
     } finally {
-      setLoadingFullExercise(false);
+      setResubmittingId(null);
     }
+  };
+
+  const handleManageQuestion = (asm: AssessmentRecord) => {
+    // Just open the view. QuestionsTest re-fetches the full exercise itself
+    // (see QuestionsTest.tsx line 475), so the pre-fetch we used to do here
+    // was duplicate work — it succeeded silently on the happy path and only
+    // ever surfaced as "Failed to load assessment details" on the sad path.
+    // Handing over the row record AND the raw full exercise (already in
+    // memory from useYouDoExercises) lets QuestionsTest mount with real
+    // `sectionConfigs` on frame one instead of waiting for its own fetch —
+    // and if that fetch comes back without sectionConfigs (some code paths
+    // strip Map fields), the preloaded copy still keeps the Section Picker
+    // populated so section-based assessments don't fall to "No sections
+    // found".
+    setOpenDrop(null);
+    setSelectedAssessmentForTest(asm);
+    const rawEx = rawExercises.find(
+      (e: any) => (e._id || e.id) === (asm._id || asm.id),
+    );
+    setSelectedFullExercise(rawEx || null);
+    setShowQuestionsTest(true);
   };
 
   const buildAddQExerciseData = () => {
@@ -951,20 +1220,78 @@ export default function Assessment({
     { icon: <BarChart2 size={14} />, label: "Ended", value: assessments.filter(a => a.status === "ended").length, color: "#8b5cf6" },
   ];
 
+  // ── Open one assessment's detailed report ────────────────────────────────
+  // The Live Dashboard IS the detailed assessment report. Both the row click
+  // and the Review button route here so the two can never drift apart.
+  // Only meaningful once a student has actually started the assessment —
+  // before that there is no report to open, which is the same
+  // `hasParticipants` gate the Review button already applies.
+  const openAssessmentReport = useCallback((asm: AssessmentRecord) => {
+    const q = new URLSearchParams({
+      exerciseId: asm._id || asm.id || '',
+      assessmentId: asm._id || asm.id || '',
+      assessmentName: asm.name || '',
+      nodeId: nodeId || '',
+      nodeType: nodeType || '',
+      subcategory: subcategoryLabel || subcategory || '',
+      courseId: courseId || '',
+      moduleName: hierarchyData?.moduleName || '',
+      submoduleName: hierarchyData?.submoduleName || '',
+      topicName: hierarchyData?.topicName || nodeName || '',
+      subtopicName: hierarchyData?.subtopicName || '',
+      tabType: 'You_Do',
+    }).toString();
+    // liveDashboard is mounted under BOTH section prefixes, so sectionHref
+    // keeps the trainer inside the section they came from.
+    router.push(`${sectionHref("liveDashboard")}?${q}`);
+  }, [
+    nodeId, nodeType, subcategoryLabel, subcategory, courseId, hierarchyData,
+    nodeName, router, sectionHref,
+  ]);
+
+  // Grid row layout — tokenised heights (h-8 header, h-11 body) so the
+  // list reads as one system with Client Management / User Management /
+  // Service Mapping. Padding-based row heights were replaced by fixed
+  // heights so the DataTable rhythm is exact.
   const rowBase: React.CSSProperties = {
     display: "grid",
-    gridTemplateColumns: "minmax(0,1fr) minmax(0,2fr) 80px 110px 90px 80px 60px",
-    gap: 8, alignItems: "center", padding: "11px 16px",
-    borderBottom: `1px solid ${T.border}`, transition: "all 0.14s",
-    borderLeft: "2.5px solid transparent",
+    // Review sits in its own column (was a "Dashboard" kebab entry) — trainers
+    // open it often enough that it shouldn't cost a menu click.
+    // Assessment ID is sized to its CONTENT rather than given a share of the
+    // leftover space: the header reads 66px and a typical exerciseId 79px, so
+    // 96px covers both with air to spare. As a share (it was 0.62fr) it grew
+    // to 200px+ on a wide monitor and sat mostly empty. `minmax(0,96px)` also
+    // lets it shrink below 96 on a cramped workspace instead of squeezing the
+    // name; the long `_id` fallback truncates and is on the title tooltip.
+    // Everything left over now lands in Assessment Name, whose TEXT is capped
+    // at 360px (see the name cell) — so the surplus on a wide screen reads as
+    // whitespace after the name instead of one absurdly long column, and
+    // Status / Created / Review keep the widths they actually need.
+    gridTemplateColumns: "minmax(0,96px) minmax(0,1fr) 92px 118px 96px 112px 96px 52px",
+    gap: 8, alignItems: "center", padding: "0 12px",
+    transition: "background-color 0.15s",
   };
 
-  if (isLoading) {
+  // Manage Questions has priority over the assessment-list loader. Without
+  // this order swap, when the user finishes Save & Finish on the create
+  // wizard and immediately clicks Manage Questions, a background refetch
+  // (fired from the modal's onClose) could flip `isLoading` true and the
+  // Assessment loader would blank out the questions view — the user
+  // reported it as "click Manage Questions, Loading Assessment shown
+  // instead of loading questions". QuestionsTest owns its own loader.
+  // ── Grades view ────────────────────────────────────────────────────────
+  // In-place swap, same as the QuestionsTest view below: the host screen's
+  // shell (syllabus rail, I/We/You Do tabs) stays mounted and only this panel
+  // changes, so Grade behaves like Manage Questions rather than a page nav.
+  if (gradeAssessment) {
     return (
-      <div className="flex flex-col items-center justify-center py-16" style={{ background: T.pageBg }}>
-        <div className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: T.blue, borderTopColor: 'transparent' }} />
-        <p className="text-xs mt-3" style={{ color: T.textMuted }}>Loading assessments...</p>
-      </div>
+      <GradesFlow
+        embedded
+        courseId={courseId}
+        exerciseId={gradeAssessment._id || gradeAssessment.id || ''}
+        openTab="students"
+        onBack={() => setGradeAssessment(null)}
+      />
     );
   }
 
@@ -972,123 +1299,194 @@ export default function Assessment({
     return (
       <QuestionsTest
         assessment={selectedAssessmentForTest}
-        onBack={() => { setShowQuestionsTest(false); setSelectedAssessmentForTest(null); refetchExercises(); }}
+        preloadedExercise={selectedFullExercise}
+        onBack={() => { setShowQuestionsTest(false); setSelectedAssessmentForTest(null); setSelectedFullExercise(null); refetchExercises(); }}
         nodeId={nodeId} nodeName={nodeName} subcategory={subcategory}
         nodeType={nodeType} tabType="You_Do" hierarchyData={hierarchyData}
       />
     );
   }
 
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16" style={{ background: T.bg }}>
+        <div className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: T.blue, borderTopColor: 'transparent' }} />
+        <p className="text-xs mt-3" style={{ color: T.textMuted }}>Loading Assessment…</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col h-full overflow-hidden" style={{ fontFamily: "'Inter',-apple-system,sans-serif", background: T.pageBg }}>
+    <div className="flex flex-col h-full overflow-hidden" style={{ fontFamily: "'Poppins','Poppins',-apple-system,sans-serif", background: T.bg }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
 
       {/* ── Header bar ── */}
-      <div className="flex-shrink-0" style={{ background: T.bg, borderBottom: `1px solid ${T.border}` }}>
-        <div className="px-4 py-2 flex items-center gap-2">
+      <div className="flex-shrink-0" style={{ background: T.bg }}>
 
+        {/* ── Mock / Final test tabs — student-only ── */}
+        {isStudentView && (
+        <div className="flex items-end gap-1 px-4" style={{ borderBottom: `1px solid ${T.border}` }}>
+          {([
+            { key: 'mock', label: 'Mock Test', meta: TEST_TYPE_META.mock },
+            { key: 'final', label: 'Final Test', meta: TEST_TYPE_META.final },
+          ] as const).map(t => {
+            const active = activeTestTab === t.key;
+            return (
+              <button
+                key={t.key}
+                onClick={() => setActiveTestTab(t.key)}
+                className="flex items-center gap-1.5 px-3 py-2 text-[12px] transition-all"
+                style={{
+                  color: active ? t.meta.color : T.textMuted,
+                  fontWeight: active ? 700 : 500,
+                  background: 'transparent', border: 'none', cursor: 'pointer',
+                  borderBottom: `2px solid ${active ? t.meta.color : 'transparent'}`,
+                  marginBottom: -1,
+                }}
+                onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.color = T.textSub; }}
+                onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.color = T.textMuted; }}
+              >
+                {t.label}
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                  style={{ background: active ? t.meta.bg : T.pageBg, color: active ? t.meta.color : T.textMuted }}>
+                  {tabCounts[t.key]}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        )}
+
+        {/* ── Toolbar — Client Management pattern: h-8 tokened controls,
+            search on the left, secondary tools on the right pushed via
+            ml-auto, primary action separated by a slim vertical divider.
+            Same shape We_Do assignments and every other admin list use. */}
+        <div className="px-3 sm:px-4 md:px-6 pt-3 pb-2 flex items-center gap-2 flex-wrap min-w-0">
           {/* Search */}
-          <div className="relative flex-1 min-w-0">
-            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: T.textHint }} />
+          <div className="relative flex-1 min-w-[220px] max-w-md">
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
             <input
               placeholder="Search assessments…"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="pl-7 pr-7 h-7 w-full text-[12px] rounded-lg outline-none transition-all"
-              style={{ background: T.pageBg, border: `1.5px solid ${T.border}`, color: T.textMain }}
-              onFocus={e => { e.currentTarget.style.borderColor = T.blue; e.currentTarget.style.boxShadow = `0 0 0 3px ${T.blueLight}`; e.currentTarget.style.background = '#fff'; }}
-              onBlur={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.background = T.pageBg; }}
+              className="h-8 w-full pl-8 pr-8 rounded-control border border-hairline-strong bg-surface text-xs text-body placeholder:text-faint focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/15 transition-colors duration-150"
             />
             {searchQuery && (
-              <button onClick={() => setSearchQuery('')}
-                style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', color: T.textHint, background: 'none', border: 'none', padding: 0, cursor: 'pointer', lineHeight: 0 }}
-                onMouseEnter={e => (e.currentTarget.style.color = T.blue)}
-                onMouseLeave={e => (e.currentTarget.style.color = T.textHint)}>
-                <X size={11} />
+              <button
+                type="button"
+                aria-label="Clear search"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex size-5 items-center justify-center rounded-chip text-faint hover:bg-ink-100 hover:text-heading transition-colors duration-150"
+              >
+                <X size={12} />
               </button>
             )}
           </div>
 
-          {/* Test Type filter */}
-          <select
-            value={filterTestType}
-            onChange={e => setFilterTestType(e.target.value)}
-            className="h-7 text-[11px] rounded-lg outline-none transition-all flex-shrink-0"
-            style={{ background: T.pageBg, border: `1.5px solid ${T.border}`, color: T.textSub, padding: '0 8px', cursor: 'pointer', minWidth: 110 }}
-            onFocus={e => { e.currentTarget.style.borderColor = T.blue; }}
-            onBlur={e => { e.currentTarget.style.borderColor = T.border; }}>
-            <option value="">All Types</option>
-            <option value="mock">Mock</option>
-            <option value="final">Final</option>
-            <option value="practice">Practice</option>
-          </select>
+          {/* Status menu — as in the reference: a text trigger reading
+              "<status> (<count>)" with a chevron, opening the four statuses
+              with their counts. Picking one filters the list at once (see
+              `filtered`) and the trigger keeps showing the choice. */}
+          <div className="relative flex-shrink-0" ref={statusMenuRef}>
+            <button
+              type="button"
+              onClick={() => setStatusMenuOpen(o => !o)}
+              aria-haspopup="listbox"
+              aria-expanded={statusMenuOpen}
+              className="inline-flex items-center gap-1.5 h-8 px-2 rounded-control text-[13px] font-semibold text-heading hover:bg-row-hover transition-colors duration-150"
+            >
+              {activeStatusOption.label}
+              <span className="font-medium text-subtle">({statusCounts[activeStatusOption.value || 'all']})</span>
+              <ChevronDown size={14} className={`text-subtle transition-transform duration-150 ${statusMenuOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {statusMenuOpen && (
+              <div
+                role="listbox"
+                aria-label="Filter by status"
+                className="absolute left-0 top-full z-30 mt-1 w-[188px] rounded-xl border border-hairline bg-surface p-1 shadow-lg"
+              >
+                {STATUS_FILTER_OPTIONS.map(opt => {
+                  const selected = opt.value === filterStatus;
+                  return (
+                    <button
+                      key={opt.value || 'all'}
+                      type="button"
+                      role="option"
+                      aria-selected={selected}
+                      onClick={() => { setFilterStatus(opt.value); setStatusMenuOpen(false); }}
+                      className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-[12.5px] transition-colors duration-150 ${selected ? 'bg-ink-100 font-semibold text-heading' : 'font-medium text-body hover:bg-row-hover'}`}
+                    >
+                      <span>{opt.label}</span>
+                      <span className="text-subtle">({statusCounts[opt.value || 'all']})</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
-          {/* Status filter */}
-          <select
-            value={filterStatus}
-            onChange={e => setFilterStatus(e.target.value)}
-            className="h-7 text-[11px] rounded-lg outline-none transition-all flex-shrink-0"
-            style={{ background: T.pageBg, border: `1.5px solid ${T.border}`, color: T.textSub, padding: '0 8px', cursor: 'pointer', minWidth: 120 }}
-            onFocus={e => { e.currentTarget.style.borderColor = T.blue; }}
-            onBlur={e => { e.currentTarget.style.borderColor = T.border; }}>
-            <option value="">All Status</option>
-            <option value="complete">Complete</option>
-            <option value="incomplete">Incomplete</option>
-          </select>
+          {/* Secondary cluster — pushed right */}
+          <div className="ml-auto flex items-center gap-1.5 flex-wrap">
+            <button
+              type="button"
+              onClick={() => refetchExercises()}
+              title="Refresh"
+              className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-control border border-hairline-strong bg-surface text-xs font-medium text-body hover:bg-row-hover hover:text-heading transition-colors duration-150"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isExercisesFetching ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Refresh</span>
+            </button>
+          </div>
 
-          {/* Divider */}
-          <div className="h-5 w-px flex-shrink-0" style={{ background: T.border }} />
+          {/* Divider before primary — matches CM/We_Do */}
+          <span className="hidden sm:inline-block h-5 w-px bg-hairline-strong mx-0.5" aria-hidden />
 
-          {/* Refresh */}
-          <button onClick={() => refetchExercises()} title="Refresh"
-            className="h-7 w-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-all"
-            style={{ color: T.textMuted, background: 'transparent', border: 'none', cursor: 'pointer' }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = T.blue; (e.currentTarget as HTMLElement).style.background = T.blueLight; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = T.textMuted; (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
-            {/* `isFetching` covers both first-load AND background refetch — gives users
-                a refresh affordance even when stale data is on screen. */}
-            <RefreshCw size={14} className={isExercisesFetching ? 'animate-spin' : ''} />
-          </button>
-
-          {/* Create Assessment */}
+          {/* Create Assessment — primary */}
           <button
+            type="button"
             onClick={() => { setEditingAsm(null); setShowModal(true); }}
-            className="h-7 px-3 text-[12px] font-semibold rounded-lg flex items-center gap-1 flex-shrink-0 text-white transition-all"
-            style={{ background: T.blue, boxShadow: `0 2px 8px ${T.blueGlow}`, border: 'none', cursor: 'pointer' }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = T.blueDark; (e.currentTarget as HTMLElement).style.transform = 'translateY(-1px)'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.blue; (e.currentTarget as HTMLElement).style.transform = 'none'; }}>
-            <Plus size={13} strokeWidth={2.5} />
-            <span>Create Assessment</span>
+            className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-control bg-brand-strong text-white shadow-sm hover:bg-brand-800 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 flex-shrink-0"
+          >
+            <Plus size={14} strokeWidth={2.4} />
+            <span className="text-xs font-semibold">Create Assessment</span>
           </button>
         </div>
 
-        {/* Active search chip */}
+        {/* Active search chip — same design as We_Do assignments so both
+            listings read as one system. */}
         {searchQuery && (
-          <div className="flex items-center gap-2 px-4 py-1.5"
-            style={{ background: T.blueLight, borderTop: `1px solid ${T.blueMid}` }}>
-            <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: T.blue }}>Filtering:</span>
-            <button onClick={() => setSearchQuery('')}
-              className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full transition-all"
-              style={{ background: T.blueMid, color: T.blue, border: `1px solid ${T.blue}30`, cursor: 'pointer' }}
-              onMouseEnter={e => (e.currentTarget.style.background = T.blueGlow)}
-              onMouseLeave={e => (e.currentTarget.style.background = T.blueMid)}>
-              "{searchQuery}" <X size={9} />
+          <div className="flex items-center gap-2 px-3 sm:px-4 md:px-6 pb-2 flex-wrap min-w-0">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-brand-strong">Filtering:</span>
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="inline-flex items-center gap-1 h-6 px-2 rounded-full border border-brand-500/30 bg-brand-wash text-2xs font-medium text-brand-strong hover:bg-brand-100 transition-colors duration-150"
+            >
+              "{searchQuery}" <X size={11} />
             </button>
-            <span className="text-[10px] ml-auto" style={{ color: T.blue }}>
+            <span className="text-2xs ml-auto text-subtle tabular-nums">
               {filtered.length} result{filtered.length !== 1 ? 's' : ''}
             </span>
           </div>
         )}
       </div>
 
-      {/* ── Body ── */}
-      <div className="flex-1 min-h-0 overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: `${T.border} transparent` }}>
+      {/* ── Body ── flex column so the row region can flex-1 while the
+          pagination footer keeps its natural height pinned at the bottom.
+          Previously the whole body was `overflow-y-auto` with the footer
+          inline, so with few rows the pager rode up under the last row
+          instead of sitting at the workspace edge. */}
+      <div className="flex-1 min-h-0 flex flex-col">
 
         {error && (
-          <div className="mx-4 mt-4 p-3 rounded-lg text-center" style={{ background: '#fee2e2', color: '#dc2626' }}>
+          <div className="mx-4 mt-4 p-3 rounded-lg text-center flex-shrink-0" style={{ background: '#fee2e2', color: '#dc2626' }}>
             <p className="text-sm font-medium">{error}</p>
             <button onClick={() => refetchExercises()} className="mt-2 text-xs font-semibold underline">Try Again</button>
           </div>
         )}
+
+        {/* Scroll region — takes all remaining space; only the rows scroll. */}
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden" style={{ scrollbarWidth: "thin", scrollbarColor: `${T.border} transparent` }}>
 
         {/* {assessments.length > 0 && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 pb-0">
@@ -1105,13 +1503,20 @@ export default function Assessment({
           </div>
         )} */}
 
-        {/* ── Table ── */}
-        <div className=" overflow-hidden " style={{ border: `1px solid ${T.border}`, background: T.bg }}>
+        {/* ── Table — DataTable rhythm on tokens (h-8 canvas header +
+            hairline dividers). Card chrome dropped to match CM's flat
+            panel; horizontal gutter comes from the surrounding wrapper. */}
+        <div className="px-3 sm:px-4 md:px-6">
 
-          {/* Header row */}
-          <div style={{ ...rowBase, background: '#fafbfc', borderBottom: '1px solid #eef0f4', borderLeft: "2.5px solid transparent", padding: "10px 16px" }}>
-            {["Assessment ID", "Assessment Name", "Test Type", "Created", "Level", "Status", "Actions"].map(h => (
-              <div key={h} style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.04em', color: '#64748b' }}>{h}</div>
+          {/* Header row — h-8 bg-canvas, uppercase text-subtle labels */}
+          <div style={rowBase} className="h-8 border-b border-hairline bg-canvas">
+            {["Assessment ID", "Assessment Name", "Test Type", "Created", "Level", "Status", "Review", "Actions"].map(h => (
+              <div
+                key={h}
+                className={`text-[10px] font-semibold uppercase tracking-wider text-subtle ${h === "Review" ? "text-center" : h === "Actions" ? "text-right" : ""}`}
+              >
+                {h}
+              </div>
             ))}
           </div>
 
@@ -1121,8 +1526,12 @@ export default function Assessment({
                 <FileText size={22} style={{ color: T.blue }} strokeWidth={1.5} />
                 <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: T.blue, color: "#fff" }}><Plus size={10} strokeWidth={3} /></div>
               </div>
-              <p className="text-[14px] font-bold mb-1" style={{ color: T.textMain }}>No Assessments Yet</p>
-              <p className="text-[11px] font-medium mb-5 max-w-[220px] leading-relaxed" style={{ color: T.textMuted }}>Create your first assessment to start evaluating students.</p>
+              <p className="text-[14px] font-bold mb-1" style={{ color: T.textMain }}>
+                No {isStudentView ? (activeTestTab === 'final' ? 'Final ' : 'Mock ') : ''}Tests Yet
+              </p>
+              <p className="text-[11px] font-medium mb-5 max-w-[220px] leading-relaxed" style={{ color: T.textMuted }}>
+                Create your first {isStudentView ? (activeTestTab === 'final' ? 'final ' : 'mock ') : ''}test to start evaluating students.
+              </p>
               <button
                 onClick={() => { setEditingAsm(null); setShowModal(true); }}
                 className="flex items-center gap-1.5 px-5 py-2 rounded-xl text-[11px] font-bold text-white"
@@ -1141,21 +1550,80 @@ export default function Assessment({
                 const complete = isAssessmentComplete(rawEx);
                 const isLast = idx === currentAssessments.length - 1;
 
+                const isHighlighted = highlightExerciseId && (asm._id === highlightExerciseId || asm.id === highlightExerciseId);
                 return (
                   <div
                     key={asm._id || asm.id || `row-${idx}`}
-                    style={{ ...rowBase, borderBottom: isLast ? "none" : `1px solid ${T.border}`, background: T.bg }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = T.warm; (e.currentTarget as HTMLElement).style.borderLeftColor = T.blue; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.bg; (e.currentTarget as HTMLElement).style.borderLeftColor = "transparent"; }}
+                    // h-11 hairline-bounded row on tokens — same rhythm as
+                    // Client Management. Highlight state still uses the
+                    // brand-wash tint the search-jump animation expects.
+                    className={`${isLast ? '' : 'border-b border-hairline'} ${isHighlighted ? 'bg-brand-wash' : 'bg-surface hover:bg-row-hover'} cursor-pointer transition-colors duration-150`}
+                    style={{ ...rowBase, height: 44, animation: isHighlighted ? 'asmRowFlash 2.2s ease-out 1' : undefined }}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Open the report for ${asm.name}`}
+                    // Clicking anywhere on the row opens this assessment's
+                    // detailed report — every filtered row must be openable, per
+                    // the spec's flow (Select Status → Filtered List → Click one
+                    // → Detailed Report). The report page handles rosters with no
+                    // active session (lists every enrolled student as Not Started),
+                    // so the row does NOT gate on `hasParticipants`; the standalone
+                    // Review button keeps its own gate because a report-with-no-
+                    // participants isn't really a "review", it's an empty state.
+                    onClick={(e) => {
+                      // A click that landed on one of the row's own controls
+                      // (Review, the kebab, a link, the checkbox) belongs to
+                      // that control — one gesture must not also navigate.
+                      if ((e.target as HTMLElement).closest('button, a, input, select, [role="menu"]')) return;
+                      openAssessmentReport(asm);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.target !== e.currentTarget) return;
+                      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openAssessmentReport(asm); }
+                    }}
                   >
                     {/* Assessment ID */}
                     <div className="min-w-0">
-                      <span className="text-[11px] font-mono truncate block" style={{ color: '#64748b' }}>{asm.id}</span>
+                      <span className="text-[11px] font-mono truncate block" style={{ color: '#64748b' }} title={asm.id}>{asm.id}</span>
                     </div>
 
-                    {/* Name */}
-                    <div className="min-w-0">
-                      <span className="text-[12px] font-semibold truncate block" style={{ color: T.textMain }}>{asm.name}</span>
+                    {/* Name + approval status pill (visible to the creator
+                        until the workflow finishes; hidden once studentVisible=true
+                        wins over on the server and overallStatus === 'approved'
+                        keeps the pill in place as a subtle green marker). */}
+                    <div className="min-w-0 flex items-center gap-2">
+                      <span className="text-[12px] font-semibold truncate" style={{ color: T.textMain, maxWidth: 360 }} title={asm.name}>{asm.name}</span>
+                      {asm.approvalStatus && (() => {
+                        const isReRequest = asm.approvalStatus === 'in_progress' && asm.resubmissionCount > 0;
+                        const meta = asm.approvalStatus === 'approved'
+                          ? { label: 'Approved', color: '#059669', bg: 'rgba(5,150,105,0.10)' }
+                          : asm.approvalStatus === 'rejected'
+                            ? { label: 'Rejected', color: '#dc2626', bg: 'rgba(220,38,38,0.10)' }
+                            : isReRequest
+                              ? { label: asm.approvalStepRole ? `Re-requested · ${asm.approvalStepRole}` : 'Re-requested', color: '#6d28d9', bg: 'rgba(109,40,217,0.10)' }
+                              : { label: asm.approvalStepRole ? `Waiting: ${asm.approvalStepRole}` : 'Waiting Approval', color: '#b45309', bg: 'rgba(245,158,11,0.12)' };
+                        return (
+                          <span
+                            title={
+                              asm.approvalStatus === 'in_progress'
+                                ? `${isReRequest ? 'Approval re-requested' : 'Pending approval'}${asm.approvalStepRole ? ` from ${asm.approvalStepRole}` : ''} — students cannot see this yet.`
+                                : asm.approvalStatus === 'approved'
+                                  ? 'Approved — visible to students.'
+                                  : 'Rejected — not visible to students.'
+                            }
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', gap: 4,
+                              padding: '2px 7px', borderRadius: 999,
+                              fontSize: 9, fontWeight: 700, whiteSpace: 'nowrap',
+                              background: meta.bg, color: meta.color,
+                              flexShrink: 0,
+                            }}
+                          >
+                            <Clock size={9} strokeWidth={2.5} />
+                            {meta.label}
+                          </span>
+                        );
+                      })()}
                     </div>
 
                     {/* Test Type — plain text */}
@@ -1176,22 +1644,74 @@ export default function Assessment({
                       </span>
                     </div>
 
-                    {/* Status — Complete / Incomplete badge */}
-                    <div>
-                      <span style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 5,
-                        padding: '3px 8px', borderRadius: 6,
-                        fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap',
-                        background: complete ? 'rgba(34,197,94,0.08)' : 'rgba(242,119,87,0.08)',
-                        color: complete ? '#16a34a' : '#e0623f',
-                        border: `1px solid ${complete ? 'rgba(34,197,94,0.2)' : 'rgba(242,119,87,0.2)'}`,
-                      }}>
-                        {complete
-                          ? <CheckCircle size={12} strokeWidth={2.5} style={{ color: '#22c55e', flexShrink: 0 }} />
-                          : <AlertTriangle size={12} strokeWidth={2.5} style={{ color: '#F27757', flexShrink: 0 }} />
-                        }
-                        <span>{complete ? 'Complete' : 'Incomplete'}</span>
-                      </span>
+                    {/* Status — the assessment's LIFECYCLE (In Progress /
+                        Scheduled / Completed / Draft), which is what the
+                        toolbar's status filter selects on. This cell used to
+                        show authoring completeness ("Complete"/"Incomplete")
+                        while `STATUS_META` sat unused; with the filter now
+                        offering lifecycle states the two had to speak the same
+                        language, or picking "Completed" would have hidden rows
+                        whose badge read "Complete".
+
+                        The authoring signal isn't lost: an assessment that is
+                        still missing required setup keeps its warning icon
+                        beside the badge, with the reason on the tooltip. */}
+                    <div className="flex items-center gap-1 min-w-0">
+                      {(() => {
+                        const sm = STATUS_META[asm.status] ?? STATUS_META.draft;
+                        return (
+                          <span style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 5,
+                            padding: '3px 8px', borderRadius: 6,
+                            fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap',
+                            background: sm.bg, color: sm.color,
+                            border: `1px solid ${sm.color}33`,
+                          }}>
+                            <span style={{ width: 6, height: 6, borderRadius: 999, background: sm.color, flexShrink: 0 }} />
+                            {sm.label}
+                          </span>
+                        );
+                      })()}
+                      {!complete && (
+                        <span
+                          className="inline-flex flex-shrink-0"
+                          title="Setup incomplete — this assessment is still missing required configuration."
+                          aria-label="Setup incomplete"
+                        >
+                          <AlertTriangle size={12} strokeWidth={2.5} style={{ color: '#F27757' }} />
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Review — promoted out of the kebab into its own column.
+                        Opens the Live Dashboard (monitoring + reports + per-student
+                        Check Answers), which is where reviewing a You_Do assessment
+                        actually happens. Same `hasParticipants` gate the menu entry
+                        used: the server flips it true the moment any student has an
+                        ExamSession row and never unsets it, so there is nothing to
+                        open before then — those rows show a dash in the same centred
+                        slot, keeping the column aligned in both states. */}
+                    <div className="flex items-center justify-center">
+                      {asm.hasParticipants ? (
+                        <button
+                          type="button"
+                          onClick={() => openAssessmentReport(asm)}
+                          title="Open this assessment's detailed report"
+                          className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-semibold"
+                          style={{
+                            color: '#3b82f6', background: 'rgba(59,130,246,0.08)',
+                            border: '1px solid rgba(59,130,246,0.22)', cursor: 'pointer',
+                            transition: 'background-color 0.12s',
+                          }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(59,130,246,0.16)'; }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(59,130,246,0.08)'; }}
+                        >
+                          <ClipboardCheck size={12} strokeWidth={2.5} />
+                          Review
+                        </button>
+                      ) : (
+                        <span className="text-[11px]" style={{ color: T.textHint }}>—</span>
+                      )}
                     </div>
 
                     {/* ── CHANGED: Actions — portal-based dropdown ── */}
@@ -1209,86 +1729,116 @@ export default function Assessment({
 
                       {openDrop?.id === asm.id && (
                         <PortalDropMenu anchorEl={openDrop.el} onClose={() => setOpenDrop(null)}>
+                          {/* Every ordinary menu row inherits the default
+                              neutral text tone (T.textSub) so Grade, Manage
+                              Questions, Manage Users, Edit and Request Approval
+                              all read as one consistent menu. Only Delete keeps
+                              a semantic red — destructive action stays visually
+                              distinct. */}
+                          {/* The Dashboard entry is gone from this menu — it
+                              lives on the row as the "Review" column button.
+                              Grade stays here and still rides the same
+                              `hasParticipants` gate the pair always shared: the
+                              server flips it true the moment ANY student has an
+                              ExamSession row and never unsets it, so the entry
+                              appears exactly when it becomes useful. */}
+                          {asm.hasParticipants && (
+                            <DropItem
+                              icon={<GraduationCap size={14} color="#059669" />} label="Grade" divider
+                              onClick={() => {
+                                setOpenDrop(null);
+                                if (!courseId) {
+                                  toast.error('Course context is missing — cannot open the grades view for this assessment.');
+                                  return;
+                                }
+                                // Opens IN PLACE — no navigation. The syllabus
+                                // rail and the I/We/You Do tabs stay exactly as
+                                // they are and only this panel swaps, the same
+                                // way Manage Questions behaves.
+                                setGradeAssessment(asm);
+                              }}
+                            />
+                          )}
                           {/* "Review Submission" entry removed: the review-submission
                               page is being repurposed for per-student grading
                               triggered from the Live Dashboard's StudentRow
                               "Check Answers" menu item, so the courses-page
                               dropdown shouldn't lead to the (now bypassed)
                               participants-list view. */}
-                          {/* ── Live Dashboard — only while the assessment window is open ── */}
-                          {(() => {
-                            const ap = rawEx?.availabilityPeriod;
-                            const sd = ap?.startDate ? new Date(ap.startDate) : null;
-                            const ed = ap?.endDate ? new Date(ap.endDate) : null;
-                            const now = new Date();
-                            const isLive = !!(sd && ed && now >= sd && now <= ed);
-                            if (!isLive) return null;
-                            return (
-                              <DropItem
-                                color="#16a34a"
-                                icon={
-                                  <span style={{ position: "relative", display: "inline-flex" }}>
-                                    <Activity size={11} />
-                                    <span
-                                      style={{
-                                        position: "absolute", top: -3, right: -3,
-                                        width: 6, height: 6, borderRadius: "50%",
-                                        background: "#22c55e",
-                                        animation: "liveDashPulse 1.4s ease-in-out infinite",
-                                      }}
-                                    />
-                                    <style>{`@keyframes liveDashPulse{0%{box-shadow:0 0 0 0 rgba(34,197,94,0.6)}70%{box-shadow:0 0 0 5px rgba(34,197,94,0)}100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}}`}</style>
-                                  </span>
-                                }
-                                label="Dashboard"
-                                onClick={() => {
-                                  setOpenDrop(null);
-                                  const q = new URLSearchParams({
-                                    exerciseId: asm._id || asm.id || "",
-                                    assessmentId: asm._id || asm.id || "",
-                                    nodeId: nodeId || "",
-                                    nodeType: nodeType || "",
-                                    courseId: courseId || "",
-                                    moduleName: hierarchyData?.moduleName || "",
-                                    submoduleName: hierarchyData?.submoduleName || "",
-                                    topicName: hierarchyData?.topicName || nodeName || "",
-                                    subtopicName: hierarchyData?.subtopicName || "",
-                                    tabType: "You_Do",
-                                    subcategory: subcategoryLabel || subcategory || "",
-                                  }).toString();
-                                  router.push(`/lms/pages/courses/liveDashboard?${q}`);
-                                }}
-                              />
-                            );
-                          })()}
+                          {/* Manage Questions — shown whenever the assessment
+                              has already been through the question-setup
+                              step of the wizard (has questions saved, or is
+                              section-based with sections defined). The
+                              earlier `{complete && ...}` gate over-hid the
+                              row: `isAssessmentComplete(rawEx)` requires
+                              schedule + marks + question counts to all
+                              agree, and returned false on some rows the
+                              user considered "done" (e.g. approvalScope =
+                              settings_and_questions with the question set
+                              still empty). Fall back to the raw-exercise
+                              lookup because `asm` is the slim view record
+                              and its `questions` field is a number, not the
+                              full array. */}
+                          {(
+                            complete
+                              || (asm.questions ?? 0) > 0
+                              || (rawEx?.sectionConfigs && Object.keys(rawEx.sectionConfigs).length > 0)
+                              || (Array.isArray(rawEx?.questions) && rawEx.questions.length > 0)
+                          ) && (
+                            <DropItem
+                              icon={<Settings size={14} color="#F27757" />} label="Manage Questions" divider
+                              onClick={() => handleManageQuestion(asm)}
+                            />
+                          )}
                           <DropItem
-                            icon={<Settings size={11} />} label="Manage Test"
-                            color="#8b5cf6"
-                            onClick={() => handleManageQuestion(asm)}
-                          />
-                          <DropItem
-                            icon={<Users size={11} />} label="Manage Users"
-                            color="#0891b2"
+                            icon={<Users size={14} color="#0891b2" />} label="Manage Users" divider
                             onClick={() => {
                               setOpenDrop(null);
+                              // Manage Users now houses the live-dashboard controls
+                              // too (Reports, Message All, Live Screens, per-row
+                              // Check Answer / Send Message), so it needs the full
+                              // hierarchy context — not just courseId/moduleName —
+                              // to build the deep links into reviewSubmission /
+                              // liveScreens / liveDashboard (Reports view).
                               const q = new URLSearchParams({
                                 exerciseId: asm._id || asm.id || '',
+                                assessmentId: asm._id || asm.id || '',
                                 assessmentName: asm.name || '',
                                 nodeId: nodeId || '',
                                 nodeType: nodeType || '',
-                                subcategory: subcategory || '',
+                                subcategory: subcategoryLabel || subcategory || '',
                                 courseId: courseId || '',
                                 moduleName: hierarchyData?.moduleName || '',
+                                submoduleName: hierarchyData?.submoduleName || '',
+                                topicName: hierarchyData?.topicName || nodeName || '',
+                                subtopicName: hierarchyData?.subtopicName || '',
+                                tabType: 'You_Do',
                               }).toString();
-                              router.push(`/lms/pages/courses/manageUsers?${q}`);
+                              router.push(`${sectionHref("manageUsers")}?${q}`);
                             }}
                           />
                           <DropItem
-                            icon={<Edit2 size={11} />} label="Edit"
+                            icon={<Edit2 size={14} color="#fb923c" />} label="Edit" divider
                             onClick={() => handleEdit(asm)}
                           />
+                          {asm.approvalStatus === "rejected" && (
+                            <DropItem
+                              icon={<AlertTriangle size={14} color="#dc2626" />}
+                              label="See rejection" divider
+                              color="#dc2626"
+                              onClick={() => { setOpenDrop(null); setRejectionViewer(asm); }}
+                            />
+                          )}
+                          {(asm.approvalStatus === "rejected" || asm.hasRejectedQuestions) && (
+                            <DropItem
+                              icon={<RefreshCw size={14} color="#4f46e5" className={resubmittingId === (asm._id || asm.id) ? "animate-spin" : ""} />}
+                              label={resubmittingId === (asm._id || asm.id) ? "Requesting…" : "Request Approval"}
+                              divider
+                              onClick={() => { if (!resubmittingId) handleResubmit(asm); }}
+                            />
+                          )}
                           <DropItem
-                            icon={<Trash2 size={11} />} label="Delete"
+                            icon={<Trash2 size={14} color="#ef4444" />} label="Delete"
                             color="#ef4444" divider
                             onClick={() => openDeleteModal(asm.id, asm.name, asm._id)}
                           />
@@ -1299,25 +1849,43 @@ export default function Assessment({
                 );
               })}
 
-              <Pagination
-                currentPage={currentPage} totalPages={totalPages}
-                onPageChange={setCurrentPage} totalItems={filtered.length}
-                itemsPerPage={ITEMS_PER_PAGE}
-              />
             </>
           )}
         </div>
+        </div>{/* /scroll region */}
+
+        {/* Pagination — pinned OUTSIDE the scroll region so it always sits
+            at the workspace's bottom edge, regardless of how many rows are
+            loaded. `flex-shrink-0` keeps it out of the flex-1 space above. */}
+        {filtered.length > 0 && (
+          <div className="flex-shrink-0 border-t border-hairline bg-surface px-3 sm:px-4 md:px-6">
+            <TableFooter
+              from={filtered.length === 0 ? 0 : (currentPage - 1) * ITEMS_PER_PAGE + 1}
+              to={Math.min(currentPage * ITEMS_PER_PAGE, filtered.length)}
+              total={filtered.length}
+              pageSize={ITEMS_PER_PAGE}
+              onPageSize={() => { /* ITEMS_PER_PAGE is a constant here — page size is fixed for now. */ }}
+              currentPage={currentPage}
+              totalPages={totalPages || 1}
+              onPage={(p) => setCurrentPage(Math.min(Math.max(1, p), totalPages || 1))}
+            />
+          </div>
+        )}
       </div>
 
       {/* ── Modals ── */}
       {showModal && (
         <CreateAssessmentModal
-          onClose={() => { setShowModal(false); setEditingAsm(null); }}
+          // Refetch on close too: per-step "Save" persists via updateYouDoExercise
+          // but doesn't call onSave (only "Save & Finish" does). Without this, the
+          // React Query cache stays stale and a Save-then-Close shows the old data.
+          onClose={async () => { setShowModal(false); setEditingAsm(null); await refetchExercises(); }}
           onSave={handleSave}
           nodeId={nodeId} nodeName={nodeName} nodeType={nodeType}
           subcategory={subcategory} courseId={courseId} hierarchyData={hierarchyData}
           configuredLanguages={configuredLanguages}
           isEditing={!!editingAsm}
+          defaultTestType={activeTestTab}
           exercise_Id={editingAsm?._id || editingAsm?.id}
           exerciseData={
             editingAsm
@@ -1336,12 +1904,11 @@ export default function Assessment({
         isDeleting={isDeleting}
       />
 
+      {/* Overlay while Manage Test / Add Question fetches the full exercise.
+          Show content placeholders until the exercise is ready. */}
       {loadingFullExercise && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center" style={{ background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}>
-          <div className="bg-white rounded-2xl p-6 flex flex-col items-center gap-3" style={{ boxShadow: '0 20px 56px rgba(0,0,0,0.25)' }}>
-            <div className="w-7 h-7 border-2 rounded-full animate-spin" style={{ borderColor: T.blue, borderTopColor: 'transparent' }} />
-            <p className="text-xs font-medium" style={{ color: T.textMain }}>Loading..</p>
-          </div>
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.62)', backdropFilter: 'blur(4px)' }}>
+          <ContentSkeleton />
         </div>
       )}
 
@@ -1383,10 +1950,63 @@ export default function Assessment({
         );
       })()}
 
+      {/* Rejection message viewer — shown when the trainer clicks "See rejection". */}
+      {rejectionViewer && (
+        <div className="fixed inset-0 flex items-center justify-center z-[1000]" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}>
+          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden" style={{ boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
+            <div className="flex items-center justify-between p-4 border-b" style={{ borderColor: T.border }}>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: T.redLight }}>
+                  <AlertTriangle size={16} style={{ color: T.red }} />
+                </div>
+                <h3 className="text-base font-bold" style={{ color: T.textMain }}>Rejection message</h3>
+              </div>
+              <button onClick={() => setRejectionViewer(null)} className="p-1 rounded-lg hover:bg-gray-100 transition-colors">
+                <X size={16} style={{ color: T.textMuted }} />
+              </button>
+            </div>
+            <div className="p-5">
+              <p className="text-xs uppercase tracking-wide font-semibold mb-1" style={{ color: T.textMuted }}>
+                Rejected by {rejectionViewer.rejectedByRole || 'approver'}
+              </p>
+              <p className="text-sm font-semibold mb-3" style={{ color: T.textMain }}>{rejectionViewer.name}</p>
+              <div className="p-3 rounded-lg text-sm whitespace-pre-wrap" style={{ background: 'rgba(245,158,11,0.08)', color: T.textMain, border: `1px solid rgba(245,158,11,0.2)` }}>
+                {rejectionViewer.rejectionMessage || '(no message provided)'}
+              </div>
+              <p className="text-xs mt-3" style={{ color: T.textMuted }}>
+                Edit the assessment to address the feedback, then use "Request Approval" in the row menu — it goes back through the chain as a re-request.
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-3 p-4 border-t" style={{ borderColor: T.border, background: T.pageBg }}>
+              <button
+                onClick={() => setRejectionViewer(null)}
+                className="px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+                style={{ color: T.textSub, background: T.bg, border: `1px solid ${T.border}` }}
+              >
+                Close
+              </button>
+              <button
+                onClick={() => { const target = rejectionViewer; setRejectionViewer(null); handleEdit(target); }}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white transition-all flex items-center gap-2"
+                style={{ background: T.blue }}
+              >
+                <Edit2 size={14} />
+                Edit assessment
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style jsx global>{`
         @keyframes asmFadeIn {
           from { opacity: 0; transform: translateY(6px); }
           to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes asmRowFlash {
+          0%   { background: rgba(99,102,241,0.20); }
+          40%  { background: rgba(99,102,241,0.12); }
+          100% { background: rgba(99,102,241,0.06); }
         }
       `}</style>
     </div>

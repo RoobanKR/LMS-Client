@@ -153,13 +153,13 @@ export default function ForgotPasswordPage() {
         <Card className="w-full max-w-md shadow-xl border-0">
           <CardHeader className="flex flex-col items-center gap-2 pb-0">
             {step === "forgotpassword" && (
-              <MailIcon className="h-10 w-10 text-blue-600 mb-2" />
+              <MailIcon className="h-10 w-10 text-orange-600 mb-2" />
             )}
             {step === "otp" && (
-              <MailCheckIcon className="h-10 w-10 text-blue-600 mb-2" />
+              <MailCheckIcon className="h-10 w-10 text-orange-600 mb-2" />
             )}
             {step === "reset" && (
-              <KeyRoundIcon className="h-10 w-10 text-blue-600 mb-2" />
+              <KeyRoundIcon className="h-10 w-10 text-orange-600 mb-2" />
             )}
             {step === "done" && (
               <ShieldCheckIcon className="h-10 w-10 text-green-600 mb-2" />
@@ -236,7 +236,7 @@ export default function ForgotPasswordPage() {
                   </div>
                   <Button
                     type="submit"
-                    className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+                    className="w-full flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-semibold"
                     disabled={!email}
                   >
                     Send reset link
@@ -275,14 +275,14 @@ export default function ForgotPasswordPage() {
                 </InputOTP>
                 <Button
                   type="submit"
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+                  className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold"
                   disabled={otp.length !== OTP_LENGTH}
                 >
                   Verify & Continue
                 </Button>
                 <div className="text-xs text-gray-500 text-center">
                   Didn’t get the code?{" "}
-                  <span className="text-blue-600 hover:underline cursor-pointer">
+                  <span className="text-orange-600 hover:underline cursor-pointer">
                     Resend
                   </span>
                 </div>
@@ -310,7 +310,7 @@ export default function ForgotPasswordPage() {
                 />
                 <Button
                   type="submit"
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+                  className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold"
                   disabled={!password || !confirm}
                 >
                   Reset Password
@@ -326,7 +326,7 @@ export default function ForgotPasswordPage() {
                 <div className="text-sm text-gray-600 text-center">
                   Your password has been changed.
                   <br />
-                  <a href="/login" className="text-blue-600 hover:underline">
+                  <a href="/login" className="text-orange-600 hover:underline">
                     Return to sign in
                   </a>
                 </div>
@@ -336,7 +336,7 @@ export default function ForgotPasswordPage() {
           <CardFooter className="flex flex-col gap-2 items-center border-t pt-4">
             <div className="text-xs text-gray-500">
               <span className="font-medium">Need help?</span>{" "}
-              <a href="/support" className="text-blue-600 hover:underline">
+              <a href="/support" className="text-orange-600 hover:underline">
                 Contact support
               </a>
             </div>

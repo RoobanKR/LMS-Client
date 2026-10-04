@@ -8,31 +8,32 @@ import {
   Loader2, LayoutDashboard, BookMarked, GraduationCap, ChevronLeft as ChevronLeftIcon,
   X, Sparkles, Hash, Layers, Eye, CheckCircle, Clock, Search, Filter, LayoutGrid, List, ChevronDown,
   ArrowUpDown, ArrowUp, ArrowDown, Calendar, Type, FileDigit, FolderOpen, Users, Zap,
+  GripVertical, Bookmark, ArrowRight, User, Info, Network, Link2, Pencil,
 } from "lucide-react"
-import VideoPlayer from "../../../../component/student/video-player"
-import PDFViewer from "../../../../component/student/pdf-viewer"
-import PPTViewer from "../../../../component/student/ppt-viewer"
+import VideoPlayer from "../components/video-player"
+import PDFViewer from "../components/pdf-viewer"
+import PPTViewer from "../components/ppt-viewer"
+import { clearAllStorage, getUserId } from "@/lib/session"
+import { enrollmentStatusOf, isBlockedEnrollment, isStudentRole } from "@/lib/api/courses"
 import { useParams, useRouter } from "next/navigation"
 import React from "react"
-import NotesPanel from "../../../../component/student/notes-panel"
-import AIPanel from "../../../../component/student/ai-panel"
-import CodeEditor from "../../../../component/student/code-editor"
-import MultiFileCodeEditor from "../../../../component/student/multi-file-code-editor"
-import ZipViewer from "../../../../component/student/zipViewer"
-import ImageViewer from "../../../../component/student/ImageViewer"
-import WordViewer from "../../../../component/student/word-viewer"
-import Exercises from "../../../../component/student/exercises"
-import Assessments from "../../../../component/student/assessments"
+import NotesPanel from "../components/notes-panel"
+import AIPanel from "../components/ai-panel"
+import CodeEditor from "../components/code-editor"
+import MultiFileCodeEditor from "../components/multi-file-code-editor"
+import ZipViewer from "../components/zipViewer"
+import ImageViewer from "../components/ImageViewer"
+import WordViewer from "../components/word-viewer"
+import Exercises from "../components/exercises"
+import Assessments from "../components/assessments"
 import { useTheme as useNextTheme } from "next-themes"
-import AIChat from "@/app/lms/component/student/ai-chat"
-import SummaryChat from "@/app/lms/component/student/summary-chat"
-import DBQueryEditor from "@/app/lms/component/student/db-queryEditor"
+import DBQueryEditor from "@/app/lms/pages/courses/coursesdetailedview/components/db-queryEditor"
 import { toast, ToastContainer } from 'react-toastify'
 import { toast as hotToast } from 'react-hot-toast'
 import 'react-toastify/dist/ReactToastify.css'
 import { userPermission } from "@/apiServices/tokenVerify"
 import { injectTryItButtons } from '../../utils/injectTryItButtons'
-import TxtViewer from "../../../../component/student/textdoc"
+import TxtViewer from "../components/textdoc"
 
 // Import progress tracking functions
 import {
@@ -42,16 +43,18 @@ import {
   recordActivitySelect,
   fetchStudentProgress,
   StudentProgress
-} from '../../../../../../apiServices/progress';
+} from '../api/progress';
 
 import { T, METHOD_CFG, RES_LABEL, FONT_PRIMARY, FONT_INTER_IMPORT } from "../components/types/constants"
 import { TopBar } from "../components/TopBar"
-import { Sidebar, SidebarHeader, LogoutModal, buildHoursMap } from "../components/Sidebar"
+import { Sidebar, LogoutModal, buildHoursMap } from "../components/Sidebar"
+import { CourseSidebar } from "../components/CourseSidebar"
 import { postLogout } from "@/apiServices/activityLog"
-import { TabBar } from "../components/TabBar"
+import { TabBar, MainTabs } from "../components/TabBar"
 import InlineAIChat from "../components/InlineAIChat"
 import InlineSummaryChat from "../components/InlineSummaryChat"
 import { ResourceCard, ResourceSkeleton, ResourceItem, ResourceGroupRow, EmptyCard, ResIcon, ResourceTableHeader, SidebarSkeleton, TableSkeleton } from "../components/ResourceComponents"
+import { LectureResourceList } from "../components/LectureResourceList"
 import {
   CourseData, SelectedItem, SelectedItemType, Resource, ResourceType,
   PedagogyPage, PedagogyFolder, PedagogyFile, LearningElement,
@@ -66,11 +69,87 @@ import {
 
 
 import { fetchAllPedagogyViews, fetchPedagogyViewById } from '../.../../../../../../../apiServices/pedagogyAndModuleAdd/pedagogy';
-import StudentTestYourSkillsMCQQuestion from "@/app/lms/component/student/YouDo/testYourSkillMcqquestion"
+import StudentTestYourSkillsMCQQuestion from "@/app/lms/pages/courses/coursesdetailedview/components/YouDo/testYourSkillMcqquestion"
 import { Loading } from "@/components/loading-ui/loading"
 import { useCourseDetailQuery } from "@/queries/courses"
 import { useQueryClient } from "@tanstack/react-query"
 import { queryKeys } from "@/lib/queryKeys"
+
+// You Do → Assessment subcategory key variants (handles legacy spellings).
+const ASSESSMENT_SUBCATEGORY_KEYS = new Set(["assessment", "assessments", "assesment", "assesments"])
+// Mock vs Final classification, read from exerciseInformation.testType
+// ('practice' | 'mock' | 'final'). Anything that isn't explicitly "final"
+// is treated as Mock so no assessment ever disappears from both lists.
+const isFinalAssessment = (ex: any) =>
+  String(ex?.exerciseInformation?.testType || '').toLowerCase() === 'final'
+
+// ── Course Structure accordion helpers (image 3 design) ──────────────────────
+// Per-module folder accent, cycled by index to mirror the reference's varied colors.
+const MODULE_PALETTE = [
+  { icon: '#F59E0B', bg: '#FEF3C7' }, // amber
+  { icon: '#8B5CF6', bg: '#EDE9FE' }, // purple
+  { icon: '#3B82F6', bg: '#DBEAFE' }, // blue
+  { icon: '#10B981', bg: '#D1FAE5' }, // green
+  { icon: '#06B6D4', bg: '#CFFAFE' }, // cyan
+  { icon: '#EC4899', bg: '#FCE7F3' }, // pink
+]
+// Format decimal hours → "2h 30m" / "45m".
+const fmtDuration = (h: number): string => {
+  const mins = Math.round((h || 0) * 60)
+  if (!mins) return ''
+  const hr = Math.floor(mins / 60), mn = mins % 60
+  return hr ? (mn ? `${hr}h ${mn}m` : `${hr}h`) : `${mn}m`
+}
+// All leaf node ids under a module (used for real completion from visitedNodes).
+const collectLeafIds = (m: any): string[] => {
+  const ids: string[] = []
+  const walkTopic = (t: any) => {
+    if (t.subTopics?.length) t.subTopics.forEach((st: any) => ids.push(st._id))
+    else ids.push(t._id)
+  }
+  if (m.subModules?.length) m.subModules.forEach((sm: any) => {
+    if (sm.topics?.length) sm.topics.forEach(walkTopic)
+    else ids.push(sm._id)
+  })
+  else if (m.topics?.length) m.topics.forEach(walkTopic)
+  else ids.push(m._id)
+  return ids
+}
+// First real level found among a module's descendants, else the course level.
+const deriveLevel = (m: any, courseLevel?: string): string => {
+  const scan = (t: any): string => {
+    if (t.level) return t.level
+    if (t.subTopics?.length) for (const st of t.subTopics) { if (st.level) return st.level }
+    return ''
+  }
+  if (m.subModules?.length) for (const sm of m.subModules) if (sm.topics?.length) for (const t of sm.topics) { const l = scan(t); if (l) return l }
+  if (m.topics?.length) for (const t of m.topics) { const l = scan(t); if (l) return l }
+  return courseLevel || ''
+}
+// Direct-child count + label for the module's pill.
+const moduleChildInfo = (m: any): { n: number; label: string } => {
+  if (m.subModules?.length) return { n: m.subModules.length, label: m.subModules.length === 1 ? 'Sub-module' : 'Sub-modules' }
+  if (m.topics?.length) return { n: m.topics.length, label: m.topics.length === 1 ? 'Topic' : 'Topics' }
+  return { n: 0, label: '' }
+}
+
+// ── Submodule Details page palette (premium redesign) ────────────────────────
+const DETAIL_UI = {
+  navy: '#101A35',
+  slate: '#42516F',
+  orange: '#F45116',
+  orangeDeep: '#F0440A',
+  orangeLight: '#FFF0E8',
+  peach: '#FFE4D5',
+  mint: '#DDF7EF',
+  green: '#16805C',
+  blueLight: '#DDF0FF',
+  blue: '#1670C5',
+  tableHeaderBg: '#F3F6FC',
+}
+// Icon representing each hierarchy node type in the redesigned detail header/table.
+const detailTypeIcon = (type: string) =>
+  type === 'module' ? Folder : type === 'submodule' ? Layers : type === 'topic' ? Hash : Bookmark
 
 export default function LMSPage() {
   const params = useParams()
@@ -79,6 +158,31 @@ export default function LMSPage() {
   const courseId = params?.id as string
   const queryClient = useQueryClient()
   const courseDetailQuery = useCourseDetailQuery(courseId)
+
+  // ── Direct-URL gate ──────────────────────────────────────────────────────
+  // The course list disables the card for a suspended or dropped student, but
+  // the address bar does not care about a disabled button: pasting, a
+  // bookmark, or browser history all land straight here. So the same rule is
+  // re-asked from the payload this page already loads, and a blocked student
+  // is sent back to the list instead of being shown the course.
+  //
+  // Only STUDENTS are gated. Staff and trainers have no enrolment record at
+  // all, and `enrollmentStatusOf` returning null for them would be
+  // indistinguishable from "not on the roster" — which is the normal case for
+  // everyone who teaches the course.
+  const [accessBlocked, setAccessBlocked] = useState(false)
+  useEffect(() => {
+    const detail = courseDetailQuery.data?.data
+    if (!detail || !isStudentRole()) return
+    const status = enrollmentStatusOf(detail, getUserId())
+    if (!isBlockedEnrollment(status)) return
+    setAccessBlocked(true)
+    toast.error("You're not allowed in this course. Please contact administration.")
+    // `replace`, not `push`: Back would otherwise return them here, get
+    // bounced out again, and trap the history stack in a loop.
+    router.replace('/lms/pages/courses')
+  }, [courseDetailQuery.data, router])
+
   const save = (k: string, v: string) => { if (typeof window !== 'undefined') localStorage.setItem(k, v) }
   const load = (k: string) => { if (typeof window !== 'undefined') return localStorage.getItem(k); return null }
 
@@ -114,6 +218,8 @@ export default function LMSPage() {
   const [inlinePageIndex, setInlinePageIndex] = useState(0)
   const [activeTab, setActiveTab] = useState<string | null>("Overview")
   const [activeSubcategory, setActiveSubcategory] = useState<string>("")
+  // Student view → You Do → Assessment splits into Mock / Final lists.
+  const [assessmentTestType, setAssessmentTestType] = useState<'mock' | 'final'>('mock')
   const [showLogoutModal, setShowLogoutModal] = useState(false)
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
   const [descriptionHasMoreContent, setDescriptionHasMoreContent] = useState(false)
@@ -255,6 +361,24 @@ useEffect(() => {
     return count;
   };
 
+  /**
+   * The AI Chat / AI Summary / Notes switches Course Setup stores per resource
+   * type (`resourcesType.iDo.<type>.aiChat` etc.) — the sub-rows under each
+   * type's "Max file size" field. Every viewer reads its own type's row, so
+   * turning AI Summary on for PDF doesn't light it up inside the PPT viewer.
+   *
+   * Defaults to off: a switch the course never turned on must not surface a
+   * button, and a course with no saved config has enabled nothing.
+   */
+  const viewerFeaturesFor = (type: "ppt" | "pdf" | "video" | "image" | "zip") => {
+    const cfg = courseData?.resourcesType?.iDo?.[type];
+    return {
+      aiChatEnabled: !!cfg?.aiChat,
+      aiSummaryEnabled: !!cfg?.aiSummary,
+      notesEnabled: !!cfg?.notes,
+    };
+  };
+
   // Helper function to find node title by ID
   const findNodeTitleById = (nodeId: string, courseData: CourseData | null): string => {
     if (!courseData?.modules) return 'Unknown';
@@ -362,6 +486,10 @@ useEffect(() => {
     setExpandedSubModules(new Set())
     setExpandedTopics(new Set())
   }, [])
+
+  // Course Structure (Overview) — search filter + course bookmark toggle.
+  const [structureSearch, setStructureSearch] = useState('')
+  const [courseBookmarked, setCourseBookmarked] = useState(false)
 
   // Add this state to store pedagogy view data
   const [pedagogyViewData, setPedagogyViewData] = useState<any>(null);
@@ -638,6 +766,28 @@ const subcategories = useMemo(() => {
     queryClient.invalidateQueries({ queryKey: ["course", courseId] })
   }, [courseId, queryClient])
 
+  // Tests now open in a SEPARATE TAB, so a submission made there never refreshes
+  // this list tab — the Start → Submitted state (driven by courseData's
+  // participant answers) stayed stale. Refetch course data whenever this tab
+  // regains visibility/focus, so returning after submitting reflects it without
+  // a manual reload. Lightly throttled to avoid refetching on every tab flick.
+  const lastReturnRefetchRef = useRef(0)
+  useEffect(() => {
+    const onReturn = () => {
+      if (document.visibilityState !== 'visible') return
+      const now = Date.now()
+      if (now - lastReturnRefetchRef.current < 1500) return
+      lastReturnRefetchRef.current = now
+      refreshCourseData()
+    }
+    document.addEventListener('visibilitychange', onReturn)
+    window.addEventListener('focus', onReturn)
+    return () => {
+      document.removeEventListener('visibilitychange', onReturn)
+      window.removeEventListener('focus', onReturn)
+    }
+  }, [refreshCourseData])
+
   // Show the "submitted successfully" toast handed over by the exam page after
   // it redirected back here (survives the navigation reliably via sessionStorage).
   useEffect(() => {
@@ -669,8 +819,62 @@ const subcategories = useMemo(() => {
     }
   }, [courseId, courseDetailQuery.data, courseDetailQuery.error])
 
+  // ── Re-sync selectedItem.pedagogy when courseData refetches ─────────────────
+  // selectedItem.pedagogy is captured ONCE at click time (in handleItemSelect)
+  // and is what every downstream consumer reads — including the You Do
+  // assessment list and its availabilityPeriod (start/end dates). When a
+  // teacher edits an exercise's Schedule via the settings modal, the modal
+  // calls refreshCourseData → React Query refetches → courseData updates with
+  // the new availabilityPeriod. Without this effect, selectedItem.pedagogy
+  // would stay frozen on the old snapshot, so the assessment row would keep
+  // rendering the previous Start/End dates (and the "Inactive" badge derived
+  // from them) until the user manually clicked the tree node again.
+  useEffect(() => {
+    if (!selectedItem?.id || !courseData?.modules) return
+    const findPedagogy = (modules: any[]): any | null => {
+      for (const m of modules) {
+        if (m._id === selectedItem.id) return m.pedagogy
+        if (Array.isArray(m.subModules)) {
+          for (const sub of m.subModules) {
+            if (sub._id === selectedItem.id) return sub.pedagogy
+            if (Array.isArray(sub.topics)) {
+              for (const t of sub.topics) {
+                if (t._id === selectedItem.id) return t.pedagogy
+                if (Array.isArray(t.subTopics)) {
+                  for (const st of t.subTopics) {
+                    if (st._id === selectedItem.id) return st.pedagogy
+                  }
+                }
+              }
+            }
+          }
+        }
+        if (Array.isArray(m.topics)) {
+          for (const t of m.topics) {
+            if (t._id === selectedItem.id) return t.pedagogy
+            if (Array.isArray(t.subTopics)) {
+              for (const st of t.subTopics) {
+                if (st._id === selectedItem.id) return st.pedagogy
+              }
+            }
+          }
+        }
+      }
+      return null
+    }
+    const fresh = findPedagogy(courseData.modules as any)
+    if (!fresh) return
+    setSelectedItem(prev => {
+      // Reference compare avoids a no-op render on every courseData tick — the
+      // refetched object will be a different reference whenever the server
+      // payload actually changed.
+      if (!prev || prev.pedagogy === fresh) return prev
+      return { ...prev, pedagogy: fresh }
+    })
+  }, [courseData, selectedItem?.id])
+
   const getStudentAnswers = useCallback((): Record<string, any> | undefined => {
-    if (!courseData?.singleParticipants || !Array.isArray(courseData.singleParticipants)) return undefined
+    if (!courseData?.batchAndParticipants || !Array.isArray(courseData.batchAndParticipants)) return undefined
     let currentUserId: string | undefined
     try {
       const { valid, user: tokenUser } = userPermission()
@@ -684,7 +888,9 @@ const subcategories = useMemo(() => {
       } catch { }
     }
     if (!currentUserId) return undefined
-    const participant = courseData.singleParticipants.find((p: any) => p.user?._id === currentUserId)
+    const participant = courseData.batchAndParticipants
+      .flatMap((b: any) => b?.users || [])
+      .find((p: any) => p.user?._id === currentUserId)
     if (!participant) return undefined
     const courseEntry = participant.user?.courses?.find((c: any) => c.courseId === courseId)
     return courseEntry?.answers ?? undefined
@@ -705,7 +911,11 @@ const subcategories = useMemo(() => {
     }
     setCurrentHierarchy(hierarchyIds.map(findLabel))
     setSelectedItem({ id: itemId, title: itemTitle, type: itemType, hierarchy: hierarchyIds, pedagogy })
-    if (selectedItem?.hierarchy[0] !== hierarchyIds[0]) { setSelectedMethod(""); setSelectedActivity("") }
+    // Selecting any node resets to its Overview (below), so the method/activity
+    // must clear too — otherwise a stale You-Do→Assessment selection leaves the
+    // Mock/Final third-level row showing under the Overview tab when switching
+    // to a sibling topic in the same module.
+    setSelectedMethod(""); setSelectedActivity("")
     setActiveTab("Overview")
     setCurrentFolder(null)
     setFolderPath([])
@@ -826,23 +1036,43 @@ const subcategories = useMemo(() => {
     // once the tab + activity are applied (otherwise this would flash early).
     if (selectedItem) { if (!isRestoringRef.current) setIsLoading(false); return }
 
-    // Restore the EXACT node + method + activity ONLY when returning from an
-    // exercise (the exam page sends ?restoreNodeId/method/activity). Normal
-    // course visits have no such params, so they still show Course Overview.
+    // Restore the EXACT node + method + activity. Two sources, in priority order:
+    //   1) URL query params (?restoreNodeId/method/activity) — sent by exam
+    //      pages on their way back, so they "win" by being explicit.
+    //   2) localStorage — the auto-persist effect writes the user's last
+    //      sidebar selection here so a bare reload of /coursesdetailedview/{id}
+    //      also restores the same node + tab + subcategory.
     const restoreParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams()
-    const nid = restoreParams.get('restoreNodeId')
-    const sm = restoreParams.get('method')    // 'i-do' | 'we-do' | 'you-do'
-    const sa = restoreParams.get('activity')  // e.g. 'Assignments'
+    let nid: string | null = restoreParams.get('restoreNodeId')
+    let sm: string | null = restoreParams.get('method')    // 'i-do' | 'we-do' | 'you-do'
+    let sa: string | null = restoreParams.get('activity')  // e.g. 'Assignments'
+    const fromUrl = !!nid
+    if (!nid && typeof window !== 'undefined') {
+      nid = localStorage.getItem('lms_student_selected_node_id')
+      if (!sm) sm = localStorage.getItem('lms_student_selected_method')
+      if (!sa) sa = localStorage.getItem('lms_student_selected_activity')
+    }
     if (nid) {
       const restore = (id: string, title: string, type: SelectedItemType, hier: string[], ped?: any) => {
         isRestoringRef.current = true
+        // handleItemSelect resets method/activity/tab to Overview as part of
+        // its normal "click a node" flow. It's `async` but contains no awaits,
+        // so all its state setters run synchronously in this block. By IMMEDIATELY
+        // re-applying the saved method/activity/tab/subcategory in the SAME
+        // batched update (no setTimeout), React 18 collapses everything into a
+        // single render — the page reveals with the sidebar, tab AND subcategory
+        // already in place, no Overview flash.
         handleItemSelect(id, title, type, hier, ped)
-        // handleItemSelect clears method/activity when the node changes, so set
-        // them just after, to re-open the same tab + activity (the exercises list).
-        // Keep the full-screen loader up until the tab + activity are applied so
-        // the user doesn't see the page flash through Overview → node → We Do.
-        if (sm && sa) setTimeout(() => { setSelectedMethod(sm); setSelectedActivity(sa); isRestoringRef.current = false; setIsLoading(false) }, 150)
-        else setTimeout(() => { isRestoringRef.current = false; setIsLoading(false) }, 150)
+        if (sm) {
+          setSelectedMethod(sm)
+          setActiveTab(sm === "i-do" ? "I_Do" : sm === "we-do" ? "We_Do" : "You_Do")
+        }
+        if (sa) {
+          setSelectedActivity(sa)
+          setActiveSubcategory(sa)
+        }
+        isRestoringRef.current = false
+        setIsLoading(false)
       }
       const walk = (modules: any[]): boolean => {
         for (const m of modules) {
@@ -862,14 +1092,30 @@ const subcategories = useMemo(() => {
         return false
       }
       const found = walk(courseData.modules as any)
-      // Strip the restore params so a manual refresh doesn't re-trigger this.
-      router.replace(`/lms/pages/courses/coursesdetailedview/${courseId}`)
+      // Strip the restore params ONLY when they came from the URL — otherwise
+      // there's nothing to strip (the bare-reload path uses localStorage).
+      if (fromUrl) router.replace(`/lms/pages/courses/coursesdetailedview/${courseId}`)
       // When a node was found, the restore() helper turns off the loader after
       // the tab + activity are applied. If nothing matched, fall through below.
       if (found) return
     }
     setIsLoading(false)
   }, [courseData, handleItemSelect, selectedItem])
+
+  // ── Auto-persist sidebar/tab selection ──────────────────────────────────────
+  // The restore effect above can pull these back on reload only if we save them
+  // somewhere durable. The node id is already saved by handleItemSelect (line
+  // 782); this effect mirrors that for the tab (method) and subcategory
+  // (activity). When the value is EMPTY (e.g. user clicked Overview), we
+  // remove the key — unless a restore is mid-flight, in which case the
+  // transient '' from handleItemSelect clearing state would wipe our cache.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (selectedMethod) localStorage.setItem('lms_student_selected_method', selectedMethod)
+    else if (!isRestoringRef.current) localStorage.removeItem('lms_student_selected_method')
+    if (selectedActivity) localStorage.setItem('lms_student_selected_activity', selectedActivity)
+    else if (!isRestoringRef.current) localStorage.removeItem('lms_student_selected_activity')
+  }, [selectedMethod, selectedActivity])
 
   useEffect(() => {
     if (selectedMethod && selectedActivity && selectedItem?.pedagogy) {
@@ -1086,20 +1332,62 @@ const extractAllFilesFromFolders = (folders: any[]): Resource[] => {
   }
 
 const getExercisesForActivity = (): any[] => {
-  if (!selectedMethod || !selectedActivity || !selectedItem?.pedagogy) return []
+  if (!selectedMethod || !selectedActivity) return []
   try {
-    const mk: Record<string, "I_Do" | "We_Do" | "You_Do"> = { 
-      "i-do": "I_Do", 
-      "we-do": "We_Do", 
-      "you-do": "You_Do" 
+    const mk: Record<string, "I_Do" | "We_Do" | "You_Do"> = {
+      "i-do": "I_Do",
+      "we-do": "We_Do",
+      "you-do": "You_Do"
     }
     const tk = mk[selectedMethod]
     if (!tk) return []
+
+    const tKey = normalizeKey(selectedActivity)
+
+    // ── You Do → Assessment: shared common list across the whole course ──
+    // By design, the student should see every assessment in the course
+    // without having to drill into each hierarchy node looking for assigned
+    // work. So when the student lands on any hierarchy node and opens
+    // You Do → Assessment, we walk the entire course tree and aggregate
+    // every node's pedagogy.You_Do.assessments (incl. the legacy spelling
+    // variants) into one de-duplicated list. All other subcategories keep
+    // the existing per-node behaviour below.
+    const ASSESSMENT_KEYS = new Set(["assessment", "assessments", "assesment", "assesments"])
+    if (tk === "You_Do" && ASSESSMENT_KEYS.has(tKey)) {
+      const collected: any[] = []
+      const seen = new Set<string>()
+      const walk = (node: any) => {
+        if (!node) return
+        const yd = node?.pedagogy?.You_Do
+        if (yd && typeof yd === 'object' && !Array.isArray(yd)) {
+          // Buckets are stored under the tab label as typed ("Assesment",
+          // "assessments", ...) — match by normalized key, not literal access.
+          for (const key of Object.keys(yd)) {
+            if (!ASSESSMENT_KEYS.has(normalizeKey(key))) continue
+            const arr = (yd as any)[key]
+            if (Array.isArray(arr)) {
+              for (const ex of arr) {
+                const id = ex?._id ? String(ex._id) : ''
+                if (id && !seen.has(id)) {
+                  seen.add(id)
+                  collected.push(ex)
+                }
+              }
+            }
+          }
+        }
+        ;(node.subModules || []).forEach(walk)
+        ;(node.topics || []).forEach(walk)
+        ;(node.subTopics || []).forEach(walk)
+      }
+      ;(courseData?.modules || []).forEach(walk)
+      return collected
+    }
+
+    if (!selectedItem?.pedagogy) return []
     const cat = selectedItem.pedagogy[tk]
     if (!cat || typeof cat !== 'object') return []
-    
-    const tKey = normalizeKey(selectedActivity)
-    
+
     // Check if it's "test_your_skills" in You Do
     if (tk === "You_Do" && tKey === "test_your_skills") {
       const testData = (cat as any)["test_your_skills"]
@@ -1140,6 +1428,27 @@ const getExercisesForActivity = (): any[] => {
     const types: ResourceType[] = ["page", "pdf", "ppt", "video", "zip", "link", "image", "word", "reference", "txt"]
     types.forEach(t => all.push(...getResourcesByType(t)))
     return all
+  }
+
+  // Resolve the EXACT server locator for the file currently open in a viewer.
+  // The server's findFileInPedagogy does an exact `pedagogy[tabType].get(subcategory)`
+  // and matches folder names — so we must send the real pedagogy key (not the
+  // normalized display value) and the in-activity folder names (NOT the course
+  // breadcrumb in `currentHierarchy`).
+  const getFileMcqLocator = () => {
+    const mk: Record<string, "I_Do" | "We_Do" | "You_Do"> = { "i-do": "I_Do", "we-do": "We_Do", "you-do": "You_Do" }
+    const tabType = mk[selectedMethod] || "I_Do"
+    let subcategory = selectedActivity
+    const cat = (selectedItem?.pedagogy as any)?.[tabType]
+    if (cat && typeof cat === "object" && !Array.isArray(cat)) {
+      const fk = Object.keys(cat).find(k => normalizeKey(k) === normalizeKey(selectedActivity))
+      if (fk) subcategory = fk
+    }
+    return {
+      tabType,
+      subcategory,
+      folderPath: folderPath.map(f => f.title || f.fileName || "").filter(Boolean),
+    }
   }
 
   const getAvailableResourceTypes = (): ResourceType[] => {
@@ -1248,11 +1557,55 @@ const getExercisesForActivity = (): any[] => {
           hierarchy: currentHierarchy.join(','),
         })
       } else {
-        // We Do / I Do — fetch full exercise document and render inline
+        // We Do / I Do programming.
+        //
+        // MULTI-FILE → route to a dedicated reload-safe URL (mirrors the You Do
+        // /youdo/programming pattern). Refresh on that page restores files from
+        // the draft and keeps the same exercise/question open.
+        //
+        // Single-file → keep the existing inline overlay behaviour.
         setExerciseResetProgress(options?.resetProgress ?? false)
+        const isMultiFile = exercise?.questionConfiguration?.programmingQuestionConfiguration?.compilerFileMode === 'multiple'
+        if (isMultiFile) {
+          const routePrefix = selectedMethod === 'i-do' ? 'ido/' : 'wedo/'
+          // Fetch the full exercise document so the stashed blob has totalMarks,
+          // settings, etc. — same as the inline path used to.
+          let stash: any = { ...exercise, questions: qs, courseId, courseName: cname, context: { courseId, nodeId: selectedItem?.id, nodeTitle: selectedItem?.title, method: selectedMethod, activity: selectedActivity }, storedAt: new Date().toISOString() }
+          try {
+            const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || ''
+            const res = await fetch(`https://lmsserver-yeve.onrender.com/exercise/${exercise._id}`, {
+              headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+            })
+            if (res.ok) {
+              const data = await res.json()
+              const full = data.data || data.exercise || data
+              if (full?._id) stash = { ...full, questions: qs, courseId, courseName: cname, context: stash.context, storedAt: stash.storedAt }
+            }
+          } catch { /* fall through with the partial exercise */ }
+
+          localStorage.setItem('currentProgrammingExercise', JSON.stringify(stash))
+          router.push(
+            `/lms/pages/courses/coursesdetailedview/${routePrefix}programming?` +
+            new URLSearchParams({
+              courseId,
+              courseName: cname,
+              exerciseId: eid || '',
+              exerciseName: exercise.exerciseInformation?.exerciseName || 'Programming Exercise',
+              subcategory: selectedActivity || '',
+              category: catP,
+              nodeId: selectedItem?.id || '',
+              nodeName: selectedItem?.title || '',
+              nodeType: selectedItem?.type || '',
+              hierarchy: currentHierarchy.join(','),
+            }).toString()
+          )
+          return
+        }
+
+        // Single-file (existing inline path) — fetch full document and render inline.
         try {
           const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || ''
-          const res = await fetch(`https://lms-server-ym1q.onrender.com/exercise/${exercise._id}`, {
+          const res = await fetch(`https://lmsserver-yeve.onrender.com/exercise/${exercise._id}`, {
             headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
           })
           if (res.ok) {
@@ -1324,30 +1677,6 @@ const getExercisesForActivity = (): any[] => {
     return injectTryItButtons(stamped)
   }
 
-  // ── PedBadge ────────────────────────────────────────────────────────────────
-  const PedBadge = ({ val, variant }: { val: number; variant: "ido" | "wedo" | "ydo" }) => {
-    if (!val || val === 0) {
-      return (
-        <span className="inline-flex items-center justify-center min-w-[28px] h-[22px] px-2.5 rounded-md text-[11.5px] font-bold bg-black/[0.03] text-gray-300 border border-black/5">
-          —
-        </span>
-      )
-    }
-    const cls = {
-      ido: "bg-orange-100 text-orange-600 border-orange-200",
-      wedo: "bg-blue-100 text-blue-600 border-blue-200",
-      ydo: "bg-emerald-100 text-emerald-600 border-emerald-200",
-    }[variant]
-    return (
-      <span className={`inline-flex items-center justify-center min-w-[28px] h-[22px] px-2.5 rounded-md text-[11.5px] font-bold border ${cls}`}>
-        {val}
-      </span>
-    )
-  }
-
-  // ── Table header helper ───────────────────────────────────────────────────
-  const thCls = "px-3.5 py-2.5 font-bold text-[11px] uppercase tracking-[0.04em] border-b-[1.5px] border-gray-200 whitespace-nowrap text-gray-400"
-
   // ── countPedResources / countPedExercises ─────────────────────────────────
   const countPedResources = (pedagogy: any, method: "I_Do" | "We_Do" | "You_Do"): number => {
     if (!pedagogy?.[method]) return 0
@@ -1368,6 +1697,13 @@ const getExercisesForActivity = (): any[] => {
       let exerciseCount = 0
       Object.values(cat).forEach((act: any) => {
         if (act) {
+          // The real shape: a subcategory IS the exercise array —
+          // `pedagogy.We_Do.assignment = [ex, ex, …]`, and likewise
+          // `pedagogy.You_Do.assesment`. Without this branch every array fell
+          // through to the object checks below, found no `.files`/`.exercises`,
+          // and scored 0 — which is why the Overview hierarchy showed "–" for
+          // We Do and You Do on topics that plainly had exercises.
+          if (Array.isArray(act)) { exerciseCount += act.length; return }
           const hasExerciseFiles = act.files?.some((f: any) => f.exerciseType || f.isExercise) || false
           const hasExercisePages = act.pages?.some((p: any) => p.exerciseType || p.isExercise) || false
           const dedicatedExercises = act.exercises?.length || 0
@@ -1384,7 +1720,100 @@ const getExercisesForActivity = (): any[] => {
   const renderFilteredHierarchyTable = () => {
     if (!selectedItem || !courseData?.modules) return null
 
-    const baseTdCls = "align-middle px-4 py-3 border-b border-gray-100 text-[13px]"
+    const baseTdCls = "align-middle px-2.5 py-2 border-b border-[#EEF1F6]"
+
+    // ── Premium cell renderers (icons, pills, action chevron) ────────────────
+    const LeadCell = ({ icon: Icon, title, hrs, rowSpan }: { icon: any; title: string; hrs?: number; rowSpan?: number }) => (
+      <td rowSpan={rowSpan} className={`${baseTdCls} border-r border-[#EEF1F6]`} style={{ background: '#FAFBFD' }}>
+        <div className="flex items-center gap-1.5 min-w-0">
+          <div className="rounded-lg flex items-center justify-center flex-shrink-0" style={{ width: 26, height: 26, background: DETAIL_UI.peach }}>
+            <Icon size={13} strokeWidth={2.2} style={{ color: DETAIL_UI.orange }} />
+          </div>
+          <div className="flex items-center gap-1 min-w-0">
+            <span className="font-bold truncate" style={{ color: DETAIL_UI.navy, fontSize: 12.5 }}>{title}</span>
+            {!!hrs && (
+              <span className="flex-shrink-0 rounded font-bold" style={{ fontSize: 9.5, padding: '1px 4px', background: 'rgba(244,81,22,0.12)', color: DETAIL_UI.orange, border: '1px solid rgba(244,81,22,0.3)' }}>
+                {hrs}h
+              </span>
+            )}
+          </div>
+        </div>
+      </td>
+    )
+
+    const PlainCell = ({ title, hrs, rowSpan, dashedRight }: { title: string; hrs?: number; rowSpan?: number; dashedRight?: boolean }) => (
+      <td rowSpan={rowSpan} className={`${baseTdCls} ${dashedRight ? 'border-r border-dashed border-[#E2E6EE]' : ''}`}>
+        <div className="flex items-center gap-1 min-w-0">
+          <span className="font-semibold truncate" style={{ color: DETAIL_UI.navy, fontSize: 12.5 }}>{title}</span>
+          {!!hrs && (
+            <span className="flex-shrink-0 rounded font-bold" style={{ fontSize: 9.5, padding: '1px 4px', background: 'rgba(99,102,241,0.10)', color: '#6366f1', border: '1px solid rgba(99,102,241,0.25)' }}>
+              {hrs}h
+            </span>
+          )}
+        </div>
+      </td>
+    )
+
+    const SubCell = ({ title }: { title: string }) => (
+      <td className={baseTdCls}>
+        <span className="font-semibold block truncate" style={{ color: '#334155', fontSize: 12.5 }}>{title}</span>
+      </td>
+    )
+
+    const DashCell = () => (
+      <td className={`${baseTdCls} text-center`}>
+        <span className="inline-flex items-center justify-center rounded-full font-bold" style={{ minWidth: 32, height: 24, background: DETAIL_UI.mint, color: DETAIL_UI.green, fontSize: 12 }}>–</span>
+      </td>
+    )
+
+    const PillCell = ({ val, icon: Icon, bg, color }: { val: number; icon: any; bg: string; color: string }) => (
+      <td className={`${baseTdCls} text-center`}>
+        {val > 0 ? (
+          <span className="inline-flex items-center justify-center gap-1 rounded-full font-bold" style={{ minWidth: 40, height: 24, padding: '0 8px', background: bg, color, fontSize: 12 }}>
+            <Icon size={11} strokeWidth={2.3} />
+            {val}
+          </span>
+        ) : (
+          <span className="inline-flex items-center justify-center rounded-full font-bold" style={{ minWidth: 32, height: 24, background: DETAIL_UI.mint, color: DETAIL_UI.green, fontSize: 12 }}>–</span>
+        )}
+      </td>
+    )
+    const IDoCell = ({ val }: { val: number }) => <PillCell val={val} icon={BookOpen} bg={DETAIL_UI.blueLight} color={DETAIL_UI.blue} />
+    const WeDoCell = ({ val }: { val: number }) => <PillCell val={val} icon={Pencil} bg="#FFF0E8" color={DETAIL_UI.orange} />
+    const YouDoCell = ({ val }: { val: number }) => <PillCell val={val} icon={Target} bg="#FDE8E8" color="#DC4545" />
+
+    const ActionCell = ({ onNavigate }: { onNavigate?: () => void }) => (
+      <td className={`${baseTdCls} text-center`} style={{ width: 40 }}>
+        {onNavigate && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onNavigate() }}
+            className="inline-flex items-center justify-center rounded-lg transition-colors cursor-pointer"
+            style={{ width: 26, height: 26, background: '#F3F5F9', border: '1px solid #E7EAF1' }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = DETAIL_UI.orangeLight }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = '#F3F5F9' }}
+            title="Open"
+          >
+            <ChevronRight size={15} strokeWidth={2.3} style={{ color: DETAIL_UI.navy }} />
+          </button>
+        )}
+      </td>
+    )
+
+    // The whole row is the click target, not just the chevron — a 26px button
+    // was the only way into a node on a row that is otherwise all clickable
+    // surface. The chevron stays as the visual affordance and renders here so
+    // the callback is declared once per row; its own handler calls
+    // stopPropagation, so clicking it does not fire this row's onClick twice.
+    const Row = ({ onNavigate, children }: { onNavigate?: () => void; children: React.ReactNode }) => (
+      <tr
+        className={`ov-tr bg-white${onNavigate ? ' ov-tr--nav cursor-pointer' : ''}`}
+        onClick={onNavigate}
+      >
+        {children}
+        <ActionCell onNavigate={onNavigate} />
+      </tr>
+    )
 
     // Helper to find node by ID
     const findNodeById = (id: string): any => {
@@ -1422,6 +1851,9 @@ const getExercisesForActivity = (): any[] => {
     const selectedNode = findNodeById(selectedItem.id)
     if (!selectedNode) return null
 
+    const goToNode = (id: string, title: string, type: SelectedItemType, hierarchy: string[], pedagogy?: any) => () =>
+      handleItemSelect(id, title, type, hierarchy, pedagogy)
+
     // Generate rows based on selection type
     const generateRows = (): JSX.Element[] => {
       const rows: JSX.Element[] = []
@@ -1457,104 +1889,47 @@ const getExercisesForActivity = (): any[] => {
                     const isFirstRowOfModule = currentRowIndex === 0
                     const isFirstRowOfSubmodule = topics.indexOf(topic) === 0 && stIdx === 0
                     const isFirstRowOfTopic = stIdx === 0
-                    const rowBg = currentRowIndex % 2 === 0 ? "bg-white" : "bg-gray-50/60"
                     rows.push(
-                      <tr key={`${module._id}-${submodule._id}-${topic._id}-${subtopic._id || stIdx}`} className={`ov-tr ${rowBg}`}>
-                        {isFirstRowOfModule && (
-                          <td rowSpan={moduleTotalRows} className={`${baseTdCls} font-bold text-gray-800 bg-gray-50 border-r-2 border-r-gray-200 pl-4`}>
-                            <div className="flex items-center gap-1.5">
-                              {module.title}
-                              {(() => {
-                                const hrs = hoursMap[module._id] || 0
-                                if (!hrs) return null
-                                return (
-                                  <span style={{
-                                    display: 'inline-flex', alignItems: 'center',
-                                    minWidth: 28, height: 16, padding: '0 4px',
-                                    borderRadius: 4, fontSize: '9px', fontWeight: 700,
-                                    background: 'rgba(242,119,87,0.12)', color: '#F27757',
-                                    border: '1px solid rgba(242,119,87,0.3)',
-                                  }}>{hrs} hours</span>
-                                )
-                              })()}
-                            </div>
-                          </td>
-                        )}
-                        {isFirstRowOfSubmodule && (
-                          <td rowSpan={submoduleTotalRows} className={`${baseTdCls} font-semibold text-[12.5px] text-gray-500 bg-gray-50/80 border-r border-r-gray-100`}>
-                            <div className="flex items-center gap-1.5">
-                              {submodule.title}
-                              {(() => {
-                                const hrs = hoursMap[submodule._id] || 0
-                                if (!hrs) return null
-                                return (
-                                  <span style={{
-                                    display: 'inline-flex', alignItems: 'center',
-                                    minWidth: 28, height: 16, padding: '0 4px',
-                                    borderRadius: 4, fontSize: '9px', fontWeight: 700,
-                                    background: 'rgba(99,102,241,0.10)', color: '#6366f1',
-                                    border: '1px solid rgba(99,102,241,0.25)',
-                                  }}>{hrs} hours</span>
-                                )
-                              })()}
-                            </div>
-                          </td>
-                        )}
-                        {isFirstRowOfTopic && (
-                          <td rowSpan={topicRowSpan} className={`${baseTdCls} font-semibold text-[12.5px] text-gray-800 border-r border-dashed border-r-gray-200`}>
-                            {topic.title}
-                          </td>
-                        )}
-                        <td className={`${baseTdCls} text-[12px] text-gray-500`}>{subtopic.title}</td>
-                        <td className={`${baseTdCls} text-center`}><PedBadge val={countPedResources(subtopic.pedagogy, "I_Do")} variant="ido" /></td>
-                        <td className={`${baseTdCls} text-center`}><PedBadge val={countPedExercises(subtopic.pedagogy, "We_Do")} variant="wedo" /></td>
-                        <td className={`${baseTdCls} text-center`}><PedBadge val={countPedResources(subtopic.pedagogy, "You_Do")} variant="ydo" /></td>
-                      </tr>
+                      <Row key={`${module._id}-${submodule._id}-${topic._id}-${subtopic._id || stIdx}`} onNavigate={goToNode(subtopic._id, subtopic.title, 'subtopic', [module._id, submodule._id, topic._id, subtopic._id], subtopic.pedagogy)}>
+                        {isFirstRowOfModule && <LeadCell icon={detailTypeIcon('module')} title={module.title} hrs={hoursMap[module._id]} rowSpan={moduleTotalRows} />}
+                        {isFirstRowOfSubmodule && <PlainCell title={submodule.title} hrs={hoursMap[submodule._id]} rowSpan={submoduleTotalRows} />}
+                        {isFirstRowOfTopic && <PlainCell title={topic.title} rowSpan={topicRowSpan} dashedRight />}
+                        <SubCell title={subtopic.title} />
+                        <IDoCell val={countPedResources(subtopic.pedagogy, "I_Do")} />
+                        <WeDoCell val={countPedExercises(subtopic.pedagogy, "We_Do")} />
+                        <YouDoCell val={countPedExercises(subtopic.pedagogy, "You_Do")} />
+                      </Row>
                     )
                   })
                 } else {
                   const currentRowIndex = rowIndex++
                   const isFirstRowOfModule = currentRowIndex === 0
                   const isFirstRowOfSubmodule = topics.indexOf(topic) === 0
-                  const rowBg = currentRowIndex % 2 === 0 ? "bg-white" : "bg-gray-50/60"
                   rows.push(
-                    <tr key={`${module._id}-${submodule._id}-${topic._id}`} className={`ov-tr ${rowBg}`}>
-                      {isFirstRowOfModule && (
-                        <td rowSpan={moduleTotalRows} className={`${baseTdCls} font-bold text-gray-800 bg-gray-50 border-r-2 border-r-gray-200 pl-4`}>
-                          {module.title}
-                        </td>
-                      )}
-                      {isFirstRowOfSubmodule && (
-                        <td rowSpan={submoduleTotalRows} className={`${baseTdCls} font-semibold text-[12.5px] text-gray-500 bg-gray-50/80 border-r border-r-gray-100`}>
-                          {submodule.title}
-                        </td>
-                      )}
-                      <td className={`${baseTdCls} font-semibold text-[12.5px] text-gray-800 border-r border-dashed border-r-gray-200`}>{topic.title}</td>
-                      <td className={`${baseTdCls} text-[12px] text-gray-400 text-center`}>—</td>
-                      <td className={`${baseTdCls} text-center`}><PedBadge val={countPedResources(topic.pedagogy, "I_Do")} variant="ido" /></td>
-                      <td className={`${baseTdCls} text-center`}><PedBadge val={countPedExercises(topic.pedagogy, "We_Do")} variant="wedo" /></td>
-                      <td className={`${baseTdCls} text-center`}><PedBadge val={countPedResources(topic.pedagogy, "You_Do")} variant="ydo" /></td>
-                    </tr>
+                    <Row key={`${module._id}-${submodule._id}-${topic._id}`} onNavigate={goToNode(topic._id, topic.title, 'topic', [module._id, submodule._id, topic._id], topic.pedagogy)}>
+                      {isFirstRowOfModule && <LeadCell icon={detailTypeIcon('module')} title={module.title} hrs={hoursMap[module._id]} rowSpan={moduleTotalRows} />}
+                      {isFirstRowOfSubmodule && <PlainCell title={submodule.title} hrs={hoursMap[submodule._id]} rowSpan={submoduleTotalRows} />}
+                      <PlainCell title={topic.title} dashedRight />
+                      <DashCell />
+                      <IDoCell val={countPedResources(topic.pedagogy, "I_Do")} />
+                      <WeDoCell val={countPedExercises(topic.pedagogy, "We_Do")} />
+                      <YouDoCell val={countPedExercises(topic.pedagogy, "You_Do")} />
+                    </Row>
                   )
                 }
               })
             } else {
               const currentRowIndex = rowIndex++
-              const rowBg = currentRowIndex % 2 === 0 ? "bg-white" : "bg-gray-50/60"
               rows.push(
-                <tr key={`${module._id}-${submodule._id}`} className={`ov-tr ${rowBg}`}>
-                  {currentRowIndex === 0 && (
-                    <td rowSpan={moduleTotalRows} className={`${baseTdCls} font-bold text-gray-800 bg-gray-50 border-r-2 border-r-gray-200 pl-4`}>
-                      {module.title}
-                    </td>
-                  )}
-                  <td className={`${baseTdCls} font-semibold text-[12.5px] text-gray-500 bg-gray-50/80 border-r border-r-gray-100`}>{submodule.title}</td>
-                  <td className={`${baseTdCls} text-[12px] text-gray-400 text-center`}>—</td>
-                  <td className={`${baseTdCls} text-[12px] text-gray-400 text-center`}>—</td>
-                  <td className={`${baseTdCls} text-center`}><PedBadge val={countPedResources(submodule.pedagogy, "I_Do")} variant="ido" /></td>
-                  <td className={`${baseTdCls} text-center`}><PedBadge val={countPedExercises(submodule.pedagogy, "We_Do")} variant="wedo" /></td>
-                  <td className={`${baseTdCls} text-center`}><PedBadge val={countPedResources(submodule.pedagogy, "You_Do")} variant="ydo" /></td>
-                </tr>
+                <Row key={`${module._id}-${submodule._id}`} onNavigate={goToNode(submodule._id, submodule.title, 'submodule', [module._id, submodule._id], submodule.pedagogy)}>
+                  {currentRowIndex === 0 && <LeadCell icon={detailTypeIcon('module')} title={module.title} hrs={hoursMap[module._id]} rowSpan={moduleTotalRows} />}
+                  <PlainCell title={submodule.title} />
+                  <DashCell />
+                  <DashCell />
+                  <IDoCell val={countPedResources(submodule.pedagogy, "I_Do")} />
+                  <WeDoCell val={countPedExercises(submodule.pedagogy, "We_Do")} />
+                  <YouDoCell val={countPedExercises(submodule.pedagogy, "You_Do")} />
+                </Row>
               )
             }
           })
@@ -1566,50 +1941,37 @@ const getExercisesForActivity = (): any[] => {
               subtopics.forEach((subtopic: any, stIdx: number) => {
                 const currentRowIndex = rowIndex++
                 const isFirstRowOfTopic = stIdx === 0
-                const rowBg = currentRowIndex % 2 === 0 ? "bg-white" : "bg-gray-50/60"
                 rows.push(
-                  <tr key={`${module._id}-${topic._id}-${subtopic._id || stIdx}`} className={`ov-tr ${rowBg}`}>
-                    {currentRowIndex === 0 && (
-                      <td rowSpan={moduleTotalRows} className={`${baseTdCls} font-bold text-gray-800 bg-gray-50 border-r-2 border-r-gray-200 pl-4`}>
-                        {module.title}
-                      </td>
-                    )}
-                    <td className={`${baseTdCls} text-[12px] text-gray-400 text-center`}>—</td>
-                    {isFirstRowOfTopic && (
-                      <td rowSpan={topicRowSpan} className={`${baseTdCls} font-semibold text-[12.5px] text-gray-800 border-r border-dashed border-r-gray-200`}>
-                        {topic.title}
-                      </td>
-                    )}
-                    <td className={`${baseTdCls} text-[12px] text-gray-500`}>{subtopic.title}</td>
-                    <td className={`${baseTdCls} text-center`}><PedBadge val={countPedResources(subtopic.pedagogy, "I_Do")} variant="ido" /></td>
-                    <td className={`${baseTdCls} text-center`}><PedBadge val={countPedExercises(subtopic.pedagogy, "We_Do")} variant="wedo" /></td>
-                    <td className={`${baseTdCls} text-center`}><PedBadge val={countPedResources(subtopic.pedagogy, "You_Do")} variant="ydo" /></td>
-                  </tr>
+                  <Row key={`${module._id}-${topic._id}-${subtopic._id || stIdx}`} onNavigate={goToNode(subtopic._id, subtopic.title, 'subtopic', [module._id, topic._id, subtopic._id], subtopic.pedagogy)}>
+                    {currentRowIndex === 0 && <LeadCell icon={detailTypeIcon('module')} title={module.title} hrs={hoursMap[module._id]} rowSpan={moduleTotalRows} />}
+                    <DashCell />
+                    {isFirstRowOfTopic && <PlainCell title={topic.title} rowSpan={topicRowSpan} dashedRight />}
+                    <SubCell title={subtopic.title} />
+                    <IDoCell val={countPedResources(subtopic.pedagogy, "I_Do")} />
+                    <WeDoCell val={countPedExercises(subtopic.pedagogy, "We_Do")} />
+                    <YouDoCell val={countPedExercises(subtopic.pedagogy, "You_Do")} />
+                  </Row>
                 )
               })
             } else {
               const currentRowIndex = rowIndex++
-              const rowBg = currentRowIndex % 2 === 0 ? "bg-white" : "bg-gray-50/60"
               rows.push(
-                <tr key={`${module._id}-${topic._id}`} className={`ov-tr ${rowBg}`}>
-                  {currentRowIndex === 0 && (
-                    <td rowSpan={moduleTotalRows} className={`${baseTdCls} font-bold text-gray-800 bg-gray-50 border-r-2 border-r-gray-200 pl-4`}>
-                      {module.title}
-                    </td>
-                  )}
-                  <td className={`${baseTdCls} text-[12px] text-gray-400 text-center`}>—</td>
-                  <td className={`${baseTdCls} font-semibold text-[12.5px] text-gray-800 border-r border-dashed border-r-gray-200`}>{topic.title}</td>
-                  <td className={`${baseTdCls} text-[12px] text-gray-400 text-center`}>—</td>
-                  <td className={`${baseTdCls} text-center`}><PedBadge val={countPedResources(topic.pedagogy, "I_Do")} variant="ido" /></td>
-                  <td className={`${baseTdCls} text-center`}><PedBadge val={countPedExercises(topic.pedagogy, "We_Do")} variant="wedo" /></td>
-                  <td className={`${baseTdCls} text-center`}><PedBadge val={countPedResources(topic.pedagogy, "You_Do")} variant="ydo" /></td>
-                </tr>
+                <Row key={`${module._id}-${topic._id}`} onNavigate={goToNode(topic._id, topic.title, 'topic', [module._id, topic._id], topic.pedagogy)}>
+                  {currentRowIndex === 0 && <LeadCell icon={detailTypeIcon('module')} title={module.title} hrs={hoursMap[module._id]} rowSpan={moduleTotalRows} />}
+                  <DashCell />
+                  <PlainCell title={topic.title} dashedRight />
+                  <DashCell />
+                  <IDoCell val={countPedResources(topic.pedagogy, "I_Do")} />
+                  <WeDoCell val={countPedExercises(topic.pedagogy, "We_Do")} />
+                  <YouDoCell val={countPedExercises(topic.pedagogy, "You_Do")} />
+                </Row>
               )
             }
           })
         }
       } else if (selectedItem.type === 'submodule') {
         // Show only the selected submodule's hierarchy
+        const module = selectedNode.module
         const submodule = selectedNode.submodule
 
         if (submodule.topics?.length) {
@@ -1617,76 +1979,71 @@ const getExercisesForActivity = (): any[] => {
             const subtopics = topic.subTopics || []
             if (subtopics.length) {
               subtopics.forEach((subtopic: any, stIdx: number) => {
-                const rowBg = rowIndex % 2 === 0 ? "bg-white" : "bg-gray-50/60"
                 rowIndex++
                 rows.push(
-                  <tr key={`${submodule._id}-${topic._id}-${subtopic._id || stIdx}`} className={`ov-tr ${rowBg}`}>
-                    {stIdx === 0 && (
-                      <td rowSpan={subtopics.length} className={`${baseTdCls} font-semibold text-[12.5px] text-gray-800 border-r border-dashed border-r-gray-200`}>
-                        {topic.title}
-                      </td>
-                    )}
-                    <td className={`${baseTdCls} text-[12px] text-gray-500`}>{subtopic.title}</td>
-                    <td className={`${baseTdCls} text-center`}><PedBadge val={countPedResources(subtopic.pedagogy, "I_Do")} variant="ido" /></td>
-                    <td className={`${baseTdCls} text-center`}><PedBadge val={countPedExercises(subtopic.pedagogy, "We_Do")} variant="wedo" /></td>
-                    <td className={`${baseTdCls} text-center`}><PedBadge val={countPedResources(subtopic.pedagogy, "You_Do")} variant="ydo" /></td>
-                  </tr>
+                  <Row key={`${submodule._id}-${topic._id}-${subtopic._id || stIdx}`} onNavigate={goToNode(subtopic._id, subtopic.title, 'subtopic', [module._id, submodule._id, topic._id, subtopic._id], subtopic.pedagogy)}>
+                    {stIdx === 0 && <LeadCell icon={detailTypeIcon('topic')} title={topic.title} hrs={hoursMap[topic._id]} rowSpan={subtopics.length} />}
+                    <SubCell title={subtopic.title} />
+                    <IDoCell val={countPedResources(subtopic.pedagogy, "I_Do")} />
+                    <WeDoCell val={countPedExercises(subtopic.pedagogy, "We_Do")} />
+                    <YouDoCell val={countPedExercises(subtopic.pedagogy, "You_Do")} />
+                  </Row>
                 )
               })
             } else {
-              const rowBg = rowIndex % 2 === 0 ? "bg-white" : "bg-gray-50/60"
               rowIndex++
               rows.push(
-                <tr key={`${submodule._id}-${topic._id}`} className={`ov-tr ${rowBg}`}>
-                  <td className={`${baseTdCls} font-semibold text-[12.5px] text-gray-800 border-r border-dashed border-r-gray-200`}>{topic.title}</td>
-                  <td className={`${baseTdCls} text-[12px] text-gray-400 text-center`}>—</td>
-                  <td className={`${baseTdCls} text-center`}><PedBadge val={countPedResources(topic.pedagogy, "I_Do")} variant="ido" /></td>
-                  <td className={`${baseTdCls} text-center`}><PedBadge val={countPedExercises(topic.pedagogy, "We_Do")} variant="wedo" /></td>
-                  <td className={`${baseTdCls} text-center`}><PedBadge val={countPedResources(topic.pedagogy, "You_Do")} variant="ydo" /></td>
-                </tr>
+                <Row key={`${submodule._id}-${topic._id}`} onNavigate={goToNode(topic._id, topic.title, 'topic', [module._id, submodule._id, topic._id], topic.pedagogy)}>
+                  <LeadCell icon={detailTypeIcon('topic')} title={topic.title} hrs={hoursMap[topic._id]} />
+                  <DashCell />
+                  <IDoCell val={countPedResources(topic.pedagogy, "I_Do")} />
+                  <WeDoCell val={countPedExercises(topic.pedagogy, "We_Do")} />
+                  <YouDoCell val={countPedExercises(topic.pedagogy, "You_Do")} />
+                </Row>
               )
             }
           })
         }
       } else if (selectedItem.type === 'topic') {
         // Show only the selected topic's subtopics
+        const module = selectedNode.module
+        const submodule = selectedNode.submodule
         const topic = selectedNode.topic
         const subtopics = topic.subTopics || []
+        const hierBase = submodule ? [module._id, submodule._id, topic._id] : [module._id, topic._id]
 
         if (subtopics.length) {
           subtopics.forEach((subtopic: any) => {
-            const rowBg = rowIndex % 2 === 0 ? "bg-white" : "bg-gray-50/60"
             rowIndex++
             rows.push(
-              <tr key={`${topic._id}-${subtopic._id}`} className={`ov-tr ${rowBg}`}>
-                <td className={`${baseTdCls} text-[12px] text-gray-500`}>{subtopic.title}</td>
-                <td className={`${baseTdCls} text-center`}><PedBadge val={countPedResources(subtopic.pedagogy, "I_Do")} variant="ido" /></td>
-                <td className={`${baseTdCls} text-center`}><PedBadge val={countPedExercises(subtopic.pedagogy, "We_Do")} variant="wedo" /></td>
-                <td className={`${baseTdCls} text-center`}><PedBadge val={countPedResources(subtopic.pedagogy, "You_Do")} variant="ydo" /></td>
-              </tr>
+              <Row key={`${topic._id}-${subtopic._id}`} onNavigate={goToNode(subtopic._id, subtopic.title, 'subtopic', [...hierBase, subtopic._id], subtopic.pedagogy)}>
+                <LeadCell icon={detailTypeIcon('subtopic')} title={subtopic.title} />
+                <IDoCell val={countPedResources(subtopic.pedagogy, "I_Do")} />
+                <WeDoCell val={countPedExercises(subtopic.pedagogy, "We_Do")} />
+                <YouDoCell val={countPedExercises(subtopic.pedagogy, "You_Do")} />
+              </Row>
             )
           })
         } else {
-          // Show just the topic itself
-          const rowBg = rowIndex % 2 === 0 ? "bg-white" : "bg-gray-50/60"
+          // Show just the topic itself — already the selected node, nothing to drill into
           rows.push(
-            <tr key={topic._id} className={`ov-tr ${rowBg}`}>
-              <td className={`${baseTdCls} text-[12px] text-gray-400 text-center`}>—</td>
-              <td className={`${baseTdCls} text-center`}><PedBadge val={countPedResources(topic.pedagogy, "I_Do")} variant="ido" /></td>
-              <td className={`${baseTdCls} text-center`}><PedBadge val={countPedExercises(topic.pedagogy, "We_Do")} variant="wedo" /></td>
-              <td className={`${baseTdCls} text-center`}><PedBadge val={countPedResources(topic.pedagogy, "You_Do")} variant="ydo" /></td>
-            </tr>
+            <Row key={topic._id}>
+              <DashCell />
+              <IDoCell val={countPedResources(topic.pedagogy, "I_Do")} />
+              <WeDoCell val={countPedExercises(topic.pedagogy, "We_Do")} />
+              <YouDoCell val={countPedExercises(topic.pedagogy, "You_Do")} />
+            </Row>
           )
         }
       } else if (selectedItem.type === 'subtopic') {
-        // Show just the subtopic itself
+        // Show just the subtopic itself — already the selected node
         const subtopic = selectedNode.subtopic
         rows.push(
-          <tr key={subtopic._id} className="ov-tr bg-white">
-            <td className={`${baseTdCls} text-center`}><PedBadge val={countPedResources(subtopic.pedagogy, "I_Do")} variant="ido" /></td>
-            <td className={`${baseTdCls} text-center`}><PedBadge val={countPedExercises(subtopic.pedagogy, "We_Do")} variant="wedo" /></td>
-            <td className={`${baseTdCls} text-center`}><PedBadge val={countPedResources(subtopic.pedagogy, "You_Do")} variant="ydo" /></td>
-          </tr>
+          <Row key={subtopic._id}>
+            <IDoCell val={countPedResources(subtopic.pedagogy, "I_Do")} />
+            <WeDoCell val={countPedExercises(subtopic.pedagogy, "We_Do")} />
+            <YouDoCell val={countPedExercises(subtopic.pedagogy, "You_Do")} />
+          </Row>
         )
       }
 
@@ -1695,53 +2052,77 @@ const getExercisesForActivity = (): any[] => {
 
     const rows = generateRows()
 
+    // ── Premium table header cell ─────────────────────────────────────────────
+    const Th = ({ children, center }: { children: React.ReactNode; center?: boolean }) => (
+      <th
+        className="font-bold uppercase"
+        style={{ padding: '9px 10px', fontSize: 10.5, letterSpacing: '0.02em', color: DETAIL_UI.navy, textAlign: center ? 'center' : 'left', borderBottom: '1.5px solid #E7EAF1' }}
+      >
+        {children}
+      </th>
+    )
+    // The suffix sits on its own line: as inline text "(Resources)" / "(Exercises)"
+    // set the I Do / We Do minimum width, which pushed You Do off the viewport.
+    const ThIconLabel = ({ icon: Icon, color, label, suffix }: { icon: any; color: string; label: string; suffix?: string }) => (
+      <span className={`inline-flex flex-col ${suffix ? 'items-center' : 'items-start'} leading-tight`}>
+        <span className="inline-flex items-center gap-1 whitespace-nowrap">
+          <Icon size={12} strokeWidth={2.3} style={{ color }} />
+          {label}
+        </span>
+        {suffix && (
+          <span className="normal-case whitespace-nowrap" style={{ color: DETAIL_UI.orange, fontSize: 9 }}>{suffix}</span>
+        )}
+      </span>
+    )
+
     // Render table headers based on selection type
     const renderTableHeaders = () => {
+      const cols: React.ReactElement[] = []
       if (selectedItem.type === 'module') {
-        return (
-          <tr className="bg-gray-50">
-            <th className={`${thCls} text-left pl-4`}>Module</th>
-            <th className={`${thCls} text-left`}>Submodule</th>
-            <th className={`${thCls} text-left`}>Topic</th>
-            <th className={`${thCls} text-left`}>Sub-topic</th>
-            <th className={`${thCls} text-center text-orange-400`}>📚 I Do  (Resources)</th>
-            <th className={`${thCls} text-center text-blue-400`}>✏️ We Do (Exercises)</th>
-            <th className={`${thCls} text-center text-emerald-500`}>🎯 You Do </th>
-          </tr>
-        )
+        cols.push(<Th key="mod"><ThIconLabel icon={Folder} color="#64748B" label="Module" /></Th>)
+        cols.push(<Th key="sub"><ThIconLabel icon={Layers} color="#64748B" label="Submodule" /></Th>)
+        cols.push(<Th key="top"><ThIconLabel icon={Layers} color="#64748B" label="Topic" /></Th>)
+        cols.push(<Th key="sut"><ThIconLabel icon={Link2} color="#64748B" label="Sub-topic" /></Th>)
       } else if (selectedItem.type === 'submodule') {
-        return (
-          <tr className="bg-gray-50">
-            <th className={`${thCls} text-left pl-4`}>Topic</th>
-            <th className={`${thCls} text-left`}>Sub-topic</th>
-            <th className={`${thCls} text-center text-orange-400`}>📚 I Do (Resources)</th>
-            <th className={`${thCls} text-center text-blue-400`}>✏️ We Do (Exercises)</th>
-            <th className={`${thCls} text-center text-emerald-500`}>🎯 You Do</th>
-          </tr>
-        )
+        cols.push(<Th key="top"><ThIconLabel icon={Layers} color="#64748B" label="Topic" /></Th>)
+        cols.push(<Th key="sut"><ThIconLabel icon={Link2} color="#64748B" label="Sub-topic" /></Th>)
       } else if (selectedItem.type === 'topic') {
-        return (
-          <tr className="bg-gray-50">
-            <th className={`${thCls} text-left pl-4`}>Sub-topic</th>
-            <th className={`${thCls} text-center text-orange-400`}>📚 I Do (Resources)</th>
-            <th className={`${thCls} text-center text-blue-400`}>✏️ We Do (Exercises)</th>
-            <th className={`${thCls} text-center text-emerald-500`}>🎯 You Do</th>
-          </tr>
-        )
-      } else {
-        return (
-          <tr className="bg-gray-50">
-            <th className={`${thCls} text-center text-orange-400`}>📚 I Do (Resources)</th>
-            <th className={`${thCls} text-center text-blue-400`}>✏️ We Do (Exercises)</th>
-            <th className={`${thCls} text-center text-emerald-500`}>🎯 You Do</th>
-          </tr>
-        )
+        cols.push(<Th key="sut"><ThIconLabel icon={Link2} color="#64748B" label="Sub-topic" /></Th>)
       }
+      cols.push(<Th key="ido" center><ThIconLabel icon={BookMarked} color={DETAIL_UI.green} label="I Do" suffix="(Resources)" /></Th>)
+      cols.push(<Th key="wedo" center><ThIconLabel icon={Pencil} color="#C77800" label="We Do" suffix="(Exercises)" /></Th>)
+      cols.push(<Th key="ydo" center><ThIconLabel icon={Target} color="#DC4545" label="You Do" /></Th>)
+      cols.push(<th key="act" style={{ padding: '9px', borderBottom: '1.5px solid #E7EAF1', width: 40 }} />)
+      return <tr style={{ background: DETAIL_UI.tableHeaderBg }}>{cols}</tr>
+    }
+
+    // Column widths must be declared, not inferred. With `table-auto` a long
+    // topic title ("Operators, Expressions and Type Conversion") widened its
+    // column until I Do / We Do / You Do were pushed past the right edge and the
+    // learner had to scroll sideways to see whether a topic had any content.
+    // `table-fixed` + these widths pin the name columns and let the titles
+    // truncate instead, so every pedagogy column stays on screen.
+    const renderColGroup = () => {
+      const t = selectedItem.type
+      const nameCols =
+        t === 'module'    ? ['19%', '12%', '23%', '12%'] :
+        t === 'submodule' ? ['34%', '22%'] :
+        t === 'topic'     ? ['44%'] : []
+      const pedagogyCols = t === 'module' ? ['11%', '11%', '10%']
+        : t === 'submodule' ? ['15%', '15%', '12%']
+        : ['20%', '20%', '14%']
+      return (
+        <colgroup>
+          {[...nameCols, ...pedagogyCols].map((w, i) => <col key={i} style={{ width: w }} />)}
+          <col style={{ width: 40 }} />
+        </colgroup>
+      )
     }
 
     return (
-      <div className="rounded-xl border-[1.5px] border-gray-200 overflow-hidden">
-        <table className="w-full border-collapse">
+      <div className="rounded-2xl overflow-x-auto bg-white" style={{ border: '1px solid #EEF1F6', boxShadow: '0 8px 24px rgba(30,45,80,0.05)' }}>
+        <table className="w-full table-fixed border-collapse" style={{ minWidth: 520 }}>
+          {renderColGroup()}
           <thead>
             {renderTableHeaders()}
           </thead>
@@ -1758,11 +2139,8 @@ const getExercisesForActivity = (): any[] => {
       // Record logout time / session duration before the token is cleared.
       await postLogout()
     } catch { /* best effort */ }
-    try {
-      localStorage.removeItem('smartcliff_roleSwitch')
-      localStorage.removeItem('smartcliff_isDummyStudent')
-      localStorage.clear()
-    } catch { /* ignore */ }
+    // Wipes sessionStorage too, which localStorage.clear() alone left behind.
+    clearAllStorage()
     setShowLogoutModal(false)
     router.push('/login')
   }
@@ -1771,7 +2149,7 @@ const getExercisesForActivity = (): any[] => {
   const LogoutBtn = ({ onClick }: { onClick: () => void }) => (
     <div
       onClick={onClick}
-      className="flex-shrink-0 flex items-center gap-2 px-3.5 py-2.5 border-t border-[#1e2430] bg-[#111827] cursor-pointer text-white hover:text-[#c8cdd6] transition-colors"
+      className="flex-shrink-0 flex items-center gap-2 px-3.5 py-2.5 border-t border-[#eef0f3] bg-white cursor-pointer text-gray-600 hover:text-[#F97316] transition-colors"
     >
       <div className="w-[26px] h-[26px] rounded-lg flex-shrink-0 flex items-center justify-center bg-orange-50">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3">
@@ -1780,10 +2158,62 @@ const getExercisesForActivity = (): any[] => {
           <line x1="21" y1="12" x2="9" y2="12" />
         </svg>
       </div>
-      <span className="text-[12.5px] font-semibold">Logout</span>
+      <span className="text-[14px] font-semibold">Logout</span>
     </div>
   )
 
+  // ── Submodule Details "Back" button — steps up one hierarchy level ────────
+  const findNodeMeta = useCallback((id: string): { id: string; title: string; type: SelectedItemType; hierarchy: string[]; pedagogy?: any } | null => {
+    if (!courseData?.modules) return null
+    for (const m of courseData.modules) {
+      if (m._id === id) return { id: m._id, title: m.title, type: "module", hierarchy: [m._id], pedagogy: (m as any).pedagogy }
+      if (m.subModules) for (const sm of m.subModules) {
+        if (sm._id === id) return { id: sm._id, title: sm.title, type: "submodule", hierarchy: [m._id, sm._id], pedagogy: (sm as any).pedagogy }
+        if (sm.topics) for (const t of sm.topics) {
+          if (t._id === id) return { id: t._id, title: t.title, type: "topic", hierarchy: [m._id, sm._id, t._id], pedagogy: (t as any).pedagogy }
+          if (t.subTopics) for (const st of t.subTopics) if (st._id === id) return { id: st._id, title: st.title, type: "subtopic", hierarchy: [m._id, sm._id, t._id, st._id], pedagogy: (st as any).pedagogy }
+        }
+      }
+      if (m.topics) for (const t of m.topics) {
+        if (t._id === id) return { id: t._id, title: t.title, type: "topic", hierarchy: [m._id, t._id], pedagogy: (t as any).pedagogy }
+        if (t.subTopics) for (const st of t.subTopics) if (st._id === id) return { id: st._id, title: st.title, type: "subtopic", hierarchy: [m._id, t._id, st._id], pedagogy: (st as any).pedagogy }
+      }
+    }
+    return null
+  }, [courseData])
+
+  const resetToCourseOverview = () => {
+    setSelectedItem(null)
+    setSelectedMethod("")
+    setSelectedActivity("")
+    setCurrentFolder(null)
+    setFolderPath([])
+    closeAllViewers()
+    localStorage.removeItem('lms_student_selected_node_id')
+    localStorage.removeItem('lms_student_selected_method')
+    localStorage.removeItem('lms_student_selected_activity')
+  }
+
+  const handleBackClick = () => {
+    if (!selectedItem) return
+    const hier = selectedItem.hierarchy
+    if (hier && hier.length > 1) {
+      const parent = findNodeMeta(hier[hier.length - 2])
+      if (parent) { handleItemSelect(parent.id, parent.title, parent.type, parent.hierarchy, parent.pedagogy); return }
+    }
+    resetToCourseOverview()
+  }
+
+  // Blocked students never see the course, not even for the frame between the
+  // check landing and the router navigating away.
+  if (accessBlocked) return (
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center gap-2 text-sm text-gray-500">
+        <Loader2 className="w-4 h-4 animate-spin" />
+        Redirecting…
+      </div>
+    </div>
+  )
   if (error) return <div className="p-6 text-red-500">Error: {error}</div>
   if (isLoading) return (
     <div className="flex justify-center items-center h-screen">
@@ -1793,7 +2223,7 @@ const getExercisesForActivity = (): any[] => {
 
   return (
     <div
-      className="bg-[#f1f2f6] overflow-clip h-screen flex flex-col"
+      className="bg-[#F5F6F8] overflow-clip h-screen flex flex-col"
       style={{ fontFamily: FONT_PRIMARY, WebkitFontSmoothing: 'antialiased' }}
     >
       <style>{`
@@ -1812,30 +2242,30 @@ const getExercisesForActivity = (): any[] => {
         @keyframes subcategorySlide{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
         @keyframes pillSlideIn{from{opacity:0;transform:scale(0.85) translateX(-15px)}to{opacity:1;transform:scale(1) translateX(0)}}
         @keyframes gridCardIn{from{opacity:0;transform:scale(0.9) translateY(20px)}to{opacity:1;transform:scale(1) translateY(0)}}
-        .ov-tr:hover td{background:rgba(242,119,87,0.05)!important}
+        .ov-tr--nav:hover td{background:rgba(249,115,22,0.05)!important}
         @media(min-width:1024px){.mobile-sidebar-overlay,.mobile-sidebar{display:none!important}}
         @media(max-width:1023px){.desktop-sidebar{display:none!important}}
         /* Custom Toast Styling */
         .Toastify__toast-container--top-right{top:16px;right:16px}
         .Toastify__toast{background:#fff;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 10px 40px rgba(0,0,0,0.12);padding:0;min-height:64px;font-family:${FONT_PRIMARY}}
-        .Toastify__toast--success{background:linear-gradient(135deg,#eff6ff 0%,#fff 100%);border-left:4px solid #2563eb}
+        .Toastify__toast--success{background:linear-gradient(135deg,#fff7ed 0%,#fff 100%);border-left:4px solid #f97316}
         .Toastify__toast--error{background:linear-gradient(135deg,#fef2f2 0%,#fff 100%);border-left:4px solid #dc2626}
         .Toastify__toast--warning{background:linear-gradient(135deg,#fffbeb 0%,#fff 100%);border-left:4px solid #f59e0b}
-        .Toastify__toast--info{background:linear-gradient(135deg,#eff6ff 0%,#fff 100%);border-left:4px solid #2563eb}
-        .Toastify__toast-body{padding:14px 16px;font-size:13px;font-weight:500;color:#1e293b;gap:10px}
+        .Toastify__toast--info{background:linear-gradient(135deg,#fff7ed 0%,#fff 100%);border-left:4px solid #f97316}
+        .Toastify__toast-body{padding:14px 16px;font-size:14.5px;font-weight:500;color:#1e293b;gap:10px}
         .Toastify__toast-icon{width:22px;height:22px}
-        .Toastify__toast--success .Toastify__toast-icon{color:#2563eb}
-        .Toastify__toast--info .Toastify__toast-icon{color:#2563eb}
+        .Toastify__toast--success .Toastify__toast-icon{color:#f97316}
+        .Toastify__toast--info .Toastify__toast-icon{color:#f97316}
         .Toastify__close-button{opacity:0.4;transition:opacity 0.2s;padding:8px}
         .Toastify__close-button:hover{opacity:1}
         .Toastify__progress-bar{height:3px;border-radius:0 0 0 2px}
-        .Toastify__progress-bar--success{background:#2563eb}
-        .Toastify__progress-bar--info{background:#2563eb}
+        .Toastify__progress-bar--success{background:#f97316}
+        .Toastify__progress-bar--info{background:#f97316}
         /* Mobile Experience Improvements */
         @media(max-width:1023px){
           .mobile-touch-target{min-height:44px;min-width:44px}
           .mobile-card{padding:16px}
-          .mobile-text-base{font-size:14px}
+          .mobile-text-base{font-size:15.5px}
           .mobile-grid{grid-template-columns:1fr!important}
           .mobile-swipe-hint{animation:swipeHint 2s ease-in-out 3}
         }
@@ -1856,30 +2286,18 @@ const getExercisesForActivity = (): any[] => {
 
       {/* Mobile sidebar */}
       <div
-        className={`mobile-sidebar fixed inset-y-0 left-0 w-[280px] z-50 flex flex-col bg-[#111827] border-r-[1.5px] border-[#1e2430] shadow-[4px_0_24px_rgba(0,0,0,0.10)] transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
+        className={`mobile-sidebar fixed inset-y-0 left-0 w-[280px] z-50 flex flex-col bg-white border-r border-[#eef0f3] shadow-[4px_0_24px_rgba(0,0,0,0.10)] transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
       >
-        {/* Swipe indicator */}
-        <div className="mobile-sidebar-swipe lg:hidden">
-          <div className="w-1 h-8 bg-white/30 rounded-full" />
-        </div>
-        <SidebarHeader
+        {/* Course sidebar — image3 look, hierarchy only */}
+        <CourseSidebar
           courseName={courseData?.courseName || "Course"}
-          modulesCount={courseData?.modules?.length || 0}
+          moduleCount={courseData?.modules?.length || 0}
           sidebarSearch={sidebarSearch}
           onSearchChange={setSidebarSearch}
-          onExpandAll={expandAll}
-          onCollapseAll={collapseAll}
-        />
-        <button
-          onClick={() => setSidebarOpen(false)}
-          className="absolute right-2.5 top-2.5 w-7 h-7 flex items-center justify-center rounded-lg bg-white/16 border border-white/22 text-white cursor-pointer z-10"
+          onLogout={() => { setSidebarOpen(false); setShowLogoutModal(true) }}
+          onCollapse={() => setSidebarOpen(false)}
         >
-          <ChevronLeftIcon size={16} strokeWidth={2.5} />
-        </button>
-        <div className="sb-scroll flex-1 min-h-0 overflow-y-auto bg-[#111827]">
-          {isLoading || !courseData ? (
-            <SidebarSkeleton />
-          ) : (
+          {isLoading || !courseData ? <SidebarSkeleton /> : (
             <Sidebar
               courseData={courseData}
               selectedItem={selectedItem}
@@ -1894,34 +2312,32 @@ const getExercisesForActivity = (): any[] => {
               onSearchChange={setSidebarSearch}
               courseId={courseId}
               studentProgress={studentProgress}
+              topicProgress={courseData?.topicProgress}
             />
           )}
-        </div>
-        <LogoutBtn onClick={() => { setSidebarOpen(false); setShowLogoutModal(true) }} />
+        </CourseSidebar>
       </div>
 
       {/* Main content area */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
 
-        {/* Desktop sidebar */}
+        {/* Desktop sidebar — FLAT on the gray canvas (no card, no border),
+            matching the upload-resources / floating-workspace shells. */}
         <div
-          className="desktop-sidebar flex flex-col relative flex-shrink-0 self-stretch bg-[#111827] border border-[#1e2430] shadow-[0_1px_2px_rgba(17,24,39,0.04),0_4px_18px_rgba(17,24,39,0.04)] overflow-hidden transition-[width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
+          className="desktop-sidebar flex flex-col relative flex-shrink-0 self-stretch overflow-hidden transition-[width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
           style={{ width: sidebarOpen ? 280 : 0, minWidth: 0 }}
         >
           <div className="w-[280px] flex-1 min-h-0 flex flex-col relative">
-            <SidebarHeader
+            {/* Course sidebar — image3 look, hierarchy only */}
+            <CourseSidebar
               courseName={courseData?.courseName || "Course"}
-              modulesCount={courseData?.modules?.length || 0}
+              moduleCount={courseData?.modules?.length || 0}
               sidebarSearch={sidebarSearch}
               onSearchChange={setSidebarSearch}
-              onExpandAll={expandAll}
-              onCollapseAll={collapseAll}
-              onClose={() => setSidebarOpen(false)}
-            />
-            <div className="sb-scroll flex-1 min-h-0 overflow-y-auto bg-[#111827]">
-              {isLoading || !courseData ? (
-                <SidebarSkeleton />
-              ) : (
+              onLogout={() => setShowLogoutModal(true)}
+              onCollapse={() => setSidebarOpen(false)}
+            >
+              {isLoading || !courseData ? <SidebarSkeleton /> : (
                 <Sidebar
                   courseData={courseData}
                   selectedItem={selectedItem}
@@ -1936,10 +2352,10 @@ const getExercisesForActivity = (): any[] => {
                   onSearchChange={setSidebarSearch}
                   courseId={courseId}
                   studentProgress={studentProgress}
+                  topicProgress={courseData?.topicProgress}
                 />
               )}
-            </div>
-            <LogoutBtn onClick={() => setShowLogoutModal(true)} />
+            </CourseSidebar>
           </div>
         </div>
 
@@ -1957,8 +2373,8 @@ const getExercisesForActivity = (): any[] => {
               width: 20,
               height: 56,
               borderRadius: '0 8px 8px 0',
-              background: '#111827',
-              border: '1px solid #1e2430',
+              background: '#f5f6f8',
+              border: '1px solid #eef0f3',
               borderLeft: 'none',
               boxShadow: '2px 0 8px rgba(0,0,0,0.18)',
               display: 'flex',
@@ -1969,12 +2385,12 @@ const getExercisesForActivity = (): any[] => {
               transition: 'background 0.15s, color 0.15s, width 0.15s',
             }}
             onMouseEnter={e => {
-              (e.currentTarget as HTMLButtonElement).style.background = '#1e2430'
-              ;(e.currentTarget as HTMLButtonElement).style.color = '#f8fafc'
+              (e.currentTarget as HTMLButtonElement).style.background = '#FFF7ED'
+              ;(e.currentTarget as HTMLButtonElement).style.color = '#F97316'
               ;(e.currentTarget as HTMLButtonElement).style.width = '24px'
             }}
             onMouseLeave={e => {
-              (e.currentTarget as HTMLButtonElement).style.background = '#111827'
+              (e.currentTarget as HTMLButtonElement).style.background = '#f5f6f8'
               ;(e.currentTarget as HTMLButtonElement).style.color = '#94a3b8'
               ;(e.currentTarget as HTMLButtonElement).style.width = '20px'
             }}
@@ -1983,8 +2399,11 @@ const getExercisesForActivity = (): any[] => {
           </button>
         )}
 
-        {/* Right panel */}
-        <div className="relative flex-1 flex flex-col overflow-clip min-h-0 border border-gray-200 shadow-[0_1px_2px_rgba(17,24,39,0.04),0_4px_18px_rgba(17,24,39,0.04)]">
+        {/* Right side — a floating white workspace panel on the gray canvas
+            (18px radius, gray gutter top/right/bottom), the same geometry as
+            the upload-resources and dashboard shells. */}
+        <div className="flex-1 min-w-0 flex flex-col overflow-hidden p-3.5 pl-0 max-lg:p-2 max-lg:pl-2">
+        <div className="relative flex-1 flex flex-col overflow-clip min-h-0 rounded-[18px] border border-[#E4E7EC] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
           {!isHeaderCollapsed && (
             <TopBar
               items={buildBreadcrumbs()}
@@ -1993,6 +2412,16 @@ const getExercisesForActivity = (): any[] => {
               onMenuClick={() => setSidebarOpen(v => !v)}
               onNotesClick={() => setShowNotesPanel(v => !v)}
               onHideHeader={canToggleHeader ? () => setIsHeaderCollapsed(true) : undefined}
+              tabs={(
+                <MainTabs
+                  selectedNode={!!selectedItem}
+                  activeTab={activeTab}
+                  subcategories={subcategories}
+                  onTabChange={handleTabChange}
+                  onSubcategoryChange={handleSubcategoryChange}
+                  onOverviewClick={() => { setSelectedMethod(""); setSelectedActivity("") }}
+                />
+              )}
             />
           )}
 
@@ -2001,7 +2430,8 @@ const getExercisesForActivity = (): any[] => {
 
             {/* Main content column - full white solid background */}
             <div className="flex-1 flex flex-col overflow-clip min-h-0 bg-white">
-              {/* TabBar always on top with Hide Header button as right action */}
+              {/* Secondary tab rows only — the main pedagogy tabs live in the
+                  TopBar's left slot (single header row). */}
               {!isHeaderCollapsed && (
                 <TabBar
                   selectedNode={!!selectedItem}
@@ -2011,34 +2441,81 @@ const getExercisesForActivity = (): any[] => {
                   onTabChange={handleTabChange}
                   onSubcategoryChange={handleSubcategoryChange}
                   onOverviewClick={() => { setSelectedMethod(""); setSelectedActivity("") }}
-                  rightAction={undefined}
+                  thirdLevel={(() => {
+                    const yda = selectedMethod === 'you-do' && ASSESSMENT_SUBCATEGORY_KEYS.has(normalizeKey(selectedActivity))
+                    if (!yda) return undefined
+                    const ydaExs = getExercisesForActivity()
+                    return {
+                      tabs: [
+                        // Both share the brand-blue accent so the row reads as its own
+                        // level (distinct from the blue "Assessment" subcategory tab).
+                        { key: 'mock', label: 'Mock', color: '#F97316', count: ydaExs.filter((e: any) => !isFinalAssessment(e)).length },
+                        { key: 'final', label: 'Final', color: '#F97316', count: ydaExs.filter((e: any) => isFinalAssessment(e)).length },
+                      ],
+                      active: assessmentTestType,
+                      onChange: (k: string) => setAssessmentTestType(k as 'mock' | 'final'),
+                    }
+                  })()}
                 />
               )}
 
               {/* ── COURSE-LEVEL OVERVIEW ── */}
               {!selectedItem && (
-                <div className="sb-scroll flex-1 overflow-y-auto px-8 py-8 animate-[fadeIn_.4s_ease_both]">
+                <div className="sb-scroll flex-1 overflow-y-auto px-6 py-6 animate-[fadeIn_.4s_ease_both]">
                   {/* Course Header */}
                   <div className="mb-6">
-                    <div className="flex items-center gap-3 mb-2">
-                      <span className="px-3 py-1 rounded-full text-xs  tracking-widest bg-orange-50 text-orange-600 border border-orange-200">
-                        Course Overview
-                      </span>
-                      {(() => {
-                        const totalHrs = courseData?.modules?.reduce((sum: number, m: any) => {
-                          return sum + (hoursMap[m._id] || 0)
-                        }, 0) || 0
-                        if (!totalHrs) return null
-                        return (
-                          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-600 border border-blue-200">
-                            <Clock size={12} className="mr-1.5" />
-                            {totalHrs} hours
-                          </span>
-                        )
-                      })()}
+                    <div className="flex items-start justify-between gap-4 mb-2">
+                      {/* Same compact scale as the item-detail header below
+                          (30px pills, 36px buttons, 12–12.5px text) so moving
+                          between the two views does not resize the chrome. */}
+                      <div className="flex items-center gap-2 flex-wrap min-w-0">
+                        <span
+                          className="inline-flex items-center rounded-full font-semibold flex-shrink-0"
+                          style={{ height: 30, padding: '0 12px', background: DETAIL_UI.peach, color: DETAIL_UI.orange, fontSize: 12 }}
+                        >
+                          Course Overview
+                        </span>
+                        {(() => {
+                          const totalHrs = courseData?.modules?.reduce((sum: number, m: any) => {
+                            return sum + (hoursMap[m._id] || 0)
+                          }, 0) || 0
+                          if (!totalHrs) return null
+                          return (
+                            <span
+                              className="inline-flex items-center gap-1.5 rounded-full font-semibold flex-shrink-0"
+                              style={{ height: 30, padding: '0 12px', background: '#FFF7F0', color: DETAIL_UI.orange, fontSize: 12, border: '1px solid rgba(244,81,22,0.25)' }}
+                            >
+                              <Clock size={12} strokeWidth={2.3} />
+                              {totalHrs} hours
+                            </span>
+                          )
+                        })()}
+                      </div>
+                      {/* Bookmark + Continue Learning */}
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <button
+                          onClick={() => setCourseBookmarked(v => !v)}
+                          className="inline-flex items-center gap-1.5 rounded-xl font-semibold cursor-pointer transition-colors"
+                          style={{ height: 36, padding: '0 16px', fontSize: 12.5, background: courseBookmarked ? '#FFF7ED' : '#fff', border: `1.5px solid ${DETAIL_UI.orange}`, color: DETAIL_UI.orange }}
+                        >
+                          <Bookmark size={14} fill={courseBookmarked ? DETAIL_UI.orange : 'transparent'} />
+                          Bookmark
+                        </button>
+                        <button
+                          onClick={() => {
+                            const first = courseData?.modules?.[0]
+                            if (first) handleItemSelect(first._id, first.title, 'module', [first._id], (first as any).pedagogy)
+                          }}
+                          className="inline-flex items-center gap-1.5 rounded-xl text-white font-semibold cursor-pointer transition-transform hover:-translate-y-0.5"
+                          style={{ height: 36, padding: '0 16px', fontSize: 12.5, background: `linear-gradient(135deg, ${DETAIL_UI.orangeDeep}, ${DETAIL_UI.orange})`, boxShadow: '0 6px 14px rgba(244,81,22,0.25)' }}
+                        >
+                          Continue Learning
+                          <ArrowRight size={14} />
+                        </button>
+                      </div>
                     </div>
-                    <h2 className="m-0 text-xl  text-black-700 leading-tight mb-2">{courseData?.courseName}</h2>
-                    <p className="m-0 text-sm text-gray-500">Complete learning path with structured modules and interactive content</p>
+                    <h2 className="m-0 font-bold leading-tight" style={{ color: DETAIL_UI.navy, fontSize: 21 }}>{courseData?.courseName}</h2>
+                    <p className="mt-1 mb-0" style={{ color: DETAIL_UI.slate, fontSize: 12.5 }}>Complete learning path with structured modules and interactive content</p>
                   </div>
 
                   {/* Stats Cards */}
@@ -2052,36 +2529,48 @@ const getExercisesForActivity = (): any[] => {
                       (m.subModules?.reduce((b: number, sm: any) => b + (sm.topics?.reduce((c: number, t: any) => c + (t.subTopics?.length || 0), 0) || 0), 0) || 0), 0) || 0
 
                     return (
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-                        <div className="flex items-center gap-3 p-3 rounded-lg bg-orange-50 border border-orange-100">
-                          <Layers size={20} className="text-orange-600 flex-shrink-0" />
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                        <div className="flex items-center gap-4 p-4 rounded-2xl bg-white border border-gray-100 shadow-sm">
+                          <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#FFEDD5' }}>
+                            <Layers size={22} style={{ color: '#F97316' }} />
+                          </div>
                           <div>
-                            <p className="m-0 text-lg font-bold text-gray-900">{modCount}</p>
-                            <p className="m-0 text-xs text-gray-600">Modules</p>
+                            <p className="m-0 text-2xl font-extrabold text-gray-900 leading-none">{modCount}</p>
+                            <p className="m-0 mt-1 text-[14.5px] font-bold text-gray-800">Modules</p>
+                            <p className="m-0 text-[12.5px] text-gray-400">Across all sections</p>
                           </div>
                         </div>
                         {subModCount > 0 && (
-                          <div className="flex items-center gap-3 p-3 rounded-lg bg-purple-50 border border-purple-100">
-                            <FolderOpen size={20} className="text-purple-600 flex-shrink-0" />
+                          <div className="flex items-center gap-4 p-4 rounded-2xl bg-white border border-gray-100 shadow-sm">
+                            <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#EDE9FE' }}>
+                              <Folder size={22} style={{ color: '#8B5CF6' }} />
+                            </div>
                             <div>
-                              <p className="m-0 text-lg font-bold text-gray-900">{subModCount}</p>
-                              <p className="m-0 text-xs text-gray-600">Sub-modules</p>
+                              <p className="m-0 text-2xl font-extrabold text-gray-900 leading-none">{subModCount}</p>
+                              <p className="m-0 mt-1 text-[14.5px] font-bold text-gray-800">Sub-modules</p>
+                              <p className="m-0 text-[12.5px] text-gray-400">Detailed learning units</p>
                             </div>
                           </div>
                         )}
-                        <div className="flex items-center gap-3 p-3 rounded-lg bg-blue-50 border border-blue-100">
-                          <BookOpen size={20} className="text-blue-600 flex-shrink-0" />
+                        <div className="flex items-center gap-4 p-4 rounded-2xl bg-white border border-gray-100 shadow-sm">
+                          <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#FFEDD5' }}>
+                            <BookOpen size={22} style={{ color: '#FB923C' }} />
+                          </div>
                           <div>
-                            <p className="m-0 text-lg font-bold text-gray-900">{topicCount}</p>
-                            <p className="m-0 text-xs text-gray-600">Topics</p>
+                            <p className="m-0 text-2xl font-extrabold text-gray-900 leading-none">{topicCount}</p>
+                            <p className="m-0 mt-1 text-[14.5px] font-bold text-gray-800">Topics</p>
+                            <p className="m-0 text-[12.5px] text-gray-400">Core topics covered</p>
                           </div>
                         </div>
                         {subTopicCount > 0 && (
-                          <div className="flex items-center gap-3 p-3 rounded-lg bg-emerald-50 border border-emerald-100">
-                            <Hash size={20} className="text-emerald-600 flex-shrink-0" />
+                          <div className="flex items-center gap-4 p-4 rounded-2xl bg-white border border-gray-100 shadow-sm">
+                            <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#D1FAE5' }}>
+                              <Hash size={22} style={{ color: '#10B981' }} />
+                            </div>
                             <div>
-                              <p className="m-0 text-lg font-bold text-gray-900">{subTopicCount}</p>
-                              <p className="m-0 text-xs text-gray-600">Sub-topics</p>
+                              <p className="m-0 text-2xl font-extrabold text-gray-900 leading-none">{subTopicCount}</p>
+                              <p className="m-0 mt-1 text-[14.5px] font-bold text-gray-800">Sub-topics</p>
+                              <p className="m-0 text-[12.5px] text-gray-400">Deep dive areas</p>
                             </div>
                           </div>
                         )}
@@ -2090,11 +2579,11 @@ const getExercisesForActivity = (): any[] => {
                   })()}
 
                   {/* Description */}
-                  <h3 className="mt-2.5 mb-2.5 text-sm  text-black-700">Course Description</h3>
+                  <h3 className="mt-2.5 mb-2.5 text-base  text-black-700">Course Description</h3>
                   {courseData?.courseDescription && (
                     <>
                       <div
-                        className="mb-3 text-[12px] text-black-600 leading-[1.8] rounded-xl transition-all duration-300"
+                        className="mb-3 text-[13.5px] text-black-600 leading-[1.8] rounded-xl transition-all duration-300"
                         style={{
                           display: '-webkit-box',
                           WebkitLineClamp: isDescriptionExpanded ? 'unset' : 4,
@@ -2106,7 +2595,7 @@ const getExercisesForActivity = (): any[] => {
                       {descriptionHasMoreContent && (
                         <button
                           onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
-                          className="bg-transparent border-none text-orange-400 text-[13px] font-semibold cursor-pointer py-1 mb-5 inline-flex items-center gap-1.5 hover:opacity-70 transition-opacity"
+                          className="bg-transparent border-none text-orange-500 text-[14.5px] font-semibold cursor-pointer py-1 mb-5 inline-flex items-center gap-1.5 hover:opacity-70 transition-opacity"
                         >
                           {isDescriptionExpanded ? 'View less' : 'View more'}
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
@@ -2118,327 +2607,238 @@ const getExercisesForActivity = (): any[] => {
                     </>
                   )}
 
-                  {/* Course Structure - Enhanced Hierarchy Table */}
-                  <div className="mb-6">
-                    <h3 className="m-0   text-black-500 mb-2">Course Structure</h3>
-                    <p className="m-0 text-sm text-gray-500 mb-6">Click any row to explore content and resources</p>
+                  {/* Course Structure — accordion (image 3 design) */}
+                  <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+                    <div>
+                      <h3 className="m-0 font-bold" style={{ color: DETAIL_UI.navy, fontSize: 16 }}>Course Structure</h3>
+                      <p className="mt-0.5 mb-0" style={{ color: DETAIL_UI.slate, fontSize: 12.5 }}>Click any row to explore content and resources</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="relative">
+                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input
+                          value={structureSearch}
+                          onChange={(e) => setStructureSearch(e.target.value)}
+                          placeholder="Search in course content..."
+                          className="h-11 w-72 pl-10 pr-4 rounded-xl text-base bg-gray-50 border border-gray-200 outline-none focus:border-orange-500 text-gray-700"
+                        />
+                      </div>
+                      {(() => {
+                        const allExpanded = !!courseData?.modules?.length && courseData.modules.every((m: any) => expandedModules.has(m._id))
+                        return (
+                          <button
+                            onClick={() => (allExpanded ? collapseAll() : expandAll())}
+                            className="h-11 px-5 rounded-xl text-base font-semibold whitespace-nowrap transition-colors"
+                            style={{ background: '#fff', border: '1.5px solid #F97316', color: '#F97316' }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#FFF7ED' }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#fff' }}
+                          >
+                            {allExpanded ? 'Collapse All' : 'Expand All'}
+                          </button>
+                        )
+                      })()}
+                    </div>
                   </div>
 
                   {isLoading || !courseData ? (
                     <TableSkeleton />
                   ) : (
-                    <>
-                      <div className="rounded-xl border border-gray-200 overflow-hidden mb-6 shadow-sm">
-                        <table className="w-full border-collapse">
-                          <thead>
-                            <tr className="bg-gray-50">
-                              <th className={`${thCls} text-left pl-5 py-4 font-bold text-gray-700 text-sm`}>
-                                Module
-                              </th>
-                              <th className={`${thCls} text-left py-4 font-bold text-gray-700 text-sm`}>
-                                Submodule
-                              </th>
-                              <th className={`${thCls} text-left py-4 font-bold text-gray-700 text-sm`}>
-                                Topic
-                              </th>
-                              <th className={`${thCls} text-left py-4 font-bold text-gray-700 text-sm`}>
-                                Sub-topic
-                              </th>
-                              <th className={`${thCls} text-center py-4 font-bold text-orange-600 text-sm`}>
-                                I Do
-                              </th>
-                              <th className={`${thCls} text-center py-4 font-bold text-blue-600 text-sm`}>
-                                We Do
-                              </th>
-                              <th className={`${thCls} text-center py-4 font-bold text-emerald-600 text-sm`}>
-                                You Do
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {courseData?.modules?.map((module: any) => {
-                              const moduleRows: JSX.Element[] = []
-                              let moduleRowIndex = 0
-
-                              const moduleTotalRows = (() => {
-                                let count = 0
-                                if (module.subModules?.length) {
-                                  module.subModules.forEach((sm: any) => {
-                                    if (sm.topics?.length) sm.topics.forEach((t: any) => { count += t.subTopics?.length || 1 })
-                                    else count += 1
-                                  })
-                                } else if (module.topics?.length) {
-                                  module.topics.forEach((t: any) => { count += t.subTopics?.length || 1 })
-                                } else { count = 1 }
-                                return count
-                              })()
-
-                              const baseTdCls = "align-middle px-4 py-3 border-b border-gray-100 text-[13px]"
-
-                              // Case 1: Module has submodules
-                              if (module.subModules?.length) {
-                                module.subModules.forEach((submodule: any) => {
-                                  const topics = submodule.topics || []
-                                  if (topics.length) {
-                                    const submoduleTotalRows = topics.reduce((acc: number, t: any) => acc + (t.subTopics?.length || 1), 0)
-                                    topics.forEach((topic: any) => {
-                                      const subtopics = topic.subTopics || []
-                                      const topicRowSpan = subtopics.length || 1
-                                      if (subtopics.length) {
-                                        subtopics.forEach((subtopic: any, stIdx: number) => {
-                                          const rowIndex = moduleRowIndex++
-                                          const isFirstRowOfModule = rowIndex === 0
-                                          const isFirstRowOfSubmodule = topics.indexOf(topic) === 0 && stIdx === 0
-                                          const isFirstRowOfTopic = stIdx === 0
-                                          const rowBg = rowIndex % 2 === 0 ? "bg-white" : "bg-gray-50/60"
-                                          moduleRows.push(
-                                            <tr key={`${module._id}-${submodule._id}-${topic._id}-${subtopic._id || stIdx}`} className={`ov-tr ${rowBg}`}>
-                                              {isFirstRowOfModule && (
-                                                <td rowSpan={moduleTotalRows} className={`${baseTdCls} font-bold text-gray-800 bg-gray-50 border-r-2 border-r-gray-200 pl-4`}>
-                                                  {module.title}
-                                                </td>
-                                              )}
-                                              {isFirstRowOfSubmodule && (
-                                                <td rowSpan={submoduleTotalRows} className={`${baseTdCls} font-semibold text-[12.5px] text-gray-500 bg-gray-50/80 border-r border-r-gray-100`}>
-                                                  {submodule.title}
-                                                </td>
-                                              )}
-                                              {isFirstRowOfTopic && (
-                                                <td rowSpan={topicRowSpan} className={`${baseTdCls} font-semibold text-[12.5px] text-gray-800 border-r border-dashed border-r-gray-200`}>
-                                                  {topic.title}
-                                                </td>
-                                              )}
-                                              <td className={`${baseTdCls} text-[12px] text-gray-500`}>{subtopic.title}</td>
-                                              <td className={`${baseTdCls} text-center`}><PedBadge val={countPedResources(subtopic.pedagogy, "I_Do")} variant="ido" /></td>
-                                              <td className={`${baseTdCls} text-center`}><PedBadge val={countPedExercises(subtopic.pedagogy, "We_Do")} variant="wedo" /></td>
-                                              <td className={`${baseTdCls} text-center`}><PedBadge val={countPedResources(subtopic.pedagogy, "You_Do")} variant="ydo" /></td>
-                                            </tr>
-                                          )
-                                        })
-                                      } else {
-                                        (() => {
-                                          const rowIndex = moduleRowIndex++
-                                          const isFirstRowOfModule = rowIndex === 0
-                                          const isFirstRowOfSubmodule = topics.indexOf(topic) === 0
-                                          const rowBg = rowIndex % 2 === 0 ? "bg-white" : "bg-gray-50/60"
-                                          moduleRows.push(
-                                            <tr key={`${module._id}-${submodule._id}-${topic._id}`} className={`ov-tr ${rowBg}`}>
-                                              {isFirstRowOfModule && (
-                                                <td rowSpan={moduleTotalRows} className={`${baseTdCls} font-bold text-gray-800 bg-gray-50 border-r-2 border-r-gray-200 pl-4`}>
-                                                  {module.title}
-                                                </td>
-                                              )}
-                                              {isFirstRowOfSubmodule && (
-                                                <td rowSpan={submoduleTotalRows} className={`${baseTdCls} font-semibold text-[12.5px] text-gray-500 bg-gray-50/80 border-r border-r-gray-100`}>
-                                                  {submodule.title}
-                                                </td>
-                                              )}
-                                              <td className={`${baseTdCls} font-semibold text-[12.5px] text-gray-800 border-r border-dashed border-r-gray-200`}>{topic.title}</td>
-                                              <td className={`${baseTdCls} text-[12px] text-gray-400 text-center`}>—</td>
-                                              <td className={`${baseTdCls} text-center`}><PedBadge val={countPedResources(topic.pedagogy, "I_Do")} variant="ido" /></td>
-                                              <td className={`${baseTdCls} text-center`}><PedBadge val={countPedExercises(topic.pedagogy, "We_Do")} variant="wedo" /></td>
-                                              <td className={`${baseTdCls} text-center`}><PedBadge val={countPedResources(topic.pedagogy, "You_Do")} variant="ydo" /></td>
-                                            </tr>
-                                          )
-                                        })()
-                                      }
-                                    })
-                                  } else {
-                                    const rowIndex = moduleRowIndex++
-                                    const rowBg = rowIndex % 2 === 0 ? "bg-white" : "bg-gray-50/60"
-                                    moduleRows.push(
-                                      <tr key={`${module._id}-${submodule._id}`} className={`ov-tr ${rowBg}`}>
-                                        {rowIndex === 0 && (
-                                          <td rowSpan={moduleTotalRows} className={`${baseTdCls} font-bold text-gray-800 bg-gray-50 border-r-2 border-r-gray-200 pl-4`}>
-                                            {module.title}
-                                          </td>
-                                        )}
-                                        <td className={`${baseTdCls} font-semibold text-[12.5px] text-gray-500 bg-gray-50/80 border-r border-r-gray-100`}>{submodule.title}</td>
-                                        <td className={`${baseTdCls} text-[12px] text-gray-400 text-center`}>—</td>
-                                        <td className={`${baseTdCls} text-[12px] text-gray-400 text-center`}>—</td>
-                                        <td className={`${baseTdCls} text-center`}><PedBadge val={countPedResources(submodule.pedagogy, "I_Do")} variant="ido" /></td>
-                                        <td className={`${baseTdCls} text-center`}><PedBadge val={countPedExercises(submodule.pedagogy, "We_Do")} variant="wedo" /></td>
-                                        <td className={`${baseTdCls} text-center`}><PedBadge val={countPedResources(submodule.pedagogy, "You_Do")} variant="ydo" /></td>
-                                      </tr>
-                                    )
-                                  }
-                                })
-                              }
-                              // Case 2: Module has direct topics
-                              else if (module.topics?.length) {
-                                module.topics.forEach((topic: any) => {
-                                  const subtopics = topic.subTopics || []
-                                  const topicRowSpan = subtopics.length || 1
-                                  if (subtopics.length) {
-                                    subtopics.forEach((subtopic: any, stIdx: number) => {
-                                      const rowIndex = moduleRowIndex++
-                                      const isFirstRowOfTopic = stIdx === 0
-                                      const rowBg = rowIndex % 2 === 0 ? "bg-white" : "bg-gray-50/60"
-                                      moduleRows.push(
-                                        <tr key={`${module._id}-${topic._id}-${subtopic._id || stIdx}`} className={`ov-tr ${rowBg}`}>
-                                          {rowIndex === 0 && (
-                                            <td rowSpan={moduleTotalRows} className={`${baseTdCls} font-bold text-gray-800 bg-gray-50 border-r-2 border-r-gray-200 pl-4`}>
-                                              {module.title}
-                                            </td>
-                                          )}
-                                          <td className={`${baseTdCls} text-[12px] text-gray-400 text-center`}>—</td>
-                                          {isFirstRowOfTopic && (
-                                            <td rowSpan={topicRowSpan} className={`${baseTdCls} font-semibold text-[12.5px] text-gray-800 border-r border-dashed border-r-gray-200`}>
-                                              {topic.title}
-                                            </td>
-                                          )}
-                                          <td className={`${baseTdCls} text-[12px] text-gray-500`}>{subtopic.title}</td>
-                                          <td className={`${baseTdCls} text-center`}><PedBadge val={countPedResources(subtopic.pedagogy, "I_Do")} variant="ido" /></td>
-                                          <td className={`${baseTdCls} text-center`}><PedBadge val={countPedExercises(subtopic.pedagogy, "We_Do")} variant="wedo" /></td>
-                                          <td className={`${baseTdCls} text-center`}><PedBadge val={countPedResources(subtopic.pedagogy, "You_Do")} variant="ydo" /></td>
-                                        </tr>
-                                      )
-                                    })
-                                  } else {
-                                    (() => {
-                                      const rowIndex = moduleRowIndex++
-                                      const rowBg = rowIndex % 2 === 0 ? "bg-white" : "bg-gray-50/60"
-                                      moduleRows.push(
-                                        <tr key={`${module._id}-${topic._id}`} className={`ov-tr ${rowBg}`}>
-                                          {rowIndex === 0 && (
-                                            <td rowSpan={moduleTotalRows} className={`${baseTdCls} font-bold text-gray-800 bg-gray-50 border-r-2 border-r-gray-200 pl-4`}>
-                                              {module.title}
-                                            </td>
-                                          )}
-                                          <td className={`${baseTdCls} text-[12px] text-gray-400 text-center`}>—</td>
-                                          <td className={`${baseTdCls} font-semibold text-[12.5px] text-gray-800 border-r border-dashed border-r-gray-200`}>{topic.title}</td>
-                                          <td className={`${baseTdCls} text-[12px] text-gray-400 text-center`}>—</td>
-                                          <td className={`${baseTdCls} text-center`}><PedBadge val={countPedResources(topic.pedagogy, "I_Do")} variant="ido" /></td>
-                                          <td className={`${baseTdCls} text-center`}><PedBadge val={countPedExercises(topic.pedagogy, "We_Do")} variant="wedo" /></td>
-                                          <td className={`${baseTdCls} text-center`}><PedBadge val={countPedResources(topic.pedagogy, "You_Do")} variant="ydo" /></td>
-                                        </tr>
-                                      )
-                                    })()
-                                  }
-                                })
-                              }
-                              return moduleRows
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </>
+                    <div className="flex flex-col gap-3 mb-6">
+                      {(courseData?.modules || [])
+                        .filter((m: any) => !structureSearch.trim() || (m.title || '').toLowerCase().includes(structureSearch.trim().toLowerCase()))
+                        .map((module: any, idx: number) => {
+                          const c = MODULE_PALETTE[idx % MODULE_PALETTE.length]
+                          const info = moduleChildInfo(module)
+                          const dur = fmtDuration(hoursMap[module._id] || 0)
+                          const level = deriveLevel(module, (courseData as any)?.courseLevel)
+                          const leaves = collectLeafIds(module)
+                          const visited = new Set((studentProgress as any)?.visitedNodes || [])
+                          const pct = leaves.length ? Math.round(leaves.filter((id: string) => visited.has(id)).length / leaves.length * 100) : 0
+                          const isOpen = expandedModules.has(module._id)
+                          const children: any[] = module.subModules?.length ? module.subModules : (module.topics || [])
+                          const childType: 'submodule' | 'topic' = module.subModules?.length ? 'submodule' : 'topic'
+                          return (
+                            <div key={module._id} className="rounded-2xl border border-gray-200 bg-white overflow-hidden shadow-sm">
+                              <div
+                                className="flex items-center gap-4 px-4 py-3.5 cursor-pointer hover:bg-gray-50 transition-colors"
+                                onClick={() => handleItemSelect(module._id, module.title, 'module', [module._id], (module as any).pedagogy)}
+                              >
+                                <GripVertical className="w-4 h-4 text-gray-300 flex-shrink-0" />
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); toggleModule(module._id) }}
+                                  className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+                                  style={{ background: '#FFF7ED', color: '#F97316' }}
+                                >
+                                  <ChevronRight className="w-4 h-4" style={{ transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform .2s' }} />
+                                </button>
+                                <Folder className="w-6 h-6 flex-shrink-0" style={{ color: c.icon, fill: c.icon }} />
+                                <span className="font-bold text-[16.5px] text-gray-800 truncate">{idx + 1}. {module.title}</span>
+                                {info.n > 0 && (
+                                  <span className="text-[12.5px] font-bold px-2.5 py-1 rounded-full flex-shrink-0" style={{ background: '#FFEDD5', color: '#F97316' }}>
+                                    {info.n} {info.label}
+                                  </span>
+                                )}
+                                <div className="flex-1" />
+                                {dur && (
+                                  <span className="flex items-center gap-1.5 text-[14.5px] text-gray-500 flex-shrink-0">
+                                    <Clock className="w-4 h-4 text-gray-400" />{dur}
+                                  </span>
+                                )}
+                                {level && (
+                                  <span className="flex items-center gap-1.5 text-[14.5px] text-gray-500 flex-shrink-0 w-28">
+                                    <User className="w-4 h-4 text-gray-400" />{level}
+                                  </span>
+                                )}
+                                <span className="text-[14.5px] font-bold flex-shrink-0 w-32 text-right" style={{ color: pct > 0 ? '#059669' : '#9ca3af' }}>
+                                  {pct}% Completed
+                                </span>
+                                <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }} />
+                              </div>
+                              {isOpen && children.length > 0 && (
+                                <div className="border-t border-gray-100 bg-gray-50/50 px-4 py-2">
+                                  {children.map((ch: any) => (
+                                    <div
+                                      key={ch._id}
+                                      onClick={() => handleItemSelect(ch._id, ch.title, childType, [module._id, ch._id], (ch as any).pedagogy)}
+                                      className="flex items-center gap-3 pl-11 pr-3 py-2.5 rounded-lg cursor-pointer hover:bg-white transition-colors"
+                                    >
+                                      <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: c.icon }} />
+                                      <span className="text-[14.5px] text-gray-600 truncate">{ch.title}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      {!!structureSearch.trim() && !(courseData?.modules || []).some((m: any) => (m.title || '').toLowerCase().includes(structureSearch.trim().toLowerCase())) && (
+                        <div className="text-center text-base text-gray-400 py-8">No modules match &ldquo;{structureSearch}&rdquo;.</div>
+                      )}
+                    </div>
                   )}
-
-                  <p className="m-0 text-[12px] text-gray-400 text-center">
-                    Select a module from the sidebar to dive in →
-                  </p>
                 </div>
               )}
 
-              {/* ── ITEM SELECTED — Overview tab ── */}
-              {selectedItem && activeTab === "Overview" && (
-                <div className="sb-scroll flex-1 overflow-y-auto px-8 py-8 animate-[fadeIn_.3s_ease_both]">
+              {/* ── ITEM SELECTED — Overview tab (premium Submodule Details redesign) ── */}
+              {selectedItem && activeTab === "Overview" && (() => {
+                const typeLabel = selectedItem.type.charAt(0).toUpperCase() + selectedItem.type.slice(1)
+                const TypeBadgeIcon = detailTypeIcon(selectedItem.type)
+                const hrs = hoursMap[selectedItem.id] || 0
+                const desc = findNodeDescription(selectedItem.id)
+                const escapeHtml = (text: string) => text.replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                const descHeading = `${typeLabel} Description`
+                const hierarchyHeading = `${typeLabel} Hierarchy`
 
-                  {/* Header with title */}
-                  <div className="flex items-center justify-between gap-4 mb-6">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <span className="px-3 py-1 rounded-full text-xs  tracking-widest bg-gray-100 text-gray-600 border border-gray-200">
-                          {selectedItem.type.charAt(0).toUpperCase() + selectedItem.type.slice(1)}
+                return (
+                  <div className="sb-scroll flex-1 min-w-0 overflow-y-auto overflow-x-hidden px-6 py-6 animate-[fadeIn_.3s_ease_both]">
+
+                    {/* Top nav row: back + type/duration pills … Course Overview CTA */}
+                    <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
+                      <div className="flex items-center gap-2 flex-wrap min-w-0">
+                        <button
+                          onClick={handleBackClick}
+                          title="Back"
+                          className="inline-flex items-center justify-center rounded-xl transition-colors cursor-pointer flex-shrink-0"
+                          style={{ width: 36, height: 36, background: '#F3F5F9', border: '1px solid #E7EAF1' }}
+                          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = '#EAEDF3' }}
+                          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = '#F3F5F9' }}
+                        >
+                          <ChevronLeft size={16} strokeWidth={2.3} style={{ color: DETAIL_UI.navy }} />
+                        </button>
+                        <span
+                          className="inline-flex items-center gap-1.5 rounded-full font-semibold flex-shrink-0"
+                          style={{ height: 30, padding: '0 12px', background: DETAIL_UI.peach, color: DETAIL_UI.orange, fontSize: 12 }}
+                        >
+                          <TypeBadgeIcon size={13} strokeWidth={2.3} />
+                          {typeLabel}
                         </span>
-                        {(() => {
-                          const hrs = hoursMap[selectedItem.id] || 0
-                          if (!hrs) return null
-                          return (
-                            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-600 border border-blue-200">
-                              <Clock size={12} className="mr-1.5" />
-                              {hrs} hours
-                            </span>
-                          )
-                        })()}
+                        {hrs > 0 && (
+                          <span
+                            className="inline-flex items-center gap-1.5 rounded-full font-semibold flex-shrink-0"
+                            style={{ height: 30, padding: '0 12px', background: '#FFF7F0', color: DETAIL_UI.orange, fontSize: 12, border: '1px solid rgba(244,81,22,0.25)' }}
+                          >
+                            <Clock size={12} strokeWidth={2.3} />
+                            {hrs} hours
+                          </span>
+                        )}
                       </div>
-                      <h2 className="m-0 text-xl  text-black-700 leading-tight mb-1">{selectedItem.title}</h2>
-                      <p className="m-0 text-[12.5px]  text-gray-600">Detailed overview with hierarchy and resources</p>
+
+                      {/* Course Overview Button */}
+                      <button
+                        onClick={resetToCourseOverview}
+                        className="flex-shrink-0 inline-flex items-center gap-1.5 rounded-xl text-white font-semibold cursor-pointer transition-transform hover:-translate-y-0.5"
+                        style={{ height: 36, padding: '0 16px', fontSize: 12.5, background: `linear-gradient(135deg, ${DETAIL_UI.orangeDeep}, ${DETAIL_UI.orange})`, boxShadow: '0 6px 14px rgba(244,81,22,0.25)' }}
+                      >
+                        <BookOpen size={14} />
+                        Course Overview
+                      </button>
                     </div>
 
-                    {/* Course Overview Button */}
-                    <button
-                      onClick={() => {
-                        setSelectedItem(null)
-                        setSelectedMethod("")
-                        setSelectedActivity("")
-                        setCurrentFolder(null)
-                        setFolderPath([])
-                        closeAllViewers()
-                        localStorage.removeItem('lms_student_selected_node_id')
-                        localStorage.removeItem('lms_student_selected_method')
-                        localStorage.removeItem('lms_student_selected_activity')
-                      }}
-                      className="flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-50 border border-orange-200 text-orange-600 text-sm font-semibold hover:bg-orange-100 transition-colors cursor-pointer"
-                    >
-                      <BookOpen size={14} />
-                      Course Overview
-                    </button>
-                  </div>
+                    {/* Identity: hero icon + title/subtitle … Active status badge */}
+                    <div className="flex items-start justify-between gap-4 mb-5 flex-wrap">
+                      <div className="flex items-start gap-3 min-w-0">
+                        <div className="rounded-2xl flex items-center justify-center flex-shrink-0" style={{ width: 48, height: 48, background: DETAIL_UI.peach }}>
+                          <BookOpen size={22} strokeWidth={1.8} style={{ color: DETAIL_UI.orange }} />
+                        </div>
+                        <div className="min-w-0">
+                          <h1 className="m-0 font-bold leading-tight truncate" style={{ color: DETAIL_UI.navy, fontSize: 21 }}>{selectedItem.title}</h1>
+                          <p className="mt-1 mb-0" style={{ color: DETAIL_UI.slate, fontSize: 12.5 }}>Detailed overview with hierarchy and resources</p>
+                        </div>
+                      </div>
+                      <span
+                        className="inline-flex items-center gap-1.5 rounded-full font-semibold flex-shrink-0"
+                        style={{ height: 30, padding: '0 14px', background: DETAIL_UI.mint, color: DETAIL_UI.green, fontSize: 12 }}
+                      >
+                        <CheckCircle size={13} strokeWidth={2.3} />
+                        Active {typeLabel}
+                      </span>
+                    </div>
 
-                  {/* Description display */}
-                  {(() => {
-                    const desc = findNodeDescription(selectedItem.id)
-
-                    const escapeHtml = (text: string) => {
-                      return text
-                        .replace(/</g, '&lt;')
-                        .replace(/>/g, '&gt;')
-                    }
-
-                    const getDescriptionHeading = () => {
-                      switch (selectedItem.type) {
-                        case 'module': return 'Module Description'
-                        case 'submodule': return 'Submodule Description'
-                        case 'topic': return 'Topic Description'
-                        case 'subtopic': return 'Subtopic Description'
-                        default: return 'Description'
-                      }
-                    }
-
-                    return desc ? (
-                      <>
-                        <h3 className="mt-6 mb-3 text-black-600">{getDescriptionHeading()}</h3>
+                    {/* Description card */}
+                    <div className="rounded-2xl bg-white mb-4" style={{ border: '1px solid #EEF1F6', boxShadow: '0 8px 24px rgba(30,45,80,0.05)', padding: '12px 14px' }}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="rounded-full flex-shrink-0" style={{ width: 4, height: 18, background: `linear-gradient(${DETAIL_UI.orangeDeep}, ${DETAIL_UI.orange})` }} />
+                        <File size={14} strokeWidth={2} style={{ color: DETAIL_UI.slate }} />
+                        <h3 className="m-0 font-bold" style={{ color: DETAIL_UI.navy, fontSize: 14 }}>{descHeading}</h3>
+                      </div>
+                      {desc ? (
                         <div
-                          className="mb-6 text-[12.5px] text-black-600 leading-[1.8] whitespace-pre-wrap"
+                          className="rounded-xl whitespace-pre-wrap"
+                          style={{ padding: '12px 16px', background: '#F8FAFC', border: '1px solid #EEF1F6', color: DETAIL_UI.navy, fontSize: 13, lineHeight: 1.7 }}
                           dangerouslySetInnerHTML={{ __html: escapeHtml(desc) }}
                         />
-                      </>
-                    ) : (
-                      <>
-                        <h3 className="mt-6 mb-3 text-xl font-extrabold text-gray-900">{getDescriptionHeading()}</h3>
-                        <div className="mb-6 text-[14px] text-gray-400 leading-[1.8] italic">
-                          No description available for this {selectedItem.type}.
+                      ) : (
+                        <div className="rounded-xl flex items-center gap-2" style={{ minHeight: 40, padding: '0 16px', background: DETAIL_UI.orangeLight, border: '1px solid #FFD9BF' }}>
+                          <Info size={14} strokeWidth={2.2} style={{ color: DETAIL_UI.orange }} className="flex-shrink-0" />
+                          <span className="italic" style={{ color: DETAIL_UI.slate, fontSize: 12.5 }}>No description available for this {selectedItem.type}.</span>
                         </div>
-                      </>
-                    )
-                  })()}
+                      )}
+                    </div>
 
-                  {/* Filtered Hierarchy Table */}
-                  <div className="mb-6">
-                    <h3 className="m-0 text-black-600 mb-1">
-                      {selectedItem.type === 'module' ? 'Module Hierarchy' :
-                        selectedItem.type === 'submodule' ? 'Submodule Hierarchy' :
-                          selectedItem.type === 'topic' ? 'Topic Hierarchy' : 'Subtopic Details'}
-                    </h3>
-                    <p className="m-0 text-[12.5px] text-black-500">View the structure and content of this {selectedItem.type}</p>
-                  </div>
-                  {renderFilteredHierarchyTable()}
-
-                  {/* Empty state for subtopic with no resources */}
-                  {selectedItem.type === 'subtopic' &&
-                    countPedResources(selectedItem.pedagogy, "I_Do") === 0 &&
-                    countPedExercises(selectedItem.pedagogy, "We_Do") === 0 &&
-                    countPedResources(selectedItem.pedagogy, "You_Do") === 0 && (
-                      <div className="text-center px-5 py-8 bg-gray-50 rounded-xl border border-gray-200 mt-4">
-                        <Hash size={28} className="text-gray-300 mx-auto mb-2.5 block" />
-                        <p className="m-0 mb-1 font-semibold text-[13px] text-gray-800">No resources configured</p>
-                        <p className="m-0 text-[12px] text-gray-400">Content will appear here once the instructor adds resources.</p>
+                    {/* Hierarchy section heading */}
+                    <div className="mb-2.5">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <Network size={15} strokeWidth={2.2} style={{ color: DETAIL_UI.orange }} />
+                        <h3 className="m-0 font-bold" style={{ color: DETAIL_UI.navy, fontSize: 14.5 }}>{hierarchyHeading}</h3>
                       </div>
-                    )}
-                </div>
-              )}
+                      <p className="m-0" style={{ color: DETAIL_UI.slate, fontSize: 12, marginLeft: 23 }}>View the structure and content of this {selectedItem.type}</p>
+                    </div>
+                    {renderFilteredHierarchyTable()}
+
+                    {/* Empty state for subtopic with no resources */}
+                    {selectedItem.type === 'subtopic' &&
+                      countPedResources(selectedItem.pedagogy, "I_Do") === 0 &&
+                      countPedExercises(selectedItem.pedagogy, "We_Do") === 0 &&
+                      countPedExercises(selectedItem.pedagogy, "You_Do") === 0 && (
+                        <div className="text-center rounded-2xl mt-4" style={{ padding: '20px 16px', background: '#FAFBFD', border: '1px solid #EEF1F6' }}>
+                          <Hash size={20} className="mx-auto mb-2 block" style={{ color: '#CBD5E1' }} />
+                          <p className="m-0 mb-1 font-semibold" style={{ fontSize: 13, color: DETAIL_UI.navy }}>No resources configured</p>
+                          <p className="m-0" style={{ fontSize: 12, color: '#94A3B8' }}>Content will appear here once the instructor adds resources.</p>
+                        </div>
+                      )}
+                  </div>
+                )
+              })()}
 
               {/* ── ITEM SELECTED — I Do / We Do / You Do tab content ── */}
               {selectedItem && activeTab !== "Overview" && (
@@ -2453,16 +2853,16 @@ const getExercisesForActivity = (): any[] => {
                         key={key}
                         type="button"
                         onClick={onClick}
-                        className="text-[11.5px] font-semibold leading-snug transition-colors cursor-pointer"
-                        style={{ color: '#2563eb', background: 'transparent', border: 'none', padding: 0 }}
-                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#1d4ed8'; (e.currentTarget as HTMLElement).style.textDecoration = 'underline'; }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#2563eb'; (e.currentTarget as HTMLElement).style.textDecoration = 'none'; }}
+                        className="text-[13px] font-semibold leading-snug transition-colors cursor-pointer"
+                        style={{ color: '#f97316', background: 'transparent', border: 'none', padding: 0 }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#ea580c'; (e.currentTarget as HTMLElement).style.textDecoration = 'underline'; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#f97316'; (e.currentTarget as HTMLElement).style.textDecoration = 'none'; }}
                         title={label}
                       >{label}</button>
                     )
 
                     const sep = (key: string) => (
-                      <span key={key} className="text-[11px] flex-shrink-0 select-none" style={{ color: '#cbd5e1' }}>{'>'}</span>
+                      <span key={key} className="text-[12.5px] flex-shrink-0 select-none" style={{ color: '#cbd5e1' }}>{'>'}</span>
                     )
 
                     return (
@@ -2471,7 +2871,7 @@ const getExercisesForActivity = (): any[] => {
                         style={{
                           borderBottom: '1px solid #eef0f4',
                           background: '#fafafb',
-                          fontFamily: "'Inter', -apple-system, sans-serif",
+                          fontFamily: FONT_PRIMARY,
                         }}
                       >
                         {/* Root crumb = subcategory */}
@@ -2505,7 +2905,7 @@ const getExercisesForActivity = (): any[] => {
                               {sep(`sep-${i}`)}
                               {!isLast
                                 ? crumbBtn(f.title, () => handleFolderNavigateToLevel(i), `crumb-f-${i}`)
-                                : <span className="text-[11.5px] font-semibold leading-snug" style={{ color: '#1a1a2e' }} title={f.title}>{f.title}</span>
+                                : <span className="text-[13px] font-semibold leading-snug" style={{ color: '#1a1a2e' }} title={f.title}>{f.title}</span>
                               }
                             </React.Fragment>
                           )
@@ -2530,16 +2930,16 @@ const getExercisesForActivity = (): any[] => {
               onClick={() => handleOpenTestYourSkills(testSkillExercise.testData)}
             >
               <div className="w-20 h-20 rounded-full bg-orange-100 flex items-center justify-center mx-auto mb-4">
-                <Target size={36} className="text-orange-500" />
+                <Target size={36} className="text-orange-600" />
               </div>
               <h3 className="text-xl font-bold text-gray-800 mb-2">Test Your Skills</h3>
               <p className="text-gray-500 mb-4">
                 {testSkillExercise.testData?.questions?.length || 0} questions • {testSkillExercise.testData?.timeLimit || 60} minutes
               </p>
-              <p className="text-sm text-gray-400 mb-6">
+              <p className="text-base text-gray-400 mb-6">
                 Passing score: {testSkillExercise.testData?.passingScore || 70}%
               </p>
-              <button className="px-6 py-3 bg-orange-500 text-white rounded-xl font-semibold hover:bg-orange-600 transition-colors">
+              <button className="px-6 py-3 bg-orange-600 text-white rounded-xl font-semibold hover:bg-orange-700 transition-colors">
                 Start Test
               </button>
             </div>
@@ -2596,365 +2996,38 @@ const getExercisesForActivity = (): any[] => {
                             )
                           }
 
-                          // You Do → Assessments component (handles both regular + section-based internally)
+                          // You Do → Assessments component (handles both regular + section-based internally).
+                          // Student view: when the subcategory is "Assessment", the TabBar shows a
+                          // Mock / Final third-level row; filter the list to the selected type here.
+                          const isAssessmentSub =
+                            selectedMethod === 'you-do' &&
+                            ASSESSMENT_SUBCATEGORY_KEYS.has(normalizeKey(selectedActivity))
+                          const shownExs = isAssessmentSub
+                            ? exs.filter((e: any) => assessmentTestType === 'final' ? isFinalAssessment(e) : !isFinalAssessment(e))
+                            : exs
+
                           return (
                             <div className="exercises-portal-host flex-1 min-h-0 flex flex-col overflow-visible">
-                              <Assessments exercises={exs} {...sharedProps} onSectionSubmit={refreshCourseData} />
+                              <Assessments exercises={shownExs} {...sharedProps} onSectionSubmit={refreshCourseData} />
                             </div>
                           )
                         }
 
-                        // ── Resource list fallback (unchanged) ──────────────────────────────────
+                        // ── Resource list — redesigned per spec ──────────────────────────────
+                        // Full block (toolbar / type-tabs / grid+list body) was replaced by the
+                        // self-contained <LectureResourceList /> so the 5-column table + Filter
+                        // popover + Sort dropdown can evolve without touching this monolith.
+                        // Open behaviour still routes through handleResourceClick.
                         const avail = getAvailableResourceTypes()
                         if (avail.length === 0) return <EmptyCard icon={File} title="No resources yet" sub="This activity has no content yet." color="gray" />
                         return (
-                          <div className="flex flex-col flex-1 overflow-clip min-h-0 gap-2.5">
-                            <div className="flex items-center gap-2 justify-between flex-wrap">
-                              <div
-                                className={`flex items-center gap-2 h-9 px-3 flex-1 min-w-[200px] rounded-lg border bg-white transition-all duration-200 ${isSearchFocused ? 'border-gray-400' : 'border-gray-200 hover:border-gray-300'
-                                  }`}
-                              >
-                                <Search size={14} className="flex-shrink-0 text-gray-400" />
-                                <input
-                                  value={resourceSearch}
-                                  onChange={(e) => setResourceSearch(e.target.value)}
-                                  onFocus={() => setIsSearchFocused(true)}
-                                  onBlur={() => setIsSearchFocused(false)}
-                                  placeholder="Search files and folders..."
-                                  className="w-full bg-transparent border-none outline-none text-[12px] text-gray-700 placeholder:text-gray-400"
-                                />
-                                {resourceSearch && (
-                                  <button
-                                    onClick={() => setResourceSearch("")}
-                                    className="flex-shrink-0 w-5 h-5 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors cursor-pointer"
-                                    title="Clear search"
-                                  >
-                                    <X size={12} className="text-gray-500" />
-                                  </button>
-                                )}
-                                {isLoadingResources && (
-                                  <Loader2 size={14} className="flex-shrink-0 text-gray-400 animate-spin" />
-                                )}
-                              </div>
-
-                              <div className="flex items-center gap-2 ml-auto">
-                                {canToggleHeader && isHeaderCollapsed && (
-                                  <button
-                                    onClick={() => setIsHeaderCollapsed(false)}
-                                    className="h-9 px-3 rounded-lg border border-[#e3e8f2] bg-white flex items-center gap-1.5 text-[11px] font-semibold cursor-pointer hover:bg-orange-50 hover:border-orange-300 hover:text-orange-600 transition-colors"
-                                    title="Show header"
-                                  >
-                                    <ChevronDown size={14} />
-                                    <span>Show</span>
-                                  </button>
-                                )}
-
-                                <div className="h-9 rounded-lg border border-[#e3e8f2] bg-[#f8fafc] p-0.5 inline-flex items-center gap-0.5">
-                                  <button
-                                    onClick={() => setResourceView("grid")}
-                                    className="w-8 h-8 rounded-md inline-flex items-center justify-center border-none cursor-pointer touch-friendly mobile-touch-target"
-                                    style={{ background: resourceView === "grid" ? '#ffffff' : 'transparent', color: resourceView === "grid" ? '#4f46e5' : '#64748b' }}
-                                    title="Grid view"
-                                  >
-                                    <LayoutGrid size={14} />
-                                  </button>
-                                  <button
-                                    onClick={() => setResourceView("list")}
-                                    className="w-8 h-8 rounded-md inline-flex items-center justify-center border-none cursor-pointer touch-friendly mobile-touch-target"
-                                    style={{ background: resourceView === "list" ? '#ffffff' : 'transparent', color: resourceView === "list" ? '#4f46e5' : '#64748b' }}
-                                    title="List view"
-                                  >
-                                    <List size={14} />
-                                  </button>
-                                </div>
-
-                                <div style={{ position: 'relative' } } ref={sortDropdownRef}>
-                                  <button
-                                    onClick={() => {
-                                      setShowSortDropdown(v => !v)
-                                    }}
-                                    className="h-9 px-3 rounded-lg border border-[#e3e8f2] bg-white flex items-center gap-1.5 text-[11px] font-medium cursor-pointer touch-friendly"
-                                    style={{ color: showSortDropdown ? '#4f46e5' : '#475569' }}
-                                  >
-                                    <ArrowUpDown size={13} />
-                                    <span>Sort by:</span>
-                                    <span className="font-semibold text-[#334155]">
-                                      {sortOption === "newest" && "Newest"}
-                                      {sortOption === "oldest" && "Oldest"}
-                                      {sortOption === "name_asc" && "Name A-Z"}
-                                      {sortOption === "name_desc" && "Name Z-A"}
-                                      {sortOption === "size_desc" && "Size Large-Small"}
-                                      {sortOption === "size_asc" && "Size Small-Large"}
-                                    </span>
-                                    <ChevronDown size={12} className={`transition-transform ${showSortDropdown ? 'rotate-180' : ''}`} />
-                                  </button>
-
-                                  {showSortDropdown && (
-                                    <div
-                                      className="absolute top-full left-0 mt-1 w-[180px] rounded-lg border border-[#e3e8f2] bg-white shadow-lg overflow-hidden z-50"
-                                      style={{ boxShadow: '0 10px 40px rgba(0,0,0,0.12)' }}
-                                    >
-                                      {[
-                                        { value: "newest", label: "Newest", icon: Calendar },
-                                        { value: "oldest", label: "Oldest", icon: Calendar },
-                                        { value: "name_asc", label: "Name A-Z", icon: ArrowDown },
-                                        { value: "name_desc", label: "Name Z-A", icon: ArrowUp },
-                                        { value: "size_desc", label: "Size Large-Small", icon: FileDigit },
-                                        { value: "size_asc", label: "Size Small-Large", icon: FileDigit },
-                                      ].map((opt) => {
-                                        const Icon = opt.icon
-                                        const isSelected = sortOption === opt.value
-                                        return (
-                                          <button
-                                            key={opt.value}
-                                            onClick={() => {
-                                              setSortOption(opt.value as any)
-                                              setShowSortDropdown(false)
-                                            }}
-                                            className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[11px] font-medium transition-colors hover:bg-gray-50 cursor-pointer"
-                                            style={{
-                                              color: isSelected ? '#4f46e5' : '#475569',
-                                              background: isSelected ? '#f5f5ff' : 'transparent',
-                                            }}
-                                          >
-                                            <Icon size={14} style={{ color: isSelected ? '#4f46e5' : '#94a3b8' }} />
-                                            <span>{opt.label}</span>
-                                            {isSelected && (
-                                              <CheckCircle size={12} className="ml-auto" style={{ color: '#4f46e5' }} />
-                                            )}
-                                          </button>
-                                        )
-                                      })}
-                                    </div>
-                                  )}
-                                </div>
-
-                                <button
-                                  onClick={() => {
-                                    setShowResourceFilters(v => !v)
-                                    setShowSortDropdown(false)
-                                  }}
-                                  className="h-9 px-3 rounded-lg border border-[#e3e8f2] bg-white flex items-center gap-1.5 text-[11px] font-medium cursor-pointer touch-friendly"
-                                  style={{ color: showResourceFilters ? '#4f46e5' : '#475569' }}
-                                >
-                                  <Filter size={13} />
-                                  <span>Filters</span>
-                                  {selectedFilterCount > 0 && (
-                                    <span className="px-1.5 h-[16px] rounded-full text-[10px] font-bold inline-flex items-center justify-center bg-[#4f46e5] text-white">
-                                      {selectedFilterCount}
-                                    </span>
-                                  )}
-                                </button>
-                              </div>
-                            </div>
-
-                            {(() => {
-                              const FILTER_PNG: Record<string, string> = {
-                                page: '/icons/page.png', folder: '/icons/folder.png',
-                                pdf: '/active-images/pdfFile.png', ppt: '/icons/ppt.png', link: '/icons/link.png',
-                              }
-                              const FilterIcon = ({ type, sel }: { type: string; sel: boolean }) => {
-                                const src = FILTER_PNG[type]
-                                if (src) {
-                                  const isPdf = type === "pdf"
-                                  return (
-                                    <img
-                                      src={src}
-                                      alt={type}
-                                      className={`${isPdf ? 'w-[17px] h-[17px]' : 'w-[14px] h-[14px]'} object-contain block flex-shrink-0 transition-[filter]`}
-                                      style={{ filter: sel ? 'brightness(0) saturate(100%) invert(33%) sepia(79%) saturate(1954%) hue-rotate(207deg) brightness(98%) contrast(94%)' : 'grayscale(1) brightness(0.55)' }}
-                                    />
-                                  )
-                                }
-                                return <ResIcon type={type} size={12} />
-                              }
-                              const chipBase = (delay: number) => ({
-                                className: `flex items-center gap-1.5 px-3 py-[6px] rounded-md text-[11px] font-medium cursor-pointer transition-all flex-shrink-0 border filter-chip`,
-                                style: {
-                                  animation: showResourceFilters ? `chipSlideIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) ${delay}ms both` : 'none',
-                                }
-                              })
-                              if (!showResourceFilters) return null
-                              const types = ["page", "folder", "pdf", "ppt", "video", "zip", "link", "image", "word", "reference"] as ResourceType[]
-                              const visibleTypes = types.filter(type => {
-                                if (type === "folder") return getFolders().length > 0
-                                else if (type === "page") return getPagesForActivity().length > 0
-                                else return getResourcesByType(type).length > 0
-                              })
-                              return (
-                                <div
-                                  className="sb-scroll flex-shrink-0 flex items-center gap-1 py-0 overflow-x-auto"
-                                  style={{ animation: 'filterContainerSlide 0.3s cubic-bezier(0.22, 1, 0.36, 1)' }}
-                                >
-                                  <button
-                                    onClick={() => { setSelectedResourceType("all"); setUserSelectedResourceType(true) }}
-                                    {...chipBase(0)}
-                                    style={{
-                                      background: '#ffffff',
-                                      borderColor: selectedResourceType === "all" ? '#cbd5e1' : '#e2e8f0',
-                                      color: selectedResourceType === "all" ? '#2563eb' : '#334155',
-                                      boxShadow: selectedResourceType === "all" ? 'inset 0 -2px 0 #2563eb' : 'none',
-                                    }}
-                                  >
-                                    <File size={12} />
-                                    All
-                                    <span
-                                      className="px-1.5 py-0.5 rounded-md text-[10px] font-semibold"
-                                      style={{ background: '#f1f5f9', color: selectedResourceType === "all" ? '#2563eb' : '#64748b' }}
-                                    >
-                                      {getAllResources().length + getFolders().length}
-                                    </span>
-                                  </button>
-                                  {visibleTypes.map((type, idx) => {
-                                    const isSel = selectedResourceType === type
-                                    let count = 0
-                                    if (type === "folder") count = getFolders().length
-                                    else if (type === "page") count = getPagesForActivity().length
-                                    else count = getResourcesByType(type).length
-                                    return (
-                                      <button
-                                        key={type}
-                                        onClick={() => { setSelectedResourceType(type); setUserSelectedResourceType(true) }}
-                                        {...chipBase((idx + 1) * 50)}
-                                        style={{
-                                          background: '#ffffff',
-                                          borderColor: isSel ? '#cbd5e1' : '#e2e8f0',
-                                          color: isSel ? '#2563eb' : '#334155',
-                                          boxShadow: isSel ? 'inset 0 -2px 0 #2563eb' : 'none',
-                                        }}
-                                      >
-                                        <FilterIcon type={type} sel={isSel} />
-                                        {type === "folder" ? "Folders" : RES_LABEL[type]}
-                                        <span
-                                          className="px-1.5 py-0.5 rounded-md text-[10px] font-semibold"
-                                          style={{ background: '#f1f5f9', color: isSel ? '#2563eb' : '#64748b' }}
-                                        >
-                                          {count}
-                                        </span>
-                                      </button>
-                                    )
-                                  })}
-                                </div>
-                              )
-                            })()}
-
-                            <div className="flex-1 overflow-hidden border-[1.5px] border-gray-200 flex flex-col">
-                              {selectedResourceType === "page" ? (() => {
-                                const pages = filteredPages
-                                if (!pages.length) return null
-                                const page = pages[inlinePageIndex]
-                                const processedContent = preparePageContent(page)
-                                return (
-                                  <div className="flex-1 flex flex-col overflow-hidden">
-                                    <div className="flex items-center justify-between px-3.5 py-2 border-b border-gray-100 bg-white flex-shrink-0">
-                                      <button
-                                        disabled={inlinePageIndex === 0}
-                                        onClick={() => setInlinePageIndex(i => i - 1)}
-                                        className="flex items-center gap-1 px-3 py-1 rounded-lg border border-gray-200 text-[12px] font-semibold disabled:cursor-not-allowed disabled:text-gray-300 disabled:bg-gray-50 cursor-pointer"
-                                      >
-                                        <ChevronLeft size={13} />Prev
-                                      </button>
-                                      <span className="text-[12px] font-semibold text-gray-500">{page.title}&nbsp;·&nbsp;{inlinePageIndex + 1} / {pages.length}</span>
-                                      <button
-                                        disabled={inlinePageIndex === pages.length - 1}
-                                        onClick={() => setInlinePageIndex(i => i + 1)}
-                                        className="flex items-center gap-1 px-3 py-1 rounded-lg border border-gray-200 text-[12px] font-semibold disabled:cursor-not-allowed disabled:text-gray-300 disabled:bg-gray-50 cursor-pointer"
-                                      >
-                                        Next<ChevronRightIcon size={13} />
-                                      </button>
-                                    </div>
-                                    <iframe key={page.id} srcDoc={processedContent} sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox" className="flex-1 border-none w-full bg-white" title={page.title} />
-                                  </div>
-                                )
-                              })() : (
-                                isLoadingResources ? (
-                                  <div className="sb-scroll flex-1 overflow-y-auto">
-                                    <ResourceTableHeader />
-                                    {[...Array(6)].map((_, i) => (
-                                      <ResourceSkeleton key={`skeleton-${i}`} />
-                                    ))}
-                                  </div>
-                                ) : filteredResourcesToDisplay.length > 0 ? (
-                                  resourceView === "grid" ? (
-                                    <div className="sb-scroll flex-1 overflow-y-auto p-3">
-                                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                        {sortResources(filteredResourcesToDisplay).map((r, idx) => (
-                                          <div
-                                            key={r.id}
-                                            className="group relative rounded-xl border border-gray-200 bg-white p-4 cursor-pointer transition-all duration-300 hover:border-orange-300 hover:shadow-lg hover:-translate-y-1 touch-friendly mobile-card"
-                                            style={{ animation: `gridCardIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) ${idx * 80}ms both` }}
-                                            onClick={() => handleResourceClick(r)}
-                                          >
-                                            <div className="flex items-start gap-3 mb-3">
-                                              <div className="flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center transition-transform duration-300 group-hover:scale-110 touch-friendly"
-                                                style={{
-                                                  background: r.type === 'pdf' ? 'rgba(239,68,68,0.1)' :
-                                                    r.type === 'video' ? 'rgba(37,99,235,0.1)' :
-                                                      r.type === 'ppt' ? 'rgba(245,158,11,0.1)' :
-                                                        r.type === 'folder' ? 'rgba(100,116,139,0.1)' :
-                                                          'rgba(16,185,129,0.1)',
-                                                }}
-                                              >
-                                                <ResIcon type={r.type} size={20} />
-                                              </div>
-                                              <div className="flex-1 min-w-0">
-                                                <p className="m-0 text-[13px] font-bold text-gray-800 truncate leading-tight">{r.title}</p>
-                                                <div className="flex items-center gap-2 mt-1">
-                                                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                                                    style={{
-                                                      background: r.type === 'pdf' ? '#fef2f2' : r.type === 'video' ? '#eff6ff' : r.type === 'ppt' ? '#fffbeb' : r.type === 'folder' ? '#f1f5f9' : '#f0fdf4',
-                                                      color: r.type === 'pdf' ? '#dc2626' : r.type === 'video' ? '#2563eb' : r.type === 'ppt' ? '#d97706' : r.type === 'folder' ? '#64748b' : '#16a34a',
-                                                    }}
-                                                  >
-                                                    {r.type === 'folder' ? 'Folder' : RES_LABEL[r.type] || r.type.toUpperCase()}
-                                                  </span>
-                                                </div>
-                                              </div>
-                                            </div>
-                                            <div className="flex items-center justify-between text-[10.5px] text-gray-500 mt-2">
-                                              <span>{r.fileSize}</span>
-                                              <span>{new Date(r.uploadedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
-                                            </div>
-                                            <div className="absolute inset-0 rounded-xl bg-gradient-to-t from-orange-500/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
-                                          </div>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <div className="sb-scroll flex-1 overflow-y-auto">
-                                      <ResourceTableHeader />
-                                      {(() => {
-                                        const animType = selectedMethod === "i-do" ? "resource" : selectedMethod === "we-do" ? "wedo" : "none"
-                                        const sorted = sortResources(filteredResourcesToDisplay)
-                                        const grouped = groupResources(sorted)
-                                        return grouped.map((row, i) => row.kind === "group"
-                                          ? <ResourceGroupRow key={`g-${row.groupId}`} groupId={row.groupId} groupName={row.groupName} items={row.items} subGroups={row.subGroups} index={i} onClick={handleResourceClick} onDownload={handleDownloadClick} animType={animType} defaultExpanded={expandedGroups.has(row.groupId)} />
-                                          : <ResourceItem key={row.resource.id} resource={row.resource} index={i} onClick={handleResourceClick} onDownload={handleDownloadClick} animType={animType} />
-                                        )
-                                      })()}
-                                    </div>
-                                  )
-                                ) : (
-                                  <div className="flex-1 flex items-center justify-center p-8">
-                                    <div className="text-center" style={{ padding: '36px 44px', borderRadius: 24, background: 'linear-gradient(180deg, #ffffff 0%, #fafbfc 100%)', border: '1.5px solid #e2e8f0', maxWidth: 280, boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
-                                      <div style={{ width: 56, height: 56, borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', background: 'linear-gradient(135deg, rgba(251,146,60,0.12) 0%, rgba(251,146,60,0.25) 100%)', border: '1px solid rgba(251,146,60,0.25)', boxShadow: '0 2px 8px rgba(251,146,60,0.12)' }}>
-                                        <Search size={24} style={{ color: '#f97316' }} />
-                                      </div>
-                                      <p className="font-bold text-[14px] text-gray-800 m-0 mb-1.5">No matching resources</p>
-                                      <p className="text-[12.5px] text-gray-500 m-0 mb-3">Try adjusting your search or filters</p>
-                                      <button
-                                        onClick={() => { setResourceSearch(""); setSelectedResourceType("all"); }}
-                                        className="px-4 py-2 rounded-xl text-[12px] font-semibold text-white bg-orange-500 hover:bg-orange-600 transition-all cursor-pointer"
-                                        style={{ boxShadow: '0 2px 8px rgba(249,115,22,0.25)' }}
-                                      >
-                                        Clear filters
-                                      </button>
-                                    </div>
-                                  </div>
-                                )
-                              )}
-                            </div>
-                          </div>
+                          <LectureResourceList
+                            resources={getAllResources().filter(r => !r.isFolder && r.type !== ("folder" as any))}
+                            folders={getFolders()}
+                            pages={getPagesForActivity() as any}
+                            onOpen={handleResourceClick}
+                            isLoading={isLoadingResources}
+                          />
                         )
                       })()}
                     </div>
@@ -2990,9 +3063,9 @@ const getExercisesForActivity = (): any[] => {
                                       <ResIcon type={r.type} size={20} />
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                      <p className="m-0 text-[13px] font-bold text-gray-800 truncate leading-tight">{r.title}</p>
+                                      <p className="m-0 text-[14.5px] font-bold text-gray-800 truncate leading-tight">{r.title}</p>
                                       <div className="flex items-center gap-2 mt-1">
-                                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                                        <span className="text-[11.5px] font-semibold px-2 py-0.5 rounded-full"
                                           style={{
                                             background: r.type === 'pdf' ? '#fef2f2' :
                                               r.type === 'video' ? '#eff6ff' :
@@ -3013,13 +3086,13 @@ const getExercisesForActivity = (): any[] => {
                                   </div>
 
                                   {/* File info */}
-                                  <div className="flex items-center justify-between text-[10.5px] text-gray-500 mt-2">
+                                  <div className="flex items-center justify-between text-[12px] text-gray-500 mt-2">
                                     <span>{r.fileSize}</span>
                                     <span>{new Date(r.uploadedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
                                   </div>
 
                                   {/* Hover action overlay */}
-                                  <div className="absolute inset-0 rounded-xl bg-gradient-to-t from-orange-500/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+                                  <div className="absolute inset-0 rounded-xl bg-gradient-to-t from-orange-600/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
                                 </div>
                               ))}
                             </div>
@@ -3064,11 +3137,11 @@ const getExercisesForActivity = (): any[] => {
                             }}>
                               <Folder size={24} style={{ color: '#64748b' }} />
                             </div>
-                            <p className="font-bold text-[14px] text-gray-800 m-0 mb-1.5">Folder is empty</p>
-                            <p className="text-[12.5px] text-gray-500 m-0 mb-3">No files in this folder yet</p>
+                            <p className="font-bold text-[15.5px] text-gray-800 m-0 mb-1.5">Folder is empty</p>
+                            <p className="text-[14px] text-gray-500 m-0 mb-3">No files in this folder yet</p>
                             <button
                               onClick={() => setCurrentFolder(null)}
-                              className="px-4 py-2 rounded-xl text-[12px] font-semibold text-white bg-gray-500 hover:bg-gray-600 transition-all cursor-pointer"
+                              className="px-4 py-2 rounded-xl text-[13.5px] font-semibold text-white bg-gray-500 hover:bg-gray-600 transition-all cursor-pointer"
                               style={{ boxShadow: '0 2px 8px rgba(100,116,139,0.25)' }}
                             >
                               Go back
@@ -3106,6 +3179,7 @@ const getExercisesForActivity = (): any[] => {
               )}
             </div>
           </div>
+        </div>
         </div>
       </div>
 
@@ -3203,51 +3277,68 @@ const getExercisesForActivity = (): any[] => {
           showNotesPanel={showNotesPanel}
           hierarchy={currentHierarchy}
           currentItemTitle={selectedItem?.title}
+          fileId={activeViewer.resource.id}
           mcqQuestions={activeViewer.resource.mcqQuestions || []}
           availableResolutions={activeViewer.resource.availableResolutions || []}
           fileUrlMap={activeViewer.resource.fileUrlMap || {}}
-          aiChatEnabled={courseData?.resourcesType?.iDo?.video?.aiChat || false}
-          aiSummaryEnabled={courseData?.resourcesType?.iDo?.video?.aiSummary || false}
-          notesEnabled={courseData?.resourcesType?.iDo?.notes?.enabled || false}
+          {...viewerFeaturesFor("video")}
           onResolutionChange={(resolution, url) => {
             if (activeViewer.resource) setActiveViewer({ ...activeViewer, resource: { ...activeViewer.resource, fileUrl: url, currentResolution: resolution } })
           }}
         />
       )}
-      {activeViewer.type === "ppt" && activeViewer.resource && (
-        <PPTViewer
-          isOpen={true}
-          onClose={closeAllViewers}
-          pptUrl={getFileUrlString(activeViewer.resource.fileUrl)}
-          title={activeViewer.resource.title}
-          onNotesClick={() => setShowNotesPanel(true)}
-          onNotesStateChange={v => setShowNotesPanel(v)}
-          showNotesPanel={showNotesPanel}
-          hierarchy={currentHierarchy}
-          currentItemTitle={selectedItem?.title}
-        />
-      )}
-      {activeViewer.type === "pdf" && activeViewer.resource && (
-        <PDFViewer
-          fileUrl={getFileUrlString(activeViewer.resource.fileUrl)}
-          fileName={activeViewer.resource.title || "document.pdf"}
-          onClose={closeAllViewers}
-          initialMcqs={activeViewer.resource.mcqQuestions || []}
-          entityType="course"
-          entityId={courseId}
-          tabType="pdf"
-          subcategory={selectedActivity}
-          folderPath={currentHierarchy}
-          aiChatEnabled={courseData?.resourcesType?.iDo?.pdf?.aiChat || false}
-          aiSummaryEnabled={courseData?.resourcesType?.iDo?.pdf?.aiSummary || false}
-          notesEnabled={courseData?.resourcesType?.iDo?.notes?.enabled || false}
-          hierarchy={[courseData?.courseName, ...currentHierarchy].filter(Boolean)}
-          currentItemTitle={selectedItem?.title}
-          onNotesClick={() => setShowNotesPanel(true)}
-          onNotesStateChange={v => setShowNotesPanel(v)}
-          showNotesPanel={true}
-        />
-      )}
+      {activeViewer.type === "ppt" && activeViewer.resource && (() => {
+        const loc = getFileMcqLocator()
+        return (
+          <PPTViewer
+            isOpen={true}
+            onClose={closeAllViewers}
+            pptUrl={getFileUrlString(activeViewer.resource.fileUrl)}
+            title={activeViewer.resource.title}
+            onNotesClick={() => setShowNotesPanel(true)}
+            onNotesStateChange={v => setShowNotesPanel(v)}
+            showNotesPanel={showNotesPanel}
+            {...viewerFeaturesFor("ppt")}
+            hierarchy={currentHierarchy}
+            currentItemTitle={selectedItem?.title}
+            initialMcqs={activeViewer.resource.mcqQuestions || []}
+            fileId={activeViewer.resource.id}
+            entityType={selectedItem?.type || "subtopic"}
+            entityId={selectedItem?.id || ""}
+            tabType={loc.tabType}
+            subcategory={loc.subcategory}
+            folderPath={loc.folderPath}
+            courseId={courseId}
+            apiBaseUrl="https://lmsserver-yeve.onrender.com"
+          />
+        )
+      })()}
+      {activeViewer.type === "pdf" && activeViewer.resource && (() => {
+        const loc = getFileMcqLocator()
+        return (
+          <PDFViewer
+            fileUrl={getFileUrlString(activeViewer.resource.fileUrl)}
+            fileName={activeViewer.resource.title || "document.pdf"}
+            onClose={closeAllViewers}
+            initialMcqs={activeViewer.resource.mcqQuestions || []}
+            entityType={selectedItem?.type || "subtopic"}
+            entityId={selectedItem?.id || ""}
+            tabType={loc.tabType}
+            subcategory={loc.subcategory}
+            folderPath={loc.folderPath}
+            fileId={activeViewer.resource.id}
+            courseId={courseId}
+            {...viewerFeaturesFor("pdf")}
+            hierarchy={[courseData?.courseName, ...currentHierarchy].filter(Boolean)}
+            currentItemTitle={selectedItem?.title}
+            onNotesClick={() => setShowNotesPanel(true)}
+            onNotesStateChange={v => setShowNotesPanel(v)}
+            // Was hardcoded true, which force-opened the Notes panel on every
+            // PDF open — including when the course had Notes switched off.
+            showNotesPanel={showNotesPanel}
+          />
+        )
+      })()}
 
       <ToastContainer
         position="top-right"
@@ -3262,7 +3353,7 @@ const getExercisesForActivity = (): any[] => {
         theme="colored"
         toastStyle={{
           borderRadius: '12px',
-          fontSize: '13px',
+          fontSize: '14.5px',
           fontWeight: 500,
         }}
       />

@@ -21,6 +21,7 @@ import {
     Clock
 } from 'lucide-react';
 import { BaseModalProps, popupVariants } from './types';
+import { stripHtml } from '@/app/lms/pages/clientmanagement/features/lib';
 
 export const ClientDetailsModal: React.FC<BaseModalProps> = ({
     selectedClient,
@@ -54,7 +55,15 @@ export const ClientDetailsModal: React.FC<BaseModalProps> = ({
                                                 {selectedClient.clientCompany}
                                             </InfoRow>
                                             <InfoRow icon={MapPin} label="Address">
-                                                {selectedClient.clientAddress}
+                                                {/* Address is TipTap HTML on the
+                                                      client record; strip tags so
+                                                      this info row shows the
+                                                      readable text and preserves
+                                                      line breaks via
+                                                      whitespace-pre-line. */}
+                                                <span className="whitespace-pre-line">
+                                                    {stripHtml(selectedClient.clientAddress)}
+                                                </span>
                                             </InfoRow>
                                             <InfoRow icon={Activity} label="Status">
                                                 <Badge

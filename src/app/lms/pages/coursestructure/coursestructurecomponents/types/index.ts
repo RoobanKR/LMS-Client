@@ -84,6 +84,12 @@ export type CourseStructure = {
     courseImage?: string;
     status: 'Published' | 'Draft' | 'Unpublished';
     isActive: boolean;
+    // Number of Module1 docs linked to this course (from /courses-structure/getAll).
+    // 0 → fresh course with no structure: structure-dependent actions are disabled.
+    moduleCount?: number;
+    // Distinct enrolled users across the course's batches (same endpoint). Used to
+    // ungate the Program Calendar once a cohort exists, even before any modules do.
+    participantCount?: number;
 };
 
 

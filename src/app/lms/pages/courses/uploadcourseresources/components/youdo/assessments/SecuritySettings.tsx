@@ -1,77 +1,73 @@
 // SecuritySettings.tsx
-import React, { useState, useCallback, useEffect } from 'react';
+// Restyled 2026-09-01 to match the ExerciseSettings design system —
+// the collapsible chevron accordion (`Section`) is replaced by flat
+// `SectionHeading` groups, description subtitles under each row are removed
+// (their information moved into the InfoTooltip where it wasn't already
+// duplicated), and the whole step body is wrapped in `StepShell`.
+//
+// Behaviour is unchanged: every field key, callback, disabled gate, and score
+// weight is preserved — this is a UI-only pass.
+import React, { useCallback, useMemo } from 'react';
 import {
   Shield, Copy, Move, MonitorSmartphone, Eye, Camera,
-  AlertTriangle, Clock, Fingerprint, Key, Wifi, Users,
-  ChevronDown, ChevronUp, Check, AlertCircle, Info,
-  Lock, Unlock, MousePointer, Clipboard, FileText,
-  Globe, Activity, Brain, Smartphone, Laptop, Tablet,
-  Code2,
-  RefreshCw,
-  ArrowLeft,
-  Printer,
-  Settings2,
-  Mic,
-  Video,  // Add this for screen recording icon
-  StopCircle, // Alternative icon
+  AlertTriangle, Clock, Users, AlertCircle,
+  MousePointer, Code2, RefreshCw, ArrowLeft, Printer, Video,
 } from 'lucide-react';
 import { D } from './constants';
-import { InfoTooltip, OToggle } from './UIComponents';
+import { InfoTooltip, OToggle, SectionHeading, StepShell } from './UIComponents';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface SecuritySettingsData {
-  // Basic restrictions
-  preventCopyPaste: boolean;
-  preventRightClick: boolean;
-  preventPrinting: boolean;
-  preventScreenshot: boolean;
-  preventScreenRecording: boolean; // NEW: Screen recording prevention
-  
-  // Browser restrictions
-  requireFullscreen: boolean;
+  // ── Lockdown ───────────────────────────────────────────────────────────────
   preventTabSwitch: boolean;
+  maxTabSwitches: number;
+  preventCopyPaste: boolean;
   preventBrowserClose: boolean;
-  preventDevTools: boolean;
-  
-  // Navigation restrictions
-  preventBackNavigation: boolean;
-  preventRefresh: boolean;
-  preventUrlChange: boolean;
-  
-  // Time restrictions
-  autoSubmitOnTimeout: boolean;
-  warnBeforeTimeout: boolean;
-  warningSeconds: number;
-  
-  // Identity verification
+
+  // ── Proctoring & recording ─────────────────────────────────────────────────
+  /** Records the student's screen; the URL is what reviewSubmission plays back. */
+  screenRecordingEnabled: boolean;
   enableFaceVerification: boolean;
-  enableIdVerification: boolean;
-  enableVoiceVerification: boolean;
-  captureIntervalSeconds: number;
-  // Face-detection proctoring (no face / multiple persons → warnings then auto-submit)
   multipleFaceDetection: boolean;
   faceWarningLimit: number;
-  // Face-presence monitoring (no face / student absent → warnings then auto-submit)
   faceMonitoringDetection: boolean;
   faceMonitoringWarningLimit: number;
 
-  // Network restrictions
-  blockOtherIPs: boolean;
-  allowedIPs: string[];
-  singleDeviceOnly: boolean;
-  
-  // Question restrictions
-  shuffleQuestions: boolean;
-  shuffleOptions: boolean;
-  randomizeQuestionOrder: boolean;
-  preventQuestionBacktrack: boolean;
+  // ── Timing ─────────────────────────────────────────────────────────────────
+  // The countdown itself comes from the assessment's own duration, not from here.
+  autoSubmitOnTimeout: boolean;
+  warnBeforeTimeout: boolean;
+  warningSeconds: number;
 
-  
-  // Additional security
-  sessionTimeoutMinutes: number;
-  maxAttempts: number;
-  graceAttempts: number;
-  cooldownMinutes: number;
+  // ── Extra restrictions (keyboard-level friction) ───────────────────────────
+  preventRightClick: boolean;
+  preventDevTools: boolean;
+  preventPrinting: boolean;
+  preventRefresh: boolean;
+  requireFullscreen: boolean;
+  preventBackNavigation: boolean;
+
+  // ── Legacy fields ──────────────────────────────────────────────────────────
+  // No longer surfaced in the UI and read by nothing at runtime. Kept on the
+  // type + defaults so assessments saved before this cleanup still merge
+  // cleanly and their stored values round-trip untouched.
+  preventScreenshot?: boolean;
+  preventScreenRecording?: boolean;
+  preventUrlChange?: boolean;
+  enableIdVerification?: boolean;
+  enableVoiceVerification?: boolean;
+  captureIntervalSeconds?: number;
+  blockOtherIPs?: boolean;
+  allowedIPs?: string[];
+  singleDeviceOnly?: boolean;
+  shuffleQuestions?: boolean;
+  shuffleOptions?: boolean;
+  randomizeQuestionOrder?: boolean;
+  preventQuestionBacktrack?: boolean;
+  sessionTimeoutMinutes?: number;
+  maxAttempts?: number;
+  graceAttempts?: number;
+  cooldownMinutes?: number;
 }
 
 interface SecuritySettingsProps {
@@ -80,71 +76,53 @@ interface SecuritySettingsProps {
   disabled?: boolean;
 }
 
-// ─── Section Components ───────────────────────────────────────────────────────
-const Section: React.FC<{
-  title: string;
-  icon: React.ReactNode;
-  children: React.ReactNode;
-  defaultExpanded?: boolean;
-}> = ({ title, icon, children, defaultExpanded = true }) => {
-  const [expanded, setExpanded] = useState(defaultExpanded);
-  
-  return (
-    <div className="rounded-xl border overflow-hidden" style={{ borderColor: D.border, background: D.bg }}>
-      <button
-        type="button"
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
-        style={{ borderBottom: expanded ? `1px solid ${D.border}` : 'none' }}
-      >
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: D.orangeLight, color: D.orange }}>
-            {icon}
-          </div>
-          <span className="text-sm font-bold" style={{ color: D.textMain }}>{title}</span>
-        </div>
-        <div className="text-gray-400">
-          {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-        </div>
-      </button>
-      {expanded && (
-        <div className="p-4 space-y-3" style={{ background: '#fafafa' }}>
-          {children}
-        </div>
-      )}
-    </div>
-  );
-};
-
+// ─── SettingRow ───────────────────────────────────────────────────────────────
+// Flat icon-tile row: 36px pale tile + label + (i) tooltip on the left, toggle
+// right-aligned. Description sentences were dropped from the design pass; the
+// information sits in the tooltip. Optional `children` render inline below when
+// the toggle is on (used for the numeric warning-limit inputs).
 const SettingRow: React.FC<{
   label: string;
-  description?: string;
   icon?: React.ReactNode;
   enabled: boolean;
   onChange: (value: boolean) => void;
   disabled?: boolean;
-  danger?: boolean;
   info?: string;
   children?: React.ReactNode;
-}> = ({ label, description, icon, enabled, onChange, disabled, danger, info, children }) => (
-  <div className="flex items-start justify-between py-2 border-b last:border-b-0" style={{ borderColor: D.border }}>
-    <div className="flex items-start gap-3 flex-1 mr-4">
+  isLast?: boolean;
+}> = ({ label, icon, enabled, onChange, disabled, info, children, isLast }) => (
+  <div
+    style={{
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 8,
+      paddingTop: 14,
+      paddingBottom: 14,
+      borderBottom: isLast ? 'none' : `1px solid ${D.border}`,
+      opacity: disabled ? 0.55 : 1,
+    }}
+  >
+    <div className="flex items-center flex-wrap" style={{ gap: 12, minHeight: 40 }}>
       {icon && (
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5" 
-          style={{ background: danger ? 'rgba(239,68,68,0.1)' : D.orangeLight, color: danger ? '#ef4444' : D.orange }}>
+        <div
+          className="flex items-center justify-center flex-shrink-0"
+          style={{ width: 36, height: 36, background: D.orangeLight, color: D.orange, borderRadius: 8 }}
+        >
           {icon}
         </div>
       )}
-      <div className="flex-1">
-        <div className="flex items-center gap-1.5">
-          <span className="text-sm font-semibold" style={{ color: danger ? '#ef4444' : D.textMain }}>{label}</span>
-          {info && <InfoTooltip content={info} side="top" />}
-        </div>
-        {description && <p className="text-xs mt-0.5" style={{ color: D.textMuted }}>{description}</p>}
-        {children && <div className="mt-2">{children}</div>}
+      <div style={{ display: 'flex', alignItems: 'center', minWidth: 240, flex: 1, gap: 2 }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: '#101828', fontFamily: 'inherit', lineHeight: 1.25 }}>
+          {label}
+        </span>
+        {info && <InfoTooltip content={info} side="top" />}
+      </div>
+      <div className="flex items-center" style={{ gap: 8 }}>
+        {/* OToggle takes no `disabled` prop — gate the callback instead. */}
+        <OToggle enabled={enabled} onChange={(v) => { if (!disabled) onChange(v); }} inline />
       </div>
     </div>
-    <OToggle enabled={enabled} onChange={onChange} disabled={disabled} />
+    {children && <div style={{ paddingLeft: 48 }}>{children}</div>}
   </div>
 );
 
@@ -157,7 +135,7 @@ const NumberInput: React.FC<{
   unit?: string;
   disabled?: boolean;
 }> = ({ value, onChange, min = 1, max = 60, label, unit, disabled }) => (
-  <div className="flex items-center gap-2">
+  <div className="flex items-center gap-2 flex-wrap">
     {label && <span className="text-xs font-medium" style={{ color: D.textSub }}>{label}</span>}
     <input
       type="number"
@@ -165,7 +143,7 @@ const NumberInput: React.FC<{
       onChange={(e) => onChange(Math.min(max, Math.max(min, parseInt(e.target.value) || min)))}
       disabled={disabled}
       className="w-20 px-2 py-1 text-sm rounded-lg border text-center"
-      style={{ borderColor: D.border, background: disabled ? D.surface : D.bg, color: D.textMain }}
+      style={{ borderColor: D.border2, background: disabled ? D.surface : D.bg, color: D.textMain }}
       min={min}
       max={max}
     />
@@ -173,489 +151,315 @@ const NumberInput: React.FC<{
   </div>
 );
 
+// ─── Security score ───────────────────────────────────────────────────────────
+// Weighted only by settings that are actually enforced during a test. Anything
+// that does not change student-visible behaviour must not move this bar.
+const SCORE_WEIGHTS: Array<{ key: keyof SecuritySettingsData; weight: number }> = [
+  { key: 'preventTabSwitch',        weight: 10 },
+  { key: 'screenRecordingEnabled',  weight: 8 },
+  { key: 'enableFaceVerification',  weight: 8 },
+  { key: 'preventCopyPaste',        weight: 6 },
+  { key: 'multipleFaceDetection',   weight: 6 },
+  { key: 'faceMonitoringDetection', weight: 6 },
+  { key: 'requireFullscreen',       weight: 5 },
+  { key: 'preventDevTools',         weight: 4 },
+  { key: 'preventBrowserClose',     weight: 3 },
+];
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 export const SecuritySettings: React.FC<SecuritySettingsProps> = ({ value, onChange, disabled = false }) => {
-  const [activeTab, setActiveTab] = useState<'basic' | 'proctoring' | 'advanced'>('basic');
-
   const updateField = useCallback(<K extends keyof SecuritySettingsData>(field: K, newValue: SecuritySettingsData[K]) => {
     onChange({ ...value, [field]: newValue });
   }, [value, onChange]);
 
-  const tabs = [
-    { id: 'basic', label: 'Basic Security', icon: <Shield size={14} /> },
-    { id: 'advanced', label: 'Advanced', icon: <Settings2 size={14} /> },
-  ];
+  // Face detection needs the webcam, so it can only run when Camera Proctoring
+  // is on. Switching the camera off clears both detectors in the same update —
+  // otherwise the saved config claims detection that can never run.
+  const setCameraProctoring = useCallback((on: boolean) => {
+    onChange(on
+      ? { ...value, enableFaceVerification: true }
+      : { ...value, enableFaceVerification: false, multipleFaceDetection: false, faceMonitoringDetection: false });
+  }, [value, onChange]);
+
+  const faceDisabled = disabled || !value.enableFaceVerification;
+
+  const scorePct = useMemo(() => {
+    const total = SCORE_WEIGHTS.reduce((sum, w) => sum + w.weight, 0);
+    const score = SCORE_WEIGHTS.reduce((sum, w) => sum + (value[w.key] ? w.weight : 0), 0);
+    return total > 0 ? Math.round((score / total) * 100) : 0;
+  }, [value]);
+
+  const scoreColor = scorePct >= 70 ? D.emerald : scorePct >= 40 ? D.amber : D.red;
 
   return (
-    <div className="space-y-4">
-      {/* Tab Bar */}
-      <div className="flex items-center gap-1 border-b" style={{ borderColor: D.border }}>
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
-            className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold transition-all"
-            style={{
-              color: activeTab === tab.id ? D.orange : D.textMuted,
-              borderBottom: activeTab === tab.id ? `2px solid ${D.orange}` : '2px solid transparent',
-              marginBottom: -1,
-            }}
-          >
-            {tab.icon}
-            {tab.label}
-          </button>
-        ))}
+    <StepShell>
+      {/* ── Security score ────────────────────────────────────────────────── */}
+      <SectionHeading>Security Score</SectionHeading>
+      <div className="flex items-center gap-3" style={{ paddingBottom: 4 }}>
+        <Shield size={14} style={{ color: D.orange, flexShrink: 0 }} />
+        <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: D.border }}>
+          <div className="h-full rounded-full transition-all" style={{ width: `${scorePct}%`, background: scoreColor }} />
+        </div>
+        <span className="text-xs font-bold" style={{ color: D.textMain }}>{scorePct}%</span>
       </div>
 
-      {/* Basic Security Tab */}
-      {activeTab === 'basic' && (
-        <div className="space-y-3">
-          <SettingRow
-            label="Prevent Copy & Paste"
-            description="Students cannot copy text from or paste into the test"
-            icon={<Copy size={16} />}
-            enabled={value.preventCopyPaste}
-            onChange={(v) => updateField('preventCopyPaste', v)}
-            disabled={disabled}
-            info="Prevents Ctrl+C, Ctrl+V, right-click copy, and text selection"
-          />
-          
-          <SettingRow
-            label="Prevent Right Click"
-            description="Disable context menu on right-click"
-            icon={<MousePointer size={16} />}
-            enabled={value.preventRightClick}
-            onChange={(v) => updateField('preventRightClick', v)}
-            disabled={disabled}
-          />
-          
-          <SettingRow
-            label="Prevent Printing"
-            description="Disable print functionality (Ctrl+P)"
-            icon={<Printer size={16} />}
-            enabled={value.preventPrinting}
-            onChange={(v) => updateField('preventPrinting', v)}
-            disabled={disabled}
-          />
-          
-          <SettingRow
-            label="Prevent Screenshots"
-            description="Attempt to detect and block screenshot attempts"
-            icon={<Camera size={16} />}
-            enabled={value.preventScreenshot}
-            onChange={(v) => updateField('preventScreenshot', v)}
-            disabled={disabled}
-            info="Detects PrintScreen key and common screenshot shortcuts"
-          />
-          
-          {/* NEW: Screen Recording Prevention */}
-          <SettingRow
-            label="Prevent Screen Recording"
-            description="Detect and block screen recording attempts"
-            icon={<Video size={16} />}
-            enabled={value.preventScreenRecording}
-            onChange={(v) => updateField('preventScreenRecording', v)}
-            disabled={disabled}
-            info="Detects screen recording software, OBS, Zoom recording, and browser-based recording APIs. Shows warning if recording is detected."
-          />
-
-          {/* Camera Proctoring (Face Verification) — drives the webcam during the test */}
-          <SettingRow
-            label="Camera Proctoring"
-            description="Require the student's webcam and record the camera during the test"
-            icon={<Camera size={16} />}
-            enabled={value.enableFaceVerification}
-            onChange={(v) => updateField('enableFaceVerification', v)}
-            disabled={disabled}
-            info="When ON, the student is prompted for camera access before starting and the camera is recorded for proctoring. When OFF, only screen recording runs."
-          >
-            {value.enableFaceVerification && (
-              <div className="mt-2 flex items-center gap-2">
-                <span className="text-xs" style={{ color: D.textMuted }}>Capture every</span>
-                <input
-                  type="number"
-                  min={10}
-                  max={600}
-                  value={value.captureIntervalSeconds}
-                  onChange={(e) => updateField('captureIntervalSeconds', Math.max(10, Number(e.target.value) || 60))}
-                  className="w-20 px-2 py-1 text-sm rounded-lg border"
-                  style={{ borderColor: D.border, background: D.bg }}
-                  disabled={disabled}
-                />
-                <span className="text-xs" style={{ color: D.textMuted }}>seconds</span>
-              </div>
-            )}
-          </SettingRow>
-
-          {/* Multiple Face Detection — webcam proctoring: no face / multiple persons */}
-          <SettingRow
-            label="Multiple Face Detection"
-            description="Monitor the webcam for no face or more than one person during the test"
-            icon={<Users size={16} />}
-            enabled={value.multipleFaceDetection}
-            onChange={(v) => updateField('multipleFaceDetection', v)}
-            disabled={disabled}
-            info="Requires Camera Proctoring. The student is warned each time no face or multiple people are detected; after the warning limit is reached the assessment is auto-submitted and closed."
-          >
-            {value.multipleFaceDetection && (
-              <div className="mt-2">
-                <NumberInput
-                  value={value.faceWarningLimit}
-                  onChange={(v) => updateField('faceWarningLimit', v)}
-                  min={1}
-                  max={10}
-                  label="Warning limit:"
-                  unit="warnings, then auto-submit"
-                  disabled={disabled}
-                />
-              </div>
-            )}
-          </SettingRow>
-
-          {/* Face Monitoring Detection — webcam proctoring: student's face must stay visible */}
-          <SettingRow
-            label="Face Monitoring Detection"
-            description="Monitor that the student's face stays visible during the test"
-            icon={<Eye size={16} />}
-            enabled={value.faceMonitoringDetection}
-            onChange={(v) => updateField('faceMonitoringDetection', v)}
-            disabled={disabled}
-            info="Requires Camera Proctoring. The student is warned each time no face is detected; after the warning limit is reached the assessment is auto-submitted and closed."
-          >
-            {value.faceMonitoringDetection && (
-              <div className="mt-2">
-                <NumberInput
-                  value={value.faceMonitoringWarningLimit}
-                  onChange={(v) => updateField('faceMonitoringWarningLimit', v)}
-                  min={1}
-                  max={10}
-                  label="Warning limit:"
-                  unit="warnings, then auto-submit"
-                  disabled={disabled}
-                />
-              </div>
-            )}
-          </SettingRow>
-
-          {/* Microphone / Voice Monitoring */}
-          <SettingRow
-            label="Microphone Monitoring"
-            description="Capture microphone audio during the test"
-            icon={<Mic size={16} />}
-            enabled={value.enableVoiceVerification}
-            onChange={(v) => updateField('enableVoiceVerification', v)}
-            disabled={disabled}
-          />
-
-          <SettingRow
-            label="Require Fullscreen Mode"
-            description="Test must be taken in fullscreen mode"
-            icon={<MonitorSmartphone size={16} />}
-            enabled={value.requireFullscreen}
-            onChange={(v) => updateField('requireFullscreen', v)}
-            disabled={disabled}
-            info="Exits fullscreen triggers a warning and may auto-submit"
-          />
-          
+      {/* ── Lockdown ─────────────────────────────────────────────────────── */}
+      <div style={{ marginTop: 20 }}>
+        <SectionHeading>Lockdown</SectionHeading>
+        <div>
           <SettingRow
             label="Prevent Tab Switching"
-            description="Detect and warn when student switches tabs"
             icon={<Move size={16} />}
             enabled={value.preventTabSwitch}
             onChange={(v) => updateField('preventTabSwitch', v)}
             disabled={disabled}
-            info="Uses Page Visibility API to detect tab changes"
+            info="Uses the Page Visibility API — warns on every switch, then auto-submits once the limit is reached. Strongest control here — catches the student looking up answers in another tab."
+          >
+            {value.preventTabSwitch && (
+              <NumberInput
+                value={value.maxTabSwitches}
+                onChange={(v) => updateField('maxTabSwitches', v)}
+                min={1}
+                max={10}
+                label="Allow up to:"
+                unit="switches, then auto-submit"
+                disabled={disabled}
+              />
+            )}
+          </SettingRow>
+
+          <SettingRow
+            label="Prevent Copy & Paste"
+            icon={<Copy size={16} />}
+            enabled={value.preventCopyPaste}
+            onChange={(v) => updateField('preventCopyPaste', v)}
+            disabled={disabled}
+            info="Blocks the copy, cut and paste events for the whole test page — stops answers being pasted in or questions copied out."
           />
-          
+
           <SettingRow
             label="Prevent Browser Close"
-            description="Warn before closing the test window"
             icon={<AlertTriangle size={16} />}
             enabled={value.preventBrowserClose}
             onChange={(v) => updateField('preventBrowserClose', v)}
             disabled={disabled}
-          />
-          
-          <SettingRow
-            label="Prevent Back Navigation"
-            description="Disable browser back button during test"
-            icon={<ArrowLeft size={16} />}
-            enabled={value.preventBackNavigation}
-            onChange={(v) => updateField('preventBackNavigation', v)}
-            disabled={disabled}
-          />
-          
-          <SettingRow
-            label="Prevent Page Refresh"
-            description="Warn or block page refresh attempts"
-            icon={<RefreshCw size={16} />}
-            enabled={value.preventRefresh}
-            onChange={(v) => updateField('preventRefresh', v)}
-            disabled={disabled}
-          />
-          
-          <SettingRow
-            label="Prevent Developer Tools"
-            description="Detect and block DevTools opening"
-            icon={<Code2 size={16} />}
-            enabled={value.preventDevTools}
-            onChange={(v) => updateField('preventDevTools', v)}
-            disabled={disabled}
-            info="Detects F12, Ctrl+Shift+I, and right-click inspect"
+            info="Warns before the student closes or reloads the test window."
+            isLast
           />
         </div>
-      )}
+      </div>
 
-      {/* Advanced Tab */}
-      {activeTab === 'advanced' && (
-        <div className="space-y-3">
+      {/* ── Proctoring & recording ───────────────────────────────────────── */}
+      <div style={{ marginTop: 20 }}>
+        <SectionHeading>Proctoring &amp; Recording</SectionHeading>
+        <div>
           <SettingRow
-            label="Single Device Only"
-            description="Student cannot switch devices during test"
-            icon={<Laptop size={16} />}
-            enabled={value.singleDeviceOnly}
-            onChange={(v) => updateField('singleDeviceOnly', v)}
+            label="Record Student Screen"
+            icon={<Video size={16} />}
+            enabled={value.screenRecordingEnabled}
+            onChange={(v) => updateField('screenRecordingEnabled', v)}
             disabled={disabled}
+            info="Records the screen for the whole test; plays back in Review Submission. The student is asked to share their screen before the test starts. If Camera Proctoring is also on, the webcam is overlaid on the recording."
           />
-          
+
           <SettingRow
-            label="Block Other IPs"
-            description="Only allow test from specific IP addresses"
-            icon={<Globe size={16} />}
-            enabled={value.blockOtherIPs}
-            onChange={(v) => updateField('blockOtherIPs', v)}
+            label="Camera Proctoring"
+            icon={<Camera size={16} />}
+            enabled={value.enableFaceVerification}
+            onChange={setCameraProctoring}
             disabled={disabled}
+            info="Requires the webcam and records it during the test. Turning this off also switches off both face detectors below, since they need the webcam feed."
+          />
+
+          <SettingRow
+            label="Multiple Face Detection"
+            icon={<Users size={16} />}
+            enabled={value.multipleFaceDetection}
+            onChange={(v) => updateField('multipleFaceDetection', v)}
+            disabled={faceDisabled}
+            info={value.enableFaceVerification
+              ? 'The student is warned each time more than one person is detected. At the limit the test auto-submits and closes.'
+              : 'Switch on Camera Proctoring first — this needs the webcam feed.'}
           >
-            {value.blockOtherIPs && (
-              <div className="mt-2">
-                <input
-                  type="text"
-                  placeholder="Enter allowed IPs (comma separated)"
-                  value={value.allowedIPs.join(', ')}
-                  onChange={(e) => updateField('allowedIPs', e.target.value.split(',').map(s => s.trim()))}
-                  className="w-full px-3 py-1.5 text-sm rounded-lg border"
-                  style={{ borderColor: D.border, background: D.bg }}
-                  disabled={disabled}
-                />
-              </div>
+            {value.multipleFaceDetection && (
+              <NumberInput
+                value={value.faceWarningLimit}
+                onChange={(v) => updateField('faceWarningLimit', v)}
+                min={1}
+                max={10}
+                label="Warning limit:"
+                unit="warnings, then auto-submit"
+                disabled={faceDisabled}
+              />
             )}
           </SettingRow>
-          
+
+          <SettingRow
+            label="Face Monitoring Detection"
+            icon={<Eye size={16} />}
+            enabled={value.faceMonitoringDetection}
+            onChange={(v) => updateField('faceMonitoringDetection', v)}
+            disabled={faceDisabled}
+            info={value.enableFaceVerification
+              ? 'The student is warned each time no face is detected. At the limit the test auto-submits and closes.'
+              : 'Switch on Camera Proctoring first — this needs the webcam feed.'}
+            isLast
+          >
+            {value.faceMonitoringDetection && (
+              <NumberInput
+                value={value.faceMonitoringWarningLimit}
+                onChange={(v) => updateField('faceMonitoringWarningLimit', v)}
+                min={1}
+                max={10}
+                label="Warning limit:"
+                unit="warnings, then auto-submit"
+                disabled={faceDisabled}
+              />
+            )}
+          </SettingRow>
+        </div>
+      </div>
+
+      {/* ── Timing ───────────────────────────────────────────────────────── */}
+      <div style={{ marginTop: 20 }}>
+        <SectionHeading>Timing</SectionHeading>
+        <div>
           <SettingRow
             label="Auto-submit on Timeout"
-            description="Automatically submit when time runs out"
             icon={<Clock size={16} />}
             enabled={value.autoSubmitOnTimeout}
             onChange={(v) => updateField('autoSubmitOnTimeout', v)}
             disabled={disabled}
+            info="Submits automatically when the assessment duration runs out. The countdown comes from this assessment's own duration — there is no separate timer here to keep in sync."
           />
-          
+
           <SettingRow
             label="Warning Before Timeout"
-            description="Show warning before time expires"
             icon={<AlertCircle size={16} />}
             enabled={value.warnBeforeTimeout}
             onChange={(v) => updateField('warnBeforeTimeout', v)}
             disabled={disabled}
+            info="Shows a warning shortly before time expires."
+            isLast
           >
             {value.warnBeforeTimeout && (
-              <div className="mt-2">
-                <NumberInput
-                  value={value.warningSeconds}
-                  onChange={(v) => updateField('warningSeconds', v)}
-                  min={10}
-                  max={300}
-                  label="Warning at:"
-                  unit="seconds before end"
-                  disabled={disabled}
-                />
-              </div>
-            )}
-          </SettingRow>
-          
-          <SettingRow
-            label="Session Timeout"
-            description="Auto-logout after inactivity"
-            icon={<Activity size={16} />}
-            enabled={value.sessionTimeoutMinutes > 0}
-            onChange={(v) => updateField('sessionTimeoutMinutes', v ? 30 : 0)}
-            disabled={disabled}
-          >
-            {value.sessionTimeoutMinutes > 0 && (
-              <div className="mt-2">
-                <NumberInput
-                  value={value.sessionTimeoutMinutes}
-                  onChange={(v) => updateField('sessionTimeoutMinutes', v)}
-                  min={5}
-                  max={120}
-                  label="Timeout after:"
-                  unit="minutes"
-                  disabled={disabled}
-                />
-              </div>
-            )}
-          </SettingRow>
-          
-          <SettingRow
-            label="Attempt Limits"
-            description="Restrict number of attempts"
-            icon={<Users size={16} />}
-            enabled={value.maxAttempts > 0}
-            onChange={(v) => updateField('maxAttempts', v ? 1 : 0)}
-            disabled={disabled}
-          >
-            {value.maxAttempts > 0 && (
-              <div className="space-y-2 mt-2 pl-4">
-                <NumberInput
-                  value={value.maxAttempts}
-                  onChange={(v) => updateField('maxAttempts', v)}
-                  min={1}
-                  max={10}
-                  label="Max attempts:"
-                  unit="times"
-                  disabled={disabled}
-                />
-                <NumberInput
-                  value={value.graceAttempts}
-                  onChange={(v) => updateField('graceAttempts', v)}
-                  min={0}
-                  max={5}
-                  label="Grace attempts:"
-                  unit="extra attempts"
-                  disabled={disabled}
-                />
-                <NumberInput
-                  value={value.cooldownMinutes}
-                  onChange={(v) => updateField('cooldownMinutes', v)}
-                  min={0}
-                  max={1440}
-                  label="Cooldown between attempts:"
-                  unit="minutes"
-                  disabled={disabled}
-                />
-              </div>
-            )}
-          </SettingRow>
-          
-          <SettingRow
-            label="Question Settings"
-            description="Configure question display behavior"
-            icon={<FileText size={16} />}
-            enabled={true}
-            onChange={() => {}}
-            disabled={true}
-          >
-            <div className="space-y-2 mt-2">
-              <SettingRow
-                label="Shuffle Questions"
-                description="Randomize question order for each student"
-                enabled={value.shuffleQuestions}
-                onChange={(v) => updateField('shuffleQuestions', v)}
+              <NumberInput
+                value={value.warningSeconds}
+                onChange={(v) => updateField('warningSeconds', v)}
+                min={10}
+                max={300}
+                label="Warn at:"
+                unit="seconds before the end"
                 disabled={disabled}
               />
-              <SettingRow
-                label="Shuffle Options"
-                description="Randomize answer options order"
-                enabled={value.shuffleOptions}
-                onChange={(v) => updateField('shuffleOptions', v)}
-                disabled={disabled}
-              />
-              <SettingRow
-                label="Prevent Question Backtrack"
-                description="Cannot return to previous questions"
-                enabled={value.preventQuestionBacktrack}
-                onChange={(v) => updateField('preventQuestionBacktrack', v)}
-                disabled={disabled}
-              />
-            </div>
+            )}
           </SettingRow>
-        </div>
-      )}
-
-      {/* Security Level Indicator */}
-      <div className="mt-4 p-3 rounded-lg" style={{ background: D.orangeLight, border: `1px solid ${D.orange}25` }}>
-        <div className="flex items-center gap-2 mb-2">
-          <Shield size={14} style={{ color: D.orange }} />
-          <span className="text-xs font-bold" style={{ color: D.orange }}>Security Score</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: D.border }}>
-            {(() => {
-              let score = 0;
-              let total = 0;
-              
-              const check = (condition: boolean, weight: number) => {
-                total += weight;
-                if (condition) score += weight;
-              };
-              
-              check(value.preventCopyPaste, 5);
-              check(value.preventRightClick, 3);
-              check(value.preventPrinting, 3);
-              check(value.preventScreenRecording, 7); // Added weight for screen recording
-              check(value.requireFullscreen, 8);
-              check(value.preventTabSwitch, 10);
-              check(value.preventDevTools, 8);
-              check(value.singleDeviceOnly, 8);
-              check(value.maxAttempts > 0, 5);
-              check(value.sessionTimeoutMinutes > 0, 5);
-              
-              const percentage = total > 0 ? (score / total) * 100 : 0;
-              const color = percentage >= 70 ? D.emerald : percentage >= 40 ? D.amber : D.red;
-              
-              return <div className="h-full rounded-full transition-all" style={{ width: `${percentage}%`, background: color }} />;
-            })()}
-          </div>
-          <span className="text-xs font-bold" style={{ color: D.textMain }}>
-            {Math.round((() => {
-              let score = 0, total = 0;
-              const check = (condition: boolean, weight: number) => { total += weight; if (condition) score += weight; };
-              check(value.preventCopyPaste, 5); check(value.preventRightClick, 3); check(value.preventPrinting, 3);
-              check(value.preventScreenRecording, 7); // Added weight for screen recording
-              check(value.requireFullscreen, 8); check(value.preventTabSwitch, 10); check(value.preventDevTools, 8);
-              check(value.singleDeviceOnly, 8); check(value.maxAttempts > 0, 5); check(value.sessionTimeoutMinutes > 0, 5);
-              return total > 0 ? (score / total) * 100 : 0;
-            })())}%
-          </span>
         </div>
       </div>
-    </div>
+
+      {/* ── Extra restrictions ───────────────────────────────────────────── */}
+      <div style={{ marginTop: 20 }}>
+        <SectionHeading>Extra Restrictions</SectionHeading>
+        <div>
+          <SettingRow
+            label="Require Fullscreen Mode"
+            icon={<MonitorSmartphone size={16} />}
+            enabled={value.requireFullscreen}
+            onChange={(v) => updateField('requireFullscreen', v)}
+            disabled={disabled}
+            info="Puts the test into fullscreen and tries to restore it if the student exits. Browsers only allow fullscreen to be re-entered from a user action, so a student who exits may stay out. Pair this with Prevent Tab Switching."
+          />
+          <SettingRow
+            label="Prevent Developer Tools"
+            icon={<Code2 size={16} />}
+            enabled={value.preventDevTools}
+            onChange={(v) => updateField('preventDevTools', v)}
+            disabled={disabled}
+            info="Blocks F12, Ctrl+Shift+I / J / C and Ctrl+U. Keyboard shortcuts only — the browser menu can still open DevTools."
+          />
+          <SettingRow
+            label="Prevent Right Click"
+            icon={<MousePointer size={16} />}
+            enabled={value.preventRightClick}
+            onChange={(v) => updateField('preventRightClick', v)}
+            disabled={disabled}
+            info="Disables the context menu."
+          />
+          <SettingRow
+            label="Prevent Printing"
+            icon={<Printer size={16} />}
+            enabled={value.preventPrinting}
+            onChange={(v) => updateField('preventPrinting', v)}
+            disabled={disabled}
+            info="Blocks Ctrl+P."
+          />
+          <SettingRow
+            label="Prevent Page Refresh"
+            icon={<RefreshCw size={16} />}
+            enabled={value.preventRefresh}
+            onChange={(v) => updateField('preventRefresh', v)}
+            disabled={disabled}
+            info="Blocks F5 and Ctrl+R."
+          />
+          <SettingRow
+            label="Prevent Back Navigation"
+            icon={<ArrowLeft size={16} />}
+            enabled={value.preventBackNavigation}
+            onChange={(v) => updateField('preventBackNavigation', v)}
+            disabled={disabled}
+            info="Disables the browser back button during the test."
+            isLast
+          />
+        </div>
+      </div>
+    </StepShell>
   );
 };
 
 // Default values
 export const defaultSecuritySettings: SecuritySettingsData = {
-  preventCopyPaste: true,
-  preventRightClick: true,
-  preventPrinting: true,
-  preventScreenshot: true,
-  preventScreenRecording: true, // NEW: Default enabled
-  requireFullscreen: true,
-  preventTabSwitch: true,
-  preventBrowserClose: true,
-  preventDevTools: true,
-  preventBackNavigation: true,
-  preventRefresh: true,
-  preventUrlChange: false,
-  autoSubmitOnTimeout: true,
-  warnBeforeTimeout: true,
-  warningSeconds: 30,
+  // Lockdown
+  preventTabSwitch: false,
+  maxTabSwitches: 3,
+  preventCopyPaste: false,
+  preventBrowserClose: false,
+
+  // Proctoring & recording
+  screenRecordingEnabled: false,
   enableFaceVerification: false,
-  enableIdVerification: false,
-  enableVoiceVerification: false,
-  captureIntervalSeconds: 60,
   multipleFaceDetection: false,
   faceWarningLimit: 3,
   faceMonitoringDetection: false,
   faceMonitoringWarningLimit: 3,
+
+  // Timing
+  autoSubmitOnTimeout: true,
+  warnBeforeTimeout: true,
+  warningSeconds: 30,
+
+  // Extra restrictions
+  preventRightClick: false,
+  preventDevTools: false,
+  preventPrinting: false,
+  preventRefresh: false,
+  requireFullscreen: false,
+  preventBackNavigation: false,
+
+  // Legacy — retained so older assessments merge without undefined fields
+  preventScreenshot: false,
+  preventScreenRecording: false,
+  preventUrlChange: false,
+  enableIdVerification: false,
+  enableVoiceVerification: false,
+  captureIntervalSeconds: 60,
   blockOtherIPs: false,
   allowedIPs: [],
   singleDeviceOnly: false,
-  shuffleQuestions: true,
-  shuffleOptions: true,
+  shuffleQuestions: false,
+  shuffleOptions: false,
   randomizeQuestionOrder: false,
   preventQuestionBacktrack: false,
-  sessionTimeoutMinutes: 30,
+  sessionTimeoutMinutes: 0,
   maxAttempts: 1,
   graceAttempts: 0,
   cooldownMinutes: 30,

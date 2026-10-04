@@ -1,9 +1,11 @@
 "use client";
+import { getToken } from "@/lib/session";
 
 import React, { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
-import CodeEditor from '@/app/lms/component/student/YouDo/assessment/components/code-editor';
+import CodeEditor from '@/app/lms/pages/courses/coursesdetailedview/components/YouDo/code-editor';
+import { API_ORIGIN } from '@/lib/apiBase'
 
 const ProgrammingPageContent = () => {
   const router = useRouter();
@@ -25,6 +27,7 @@ const ProgrammingPageContent = () => {
   const nodeName = searchParams.get('nodeName') || '';
   const nodeType = searchParams.get('nodeType') || '';
   const hierarchyParam = searchParams.get('hierarchy') || '';
+  const securityAck = searchParams.get('securityAck') === '1';
 
   useEffect(() => {
     const load = async () => {
@@ -55,8 +58,8 @@ const ProgrammingPageContent = () => {
       }
 
       try {
-        const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
-        const res = await fetch(`https://lms-server-ym1q.onrender.com/exercise/${exerciseId}`, {
+        const token = getToken() || localStorage.getItem('token') || '';
+        const res = await fetch(`${API_ORIGIN}/exercise/${exerciseId}`, {
           headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         });
         if (res.ok) {
@@ -94,8 +97,7 @@ const ProgrammingPageContent = () => {
     return (
       <div className="w-full h-screen bg-[#1e1e1e] flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="w-10 h-10 text-blue-400 animate-spin mx-auto mb-3" />
-          <p className="text-white text-sm">Loading programming exercise...</p>
+          <Loader2 className="w-10 h-10 text-blue-400 animate-spin mx-auto" />
         </div>
       </div>
     );
@@ -131,6 +133,7 @@ const ProgrammingPageContent = () => {
         subcategory={subcategory}
         category={category}
         hierarchy={hierarchy}
+        skipSecurityModal={securityAck}
         onBack={handleBack}
         onCloseExercise={handleBack}
       />

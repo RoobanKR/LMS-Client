@@ -3,7 +3,7 @@ import React from 'react';
 import { List, AlertCircle, Calculator, Lock } from 'lucide-react';
 import { D, formatDecimal, isApproximatelyEqual, mcqScoringOptions } from './constants';
 import { FormDataType, ValidationErrors } from './types';
-import { InfoTooltip, ODropdown, ONumberInput, OToggle } from './UIComponents';
+import { MarksMeter } from './MarksMeter';
 
 interface BaseConfigProps {
   formData: FormDataType;
@@ -30,49 +30,38 @@ export const MCQConfiguration: React.FC<BaseConfigProps> = ({
   const isMatch = isEqual ? isApproximatelyEqual(allocated, totalToUse) : true;
   
   return (
-    <div className="px-4 py-3">
-      <div className="mb-3 p-2.5 rounded-xl flex items-center justify-between" style={{ background: D.blue + '08', border: `1px solid ${D.blue}20` }}>
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: D.blue + '20', color: D.blue }}>
-            <List size={13} />
-          </div>
-          <div>
-            <h3 className="text-xs font-bold" style={{ color: D.textMain, fontFamily: 'Inter, sans-serif' }}>MCQ Configuration</h3>
-          </div>
+    <div className="px-10 pt-4 pb-6">
+      {/* Live Total / Used / Remaining — equal distribution fills the total
+          as soon as a question count is typed. */}
+      {isEqual && formData.isGraded !== false && (
+        <div className="flex justify-end mb-3">
+          <MarksMeter total={totalToUse || 0} used={allocated || 0} />
         </div>
-        {isEqual && (
-          <div className="text-right">
-            <div className="text-[10px] font-semibold" style={{ color: isMatch ? D.emerald : D.amber }}>Allocated</div>
-            <div className="text-sm font-bold" style={{ color: isMatch ? D.emerald : D.amber, fontFamily: 'Inter, sans-serif' }}>
-              {formatDecimal(allocated)}<span className="text-xs font-normal" style={{ color: D.textMuted }}>/{totalToUse}</span>
-            </div>
-          </div>
-        )}
-      </div>
-      
+      )}
+
       <div className="space-y-2.5">
         <div>
           <SectionLabel info="Equal Distribution splits marks evenly across all questions; Question Specific lets you set marks per question individually">
             Scoring Type
           </SectionLabel>
-          <ODropdown 
-            value={formData.mcqConfig.scoreSettings.scoreType} 
-            options={mcqScoringOptions} 
-            onChange={v => { 
-              const tot = isCombined ? formData.totalMarksMCQ : formData.totalMarks; 
-              setFormData(prev => ({ 
-                ...prev, 
-                mcqConfig: { 
-                  ...prev.mcqConfig, 
-                  scoreSettings: { 
-                    ...prev.mcqConfig.scoreSettings, 
-                    scoreType: v as any, 
-                    equalDistribution: v === 'equalDistribution' && prev.mcqConfig.generalQuestionCount > 0 ? tot / prev.mcqConfig.generalQuestionCount : 0, 
-                    totalMarks: tot 
-                  } 
-                } 
-              })); 
-            }} 
+          <ODropdown
+            value={formData.mcqConfig.scoreSettings.scoreType}
+            options={mcqScoringOptions}
+            onChange={v => {
+              const tot = isCombined ? formData.totalMarksMCQ : formData.totalMarks;
+              setFormData(prev => ({
+                ...prev,
+                mcqConfig: {
+                  ...prev.mcqConfig,
+                  scoreSettings: {
+                    ...prev.mcqConfig.scoreSettings,
+                    scoreType: v as any,
+                    equalDistribution: v === 'equalDistribution' && prev.mcqConfig.generalQuestionCount > 0 ? tot / prev.mcqConfig.generalQuestionCount : 0,
+                    totalMarks: tot
+                  }
+                }
+              }));
+            }}
           />
           <p className="mt-1 text-[11px]" style={{ color: D.textMuted }}>
             {isEqual ? 'All questions will have equal marks, auto-calculated from total.' : 'Set individual marks per question when creating them.'}
@@ -113,6 +102,7 @@ export const MCQConfiguration: React.FC<BaseConfigProps> = ({
       }
     }} 
     min={0} 
+    liveUpdate
     placeholder="e.g. 10" 
     error={validationErrors.mcqGeneralQuestionCount} 
     touched={touchedFields.has('mcqGeneralQuestionCount')} 
@@ -130,7 +120,7 @@ export const MCQConfiguration: React.FC<BaseConfigProps> = ({
                     value={formatDecimal(formData.mcqConfig.scoreSettings.equalDistribution)} 
                     disabled readOnly 
                     className="w-full px-3 py-2 text-sm rounded-lg border" 
-                    style={{ borderColor: D.border, background: D.surface, color: D.textMuted, fontFamily: 'Inter, sans-serif' }} 
+                    style={{ borderColor: D.border, background: D.surface, color: D.textMuted, fontFamily: 'Poppins, sans-serif' }} 
                   />
                   <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold" style={{ color: D.orange }}>Auto</span>
                 </div>

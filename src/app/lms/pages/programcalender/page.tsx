@@ -81,7 +81,7 @@ const ProgramCalendar: React.FC = () => {
 
   return (
     <DashboardLayoutlms>
-      <div className="min-h-screen bg-gray-50 p-4">
+      <div className="min-h-full p-4">
         <div className="w-full">
           {/* Breadcrumb */}
           <nav className="mb-4">

@@ -1,40 +1,46 @@
 // constants.tsx
+// ─────────────────────────────────────────────────────────────────────────────
+// Design tokens for the Create Assessment modal.
+//
+// These are now a direct re-export of the ExerciseSettings palette
+// (client/src/app/lms/component/ExerciseSettings/shared/tokens.ts) so the
+// Assessment surface reads as the same product — orange accent, warm greys,
+// system font stack — as the Assignment / Exercise Settings modal it was
+// visually redesigned to match on 2026-09-01.
+//
+// Keys are unchanged, so every existing `D.*` reference in step files keeps
+// working; only the underlying values shifted. `blue` and `purple` slots are
+// remapped to orange to keep the surface visually unified — no purple accents
+// exist in the shared design.
+// ─────────────────────────────────────────────────────────────────────────────
+import { D as SHARED_D, FONT as SHARED_FONT } from '@/app/lms/pages/courses/uploadcourseresources/components/youdo/assessments/shared/tokens';
+
 export const D = {
-  orange: '#F27757',
-  orangeLight: 'rgba(242,119,87,0.08)',
-  orangeMed: 'rgba(242,119,87,0.15)',
-  orangeGlow: 'rgba(242,119,87,0.25)',
-  orangeDark: '#E0623F',
-  bg: '#ffffff',
-  surface: '#fafafa',
-  surface2: '#f4f4f6',
-  border: '#ecedf1',
-  border2: '#e2e3e8',
-  textMain: '#1a1a2e',
-  textSub: '#6b6b7e',
-  textMuted: '#9b9bae',
-  textHint: '#bcbccc',
-  emerald: '#10b981',
-  blue: '#3b82f6',
-  purple: '#8b5cf6',
-  amber: '#f59e0b',
-  red: '#ef4444',
+  ...SHARED_D,
+  // Assessment surface historically used blue/purple as secondary accents;
+  // remap both to the orange primary so nothing renders off-brand.
+  blue: SHARED_D.orange,
+  purple: SHARED_D.orange,
 };
 
+export const FONT = SHARED_FONT;
+
+// Kept as a no-op so callers (CreateAssessmentModal) don't need to change;
+// the shared design uses the native system font stack — no webfont download.
 export const injectFonts = (() => {
   let injected = false;
   return () => {
     if (injected || typeof document === 'undefined') return;
     injected = true;
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = 'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap';
-    document.head.appendChild(link);
   };
 })();
 
 export const isApproximatelyEqual = (a: number, b: number, tolerance = 0.01) => Math.abs(a - b) < tolerance;
-export const formatDecimal = (v: number) => v % 1 === 0 ? v.toString() : v.toFixed(2);
+export const formatDecimal = (v: number) => {
+  const n = Number(v);
+  if (!isFinite(n)) return '0';
+  return n % 1 === 0 ? n.toString() : n.toFixed(2);
+};
 
 export const getEntityType = (nt: string) => {
   const m: Record<string, any> = { module: 'modules', submodule: 'submodules', topic: 'topics', subtopic: 'subtopics' };

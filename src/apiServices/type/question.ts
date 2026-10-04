@@ -117,6 +117,17 @@ correctAnswer?: string;
   isFrontend?: boolean;
   isDatabase?: boolean;
 
+  // Model/answer code (Create Question modal "Output Code")
+  outputCode?: string;
+  // Classification metadata (Create Question modal)
+  problemType?: string | null;
+  topics?: string[];
+  tags?: string[];
+  timeComplexity?: string;
+  spaceComplexity?: string;
+  // Question Source tag ('scratch-manual' | 'scratch-bank' | 'ai' | 'thirdParty')
+  source?: string | null;
+
   // Metadata
   createdBy?: string;
   updatedBy?: string;

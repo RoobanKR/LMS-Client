@@ -122,7 +122,7 @@ interface AddQuestionModalProps {
 
 // Enhanced Piston API Code Execution Engine with improved input handling
 class PistonExecutionEngine {
-  private static readonly API_URL = 'https://emkc.org/api/v2/piston/execute';
+  private static readonly API_URL = process.env.NEXT_PUBLIC_PISTON_URL || 'https://emkc.org/api/v2/piston/execute';
   
   // Parse input string into array of inputs
   static parseInputs(input: string): string[] {

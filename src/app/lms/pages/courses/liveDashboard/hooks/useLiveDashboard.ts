@@ -1,3 +1,4 @@
+import { getToken } from "@/lib/session";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getSocket } from "@/apiServices/socketClient";
 import type {
@@ -7,13 +8,18 @@ import type {
   DashboardStudentJoined,
 } from "../types/liveDashboard.types";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://lms-server-ym1q.onrender.com";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://lmsserver-yeve.onrender.com";
 
 interface UseLiveDashboardArgs {
   assessmentId: string;
   courseId?: string;
   nodeId?: string;
   nodeType?: string;
+  /** Pedagogy section — "You_Do" for a proctored assessment, "We_Do" for an
+   *  assignment. The server needs it to know which `pedagogy.<tab>` holds the
+   *  exercise and which `answers.<tab>` holds the submissions; omitting it
+   *  makes it search both, which is what older callers relied on. */
+  tabType?: string;
 }
 
 interface UseLiveDashboardResult {
@@ -21,6 +27,12 @@ interface UseLiveDashboardResult {
   totalStudents: number;
   assessmentName: string;
   courseName: string;
+  /** `availabilityPeriod.startDate` / `.endDate` off the exercise — the
+   *  endpoint has always returned both (see `getLiveDashboard`); they were
+   *  simply dropped here. The assessment report header reads them for its
+   *  "Started date" line and its Live / Scheduled / Completed pill. */
+  startDate: string | null;
+  endDate: string | null;
   isLoading: boolean;
   error: string | null;
 }
@@ -30,11 +42,14 @@ export function useLiveDashboard({
   courseId,
   nodeId,
   nodeType,
+  tabType,
 }: UseLiveDashboardArgs): UseLiveDashboardResult {
   const [students, setStudents] = useState<StudentProgress[]>([]);
   const [totalStudents, setTotalStudents] = useState(0);
   const [assessmentName, setAssessmentName] = useState("");
   const [courseName, setCourseName] = useState("");
+  const [startDate, setStartDate] = useState<string | null>(null);
+  const [endDate, setEndDate] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,8 +63,13 @@ export function useLiveDashboard({
     setStudents(prev => {
       const idx = prev.findIndex(s => s.id === p.studentId);
       if (idx === -1) return prev;
+      const patch = stripStudentId(p);
+      // An open assignment editor repeats its presence every 25 s — skip the
+      // re-render when the patch changes nothing.
+      const row = prev[idx] as unknown as Record<string, unknown>;
+      if (Object.entries(patch).every(([k, v]) => row[k] === v)) return prev;
       const next = prev.slice();
-      next[idx] = { ...next[idx], ...stripStudentId(p) };
+      next[idx] = { ...next[idx], ...patch };
       return next;
     });
   }, []);
@@ -79,11 +99,12 @@ export function useLiveDashboard({
       try {
         const token =
           (typeof window !== "undefined" &&
-            (localStorage.getItem("smartcliff_token") || localStorage.getItem("token"))) || "";
+            (getToken() || localStorage.getItem("token"))) || "";
         const qs = new URLSearchParams({ assessmentId });
         if (courseId) qs.set("courseId", courseId);
         if (nodeId) qs.set("nodeId", nodeId);
         if (nodeType) qs.set("nodeType", nodeType);
+        if (tabType) qs.set("category", tabType);
 
         const res = await fetch(`${API_URL}/api/assessment/live-dashboard?${qs.toString()}`, {
           method: "GET",
@@ -96,6 +117,8 @@ export function useLiveDashboard({
         setTotalStudents(data.totalStudents ?? (data.students?.length || 0));
         setAssessmentName(data.assessmentName || "");
         setCourseName(data.courseName || "");
+        setStartDate(data.startDate || null);
+        setEndDate(data.endDate || null);
       } catch (e: any) {
         if (!cancelled) setError(e?.message ?? "Failed to load dashboard");
       } finally {
@@ -104,7 +127,7 @@ export function useLiveDashboard({
     })();
 
     return () => { cancelled = true; };
-  }, [assessmentId, courseId, nodeId, nodeType]);
+  }, [assessmentId, courseId, nodeId, nodeType, tabType]);
 
   // ── Socket: join room, register listeners once, leave + cleanup on unmount ─
   useEffect(() => {
@@ -130,7 +153,7 @@ export function useLiveDashboard({
     };
   }, [assessmentId]);
 
-  return { students, totalStudents, assessmentName, courseName, isLoading, error };
+  return { students, totalStudents, assessmentName, courseName, startDate, endDate, isLoading, error };
 }
 
 function stripStudentId(p: DashboardStudentUpdate): Partial<StudentProgress> {

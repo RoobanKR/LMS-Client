@@ -611,12 +611,27 @@ const TipTapEditor = ({
     return (
         <div className="border border-slate-300 dark:border-gray-700 rounded-lg overflow-hidden bg-white dark:bg-gray-800 font-sans shadow-sm hover:shadow-md transition-shadow duration-200">
             {showToolbar && editable && <TipTapToolbar editor={editor} />}
-            <div 
-                style={{ minHeight, maxHeight }} 
-                className="overflow-y-auto bg-white dark:bg-gray-800 custom-tiptap-styles"
+            <div
+                style={{ minHeight, maxHeight }}
+                className="overflow-y-auto bg-white dark:bg-gray-800 custom-tiptap-styles flex flex-col cursor-text"
+                onMouseDown={(e) => {
+                    // Clicking the empty area (anywhere outside the text itself)
+                    // should focus the editor and drop the caret at the end —
+                    // like a normal textarea, not just the first line.
+                    if (editable && e.target === e.currentTarget) {
+                        e.preventDefault();
+                        editor?.chain().focus('end').run();
+                    }
+                }}
             >
                 <EditorContent editor={editor} />
             </div>
+            {/* Make the contenteditable fill the whole box so a click anywhere
+                (including the blank space below the text) lands in the editor. */}
+            <style>{`
+                .custom-tiptap-styles > div { display: flex; flex: 1 1 auto; min-height: 0; }
+                .custom-tiptap-styles .ProseMirror { flex: 1 1 auto; width: 100%; }
+            `}</style>
         </div>
     );
 };

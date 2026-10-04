@@ -1,9 +1,29 @@
+import { getToken } from "@/lib/session";
 // ScheduleStep.tsx
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Calendar, Clock, Lock, Bell, ChevronUp, ChevronDown, Check } from 'lucide-react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
+import { useParams, useSearchParams } from 'next/navigation';
+import { Calendar, Clock, Lock, Bell, ChevronUp, ChevronDown, Check, ShieldCheck, AlertCircle } from 'lucide-react';
 import { D, generateCalendarDays } from './constants';
 import { FormDataType, ValidationErrors } from './types';
 import { InfoTooltip } from './UIComponents';
+import { fetchApprovalHierarchy, type ApprovalStep } from '@/apiServices/userService';
+// Shared 12-hour helpers — see client/src/app/lms/shared/time12.ts.
+// Same import as the orange sibling so both files render identical
+// preview strings and share the same input clamps + AM/PM conversion.
+import {
+  to12, from12, formatDateTime12, formatTime12,
+  type Period,
+} from '@/app/lms/shared/time12';
+// Picker dialog geometry, shared with the orange sibling. The old hard-coded
+// 440px dialog / 168px TIME pane was narrower than the pane's own contents,
+// so `overflow-hidden` sheared the right edge off the AM/PM control. See
+// schedulePicker.test.ts for the invariants that now pin this.
+import {
+  measurePicker, clampPickerPosition, pickerRangeError,
+  CAL_CELL, CAL_PANE_PAD_X,
+  TIME_COL_GAP, HOUR_COL_W, COLON_W, MINUTE_COL_W, PERIOD_COL_W,
+  TIME_PANE_PAD_L, TIME_PANE_PAD_R,
+} from '@/app/lms/shared/schedulePicker';
 
 interface ScheduleStepProps {
   formData: FormDataType;
@@ -12,6 +32,7 @@ interface ScheduleStepProps {
   validationErrors: ValidationErrors;
   touchedFields: Set<string>;
   isEditing: boolean;
+  courseId?: string;
 }
 
 type DateValue = { day: number; month: number; year: number; hour: number; minute: number };
@@ -24,13 +45,10 @@ const DAY_NAMES = ['Su','Mo','Tu','We','Th','Fr','Sa'];
 const GRN = '#10b981';
 const GRN_LIGHT = 'rgba(16,185,129,0.10)';
 
-const fmtDateTime = (v: DateValue) => {
-  if (!hasDate(v)) return '';
-  const h = v.hour, m = v.minute;
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  const hh = h % 12 === 0 ? 12 : h % 12;
-  return `${MONTHS_SHORT[v.month - 1]} ${v.day}, ${v.year}, ${String(hh).padStart(2,'0')}:${String(m).padStart(2,'0')} ${ampm}`;
-};
+// Preview banner format lives in the shared 12h helper so orange +
+// green ScheduleSteps + the student assessments list all render the
+// same string ("Sep 3, 2026, 6:09 PM" — no leading zero on hour).
+const fmtDateTime = (v: DateValue) => formatDateTime12(hasDate(v) ? v : null);
 
 // ── Editable segment input (DD, MM, YYYY, HH, MM) ───────────────────────────
 const SegInput: React.FC<{
@@ -84,28 +102,93 @@ const SegInput: React.FC<{
 };
 
 // ── Spinner (up/down arrows + value in green circle) ─────────────────────────
-const Spinner: React.FC<{ value: number; max: number; onChange: (v: number) => void }> = ({ value, max, onChange }) => (
-  <div className="flex flex-col items-center gap-0.5">
-    <button
-      type="button"
-      onClick={() => onChange(value >= max ? 0 : value + 1)}
-      className="w-5 h-5 flex items-center justify-center rounded hover:bg-gray-100 transition-colors"
-    >
-      <ChevronUp size={12} style={{ color: GRN }} />
-    </button>
-    <div
-      className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold"
-      style={{ background: GRN, fontSize: 12 }}
-    >
-      {String(value).padStart(2, '0')}
+// `min` defaults to 0 (matches MINUTE 0..59). HOUR12 callers pass min=1 so
+// the wrap boundary flips 12 ↔ 1 instead of 12 ↔ 0.
+// `width` pins the column so the TIME pane's total width is the constant
+// schedulePicker.ts advertises rather than a font-measurement guess.
+const Spinner: React.FC<{
+  value: number; max: number; min?: number; onChange: (v: number) => void;
+  label: string; width: number;
+}> = ({ value, max, min = 0, onChange, label, width }) => {
+  const step = (d: 1 | -1) =>
+    onChange(d === 1 ? (value >= max ? min : value + 1) : (value <= min ? max : value - 1));
+  return (
+    <div className="flex flex-col items-center gap-0.5" style={{ width, flexShrink: 0 }}>
+      <button
+        type="button"
+        aria-label={`${label} up`}
+        onClick={() => step(1)}
+        className="w-5 h-5 flex items-center justify-center rounded hover:bg-gray-100 transition-colors"
+      >
+        <ChevronUp size={12} style={{ color: GRN }} />
+      </button>
+      <div
+        role="spinbutton"
+        tabIndex={0}
+        aria-label={label}
+        aria-valuenow={value}
+        aria-valuemin={min}
+        aria-valuemax={max}
+        aria-valuetext={String(value).padStart(2, '0')}
+        onKeyDown={e => {
+          if (e.key === 'ArrowUp')   { e.preventDefault(); step(1); }
+          if (e.key === 'ArrowDown') { e.preventDefault(); step(-1); }
+        }}
+        className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold"
+        style={{ background: GRN, fontSize: 12, cursor: 'default' }}
+      >
+        {String(value).padStart(2, '0')}
+      </div>
+      <button
+        type="button"
+        aria-label={`${label} down`}
+        onClick={() => step(-1)}
+        className="w-5 h-5 flex items-center justify-center rounded hover:bg-gray-100 transition-colors"
+      >
+        <ChevronDown size={12} style={{ color: GRN }} />
+      </button>
     </div>
-    <button
-      type="button"
-      onClick={() => onChange(value <= 0 ? max : value - 1)}
-      className="w-5 h-5 flex items-center justify-center rounded hover:bg-gray-100 transition-colors"
-    >
-      <ChevronDown size={12} style={{ color: GRN }} />
-    </button>
+  );
+};
+
+// ── PERIOD segmented AM/PM (green theme) ────────────────────────────────────
+// Fixed-width halves of PERIOD_COL_W (45px each, ≥ the 44px pointer-target
+// floor) instead of text-sized segments, and each segment owns its outer
+// corners rather than relying on the wrapper's `overflow: hidden` — so the
+// filled segment always keeps its rounded edge.
+const PeriodSelector: React.FC<{
+  value: Period; onChange: (p: Period) => void; fieldLabel: string;
+}> = ({ value, onChange, fieldLabel }) => (
+  <div
+    className="inline-flex select-none"
+    role="group"
+    aria-label={`${fieldLabel}, AM or PM`}
+    style={{
+      width: PERIOD_COL_W, height: 30, flexShrink: 0,
+      border: `1px solid #ecedf1`, borderRadius: 999,
+    }}
+  >
+    {(['AM', 'PM'] as const).map((p, i) => {
+      const selected = value === p;
+      return (
+        <button
+          key={p}
+          type="button"
+          aria-pressed={selected}
+          onClick={() => onChange(p)}
+          style={{
+            flex: '1 1 0', minWidth: 0, height: '100%', border: 'none',
+            borderRadius: i === 0 ? '999px 0 0 999px' : '0 999px 999px 0',
+            background: selected ? GRN : '#fff',
+            color: selected ? '#fff' : '#6b6b7e',
+            fontWeight: 700, fontSize: 11.5, letterSpacing: '.02em',
+            cursor: 'pointer',
+          }}
+        >
+          {p}
+        </button>
+      );
+    })}
   </div>
 );
 
@@ -125,34 +208,56 @@ const CalendarPopup: React.FC<CalendarPopupProps> = ({ fieldLabel, value, onConf
   const [selDay, setSelDay]         = useState(hasDate(value) ? value.day       : 0);
   const [selMonth, setSelMonth]     = useState(hasDate(value) ? value.month     : 0);
   const [selYear, setSelYear]       = useState(hasDate(value) ? value.year      : 0);
-  const [hour, setHour]             = useState(value.hour);
-  const [minute, setMinute]         = useState(value.minute);
+  // Internal 24-hour storage, but the picker only shows the 12-hour view.
+  const [hour, setHour]             = useState(value.hour);   // 0..23
+  const [minute, setMinute]         = useState(value.minute); // 0..59
+  const { h12, period }             = to12(hour);
+  const setH12 = (n: number) => setHour(from12({ h12: n, period }));
+  const setPeriod = (p: Period) => setHour(from12({ h12, period: p }));
+  const [rangeError, setRangeError] = useState<string | null>(null);
+  // Any change to the picked value clears the inline range message.
+  useEffect(() => { setRangeError(null); }, [hour, minute, selDay, selMonth, selYear]);
   const popRef                      = useRef<HTMLDivElement>(null);
   const [pos, setPos]               = useState<React.CSSProperties>({ position: 'fixed', top: -9999, left: -9999, zIndex: 9999, visibility: 'hidden' });
 
-  // Two-pass positioning: first render off-screen, then measure real height and snap into place
+  // The dialog's own box, derived from the viewport rather than hard-coded:
+  // it never exceeds the viewport, never shrinks its TIME pane below the
+  // AM/PM control, and stacks the two panes instead of clipping when narrow.
+  const [layout, setLayout] = useState(() =>
+    measurePicker(typeof window === 'undefined' ? 1440 : window.innerWidth));
+
   useEffect(() => {
+    const onResize = () => setLayout(measurePicker(window.innerWidth));
+    onResize();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  // Measure and place before paint. This used to wait for a
+  // requestAnimationFrame, which showed one unpositioned frame and — in a
+  // throttled tab, where rAF may not fire — could leave the dialog off-screen.
+  useLayoutEffect(() => {
     if (!anchorEl || !popRef.current) return;
-    // Let the browser paint once so offsetHeight is accurate
-    const frame = requestAnimationFrame(() => {
-      if (!anchorEl || !popRef.current) return;
-      const r  = anchorEl.getBoundingClientRect();
-      const pw = 360;
-      const ph = popRef.current.offsetHeight || 360;   // real rendered height
-
-      // Prefer right of anchor; flip left if no room
-      let left = r.right + 8;
-      if (left + pw > window.innerWidth - 8) left = r.left - pw - 8;
-      left = Math.max(8, left);
-
-      // Align popup top with anchor top; clamp so it never bleeds off screen
-      let top = r.top;
-      top = Math.max(8, Math.min(top, window.innerHeight - ph - 8));
-
-      setPos({ position: 'fixed', top, left, zIndex: 9999, visibility: 'visible' });
+    const r = anchorEl.getBoundingClientRect();
+    const pw = popRef.current.offsetWidth || layout.width;
+    const ph = popRef.current.offsetHeight || 360;
+    const { top, left } = clampPickerPosition({
+      anchor: { top: r.top, left: r.left, right: r.right, bottom: r.bottom },
+      popWidth: pw, popHeight: ph,
+      viewportWidth: window.innerWidth, viewportHeight: window.innerHeight,
     });
-    return () => cancelAnimationFrame(frame);
-  }, [anchorEl]);
+    setPos({ position: 'fixed', top, left, zIndex: 9999, visibility: 'visible' });
+  }, [anchorEl, layout.width, layout.stacked]);
+
+  // Move focus into the dialog once it is visible — a `visibility: hidden`
+  // element is not focusable, so focusing during the measuring pass is a
+  // silent no-op.
+  const focusedRef = useRef(false);
+  useEffect(() => {
+    if (pos.visibility !== 'visible' || focusedRef.current) return;
+    focusedRef.current = true;
+    popRef.current?.focus({ preventScroll: true });
+  }, [pos.visibility]);
 
   // Outside click
   useEffect(() => {
@@ -193,32 +298,66 @@ const CalendarPopup: React.FC<CalendarPopupProps> = ({ fieldLabel, value, onConf
 
   const confirm = () => {
     if (!selDay) return;
+    // Time-aware minDate check — same guard as the orange sibling so a
+    // same-day time earlier than minDate can't slip past Confirm.
+    const err = pickerRangeError(
+      { day: selDay, month: selMonth, year: selYear, hour, minute },
+      minDate,
+      formatDateTime12,
+    );
+    if (err) { setRangeError(err); return; }
     onConfirm({ day: selDay, month: selMonth, year: selYear, hour, minute });
     onClose();
   };
 
   const selVal: DateValue = { day: selDay, month: selMonth, year: selYear, hour, minute };
 
+  const { stacked } = layout;
+  const colLabel: React.CSSProperties = {
+    fontSize: 8.5, fontWeight: 700, color: D.textMuted,
+    letterSpacing: '.08em', marginBottom: 2,
+  };
+
   return (
-    <div ref={popRef} style={pos} className="bg-white rounded-xl shadow-2xl border border-[#ecedf1] w-[360px] overflow-hidden select-none">
+    <div
+      ref={popRef}
+      role="dialog"
+      aria-label={`Setting: ${fieldLabel}`}
+      tabIndex={-1}
+      onKeyDown={e => {
+        // Scoped to the dialog so Escape dismisses the picker without also
+        // closing the modal behind it.
+        if (e.key === 'Escape') { e.stopPropagation(); onClose(); }
+      }}
+      style={{ ...pos, width: layout.width, outline: 'none' }}
+      className="sch-pop bg-white rounded-xl shadow-2xl border border-[#ecedf1] overflow-hidden select-none"
+    >
       {/* Header */}
       <div className="flex items-center gap-1.5 px-3 py-2 border-b border-[#ecedf1]">
         <div className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0" style={{ background: GRN_LIGHT }}>
           <Calendar size={11} style={{ color: GRN }} />
         </div>
-        <span className="text-xs font-semibold text-[#6b6b7e]">Setting:</span>
+        <span className="text-xs font-semibold text-[#6b6b7e] flex-shrink-0">Setting:</span>
         <span className="text-xs font-bold truncate" style={{ color: GRN }}>{fieldLabel}</span>
       </div>
 
-      {/* Body: calendar left + time right */}
-      <div className="flex divide-x divide-[#ecedf1]">
+      {/* Body — calendar beside the TIME pane on desktop, stacked under it
+          once the viewport can no longer hold both without squeezing. */}
+      <div className="flex" style={{ flexDirection: stacked ? 'column' : 'row' }}>
         {/* Calendar */}
-        <div className="flex-1 px-3 py-2">
+        <div
+          className="py-2"
+          style={{
+            flex: '1 1 auto', minWidth: 0,
+            paddingLeft: CAL_PANE_PAD_X, paddingRight: CAL_PANE_PAD_X,
+            borderRight: stacked ? 'none' : '1px solid #ecedf1',
+          }}
+        >
           {/* Month nav */}
           <div className="flex items-center justify-between mb-2">
-            <button onClick={prevMonth} className="w-6 h-6 rounded-md flex items-center justify-center hover:bg-gray-100 text-[#6b6b7e] text-sm font-bold">‹</button>
+            <button onClick={prevMonth} aria-label="Previous month" className="w-6 h-6 rounded-md flex items-center justify-center hover:bg-gray-100 text-[#6b6b7e] text-sm font-bold">‹</button>
             <span className="text-xs font-bold text-[#1a1a2e]">{MONTHS_FULL[calMonth-1]} {calYear}</span>
-            <button onClick={nextMonth} className="w-6 h-6 rounded-md flex items-center justify-center hover:bg-gray-100 text-[#6b6b7e] text-sm font-bold">›</button>
+            <button onClick={nextMonth} aria-label="Next month" className="w-6 h-6 rounded-md flex items-center justify-center hover:bg-gray-100 text-[#6b6b7e] text-sm font-bold">›</button>
           </div>
 
           {/* Day headers */}
@@ -240,8 +379,11 @@ const CalendarPopup: React.FC<CalendarPopupProps> = ({ fieldLabel, value, onConf
                   key={idx}
                   onClick={() => selectDay(day)}
                   disabled={disabled}
-                  className="h-7 w-7 rounded-lg flex items-center justify-center mx-auto transition-all"
+                  aria-pressed={isSelected}
+                  aria-label={`${day} ${MONTHS_FULL[calMonth - 1]} ${calYear}`}
+                  className="rounded-lg flex items-center justify-center mx-auto transition-all"
                   style={{
+                    width: CAL_CELL, height: CAL_CELL,
                     fontSize: 10,
                     background: isSelected ? GRN : 'transparent',
                     color: isSelected ? '#fff' : disabled ? '#d1d5db' : '#1a1a2e',
@@ -258,37 +400,73 @@ const CalendarPopup: React.FC<CalendarPopupProps> = ({ fieldLabel, value, onConf
           </div>
         </div>
 
-        {/* Time spinner */}
-        <div className="w-24 flex flex-col items-center justify-center gap-2 px-2 py-2">
+        {/* TIME pane — three explicit columns per the target image:
+              HOUR (1-12), MINUTE (00-59), PERIOD (AM/PM segmented).
+              Sized from schedulePicker.ts so the PERIOD control can never
+              reach the dialog's clipped edge again. */}
+        <div
+          className="flex flex-col items-center justify-center py-2"
+          style={{
+            width: stacked ? '100%' : layout.timePaneWidth,
+            flexShrink: 0,
+            gap: 8,
+            paddingLeft: TIME_PANE_PAD_L, paddingRight: TIME_PANE_PAD_R,
+            borderTop: stacked ? '1px solid #ecedf1' : 'none',
+          }}
+        >
           <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', color: D.textMuted }}>TIME</span>
-          <div className="flex items-center gap-1">
-            <Spinner value={hour}   max={23} onChange={setHour} />
-            <span className="text-sm font-bold" style={{ color: GRN }}>:</span>
-            <Spinner value={minute} max={59} onChange={setMinute} />
+          {/* flex-wrap is a safety net for viewports narrower than any phone
+              we support — it wraps rather than letting a control be sheared. */}
+          <div className="flex items-start justify-center flex-wrap" style={{ gap: TIME_COL_GAP, rowGap: 8 }}>
+            <div className="flex flex-col items-center">
+              <span style={colLabel}>HOUR</span>
+              <Spinner value={h12} min={1} max={12} onChange={setH12} label={`${fieldLabel} hour`} width={HOUR_COL_W} />
+            </div>
+            <span aria-hidden className="text-sm font-bold self-center"
+              style={{ color: GRN, marginTop: 12, width: COLON_W, textAlign: 'center' }}>:</span>
+            <div className="flex flex-col items-center">
+              <span style={colLabel}>MINUTE</span>
+              <Spinner value={minute} min={0} max={59} onChange={setMinute} label={`${fieldLabel} minute`} width={MINUTE_COL_W} />
+            </div>
+            <div className="flex flex-col items-center" style={{ width: PERIOD_COL_W }}>
+              <span style={colLabel}>PERIOD</span>
+              <PeriodSelector value={period} onChange={setPeriod} fieldLabel={fieldLabel} />
+            </div>
           </div>
         </div>
       </div>
 
       {/* Selected date banner */}
-      <div className="mx-3 mb-2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg" style={{ background: GRN_LIGHT }}>
-        <Check size={11} style={{ color: GRN }} />
+      <div className="mx-3 my-2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg" style={{ background: GRN_LIGHT, borderTop: 'none' }}>
+        <Check size={11} className="flex-shrink-0" style={{ color: GRN }} />
         <span className="text-xs font-semibold truncate" style={{ color: GRN }}>
           {selDay ? fmtDateTime(selVal) : 'No date selected'}
         </span>
       </div>
+      {rangeError && (
+        <div className="mx-3 mb-2 flex items-start gap-1.5 px-3 py-1.5 rounded-lg" role="alert"
+          style={{ background: '#FEF3F2', border: '1px solid #FBD3CE' }}>
+          <AlertCircle size={11} className="flex-shrink-0 mt-[3px]" style={{ color: '#B42318' }} />
+          <span className="text-xs font-semibold" style={{ color: '#B42318' }}>{rangeError}</span>
+        </div>
+      )}
 
-      {/* Footer */}
-      <div className="flex items-center justify-between px-3 pb-2.5">
-        <button onClick={setNow} className="text-xs font-semibold" style={{ color: D.orange }}>Now</button>
-        <button onClick={onClose} className="text-xs font-semibold text-[#6b6b7e]">Cancel</button>
-        <button
-          onClick={confirm}
-          disabled={!selDay}
-          className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition-all"
-          style={{ background: selDay ? GRN : '#d1d5db' }}
-        >
-          Confirm
-        </button>
+      {/* Footer — Now on the left, the commit pair on the right. Wraps as a
+          block instead of pushing Confirm past the dialog edge. */}
+      <div className="flex items-center justify-between flex-wrap px-3.5 pb-3" style={{ gap: 10 }}>
+        <button type="button" onClick={setNow} className="text-xs font-semibold" style={{ color: D.orange }}>Now</button>
+        <div className="flex items-center" style={{ gap: 10 }}>
+          <button type="button" onClick={onClose} className="text-xs font-semibold text-[#6b6b7e]">Cancel</button>
+          <button
+            type="button"
+            onClick={confirm}
+            disabled={!selDay}
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white transition-all"
+            style={{ background: selDay ? GRN : '#d1d5db' }}
+          >
+            Confirm
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -313,24 +491,86 @@ const QUICK_OFFSETS: { label: string; ms: number }[] = [
 
 // ── Schedule Step ─────────────────────────────────────────────────────────────
 export const ScheduleStep: React.FC<ScheduleStepProps> = ({
-  formData, setFormData, setValidationErrors, validationErrors, touchedFields, isEditing,
+  formData, setFormData, setValidationErrors, validationErrors, touchedFields, isEditing, courseId,
 }) => {
   const [openField, setOpenField] = useState<string | null>(null);
   const rowRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  // Closing a picker returns focus to the calendar button that opened it, so
+  // Tab order resumes where the user left it. The button is still mounted, so
+  // this can run synchronously.
+  const closePicker = (key: string) => {
+    setOpenField(null);
+    (rowRefs.current[key + '_btn'] as HTMLElement | null)?.focus?.({ preventScroll: true });
+  };
+  const approvalOn = !!(formData.schedule as any).requiresAdminApproval;
+  const params = useParams() as any;
+  const searchParams = useSearchParams();
+  const routeCourseId = (typeof params?.id === 'string' ? params.id : null)
+    || searchParams?.get('courseId')
+    || null;
+  const effectiveCourseId = courseId || (formData as any).courseId || routeCourseId || null;
+  const [approvalSteps, setApprovalSteps] = useState<ApprovalStep[] | null>(null);
+  const [approvalLoading, setApprovalLoading] = useState(false);
+
+  useEffect(() => {
+    if (!approvalOn || !effectiveCourseId) {
+      setApprovalSteps(null);
+      return;
+    }
+    const token = getToken();
+    const institutionId = localStorage.getItem('smartcliff_institution');
+    if (!token || !institutionId) return;
+    let cancelled = false;
+    setApprovalLoading(true);
+    fetchApprovalHierarchy(effectiveCourseId, institutionId, token)
+      .then((data) => { if (!cancelled) setApprovalSteps(data.steps || []); })
+      .catch(() => { if (!cancelled) setApprovalSteps([]); })
+      .finally(() => { if (!cancelled) setApprovalLoading(false); });
+    return () => { cancelled = true; };
+  }, [approvalOn, effectiveCourseId]);
+
+  useEffect(() => {
+    setValidationErrors((prev: any) => {
+      const n = { ...prev };
+      const empty = approvalOn && !approvalLoading && Array.isArray(approvalSteps) && approvalSteps.length === 0;
+      if (empty) (n as any).approvalHierarchy = 'Course has no Approval Hierarchy configured.';
+      else delete (n as any).approvalHierarchy;
+      return n;
+    });
+  }, [approvalOn, approvalLoading, approvalSteps, setValidationErrors]);
 
   const get = useCallback((key: string): DateValue => (formData.schedule as any)[key] || EMPTY, [formData.schedule]);
 
   const set = useCallback((key: string, val: DateValue) => {
     setFormData(prev => ({ ...prev, schedule: { ...prev.schedule, [key]: val } }));
     setValidationErrors(prev => {
-      const n = { ...prev };
+      const n: any = { ...prev };
       if (key === 'startDate')      delete n.startDate;
       if (key === 'endDate')        delete n.endDate;
-      if (key === 'cutOffDate')     delete (n as any).cutOffDate;
+      if (key === 'cutOffDate')     delete n.cutOffDate;
       if (key === 'gracePeriodDate') delete n.gracePeriod;
+      // End > Start / Cut-off ≥ End / Grace ≥ End|Cut-off — inline edits
+      // bypass the CalendarPopup guard, so re-check here.
+      const nextSched: any = { ...(formData as any).schedule, [key]: val };
+      const toMs = (v: DateValue) => hasDate(v) ? dvToDate(v)!.getTime() : null;
+      const startMs = toMs(nextSched.startDate || EMPTY);
+      const endMs   = toMs(nextSched.endDate   || EMPTY);
+      const cutMs   = toMs(nextSched.cutOffDate|| EMPTY);
+      const graceMs = toMs(nextSched.gracePeriodDate || EMPTY);
+      if (key === 'endDate' && startMs != null && endMs != null && endMs <= startMs) {
+        n.endDate = 'End date & time must be later than Start.';
+      }
+      if (key === 'cutOffDate' && endMs != null && cutMs != null && cutMs < endMs) {
+        n.cutOffDate = 'Cut-off must be on or after End.';
+      }
+      if (key === 'gracePeriodDate' && graceMs != null) {
+        const floor = cutMs ?? endMs;
+        if (floor != null && graceMs < floor) n.gracePeriod = 'Grace deadline must be on or after End / Cut-off.';
+      }
       return n;
     });
-  }, [setFormData, setValidationErrors]);
+  }, [setFormData, setValidationErrors, formData]);
 
   // The "base" date a quick-offset chip is added to.
   // endDate offsets from startDate; cutOffDate offsets from endDate;
@@ -395,19 +635,109 @@ export const ScheduleStep: React.FC<ScheduleStepProps> = ({
   ] as const;
 
   return (
-    <div className="px-4 py-3">
-      {/* Section header */}
-      <div className="mb-4 flex items-center gap-2">
-        <div className="w-7 h-7 rounded-xl flex items-center justify-center" style={{ background: D.orangeLight, color: D.orange }}>
-          <Calendar size={14} />
-        </div>
-        <h3 className="text-sm font-bold text-[#1a1a2e]" style={{ fontFamily: 'Inter, sans-serif' }}>
-          Schedule Exercise
-        </h3>
-      </div>
+    <div className="px-10 pt-4 pb-6">
+      <div className="divide-y divide-[#eef0f4]">
+        {/* Approval — sequential approval gate driven by course Approval Hierarchy. */}
+        <div className="flex flex-col gap-2 py-3 relative">
+          <div className="flex items-center gap-3">
+            <div
+              className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+              style={{ background: 'rgba(251,146,60,0.10)', color: '#fb923c' }}
+            >
+              <ShieldCheck size={15} />
+            </div>
+            <div className="flex items-center gap-1 w-40 flex-shrink-0">
+              <span className="text-xs font-semibold text-[#1a1a2e]">Requires Approval</span>
+              <InfoTooltip
+                content="When ON, students see this assessment only after every approver in the course's Approval Hierarchy approves."
+                side="right"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => toggle('requiresAdminApproval')}
+              className="relative inline-flex items-center h-5 w-9 flex-shrink-0 rounded-full p-[2px] transition-colors duration-200"
+              style={{ background: approvalOn ? GRN : '#e2e3e8' }}
+            >
+              <span className={`inline-block h-[13px] w-[13px] rounded-full bg-white shadow transition-transform duration-200 ${approvalOn ? 'translate-x-[17px]' : 'translate-x-0'}`} />
+            </button>
+            <span className="text-xs font-semibold" style={{ color: approvalOn ? GRN : D.textMuted }}>
+              {approvalOn ? 'Yes' : 'No'}
+            </span>
+          </div>
 
-      {/* Rows */}
-      <div className="divide-y divide-[#ecedf1]">
+          {approvalOn && (
+            <div className="ml-11 space-y-2">
+              {approvalLoading && (
+                <span className="text-xs" style={{ color: D.textMuted }}>Loading approvers…</span>
+              )}
+              {!approvalLoading && approvalSteps && approvalSteps.length > 0 && (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {approvalSteps.map((s: any, i: number) => (
+                    <React.Fragment key={s.roleId || i}>
+                      {i > 0 && <span className="text-xs" style={{ color: D.textHint }}>→</span>}
+                      <span
+                        className="px-2 py-0.5 rounded-full text-[11px] font-semibold border"
+                        style={{ background: '#eef2ff', borderColor: '#c7d2fe', color: '#4338ca' }}
+                      >
+                        {i + 1}. {s.roleName}
+                      </span>
+                    </React.Fragment>
+                  ))}
+                  <span className="text-[11px] ml-1" style={{ color: D.textMuted }}>→ Students</span>
+                </div>
+              )}
+              {!approvalLoading && Array.isArray(approvalSteps) && approvalSteps.length === 0 && (
+                <div
+                  className="flex items-start gap-1.5 text-xs px-2 py-1.5 rounded-md"
+                  style={{ background: 'rgba(239,68,68,0.08)', color: D.red }}
+                >
+                  <AlertCircle size={12} className="mt-[1px] flex-shrink-0" />
+                  <span>
+                    Course has no Approval Hierarchy configured. Configure it on the course participants page first.
+                  </span>
+                </div>
+              )}
+
+              {/* Approval scope */}
+              <div className="pt-1">
+                <div className="text-[11px] font-semibold mb-1" style={{ color: D.textMuted }}>
+                  What should approvers review?
+                </div>
+                <div className="flex flex-col gap-1">
+                  {([
+                    { val: 'settings', label: 'Settings only', hint: 'Schedule, grade, notifications, security, etc.' },
+                    { val: 'settings_and_questions', label: 'Settings + Questions', hint: 'Everything above plus the actual question content.' },
+                  ] as const).map(({ val, label, hint }) => {
+                    const selected = ((formData.schedule as any).approvalScope || 'settings') === val;
+                    return (
+                      <label
+                        key={val}
+                        className="flex items-start gap-2 cursor-pointer p-1.5 rounded-md hover:bg-gray-50 transition-colors"
+                      >
+                        <input
+                          type="radio"
+                          name="approvalScope-asm"
+                          checked={selected}
+                          onChange={() => setFormData((prev: any) => ({
+                            ...prev,
+                            schedule: { ...prev.schedule, approvalScope: val },
+                          }))}
+                          className="mt-[2px]"
+                          style={{ accentColor: GRN }}
+                        />
+                        <span>
+                          <span className="text-xs font-semibold text-[#1a1a2e]">{label}</span>
+                          <span className="block text-[11px]" style={{ color: D.textMuted }}>{hint}</span>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
         {FIELDS.map(({ label, fieldKey, icon, iconColor, iconBg, toggleable, enabledKey, required, tooltip, showOffsets }) => {
           const enabled  = !toggleable || !!(formData.schedule as any)[enabledKey];
           const val      = get(fieldKey);
@@ -462,9 +792,55 @@ export const ScheduleStep: React.FC<ScheduleStepProps> = ({
 
                   {/* HH : MM — editable inputs */}
                   <span className="inline-flex items-center gap-1 ml-2">
-                    <SegInput value={val.hour}   placeholder="HH" min={0} max={23} onChange={h => set(fieldKey, { ...val, hour: h })} />
+                    {/* Hour is now 12h with an AM/PM chip; storage stays 24h so
+                        downstream Date + UTC serialization is unaffected. */}
+                    {(() => {
+                      const t = to12(val.hour || 0);
+                      return (
+                        <>
+                          <SegInput value={t.h12} placeholder="HH" min={1} max={12}
+                            onChange={h12 => set(fieldKey, { ...val, hour: from12({ h12, period: t.period }) })} />
+                        </>
+                      );
+                    })()}
                     <span className="text-[#9b9bae] text-xs font-bold">:</span>
                     <SegInput value={val.minute} placeholder="MM" min={0} max={59} onChange={m => set(fieldKey, { ...val, minute: m })} />
+                    {/* AM/PM chip — flips the 24h stored hour without changing minute. */}
+                    {(() => {
+                      const t = to12(val.hour || 0);
+                      return (
+                        <div
+                          className="inline-flex overflow-hidden ml-1"
+                          role="group"
+                          aria-label="AM or PM"
+                          style={{ border: '1px solid #ecedf1', borderRadius: 6, height: 24 }}
+                        >
+                          {(['AM', 'PM'] as const).map((p) => {
+                            const selected = t.period === p;
+                            return (
+                              <button
+                                key={p}
+                                type="button"
+                                aria-pressed={selected}
+                                onClick={() => set(fieldKey, { ...val, hour: from12({ h12: t.h12 || 12, period: p }) })}
+                                style={{
+                                  height: '100%', minWidth: 26, padding: '0 6px', border: 'none',
+                                  background: selected ? GRN : '#fff',
+                                  color: selected ? '#fff' : '#6b6b7e',
+                                  fontWeight: 700, fontSize: 10.5, letterSpacing: '.02em',
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                {p}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                    <span className="text-[11px] text-[#9b9bae] ml-1" title="12-hour clock — flip AM/PM to switch">
+                      {formatTime12(val.hour || 0, val.minute || 0)}
+                    </span>
                   </span>
 
                   {/* Calendar icon button — triggers popup */}
@@ -472,6 +848,9 @@ export const ScheduleStep: React.FC<ScheduleStepProps> = ({
                     ref={el => { rowRefs.current[fieldKey + '_btn'] = el as HTMLDivElement | null; }}
                     type="button"
                     onClick={() => setOpenField(isOpen ? null : fieldKey)}
+                    aria-label={`Choose ${label} from a calendar`}
+                    aria-haspopup="dialog"
+                    aria-expanded={isOpen}
                     className="ml-2 w-8 h-8 rounded-xl flex items-center justify-center border transition-all flex-shrink-0"
                     style={{
                       background: isOpen ? GRN : '#f4f4f6',
@@ -526,8 +905,8 @@ export const ScheduleStep: React.FC<ScheduleStepProps> = ({
                 <CalendarPopup
                   fieldLabel={label}
                   value={val}
-                  onConfirm={v => { set(fieldKey, v); setOpenField(null); }}
-                  onClose={() => setOpenField(null)}
+                  onConfirm={v => { set(fieldKey, v); closePicker(fieldKey); }}
+                  onClose={() => closePicker(fieldKey)}
                   minDate={getMinDate(fieldKey)}
                   anchorEl={rowRefs.current[fieldKey + '_btn']}
                 />

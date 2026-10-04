@@ -4,11 +4,11 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BarChart2, Image, Upload, X, FileText, Bold, Italic, Underline, List, ListOrdered, Folder, FolderOpen, File, FileStack, Info, GraduationCap, User, Users, UserCheck } from 'lucide-react';
 import InfoTooltip from '@/components/ui/reusabletooltip';
-import { ValidationMessage } from './ValidationMessage';
-import { FormData, ValidationErrors, PedagogyActivity } from './types';
+import { ValidationMessage } from '../../pages/coursestructure/components/ValidationMessage';
+import { FormData, ValidationErrors, PedagogyActivity } from '../../pages/coursestructure/components/types';
 import TipTapEditor from '../tiptopEditor';
-import ResourceTypeSection from '../Resourcetypesection ';
-import TestConfigurationSection, { TestConfiguration } from './TestConfigurationSection';
+import ResourceTypeSection from '../../pages/coursestructure/components/Resourcetypesection ';
+import TestConfigurationSection, { TestConfiguration } from '../../pages/coursestructure/components/TestConfigurationSection';
 
 interface Step2CourseDetailsProps {
     formData: FormData;
@@ -189,11 +189,11 @@ const HierarchySection: React.FC<Pick<Step2CourseDetailsProps, 'formData' | 'set
     <div className="bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-xl p-4 shadow-sm">
         <div className="flex items-center justify-between mb-3">
             <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <Folder className="h-4 w-4 text-blue-500 dark:text-blue-400" /> Course Hierarchy <span className="text-red-500">*</span>
+                <Folder className="h-4 w-4 text-orange-500 dark:text-orange-400" /> Course Hierarchy <span className="text-red-500">*</span>
             </h3>
-            <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-1.5">
-                <Info className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-                <p className="text-xs font-medium text-blue-700 dark:text-blue-300"><span className="font-semibold">Note:</span> Organize hierarchically - Modules → Submodules → Topics → Subtopics</p>
+            <div className="flex items-center gap-2 bg-orange-50 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-800 rounded-lg px-3 py-1.5">
+                <Info className="h-3.5 w-3.5 text-orange-600 dark:text-orange-400" />
+                <p className="text-xs font-medium text-orange-700 dark:text-orange-300"><span className="font-semibold">Note:</span> Organize hierarchically - Modules → Submodules → Topics → Subtopics</p>
             </div>
         </div>
         <div className="flex flex-wrap gap-3">
@@ -239,7 +239,7 @@ const PedagogySection: React.FC<{ formData: FormData; setFormData: React.Dispatc
     <div className="bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-xl p-4 shadow-sm">
         <div className="flex items-center justify-between mb-3">
             <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <GraduationCap className="h-5 w-5 text-blue-600 dark:text-blue-400" /> Pedagogy
+                <GraduationCap className="h-5 w-5 text-orange-600 dark:text-orange-400" /> Pedagogy
             </h3>
             <div className="flex items-center gap-2 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-lg px-3 py-1.5">
                 <Info className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
@@ -296,7 +296,7 @@ const PedagogyCard: React.FC<{
     onRemove: (name: string) => void;
 }> = ({ title, icon: Icon, description, color, selected, elements, isLoading, onToggle, onRemove }) => {
     const colorClasses = {
-        blue: { icon: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/30', border: 'border-blue-200 dark:border-blue-800', text: 'text-blue-800 dark:text-blue-300' },
+        blue: { icon: 'text-orange-500', bg: 'bg-orange-50 dark:bg-orange-900/30', border: 'border-orange-200 dark:border-orange-800', text: 'text-orange-800 dark:text-orange-300' },
         green: { icon: 'text-green-500', bg: 'bg-green-50 dark:bg-green-900/30', border: 'border-green-200 dark:border-green-800', text: 'text-green-800 dark:text-green-300' },
         purple: { icon: 'text-purple-500', bg: 'bg-purple-50 dark:bg-purple-900/30', border: 'border-purple-200 dark:border-purple-800', text: 'text-purple-800 dark:text-purple-300' }
     };

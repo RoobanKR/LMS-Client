@@ -123,7 +123,7 @@ export default function TxtViewerTeacher({
           background: "#E2E5EA",
           display: "flex", flexDirection: "column",
           zIndex: 1000,
-          fontFamily: "'Inter','Google Sans','Segoe UI',system-ui,sans-serif",
+          fontFamily: "'Poppins','Google Sans','Segoe UI',system-ui,sans-serif",
           animation: "fadeIn 0.18s ease",
         }}
       >
@@ -179,7 +179,7 @@ export default function TxtViewerTeacher({
                       onMouseEnter={(e) => {
                         if (idx !== breadcrumbs.length - 1) {
                           e.currentTarget.style.backgroundColor = "#f1f5f9";
-                          e.currentTarget.style.color = "#3b82f6";
+                          e.currentTarget.style.color = "#fb923c";
                         }
                       }}
                       onMouseLeave={(e) => {

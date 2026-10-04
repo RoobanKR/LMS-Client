@@ -16,7 +16,7 @@ import type {
   BreadcrumbItem, FolderNavState,
 } from "./Types";
 import { isFolderItem } from "./Types";
-import ProblemSolving from "../../../../component/ProblemSolving";
+import ProblemSolving from "./ProblemSolving";
 import TestYourSkills from "./youdo/TestYourSkills";
 import Assessment from "./youdo/Assessment";
 // SelfWork mock component no longer used — You Do > Self Work now reuses
@@ -25,7 +25,7 @@ import Assessment from "./youdo/Assessment";
 // rendering all come for free.
 // import SelfWork from "./youdo/SelfWork";
 import { PageCreationModal, type PageBlock, type PagesPayload, type HierarchyInfo } from "./Pagecreationmodal";
-import { entityApi } from "@/apiServices/coursesData";
+import { entityApi } from "@/app/lms/pages/courses/api/coursesData";
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 const T = {
@@ -97,6 +97,19 @@ interface CourseContentProps {
   courseId: string;
   courseStructureName: string;
   configuredLanguages?: { coreProgram?: string[]; frontend?: string[]; database?: string[] };
+  /**
+   * Resources by Batch — the batch selected in the strip above this content.
+   * "" for a course without batches, or when the open section is shared.
+   *
+   * It arrives as a prop (rather than being read from `resourceBatch`'s module
+   * state inside the children) so that switching batches re-renders this
+   * subtree. Without that, the We Do / You Do views kept the exercise list they
+   * had mounted with and only corrected themselves when some unrelated
+   * interaction forced a re-render.
+   */
+  activeBatchId?: string;
+  /** Right corner of the I Do / We Do / You Do tab row — the batch picker. */
+  tabBarRight?: React.ReactNode;
   pedagogy?: Record<string, any>;
   onTabChange: (tab: "I_Do" | "We_Do" | "You_Do") => void;
   onSubcategoryChange: (sub: string, component: string | null) => void;
@@ -155,13 +168,13 @@ const FolderBreadcrumbBar: React.FC<{
       style={{ borderBottom: `1px solid ${T.border}` }}
     >
       <div className="flex items-center gap-1 overflow-x-auto flex-1" style={{ scrollbarWidth: "none" }}>
-        {/* Root — always blue, always navigable */}
+        {/* Root — always orange, always navigable */}
         <button
           onClick={() => onNavigateToRoot?.()}
           className="flex-shrink-0 text-[11px] font-semibold cursor-pointer"
-          style={{ color: "#3B82F6", background: "none", border: "none" }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#1D4ED8"; (e.currentTarget as HTMLElement).style.textDecoration = "underline"; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "#3B82F6"; (e.currentTarget as HTMLElement).style.textDecoration = "none"; }}
+          style={{ color: "#FB923C", background: "none", border: "none" }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#EA580C"; (e.currentTarget as HTMLElement).style.textDecoration = "underline"; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "#FB923C"; (e.currentTarget as HTMLElement).style.textDecoration = "none"; }}
         >
           Root
         </button>
@@ -175,10 +188,10 @@ const FolderBreadcrumbBar: React.FC<{
             <button
               onClick={() => onGroupClick?.()}
               className="flex items-center gap-1 text-[11px] max-w-[140px] truncate cursor-pointer"
-              style={{ color: "#3B82F6", fontWeight: 500, background: "none", border: "none" }}
+              style={{ color: "#FB923C", fontWeight: 500, background: "none", border: "none" }}
               title={groupName}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#1D4ED8"; (e.currentTarget as HTMLElement).style.textDecoration = "underline"; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "#3B82F6"; (e.currentTarget as HTMLElement).style.textDecoration = "none"; }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#EA580C"; (e.currentTarget as HTMLElement).style.textDecoration = "underline"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "#FB923C"; (e.currentTarget as HTMLElement).style.textDecoration = "none"; }}
             >
               <Folder size={11} strokeWidth={2.2} style={{ flexShrink: 0 }} />
               {groupName}
@@ -195,15 +208,15 @@ const FolderBreadcrumbBar: React.FC<{
                 onClick={() => onNavigateToFolderLevel?.(segment, idx)}
                 className="text-[11px] max-w-[120px] truncate cursor-pointer"
                 style={{
-                  color: "#3B82F6",
+                  color: "#FB923C",
                   fontWeight: isLast ? 700 : 500,
                   background: "none",
                   border: "none",
                   textDecoration: isLast ? "underline" : "none",
                   textUnderlineOffset: 2,
                 }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#1D4ED8"; (e.currentTarget as HTMLElement).style.textDecoration = "underline"; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "#3B82F6"; (e.currentTarget as HTMLElement).style.textDecoration = isLast ? "underline" : "none"; }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#EA580C"; (e.currentTarget as HTMLElement).style.textDecoration = "underline"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "#FB923C"; (e.currentTarget as HTMLElement).style.textDecoration = isLast ? "underline" : "none"; }}
               >
                 {segment}
               </button>
@@ -1001,12 +1014,16 @@ const GroupEditModal: React.FC<{
 
 // ─── Sort options ──────────────────────────────────────────────────────────────
 export type SortKey =
+  | "recommended"
   | "date_desc" | "date_asc"
   | "name_asc"  | "name_desc"
   | "size_desc" | "size_asc"
   | "type_asc";
 
+// "recommended" is the default: folders first, then ZIP/archive files, then
+// everything else — newest first within each of the three.
 const SORT_OPTIONS: { key: SortKey; label: string; icon: React.ReactNode }[] = [
+  { key: "recommended", label: "Folders → ZIP → Newest", icon: <Folder size={11} /> },
   { key: "date_desc", label: "Date (Newest)",  icon: <ArrowDown  size={11} /> },
   { key: "date_asc",  label: "Date (Oldest)",  icon: <ArrowUp    size={11} /> },
   { key: "name_asc",  label: "Name (A → Z)",   icon: <ArrowUp    size={11} /> },
@@ -1099,8 +1116,8 @@ const FilterSection: React.FC<{
     return () => document.removeEventListener("mousedown", h);
   }, [sortOpen]);
 
-  const isDefaultSort = sortBy === "date_desc";
-  const activeSortLabel = SORT_OPTIONS.find(o => o.key === sortBy)?.label ?? "Date (Newest)";
+  const isDefaultSort = sortBy === "recommended";
+  const activeSortLabel = SORT_OPTIONS.find(o => o.key === sortBy)?.label ?? SORT_OPTIONS[0].label;
 
   const activeCount = activeFilters.fileTypes.length;
 
@@ -1315,7 +1332,7 @@ const FilterSection: React.FC<{
               {!isDefaultSort && (
                 <button
                   type="button"
-                  onClick={() => { onSortChange("date_desc"); setSortOpen(false); }}
+                  onClick={() => { onSortChange("recommended"); setSortOpen(false); }}
                   className="text-[10px] font-bold px-1.5 py-0.5 rounded"
                   style={{ color: "#ef4444", background: "rgba(239,68,68,0.08)" }}
                 >
@@ -1647,7 +1664,7 @@ const FileList: React.FC<{
       await runDeleteWithProgress(`Deleting group "${groupName}"…`, items);
     };
 
-    const FONT_STACK = "'Inter', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+    const FONT_STACK = "'Poppins', 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
     const rowBase: React.CSSProperties = {
       display: "grid", gridTemplateColumns: "28px minmax(0,1fr) 90px 110px 90px 80px",
       gap: 14, alignItems: "center", borderBottom: `1px solid ${T.border}`,
@@ -1736,7 +1753,13 @@ const renderFileRow = (file: UploadedFile, isPage: boolean = false, extraRowStyl
               style={{
                 fontSize: 12.5, fontWeight: 600, color: T.textMain,
                 letterSpacing: "-0.005em", lineHeight: 1.3,
-                ...(isUrl ? { cursor: "pointer", textDecoration: "underline", textUnderlineOffset: "3px" } : {}),
+                // The name opens the file on every non-page row (see the
+                // onClick below), so it shows the hand cursor on all of them.
+                // Only URL rows used to get it, which left a top-level PDF or
+                // PPT looking unclickable even though the very same file
+                // nested inside a folder/group did show the hand.
+                ...(isPage ? {} : { cursor: "pointer" }),
+                ...(isUrl ? { textDecoration: "underline", textUnderlineOffset: "3px" } : {}),
               }}
               onClick={e => {
                 if (!isPage) {
@@ -2082,7 +2105,7 @@ const renderFileRow = (file: UploadedFile, isPage: boolean = false, extraRowStyl
               borderBottom: `1px solid ${T.border}`,
               padding: `6px 20px 6px ${headerPad}px`,
               background: T.bg, minHeight: 36,
-              fontFamily: "'Inter','Inter',-apple-system,sans-serif",
+              fontFamily: "'Poppins','Poppins',-apple-system,sans-serif",
             }}
             onClick={e => { e.stopPropagation(); toggleGroup(subGroup.groupId); }}
             onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "#f8fafc"}
@@ -3015,7 +3038,9 @@ const TabBar: React.FC<{
   subcategories: CourseContentProps["subcategories"];
   onTabChange: (tab: "I_Do" | "We_Do" | "You_Do") => void;
   onSubcategoryChange: (sub: string, component: string | null) => void;
-}> = ({ selectedNode, activeTab, activeSubcategory, subcategories, onTabChange, onSubcategoryChange }) => {
+  /** Right-aligned content sharing the tab row (the batch-scope picker). */
+  rightSlot?: React.ReactNode;
+}> = ({ selectedNode, activeTab, activeSubcategory, subcategories, onTabChange, onSubcategoryChange, rightSlot }) => {
   const trackRef = useRef<HTMLDivElement>(null);
   const btnRefs = useRef<Partial<Record<string, HTMLButtonElement>>>({});
 
@@ -3035,6 +3060,13 @@ const TabBar: React.FC<{
     You_Do: ClipboardList,
   };
 
+  // Only the pedagogy sections this course actually configured. A course that
+  // picked I Do and You Do activities but left We Do empty gets two tabs: the
+  // empty one used to render anyway and led to a dead "Select an Activity"
+  // pane with no subcategory behind it.
+  const visibleTabs = (["I_Do", "We_Do", "You_Do"] as const)
+    .filter((tabKey) => (subcategories[tabKey]?.length ?? 0) > 0);
+
   return (
     <div
       className="flex-shrink-0"
@@ -3051,7 +3083,7 @@ const TabBar: React.FC<{
         className="flex items-stretch"
         style={{ position: "relative" }}
       >
-        {(["I_Do", "We_Do", "You_Do"] as const).map((tabKey, idx) => {
+        {visibleTabs.map((tabKey, idx) => {
           const cfg = TAB_META[tabKey];
           const isSel = activeTab === tabKey;
           const isDis = !selectedNode;
@@ -3072,7 +3104,7 @@ const TabBar: React.FC<{
                   fontSize: 12.5,
                   fontWeight: 600,
                   letterSpacing: "-0.005em",
-                  fontFamily: "'Inter', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+                  fontFamily: "'Poppins', 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
                   WebkitFontSmoothing: "antialiased",
                   border: "none",
                   background: "transparent",
@@ -3125,7 +3157,7 @@ const TabBar: React.FC<{
               </button>
 
               {/* Vertical divider between tabs */}
-              {idx < 2 && (
+              {idx < visibleTabs.length - 1 && (
                 <span
                   aria-hidden
                   style={{
@@ -3140,6 +3172,12 @@ const TabBar: React.FC<{
             </React.Fragment>
           );
         })}
+
+        {rightSlot && (
+          <div className="flex items-center" style={{ marginLeft: "auto" }}>
+            {rightSlot}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -3149,7 +3187,7 @@ const TabBar: React.FC<{
 export const CourseContent: React.FC<CourseContentProps> = ({
   selectedNode, activeTab, activeSubcategory, subcategories, contentData,
   breadcrumbs, fileTypes, currentFolderContents, folderNavState,
-  courseId, courseStructureName, pedagogy,
+  courseId, courseStructureName, pedagogy, activeBatchId = "", tabBarRight,
   onTabChange, onSubcategoryChange, onResourceModalOpen, onFileClick,
   onNavigateToFolder, onNavigateUp, onNavigateToRoot, onNavigateToFolderLevel,
   onEditFolder, onDeleteFolder, onDeleteFile, configuredLanguages,
@@ -3159,7 +3197,7 @@ export const CourseContent: React.FC<CourseContentProps> = ({
   onUpdateFile, onEditGroup, getParentNodeName, getFolderItemCount, getFolderTotalSize, onPageCreated, onBulkDelete
 }) => {
   const [activeFilters, setActiveFilters] = useState({ fileTypes: [] as string[], searchFilter: "" });
-  const [sortBy, setSortBy] = useState<SortKey>("date_desc");
+  const [sortBy, setSortBy] = useState<SortKey>("recommended");
   const [viewingPage, setViewingPage] = useState<ViewingPage | null>(null);
   const [editingPage, setEditingPage] = useState<{
     id: string; title: string; blocks: PageBlock[]; code: string;
@@ -3260,10 +3298,15 @@ export const CourseContent: React.FC<CourseContentProps> = ({
   );
 
   const allFiles = useMemo(() => {
-    // Pages come exclusively from pedagogy below — exclude any stale page entries
-    // that currentFolderContents.files might already carry to prevent duplicates.
+    // Pages come primarily from pedagogy below — exclude page entries that
+    // currentFolderContents.files might already carry to prevent duplicates.
+    // They are kept aside (not thrown away): when the `pedagogy` prop is stale
+    // or missing they are re-added as a fallback at the end, see below.
     const combined = currentFolderContents.files.filter(
       f => (f.type || "").toLowerCase() !== "page"
+    );
+    const contentDataPages = currentFolderContents.files.filter(
+      f => (f.type || "").toLowerCase() === "page"
     );
 
     // Normalise the current folder path to a comparable string.
@@ -3366,10 +3409,43 @@ export const CourseContent: React.FC<CourseContentProps> = ({
       }
     }
 
+    // ── Fallback: pages straight from contentData ─────────────────────────
+    // The walk above renders pages from the `pedagogy` prop
+    // (selectedNode.originalData.pedagogy). That prop can be stale or absent:
+    // the sidebar tree is built from the LIGHT course payload (no pedagogy),
+    // and the cached node-selection path re-selects that light node without
+    // re-attaching pedagogy. contentData is refreshed on every upload/delete/
+    // batch switch, so its page entries are authoritative — without this
+    // fallback the subcategory count said "7" while the pages silently
+    // vanished from the list. contentData pages are root-level only
+    // (processNodeContent does not walk folder pages), so merge them only at
+    // root, and only ids the pedagogy walk didn't already produce.
+    if (currentPathStr === "") {
+      const seenPageIds = new Set(
+        combined
+          .filter(f => (f.type || "").toLowerCase() === "page")
+          .map(f => f.id)
+      );
+      contentDataPages.forEach(p => {
+        if (seenPageIds.has(p.id)) return;
+        const override = localPageOverrides[p.id];
+        combined.push(
+          override
+            ? ({
+                ...p,
+                name: override.title ?? p.name,
+                _combinedCode: override.combinedCode ?? (p as any)._combinedCode ?? "",
+                _pageCount: override.pageCount ?? (p as any)._pageCount ?? 1,
+              } as any)
+            : p
+        );
+      });
+    }
+
     return combined;
   }, [currentFolderContents.files, pedagogy, activeTab, activeSubcategory, localPageOverrides, folderNavState]);
 
-  // FIXED: Combined order that sorts everything by date
+  // Combined order — by default folders, then archives, then newest files (see "recommended")
   const filteredContent = useMemo(() => {
     let folders = currentFolderContents.folders;
     let files = allFiles;
@@ -3435,8 +3511,18 @@ export const CourseContent: React.FC<CourseContentProps> = ({
       return getFileMeta(f.type || "", f.name, f.isReference === true || String(f.isReference) === "true").label;
     };
 
+    // Default order's three tiers: folders, then archives, then everything else.
+    const isArchive = (f: UploadedFile) => {
+      const lt = (f.type || "").toLowerCase(), ln = (f.name || "").toLowerCase();
+      return lt.includes("zip") || /\.(zip|rar|7z|tar|gz)$/.test(ln);
+    };
+    const tierOf = (item: CombinedItem) =>
+      item.type === 'folder' ? 0 : isArchive(item.data as UploadedFile) ? 1 : 2;
+
     combined.sort((a, b) => {
       switch (sortBy) {
+        case "recommended":
+          return tierOf(a) - tierOf(b) || toDateMs(b.sortDate) - toDateMs(a.sortDate);
         case "date_desc": return toDateMs(b.sortDate) - toDateMs(a.sortDate);
         case "date_asc":  return toDateMs(a.sortDate) - toDateMs(b.sortDate);
         case "name_asc":  return getName(a).localeCompare(getName(b), undefined, { sensitivity: "base" });
@@ -3444,7 +3530,7 @@ export const CourseContent: React.FC<CourseContentProps> = ({
         case "size_desc": return getSize(b) - getSize(a);
         case "size_asc":  return getSize(a) - getSize(b);
         case "type_asc":  return getType(a).localeCompare(getType(b), undefined, { sensitivity: "base" });
-        default:          return toDateMs(b.sortDate) - toDateMs(a.sortDate);
+        default:          return tierOf(a) - tierOf(b) || toDateMs(b.sortDate) - toDateMs(a.sortDate);
       }
     });
 
@@ -3459,7 +3545,7 @@ export const CourseContent: React.FC<CourseContentProps> = ({
   const hasContent = combinedOrder.length > 0;
 
   return (
-    <div className="flex flex-col h-full overflow-hidden" style={{ fontFamily: "'Inter',-apple-system,sans-serif" }}>
+    <div className="flex flex-col h-full overflow-hidden" style={{ fontFamily: "'Poppins',-apple-system,sans-serif" }}>
 
       {/* ── Breadcrumbs ── */}
       <div className="flex-shrink-0 px-5" style={{ background: T.bg }}>
@@ -3494,6 +3580,7 @@ export const CourseContent: React.FC<CourseContentProps> = ({
         activeSubcategory={activeSubcategory} subcategories={subcategories}
         onTabChange={tab => { setViewingPage(null); onTabChange(tab); }}
         onSubcategoryChange={(s, c) => { setViewingPage(null); onSubcategoryChange(s, c); }}
+        rightSlot={tabBarRight}
       />
 
       {/* ── Subcategory underline tab bar ── */}
@@ -3524,7 +3611,7 @@ export const CourseContent: React.FC<CourseContentProps> = ({
                     fontSize: 12.5,
                     fontWeight: 600,
                     letterSpacing: "-0.005em",
-                    fontFamily: "'Inter', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+                    fontFamily: "'Poppins', 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
                     WebkitFontSmoothing: "antialiased",
                     background: "transparent",
                     border: "none",
@@ -3646,7 +3733,9 @@ export const CourseContent: React.FC<CourseContentProps> = ({
 
           ) : activeTab === "We_Do" && activeSubcategory && isValidSub ? (
             <ProblemSolving
-              key={`${activeTab}-${activeSubcategory}`}
+              // Batch in the key: We Do assignments are per-batch, and this view
+              // keeps its own exercise list in local state.
+              key={`${activeTab}-${activeSubcategory}-${activeBatchId || "shared"}`}
               nodeId={selectedNode!.id}
               nodeName={selectedNode!.name}
               subcategory={activeSubcategory}
@@ -3678,6 +3767,8 @@ export const CourseContent: React.FC<CourseContentProps> = ({
   courseId,
   nodeType: selectedNode!.type,
   configuredLanguages,
+  // Resources by Batch — see the `key`s below.
+  batchId: activeBatchId,
   hierarchyData: {
     courseName: courseStructureName || "",
     moduleName: selectedNode!.type === "module" ? selectedNode!.name : getParentNodeName(selectedNode!, "module"),
@@ -3688,15 +3779,19 @@ export const CourseContent: React.FC<CourseContentProps> = ({
     level: selectedNode!.level,
   },
 };
-if (activeSubcategory === "test_your_skills") return <TestYourSkills key={`you_do-${activeSubcategory}`} {...youDoBaseProps} />;
-if (activeSubcategory === "assesment") return <Assessment key={`you_do-${activeSubcategory}`} {...youDoBaseProps} />;
+// The batch belongs in the key. These views hold their own pagination, search
+// and selection state, and batch 1's row selection means nothing in batch 2 —
+// remounting on a batch switch is both cheaper to reason about and what makes
+// the list's query key change in the same commit as the strip.
+if (activeSubcategory === "test_your_skills") return <TestYourSkills key={`you_do-${activeSubcategory}-${activeBatchId || "shared"}`} {...youDoBaseProps} />;
+if (activeSubcategory === "assesment") return <Assessment key={`you_do-${activeSubcategory}-${activeBatchId || "shared"}`} {...youDoBaseProps} />;
 // You Do > Self Work now reuses the SAME ProblemSolving UI as We Do > Assignments.
 // Data isolation is automatic — the backend filters by (section=You_Do, subcategory=self_work)
 // so nothing leaks to/from We Do > Assignments. Students will see these on the
 // detailed view via the existing pedagogy-method + activity flow (no extra wiring).
 if (activeSubcategory === "self_work") return (
   <ProblemSolving
-    key={`${activeTab}-${activeSubcategory}`}
+    key={`${activeTab}-${activeSubcategory}-${activeBatchId || "shared"}`}
     {...youDoBaseProps}
     activeTab={activeTab}
   />
@@ -3868,7 +3963,7 @@ if (activeSubcategory === "self_work") return (
             gap: 10,
             padding: "12px 20px",
             borderRadius: 12,
-            fontFamily: "'Inter', -apple-system, sans-serif",
+            fontFamily: "'Poppins', -apple-system, sans-serif",
             fontSize: 13,
             fontWeight: 600,
             color: "#fff",

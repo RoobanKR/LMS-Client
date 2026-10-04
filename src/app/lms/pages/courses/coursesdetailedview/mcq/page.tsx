@@ -1,11 +1,13 @@
 "use client";
+import { getToken } from "@/lib/session";
 
 import React, { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import MCQ from '@/app/lms/component/student/mcq';
+import MCQ from '@/app/lms/pages/courses/coursesdetailedview/components/mcq';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import Loading from '@/components/loading-ui/loading';
+import { API_ORIGIN } from '@/lib/apiBase'
 
 const MCQPageContent = () => {
   const router = useRouter();
@@ -37,7 +39,7 @@ const MCQPageContent = () => {
       
       try {
         // Get token from localStorage
-        const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
+        const token = getToken() || localStorage.getItem('token') || '';
         
         if (!token) {
           throw new Error('Authentication token not found');
@@ -53,7 +55,7 @@ const MCQPageContent = () => {
         console.log("Fetching exercise data for ID:", finalExerciseId);
 
         // Fetch exercise data from API
-        const response = await fetch(`https://lms-server-ym1q.onrender.com/exercise/${finalExerciseId}`, {
+        const response = await fetch(`${API_ORIGIN}/exercise/${finalExerciseId}`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -151,7 +153,7 @@ const MCQPageContent = () => {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
-        <Loading size="size-12" color="blue" label="Loading assessment from server..." />
+        <Loading size="size-12" color="orange" label="Loading assessment from server..." />
       </div>
     );
   }
@@ -235,7 +237,7 @@ export default function MCQPage() {
     <Suspense 
       fallback={
         <div className="min-h-screen bg-white flex items-center justify-center">
-          <Loading size="size-10" color="blue" />
+          <Loading size="size-10" color="orange" />
         </div>
       }
     >

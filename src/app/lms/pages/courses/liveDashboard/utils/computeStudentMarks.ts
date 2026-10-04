@@ -17,43 +17,85 @@
 // ─── Loose shapes (matching what `/getAll/courses-data` actually returns) ────
 //
 // We deliberately keep these as `any`-shaped here. The shared `CourseStructureData`
-// type in `apiServices/coursesData.ts` doesn't model `singleParticipants` or the
+// type in `apiServices/coursesData.ts` doesn't model `batchAndParticipants` or the
 // per-question grading fields, and tightening the types here would mean dragging
 // in (or duplicating) the reviewSubmission interfaces — a lot of surface area
 // for what is fundamentally a "walk a tree, sum numbers" helper.
 
 type Loose = Record<string, any>;
 
+// MongoDB sometimes hands us ObjectId-wrapped values (`{$oid: "..."}`) or
+// raw ObjectId instances that don't string-compare against the plain hex
+// `_id` strings the exercise tree uses. Normalize everything to a hex
+// string before keying into the per-question Map so the lookup can't miss
+// because of a wrapper layer.
+const idOf = (v: any): string => {
+  if (v == null) return "";
+  if (typeof v === "string") return v;
+  if (typeof v === "object") {
+    if (typeof v.$oid === "string") return v.$oid;
+    if (v._id != null) return idOf(v._id);
+    if (typeof v.toString === "function") {
+      const s = v.toString();
+      if (s && s !== "[object Object]") return s;
+    }
+  }
+  return String(v);
+};
+
+// Rank used to pick the "best" submission row when a student has multiple
+// rows for the same question (retests, partial saves, etc.).
+//   evaluated  — grader manually saved a score, highest authority
+//   solved     — auto-grader passed every test case (code-editor submit)
+//   submitted  — student submitted the test (final commit)
+//   attempted  — student saved progress mid-flight
+//   anything else (pending / unknown) → lowest
+export const submissionRank = (s: Loose): number =>
+  s?.status === "evaluated" ? 4 :
+  s?.status === "solved" ? 3 :
+  s?.status === "submitted" ? 2 :
+  s?.status === "attempted" ? 1 :
+  0;
+
+// Which of two equally-ranked submissions is newer. A grade save stamps
+// evaluatedAt / updatedAt but leaves submittedAt at the student's own submit,
+// so submittedAt alone would let an older grade outrank a re-grade.
+export const submissionRecency = (s: Loose): string =>
+  String(s?.evaluatedAt || s?.updatedAt || s?.submittedAt || "");
+
 // ─── Exercise discovery ─────────────────────────────────────────────────────
 // The same recursive walk reviewSubmission's `collectExercisesWithMetadata` does,
 // but short-circuits as soon as we find the exercise we want — we never need
 // the full list on the dashboard.
-const SUBCAT_KEYS = [
-  // We_Do
-  "assignments", "practical", "project_development", "assessments", "assesments",
-  // You_Do — note `assesment` (typo) is the live key the rest of the codebase uses.
-  "assesment",
-] as const;
-
 const matchesExercise = (ex: Loose, exerciseId: string): boolean => {
   if (!ex || !exerciseId) return false;
-  if (ex._id === exerciseId) return true;
-  if (ex.exerciseInformation?.exerciseId === exerciseId) return true;
+  const target = idOf(exerciseId);
+  if (!target) return false;
+  const exId = idOf(ex._id);
+  if (exId === target) return true;
+  const exInfoId = idOf(ex.exerciseInformation?.exerciseId);
+  if (exInfoId === target) return true;
   // Allow inclusive match the same way reviewSubmission does — some callers
   // pass a truncated id.
-  if (typeof ex._id === "string" && ex._id.includes(exerciseId)) return true;
-  if (typeof ex.exerciseInformation?.exerciseId === "string" &&
-      ex.exerciseInformation.exerciseId.includes(exerciseId)) return true;
+  if (exId && exId.includes(target)) return true;
+  if (exInfoId && exInfoId.includes(target)) return true;
   return false;
 };
 
+// No allowlist of subcategory names, deliberately — see the same note in
+// reviewSubmission's `collectNode`. `pedagogy.We_Do` / `pedagogy.You_Do` are
+// open Maps server-side and their keys are the course's own subcategory
+// LABELS (lowercased, spaces underscored), authored by admins in Dynamic
+// Field Settings ▸ Pedagogy. A fixed list can only ever be a guess, and when
+// it guessed wrong this function returned null and the dashboard printed "—"
+// for a student who had in fact submitted. Every array under the tab is an
+// exercise bucket; that is the only test needed.
 const scanPedagogy = (pedagogy: Loose | undefined, exerciseId: string): Loose | null => {
   if (!pedagogy) return null;
   for (const tab of ["We_Do", "You_Do"] as const) {
     const tabData = pedagogy[tab];
-    if (!tabData) continue;
-    for (const sub of SUBCAT_KEYS) {
-      const list = tabData[sub];
+    if (!tabData || typeof tabData !== "object") continue;
+    for (const list of Object.values(tabData)) {
       if (!Array.isArray(list)) continue;
       for (const ex of list) {
         if (matchesExercise(ex, exerciseId)) return ex;
@@ -104,6 +146,72 @@ export const findExerciseInCourseData = (
   }
 
   return null;
+};
+
+// ─── Section discovery (for section-based assessments) ──────────────────────
+// Section-based exercises (Part A / Part B …) keep their section definitions in
+// `exercise.sectionConfigs` (Record<key, section> or array) and/or
+// `exercise.sections`. Each question carries `q.sectionId` that matches a
+// section's record-key / name / id. This mirrors SectionBasedTestPage's
+// `rawToArray` + `normaliseSections` so the report groups questions exactly the
+// way the student attended them.
+export interface ExerciseSection {
+  /** Canonical lookup key — equals the record-key when sectionConfigs is a map
+   *  (which is what questions store in `q.sectionId`). */
+  key: string;
+  name: string;
+  id: string;
+  order: number;
+}
+
+const sectionRawToArray = (value: any): any[] => {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value === "object") {
+    return Object.entries(value).map(([key, sec]: [string, any]) => ({ ...(sec as object), _recordKey: key }));
+  }
+  return [];
+};
+
+export const getExerciseSections = (exercise: Loose | null | undefined): ExerciseSection[] => {
+  if (!exercise) return [];
+  const rawArr = exercise.sectionConfigs
+    ? sectionRawToArray(exercise.sectionConfigs)
+    : sectionRawToArray(exercise.sections);
+  return rawArr
+    .map((s: any): ExerciseSection => {
+      const recordKey = s._recordKey as string | undefined;
+      const name = s.name || s.sectionName || recordKey || s.id || s.sectionId || "";
+      const id = s.id || s.sectionId || recordKey || name;
+      return { key: recordKey || name || id, name, id, order: s.order ?? s.sectionNumber ?? 0 };
+    })
+    .sort((a, b) => a.order - b.order);
+};
+
+export const isExerciseSectionBased = (exercise: Loose | null | undefined): boolean => {
+  if (!exercise) return false;
+  if (exercise.exerciseType === "SectionBased" || exercise.isSectionBased === true) return true;
+  return getExerciseSections(exercise).length > 0;
+};
+
+/** Convenience for the report modal: locate the exercise and return whether it
+ *  is section-based plus its ordered section list. */
+export const getExerciseSectionInfo = (
+  courseData: Loose | null | undefined,
+  exerciseId: string,
+): { isSectionBased: boolean; sections: ExerciseSection[] } => {
+  const exercise = findExerciseInCourseData(courseData, exerciseId);
+  if (!exercise) return { isSectionBased: false, sections: [] };
+  return { isSectionBased: isExerciseSectionBased(exercise), sections: getExerciseSections(exercise) };
+};
+
+// Match a question to its owning section. `q.sectionId` may equal the section's
+// name, id, OR record-key (same triple-match SectionBasedTestPage uses).
+const resolveQuestionSection = (q: Loose, sections: ExerciseSection[]): { id: string; name: string } => {
+  const sid = q?.sectionId != null ? String(q.sectionId) : "";
+  if (!sid) return { id: "", name: "" };
+  const sec = sections.find(s => sid === s.name || sid === s.id || sid === s.key);
+  return sec ? { id: sec.id, name: sec.name } : { id: sid, name: sid };
 };
 
 // ─── Per-question max score ─────────────────────────────────────────────────
@@ -176,6 +284,11 @@ export const getQuestionMaxScore = (exercise: Loose, question: Loose): number =>
 export const getDynamicExerciseTotal = (exercise: Loose | null | undefined): number => {
   if (!exercise || !Array.isArray(exercise.questions) || exercise.questions.length === 0) return 0;
 
+  // Prefer the stored totalMarks from exerciseInformation (covers Combined/Section-based)
+  if (exercise.exerciseInformation?.totalMarks && exercise.exerciseInformation.totalMarks > 0) {
+    return exercise.exerciseInformation.totalMarks;
+  }
+
   const ss = exercise.scoreSettings;
   if (ss) {
     const { scoreType, totalMarks, evenMarks, levelBasedMarks, levelScoringConfiguration } = ss;
@@ -219,6 +332,67 @@ const isQuestionMCQ = (q: Loose | null | undefined): boolean => {
   return (q.questionType?.toLowerCase() === "mcq") || (!q.title && !!q.mcqQuestionTitle);
 };
 
+// ─── Performance scale (grade bands) ────────────────────────────────────────
+// Teachers configure a percentage-banded scale in Grade Settings (e.g.
+// 0–40 "Poor", 40–60 "Average", 60–80 "Good", 80–100 "Excellent"). It's
+// persisted on the exercise as `gradeSettings.gradeBands`. The report maps each
+// student's percentage onto its band so the "Scale" column reads "Average" etc.
+export interface GradeBand {
+  label: string;
+  fromPercent: number;
+  toPercent: number;
+}
+
+// Mirrors GradeSettingsStep's DEFAULT_GRADE_BANDS so exercises saved before the
+// scale was editable still show a sensible band instead of a dash.
+const DEFAULT_GRADE_BANDS: GradeBand[] = [
+  { label: "Poor", fromPercent: 0, toPercent: 40 },
+  { label: "Average", fromPercent: 40, toPercent: 60 },
+  { label: "Good", fromPercent: 60, toPercent: 80 },
+  { label: "Excellent", fromPercent: 80, toPercent: 100 },
+];
+
+/** Pull the performance-scale bands stored on the exercise's grade settings,
+ *  normalized + sorted ascending. Falls back to the recommended default scale
+ *  when the exercise has none configured. */
+export const getExerciseGradeBands = (
+  courseData: Loose | null | undefined,
+  exerciseId: string,
+): GradeBand[] => {
+  const exercise = findExerciseInCourseData(courseData, exerciseId);
+  const raw = exercise?.gradeSettings?.gradeBands;
+  if (!Array.isArray(raw) || raw.length === 0) return DEFAULT_GRADE_BANDS;
+  const bands = raw
+    .map((b: Loose): GradeBand => ({
+      label: typeof b?.label === "string" ? b.label : String(b?.label ?? ""),
+      fromPercent: Number(b?.fromPercent) || 0,
+      toPercent: Number(b?.toPercent) || 0,
+    }))
+    .filter((b) => b.label.trim() !== "")
+    .sort((a, b) => a.fromPercent - b.fromPercent);
+  return bands.length > 0 ? bands : DEFAULT_GRADE_BANDS;
+};
+
+/** Map a percentage (0–100) onto its scale label. Each band covers
+ *  `[fromPercent, toPercent)`; the band that reaches 100 is inclusive so a
+ *  perfect score still lands. Returns "" when pct is null or no band matches. */
+export const scaleForPercent = (
+  pct: number | null | undefined,
+  bands: GradeBand[],
+): string => {
+  if (pct == null || !Number.isFinite(pct) || bands.length === 0) return "";
+  for (const b of bands) {
+    const inclusiveTop = b.toPercent >= 100;
+    if (pct >= b.fromPercent && (inclusiveTop ? pct <= b.toPercent : pct < b.toPercent)) {
+      return b.label;
+    }
+  }
+  // Defensive: above every band → top label; below every band → bottom label.
+  const last = bands[bands.length - 1];
+  if (pct >= last.toPercent) return last.label;
+  return bands[0].label;
+};
+
 // ─── Pull a single participant's answers for one exercise ───────────────────
 const getAnswersForExercise = (
   participant: Loose,
@@ -230,25 +404,31 @@ const getAnswersForExercise = (
   const course = courses.find((c: Loose) => c.courseId === courseId);
   if (!course?.answers) return [];
 
+  // Mirrors reviewSubmission's `extractAll`: `answers.We_Do` / `answers.You_Do`
+  // are open Maps keyed verbatim by whatever the submitting client sent as
+  // `subcategory` (answer.js: `exerciseKey = subcategory`, stored with no
+  // normalisation), so there is no fixed key set to enumerate — take every
+  // array. The allowlist this replaces made the dashboard disagree with the
+  // grading console about whether a student had submitted at all.
   const collect = (catObj: Loose | undefined): Loose[] => {
-    if (!catObj) return [];
+    if (!catObj || typeof catObj !== "object") return [];
     const out: Loose[] = [];
-    // Mirror reviewSubmission: scan every plausible subcategory bucket so we
-    // don't miss assignments / practical / assessments / the `assesment` typo etc.
-    for (const key of ["assignments", "practical", "project_development", "assessments", "assesments", "assesment"]) {
-      if (Array.isArray(catObj[key])) out.push(...catObj[key]);
+    for (const bucket of Object.values(catObj)) {
+      if (Array.isArray(bucket)) out.push(...bucket);
     }
     return out;
   };
 
   const all = [...collect(course.answers.We_Do), ...collect(course.answers.You_Do)];
 
+  const exId = idOf(exercise._id);
+  const exInfoId = idOf(exercise.exerciseInformation?.exerciseId);
   return all.filter((ans) => {
-    const aid = ans?.exerciseId;
+    const aid = idOf(ans?.exerciseId);
     if (!aid) return false;
-    if (aid === exercise._id) return true;
-    if (aid === exercise.exerciseInformation?.exerciseId) return true;
-    if (typeof exercise._id === "string" && aid.includes(exercise._id)) return true;
+    if (exId && aid === exId) return true;
+    if (exInfoId && aid === exInfoId) return true;
+    if (exId && aid.includes(exId)) return true;
     return false;
   });
 };
@@ -262,9 +442,32 @@ export interface StudentMarks {
   /** True if the student has at least one persisted answer for this exercise.
    *  Lets the UI render "—" for not-yet-attempted students instead of "0". */
   hasSubmitted: boolean;
+  /** True if any matched answer document has a final-state parent status
+   *  (`status: "completed" | "submitted" | "solved"`). Used by the live
+   *  dashboard to promote the Test Status badge to "Submitted" even when
+   *  the live-session `submitted` flag never flipped because the student
+   *  walked away from the room without pressing the final Submit button. */
+  parentSubmitted: boolean;
+  /** Total number of questions in the exercise (MCQ + Programming + Others).
+   *  Computed from the exercise definition, not the backend's live-dashboard
+   *  response — which may under-count for Combined/Section-based exercises. */
+  totalQuestions: number;
+  /** Number of questions the student has actually answered (has a submission
+   *  with content). */
+  completedQuestions: number;
 }
 
-const EMPTY: StudentMarks = { totalMarks: 0, scoredMarks: 0, hasSubmitted: false };
+const EMPTY: StudentMarks = { totalMarks: 0, scoredMarks: 0, hasSubmitted: false, parentSubmitted: false, totalQuestions: 0, completedQuestions: 0 };
+
+// Final-state parent statuses written either by the backend on full Submit
+// or by the per-question auto-grader on a passing solved test. Any of these
+// counts as "the student has finished this assessment".
+const SUBMITTED_PARENT_STATUSES = new Set(["completed", "submitted", "solved"]);
+
+const isParentDocSubmitted = (ans: Loose): boolean => {
+  const s = String(ans?.status || "").toLowerCase();
+  return SUBMITTED_PARENT_STATUSES.has(s);
+};
 
 /**
  * Compute one student's marks for one exercise. Returns zeros + hasSubmitted=false
@@ -283,29 +486,36 @@ export const computeStudentMarks = (args: {
   if (!exercise) return EMPTY;
 
   const totalMarks = getDynamicExerciseTotal(exercise);
+  const allQuestions = exercise.questions || [];
+  const totalQuestions = allQuestions.length;
   const answers = getAnswersForExercise(participant, courseId, exercise);
   if (answers.length === 0) {
-    return { totalMarks, scoredMarks: 0, hasSubmitted: false };
+    return { totalMarks, scoredMarks: 0, hasSubmitted: false, parentSubmitted: false, totalQuestions, completedQuestions: 0 };
   }
 
-  // Build a map of questionId → latest submission across all answer groups,
-  // preferring evaluated > attempted > pending. Some students have multiple
-  // submission rows (retest attempts) for the same exercise; we want the
-  // freshest/highest-status row per question.
+  // Any matched answer doc with a terminal parent status counts as "the
+  // student has submitted this assessment". Drives the live-dashboard
+  // Test Status badge ("Submitted" vs "Not Started").
+  const parentSubmitted = answers.some(isParentDocSubmitted);
+
+  // Build a map of questionId → best submission across all answer groups.
+  // Keys are normalized via `idOf` so a raw ObjectId / `{$oid:...}` wrapper
+  // and a plain hex string both land in the same bucket. We rank "evaluated"
+  // (grader saved) over "solved" (auto-grader passed) over "submitted" over
+  // "attempted", with newest-submittedAt as the tie-breaker.
   const subByQ = new Map<string, Loose>();
   for (const ans of answers) {
     for (const sub of ans?.questions || []) {
-      const qid = sub?.questionId;
+      const qid = idOf(sub?.questionId);
       if (!qid) continue;
       const existing = subByQ.get(qid);
       if (!existing) {
         subByQ.set(qid, sub);
         continue;
       }
-      // Prefer evaluated over attempted; otherwise keep the latest submittedAt.
-      const rank = (s: Loose) => (s?.status === "evaluated" ? 2 : s?.status === "attempted" ? 1 : 0);
-      if (rank(sub) > rank(existing)) subByQ.set(qid, sub);
-      else if (rank(sub) === rank(existing) && (sub?.submittedAt || "") > (existing?.submittedAt || "")) {
+      if (submissionRank(sub) > submissionRank(existing)) subByQ.set(qid, sub);
+      else if (submissionRank(sub) === submissionRank(existing) &&
+               submissionRecency(sub) > submissionRecency(existing)) {
         subByQ.set(qid, sub);
       }
     }
@@ -317,14 +527,22 @@ export const computeStudentMarks = (args: {
   // `studentSubmitted` doesn't affect the totalled score (an unanswered
   // question contributes 0 either way), so we pass `false` here.
   let scoredMarks = 0;
-  for (const question of exercise.questions || []) {
-    const sub = subByQ.get(question._id);
+  let completedQuestions = 0;
+  for (const question of allQuestions) {
+    const sub = subByQ.get(idOf(question._id));
     if (!sub) continue; // no answer → 0 contribution
+    const hasAnswer = !!(
+      sub.codeAnswer ||
+      (Array.isArray(sub.files) && sub.files.length > 0) ||
+      (Array.isArray(sub.othersFiles) && sub.othersFiles.length > 0) ||
+      (sub.isCorrect !== undefined && sub.isCorrect !== null)
+    );
+    if (hasAnswer) completedQuestions++;
     const { scoredMark } = scoreOneQuestion(exercise, question, sub, false);
     scoredMarks += scoredMark;
   }
 
-  return { totalMarks, scoredMarks, hasSubmitted: true };
+  return { totalMarks, scoredMarks, hasSubmitted: true, parentSubmitted, totalQuestions, completedQuestions };
 };
 
 // ─── Per-question breakdown for the Report view's "Detailed Report" toggle ──
@@ -370,6 +588,11 @@ export interface QuestionBreakdownRow {
   submittedAt: string | null;
   /** Seconds. 0 if unattempted. */
   timeTakenSeconds: number;
+  /** Owning section's id for section-based assessments (Part A / Part B …).
+   *  Empty string for non-section exercises. */
+  sectionId: string;
+  /** Owning section's display name (e.g. "Part A"). Empty for non-section. */
+  sectionName: string;
 }
 
 // Match the title-normalization used by StudentDetailsPage — titles in the
@@ -486,26 +709,32 @@ export const getStudentQuestionsBreakdown = (args: {
   const exercise = findExerciseInCourseData(courseData, exerciseId);
   if (!exercise || !Array.isArray(exercise.questions)) return [];
 
+  // Resolve sections once so each row can carry its section (used by the
+  // report's "Section Based" grouping).
+  const sections = getExerciseSections(exercise);
+
   const answers = getAnswersForExercise(participant, courseId, exercise);
 
-  // De-dupe: prefer evaluated > attempted > anything else; tie-break by latest submittedAt.
+  // De-dupe with the same idOf + submissionRank rules `computeStudentMarks`
+  // uses, so the per-question detail panel can never disagree with the
+  // assessment total.
   const subByQ = new Map<string, Loose>();
   for (const ans of answers) {
     for (const sub of ans?.questions || []) {
-      const qid = sub?.questionId;
+      const qid = idOf(sub?.questionId);
       if (!qid) continue;
       const existing = subByQ.get(qid);
-      const rank = (s: Loose) => (s?.status === "evaluated" ? 2 : s?.status === "attempted" ? 1 : 0);
       if (!existing) subByQ.set(qid, sub);
-      else if (rank(sub) > rank(existing)) subByQ.set(qid, sub);
-      else if (rank(sub) === rank(existing) && (sub?.submittedAt || "") > (existing?.submittedAt || "")) {
+      else if (submissionRank(sub) > submissionRank(existing)) subByQ.set(qid, sub);
+      else if (submissionRank(sub) === submissionRank(existing) &&
+               submissionRecency(sub) > submissionRecency(existing)) {
         subByQ.set(qid, sub);
       }
     }
   }
 
   return exercise.questions.map((q: Loose, idx: number) => {
-    const sub = subByQ.get(q._id);
+    const sub = subByQ.get(idOf(q._id));
     const totalMark = getQuestionMaxScore(exercise, q);
     const { status, scoredMark, submittedAt, timeTakenSeconds: derivedTimeTaken } =
       scoreOneQuestion(exercise, q, sub, studentSubmitted);
@@ -524,6 +753,8 @@ export const getStudentQuestionsBreakdown = (args: {
     const rawTitle = q.title ?? q.mcqQuestionTitle ?? q.questionTitle ?? "";
     const title = asText(rawTitle) || `Question ${idx + 1}`;
 
+    const section = resolveQuestionSection(q, sections);
+
     return {
       questionId: String(q._id),
       questionNo: idx + 1,
@@ -534,6 +765,8 @@ export const getStudentQuestionsBreakdown = (args: {
       scoredMark,
       submittedAt,
       timeTakenSeconds,
+      sectionId: section.id,
+      sectionName: section.name,
     };
   });
 };

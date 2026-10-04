@@ -1,446 +1,589 @@
 "use client"
-import { Loading } from "@/components/loading-ui/loading";
-import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
-import { Button } from "@/components/ui/button";
-import { PlusIcon, Search, X, Filter, ChevronUp, ChevronDown, ArrowUp, ArrowDown, ArrowUpDown, XCircle } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import DashboardLayout from "../../component/layout";
-import { StaffLayout } from "../../component/stafflayout/staff-layout";
-import { motion, AnimatePresence } from 'framer-motion';
-import { useState, useEffect } from "react";
-import { UserTable } from '@/components/ui/alterationTable';
-import { courseStructureApi } from "@/apiServices/createCourseStucture";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
-import { CourseStatistics } from "./coursestructurecomponents/CourseStatistics";
-import { CourseFilters } from "./coursestructurecomponents/CourseFilters";
-import { CourseTableColumns } from "./coursestructurecomponents/CourseTableColumns";
-import { CourseModals } from "./coursestructurecomponents/CourseModals";
-import { useCoursePermissions } from "./coursestructurecomponents/types/useCoursePermissions";
-import { useCourseFilters } from "./coursestructurecomponents/types/useCourseFilters";
-import { CourseStructure, Permission, UserData } from "./coursestructurecomponents/types/index";
-import { getCurrentUser, getUserRole, hasPermission, formatDate } from "./coursestructurecomponents/types/util";
-import AddCourseSettingsPopup from "../../component/Addcoursestructure/addcoursestructurepopupcomp";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Course Setup — three stages over the service mappings:
+//
+//   1. Clients   — one row per CLIENT, with a Manage Courses action
+//   2. Hierarchy — that client's services, one section each, showing the
+//                  degree/department/section/semester tree the Map Service
+//                  wizard built and the courses already chosen inside it
+//   3. Setup     — the course's own details (description, image, level, I Do /
+//                  We Do / You Do, resources), with the course code generated
+//
+// Courses are NOT chosen here. The category and course name come from the
+// mapping; this module only decides which of them is being configured.
+// ─────────────────────────────────────────────────────────────────────────────
+
+import React, { useMemo, useRef, useState, useEffect } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { BarChart3, BookOpen } from 'lucide-react'
+import { Tabs, TabsList, TabsTrigger } from '@/app/lms/shared/ui/Tabs'
+import DashboardLayout from '../../component/layout'
+import { useServiceMapping, useMappingsByClient, serviceMappingKeys, type ServiceMapping } from '@/app/lms/pages/servicemapping/api/serviceMappingService'
+import { fetchCourseStructuresSummary, fetchEnrolledCourseStructuresSummary } from '@/app/lms/pages/coursestructure/api/createCourseStucture'
+import { useTrainerEnrolledScope } from '@/lib/useTrainerEnrolledScope'
+import MappingList from './components/MappingList'
+import HierarchyPicker from './components/HierarchyPicker'
+import CourseSetupPanel from './components/CourseSetupPanel'
+import CoursePreview from './components/CoursePreview'
+import CourseReportPage from './components/CourseReportPage'
+import { type CourseGroup } from './components/mappingTree'
+
+/** The top-level tab of the Course Setup page. `courses` shows the
+ *  existing mapping-driven workflow (the list, hierarchy picker and
+ *  setup panel); `report` swaps in the sibling report screen that
+ *  rolls the same course records up per client. */
+type TopTab = 'courses' | 'report'
+
+type Stage =
+    | { name: 'list' }
+    // A CLIENT, not a mapping: the list groups by client now, so Manage opens
+    // every service that client holds and the picker renders one section each.
+    // `focusMappingId` is which section to expand and scroll to — set when a
+    // ?openMappingId deep link resolved to this client, so an old link still
+    // lands on the exact service it named.
+    // `openActionsForCourseId` reopens one course's Course Actions modal on
+    // arrival — set when this stage is entered by backing out of that course's
+    // setup panel, so Back / Close return to the modal they came from.
+    | {
+        name: 'hierarchy'
+        clientId: string
+        focusMappingId?: string | null
+        openActionsForCourseId?: string | null
+    }
+    // `courseId` pins the record when the stage is entered straight after a
+    // save: the invalidated query has not refetched yet, so the id cannot be
+    // looked up from the (stale) record list at that moment.
+    | { name: 'setup'; mapping: ServiceMapping; course: CourseGroup; readOnly?: boolean; courseId?: string }
+    // The student-facing presentation of a just-saved course. Unlike setup's
+    // optional pin, the id is required here: the preview fetches the SAVED
+    // record, and without an id there is nothing to fetch.
+    | { name: 'preview'; mapping: ServiceMapping; course: CourseGroup; courseId: string }
 
 export default function CourseStructurePage() {
-    const [userRole, setUserRole] = useState<string>('');
-    const queryClient = useQueryClient();
-    const router = useRouter();
-    
-    // UI States
-    const [isPopupOpen, setIsPopupOpen] = useState(false);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [currentPage, setCurrentPage] = useState(1);
-    const [courseToEdit, setCourseToEdit] = useState<string | null>(null);
-    const [showDeleteModal, setShowDeleteModal] = useState(false);
-    const [courseToDelete, setCourseToDelete] = useState<CourseStructure | null>(null);
-    const [isDeleting, setIsDeleting] = useState(false);
-    const [showFullDetails, setShowFullDetails] = useState(false);
-    const [courseForDetails, setCourseForDetails] = useState<CourseStructure | null>(null);
-    const [selectedCourse, setSelectedCourse] = useState<CourseStructure | null>(null);
-    const [selectedClient, setSelectedClient] = useState<any>(null);
-    const [selectedHierarchy, setSelectedHierarchy] = useState<any>(null);
-    const [selectedPedagogy, setSelectedPedagogy] = useState<any>(null);
-    const [currentTheme, setCurrentTheme] = useState<'light' | 'dark'>('light');
-    
-    // Filters
-    const {
-        showFilters,
-        setShowFilters,
-        statusFilter,
-        setStatusFilter,
-        categoryFilter,
-        setCategoryFilter,
-        levelFilter,
-        setLevelFilter,
-        sortField,
-        setSortField,
-        sortDirection,
-        setSortDirection,
-        clearFilters
-    } = useCourseFilters();
-    
-    // Permissions
-    const {
-        userPermissions,
-        canAddCourse,
-        canAddCourseStructure,
-        hasAnyCoursePermission,
-        userData
-    } = useCoursePermissions();
+    const router = useRouter()
+    const searchParams = useSearchParams()
+    const queryClient = useQueryClient()
+    /** Which top-level tab is showing. The Courses tab holds the
+     *  existing multi-stage flow untouched; the Report tab shows the
+     *  per-client roll-up. Default is 'courses' so the page opens on
+     *  the workflow it always has. */
+    const [tab, setTab] = useState<TopTab>('courses')
+    const [stage, setStage] = useState<Stage>({ name: 'list' })
+    // Bumped when the setup panel leaves edit mode, to remount it. Cancel Edit
+    // has to drop whatever was typed and not saved, and the panel seeds its
+    // form from the record once on mount — so a fresh mount is the reset. Only
+    // this direction remounts: entering edit mode has nothing to throw away and
+    // should not flash the loading skeleton.
+    const [setupResetKey, setSetupResetKey] = useState(0)
 
-    // Get user role from localStorage
+    // Which page of the client list to come back to.
+    //
+    // MappingList is unmounted while a mapping is open (the stages swap under
+    // one AnimatePresence), so it cannot remember this itself — every
+    // "Manage → Back to clients" used to drop the user back on page 1 however
+    // far into the list they had drilled. This component stays mounted for the
+    // whole visit, so it can hand the page back.
+    //
+    // Scoped to the visit ON PURPOSE. A reload, or arriving from another page,
+    // remounts this component and starts at 1 — which is what a refresh is
+    // expected to do. Keeping it in the URL or at module scope would survive
+    // both, and the stale number could not even be trusted on a cold load:
+    // pageSize is fitted to the viewport AFTER first paint, so the restored
+    // page could land out of range and get clamped to something arbitrary.
+    const [listPage, setListPage] = useState(1)
+
+    // Deep-link: arriving with ?openMappingId=<id> (e.g. from the User Enrolment
+    // breadcrumb) opens that mapping's hierarchy directly instead of the client
+    // list. It used to look the id up in the full mapping list this page held;
+    // with the list paginated the mapping is usually NOT on the page that
+    // happens to be loaded, so the one record is fetched by id instead.
+    //
+    // Only while still on the list stage: the query is disabled the moment a
+    // mapping is open, so drilling in (which writes the id into the URL) never
+    // costs a request, and the effect can never yank the user back out of a
+    // hierarchy they navigated to.
+    const openMappingId = searchParams.get('openMappingId')
+    // Arriving straight from "Do now" on the Service Mapping success prompt:
+    // open the new mapping's hierarchy AND that course's Course Actions, so the
+    // jump lands on the setup choices rather than on a list to hunt through.
+    const openCourseId = searchParams.get('openCourseId')
+    const wantsDeepLink = Boolean(openMappingId) && stage.name === 'list'
+    const { data: deepLinkMapping } = useServiceMapping(
+        wantsDeepLink ? (openMappingId as string) : undefined
+    )
+    // The id whose hierarchy is already open, so the effect below opens each
+    // one ONCE.
+    //
+    // Without it, Back needs two clicks: setStage('list') commits before
+    // router.replace has cleared ?openMappingId, so for one render the effect
+    // sees wantsDeepLink=true and re-opens the hierarchy it was just asked to
+    // leave — the URL goes clean while the screen stays on the mapping.
+    //
+    // It must be armed on BOTH ways in. The effect sets it for a genuine
+    // deep-link; onOpen sets it when the user clicks Manage, which is the case
+    // that was missing. On that path the effect never runs (stage is already
+    // 'hierarchy', so the query is disabled and deepLinkMapping stays
+    // undefined), so the ref stayed null and the guard was inert — which is
+    // why Back misbehaved only after clicking Manage, and only when the detail
+    // query could resolve inside that one-render window.
+    const openedDeepLinkRef = useRef<string | null>(null)
     useEffect(() => {
-        const role = getUserRole();
-        setUserRole(role);
-        
-        const handleStorageChange = () => {
-            const updatedRole = getUserRole();
-            setUserRole(updatedRole);
-        };
-        
-        window.addEventListener('storage', handleStorageChange);
-        
-        const observer = new MutationObserver(() => {
-            setCurrentTheme(document.documentElement.classList.contains('dark') ? 'dark' : 'light');
-        });
-        observer.observe(document.documentElement, { attributes: true });
-        
-        return () => {
-            window.removeEventListener('storage', handleStorageChange);
-            observer.disconnect();
-        };
-    }, []);
+        if (!wantsDeepLink || !deepLinkMapping) return
+        if (deepLinkMapping._id !== openMappingId) return
+        if (openedDeepLinkRef.current === openMappingId) return
+        const cid = typeof deepLinkMapping.client === 'string'
+            ? deepLinkMapping.client
+            : deepLinkMapping.client?._id || ''
+        if (!cid) return
+        openedDeepLinkRef.current = openMappingId
+        // A ?openMappingId link names ONE service, but the picker is per client
+        // now — so the mapping is resolved to its client and its own section is
+        // the one focused. Every existing link (L&D dashboard, course
+        // participants, feedback, returnTo) keeps landing where it meant to.
+        setStage({
+            name: 'hierarchy',
+            clientId: cid,
+            focusMappingId: openMappingId,
+            openActionsForCourseId: openCourseId,
+        })
+    }, [openMappingId, openCourseId, deepLinkMapping, wantsDeepLink])
 
-    // Fetch data
-    const { data: courseStructures = [], isLoading, error } = useQuery(courseStructureApi.getAll());
-    const deleteMutation = useMutation({
-        mutationFn: (courseId: string) => courseStructureApi.delete(courseId).mutationFn(),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['courseStructures'] });
-            setShowDeleteModal(false);
-            setCourseToDelete(null);
-        },
-        onError: (error: Error) => {
-            console.error('Delete failed:', error);
-            alert('Failed to delete course structure');
+    // The drill-in's own param. `openMappingId` above is the legacy spelling
+    // other pages still link with; this is what Manage writes, and what a
+    // reload or a Back from an Actions destination restores the picker from.
+    const openClientIdParam = searchParams.get('openClientId')
+    useEffect(() => {
+        if (!openClientIdParam || stage.name !== 'list') return
+        if (openedDeepLinkRef.current === openClientIdParam) return
+        openedDeepLinkRef.current = openClientIdParam
+        setStage({ name: 'hierarchy', clientId: openClientIdParam, openActionsForCourseId: openCourseId })
+    }, [openClientIdParam, openCourseId, stage.name])
+
+    // The open client's services, fetched only while the picker is on screen.
+    // The table row carries counts, not mappings — that is what makes the
+    // grouped list cheap — so the real list is asked for here, bounded by one
+    // client's service count. Same hook Service Mapping's Manage Services uses.
+    const openClientId = stage.name === 'hierarchy' ? stage.clientId : null
+    const { data: allClientMappings = [], isLoading: clientMappingsLoading } =
+        useMappingsByClient(openClientId)
+
+    // A trainer sees only what it is enrolled in: the client list is already
+    // scoped server-side (scope=enrolled), and here the open client's services
+    // are cut down to the courses the trainer is enrolled in — services left
+    // with none are dropped. Everyone else sees the full list as before.
+    const enrolledOnly = useTrainerEnrolledScope()
+    const { data: enrolledRes, isLoading: enrolledLoading } = useQuery({
+        queryKey: ['courseStructures', 'summary', 'enrolled'],
+        queryFn: fetchEnrolledCourseStructuresSummary,
+        enabled: enrolledOnly === true,
+        staleTime: 30_000,
+    })
+
+    // Every existing course-structure record, used to answer "does this course
+    // already have a setup?" and to keep generated course codes unique. The
+    // ?summary=1 projection carries exactly the fields this page reads (ids,
+    // codes, mapping placement, counts) — a fraction of the full deep-populated
+    // payload. Shares the 'courseStructures' root so this page's save
+    // invalidation (below) and other pages' course mutations refresh it too.
+    // Still fetched on the list stage even though the list no longer reads it:
+    // the hierarchy and setup stages do, and it is what gates their Program
+    // Calendar / Course Structure actions. This is NOT a list and must not be
+    // paginated — it is a lookup keyed by course.
+    const { data: coursesRes, isLoading: coursesLoading } = useQuery({
+        queryKey: ['courseStructures', 'summary'],
+        queryFn: fetchCourseStructuresSummary,
+        staleTime: 30_000,
+        // Always re-ask on mount: structure and pedagogy hours are edited on
+        // OTHER pages (pedagogy2) that don't invalidate this cache, and a
+        // stale list here leaves gated actions (Program Calendar) wrongly
+        // disabled after the user just earned them.
+        refetchOnMount: 'always',
+    })
+
+    const courseRecords: Array<Record<string, unknown>> = useMemo(() => {
+        const raw = coursesRes as { data?: unknown } | undefined
+        const list = Array.isArray(raw?.data) ? raw.data : Array.isArray(raw) ? raw : []
+        return list as Array<Record<string, unknown>>
+    }, [coursesRes])
+
+    // A setup is matched on client + mapping + course name: the same course name
+    // mapped under a different service is a genuinely different course, so it
+    // must not inherit another mapping's setup. Records saved before mappingId
+    // existed carry none, and they keep the old client + name identity — without
+    // that fallback every pre-existing setup would flip to "not set up" the
+    // moment this shipped.
+    //
+    // `moduleCount` is how many Module1 docs the course has, and it is what
+    // separates "set up" from "structured": a course with a setup but no modules
+    // has nothing for the Program Calendar to schedule.
+    const courseStatusFor = useMemo(() => {
+        const byKey = new Map<string, { id: string; moduleCount: number; participantCount: number; exerciseCount: number; courseCode: string; hasModuleHours: boolean; hasProgramCalendar: boolean; hasSubmissions: boolean }>()
+        courseRecords.forEach((c) => {
+            const name = String(c.courseName || '').trim().toLowerCase()
+            const client = String(c.clientId || '').trim()
+            const recordMappingId = String(c.mappingId || '').trim()
+            const recordPath = String(c.coursePath || '').trim().toLowerCase()
+            const id = String(c._id || c.id || '')
+            if (!name || !id) return
+            const entry = {
+                id,
+                moduleCount: Number(c.moduleCount) || 0,
+                // Enrolled-user count from the server. The Program Calendar
+                // ungates on EITHER this or moduleCount, so a course full of
+                // auto-enrolled students can be scheduled before its structure
+                // is built.
+                participantCount: Number(c.participantCount) || 0,
+                exerciseCount: Number(c.exerciseCount) || 0,
+                courseCode: String(c.courseCode || ''),
+                // Program Calendar's gate: the server sets this only when the
+                // course has ≥1 module AND pedagogy hours to plan from.
+                hasModuleHours: Boolean(c.hasModuleHours),
+                hasProgramCalendar: Boolean(c.hasProgramCalendar),
+                // Report's gate: some enrolled learner has submitted an
+                // assignment or assessment.
+                hasSubmissions: Boolean(c.hasSubmissions),
+            }
+            if (recordMappingId && recordPath) {
+                byKey.set(`${client}::${recordMappingId}::${recordPath}::${name}`, entry)
+                return
+            }
+            // Records from before courses were identified by place. They are
+            // indexed under the pathless keys ONLY — a record that HAS a path
+            // must never answer for a different place, which is the whole bug.
+            // The consequence is deliberate: the first time such a record is
+            // edited it gains a path and stops matching the other placements,
+            // which then correctly read as "Not set up" and get their own
+            // setups. Same adoption rule the mappingId fix already uses.
+            byKey.set(recordMappingId ? `${client}::${recordMappingId}::${name}` : `${client}::${name}`, entry)
+        })
+        return (clientId: string, mappingId: string, courseName: string, coursePath = '') => {
+            const name = courseName.trim().toLowerCase()
+            const path = coursePath.trim().toLowerCase()
+            return (
+                (path ? byKey.get(`${clientId}::${mappingId}::${path}::${name}`) : undefined) ||
+                byKey.get(`${clientId}::${mappingId}::${name}`) ||
+                byKey.get(`${clientId}::${name}`) ||
+                null
+            )
         }
-    });
+    }, [courseRecords])
 
-    // Calculate statistics
-    const calculateStatistics = (courses: CourseStructure[]) => {
-        const now = new Date();
-        const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        
-        const totalCourses = courses.length;
-        const recentCourses = courses.filter(course => 
-            new Date(course.createdAt || course.updatedAt) >= sevenDaysAgo
-        ).length;
-        const activeCourses = courses.filter(course => course.isActive === true).length;
+    const enrolledIds = useMemo(() => {
+        const raw = enrolledRes as { data?: unknown } | undefined
+        const list = Array.isArray(raw?.data) ? raw.data : Array.isArray(raw) ? raw : []
+        return new Set((list as Array<Record<string, unknown>>).map((c) => String(c._id || c.id || '')))
+    }, [enrolledRes])
+    const openClientMappings = useMemo(() => {
+        if (enrolledOnly !== true || !openClientId) return allClientMappings
+        return allClientMappings
+            .map((m) => ({
+                ...m,
+                courses: (m.courses || []).filter((c) => {
+                    const id = courseStatusFor(openClientId, m._id, c.courseName || '', c.path || '')?.id
+                    return Boolean(id && enrolledIds.has(id))
+                }),
+            }))
+            .filter((m) => m.courses.length > 0)
+    }, [enrolledOnly, openClientId, allClientMappings, courseStatusFor, enrolledIds])
+    const hierarchyLoading = clientMappingsLoading || (enrolledOnly === true && (enrolledLoading || coursesLoading)) || enrolledOnly === null
 
-        return {
-            total: totalCourses,
-            recent: recentCourses,
-            active: activeCourses
-        };
-    };
+    // Codes saved this session, before the invalidated query has refetched.
+    // Without them, setting up two courses back to back generates the same code
+    // twice — the second panel mounts against the stale record list, and the
+    // server then rejects the duplicate with nothing useful on screen.
+    const [sessionCodes, setSessionCodes] = useState<string[]>([])
+    // Same staleness problem, other direction: a course created this session is
+    // not in the record list until the refetch lands, so reopening it straight
+    // away would look like "not set up" and a second save would CREATE A SECOND
+    // RECORD under a fresh code. Keyed exactly like courseStatusFor's index.
+    const [sessionIds, setSessionIds] = useState<Record<string, string>>({})
+    const sessionKeyFor = (clientId: string, mappingId: string, courseName: string, coursePath = '') =>
+        `${clientId}::${mappingId}::${coursePath.trim().toLowerCase()}::${courseName.trim().toLowerCase()}`
+    const existingCourseIds = useMemo(
+        () => new Set([
+            ...courseRecords.map((c) => String(c.courseCode || '')).filter(Boolean),
+            ...sessionCodes,
+        ]),
+        [courseRecords, sessionCodes]
+    )
 
-    const statistics = calculateStatistics(courseStructures);
-    
-    // Filter and sort data
-    let filteredStructures = courseStructures.filter((structure: CourseStructure) => {
-        const matchesSearch = 
-            structure.courseName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            structure.courseCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            structure.clientData?.clientCompany.toLowerCase().includes(searchTerm.toLowerCase());
+    const clientIdOf = (m: ServiceMapping) =>
+        typeof m.client === 'string' ? m.client : m.client?._id || ''
 
-        const matchesStatus = statusFilter === 'all' || structure.status === statusFilter;
-        const matchesCategory = categoryFilter === 'all' || structure.category === categoryFilter;
-        const matchesLevel = levelFilter === 'all' || structure.courseLevel === levelFilter;
+    // The Configured tile's count and each row's configured/total used to be
+    // computed here, by walking EVERY mapping against the course-structure
+    // records. Both are whole-set numbers that one page of mappings cannot
+    // produce, so they moved to the server (getSetupProgress) and now arrive
+    // with the page — as `stats` for the tiles and `setupProgress` per row.
+    // `courseStatusFor` above stays: the hierarchy and setup stages still ask
+    // it about the ONE mapping that is open.
 
-        return matchesSearch && matchesStatus && matchesCategory && matchesLevel;
-    });
+    // Forward into a stage slides one way, back the other, so the two read as
+    // different moves rather than the same animation twice. The value used to
+    // drive an `x: dir * 16 → 0 → dir * -16` slide on the AnimatePresence
+    // motion.div; the slide was dropped for a plain fade (see the comment on
+    // the AnimatePresence below), so `dir` is not read any more. Kept as a
+    // comment so a reader can put the slide back with one line if the fade
+    // feels too flat.
 
-    // Get unique values for filters
-    const categories = [...new Set(courseStructures.map((course: CourseStructure) => course.category))] as string[];
-    const levels = [...new Set(courseStructures.map((course: CourseStructure) => course.courseLevel))] as string[];
+    // The course record the setup stage is working on. Needed twice — as the
+    // panel's existingCourseId, and as the row whose Course Actions modal
+    // reopens when the user backs out of the panel — so it is resolved once
+    // here rather than spelled out again inside the handler.
+    const setupCourseId = stage.name !== 'setup' ? null : (
+        stage.courseId
+        || sessionIds[sessionKeyFor(clientIdOf(stage.mapping), stage.mapping._id, stage.course.courseName, stage.course.path)]
+        || courseStatusFor(clientIdOf(stage.mapping), stage.mapping._id, stage.course.courseName, stage.course.path)?.id
+        || null
+    )
 
-    // Apply sorting
-    if (sortField) {
-        filteredStructures = [...filteredStructures].sort((a: any, b: any) => {
-            let aValue, bValue;
-
-            switch (sortField) {
-                case 'date':
-                    aValue = new Date(a.updatedAt).getTime();
-                    bValue = new Date(b.updatedAt).getTime();
-                    break;
-                case 'courseName':
-                    aValue = a.courseName.toLowerCase();
-                    bValue = b.courseName.toLowerCase();
-                    break;
-                case 'clientName':
-                    aValue = (a.clientData?.clientCompany || a.clientName).toLowerCase();
-                    bValue = (b.clientData?.clientCompany || b.clientName).toLowerCase();
-                    break;
-                default:
-                    return 0;
-            }
-
-            if (sortDirection === 'asc') {
-                return aValue > bValue ? 1 : -1;
-            } else {
-                return aValue < bValue ? 1 : -1;
-            }
-        });
-    } else {
-        filteredStructures = filteredStructures.sort((a: any, b: any) =>
-            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-        );
-    }
-
-    const itemsPerPage = 8;
-    const paginatedData = filteredStructures.slice(
-        (currentPage - 1) * itemsPerPage,
-        currentPage * itemsPerPage
-    );
-
-    const goToPedagogyPage = (courseId: string) => {
-        const query = new URLSearchParams({ courseId: courseId ?? '' }).toString();
-        router.push(`/lms/pages/coursestructure/pedagogy2?${query}`);
-    };
-
-    const confirmDelete = async () => {
-        if (!courseToDelete) return;
-        setIsDeleting(true);
-        try {
-            await deleteMutation.mutateAsync(courseToDelete._id);
-        } finally {
-            setIsDeleting(false);
-        }
-    };
-
-    const columns = CourseTableColumns({
-        sortField,
-        sortDirection,
-        handleSort: (field) => {
-            if (sortField === field) {
-                setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-            } else {
-                setSortField(field);
-                setSortDirection('asc');
-            }
-        },
-        getSortIcon: (field) => {
-            if (sortField !== field) {
-                return <ArrowUpDown className="h-3 w-3 ml-1 opacity-60 dark:opacity-40" />;
-            }
-            return sortDirection === 'asc' ? <ArrowUp className="h-3 w-3 ml-1" /> : <ArrowDown className="h-3 w-3 ml-1" />;
-        },
-        setSelectedCourse,
-        setSelectedHierarchy,
-        setSelectedPedagogy,
-        canAddCourseStructure,
-        userPermissions,
-        goToPedagogyPage,
-        handleViewFullDetails: (course: CourseStructure) => {
-            setCourseForDetails(course);
-            setShowFullDetails(true);
-        },
-        handleEditCourse: (courseId: string) => {
-            setCourseToEdit(courseId);
-            setIsPopupOpen(true);
-        },
-        handleDeleteCourse: (course: CourseStructure) => {
-            setCourseToDelete(course);
-            setShowDeleteModal(true);
-        }
-    });
-
-    // Show loading state
-    if (userRole === '') {
-        return (
-            <div className={`min-h-screen flex items-center justify-center ${
-                currentTheme === 'dark' ? 'bg-gray-950' : 'bg-gray-50'
-            }`}>
-                <Loading size="size-8" />
-            </div>
-        );
-    }
-
-    // Check access
-    if (userRole !== 'admin' && userRole !== 'staff' && userRole !== 'programcoordinator' && userRole !== 'faculty') {
-        return (
-            <div className={`min-h-screen flex items-center justify-center ${
-                currentTheme === 'dark' ? 'bg-gray-950' : 'bg-gray-50'
-            }`}>
-                <div className="text-center">
-                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-                        <XCircle className="w-8 h-8 text-red-600 dark:text-red-400" />
-                    </div>
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Access Denied</h2>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">You don't have permission to access this page.</p>
-                </div>
-            </div>
-        );
-    }
-
-    const pageContent = (
-        <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, ease: "easeOut" }}
-            className="min-h-screen bg-white dark:bg-gray-950"
-        >
-            <div className="w-full px-0">
-                {/* Header Section */}
-                <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 w-full px-6 py-4">
-                    <div className="flex flex-col gap-4 w-full">
-                        <div className="flex items-center justify-between w-full">
-                            <div className="flex flex-col gap-1">
-                                <Breadcrumb className="flex-shrink-0">
-                                    <BreadcrumbList>
-                                        <BreadcrumbItem>
-                                            <BreadcrumbLink 
-                                                href={userRole === 'admin' ? "/lms/pages/admindashboard" : "/lms/pages/staffdashboard"}
-                                                className="text-xs text-blue-500 dark:text-blue-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors font-medium"
-                                            >
-                                                Dashboard
-                                            </BreadcrumbLink>
-                                        </BreadcrumbItem>
-                                        <BreadcrumbSeparator className="text-gray-400 dark:text-gray-600" />
-                                        <BreadcrumbItem>
-                                            <BreadcrumbPage className="text-xs font-semibold text-gray-900 dark:text-gray-100">
-                                                Course Management
-                                            </BreadcrumbPage>
-                                        </BreadcrumbItem>
-                                    </BreadcrumbList>
-                                </Breadcrumb>
-                                
-                                <div className="flex items-center gap-3">
-                                    <h1 className="text-xl font-bold text-gray-900 dark:text-white font-sans tracking-tight">
-                                        Course Structures
-                                    </h1>
-                                    <div className="h-4 w-px bg-gray-300 dark:bg-gray-700"></div>
-                                    <span className="text-sm text-gray-600 dark:text-gray-400 font-medium">
-                                        {filteredStructures.length} course{filteredStructures.length !== 1 ? 's' : ''}
-                                    </span>
-                                </div>
-                            </div>
-
-                            {canAddCourse && (
-                                <Button
-                                    onClick={() => setIsPopupOpen(true)}
-                                    className="h-9 text-sm font-medium bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 px-4 shadow-sm"
-                                >
-                                    <PlusIcon className="h-4 w-4 mr-2" />
-                                    Add Course
-                                </Button>
-                            )}
-                        </div>
-
-                        {/* Search and Stats Row */}
-                        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 w-full">
-                            <div className="flex-1 max-w-4xl">
-                                <div className="relative">
-                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500" />
-                                    <Input
-                                        type="text"
-                                        placeholder="Search courses, codes, clients, or categories..."
-                                        value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                        className="pl-10 pr-8 h-10 text-sm border-gray-300 dark:border-gray-700 focus:border-indigo-500 dark:focus:border-indigo-400 font-sans w-full bg-gray-50/50 dark:bg-gray-800/50 dark:text-gray-100 dark:placeholder-gray-500"
-                                    />
-                                    {searchTerm && (
-                                        <button
-                                            onClick={() => setSearchTerm('')}
-                                            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                                        >
-                                            <X className="h-4 w-4" />
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-                            
-                            <div className="flex items-center gap-3 flex-shrink-0">
-                                <CourseStatistics statistics={statistics} isLoading={isLoading} />
-                                
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setShowFilters(!showFilters)}
-                                    className={`flex items-center gap-2 h-9 text-xs font-medium border-gray-300 dark:border-gray-700 ${
-                                        showFilters 
-                                            ? 'bg-indigo-50 dark:bg-indigo-900/30 border-indigo-200 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300' 
-                                            : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300'
-                                    }`}
-                                >
-                                    <Filter className="h-4 w-4" />
-                                    Filters
-                                    {showFilters ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                                </Button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <CourseFilters
-                        showFilters={showFilters}
-                        statusFilter={statusFilter}
-                        setStatusFilter={setStatusFilter}
-                        categoryFilter={categoryFilter}
-                        setCategoryFilter={setCategoryFilter}
-                        levelFilter={levelFilter}
-                        setLevelFilter={setLevelFilter}
-                        sortField={sortField}
-                        setSortField={setSortField}
-                        sortDirection={sortDirection}
-                        setSortDirection={setSortDirection}
-                        categories={categories}
-                        levels={levels}
-                        clearFilters={clearFilters}
-                    />
+    return (
+        <DashboardLayout>
+            {/* Top-level tabs — same primitives Business Management uses
+                (`Tabs` / `TabsList` / `TabsTrigger`), so Courses / Report
+                sits at the top of the panel the same way Client Management
+                / Service Mapping / Reports do over there. Local state
+                drives the active value: the two views live on the same
+                route (no separate URL per tab), so no router push. */}
+            <Tabs
+                value={tab}
+                onValueChange={(value) => setTab(value as TopTab)}
+                activationMode="manual"
+                className="flex h-full min-h-0 min-w-0 flex-col"
+            >
+                {/* Pinned tab bar. The page's ONLY scroll container is the
+                    DashboardLayout <main> that wraps this page, so `sticky
+                    top-0` here parks the tab strip at the top of that scroll
+                    port while the client header, service sections and course
+                    hierarchies scroll normally underneath. No inner scrollers
+                    are added — HierarchyPicker still overflows into main.
+                    Opaque bg-surface matches the panel behind and prevents
+                    scrolling content from bleeding through; z-20 keeps it
+                    below the mobile burger (z-30) and below every dialog
+                    (z-popover), so overlays still cover the tabs. */}
+                <div className="no-print sticky top-0 z-20 bg-surface border-b border-hairline shrink-0 flex items-center justify-between gap-3 flex-wrap px-4 sm:px-6 md:px-8 pt-14 md:pt-2 pb-0">
+                    {/* Underline tabs: the active one gets the orange icon,
+                        orange label and a 2px orange bar sitting on the
+                        strip's bottom border; the other stays gray. */}
+                    <TabsList aria-label="Course structure sections" className="h-auto gap-1 rounded-none bg-transparent p-0 overflow-x-auto overflow-y-hidden">
+                        <TabsTrigger
+                            value="courses"
+                            className="relative mr-0 inline-flex h-10 flex-none items-center gap-2 whitespace-nowrap rounded-none rounded-t-lg border-0 bg-transparent px-3.5 text-sm font-bold tracking-tight text-subtle shadow-none hover:bg-row-hover hover:text-heading after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full after:bg-transparent data-[state=active]:bg-transparent data-[state=active]:text-brand-strong data-[state=active]:shadow-none data-[state=active]:after:bg-brand-500 [&[data-state=active]_svg]:text-brand-500"
+                        >
+                            <BookOpen className="h-4 w-4 shrink-0" aria-hidden="true" />
+                            Courses
+                        </TabsTrigger>
+                        <TabsTrigger
+                            value="report"
+                            className="relative mr-0 inline-flex h-10 flex-none items-center gap-2 whitespace-nowrap rounded-none rounded-t-lg border-0 bg-transparent px-3.5 text-sm font-bold tracking-tight text-subtle shadow-none hover:bg-row-hover hover:text-heading after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full after:bg-transparent data-[state=active]:bg-transparent data-[state=active]:text-brand-strong data-[state=active]:shadow-none data-[state=active]:after:bg-brand-500 [&[data-state=active]_svg]:text-brand-500"
+                        >
+                            <BarChart3 className="h-4 w-4 shrink-0" aria-hidden="true" />
+                            Report
+                        </TabsTrigger>
+                    </TabsList>
                 </div>
 
-                {/* Table Section */}
-                <div className="w-full px-6 pt-6">
-                    <div className="w-full">
-                        <div className="bg-white dark:bg-gray-900 overflow-hidden w-full rounded-lg border border-gray-200 dark:border-gray-800">
-                            <UserTable
-                                users={paginatedData}
-                                isLoading={isLoading}
-                                columns={columns}
-                                pagination={{
-                                    currentPage: currentPage,
-                                    totalPages: Math.ceil(filteredStructures.length / itemsPerPage),
-                                    totalItems: filteredStructures.length,
-                                    itemsPerPage: itemsPerPage,
-                                    onPageChange: (page) => setCurrentPage(page),
+                {/* No `TabsContent` per view — the two tabs share one host
+                    container so the existing multi-stage flow on Courses
+                    can keep its own AnimatePresence without being unmounted
+                    by a Radix tab swap. `min-h-0` lets the inner flex-1
+                    chain (list stage → table) still find the viewport
+                    bottom. */}
+                <div className="flex h-full min-h-0 flex-col">
+                {tab === 'report' ? (
+                    <div className="flex flex-1 min-h-0 flex-col">
+                        <CourseReportPage />
+                    </div>
+                ) : (
+                <>
+                {/* Stage transition: fade only, no horizontal slide.
+                    Previously used `x: dir * 16 → 0 → dir * -16` with
+                    mode="wait", so opening a heavy destination like
+                    Course setup showed the old panel sliding left, then
+                    the new panel sliding in from the right (~400ms of
+                    horizontal shuffle) which read as jank (2026-08-30
+                    user report — "first in center then going left").
+                    Fade-only keeps a subtle transition without moving
+                    layout, so nothing looks like it's flying. `dir` is
+                    still computed above so the old slide can be
+                    restored with one line if the fade feels too flat. */}
+                <AnimatePresence mode="wait" initial={false}>
+                    <motion.div
+                        key={stage.name}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.15, ease: 'easeOut' }}
+                        className="flex flex-1 min-h-0 flex-col"
+                    >
+                        {stage.name === 'list' && (
+                            // Self-fetching: the list owns its own search,
+                            // filters, sort and page, and those ARE the request
+                            // now, so the query lives with the state that
+                            // decides it rather than being threaded down. The
+                            // page is the one exception — it is handed in and
+                            // reported back, because it has to outlive this
+                            // component being unmounted (see listPage above).
+                            <MappingList
+                                initialPage={listPage}
+                                onPageChange={setListPage}
+                                // The stage lives in React state, so without the
+                                // URL carrying it, leaving for another page (an
+                                // Actions destination) and coming Back reloads
+                                // this page at its initial state — the clients
+                                // list — dumping the user out of the hierarchy
+                                // they were in. Mirroring the mapping into
+                                // ?openMappingId makes Back land where they left:
+                                // the deep-link effect above reopens it.
+                                onOpen={(clientId) => {
+                                    // Arms the guard above so the deep-link
+                                    // effect cannot re-open during the render
+                                    // where Back has cleared the stage but not
+                                    // yet the URL.
+                                    openedDeepLinkRef.current = clientId
+                                    setStage({ name: 'hierarchy', clientId })
+                                    router.replace(`/lms/pages/coursestructure?openClientId=${clientId}`)
                                 }}
                             />
-                        </div>
-                    </div>
+                        )}
+
+                        {stage.name === 'hierarchy' && (
+                            <HierarchyPicker
+                                mappings={openClientMappings}
+                                isLoading={hierarchyLoading}
+                                focusMappingId={stage.focusMappingId}
+                                // Takes the mapping id now: the picker renders
+                                // several services, so it has to say WHICH one
+                                // each course belongs to. Each section pre-binds
+                                // its own id before handing this down.
+                                statusFor={(mappingId, courseName, coursePath) =>
+                                    courseStatusFor(stage.clientId, mappingId, courseName, coursePath)}
+                                openActionsForCourseId={stage.openActionsForCourseId}
+                                // Clear the deep-link param too — left in the URL
+                                // it would re-open this hierarchy the moment the
+                                // list mounts, making Back to clients a no-op.
+                                onBack={() => {
+                                    // Do NOT clear openedDeepLinkRef here — the
+                                    // URL hasn't dropped ?openMappingId yet, so
+                                    // the very next render would see the ref
+                                    // cleared and re-open the hierarchy (which
+                                    // is exactly the "back doesn't work" bug
+                                    // the user reported). The ref stays set for
+                                    // this component's lifetime; a genuine
+                                    // re-visit from another page remounts the
+                                    // component and gets a fresh ref, so this
+                                    // doesn't break the deep-link on re-entry.
+                                    setStage({ name: 'list' })
+                                    router.replace('/lms/pages/coursestructure')
+                                }}
+                                // Both carry the mapping the course sits under —
+                                // the picker knows it, this stage no longer does.
+                                onSetup={(mapping, course) => setStage({ name: 'setup', mapping, course })}
+                                onView={(mapping, course) => setStage({ name: 'setup', mapping, course, readOnly: true })}
+                                // Both pages key off the COURSE STRUCTURE record's
+                                // id, not the mapping's — sending the wrong one
+                                // lands on a page with nothing to show.
+                                onProgramCalendar={(courseId) =>
+                                    router.push(`/lms/pages/coursestructure/programcalendar?courseId=${encodeURIComponent(courseId)}`)}
+                                onCourseStructure={(courseId) =>
+                                    router.push(`/lms/pages/coursestructure/pedagogy2?courseId=${encodeURIComponent(courseId)}`)}
+                                // The batch-aware Resources screen. It reads the
+                                // course's Resources-by-batch config and, when an
+                                // element is batch-wise, files uploads under the
+                                // batch picked in its strip.
+                                onCourseResources={(courseId) =>
+                                    router.push(`/lms/pages/coursestructure/uploadcourseresources?courseId=${encodeURIComponent(courseId)}`)}
+                                onCourseEnrollment={(courseId) =>
+                                    router.push(`/lms/pages/coursestructure/course-participants?courseId=${encodeURIComponent(courseId)}`)}
+                            />
+                        )}
+
+                        {stage.name === 'setup' && (
+                            <CourseSetupPanel
+                                key={`setup-${setupResetKey}`}
+                                mapping={stage.mapping}
+                                course={stage.course}
+                                existingCourseId={setupCourseId}
+                                existingCourseIds={existingCourseIds}
+                                readOnly={stage.readOnly}
+                                // Back to Course Action / Close / Cancel all land
+                                // on the modal this panel was opened from, not on
+                                // the bare tree behind it.
+                                onBack={() => setStage({ name: 'hierarchy', clientId: clientIdOf(stage.mapping), focusMappingId: stage.mapping._id, openActionsForCourseId: setupCourseId })}
+                                // From the READ-ONLY FORM (the hierarchy's View
+                                // action), Edit reopens the same course editable.
+                                // The student-facing preview stage below has its
+                                // own separate Edit.
+                                onEdit={() => setStage({ ...stage, readOnly: false })}
+                                // Back to the read-only face, reading the saved
+                                // record again — see setupResetKey above.
+                                onCancelEdit={() => {
+                                    setStage({ ...stage, readOnly: true })
+                                    setSetupResetKey((k) => k + 1)
+                                }}
+                                onSaved={(courseId, courseCode, action) => {
+                                    if (courseCode) setSessionCodes((prev) => [...prev, courseCode])
+                                    if (courseId) {
+                                        const key = sessionKeyFor(clientIdOf(stage.mapping), stage.mapping._id, stage.course.courseName, stage.course.path)
+                                        setSessionIds((prev) => ({ ...prev, [key]: courseId }))
+                                    }
+                                    // Refetch so the row flips to Configured and its
+                                    // follow-on actions appear without a reload — on
+                                    // BOTH paths, so the hierarchy behind the preview
+                                    // is already right when the user closes it.
+                                    queryClient.invalidateQueries({ queryKey: ['courseStructures'] })
+                                    // And the list, because the row's progress is
+                                    // now computed SERVER-side from those same
+                                    // records: without this the mapping the user
+                                    // just configured would still read as it did
+                                    // before the save.
+                                    queryClient.invalidateQueries({ queryKey: serviceMappingKeys.lists() })
+                                    // Save and display = the course as a student
+                                    // will see it. The preview fetches by id, so a
+                                    // create response that carried no id (nothing
+                                    // to fetch) falls back to the hierarchy, where
+                                    // the refetch above will surface the record.
+                                    if (action === 'display' && courseId) {
+                                        setStage({
+                                            name: 'preview',
+                                            mapping: stage.mapping,
+                                            course: stage.course,
+                                            courseId,
+                                        })
+                                    } else {
+                                        setStage({ name: 'hierarchy', clientId: clientIdOf(stage.mapping), focusMappingId: stage.mapping._id })
+                                    }
+                                }}
+                            />
+                        )}
+
+                        {stage.name === 'preview' && (
+                            <CoursePreview
+                                courseId={stage.courseId}
+                                fallbackName={stage.course.courseName}
+                                // Edit goes to the EDITABLE setup (not the read-only
+                                // form): the preview exists to check the student
+                                // view, and finding it wrong means changing it. The
+                                // pinned id keeps the load working before the
+                                // invalidated record list has refetched.
+                                onEdit={() => setStage({
+                                    name: 'setup',
+                                    mapping: stage.mapping,
+                                    course: stage.course,
+                                    courseId: stage.courseId,
+                                })}
+                                onClose={() => setStage({ name: 'hierarchy', clientId: clientIdOf(stage.mapping), focusMappingId: stage.mapping._id })}
+                            />
+                        )}
+                    </motion.div>
+                </AnimatePresence>
+                </>
+                )}
                 </div>
-            </div>
-
-            {canAddCourse && (
-                <AddCourseSettingsPopup
-                    isOpen={isPopupOpen}
-                    onClose={() => {
-                        setIsPopupOpen(false);
-                        setCourseToEdit(null);
-                    }}
-                    courseId={courseToEdit || undefined}
-                    totalCourses={courseStructures.length}
-                />
-            )}
-
-            <CourseModals
-                showFullDetails={showFullDetails}
-                setShowFullDetails={setShowFullDetails}
-                courseForDetails={courseForDetails}
-                selectedCourse={selectedCourse}
-                setSelectedCourse={setSelectedCourse}
-                selectedClient={selectedClient}
-                setSelectedClient={setSelectedClient}
-                selectedHierarchy={selectedHierarchy}
-                setSelectedHierarchy={setSelectedHierarchy}
-                selectedPedagogy={selectedPedagogy}
-                setSelectedPedagogy={setSelectedPedagogy}
-                showDeleteModal={showDeleteModal}
-                setShowDeleteModal={setShowDeleteModal}
-                courseToDelete={courseToDelete}
-                isDeleting={isDeleting}
-                confirmDelete={confirmDelete}
-                userPermissions={userPermissions}
-                setCourseToEdit={setCourseToEdit}
-                setIsPopupOpen={setIsPopupOpen}
-            />
-        </motion.div>
-    );
-
-    if (userRole === 'admin') {
-        return <DashboardLayout>{pageContent}</DashboardLayout>;
-    } else {
-        return <StaffLayout>{pageContent}</StaffLayout>;
-    }
+            </Tabs>
+        </DashboardLayout>
+    )
 }

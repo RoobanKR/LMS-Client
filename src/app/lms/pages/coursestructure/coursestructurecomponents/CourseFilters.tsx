@@ -108,8 +108,8 @@ export const CourseFilters: React.FC<CourseFiltersProps> = ({
                                     onChange={(e) => setSortField(e.target.value as 'date' | 'courseName' | 'clientName' | null)}
                                     className="flex-1 h-9 text-sm border border-gray-300 dark:border-gray-700 rounded-lg px-3 focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-1 focus:ring-indigo-500 dark:focus:ring-indigo-400 font-sans bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                                 >
-                                    <option value="date">Date</option>
-                                    <option value="courseName">Course Name</option>
+                                    <option value="date">Created On</option>
+                                    <option value="courseName">Course</option>
                                     <option value="clientName">Client</option>
                                 </select>
                                 <button

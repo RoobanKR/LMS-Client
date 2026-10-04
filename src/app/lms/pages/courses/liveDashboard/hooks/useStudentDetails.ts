@@ -1,3 +1,4 @@
+import { getToken } from "@/lib/session";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getSocket } from "@/apiServices/socketClient";
 import type {
@@ -7,7 +8,7 @@ import type {
   StudentQuestionUpdate,
 } from "../types/liveDashboard.types";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://lms-server-ym1q.onrender.com";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://lmsserver-yeve.onrender.com";
 
 interface UseStudentDetailsResult {
   studentInfo: StudentDetailsInfo | null;
@@ -58,7 +59,7 @@ export function useStudentDetails(
       try {
         const token =
           (typeof window !== "undefined" &&
-            (localStorage.getItem("smartcliff_token") || localStorage.getItem("token"))) || "";
+            (getToken() || localStorage.getItem("token"))) || "";
         const qs = new URLSearchParams({ assessmentId, studentId });
         const res = await fetch(`${API_URL}/api/assessment/student-details?${qs.toString()}`, {
           method: "GET",

@@ -1,746 +1,250 @@
 'use client';
-import { Loading } from "@/components/loading-ui/loading";
-import React, { useEffect, useState, useMemo } from 'react';
-import {
-    BookOpen,
-    TrendingUp,
-    Activity,
-    FolderTree,
-    Folder,
-    FolderOpen,
-    File,
-    FileText as FileTextIcon,
-    CheckCircle,
-    LineChart,
-    Eye,
-    ClipboardCheck,
-    FileText,
-    Target,
-    ArrowUpRight,
-    ArrowDownRight,
-    Bell,
-    ChevronRight,
-    Award,
-    Clock,
-    Zap,
-    BarChart3,
-    Users,
-    Calendar,
-    Sun,
-    Moon,
-    Sparkles,
-    Flame
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { StudentLayout } from '../../component/student/student-layout';
-import { getCurrentUser } from '@/apiServices/tokenVerify';
-import { getStudentDashboardAnalytics, getUserSpecificAnalytics } from '@/apiServices/studentAnalytics';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Student Dashboard
+//
+// Composition only — every number rendered here is derived in ./_lib/metrics
+// from what the platform actually stores (pedagogy content, the student's own
+// answer documents, and their attendance rows). Widgets fall back to explicit
+// empty states rather than placeholder numbers when a source has no data.
+// ─────────────────────────────────────────────────────────────────────────────
+
+import React, { useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { cn } from '@/lib/utils';
+import { CalendarDays, GraduationCap, Trophy } from 'lucide-react';
 
-// --- MODERN CHART COMPONENTS with Dark Mode ---
+import { StudentLayout } from '../../component/student/student-layout';
+import { useCurrentUserQuery } from '@/queries/auth';
+import {
+    useStudentAnalyticsQuery,
+    useMyAttendanceQuery,
+    useMyLearningTimeQuery,
+    attendanceWindow,
+    getUserSpecificAnalytics,
+} from '@/queries/studentDashboard';
 
-const MiniAreaChart = ({ data, color = '#6366f1', height = 60 }: { data: number[], color?: string, height?: number }) => {
-    const max = Math.max(...data, 1);
-    const points = data.map((val, i) => {
-        const x = (i / (data.length - 1)) * 100;
-        const y = height - ((val / max) * height);
-        return `${x},${y}`;
-    }).join(' ');
-    
-    const areaPoints = `0,${height} ${points} 100,${height}`;
+import { buildDashboard, idStr, type DashboardModel } from './_lib/metrics';
+import { C } from './_components/ui';
+import { KpiRow, LearningJourney, TodayFocus, StreakCard, MotivationCard } from './_components/overview';
+import { CourseProgressTable, AssignmentAnalytics, UpcomingSchedule } from './_components/courses';
+import { PerformanceTrend, AttendanceAnalytics } from './_components/analytics';
+import { RecentActivity, LearningInsights, SubjectMastery, Achievements } from './_components/insights';
 
-    return (
-        <svg width="100%" height={height} className="overflow-visible">
-            <defs>
-                <linearGradient id={`gradient-${color}`} x1="0%" y1="0%" x2="0%" y2="100%">
-                    <stop offset="0%" stopColor={color} stopOpacity="0.3" />
-                    <stop offset="100%" stopColor={color} stopOpacity="0.05" />
-                </linearGradient>
-            </defs>
-            <polyline
-                points={areaPoints}
-                fill={`url(#gradient-${color})`}
-                stroke="none"
-            />
-            <polyline
-                points={points}
-                fill="none"
-                stroke={color}
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-            />
-        </svg>
-    );
-};
+/* ── loading skeleton ────────────────────────────────────────────────────── */
 
-const CircularProgress = ({ 
-    percentage, 
-    size = 120, 
-    strokeWidth = 8,
-    color = '#6366f1',
-    showLabel = true,
-    label = ''
-}: { 
-    percentage: number, 
-    size?: number, 
-    strokeWidth?: number,
-    color?: string,
-    showLabel?: boolean,
-    label?: string
-}) => {
-    const radius = (size - strokeWidth) / 2;
-    const circumference = 2 * Math.PI * radius;
-    const offset = circumference - (percentage / 100) * circumference;
+const Shimmer = ({ className = '' }: { className?: string }) => (
+    <div className={`animate-pulse rounded-[20px] border border-[#E5E7EB] bg-white dark:border-gray-800 dark:bg-gray-900 ${className}`}>
+        <div className="h-full w-full rounded-[20px] bg-gradient-to-r from-slate-50 via-slate-100 to-slate-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900" />
+    </div>
+);
 
-    return (
-        <div className="relative inline-flex items-center justify-center">
-            <svg width={size} height={size} className="transform -rotate-90">
-                <circle
-                    cx={size / 2}
-                    cy={size / 2}
-                    r={radius}
-                    stroke="currentColor"
-                    className="text-gray-200 dark:text-gray-700"
-                    strokeWidth={strokeWidth}
-                    fill="none"
-                />
-                <circle
-                    cx={size / 2}
-                    cy={size / 2}
-                    r={radius}
-                    stroke={color}
-                    strokeWidth={strokeWidth}
-                    fill="none"
-                    strokeDasharray={circumference}
-                    strokeDashoffset={offset}
-                    strokeLinecap="round"
-                    className="transition-all duration-1000 ease-out"
-                />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-2xl font-bold text-gray-900 dark:text-white">{percentage}%</span>
-                {showLabel && label && <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">{label}</span>}
-            </div>
+const DashboardSkeleton = () => (
+    <div className="mx-auto max-w-[1440px] space-y-6">
+        <Shimmer className="h-[76px]" />
+        <div className="grid grid-cols-2 gap-6 md:grid-cols-3 xl:grid-cols-6">
+            {Array.from({ length: 6 }).map((_, i) => <Shimmer key={i} className="h-[152px]" />)}
         </div>
-    );
-};
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+            <Shimmer className="h-[420px] xl:col-span-2" />
+            <Shimmer className="h-[420px]" />
+        </div>
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+            {Array.from({ length: 3 }).map((_, i) => <Shimmer key={i} className="h-[320px]" />)}
+        </div>
+    </div>
+);
 
-const StatCard = ({ 
-    icon: Icon, 
-    label, 
-    value, 
-    trend, 
-    color = '#6366f1',
-    sparklineData = []
-}: { 
-    icon: any, 
-    label: string, 
-    value: string | number, 
-    trend?: number,
-    color?: string,
-    sparklineData?: number[]
-}) => {
+/* ── header ──────────────────────────────────────────────────────────────── */
+
+const Header =({ m, onGrades, onCalendar, showGrades }: { m: DashboardModel; onGrades: () => void; onCalendar: () => void; showGrades: boolean }) => {
+    // Academic metadata is optional on the user record — render only what exists
+    // rather than a row of "not set" placeholders.
+    const meta = [
+        m.student.department,
+        m.student.semester && `Semester ${m.student.semester}`,
+        m.student.section && `Section ${m.student.section}`,
+        m.student.batch && `Batch ${m.student.batch}`,
+        m.student.rollNumber && `Roll ${m.student.rollNumber}`,
+    ].filter(Boolean) as string[];
+
     return (
-        <div className={cn(
-            "bg-white dark:bg-gray-800 rounded-xl border-2 border-transparent p-5 hover:shadow-lg transition-all duration-300",
-            "hover:border-blue-500 dark:hover:border-blue-400 hover:shadow-blue-100 dark:hover:shadow-blue-900/20"
-        )}>
-            <div className="flex items-start justify-between mb-4">
-                <div className={`p-3 rounded-lg`} style={{ backgroundColor: `${color}15` }}>
-                    <Icon className="w-5 h-5" style={{ color }} />
-                </div>
-                {trend !== undefined && (
-                    <div className={`flex items-center gap-1 px-2 py-1 rounded-full ${trend >= 0 ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
-                        {trend >= 0 ? <ArrowUpRight className="w-3 h-3 text-green-600 dark:text-green-400" /> : <ArrowDownRight className="w-3 h-3 text-red-600 dark:text-red-400" />}
-                        <span className={`text-xs font-semibold ${trend >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                            {Math.abs(trend)}%
-                        </span>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0">
+                <h1 className="flex items-center gap-2 text-[26px] font-bold tracking-[-0.03em] text-slate-900 dark:text-white">
+                    Welcome back, {m.student.firstName}
+                    <span className="text-[22px]">👋</span>
+                </h1>
+                {(m.student.degree || meta.length > 0) && (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+                        {m.student.degree && (
+                            <span className="text-sm font-medium text-slate-600 dark:text-slate-300">
+                                {m.student.degree}
+                            </span>
+                        )}
+                        {meta.map((x, i) => (
+                            <span key={x} className="flex items-center gap-3 text-sm text-slate-500 dark:text-slate-400">
+                                {(i > 0 || m.student.degree) && <span className="h-1 w-1 rounded-full bg-slate-300" />}
+                                {x}
+                            </span>
+                        ))}
                     </div>
                 )}
             </div>
-            <div className="space-y-1">
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{value}</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">{label}</p>
-            </div>
-            {sparklineData.length > 0 && (
-                <div className="mt-4">
-                    <MiniAreaChart data={sparklineData} color={color} height={40} />
-                </div>
-            )}
-        </div>
-    );
-};
 
-const ProgressBar = ({ 
-    label, 
-    value, 
-    max, 
-    color = '#6366f1',
-    showPercentage = true 
-}: { 
-    label: string, 
-    value: number, 
-    max: number,
-    color?: string,
-    showPercentage?: boolean
-}) => {
-    const percentage = max > 0 ? Math.round((value / max) * 100) : 0;
-    
-    return (
-        <div className="space-y-2">
-            <div className="flex justify-between items-center">
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{label}</span>
-                <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                    {showPercentage ? `${percentage}%` : `${value}/${max}`}
-                </span>
-            </div>
-            <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
-                <div 
-                    className="h-full rounded-full transition-all duration-700 ease-out"
-                    style={{ width: `${percentage}%`, backgroundColor: color }}
-                />
+            {/* mr-12 clears the shell's corner-pinned notification bell so the
+                My Grades button never slides underneath it. */}
+            <div className="flex shrink-0 items-center gap-2.5 mr-12">
+                <button
+                    onClick={onCalendar}
+                    className="flex h-10 items-center gap-2 rounded-[14px] border border-[#E5E7EB] bg-white px-3.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 dark:border-gray-800 dark:bg-gray-900 dark:text-slate-300 dark:hover:bg-gray-800"
+                >
+                    <CalendarDays size={15} strokeWidth={2.2} />
+                    Calendar
+                </button>
+                {showGrades && (
+                    <button
+                        onClick={onGrades}
+                        className="flex h-10 items-center gap-2 rounded-[14px] px-3.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+                        style={{ backgroundColor: C.primary }}
+                    >
+                        <Trophy size={15} strokeWidth={2.2} />
+                        My Grades
+                    </button>
+                )}
             </div>
         </div>
     );
 };
 
-const CompactCourseCard = ({ 
-    course, 
-    progress, 
-    onClick 
-}: { 
-    course: any, 
-    progress: number,
-    onClick: () => void
-}) => {
-    return (
-        <div 
-            onClick={onClick}
-            className={cn(
-                "bg-white dark:bg-gray-800 rounded-xl border-2 border-transparent p-5",
-                "hover:shadow-xl transition-all duration-300 cursor-pointer group",
-                "hover:border-blue-500 dark:hover:border-blue-400"
-            )}
-        >
-            <div className="flex items-start justify-between mb-4">
-                <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900 dark:text-white mb-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2">
-                        {course.courseName}
-                    </h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{course.level || 'Beginner'}</p>
-                </div>
-                <ChevronRight className="w-5 h-5 text-gray-400 dark:text-gray-500 group-hover:text-blue-600 dark:group-hover:text-blue-400 group-hover:translate-x-1 transition-all" />
-            </div>
-            
-            <div className="space-y-3">
-                <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
-                    <BookOpen className="w-4 h-4" />
-                    <span>{course.modules?.length || 0} Modules</span>
-                </div>
-                
-                <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                        <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Progress</span>
-                        <span className="text-xs font-bold text-blue-600 dark:text-blue-400">{progress}%</span>
-                    </div>
-                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
-                        <div 
-                            className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-700"
-                            style={{ width: `${progress}%` }}
-                        />
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-};
+/* ── page ────────────────────────────────────────────────────────────────── */
 
-
-
-// --- MAIN COMPONENT ---
 export default function StudentDashboardPage() {
-    const [user, setUser] = useState<any>(null);
-    const [analytics, setAnalytics] = useState<any>(null);
-    const [userAnalytics, setUserAnalytics] = useState<any>(null);
-    const [loading, setLoading] = useState(true);
     const router = useRouter();
-    const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
-    useEffect(() => {
-        fetchDashboardData();
-        
-        // Check current theme
-        const savedTheme = localStorage.getItem('theme') as 'light' | 'dark';
-        const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        const initialTheme = savedTheme || (systemPrefersDark ? 'dark' : 'light');
-        setTheme(initialTheme);
-    }, []);
+    // Grades is no longer gated by a per-function toggle. Student Dashboard is
+    // a flat permission now (see permissions.tree.ts) — the View Grades /
+    // View Courses / Submit Assignments checkboxes are gone, so there is no
+    // grant left to read. Holding the dashboard permission at all is what
+    // shows the header's Grades affordance.
 
-    const fetchDashboardData = async () => {
-        try {
-            const [userData, analyticsData] = await Promise.all([
-                getCurrentUser(),
-                getStudentDashboardAnalytics()
-            ]);
+    // Three cached reads (queries/studentDashboard.ts) in place of one
+    // useEffect with four useStates. The secondary two stay non-blocking, as
+    // before: the dashboard renders as soon as the user + analytics resolve,
+    // and attendance / study time fill in after.
+    const { data: user, isLoading: userLoading, error: userError } = useCurrentUserQuery();
+    const studentId = idStr((user as any)?.user?._id);
 
-            setUser(userData);
-            setAnalytics(analyticsData);
+    const {
+        data: analytics,
+        isLoading: analyticsLoading,
+        error: analyticsError,
+    } = useStudentAnalyticsQuery(studentId || null);
 
-            const userId = userData.user._id;
-            const userAnalyticsData = getUserSpecificAnalytics(analyticsData, userId);
-            setUserAnalytics(userAnalyticsData);
+    const userCourses = useMemo(
+        () => (analytics && studentId ? getUserSpecificAnalytics(analytics, studentId)?.userCourses || [] : []),
+        [analytics, studentId],
+    );
 
-        } catch (error) {
-            console.error('Failed to fetch dashboard data:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
+    // The window is stable for the life of the page; recomputing it per render
+    // would mint a new query key every time.
+    const window180 = useMemo(() => attendanceWindow(), []);
+    const courseIds = useMemo(() => userCourses.map((c: any) => idStr(c?._id)), [userCourses]);
+    const { records: attendance } = useMyAttendanceQuery(courseIds, studentId || null, window180);
+    const { data: learningTime = null } = useMyLearningTimeQuery(studentId || null);
 
-    const getCourseFromAnalytics = useMemo(() => {
-        return (courseId: string) => {
-            if (!analytics?.courses) return null;
-            return analytics.courses.find((course: any) => course._id === courseId);
-        };
-    }, [analytics]);
+    const loading = userLoading || (!!studentId && analyticsLoading);
+    const error = userError || analyticsError
+        ? ((userError || analyticsError) as Error)?.message || 'Could not load your dashboard right now.'
+        : null;
 
-    const getTotalExercisesForCourse = useMemo(() => {
-        return (course: any) => {
-            if (!course?.modules) return 0;
-            let totalExercises = 0;
-            course.modules.forEach((module: any) => {
-                if (module.subModules) {
-                    module.subModules.forEach((subModule: any) => {
-                        if (subModule.topics) {
-                            subModule.topics.forEach((topic: any) => {
-                                if (topic.pedagogy?.We_Do?.practical) totalExercises += topic.pedagogy.We_Do.practical.length;
-                                if (topic.pedagogy?.We_Do?.project_development) totalExercises += topic.pedagogy.We_Do.project_development.length;
-                            });
-                        }
-                    });
-                }
-            });
-            return totalExercises;
-        };
-    }, []);
+    const model = useMemo(
+        () => (user ? buildDashboard(user, userCourses, attendance, learningTime) : null),
+        [user, userCourses, attendance, learningTime],
+    );
 
-    const getTotalQuestionsForCourse = useMemo(() => {
-        return (course: any) => {
-            if (!course?.modules) return 0;
-            let totalQuestions = 0;
-            course.modules.forEach((module: any) => {
-                if (module.subModules) {
-                    module.subModules.forEach((subModule: any) => {
-                        if (subModule.topics) {
-                            subModule.topics.forEach((topic: any) => {
-                                if (topic.pedagogy?.We_Do?.practical) {
-                                    topic.pedagogy.We_Do.practical.forEach((exercise: any) => {
-                                        if (exercise.questions) totalQuestions += exercise.questions.length;
-                                    });
-                                }
-                                if (topic.pedagogy?.We_Do?.project_development) {
-                                    topic.pedagogy.We_Do.project_development.forEach((exercise: any) => {
-                                        if (exercise.questions) totalQuestions += exercise.questions.length;
-                                    });
-                                }
-                            });
-                        }
-                    });
-                }
-            });
-            return totalQuestions;
-        };
-    }, []);
-
-    const getCourseProgress = useMemo(() => {
-        return (courseId: string) => {
-            const userCourse = user?.user?.courses?.find(
-                (uc: any) => uc.courseId === courseId || uc.courseId?.toString() === courseId
-            );
-
-            if (!userCourse?.answers?.We_Do?.practical) return 0;
-
-            const practicalExercises = userCourse.answers.We_Do.practical;
-            if (practicalExercises.length === 0) return 0;
-
-            let attemptedExercises = 0;
-            let attemptedQuestions = 0;
-
-            practicalExercises.forEach((exercise: any) => {
-                if (exercise.questions && exercise.questions.length > 0) {
-                    attemptedExercises++;
-                    const attemptedQs = exercise.questions.filter((q: any) =>
-                        q.status === 'attempted' || q.status === 'evaluated' || q.submittedAt
-                    ).length;
-                    attemptedQuestions += attemptedQs;
-                }
-            });
-
-            const courseFromAnalytics = getCourseFromAnalytics(courseId);
-            if (!courseFromAnalytics) return 0;
-
-            const totalExercises = getTotalExercisesForCourse(courseFromAnalytics);
-            const totalQuestions = getTotalQuestionsForCourse(courseFromAnalytics);
-
-            const exerciseProgress = totalExercises > 0 ? (attemptedExercises / totalExercises) * 100 : 0;
-            const questionProgress = totalQuestions > 0 ? (attemptedQuestions / totalQuestions) * 100 : 0;
-
-            return Math.round((exerciseProgress * 0.4) + (questionProgress * 0.6));
-        };
-    }, [user, getCourseFromAnalytics, getTotalExercisesForCourse, getTotalQuestionsForCourse]);
-
-    const getTotalExerciseQuestionStats = useMemo(() => {
-        if (!userAnalytics?.userCourses || userAnalytics.userCourses.length === 0) {
-            return { totalExercises: 0, totalQuestions: 0 };
-        }
-        let totalExercises = 0;
-        let totalQuestions = 0;
-        userAnalytics.userCourses.forEach((course: any) => {
-            const courseExercises = getTotalExercisesForCourse(course);
-            const courseQuestions = getTotalQuestionsForCourse(course);
-            totalExercises += courseExercises;
-            totalQuestions += courseQuestions;
-        });
-        return { totalExercises, totalQuestions };
-    }, [userAnalytics, getTotalExercisesForCourse, getTotalQuestionsForCourse]);
-
-    const getUserAttemptedStats = useMemo(() => {
-        if (!user?.user?.courses || user.user.courses.length === 0) {
-            return { attemptedExercises: 0, attemptedQuestions: 0 };
-        }
-        let attemptedExercises = 0;
-        let attemptedQuestions = 0;
-        user.user.courses.forEach((course: any) => {
-            if (course.answers?.We_Do?.practical) {
-                const practicalExercises = course.answers.We_Do.practical;
-                practicalExercises.forEach((exercise: any) => {
-                    if (exercise.questions && exercise.questions.length > 0) {
-                        attemptedExercises++;
-                        const attemptedQs = exercise.questions.filter((q: any) =>
-                            q.status === 'attempted' || q.status === 'evaluated' || q.submittedAt
-                        ).length;
-                        attemptedQuestions += attemptedQs;
-                    }
-                });
-            }
-        });
-        return { attemptedExercises, attemptedQuestions };
-    }, [user]);
-
-    const calculateExerciseBasedProgress = useMemo(() => {
-        const totalStats = getTotalExerciseQuestionStats;
-        const attemptedStats = getUserAttemptedStats;
-        if (totalStats.totalExercises === 0 || totalStats.totalQuestions === 0) return 0;
-        const exerciseProgress = (attemptedStats.attemptedExercises / totalStats.totalExercises) * 100;
-        const questionProgress = (attemptedStats.attemptedQuestions / totalStats.totalQuestions) * 100;
-        return Math.round((exerciseProgress * 0.4) + (questionProgress * 0.6));
-    }, [getTotalExerciseQuestionStats, getUserAttemptedStats]);
-
-    const displayedCourses = useMemo(() => {
-        if (userAnalytics?.userCourses && userAnalytics.userCourses.length > 0) {
-            return userAnalytics.userCourses.slice(0, 6);
-        }
-        return [];
-    }, [userAnalytics]);
-
-    const notificationsToShow = user?.user?.notifications?.slice(0, 5) || [];
-
-    const handleStartCourse = (courseId: string) => {
-        router.push(`/lms/pages/courses/coursesdetailedview/${courseId}`);
-    };
+    const goCourse = useCallback((id: string) => router.push(`/lms/pages/courses/coursesdetailedview/${id}`), [router]);
+    const goCourses = useCallback(() => router.push('/lms/pages/courses'), [router]);
+    // The learner's OWN calendar, not the admin holiday editor at
+    // /lms/pages/calendar — that one needs the `calendar` module and answered
+    // every student with Access Restricted.
+    const goCalendar = useCallback(() => router.push('/lms/pages/studentcalendar'), [router]);
+    const goGrades = useCallback(() => router.push('/lms/pages/grades'), [router]);
+    const goNotifications = useCallback(() => router.push('/lms/pages/notifications'), [router]);
 
     if (loading) {
+        return <StudentLayout><DashboardSkeleton /></StudentLayout>;
+    }
+
+    if (error || !model) {
         return (
             <StudentLayout>
-                <div className="flex items-center justify-center h-screen bg-white dark:bg-gray-900">
-                    <Loading size="size-12" label="Loading your dashboard..." />
+                <div className="mx-auto flex max-w-[520px] flex-col items-center justify-center gap-3 py-24 text-center">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-red-500">
+                        <GraduationCap size={22} strokeWidth={2.2} />
+                    </div>
+                    <h2 className="text-lg font-semibold text-slate-900 dark:text-white">We couldn&apos;t load your dashboard</h2>
+                    <p className="text-sm text-slate-500">{error || 'Please try again in a moment.'}</p>
+                    <button
+                        onClick={() => window.location.reload()}
+                        className="mt-1 h-10 rounded-[14px] px-4 text-sm font-semibold text-white"
+                        style={{ backgroundColor: C.primary }}
+                    >
+                        Retry
+                    </button>
                 </div>
             </StudentLayout>
         );
     }
 
-    const totalStats = getTotalExerciseQuestionStats;
-    const attemptedStats = getUserAttemptedStats;
-    const overallProgress = calculateExerciseBasedProgress;
-
     return (
         <StudentLayout>
-            <div>
-                {/* Header with Theme Toggle */}
-                <div className="mb-8">
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                        <div>
-                            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-                                Welcome back, {user?.user.firstName}! 👋
-                            </h1>
-                            <p className="text-gray-600 dark:text-gray-300">Here's your learning progress at a glance</p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                           
-                            <Button 
-                                onClick={() => router.push('/lms/pages/analytics/detailed')}
-                                className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200 dark:shadow-blue-900/30"
-                            >
-                                <BarChart3 className="w-4 h-4 mr-2" />
-                                View Full Analytics
-                            </Button>
-                        </div>
+            <div className="mx-auto max-w-[1440px] space-y-6">
+                <Header m={model} onGrades={goGrades} onCalendar={goCalendar} showGrades />
+
+                {/* Row 1 — KPI strip */}
+                <KpiRow m={model} />
+
+                {/* Row 2 — Learning Journey · Focus · Streak */}
+                <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+                    <div className="xl:col-span-2">
+                        <LearningJourney m={model} onDetails={goCourses} />
+                    </div>
+                    <div className="flex flex-col gap-6">
+                        <TodayFocus items={model.focus} onViewPlan={goCalendar} />
+                        <StreakCard m={model} />
+                        <MotivationCard name={model.student.firstName} />
                     </div>
                 </div>
 
-                {/* Stats Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                    <StatCard 
-                        icon={BookOpen}
-                        label="Enrolled Courses"
-                        value={userAnalytics?.userStats?.enrolledCourses || 0}
-                        trend={12}
-                        color="#3b82f6"
-                        sparklineData={[3, 5, 4, 7, 6, 8, 7]}
-                    />
-                    <StatCard 
-                        icon={Target}
-                        label="Overall Progress"
-                        value={`${overallProgress}%`}
-                        trend={8}
-                        color="#10b981"
-                        sparklineData={[45, 52, 58, 63, 68, 72, overallProgress]}
-                    />
-                    <StatCard 
-                        icon={CheckCircle}
-                        label="Exercises Done"
-                        value={`${attemptedStats.attemptedExercises}/${totalStats.totalExercises}`}
-                        trend={15}
-                        color="#f59e0b"
-                        sparklineData={[10, 15, 22, 28, 35, 40, attemptedStats.attemptedExercises]}
-                    />
-                    <StatCard 
-                        icon={Award}
-                        label="Questions Solved"
-                        value={`${attemptedStats.attemptedQuestions}/${totalStats.totalQuestions}`}
-                        trend={10}
-                        color="#8b5cf6"
-                        sparklineData={[25, 40, 55, 70, 85, 95, attemptedStats.attemptedQuestions]}
-                    />
-                </div>
-
-                {/* Main Content Grid */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-                    {/* Progress Overview */}
-                    <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
-                        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">Learning Progress Overview</h2>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            {/* Circular Progress */}
-                            <div className="flex flex-col items-center justify-center">
-                                <CircularProgress 
-                                    percentage={overallProgress}
-                                    size={160}
-                                    strokeWidth={12}
-                                    color="#3b82f6"
-                                    showLabel={true}
-                                    label="Complete"
-                                />
-                                <p className="mt-4 text-sm font-medium text-gray-600 dark:text-gray-400">Overall Course Progress</p>
-                            </div>
-
-                            {/* Progress Bars */}
-                            <div className="space-y-6">
-                                <ProgressBar 
-                                    label="Modules"
-                                    value={userAnalytics?.userStats?.totalModules || 0}
-                                    max={analytics?.analytics?.totalModules || 1}
-                                    color="#3b82f6"
-                                />
-                                <ProgressBar 
-                                    label="Topics"
-                                    value={userAnalytics?.userStats?.totalTopics || 0}
-                                    max={analytics?.analytics?.totalTopics || 1}
-                                    color="#10b981"
-                                />
-                                <ProgressBar 
-                                    label="Exercises"
-                                    value={attemptedStats.attemptedExercises}
-                                    max={totalStats.totalExercises || 1}
-                                    color="#f59e0b"
-                                />
-                                <ProgressBar 
-                                    label="Questions"
-                                    value={attemptedStats.attemptedQuestions}
-                                    max={totalStats.totalQuestions || 1}
-                                    color="#8b5cf6"
-                                />
-                            </div>
-                        </div>
-
-                        {/* Learning Hierarchy */}
-                        <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700">
-                            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Learning Structure</h3>
-                            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                                {[
-                                    { icon: BookOpen, label: 'Courses', value: userAnalytics?.userStats?.enrolledCourses || 0, color: '#3b82f6' },
-                                    { icon: Folder, label: 'Modules', value: userAnalytics?.userStats?.totalModules || 0, color: '#10b981' },
-                                    { icon: FolderOpen, label: 'Sub-Modules', value: analytics?.analytics?.totalSubModules || 0, color: '#f59e0b' },
-                                    { icon: FileTextIcon, label: 'Topics', value: userAnalytics?.userStats?.totalTopics || 0, color: '#8b5cf6' },
-                                    { icon: File, label: 'Sub-Topics', value: analytics?.analytics?.totalSubTopics || 0, color: '#ec4899' },
-                                ].map((item, idx) => (
-                                    <div key={idx} className="text-center p-3 rounded-lg bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
-                                        <div className="inline-flex p-2 rounded-lg mb-2" style={{ backgroundColor: `${item.color}15` }}>
-                                            <item.icon className="w-5 h-5" style={{ color: item.color }} />
-                                        </div>
-                                        <p className="text-xl font-bold text-gray-900 dark:text-white">{item.value}</p>
-                                        <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">{item.label}</p>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
+                {/* Row 3 — Courses · Assignments · Schedule */}
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-12">
+                    <div className="xl:col-span-5">
+                        <CourseProgressTable courses={model.courses} onOpen={goCourse} onViewAll={goCourses} />
                     </div>
-
-                    {/* Notifications */}
-                    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
-                        <div className="flex items-center justify-between mb-6">
-                            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Notifications</h2>
-                            <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800">
-                                {notificationsToShow.filter((n: any) => !n.isRead).length} New
-                            </Badge>
-                        </div>
-
-                        <div className="space-y-4 max-h-96 overflow-y-auto">
-                            {notificationsToShow.length > 0 ? (
-                                notificationsToShow.map((notification: any) => (
-                                    <div 
-                                        key={notification._id}
-                                        className={cn(
-                                            "p-4 rounded-lg border transition-all hover:shadow-md cursor-pointer",
-                                            !notification.isRead 
-                                                ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700' 
-                                                : 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600'
-                                        )}
-                                    >
-                                        <div className="flex items-start gap-3">
-                                            <div className={cn(
-                                                "p-2 rounded-lg",
-                                                !notification.isRead 
-                                                    ? 'bg-blue-200 dark:bg-blue-800' 
-                                                    : 'bg-gray-200 dark:bg-gray-600'
-                                            )}>
-                                                <Bell className={cn(
-                                                    "w-4 h-4",
-                                                    !notification.isRead 
-                                                        ? 'text-blue-700 dark:text-blue-300' 
-                                                        : 'text-gray-600 dark:text-gray-400'
-                                                )} />
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
-                                                    {notification.title}
-                                                </p>
-                                                <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2">
-                                                    {notification.message}
-                                                </p>
-                                                <p className="text-xs text-gray-400 dark:text-gray-500 mt-2 flex items-center gap-1">
-                                                    <Clock className="w-3 h-3" />
-                                                    {new Date(notification.createdAt).toLocaleDateString()}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))
-                            ) : (
-                                <div className="text-center py-8">
-                                    <Bell className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">No notifications yet</p>
-                                </div>
-                            )}
-                        </div>
+                    <div className="xl:col-span-3">
+                        <AssignmentAnalytics m={model} onViewAll={goGrades} />
+                    </div>
+                    <div className="lg:col-span-2 xl:col-span-4">
+                        <UpcomingSchedule deadlines={model.deadlines} onCalendar={goCalendar} />
                     </div>
                 </div>
 
-                {/* Active Courses */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
-                    <div className="flex items-center justify-between mb-6">
-                        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Your Active Courses</h2>
-                        <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => router.push('/lms/pages/courses')}
-                            className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
-                        >
-                            View All
-                            <ChevronRight className="w-4 h-4 ml-1" />
-                        </Button>
-                    </div>
-
-                    {displayedCourses.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {displayedCourses.map((course: any) => {
-                                const progress = getCourseProgress(course._id);
-                                return (
-                                    <CompactCourseCard
-                                        key={course._id}
-                                        course={course}
-                                        progress={progress}
-                                        onClick={() => handleStartCourse(course._id)}
-                                    />
-                                );
-                            })}
-                        </div>
-                    ) : (
-                        <div className="text-center py-12">
-                            <BookOpen className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No courses yet</h3>
-                            <p className="text-gray-600 dark:text-gray-400 mb-6">Start your learning journey by enrolling in a course</p>
-                            <Button 
-                                onClick={() => router.push('/lms/pages/courses')}
-                                className="bg-blue-600 hover:bg-blue-700 text-white"
-                            >
-                                Browse Courses
-                            </Button>
-                        </div>
-                    )}
+                {/* Row 4 — Performance · Attendance */}
+                <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+                    <PerformanceTrend trend={model.trend} />
+                    <AttendanceAnalytics a={model.attendance} />
                 </div>
 
-                {/* Quick Stats Footer with Streak */}
-                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 mt-8">
-                    <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl p-6 text-white shadow-lg">
-                        <div className="flex items-center justify-between mb-2">
-                            <Zap className="w-6 h-6 opacity-80" />
-                            <span className="text-2xl font-bold">{userAnalytics?.userStats?.activeCourses || 0}</span>
-                        </div>
-                        <p className="text-sm font-medium opacity-90">Active Courses</p>
-                    </div>
-                    
-                    <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl p-6 text-white shadow-lg">
-                        <div className="flex items-center justify-between mb-2">
-                            <Activity className="w-6 h-6 opacity-80" />
-                            <span className="text-2xl font-bold">{overallProgress}%</span>
-                        </div>
-                        <p className="text-sm font-medium opacity-90">Avg. Progress</p>
-                    </div>
-                    
-                    <div className="bg-gradient-to-br from-orange-500 to-red-600 rounded-xl p-6 text-white shadow-lg">
-                        <div className="flex items-center justify-between mb-2">
-                            <Target className="w-6 h-6 opacity-80" />
-                            <span className="text-2xl font-bold">{attemptedStats.attemptedExercises}</span>
-                        </div>
-                        <p className="text-sm font-medium opacity-90">Completed Tasks</p>
-                    </div>
-                    
-                    {/* Streak Card */}
-                    <div className="bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl p-6 text-white shadow-lg">
-                        <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                                <Flame className="w-6 h-6 opacity-80" />
-                                <Sparkles className="w-4 h-4 opacity-80" />
-                            </div>
-                            <span className="text-2xl font-bold">2</span>
-                        </div>
-                        <p className="text-sm font-medium opacity-90">Day Streak</p>
-                        <p className="text-xs opacity-75 mt-1">Keep learning daily!</p>
-                    </div>
+                {/* Row 5 — Activity · Insights */}
+                <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+                    <RecentActivity events={model.activity} onViewAll={goNotifications} />
+                    <LearningInsights insights={model.insights} scorePct={model.scorePct} />
+                </div>
+
+                {/* Row 6 — Mastery · Achievements */}
+                <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+                    <SubjectMastery courses={model.courses} />
+                    <Achievements achievements={model.achievements} completedCourses={model.completed} />
                 </div>
             </div>
         </StudentLayout>

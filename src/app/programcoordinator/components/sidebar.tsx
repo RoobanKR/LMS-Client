@@ -25,8 +25,75 @@ import {
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useState, useEffect } from "react";
+import { LogOut, Loader2 } from "lucide-react";
+import { getToken, clearAllStorage } from "@/lib/session";
+import { postLogout } from "@/app/lms/pages/logs/api/activityLog";
+import { logoutUser } from "@/apiServices/tokenVerify";
 
 import { useSidebarpro } from "./layout";
+
+/* Identity + logout footer — replaces the retired navbar's avatar menu, which
+   showed a hard-coded "John Doe". This reads the real signed-in user and runs
+   the real logout flow (postLogout first so session duration is recorded). */
+function CoordinatorFoot({ collapsed }: { collapsed: boolean }) {
+    const [user, setUser] = useState<any>(null);
+    const [signingOut, setSigningOut] = useState(false);
+    useEffect(() => {
+        try { setUser(JSON.parse(localStorage.getItem("smartcliff_userData") || "null")); } catch { setUser(null); }
+    }, []);
+    const name = user ? `${user.firstName || ""} ${user.lastName || ""}`.trim() || "Coordinator" : "Coordinator";
+    const role = user?.role?.renameRole || user?.role?.originalRole || "Program Coordinator";
+    // The account's unique identity — a name and a role can repeat across
+    // people, so the identity row carries the email under them.
+    const email = (user?.email || "").trim();
+    const initial = (user?.firstName?.charAt(0) || "P").toUpperCase();
+
+    const handleLogout = async () => {
+        setSigningOut(true);
+        const token = getToken();
+        try {
+            await postLogout();
+            if (token) await logoutUser(token);
+        } catch (e) {
+            console.error("Logout error:", e);
+        } finally {
+            clearAllStorage();
+            window.location.href = "/login";
+        }
+    };
+
+    return (
+        <div className="mt-auto flex-shrink-0 border-t border-gray-100 p-2">
+            {!collapsed ? (
+                <div className="flex items-center gap-2 px-1.5 py-1">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-semibold text-white">{initial}</span>
+                    <span className="min-w-0 flex-1 leading-tight">
+                        <span className="block truncate text-[13px] font-semibold text-gray-800">{name}</span>
+                        <span className="block truncate text-[11px] text-gray-400">{role}</span>
+                        {email && <span className="block truncate text-[11px] text-gray-400" title={email}>{email}</span>}
+                    </span>
+                    <button
+                        onClick={handleLogout}
+                        disabled={signingOut}
+                        title="Sign out"
+                        className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-60"
+                    >
+                        {signingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
+                    </button>
+                </div>
+            ) : (
+                <button
+                    onClick={handleLogout}
+                    disabled={signingOut}
+                    title="Sign out"
+                    className="mx-auto flex rounded-lg p-2 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-60"
+                >
+                    {signingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
+                </button>
+            )}
+        </div>
+    );
+}
 
 const sidebarItems = [
     {
@@ -37,7 +104,7 @@ const sidebarItems = [
     },
     {
       
-        title: "Courses Structure",
+        title: "Course Management",
         href: "/lms/pages/coursestructure",
         icon: BookOpen,
         hasChevron: false,
@@ -130,9 +197,11 @@ export function Sidebarpro({ className }: SidebarProps) {
             {/* Sidebar */}
             <div
                 className={cn(
-                    "bg-white border-r border-gray-100 transition-all duration-300 relative z-40 h-full",
+                    // Flat on the gray canvas; the mobile overlay keeps a
+                    // solid surface.
+                    "transition-all duration-300 relative z-40 h-full flex flex-col",
                     isCollapsed ? "w-16" : "w-50",
-                    isMobile && !isCollapsed && "fixed top-0 left-0 shadow-lg",
+                    isMobile && !isCollapsed ? "fixed top-0 left-0 shadow-lg bg-white" : "bg-transparent",
                     className
                 )}
             >
@@ -152,7 +221,7 @@ export function Sidebarpro({ className }: SidebarProps) {
                     </Button>
                 )}
 
-                <div className="pt-4">
+                <div className="pt-4 min-h-0 flex-1 overflow-y-auto">
                     {/* Main Navigation */}
                     <div>
                         {sidebarItems.map((item) => {
@@ -165,8 +234,11 @@ export function Sidebarpro({ className }: SidebarProps) {
                                     href={item.href}
                                     title={isCollapsed ? item.title : undefined}
                                     className={cn(
-                                        "flex items-center justify-between px-4 py-2 hover:bg-gray-50 cursor-pointer group transition-colors",
-                                        isActive && "bg-blue-50 border-r-2 border-blue-500",
+                                        "mx-2 flex items-center justify-between rounded-[10px] border px-3 py-2 cursor-pointer group transition-colors",
+                                        // White raised pill on the gray canvas
+                                        isActive
+                                            ? "bg-white border-[#E4E7EC] shadow-[0_1px_2px_rgba(16,24,40,.06)]"
+                                            : "border-transparent hover:bg-[#E9EBF0]",
                                         isCollapsed ? "justify-center" : "justify-start",
                                     )}
                                 >
@@ -205,8 +277,11 @@ export function Sidebarpro({ className }: SidebarProps) {
                                     href={item.href}
                                     title={isCollapsed ? item.title : undefined}
                                     className={cn(
-                                        "flex items-center justify-between px-4 py-2 hover:bg-gray-50 cursor-pointer group transition-colors",
-                                        isActive && "bg-blue-50 border-r-2 border-blue-500",
+                                        "mx-2 flex items-center justify-between rounded-[10px] border px-3 py-2 cursor-pointer group transition-colors",
+                                        // White raised pill on the gray canvas
+                                        isActive
+                                            ? "bg-white border-[#E4E7EC] shadow-[0_1px_2px_rgba(16,24,40,.06)]"
+                                            : "border-transparent hover:bg-[#E9EBF0]",
                                         isCollapsed ? "justify-center" : "justify-start",
                                     )}
                                 >
@@ -245,6 +320,8 @@ export function Sidebarpro({ className }: SidebarProps) {
                         </div>
                     </div>
                 </div>
+
+                <CoordinatorFoot collapsed={isCollapsed} />
             </div>
 
             {/* Mobile Close Button - Only shown when mobile and expanded */}

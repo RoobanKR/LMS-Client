@@ -34,12 +34,12 @@ export const CourseStatistics: React.FC<CourseStatisticsProps> = ({ statistics, 
                     initial={{ opacity: 0, y: 5 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.2, delay: index * 0.05 }}
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border ${stat.color} text-xs font-medium font-sans shadow-sm`}
+                    className={`inline-flex items-center gap-1.5 px-2.5 h-8 rounded-md border ${stat.color} text-xs font-medium font-sans shadow-sm`}
                 >
                     {isLoading ? (
                         <Loader2 className="h-3 w-3 animate-spin dark:text-gray-400" />
                     ) : (
-                        <span className="font-bold text-sm">{stat.value}</span>
+                        <span className="font-bold text-xs">{stat.value}</span>
                     )}
                     <span className="text-xs">{stat.title}</span>
                 </motion.div>

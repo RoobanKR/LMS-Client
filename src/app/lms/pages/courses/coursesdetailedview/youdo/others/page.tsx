@@ -1,10 +1,12 @@
 "use client";
+import { getToken } from "@/lib/session";
 
 import React, { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'react-toastify';
-import OthersExam from '@/app/lms/component/student/OthersExam';
+import OthersExam from '@/app/lms/pages/courses/coursesdetailedview/components/OthersExam';
+import { API_ORIGIN } from '@/lib/apiBase'
 
 const OthersPageContent = () => {
   const router = useRouter();
@@ -33,11 +35,11 @@ const OthersPageContent = () => {
       setIsLoading(true);
       setError(null);
       try {
-        const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
+        const token = getToken() || localStorage.getItem('token') || '';
         if (!token) throw new Error('Authentication token not found');
         if (!exerciseId) throw new Error('Exercise ID is required');
 
-        const response = await fetch(`https://lms-server-ym1q.onrender.com/exercise/${exerciseId}`, {
+        const response = await fetch(`${API_ORIGIN}/exercise/${exerciseId}`, {
           method: 'GET',
           headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
         });
@@ -100,8 +102,7 @@ const OthersPageContent = () => {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="w-12 h-12 text-gray-900 animate-spin mx-auto mb-4" />
-          <p className="text-gray-600">Loading exercise...</p>
+          <Loader2 className="w-12 h-12 text-gray-900 animate-spin mx-auto" />
         </div>
       </div>
     );

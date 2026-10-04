@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { Question, QuestionBankResponse, ApiResponse } from './type/question';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://lms-server-ym1q.onrender.com';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://lmsserver-yeve.onrender.com';
 
 const questionBankApi = axios.create({
   baseURL: API_BASE_URL,
@@ -33,12 +33,16 @@ const cleanSimpleQuestionPayload = (question: Partial<Question>): Partial<Questi
   };
 
   if (isMcq) {
-    return {
-      ...baseFields,
-      questionTitle: question.questionTitle || '',
-      options: question.options || [],
-      correctAnswer: question.correctAnswer || '',
-    };
+    // The premium Create MCQ modal builds the full `mcqQuestion*` payload
+    // (mcqQuestionTitle, mcqQuestionType, mcqQuestionOptions, …); the older
+    // MCQFields modal built `questionTitle` / `options` / `correctAnswer`.
+    // The original cleaner picked ONLY the legacy trio, which silently threw
+    // every mcqQuestion* field away — the server then rejected the request
+    // with "MCQ question title text is required" even after the user typed a
+    // valid title. Pass the whole authored payload through and let the server
+    // build the processedQuestion from it — the server already picks only
+    // what it stores.
+    return { ...question, ...baseFields };
   }
 
   // Programming family: programming (core) / frontend / database
@@ -87,11 +91,32 @@ const cleanSimpleQuestionPayload = (question: Partial<Question>): Partial<Questi
 
 export const questionBankService = {
   // Get all questions with filters
+  // Passing `page` switches the endpoint into its paginated mode: the server
+  // applies the Question Bank page's own filter predicate and sort and returns
+  // one slice, plus the facets that page derives from the full bank. Without
+  // `page` the response is the original full questions[] array, unchanged —
+  // the authoring picker still reads it that way.
+  //
+  // `questionType` means different things on the two paths: an exact match on
+  // the stored discriminator without `page`, and the page's broad MCQ /
+  // Programming bucket with it. Same for `difficulty` (`mcqQuestionDifficulty`
+  // vs `difficulty`). See the controller for why.
   getAllQuestions: async (filters?: {
     questionType?: string;
     category?: string;
     difficulty?: string;
-    isActive?: boolean;
+    isActive?: boolean | string;
+    page?: number;
+    limit?: number;
+    search?: string;
+    createdBy?: string;
+    marks?: string;
+    // Epoch ms. Computed in the browser because the Created-Date presets are
+    // derived from the user's local clock.
+    createdAfter?: number;
+    // When set, restrict results to questions pinned to this course (Course
+    // Specific tab → Manage). Absent → General bank.
+    courseId?: string;
   }) => {
     const params = new URLSearchParams();
     if (filters) {
@@ -104,7 +129,57 @@ export const questionBankService = {
     
     const token = localStorage.getItem("smartcliff_token");
     const response = await questionBankApi.get<QuestionBankResponse>(
-      `/getAll/question-bank`,
+      `/getAll/question-bank${params.toString() ? `?${params.toString()}` : ''}`,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+      }
+    );
+    return response.data;
+  },
+
+  // Other Platform bank — separate collection, same response shape.
+  //
+  // Passing `page` switches the endpoint into its paginated mode: the server
+  // applies the picker's own filters, returns ONE page plus the filter rail's
+  // facets counted over the whole type-scoped set, and reports `total`.
+  // Without `page` it returns every question exactly as it always did.
+  getAllOtherPlatformQuestions: async (filters?: {
+    questionType?: string;
+    category?: string;
+    difficulty?: string;
+    // Accept both — the picker passes a boolean (always true), the admin
+    // External page passes the dropdown's string value ('' | 'true' | 'false').
+    // The server treats it as `isActive === 'true'` either way.
+    isActive?: boolean | string;
+    page?: number;
+    limit?: number;
+    search?: string;
+    problemTypes?: string;
+    railDifficulty?: string;
+    topic?: string;
+    tag?: string;
+    sort?: string;
+    // Admin External-page-only filter — the picker never sends it.
+    createdBy?: string;
+    // 'admin' tells the endpoint this caller renders none of the picker's
+    // filter-rail facets, which is what lets it serve the page as an indexed
+    // skip/limit instead of reading the whole collection to count them.
+    facets?: 'admin';
+  }) => {
+    const params = new URLSearchParams();
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== '') {
+          params.append(key, value.toString());
+        }
+      });
+    }
+    const token = localStorage.getItem("smartcliff_token");
+    const response = await questionBankApi.get<QuestionBankResponse>(
+      `/getAll/other-platform-bank${params.toString() ? `?${params.toString()}` : ''}`,
       {
         headers: {
           'Content-Type': 'application/json',
@@ -282,6 +357,72 @@ export const questionBankService = {
           'Authorization': `Bearer ${token}`
         },
       }
+    );
+    return response.data;
+  },
+
+  // ── Other Platform (External) bank — Create / Update / Delete / Toggle ─────
+  // JSON-only. The External bank has no image-upload path yet (its imports are
+  // Programming questions — Exercism, competitive programming — none of which
+  // carry option / description images). MCQ image uploads on External are
+  // blocked at the modal layer, not here.
+  createOtherPlatformQuestion: async (question: Partial<Question>) => {
+    const token = localStorage.getItem("smartcliff_token");
+    const cleaned = cleanSimpleQuestionPayload(question);
+    const response = await questionBankApi.post<ApiResponse<Question>>(
+      '/create/other-platform-bank',
+      cleaned,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      },
+    );
+    return response.data;
+  },
+
+  updateOtherPlatformQuestion: async (id: string, question: Partial<Question>) => {
+    const token = localStorage.getItem("smartcliff_token");
+    const cleaned = cleanSimpleQuestionPayload(question);
+    const response = await questionBankApi.put<ApiResponse<Question>>(
+      `/update/other-platform-bank/${id}`,
+      cleaned,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      },
+    );
+    return response.data;
+  },
+
+  deleteOtherPlatformQuestion: async (id: string) => {
+    const token = localStorage.getItem("smartcliff_token");
+    const response = await questionBankApi.delete<ApiResponse<void>>(
+      `/deletes/other-platform-bank/${id}`,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      },
+    );
+    return response.data;
+  },
+
+  toggleOtherPlatformQuestionStatus: async (id: string, isActive: boolean) => {
+    const token = localStorage.getItem("smartcliff_token");
+    const response = await questionBankApi.put<ApiResponse<Question>>(
+      `/toggle-status/other-platform-bank/${id}`,
+      { isActive },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      },
     );
     return response.data;
   },

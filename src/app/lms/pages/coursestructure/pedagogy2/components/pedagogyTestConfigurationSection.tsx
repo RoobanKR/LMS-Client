@@ -25,6 +25,7 @@ const languageOptions = {
     { value: 'html', label: 'HTML', icon: '🌐' },
     { value: 'css', label: 'CSS', icon: '🎨' },
     { value: 'js', label: 'JavaScript', icon: '🟡' },
+    { value: 'bootstrap', label: 'Bootstrap', icon: '🅱️' },
     { value: 'react', label: 'React', icon: '⚛️' },
     { value: 'next', label: 'Next.js', icon: '▲' }
   ],
@@ -59,12 +60,20 @@ const PedagogyTestConfigurationSection: React.FC<TestConfigurationSectionProps> 
     const updated = current.includes(value)
       ? current.filter(lang => lang !== value)
       : [...current, value];
- 
+
+    // Bootstrap is only usable inside HTML, so ticking it also ticks HTML
+    if (
+      category === 'frontend' && value === 'bootstrap' && updated.includes('bootstrap') &&
+      !updated.includes('html') && visibleOptions.frontend.some(l => l.value === 'html')
+    ) {
+      updated.push('html');
+    }
+
     const newConfig = { ...localConfig, [category]: updated };
     setLocalConfig(newConfig);
     onChange(newConfig);
   };
- 
+
   const handleSelectAll = (category: 'coreProgram' | 'frontend' | 'database') => {
     const allValues = visibleOptions[category].map(l => l.value);
     const currentValues = localConfig[category];

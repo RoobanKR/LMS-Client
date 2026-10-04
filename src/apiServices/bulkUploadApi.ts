@@ -1,6 +1,7 @@
 import axios from "axios";
+import { API_ORIGIN } from '@/lib/apiBase'
 
-const BASE_URL = "https://lms-server-ym1q.onrender.com";
+const BASE_URL = `${API_ORIGIN}`;
 
 export const bulkUploadApi = {
   /**

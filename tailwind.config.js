@@ -19,7 +19,8 @@ module.exports = {
     extend: {
        fontFamily: {
         montserrat: ['Montserrat', 'sans-serif'],
-        inter: ['Inter', 'sans-serif'],
+        poppins: ['Poppins', 'sans-serif'],
+        inter: ['Poppins', 'sans-serif'],
       },
       colors: {
         border: "hsl(var(--border))",

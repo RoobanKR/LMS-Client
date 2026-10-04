@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import {
   X, FolderPlus, File as FileIcon, Upload,
   ChevronRight, CheckCircle2, AlertCircle, Home,
@@ -8,7 +8,12 @@ import {
   FolderOpen, Plus,
 } from "lucide-react";
 import type { HierarchyInfo } from "./Pagecreationmodal";
+import { getUploadErrorMessage } from "./uploadError";
 import TipTapEditor from "@/app/lms/component/tiptopEditor";
+import {
+  buildAllowedRules, getFileExt, partitionFiles, fmtLimit,
+  LEGACY_ALLOWED_TYPES, type MaxSizeByType,
+} from "./resourceFileFormats";
 
 /* ─── Design tokens — exact match with CourseSidebar ─────────────────────── */
 const T = {
@@ -34,7 +39,7 @@ const T = {
   red: "#DC2626",
   redLight: "rgba(220,38,38,0.09)",
   blue: "#2563EB",
-  font: "'Inter','DM Sans','Segoe UI',sans-serif",
+  font: "'Poppins','DM Sans','Segoe UI',sans-serif",
 };
 
 /* ─── Types ───────────────────────────────────────────────────────────────── */
@@ -54,26 +59,6 @@ interface AssignedFile {
 }
 
 interface ModalToast { msg: string; ok: boolean }
-
-/* ─── Allowed types ───────────────────────────────────────────────────────── */
-const ALLOWED_EXTENSIONS = new Set([
-  "ppt", "pptx", "pdf", "doc", "docx", "txt",
-  "png", "jpg", "jpeg", "gif", "webp", "svg",
-  "mp4", "mov", "avi", "mkv", "webm",
-  "mp3", "wav", "aac", "m4a",
-]);
-
-const ALLOWED_ACCEPT = [
-  ".ppt,.pptx", ".pdf", ".doc,.docx", ".txt",
-  ".png,.jpg,.jpeg,.gif,.webp,.svg",
-  ".mp4,.mov,.avi,.mkv,.webm",
-  ".mp3,.wav,.aac,.m4a",
-].join(",");
-
-function getFileExt(name: string) {
-  return name.includes(".") ? name.split(".").pop()?.toLowerCase() ?? "" : "";
-}
-function isAllowed(f: File) { return ALLOWED_EXTENSIONS.has(getFileExt(f.name)); }
 
 /* ─── Helpers ─────────────────────────────────────────────────────────────── */
 function fmtSize(bytes: number) {
@@ -215,6 +200,21 @@ export interface FileUploadModalProps {
   // deletion and processes it on Save Changes — the server-side deleteFolder
   // call cascades to all files/subfolders inside it.
   onDeleteFolder?: (name: string, path: string[]) => void;
+  /**
+   * Course Setup config keys this course enabled — e.g. `["ppt", "pdf"]`.
+   * Drives the accepted-type chips, the browse dialog's filter and the
+   * drag & drop validation, so a type the course didn't enable cannot be
+   * added by any route. Omitted (legacy course with no saved config) →
+   * LEGACY_ALLOWED_TYPES.
+   */
+  allowedTypes?: string[];
+  /**
+   * Per-type "Max file size" from Course Setup, in MB — e.g. `{ ppt: 2, pdf: 3 }`.
+   * A file over its own type's ceiling is rejected before it can be queued, so
+   * the limit holds for drag & drop the same as for browsing. Types absent from
+   * the map are unlimited.
+   */
+  maxSizeByType?: MaxSizeByType;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -227,8 +227,20 @@ export const FileUploadModal: React.FC<FileUploadModalProps> = ({
   editMode = false,
   initialFileName, initialDescription,
   initialShowToStudent, initialAllowDownload,
-  initialFiles, initialFolders, onDeleteFile, onDeleteFolder, onSuccess
+  initialFiles, initialFolders, onDeleteFile, onDeleteFolder, onSuccess,
+  allowedTypes, maxSizeByType,
 }) => {
+
+  // The single gate every entry route checks: the <input accept>, the browse
+  // dialog and the drop handler all read from this, so there's no way in for a
+  // type the course didn't enable.
+  // Presence, not length: an empty array means "this course enabled no file
+  // types", which must accept nothing. Only an omitted prop is a legacy caller
+  // with no config to go on.
+  const allowedRules = useMemo(
+    () => buildAllowedRules(allowedTypes ?? LEGACY_ALLOWED_TYPES, maxSizeByType),
+    [allowedTypes, maxSizeByType]
+  );
 
   const [fileName, setFileName] = useState("");
   const [fileDescription, setFileDescription] = useState("");
@@ -259,6 +271,7 @@ export const FileUploadModal: React.FC<FileUploadModalProps> = ({
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
 
   const showModalToast = useCallback((msg: string, ok: boolean) => {
@@ -358,9 +371,12 @@ export const FileUploadModal: React.FC<FileUploadModalProps> = ({
     }
   }, [isOpen]);
 
-  /* Auto-fill name */
+  /* Auto-fill name — from the first file, for one file or several. Picking two
+     files one at a time already kept the first one's name as the group name,
+     while picking both at once left it blank and Upload refused; the same
+     files now get the same (editable) name however they were added. */
   useEffect(() => {
-    if (assignedFiles.length === 1 && !hasFolders && !fileName) {
+    if (assignedFiles.length >= 1 && !hasFolders && !fileName) {
       const n = assignedFiles[0].file.name;
       setFileName(n.includes(".") ? n.slice(0, n.lastIndexOf(".")) : n);
     } else if (assignedFiles.length === 0 && !hasFolders && !editMode) {
@@ -414,9 +430,8 @@ export const FileUploadModal: React.FC<FileUploadModalProps> = ({
 
   const addFiles = useCallback((incoming: File[]) => {
     const snap = [...selectedFolderPath];
-    const allowed = incoming.filter(isAllowed);
-    const blocked = incoming.filter(f => !isAllowed(f));
-    if (blocked.length) showModalToast(`${blocked.length} file${blocked.length > 1 ? "s" : ""} blocked — unsupported type`, false);
+    const { allowed, blockedMessage } = partitionFiles(incoming, allowedRules);
+    if (blockedMessage) showModalToast(blockedMessage, false);
     if (!allowed.length) return;
     setAssignedFiles(prev => {
       const existing = new Set(prev.map(af => af.targetPath.join("/") + "::" + af.file.name + af.file.size));
@@ -428,7 +443,7 @@ export const FileUploadModal: React.FC<FileUploadModalProps> = ({
           displayName: f.name, isEditingName: false, editNameValue: f.name,
         }))];
     });
-  }, [selectedFolderPath, showModalToast]);
+  }, [selectedFolderPath, showModalToast, allowedRules]);
 
   const startEdit = (id: string) => setAssignedFiles(prev => prev.map(af => af.id === id ? { ...af, isEditingName: true, editNameValue: af.displayName } : af));
   const updateEdit = (id: string, v: string) => setAssignedFiles(prev => prev.map(af => af.id === id ? { ...af, editNameValue: v } : af));
@@ -490,7 +505,19 @@ export const FileUploadModal: React.FC<FileUploadModalProps> = ({
 
     if (!editMode && !assignedFiles.length && !hasFolders) return;
     if (!fileName.trim()) {
-      setNameError(editMode ? "Name is required." : (hasFolders || assignedFiles.length > 1 ? "Group name required." : "File name required."));
+      const msg = editMode ? "Name is required." : (hasFolders || assignedFiles.length > 1 ? "Group name required." : "File name required.");
+      setNameError(msg);
+      // The name field sits at the TOP of the scrolling body, so with a few
+      // files queued it is scrolled out of view and the click looked dead —
+      // bring it back, put the cursor in it, and say why in the footer toast.
+      nameInputRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+      nameInputRef.current?.focus({ preventScroll: true });
+      showModalToast(
+        hasFolders || assignedFiles.length > 1
+          ? "Enter a group name for these files to upload them"
+          : msg,
+        false
+      );
       return;
     }
 
@@ -500,6 +527,7 @@ export const FileUploadModal: React.FC<FileUploadModalProps> = ({
     setProgressStep("Starting…");
     setCreationDone(false);
 
+    try {
     // Metadata-only / pure-deletion / pure-rename path for edit mode.
     // Trigger when there's nothing NEW to upload (seeded existing entries don't
     // count). This still calls onSubmit so the parent can process pending
@@ -509,8 +537,7 @@ export const FileUploadModal: React.FC<FileUploadModalProps> = ({
     if (editMode && !hasNewFiles && !hasNewFolders) {
       setProgressStep("Saving…");
       const metaOpts: UploadOptions = { showToStudent, allowDownload, createdAt: new Date().toISOString() };
-      try { await onSubmit([], fileName.trim(), fileDescription.trim(), [...currentFolderPath], () => { }, metaOpts); }
-      catch { }
+      await onSubmit([], fileName.trim(), fileDescription.trim(), [...currentFolderPath], () => { }, metaOpts);
       // Second one (main upload path):
       setUploadProgress(100); setProgressStep("All done!"); setCreationDone(true);
       setTimeout(() => { setIsSubmitting(false); if (onSuccess) onSuccess(); else onClose(); }, 500);
@@ -580,14 +607,12 @@ export const FileUploadModal: React.FC<FileUploadModalProps> = ({
       const fn = relPath[relPath.length - 1];
       setProgressStep(`Creating "${fn}"…`);
       const isTop = relPath.length === 1;
-      try {
         await onCreateFolder(fn, [...capturedBasePath, ...relPath.slice(0, -1)], {
           createdAt: uploadOptions.createdAt,
           parentGroupId: isTop ? effectiveGroupId : undefined,
           groupName: isTop ? uploadOptions.groupName : undefined,
           groupDescription: isTop ? uploadOptions.groupDescription : undefined,
         });
-      } catch { }
       finishTask(`"${fn}" created`);
     }
 
@@ -601,10 +626,8 @@ export const FileUploadModal: React.FC<FileUploadModalProps> = ({
         groupName: filesAtRoot ? uploadOptions.groupName : undefined,
         groupDescription: filesAtRoot ? uploadOptions.groupDescription : undefined,
       };
-      try {
         await onSubmit(files, hasFolders ? "" : capturedGroupName, capturedDescription,
           [...capturedBasePath, ...path], () => { }, perFileOpts);
-      } catch { }
       finishTask(files.length === 1 ? `"${files[0].name}" uploaded` : `${files.length} files uploaded`);
     }
 
@@ -624,7 +647,6 @@ export const FileUploadModal: React.FC<FileUploadModalProps> = ({
     // queue gets flushed; nothing new is uploaded.
     if (editMode && capturedFileGroups.length === 0) {
       setProgressStep("Saving changes…");
-      try {
         await onSubmit(
           [],
           hasFolders ? "" : capturedGroupName,
@@ -633,11 +655,17 @@ export const FileUploadModal: React.FC<FileUploadModalProps> = ({
           () => { },
           uploadOptions,
         );
-      } catch { }
     }
 
     setUploadProgress(100); setProgressStep("All done!"); setCreationDone(true);
     setTimeout(() => { setIsSubmitting(false); if (onSuccess) onSuccess(); else onClose(); }, 500);
+    } catch (error) {
+      setIsSubmitting(false);
+      setCreationDone(false);
+      setUploadProgress(0);
+      setProgressStep("Upload failed");
+      showModalToast(getUploadErrorMessage(error), false);
+    }
   };
 
   if (!isOpen) return null;
@@ -650,7 +678,7 @@ export const FileUploadModal: React.FC<FileUploadModalProps> = ({
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-        .fum * { box-sizing:border-box; font-family:'Inter','DM Sans','Segoe UI',sans-serif; }
+        .fum * { box-sizing:border-box; font-family:'Poppins','DM Sans','Segoe UI',sans-serif; }
         .fum-input { outline:none; transition:border-color .15s,box-shadow .15s; }
         .fum-input:focus { border-color:rgba(232,100,12,.45) !important; box-shadow:0 0 0 3px rgba(232,100,12,.09) !important; }
         .fum-row { transition:background .13s; }
@@ -1095,6 +1123,7 @@ export const FileUploadModal: React.FC<FileUploadModalProps> = ({
                   {isGroup ? "Group Name" : "File Name"} <span style={{ color: T.red }}>*</span>
                 </label>
                 <input
+                  ref={nameInputRef}
                   className="fum-input"
                   type="text" value={fileName}
                   onChange={e => { setFileName(e.target.value); if (nameError) setNameError(""); }}
@@ -1207,7 +1236,7 @@ export const FileUploadModal: React.FC<FileUploadModalProps> = ({
               >
                 <FileIcon size={13} strokeWidth={1.8} /> Browse Files
               </button>
-              <input ref={fileInputRef} type="file" multiple accept={ALLOWED_ACCEPT} style={{ display: "none" }} onChange={handleFileInput} />
+              <input ref={fileInputRef} type="file" multiple accept={allowedRules.accept} style={{ display: "none" }} onChange={handleFileInput} />
 
               <span style={{ fontSize: 11, color: T.textGhost, fontFamily: T.font }}>or drag &amp; drop below</span>
 
@@ -1446,35 +1475,51 @@ export const FileUploadModal: React.FC<FileUploadModalProps> = ({
                       </div>
                     </div>
                     <div style={{ textAlign: "center" }}>
-                      <p style={{ fontSize: 14, fontWeight: 600, color: T.text, margin: "0 0 4px", fontFamily: T.font }}>
-                        {selectedFolderPath.length
-                          ? `Drop files into "${selectedFolderPath[selectedFolderPath.length - 1]}"`
-                          : "Drag & drop files here"}
-                      </p>
-                      <p style={{ fontSize: 12, color: T.textFaint, margin: "0 0 10px", fontFamily: T.font }}>
-                        or{" "}
-                        <span style={{ color: T.acc, fontWeight: 600, textDecoration: "underline", textUnderlineOffset: 2 }}>
-                          click to browse
-                        </span>
-                        {" "}from your computer
-                      </p>
-                      {/* Accepted types */}
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, flexWrap: "wrap" }}>
-                        {[
-                          { label: "PDF", color: "#EF4444" },
-                          { label: "PPTX", color: "#F97316" },
-                          { label: "DOCX", color: "#3B82F6" },
-                          { label: "Images", color: "#7C3AED" },
-                          { label: "Video", color: "#0891B2" },
-                          { label: "Audio", color: "#D97706" },
-                        ].map(({ label, color }) => (
-                          <span key={label} style={{
-                            fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 4,
-                            background: `${color}10`, color, border: `1px solid ${color}20`,
-                            fontFamily: T.font, letterSpacing: "0.02em",
-                          }}>{label}</span>
-                        ))}
-                      </div>
+                      {/* No accepted formats at all — the course turned every
+                          upload type off. Say so instead of inviting a drop
+                          that can only be rejected. */}
+                      {allowedRules.chips.length === 0 ? (
+                        <p style={{ fontSize: 13, fontWeight: 600, color: T.textFaint, margin: 0, fontFamily: T.font }}>
+                          No file types are enabled for this course
+                          <span style={{ display: "block", fontSize: 11.5, fontWeight: 400, marginTop: 4 }}>
+                            Enable one in Course Setup › Resource Type to upload files here
+                          </span>
+                        </p>
+                      ) : (
+                        <>
+                          <p style={{ fontSize: 14, fontWeight: 600, color: T.text, margin: "0 0 4px", fontFamily: T.font }}>
+                            {selectedFolderPath.length
+                              ? `Drop files into "${selectedFolderPath[selectedFolderPath.length - 1]}"`
+                              : "Drag & drop files here"}
+                          </p>
+                          <p style={{ fontSize: 12, color: T.textFaint, margin: "0 0 10px", fontFamily: T.font }}>
+                            or{" "}
+                            <span style={{ color: T.acc, fontWeight: 600, textDecoration: "underline", textUnderlineOffset: 2 }}>
+                              click to browse
+                            </span>
+                            {" "}from your computer
+                          </p>
+                          {/* Accepted types — exactly what Course Setup enabled */}
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, flexWrap: "wrap" }}>
+                            {allowedRules.chips.map(({ label, color, limit }) => (
+                              <span key={label} style={{
+                                fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 4,
+                                background: `${color}10`, color, border: `1px solid ${color}20`,
+                                fontFamily: T.font, letterSpacing: "0.02em",
+                              }}>
+                                {label}
+                                {/* Each type carries its own ceiling, so the
+                                    limit belongs on the chip, not in one shared
+                                    "max N MB" line that would be wrong for the
+                                    other types. */}
+                                {limit ? (
+                                  <span style={{ fontWeight: 500, opacity: 0.75 }}> · {fmtLimit(limit)}</span>
+                                ) : null}
+                              </span>
+                            ))}
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>

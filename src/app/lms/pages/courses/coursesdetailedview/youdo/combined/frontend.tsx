@@ -1,4 +1,5 @@
 "use client";
+import { getToken } from "@/lib/session";
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
@@ -61,6 +62,7 @@ import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import dynamic from 'next/dynamic';
 import RichTextDisplay from '@/app/lms/component/RichTextDisplay';
+import { API_ORIGIN } from '@/lib/apiBase'
 
 const MonacoEditor = dynamic(
   () => import('@monaco-editor/react'),
@@ -253,11 +255,17 @@ const FrontendQuestion: React.FC<FrontendQuestionProps> = ({
 
     const initialFiles: FileType[] = [];
 
-    if (question.solutions?.htmlCode) {
+    // Code Setup's starterCode (html/css/javascript) takes priority over the
+    // legacy solutions.htmlCode/cssCode/jsCode fields.
+    const starterHtml = question.starterCode?.html || question.solutions?.htmlCode;
+    const starterCss = question.starterCode?.css || question.solutions?.cssCode;
+    const starterJs = question.starterCode?.javascript || question.solutions?.jsCode;
+
+    if (starterHtml) {
       const htmlFile: FileType = {
         id: 'file-html',
         filename: 'index.html',
-        content: question.solutions.htmlCode,
+        content: starterHtml,
         language: 'html',
         path: '/index.html',
         folderPath: '/',
@@ -266,11 +274,11 @@ const FrontendQuestion: React.FC<FrontendQuestionProps> = ({
       };
       initialFiles.push(htmlFile);
     }
-    if (question.solutions?.cssCode) {
+    if (starterCss) {
       const cssFile: FileType = {
         id: 'file-css',
         filename: 'styles.css',
-        content: question.solutions.cssCode,
+        content: starterCss,
         language: 'css',
         path: '/styles.css',
         folderPath: '/',
@@ -278,11 +286,11 @@ const FrontendQuestion: React.FC<FrontendQuestionProps> = ({
       };
       initialFiles.push(cssFile);
     }
-    if (question.solutions?.jsCode) {
+    if (starterJs) {
       const jsFile: FileType = {
         id: 'file-js',
         filename: 'script.js',
-        content: question.solutions.jsCode,
+        content: starterJs,
         language: 'javascript',
         path: '/script.js',
         folderPath: '/',
@@ -786,7 +794,7 @@ const FrontendQuestion: React.FC<FrontendQuestionProps> = ({
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                min-height: 100vh;
+                min-height: calc(100vh * var(--ui-scale-inv, 1));
                 margin: 0;
                 padding: 20px;
             }
@@ -1344,7 +1352,7 @@ console.log('${fileName} loaded');
   const loadPreviousSubmission = useCallback(async () => {
     setIsLoadingPrevious(true);
     try {
-      const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
+      const token = getToken() || localStorage.getItem('token') || '';
 
       if (!token) {
         toast.error("Authentication token missing");
@@ -1352,7 +1360,7 @@ console.log('${fileName} loaded');
       }
 
       const response = await fetch(
-        `https://lms-server-ym1q.onrender.com/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseId}&questionId=${question._id}&category=${category}`,
+        `${API_ORIGIN}/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseId}&questionId=${question._id}&category=${category}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -2148,7 +2156,7 @@ console.log('${fileName} loaded');
     setIsSubmitting(true);
 
     try {
-      const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
+      const token = getToken() || localStorage.getItem('token') || '';
 
       // Store structured files/folders via submit-multiple-files — exactly like the
       // standalone frontendCompiler.tsx (and the combined SQL question). The backend
@@ -2181,7 +2189,7 @@ console.log('${fileName} loaded');
         depth: folder.depth,
       }));
 
-      const response = await fetch('https://lms-server-ym1q.onrender.com/courses/answers/submit-multiple-files', {
+      const response = await fetch(`${API_ORIGIN}/courses/answers/submit-multiple-files`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({

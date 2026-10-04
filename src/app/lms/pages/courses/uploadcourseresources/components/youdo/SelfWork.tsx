@@ -60,7 +60,7 @@ export default function SelfWork({ nodeName, subcategoryLabel, hierarchyData }: 
   return (
     <div
       className="flex flex-col h-full overflow-hidden"
-      style={{ fontFamily: "'Inter',-apple-system,sans-serif", background: T.pageBg }}
+      style={{ fontFamily: "'Poppins',-apple-system,sans-serif", background: T.bg }}
     >
       {/* ── Header ── */}
       <div

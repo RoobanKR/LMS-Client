@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   BookOpen,
@@ -13,12 +13,13 @@ import {
   Layers,
   Library,
   Loader2,
-  Minus,
-  Plus,
+  LogOut,
   Search,
-  X,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { getToken, clearAllStorage } from "@/lib/session";
+import { postLogout } from "@/app/lms/pages/logs/api/activityLog";
+import { logoutUser } from "@/apiServices/tokenVerify";
 
 import type { CourseNode } from "./Types";
 
@@ -29,7 +30,9 @@ const COLLAPSE_BREAKPOINT = 80;
 
 /* ─── Design tokens — light theme ──────────────────────────────────────────── */
 const T = {
-  bg:           "#ffffff",
+  // Flat rail: the sidebar body is TRANSPARENT so the app's gray canvas shows
+  // through (floating-workspace theme); raised elements use `surface` white.
+  bg:           "transparent",
   surface:      "#ffffff",
   surfaceEl:    "#f8fafc",
   surfaceHov:   "#f4f5f7",
@@ -47,7 +50,7 @@ const T = {
   textFaint:    "#64748B",
   textGhost:    "#94A3B8",
   success:      "#059669",
-  font:         "'Inter','DM Sans','Segoe UI',sans-serif",
+  font:         "'Poppins','DM Sans','Segoe UI',sans-serif",
 };
 
 /* ─── Per-type tones ────────────────────────────────────────────────────────── */
@@ -119,7 +122,7 @@ const FontImport = () => (
   <style>{`
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
     .sb-sidebar * { box-sizing: border-box; }
-    .sb-sidebar { font-family: 'Inter', 'DM Sans', 'Segoe UI', sans-serif; -webkit-font-smoothing: antialiased; }
+    .sb-sidebar { font-family: 'Poppins', 'DM Sans', 'Segoe UI', sans-serif; -webkit-font-smoothing: antialiased; }
     .sb-row { transition: background .16s ease, color .16s ease; cursor: pointer; }
     .sb-input { outline: none; transition: border-color .15s ease, box-shadow .15s ease; }
     .sb-input:focus { border-color: rgba(232,100,12,.4) !important; box-shadow: 0 0 0 3px rgba(232,100,12,.10) !important; }
@@ -134,8 +137,23 @@ const FontImport = () => (
     .sb-icon-btn:hover { background: #f4f5f7 !important; border-color: #e5e7eb !important; color: #E8640C !important; }
     .sb-chip-btn { transition: background .15s, border-color .15s, color .15s; }
     .sb-chip-btn:hover { background: #f4f5f7 !important; border-color: #e5e7eb !important; color: #E8640C !important; }
-    .sb-node-row { transition: background .15s ease, color .15s ease; }
-    .sb-node-row:hover { background: #f6f7f9 !important; }
+    .sb-node-row { transition: background .15s ease, color .15s ease, box-shadow .15s ease; }
+    /* Unselected hover — subtle neutral tint (per syllabus-sidebar spec). */
+    .sb-node-row:hover { background: #F8FAFC !important; }
+    /* Selected row is a raised white pill (matches the main admin sidebar);
+       hover keeps it white so the pill doesn't strobe between fills. */
+    .sb-node-row.sb-node-selected:hover { background: #ffffff !important; }
+    /* Slim tangerine active-rail on the left edge of the selected row. */
+    .sb-node-row.sb-node-selected::before {
+      content: "";
+      position: absolute;
+      left: -1px;
+      top: 8px;
+      bottom: 8px;
+      width: 3px;
+      background: #F97316;
+      border-radius: 0 3px 3px 0;
+    }
   `}</style>
 );
 
@@ -149,7 +167,6 @@ const LoadingSidebar = ({ width }: { width: number }) => (
       display: "flex",
       flexDirection: "column",
       background: T.bg,
-      borderRight: `1px solid ${T.border}`,
     }}
   >
     <FontImport />
@@ -213,8 +230,8 @@ const IconBtn: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement>> = ({ chil
 /* ─── Section label ─────────────────────────────────────────────────────────── */
 const SectionLabel = ({ label }: { label: string }) => (
   <div style={{
-    fontFamily: T.font, fontSize: 10.5, fontWeight: 600,
-    letterSpacing: "0.04em",
+    fontFamily: T.font, fontSize: 11, fontWeight: 600,
+    letterSpacing: "0.05em", textTransform: "uppercase" as const,
     color: T.textGhost, padding: "12px 16px 6px",
   }}>
     {label}
@@ -248,39 +265,44 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   };
 
   const indentPx = depth * 12;
-  const iconBox   = depth === 0 ? 22 : 18;
-  const iconSize  = depth === 0 ? 13 : 11;
-  const fontSize  = depth === 0 ? 12.5 : 11.5;
+  // Sized to match the app's other sidebars (13px nav rows).
+  const iconBox   = depth === 0 ? 24 : 20;
+  const iconSize  = depth === 0 ? 15 : 13;
+  const fontSize  = depth === 0 ? 13.5 : 13;
 
   return (
     <div style={{ animation: "sbFadeIn .16s ease both" }}>
       {/* Row */}
       <div
-        className="sb-node-row"
+        className={`sb-node-row${isSelected ? " sb-node-selected" : ""}`}
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
         onClick={select}
         style={{
           display: "flex", alignItems: "center", gap: 8,
-          padding: "8px 10px 8px 0",
+          padding: "6px 10px 6px 0",
           marginLeft: 8 + indentPx,
           marginRight: 8,
-          borderRadius: 8,
-          background: isSelected
-            ? T.surfaceAct
-            : "transparent",
+          borderRadius: 10,
+          // Selected pill — raised white on the gray rail (matches the main
+          // admin sidebar's selection idiom: white fill + hairline border +
+          // subtle shadow carry "selected"; the tangerine still appears in
+          // the icon/text tone and the slim ::before rail).
+          background: isSelected ? "#ffffff" : "transparent",
+          border: isSelected ? "1px solid #E4E7EC" : "1px solid transparent",
+          boxShadow: isSelected ? "0 1px 2px rgba(15, 23, 42, 0.04)" : "none",
           cursor: "pointer",
           userSelect: "none",
           position: "relative",
         }}
       >
-        {/* Vertical tree line */}
+        {/* Vertical tree line — light gray guide beside child syllabus items. */}
         {depth > 0 && (
           <span style={{
             position: "absolute",
             top: 0, bottom: 0, width: 1,
             left: -indentPx + 4,
-            background: T.border,
+            background: "#E2E8F0",
           }} />
         )}
 
@@ -311,8 +333,9 @@ const TreeNode: React.FC<TreeNodeProps> = ({
             </button>
           ) : (
             <span style={{
-              width: 4, height: 4, borderRadius: "50%",
-              background: isSelected ? T.acc : T.textGhost,
+              width: isSelected ? 6 : 4, height: isSelected ? 6 : 4,
+              borderRadius: "50%",
+              background: isSelected ? "#F97316" : "#94A3B8",
               display: "block",
             }} />
           )}
@@ -320,7 +343,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
 
         {/* Type icon */}
         <div style={{
-          width: iconBox, height: iconBox,
+          width: isSelected ? 18 : iconBox, height: isSelected ? 18 : iconBox,
           flexShrink: 0,
           display: "flex", alignItems: "center", justifyContent: "center",
           background: "transparent",
@@ -328,8 +351,8 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         }}>
           <NodeIcon
             type={node.type}
-            size={iconSize + 2}
-            color={isSelected ? T.acc : tone.icon}
+            size={isSelected ? 18 : iconSize + 2}
+            color={isSelected ? "#EA580C" : "#64748B"}
           />
         </div>
 
@@ -338,8 +361,10 @@ const TreeNode: React.FC<TreeNodeProps> = ({
           <div style={{
             fontFamily: T.font,
             fontSize,
-            fontWeight: isSelected ? 600 : depth === 0 ? 500 : 500,
-            color: isSelected ? T.acc : T.textSub,
+            fontWeight: isSelected ? 600 : 500,
+            // Selected uses the strong-tangerine text tone; unselected keeps
+            // the neutral slate (T.textSub === #334155).
+            color: isSelected ? "#C2410C" : T.textSub,
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
             lineHeight: 1.3,
             transition: "color .15s",
@@ -412,6 +437,51 @@ export const CourseSidebar: React.FC<Props> = ({
   const router = useRouter();
   const isCollapsed = sidebarWidth <= COLLAPSE_BREAKPOINT;
 
+  // Back goes to the section the user actually came in through. This screen is
+  // mounted by two routes — /lms/pages/courses/uploadcourseresources and
+  // /lms/pages/coursestructure/uploadcourseresources — so a hard-coded
+  // "/lms/pages/courses" dropped anyone who arrived via Course Structure onto a
+  // page they had never visited. Mirrors `useParentSection` in the page.
+  const pathname = usePathname() || "";
+  const back = pathname.startsWith("/lms/pages/coursestructure")
+    ? { href: "/lms/pages/coursestructure", title: "Back to course management" }
+    : { href: "/lms/pages/courses", title: "Back to courses" };
+
+  // Signed-in profile for the footer row (replaces the old selected-node
+  // status) — same identity + real logout flow as the app's other sidebars.
+  // `email` is the account's unique identity — a name and a role can repeat
+  // across people, so the identity row carries it under them.
+  const [account, setAccount] = useState({ name: "User", role: "", email: "", initial: "U" });
+  const [signingOut, setSigningOut] = useState(false);
+  useEffect(() => {
+    try {
+      const u = JSON.parse(localStorage.getItem("smartcliff_userData") || "null");
+      if (u) {
+        setAccount({
+          name: `${u.firstName || ""} ${u.lastName || ""}`.trim() || "User",
+          role: u.role?.renameRole || u.role?.originalRole || "",
+          email: (u.email || "").trim(),
+          initial: (u.firstName?.charAt(0) || "U").toUpperCase(),
+        });
+      }
+    } catch { /* keep defaults */ }
+  }, []);
+  const handleLogout = async () => {
+    setSigningOut(true);
+    const token = getToken();
+    try {
+      // postLogout must run while the token is still stored — it records the
+      // session duration in the activity log.
+      await postLogout();
+      if (token) await logoutUser(token);
+    } catch (e) {
+      console.error("Logout error:", e);
+    } finally {
+      clearAllStorage();
+      window.location.href = "/login";
+    }
+  };
+
   const roots = useMemo(
     () =>
       courseData[0]?.type === "course"
@@ -437,7 +507,6 @@ export const CourseSidebar: React.FC<Props> = ({
           display: "flex", flexDirection: "column",
           alignItems: "center", gap: 10,
           background: T.bg,
-          borderRight: `1px solid ${T.border}`,
           padding: "10px 0",
         }}
       >
@@ -461,7 +530,7 @@ export const CourseSidebar: React.FC<Props> = ({
         </button>
 
         {/* Back */}
-        <IconBtn onClick={() => router.push("/lms/pages/courses")} title="Back to courses">
+        <IconBtn onClick={() => router.push(back.href)} title={back.title}>
           <ArrowLeft size={13} strokeWidth={2} />
         </IconBtn>
 
@@ -489,16 +558,21 @@ export const CourseSidebar: React.FC<Props> = ({
           </div>
         )}
 
-        {/* Bottom avatar */}
-        <div style={{ marginTop: "auto" }}>
+        {/* Bottom: signed-in avatar + logout (mirrors the expanded footer) */}
+        <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
           <div style={{
             width: 30, height: 30, borderRadius: "50%",
-            background: T.surfaceEl, border: `1px solid ${T.border}`,
+            background: "#111827",
             display: "flex", alignItems: "center", justifyContent: "center",
-            fontFamily: T.font, fontSize: 11, fontWeight: 600, color: T.textSub,
+            fontFamily: T.font, fontSize: 11, fontWeight: 600, color: "#fff",
           }}>
-            {initials(courseName)}
+            {account.initial}
           </div>
+          <IconBtn onClick={handleLogout} title="Sign out" disabled={signingOut}>
+            {signingOut
+              ? <Loader2 size={13} style={{ animation: "sbSpin .8s linear infinite" }} />
+              : <LogOut size={13} strokeWidth={2} />}
+          </IconBtn>
         </div>
       </div>
     );
@@ -512,20 +586,21 @@ export const CourseSidebar: React.FC<Props> = ({
         width: sidebarWidth, height: "100%",
         display: "flex", flexDirection: "column",
         background: T.bg,
-        borderRight: `1px solid ${T.border}`,
         position: "relative",
       }}
     >
       <FontImport />
 
-      {/* ── Header ── */}
-      <div style={{
-        padding: "14px 14px 12px",
-        borderBottom: `1px solid ${T.border}`,
-        flexShrink: 0,
-        background: T.surface,
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      {/* ── Header — raised white course card on the gray rail ── */}
+      <div style={{ padding: "12px 12px 6px", flexShrink: 0 }}>
+        <div style={{
+          display: "flex", alignItems: "center", gap: 10,
+          background: T.surface,
+          border: "1px solid #E4E7EC",
+          borderRadius: 14,
+          boxShadow: "0 1px 2px rgba(16,24,40,.04)",
+          padding: "10px 10px",
+        }}>
 
           {/* Course icon */}
           <div style={{
@@ -539,7 +614,7 @@ export const CourseSidebar: React.FC<Props> = ({
           {/* Course name + module count */}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{
-              fontFamily: T.font, fontSize: 13.5, fontWeight: 600,
+              fontFamily: T.font, fontSize: 14, fontWeight: 700,
               color: T.text,
               overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
               lineHeight: 1.25,
@@ -562,8 +637,8 @@ export const CourseSidebar: React.FC<Props> = ({
           {/* Back + collapse buttons */}
           <div style={{ display: "flex", gap: 4 }}>
             <IconBtn
-              onClick={() => router.push("/lms/pages/courses")}
-              title="Back to courses"
+              onClick={() => router.push(back.href)}
+              title={back.title}
             >
               <ArrowLeft size={12} strokeWidth={2} />
             </IconBtn>
@@ -577,95 +652,10 @@ export const CourseSidebar: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* ── Search + tools ── */}
-      <div style={{
-        padding: "10px 12px 12px",
-        borderBottom: `1px solid ${T.border}`,
-        flexShrink: 0,
-        background: T.surface,
-      }}>
-        {/* Search input */}
-        <div style={{ position: "relative", marginBottom: 10 }}>
-          <Search
-            size={13} strokeWidth={2}
-            style={{
-              position: "absolute", left: 12, top: "50%",
-              transform: "translateY(-50%)",
-              color: T.textFaint, pointerEvents: "none",
-            }}
-          />
-          <input
-            className="sb-input"
-            type="text"
-            placeholder="Search"
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            style={{
-              width: "100%", boxSizing: "border-box",
-              paddingLeft: 32, paddingRight: searchQuery ? 28 : 10,
-              paddingTop: 8, paddingBottom: 8,
-              fontFamily: T.font, fontSize: 12.5,
-              background: "#f8fafc",
-              border: `1px solid ${T.border}`,
-              borderRadius: 10, color: T.text,
-            }}
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => onSearchChange("")}
-              style={{
-                position: "absolute", right: 6, top: "50%",
-                transform: "translateY(-50%)",
-                width: 18, height: 18, borderRadius: 5,
-                background: T.surfaceEl, border: `1px solid ${T.border}`,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                cursor: "pointer", color: T.textFaint, padding: 0,
-              }}
-            >
-              <X size={10} strokeWidth={2.2} />
-            </button>
-          )}
-        </div>
-
-        {/* Expand / Collapse chips */}
-        {(onExpandAll || onCollapseAll) && (
-          <div style={{ display: "flex", gap: 6 }}>
-            {onExpandAll && (
-              <button
-                type="button"
-                className="sb-chip-btn"
-                onClick={onExpandAll}
-                style={{
-                  flex: 1, height: 30, borderRadius: 8,
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                  border: `1px solid ${T.border}`, background: T.surface,
-                  fontFamily: T.font, fontSize: 11.5, fontWeight: 500,
-                  color: T.textSub, cursor: "pointer",
-                }}
-              >
-                <Plus size={12} strokeWidth={2} /> Expand
-              </button>
-            )}
-            {onCollapseAll && (
-              <button
-                type="button"
-                className="sb-chip-btn"
-                onClick={onCollapseAll}
-                style={{
-                  flex: 1, height: 30, borderRadius: 8,
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                  border: `1px solid ${T.border}`, background: T.surface,
-                  fontFamily: T.font, fontSize: 11.5, fontWeight: 500,
-                  color: T.textSub, cursor: "pointer",
-                }}
-              >
-                <Minus size={12} strokeWidth={2} /> Collapse
-              </button>
-            )}
-          </div>
-        )}
-      </div>
+      {/* Search box and Expand/Collapse chips were removed by request — the
+          tree is compact enough to browse directly, and collapse lives on the
+          course card. The search-results branch below only activates if a
+          parent ever drives `searchQuery` externally. */}
 
       {/* ── Scrollable tree / search results ── */}
       <div
@@ -793,50 +783,64 @@ export const CourseSidebar: React.FC<Props> = ({
         )}
       </div>
 
-      {/* ── Footer: selected node status ── */}
+      {/* ── Footer: signed-in profile + logout — matches the app sidebars ── */}
       <div style={{
         display: "flex", alignItems: "center", gap: 10,
         padding: "12px 14px",
-        borderTop: `1px solid ${T.border}`,
-        background: T.surface,
+        borderTop: "1px solid #E4E7EC",
         flexShrink: 0,
       }}>
-        {/* Avatar */}
         <div style={{
-          width: 30, height: 30, borderRadius: "50%", flexShrink: 0,
-          background: T.surfaceEl, border: `1px solid ${T.border}`,
+          width: 32, height: 32, borderRadius: "50%", flexShrink: 0,
+          background: "#111827",
           display: "flex", alignItems: "center", justifyContent: "center",
-          fontFamily: T.font, fontSize: 10.5, fontWeight: 600, color: T.textSub,
+          fontFamily: T.font, fontSize: 12, fontWeight: 600, color: "#fff",
         }}>
-          {initials(courseName)}
+          {account.initial}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
-            fontFamily: T.font, fontSize: 12.5, fontWeight: 600, color: T.text,
+            fontFamily: T.font, fontSize: 13, fontWeight: 600, color: T.text,
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
           }}>
-            {selectedNode ? selectedNode.name : courseName || "Course"}
+            {account.name}
           </div>
           <div style={{
             fontFamily: T.font, fontSize: 11, color: T.textFaint,
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
           }}>
-            {selectedNode
-              ? "Selected"
-              : "Pick a node to manage resources"}
+            {account.role || "Signed in"}
           </div>
+          {account.email && (
+            <div
+              title={account.email}
+              style={{
+                fontFamily: T.font, fontSize: 11, color: T.textGhost,
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+              }}
+            >
+              {account.email}
+            </div>
+          )}
         </div>
-
-        {/* Active node type icon */}
-        {selectedNode && (
-          <div style={{
-            width: 26, height: 26, borderRadius: 7, flexShrink: 0,
+        <button
+          type="button"
+          className="sb-icon-btn"
+          onClick={handleLogout}
+          disabled={signingOut}
+          title="Sign out"
+          style={{
+            width: 30, height: 30, borderRadius: 8, flexShrink: 0,
             display: "flex", alignItems: "center", justifyContent: "center",
-            background: T.accLight,
-          }}>
-            <NodeIcon type={selectedNode.type} size={13} color={T.acc} />
-          </div>
-        )}
+            border: "1px solid #E4E7EC", background: T.surface,
+            cursor: "pointer", color: T.textFaint, padding: 0,
+            opacity: signingOut ? 0.6 : 1,
+          }}
+        >
+          {signingOut
+            ? <Loader2 size={13} style={{ animation: "sbSpin .8s linear infinite" }} />
+            : <LogOut size={13} strokeWidth={2} />}
+        </button>
       </div>
 
       {/* ── Drag-resize handle ── */}

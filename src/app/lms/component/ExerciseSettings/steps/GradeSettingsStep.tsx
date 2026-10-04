@@ -1,11 +1,123 @@
+import styles from '../AssignmentSettings.module.css';
 import React from 'react';
 import {
   Award, EyeOff, Hash, Layers, List, Plus, Shield, Terminal, Trash2,
 } from 'lucide-react';
-import { D, FONT } from '../shared/tokens';
-import { GradeRow, InfoTooltip, ONumberInput } from '../shared/UIComponents';
+import { D as sharedColors, FONT } from '../../../pages/courses/uploadcourseresources/components/youdo/assessments/shared/tokens';
+const D = { ...sharedColors, orange: '#EE6A22', orangeDark: '#D65A16', orangeLight: '#FDF0E9', orangeMed: '#FADFCE', orangeGlow: '#FADFCE', border: '#e0e5eb', border2: '#b6c0cb', surface: '#f7f9fc', surface2: '#f1f5f9' };
+import { InfoTooltip, ONumberInput } from '../../../pages/courses/uploadcourseresources/components/youdo/assessments/shared/UIComponents';
 
-type SectionPart = { id: string; name: string; totalMarks: number | null; passMark: number | null };
+// ── SectionHeading ───────────────────────────────────────────────────────────
+// Same orange-title + hairline pattern used in ScheduleStep and
+// NotificationsStep so all wizard steps read as one flat surface.
+const SectionHeading: React.FC<{ children: React.ReactNode; right?: React.ReactNode }> = ({ children, right }) => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '4px 0 10px' }}>
+    <span style={{
+      fontSize: 12, fontWeight: 700, color: D.orange, letterSpacing: '-.01em',
+      whiteSpace: 'nowrap', textTransform: 'none', fontFamily: FONT,
+    }}>
+      {children}
+    </span>
+    <span aria-hidden style={{ flex: 1, height: 1, background: D.border }} />
+    {right && <span className="flex items-center flex-shrink-0" style={{ gap: 8 }}>{right}</span>}
+  </div>
+);
+
+// Recommended performance scale shown by default (percentage of Total Mark).
+// Always rendered; teachers can edit labels/percentages, add rows, or remove them.
+const DEFAULT_GRADE_BANDS = [
+  { id: 'band_poor', label: 'Poor', fromPercent: 0, toPercent: 40 },
+  { id: 'band_average', label: 'Average', fromPercent: 40, toPercent: 60 },
+  { id: 'band_good', label: 'Good', fromPercent: 60, toPercent: 80 },
+  { id: 'band_excellent', label: 'Excellent', fromPercent: 80, toPercent: 100 },
+];
+
+// ─── Demo-spec presentational helpers (styling only — no state, no logic) ────
+
+const LEVEL_DOT: Record<'easy' | 'medium' | 'hard', string> = { easy: '#0F9D58', medium: '#F0A415', hard: '#E0503C' };
+const LEVEL_TEXT: Record<'easy' | 'medium' | 'hard', string> = { easy: '#046C4E', medium: '#B54708', hard: '#B42318' };
+
+const pill = (bg: string, line: string, color: string): React.CSSProperties => ({
+  display: 'inline-flex', alignItems: 'center', gap: 5, height: 23, padding: '0 9px',
+  borderRadius: 999, fontSize: 10.8, fontWeight: 600, whiteSpace: 'nowrap',
+  background: bg, border: `1px solid ${line}`, color,
+});
+const BLUE_PILL = pill('#EFF6FF', '#CFE0FB', '#175CD3');
+const PURPLE_PILL = pill('#F4F0FF', '#DDD1FB', '#6941C6');
+const ORANGE_PILL = pill('#FFF2E8', '#FBD8BE', '#D65A16');
+const GREY_PILL = pill('#F4F4F5', '#E7E5E4', '#57606E');
+
+// spec table header cell
+const TH: React.CSSProperties = {
+  fontSize: 10.6, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em',
+  color: '#57606E', padding: '7px 9px',
+};
+// spec table wrapper: radius 10, 1px --line border
+const TABLE_WRAP: React.CSSProperties = {
+  borderRadius: 10, border: `1px solid ${D.border2}`, overflow: 'hidden', background: '#fff',
+};
+// spec input metrics layered onto the shared ONumberInput
+const INPUT_STYLE: React.CSSProperties = { height: 34, borderRadius: 8, padding: '0 11px', fontSize: 12.6 };
+const INPUT_SM_STYLE: React.CSSProperties = { height: 30, borderRadius: 8, padding: '0 9px', fontSize: 12 };
+
+// 35×20 demo switch — green track when on
+const SpecSwitch: React.FC<{ on: boolean; onClick: () => void; label: string }> = ({ on, onClick, label }) => (
+  <button
+    type="button"
+    role="switch"
+    aria-checked={on}
+    aria-label={label}
+    onClick={onClick}
+    className="flex-shrink-0"
+    style={{
+      position: 'relative', width: 35, height: 20, borderRadius: 999, border: 'none', padding: 0,
+      cursor: 'pointer', background: on ? D.emerald : '#DEDAD5', transition: 'background .16s',
+    }}
+  >
+    <span
+      style={{
+        position: 'absolute', top: 2, left: 2, width: 16, height: 16, borderRadius: 999, background: '#fff',
+        boxShadow: '0 1px 3px rgba(0,0,0,.25)', transform: on ? 'translateX(15px)' : 'translateX(0)',
+        transition: 'transform .16s',
+      }}
+    />
+  </button>
+);
+
+// Flat section — SectionHeading + plain body. Replaces the old bordered
+// SpecCard so the whole step reads as one flat surface, matching the
+// ScheduleStep pattern. The `icon` slot from the old signature is ignored
+// (SectionHeading has no icon slot); every call site's `right` and
+// `bodyStyle` overrides still flow through unchanged.
+const SpecCard: React.FC<{
+  title: string; icon?: React.ReactNode; right?: React.ReactNode;
+  bodyStyle?: React.CSSProperties; children: React.ReactNode;
+}> = ({ title, right, bodyStyle, children }) => (
+  <div>
+    <SectionHeading right={right}>{title}</SectionHeading>
+    <div style={bodyStyle}>{children}</div>
+  </div>
+);
+
+// Row: label + control sit adjacent so the value never trails to the far
+// right when the label is short. Fixed label column keeps rows lined up
+// across the whole card, matching the ScheduleStep field-row pattern.
+const MarkRow: React.FC<{
+  icon?: React.ReactNode; label: React.ReactNode; info?: string; sub?: string;
+  first?: boolean; right: React.ReactNode;
+}> = ({ label, info, sub, right }) => (
+  <div className={styles.fieldRow}>
+    <div className={styles.fieldLabel}><label>{label}</label>{info && <InfoTooltip content={info} />}</div>
+    <div className={styles.fieldControl}>{right}{sub && <p className={styles.fieldNote}>{sub}</p>}</div>
+  </div>
+);
+
+// read-only auto-calculated value: ink text + blue "Auto" pill (NOT an input)
+const AutoValue: React.FC<{ value: number | string }> = ({ value }) => (
+  <span style={{ fontSize: 12.6, fontWeight: 600, color: D.textMain }}>
+    {value === 'Auto' ? '—' : value}
+  </span>
+);
 
 interface GradeSettingsStepProps {
   formData: any;
@@ -33,157 +145,27 @@ export const GradeSettingsStep: React.FC<GradeSettingsStepProps> = ({
   const tf = touchedFields;
   const diffEnabled = g.difficultyPassEnabled;
 
-  const levelColors = { easy: D.emerald, medium: D.amber, hard: D.red };
+  // ── Grade bands (performance scale by % of Total Mark) — UI + state only ──
+  const gradeBands: any[] = Array.isArray(g.gradeBands) ? g.gradeBands : DEFAULT_GRADE_BANDS;
+  const updateGradeBands = (updater: (curr: any[]) => any[]) =>
+    setFormData((prev: any) => ({
+      ...prev,
+      grades: {
+        ...prev.grades,
+        gradeBands: updater(Array.isArray(prev.grades.gradeBands) ? prev.grades.gradeBands : DEFAULT_GRADE_BANDS),
+      },
+    }));
+  const updateGradeBand = (id: string, patch: any) =>
+    updateGradeBands(curr => curr.map(b => (b.id === id ? { ...b, ...patch } : b)));
+  const removeGradeBand = (id: string) =>
+    updateGradeBands(curr => curr.filter(b => b.id !== id));
+  const addGradeBand = () =>
+    updateGradeBands(curr => [...curr, { id: `band_${Date.now()}`, label: '', fromPercent: 0, toPercent: 0 }]);
+
   const levelLabels = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
 
   const isCombinedDiff = et === 'Combined';
   const showDifficultyPass = (et === 'Programming' || et === 'Other' || et === 'Combined') && !!levelTotalsFromConfig;
-
-  // Section Based (Part A / Part B / ...) — applies to MCQ, Programming, Other.
-  // Combined uses its own separateMarks toggle (MCQ vs Programming sections).
-  const sectionBased = !!g.sectionBased;
-  const sections: SectionPart[] = Array.isArray(g.sections) ? g.sections : [];
-
-  const newPartId = (idx: number) =>
-    (typeof crypto !== 'undefined' && (crypto as any).randomUUID)
-      ? (crypto as any).randomUUID()
-      : `part_${Date.now()}_${idx}`;
-
-  const updateSections = (updater: (curr: SectionPart[]) => SectionPart[]) =>
-    setFormData((prev: any) => ({
-      ...prev,
-      grades: { ...prev.grades, sections: updater(Array.isArray(prev.grades.sections) ? prev.grades.sections : []) },
-    }));
-
-  const addPart = () => updateSections(curr => {
-    const idx = curr.length;
-    return [...curr, { id: newPartId(idx), name: `Part ${String.fromCharCode(65 + idx)}`, totalMarks: null, passMark: null }];
-  });
-
-  const removePart = (id: string) => updateSections(curr => curr.filter(p => p.id !== id));
-
-  const updatePart = (id: string, patch: Partial<SectionPart>) =>
-    updateSections(curr => curr.map(p => (p.id === id ? { ...p, ...patch } : p)));
-
-  const toggleSectionBased = () =>
-    setFormData((prev: any) => {
-      const next = !prev.grades.sectionBased;
-      const hasSections = Array.isArray(prev.grades.sections) && prev.grades.sections.length > 0;
-      return {
-        ...prev,
-        grades: {
-          ...prev.grades,
-          sectionBased: next,
-          ...(next ? { difficultyPassEnabled: false } : {}),
-          ...(next && !hasSections
-            ? { sections: [{ id: `part_${Date.now()}_0`, name: 'Part A', totalMarks: null, passMark: null }] }
-            : {}),
-        },
-      };
-    });
-
-  const renderSectionBasedToggle = (color: string) => (
-    <div className="flex items-center justify-between py-2.5 border-b" style={{ borderColor: D.border }}>
-      <div className="flex items-center gap-2.5">
-        <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-          style={{ background: color + '12', color }}>
-          <Layers size={13} />
-        </div>
-        <div>
-          <span className="text-xs font-semibold" style={{ color: D.textMain, fontFamily: FONT }}>
-            Section Based
-          </span>
-          <p className="text-[10.5px]" style={{ color: D.textMuted }}>
-            Split this exercise into parts (Part A, Part B, …) with their own total and pass mark
-          </p>
-        </div>
-      </div>
-      <button type="button"
-        onClick={toggleSectionBased}
-        className="relative inline-flex items-center h-5 w-9 flex-shrink-0 rounded-full border-transparent transition-colors duration-200 p-[2px]"
-        style={{ background: sectionBased ? D.orange : '#e5e7eb' }}>
-        <span className={`inline-block h-[13px] w-[13px] transform rounded-full bg-white shadow transition-transform duration-200 ${sectionBased ? 'translate-x-[17px]' : 'translate-x-0'}`} />
-      </button>
-    </div>
-  );
-
-  const renderSectionBasedEditor = (color: string) => (
-    <div className="py-2">
-      <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${color}25` }}>
-        <div className="grid px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide"
-          style={{
-            background: color + '08',
-            borderBottom: `1px solid ${color}20`,
-            gridTemplateColumns: '100px 1fr 1fr 28px',
-            color: D.textMuted,
-            gap: '8px',
-          }}>
-          <span>Part</span>
-          <span className="text-center">Total Marks</span>
-          <span className="text-center">Mark to Pass</span>
-          <span />
-        </div>
-        {sections.length === 0 ? (
-          <div className="px-3 py-2 text-[11px]" style={{ color: D.textMuted }}>
-            No parts yet — click "Add Part" below.
-          </div>
-        ) : (
-          sections.map((p, idx) => {
-            const exceeded = (p.totalMarks ?? 0) > 0 && (p.passMark ?? 0) > (p.totalMarks ?? 0);
-            return (
-              <div key={p.id}
-                className="grid items-center px-3 py-2"
-                style={{
-                  gridTemplateColumns: '100px 1fr 1fr 28px',
-                  gap: '8px',
-                  borderTop: idx > 0 ? `1px solid ${D.border}` : 'none',
-                  background: D.bg,
-                }}>
-                <input type="text"
-                  value={p.name}
-                  onChange={e => updatePart(p.id, { name: e.target.value })}
-                  placeholder={`Part ${String.fromCharCode(65 + idx)}`}
-                  className="px-2 py-1.5 text-xs rounded-lg border w-full"
-                  style={{ borderColor: D.border, fontFamily: FONT, color: D.textMain, background: D.bg }} />
-                <ONumberInput
-                  value={p.totalMarks ?? 0}
-                  onChange={v => updatePart(p.id, { totalMarks: v || null })}
-                  placeholder="0"
-                  min={0} />
-                <div>
-                  <ONumberInput
-                    value={p.passMark ?? 0}
-                    onChange={v => updatePart(p.id, { passMark: v || null })}
-                    placeholder="0"
-                    min={0}
-                    max={p.totalMarks ?? undefined} />
-                  {exceeded && (
-                    <p className="mt-0.5 text-[10px]" style={{ color: D.red }}>Cannot exceed {p.totalMarks}</p>
-                  )}
-                </div>
-                <button type="button"
-                  onClick={() => removePart(p.id)}
-                  className="w-6 h-6 rounded flex items-center justify-center"
-                  style={{ background: D.red + '12', color: D.red }}
-                  aria-label="Remove part">
-                  <Trash2 size={12} />
-                </button>
-              </div>
-            );
-          })
-        )}
-      </div>
-      <button type="button"
-        onClick={addPart}
-        className="mt-2 inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold"
-        style={{ background: color + '12', color, border: `1px dashed ${color}40` }}>
-        <Plus size={12} /> Add Part
-      </button>
-      <p className="text-[10.5px] mt-2" style={{ color: D.textMuted }}>
-        Each part's Mark to Pass is optional and is validated against that part's Total Marks.
-      </p>
-    </div>
-  );
 
   const renderLevelTable = (titleLabel: string | null) => {
     if (!levelTotalsFromConfig) return null;
@@ -192,25 +174,19 @@ export const GradeSettingsStep: React.FC<GradeSettingsStepProps> = ({
     );
     if (activeLevels.length === 0) return null;
     return (
-      <div className="rounded-xl overflow-hidden mt-2" style={{ border: `1px solid ${D.purple}25` }}>
+      <div style={{ ...TABLE_WRAP, marginTop: 8 }}>
         {titleLabel && (
-          <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide"
-            style={{ background: D.orangeLight, color: D.orange, borderBottom: `1px solid ${D.purple}20` }}>
-            {titleLabel}
+          <div style={{ padding: '7px 9px', background: '#FCFBFA', borderBottom: `1px solid ${D.border}` }}>
+            <span style={ORANGE_PILL}>{titleLabel}</span>
           </div>
         )}
         <div
-          className="grid px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide"
-          style={{
-            background: D.purple + '08',
-            borderBottom: `1px solid ${D.purple}20`,
-            gridTemplateColumns: '80px 1fr 1fr',
-            color: D.textMuted,
-          }}
+          className="grid"
+          style={{ gridTemplateColumns: '110px 1fr 1fr', background: '#FCFBFA', borderBottom: `1px solid ${D.border}` }}
         >
-          <span>Level</span>
-          <span className="text-center">Total Marks</span>
-          <span className="text-center">Mark to Pass</span>
+          <span style={TH}>Level</span>
+          <span className="text-center" style={TH}>Total Marks</span>
+          <span className="text-center" style={TH}>Mark to Pass</span>
         </div>
 
         {activeLevels.map((level, idx) => {
@@ -223,30 +199,23 @@ export const GradeSettingsStep: React.FC<GradeSettingsStepProps> = ({
           return (
             <div
               key={level}
-              className="grid items-center px-3 py-2"
+              className="grid items-center"
               style={{
-                gridTemplateColumns: '80px 1fr 1fr',
-                gap: '8px',
+                gridTemplateColumns: '110px 1fr 1fr',
+                gap: 8,
+                padding: '7px 9px',
                 borderTop: idx > 0 ? `1px solid ${D.border}` : 'none',
-                background: D.bg,
+                background: '#fff',
               }}
             >
-              <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: levelColors[level] }} />
-                <span className="text-xs font-bold capitalize" style={{ color: levelColors[level], fontFamily: FONT }}>
+              <div className="flex items-center" style={{ gap: 6 }}>
+                <span className="flex-shrink-0" style={{ width: 7, height: 7, borderRadius: 999, background: LEVEL_DOT[level] }} />
+                <span style={{ fontSize: 11.5, fontWeight: 600, color: LEVEL_TEXT[level] }}>
                   {levelLabels[level]}
                 </span>
               </div>
-              <div className="relative flex justify-center">
-                <div
-                  className="px-3 py-1.5 rounded-lg border text-sm font-bold text-center w-full"
-                  style={{ borderColor: D.border, background: levelColors[level] + '0d', color: levelColors[level], fontFamily: FONT }}
-                >
-                  {levelTotal}
-                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-bold" style={{ color: levelColors[level] + 'aa' }}>
-                    Auto
-                  </span>
-                </div>
+              <div className="flex items-center justify-center">
+                <span style={{ fontSize: 12.6, fontWeight: 600, color: D.textMain }}>{levelTotal}</span>
               </div>
               <div>
                 <ONumberInput
@@ -260,19 +229,17 @@ export const GradeSettingsStep: React.FC<GradeSettingsStepProps> = ({
                   max={levelTotal}
                   error={(ve as any)[errorKey]}
                   touched={hasError}
+                  style={INPUT_SM_STYLE}
                 />
                 {levelTotal > 0 && (passMarkValue ?? 0) > levelTotal && (
-                  <p className="mt-0.5 text-[10px]" style={{ color: D.red }}>Cannot exceed {levelTotal}</p>
+                  <p style={{ marginTop: 2, fontSize: 11.4, color: '#912018' }}>Cannot exceed {levelTotal}</p>
                 )}
               </div>
             </div>
           );
         })}
 
-        <div
-          className="px-3 py-2 text-[10.5px] font-medium"
-          style={{ background: D.purple + '06', borderTop: `1px solid ${D.purple}15`, color: D.textMuted }}
-        >
+        <div style={{ padding: '7px 9px', background: '#FCFBFA', borderTop: `1px solid ${D.border}`, fontSize: 11.4, color: D.textMuted }}>
           Students must score at or above the level pass mark to pass that difficulty tier.
         </div>
       </div>
@@ -289,29 +256,23 @@ export const GradeSettingsStep: React.FC<GradeSettingsStepProps> = ({
     })();
 
     const rows = [
-      { level: 'easy' as const,   label: 'Easy',   color: D.emerald, total: splitTotals.easy,   stateKey: 'mcqEasyPassMark'   as const },
-      { level: 'medium' as const, label: 'Medium', color: D.amber,   total: splitTotals.medium, stateKey: 'mcqMediumPassMark' as const },
-      { level: 'hard' as const,   label: 'Hard',   color: D.red,     total: splitTotals.hard,   stateKey: 'mcqHardPassMark'   as const },
+      { level: 'easy' as const,   label: 'Easy',   total: splitTotals.easy,   stateKey: 'mcqEasyPassMark'   as const },
+      { level: 'medium' as const, label: 'Medium', total: splitTotals.medium, stateKey: 'mcqMediumPassMark' as const },
+      { level: 'hard' as const,   label: 'Hard',   total: splitTotals.hard,   stateKey: 'mcqHardPassMark'   as const },
     ];
 
     return (
-      <div className="rounded-xl overflow-hidden mt-2" style={{ border: `1px solid ${D.blue}25` }}>
-        <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide"
-          style={{ background: D.blue + '12', color: D.blue, borderBottom: `1px solid ${D.blue}20` }}>
-          MCQ Section
+      <div style={{ ...TABLE_WRAP, marginTop: 8 }}>
+        <div style={{ padding: '7px 9px', background: '#FCFBFA', borderBottom: `1px solid ${D.border}` }}>
+          <span style={BLUE_PILL}>MCQ Section</span>
         </div>
         <div
-          className="grid px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide"
-          style={{
-            background: D.blue + '08',
-            borderBottom: `1px solid ${D.blue}20`,
-            gridTemplateColumns: '80px 1fr 1fr',
-            color: D.textMuted,
-          }}
+          className="grid"
+          style={{ gridTemplateColumns: '110px 1fr 1fr', background: '#FCFBFA', borderBottom: `1px solid ${D.border}` }}
         >
-          <span>Level</span>
-          <span className="text-center">Total Marks</span>
-          <span className="text-center">Mark to Pass</span>
+          <span style={TH}>Level</span>
+          <span className="text-center" style={TH}>Total Marks</span>
+          <span className="text-center" style={TH}>Mark to Pass</span>
         </div>
 
         {rows.map((row, idx) => {
@@ -319,30 +280,23 @@ export const GradeSettingsStep: React.FC<GradeSettingsStepProps> = ({
           return (
             <div
               key={row.level}
-              className="grid items-center px-3 py-2"
+              className="grid items-center"
               style={{
-                gridTemplateColumns: '80px 1fr 1fr',
-                gap: '8px',
-                background: D.bg,
-                borderTop: idx === 0 ? 'none' : `1px solid ${D.blue}10`,
+                gridTemplateColumns: '110px 1fr 1fr',
+                gap: 8,
+                padding: '7px 9px',
+                background: '#fff',
+                borderTop: idx === 0 ? 'none' : `1px solid ${D.border}`,
               }}
             >
-              <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: row.color }} />
-                <span className="text-xs font-bold" style={{ color: row.color, fontFamily: FONT }}>
+              <div className="flex items-center" style={{ gap: 6 }}>
+                <span className="flex-shrink-0" style={{ width: 7, height: 7, borderRadius: 999, background: LEVEL_DOT[row.level] }} />
+                <span style={{ fontSize: 11.5, fontWeight: 600, color: LEVEL_TEXT[row.level] }}>
                   {row.label}
                 </span>
               </div>
-              <div className="relative flex justify-center">
-                <div
-                  className="px-3 py-1.5 rounded-lg border text-sm font-bold text-center w-full"
-                  style={{ borderColor: D.border, background: D.blue + '0d', color: D.blue, fontFamily: FONT }}
-                >
-                  {row.total}
-                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-bold" style={{ color: D.blue + 'aa' }}>
-                    Auto
-                  </span>
-                </div>
+              <div className="flex items-center justify-center">
+                <span style={{ fontSize: 12.6, fontWeight: 600, color: D.textMain }}>{row.total}</span>
               </div>
               <div>
                 <ONumberInput
@@ -355,20 +309,18 @@ export const GradeSettingsStep: React.FC<GradeSettingsStepProps> = ({
                   }
                   placeholder="0"
                   max={row.total || undefined}
+                  style={INPUT_SM_STYLE}
                 />
                 {row.total > 0 && (value ?? 0) > row.total && (
-                  <p className="mt-0.5 text-[10px]" style={{ color: D.red }}>Cannot exceed {row.total}</p>
+                  <p style={{ marginTop: 2, fontSize: 11.4, color: '#912018' }}>Cannot exceed {row.total}</p>
                 )}
               </div>
             </div>
           );
         })}
 
-        <div
-          className="px-3 py-2 text-[10.5px] font-medium"
-          style={{ background: D.blue + '06', borderTop: `1px solid ${D.blue}15`, color: D.textMuted }}
-        >
-          Students must score at or above each difficulty's pass mark to pass the MCQ section.
+        <div style={{ padding: '7px 9px', background: '#FCFBFA', borderTop: `1px solid ${D.border}`, fontSize: 11.4, color: D.textMuted }}>
+          Students must score at or above each difficulty’s pass mark to pass the MCQ section.
         </div>
       </div>
     );
@@ -382,43 +334,40 @@ export const GradeSettingsStep: React.FC<GradeSettingsStepProps> = ({
     if (activeLevels.length === 0) return null;
 
     return (
-      <div className="mt-3 pt-3 border-t" style={{ borderColor: D.border }}>
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0"
-              style={{ background: D.purple + '15', color: D.purple }}>
-              <Hash size={11} />
-            </div>
+      <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${D.border}` }}>
+        <div className="flex items-center flex-wrap" style={{ gap: 12 }}>
+          <div className="flex items-center" style={{ gap: 8, minWidth: 220 }}>
+            <span className="flex items-center flex-shrink-0" style={{ color: D.textHint }}>
+              <Hash size={13} />
+            </span>
             <div>
-              <span className="text-xs font-semibold" style={{ color: D.textMain, fontFamily: FONT }}>
-                Mark to Pass by Difficulty
-              </span>
-              <InfoTooltip
-                content="Set separate passing marks for each difficulty level. When enabled, the overall Mark to Pass field is hidden."
-                side="right"
-              />
-              <p className="text-[10.5px]" style={{ color: D.textMuted }}>
+              <div className="flex items-center" style={{ gap: 6 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: '#101828', fontFamily: FONT }}>
+                  Mark to Pass by Difficulty
+                </span>
+                <span style={PURPLE_PILL}>Per level</span>
+                <InfoTooltip
+                  content="Set separate passing marks for each difficulty level. When enabled, the overall Mark to Pass field is hidden."
+                  side="right"
+                />
+              </div>
+              <p style={{ fontSize: 11.4, color: D.textMuted, marginTop: 1 }}>
                 {isCombinedDiff
                   ? 'Configure MCQ and Programming pass marks separately — each section stores its own data.'
                   : 'Configure minimum passing marks per difficulty level'}
               </p>
             </div>
           </div>
-          <button
-            type="button"
+          <SpecSwitch
+            on={g.difficultyPassEnabled}
             onClick={() =>
               setFormData((prev: any) => ({
                 ...prev,
                 grades: { ...prev.grades, difficultyPassEnabled: !prev.grades.difficultyPassEnabled },
               }))
             }
-            className="relative inline-flex items-center h-5 w-9 flex-shrink-0 rounded-full border-transparent transition-colors duration-200 p-[2px]"
-            style={{ background: g.difficultyPassEnabled ? D.purple : '#e5e7eb' }}
-          >
-            <span
-              className={`inline-block h-[13px] w-[13px] transform rounded-full bg-white shadow transition-transform duration-200 ${g.difficultyPassEnabled ? 'translate-x-[17px]' : 'translate-x-0'}`}
-            />
-          </button>
+            label="Mark to Pass by Difficulty"
+          />
         </div>
 
         {g.difficultyPassEnabled && (
@@ -432,8 +381,8 @@ export const GradeSettingsStep: React.FC<GradeSettingsStepProps> = ({
           )
         )}
 
-        {g.difficultyPassEnabled && <div className="mt-3 pt-3 border-t" style={{ borderColor: D.border }}>
-          <div className="flex items-start gap-2.5">
+        {g.difficultyPassEnabled && <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${D.border}` }}>
+          <div className="flex items-start" style={{ gap: 7 }}>
             <input
               type="checkbox"
               id="overallMarkToPassEnabled"
@@ -442,23 +391,24 @@ export const GradeSettingsStep: React.FC<GradeSettingsStepProps> = ({
                 ...prev,
                 grades: { ...prev.grades, overallMarkToPassEnabled: e.target.checked, overallMarkToPass: e.target.checked ? prev.grades.overallMarkToPass : null }
               }))}
-              className="mt-0.5 w-3.5 h-3.5 rounded cursor-pointer"
-              style={{ accentColor: D.orange }}
+              className="cursor-pointer flex-shrink-0"
+              style={{ width: 15, height: 15, accentColor: D.orange, marginTop: 2 }}
             />
             <div className="flex-1">
-              <label htmlFor="overallMarkToPassEnabled" className="text-xs font-semibold cursor-pointer" style={{ color: D.textMain, fontFamily: FONT }}>
-                Mark to Pass <span className="font-normal" style={{ color: D.textMuted }}>(Optional)</span>
+              <label htmlFor="overallMarkToPassEnabled" className="cursor-pointer" style={{ fontSize: 11, fontWeight: 600, color: '#101828', fontFamily: FONT }}>
+                Mark to Pass <span style={{ fontWeight: 400, color: D.textMuted }}>(Optional)</span>
               </label>
-              <p className="text-[10.5px] mt-0.5" style={{ color: D.textMuted }}>
+              <p style={{ fontSize: 11.4, color: D.textMuted, marginTop: 2 }}>
                 When enabled, this single value overrides per-difficulty pass/fail rules.
               </p>
               {(g.overallMarkToPassEnabled) && (
-                <div className="mt-2 w-32 animate-in fade-in slide-in-from-top-1 duration-200">
+                <div className="w-32" style={{ marginTop: 8 }}>
                   <ONumberInput
                     value={g.overallMarkToPass ?? 0}
                     onChange={v => setFormData((prev: any) => ({ ...prev, grades: { ...prev.grades, overallMarkToPass: v || null } }))}
                     placeholder="0"
                     min={0}
+                    style={INPUT_STYLE}
                   />
                 </div>
               )}
@@ -470,98 +420,94 @@ export const GradeSettingsStep: React.FC<GradeSettingsStepProps> = ({
   };
 
   return (
-    <div className="px-4 py-3">
-      <div className="mb-3 flex items-center gap-2">
-        <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
-          style={{ background: D.orangeLight, color: D.orange }}>
-          <Award size={13} />
-        </div>
-        <h3 className="text-sm font-bold" style={{ color: D.textMain, fontFamily: FONT }}>
-          Grade Settings
-        </h3>
-      </div>
-      <p className="text-xs mb-3" style={{ color: D.textMuted }}>
-        Configure grading based on the selected exercise type.
-      </p>
+    <div className={styles.gradeFields}>
 
-      <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${D.border}` }}>
-        <div className="px-3">
+      {/* ── Grading card: total mark / mark to pass / difficulty pass ── */}
+      <SpecCard title="Grading" icon={<Award size={13} />} bodyStyle={{ padding: '2px 13px 6px' }}>
 
-          {/* MCQ */}
-          {et === 'MCQ' && (<>
-            <GradeRow icon={<List size={13} />} color={D.blue} label="Mark"
-              info="Auto-calculated from MCQ total marks"
-              autoValue={formData.totalMarks || 'Auto'} />
-            {!sectionBased && (
-              <GradeRow icon={<Award size={13} />} color={D.blue} label="Mark to Pass"
-                info="Minimum marks to pass — cannot exceed Mark (optional)"
-                fieldKey="mcqGradeToPass" value={g.mcqGradeToPass}
-                onChange={v => setFormData((prev: any) => ({ ...prev, grades: { ...prev.grades, mcqGradeToPass: v } }))}
-                onBlur={() => markTouched('mcqGradeToPass')}
-                error={ve.mcqGradeToPass} errorTouched={tf.has('mcqGradeToPass')} optional />
-            )}
-            {renderSectionBasedToggle(D.blue)}
-            {sectionBased && renderSectionBasedEditor(D.blue)}
-          </>)}
-
-          {/* Other */}
-          {et === 'Other' && (<>
-            <GradeRow icon={<Terminal size={13} />} color={D.orange} label="Mark"
-              info="Auto-calculated from total marks"
-              autoValue={formData.totalMarks || 'Auto'} />
-            {!diffEnabled && !sectionBased && (
-              <GradeRow icon={<Award size={13} />} color={D.orange} label="Mark to Pass"
-                info="Minimum marks required to pass — cannot exceed Mark (optional)"
-                fieldKey="programmingGradeToPass" value={g.programmingGradeToPass}
-                onChange={v => setFormData((prev: any) => ({ ...prev, grades: { ...prev.grades, programmingGradeToPass: v } }))}
-                onBlur={() => markTouched('programmingGradeToPass')}
-                error={ve.programmingGradeToPass} errorTouched={tf.has('programmingGradeToPass')} optional />
-            )}
-            {renderSectionBasedToggle(D.orange)}
-            {sectionBased && renderSectionBasedEditor(D.orange)}
-            {!sectionBased && showDifficultyPass && (
-              <div className="pb-2"><DifficultyPassSection /></div>
-            )}
-          </>)}
-
-          {/* Programming */}
-          {et === 'Programming' && (<>
-            <GradeRow icon={<Terminal size={13} />} color={D.orange} label="Total Marks"
-              info="Auto-calculated from Step 1 total marks — read only"
-              autoValue={formData.totalMarks || 'Auto'} />
-            {!diffEnabled && !sectionBased && (
-              <GradeRow icon={<Award size={13} />} color={D.orange} label="Mark to Pass"
-                info="Minimum marks required to pass — cannot exceed Mark (optional)"
-                fieldKey="programmingGradeToPass" value={g.programmingGradeToPass}
-                onChange={v => setFormData((prev: any) => ({ ...prev, grades: { ...prev.grades, programmingGradeToPass: v } }))}
-                onBlur={() => markTouched('programmingGradeToPass')}
-                error={ve.programmingGradeToPass} errorTouched={tf.has('programmingGradeToPass')} optional />
-            )}
-            {renderSectionBasedToggle(D.orange)}
-            {sectionBased && renderSectionBasedEditor(D.orange)}
-            {!sectionBased && showDifficultyPass && (
-              <div className="pb-2"><DifficultyPassSection /></div>
-            )}
-          </>)}
-
-          {/* Combined */}
-          {et === 'Combined' && (<>
-            <div className="flex items-center justify-between py-2.5 border-b" style={{ borderColor: D.border }}>
-              <div className="flex items-center gap-2.5">
-                <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-                  style={{ background: D.purple + '12', color: D.purple }}>
-                  <Layers size={13} />
-                </div>
-                <div>
-                  <span className="text-xs font-semibold" style={{ color: D.textMain, fontFamily: FONT }}>
-                    Separate Marks
-                  </span>
-                  <p className="text-[10.5px]" style={{ color: D.textMuted }}>
-                    Mark each section (MCQ &amp; Programming) independently
-                  </p>
-                </div>
+        {/* MCQ */}
+        {et === 'MCQ' && (<>
+          <MarkRow first icon={<List size={13} />} label="Total Mark"
+            info="Auto-calculated from MCQ total marks"
+            right={<AutoValue value={formData.totalMarks || 'Auto'} />} />
+          <MarkRow icon={<Award size={13} />} label="Mark to Pass"
+            info="Minimum marks to pass — cannot exceed Total Mark (optional)"
+            right={
+              <div className="w-32">
+                <ONumberInput
+                  value={g.mcqGradeToPass ?? 0}
+                  onChange={v => setFormData((prev: any) => ({ ...prev, grades: { ...prev.grades, mcqGradeToPass: v } }))}
+                  onBlur={() => markTouched('mcqGradeToPass')}
+                  placeholder="0"
+                  error={ve.mcqGradeToPass}
+                  touched={tf.has('mcqGradeToPass')}
+                  style={INPUT_STYLE}
+                />
               </div>
-              <button type="button"
+            } />
+        </>)}
+
+        {/* Other */}
+        {et === 'Other' && (<>
+          <MarkRow first icon={<Terminal size={13} />} label="Total Mark"
+            info="Auto-calculated from total marks"
+            right={<AutoValue value={formData.totalMarks || 'Auto'} />} />
+          {!diffEnabled && (
+            <MarkRow icon={<Award size={13} />} label="Mark to Pass"
+              info="Minimum marks required to pass — cannot exceed Total Mark (optional)"
+              right={
+                <div className="w-32">
+                  <ONumberInput
+                    value={g.programmingGradeToPass ?? 0}
+                    onChange={v => setFormData((prev: any) => ({ ...prev, grades: { ...prev.grades, programmingGradeToPass: v } }))}
+                    onBlur={() => markTouched('programmingGradeToPass')}
+                    placeholder="0"
+                    error={ve.programmingGradeToPass}
+                    touched={tf.has('programmingGradeToPass')}
+                    style={INPUT_STYLE}
+                  />
+                </div>
+              } />
+          )}
+          {showDifficultyPass && (
+            <DifficultyPassSection />
+          )}
+        </>)}
+
+        {/* Programming */}
+        {et === 'Programming' && (<>
+          <MarkRow first icon={<Terminal size={13} />} label="Total Mark"
+            info="Auto-calculated from Step 1 total marks — read only"
+            right={<AutoValue value={formData.totalMarks || 'Auto'} />} />
+          {!diffEnabled && (
+            <MarkRow icon={<Award size={13} />} label="Mark to Pass"
+              info="Minimum marks required to pass — cannot exceed Total Mark (optional)"
+              right={
+                <div className="w-32">
+                  <ONumberInput
+                    value={g.programmingGradeToPass ?? 0}
+                    onChange={v => setFormData((prev: any) => ({ ...prev, grades: { ...prev.grades, programmingGradeToPass: v } }))}
+                    onBlur={() => markTouched('programmingGradeToPass')}
+                    placeholder="0"
+                    error={ve.programmingGradeToPass}
+                    touched={tf.has('programmingGradeToPass')}
+                    style={INPUT_STYLE}
+                  />
+                </div>
+              } />
+          )}
+          {showDifficultyPass && (
+            <DifficultyPassSection />
+          )}
+        </>)}
+
+        {/* Combined */}
+        {et === 'Combined' && (<>
+          <MarkRow first icon={<Layers size={13} />} label="Separate Marks"
+            sub={'Mark each section (MCQ & Programming) independently'}
+            right={
+              <SpecSwitch
+                on={sep}
                 onClick={() => setFormData((prev: any) => {
                   const next = !sep;
                   return {
@@ -573,115 +519,224 @@ export const GradeSettingsStep: React.FC<GradeSettingsStepProps> = ({
                     },
                   };
                 })}
-                className="relative inline-flex items-center h-5 w-9 flex-shrink-0 rounded-full border-transparent transition-colors duration-200 p-[2px]"
-                style={{ background: sep ? D.orange : '#e5e7eb' }}>
-                <span className={`inline-block h-[13px] w-[13px] transform rounded-full bg-white shadow transition-transform duration-200 ${sep ? 'translate-x-[17px]' : 'translate-x-0'}`} />
-              </button>
+                label="Separate Marks"
+              />
+            } />
+
+          {!sep ? (<>
+            {(() => {
+              const ag = (formData.totalMarksMCQ || 0) + (formData.totalMarksProgramming || 0);
+              return (<>
+                <MarkRow icon={<Layers size={13} />} label="Mark"
+                  info="Auto-calculated: MCQ total + Programming total"
+                  right={<AutoValue value={ag > 0 ? ag : 'Auto'} />} />
+                {!diffEnabled && (
+                  <MarkRow icon={<Award size={13} />} label="Mark to Pass"
+                    info={`Overall passing marks — cannot exceed Mark${ag > 0 ? ` (${ag})` : ''} (optional)`}
+                    right={
+                      <div className="w-32">
+                        <ONumberInput
+                          value={g.combinedGradeToPass ?? 0}
+                          onChange={v => setFormData((prev: any) => ({ ...prev, grades: { ...prev.grades, combinedGradeToPass: v } }))}
+                          onBlur={() => markTouched('combinedGradeToPass')}
+                          placeholder="0"
+                          error={ve.combinedGradeToPass}
+                          touched={tf.has('combinedGradeToPass')}
+                          style={INPUT_STYLE}
+                        />
+                      </div>
+                    } />
+                )}
+              </>);
+            })()}
+          </>) : (<>
+            <div className="flex items-center" style={{ padding: '10px 0 4px', borderTop: `1px solid ${D.border}` }}>
+              <span style={BLUE_PILL}>MCQ Section</span>
             </div>
-
-            {!sep ? (<>
-              {(() => {
-                const ag = (formData.totalMarksMCQ || 0) + (formData.totalMarksProgramming || 0);
-                return (<>
-                  <GradeRow icon={<Layers size={13} />} color={D.emerald} label="Mark"
-                    info="Auto-calculated: MCQ total + Programming total"
-                    autoValue={ag > 0 ? ag : 'Auto'} />
-                  {!diffEnabled && (
-                    <GradeRow icon={<Award size={13} />} color={D.emerald} label="Mark to Pass"
-                      info={`Overall passing marks — cannot exceed Mark${ag > 0 ? ` (${ag})` : ''} (optional)`}
-                      fieldKey="combinedGradeToPass" value={g.combinedGradeToPass}
-                      onChange={v => setFormData((prev: any) => ({ ...prev, grades: { ...prev.grades, combinedGradeToPass: v } }))}
-                      onBlur={() => markTouched('combinedGradeToPass')}
-                      error={ve.combinedGradeToPass} errorTouched={tf.has('combinedGradeToPass')} optional />
-                  )}
-                </>);
-              })()}
-            </>) : (<>
-              <div className="pt-2 pb-1 text-[10px] font-bold uppercase tracking-wide" style={{ color: D.blue }}>MCQ Section</div>
-              <GradeRow icon={<List size={13} />} color={D.blue} label="MCQ Mark"
-                info="Auto-calculated from MCQ Marks in Exercise Details"
-                autoValue={formData.totalMarksMCQ || 'Auto'} />
-              <GradeRow icon={<Award size={13} />} color={D.blue} label="MCQ Mark to Pass"
-                info="Minimum marks to pass the MCQ section (optional)"
-                fieldKey="mcqGradeToPass" value={g.mcqGradeToPass}
-                onChange={v => setFormData((prev: any) => ({ ...prev, grades: { ...prev.grades, mcqGradeToPass: v } }))}
-                onBlur={() => markTouched('mcqGradeToPass')}
-                error={ve.mcqGradeToPass} errorTouched={tf.has('mcqGradeToPass')} optional />
-              <div className="pt-2 pb-1 text-[10px] font-bold uppercase tracking-wide" style={{ color: D.orange }}>Programming Section</div>
-              <GradeRow icon={<Terminal size={13} />} color={D.orange} label="Programming Mark"
-                info="Auto-calculated from Programming Marks in Exercise Details"
-                autoValue={formData.totalMarksProgramming || 'Auto'} />
-              <GradeRow icon={<Award size={13} />} color={D.orange} label="Programming Mark to Pass"
-                info="Minimum marks to pass the programming section (optional)"
-                fieldKey="programmingGradeToPass" value={g.programmingGradeToPass}
-                onChange={v => setFormData((prev: any) => ({ ...prev, grades: { ...prev.grades, programmingGradeToPass: v } }))}
-                onBlur={() => markTouched('programmingGradeToPass')}
-                error={ve.programmingGradeToPass} errorTouched={tf.has('programmingGradeToPass')} optional />
-            </>)}
-
-            {!sep && showDifficultyPass && (
-              <div className="pb-2"><DifficultyPassSection /></div>
-            )}
+            <MarkRow first icon={<List size={13} />} label="MCQ Mark"
+              info="Auto-calculated from MCQ Marks in Exercise Details"
+              right={<AutoValue value={formData.totalMarksMCQ || 'Auto'} />} />
+            <MarkRow icon={<Award size={13} />} label="MCQ Mark to Pass"
+              info="Minimum marks to pass the MCQ section (optional)"
+              right={
+                <div className="w-32">
+                  <ONumberInput
+                    value={g.mcqGradeToPass ?? 0}
+                    onChange={v => setFormData((prev: any) => ({ ...prev, grades: { ...prev.grades, mcqGradeToPass: v } }))}
+                    onBlur={() => markTouched('mcqGradeToPass')}
+                    placeholder="0"
+                    error={ve.mcqGradeToPass}
+                    touched={tf.has('mcqGradeToPass')}
+                    style={INPUT_STYLE}
+                  />
+                </div>
+              } />
+            <div className="flex items-center" style={{ padding: '10px 0 4px', borderTop: `1px solid ${D.border}` }}>
+              <span style={ORANGE_PILL}>Programming Section</span>
+            </div>
+            <MarkRow first icon={<Terminal size={13} />} label="Programming Mark"
+              info="Auto-calculated from Programming Marks in Exercise Details"
+              right={<AutoValue value={formData.totalMarksProgramming || 'Auto'} />} />
+            <MarkRow icon={<Award size={13} />} label="Programming Mark to Pass"
+              info="Minimum marks to pass the programming section (optional)"
+              right={
+                <div className="w-32">
+                  <ONumberInput
+                    value={g.programmingGradeToPass ?? 0}
+                    onChange={v => setFormData((prev: any) => ({ ...prev, grades: { ...prev.grades, programmingGradeToPass: v } }))}
+                    onBlur={() => markTouched('programmingGradeToPass')}
+                    placeholder="0"
+                    error={ve.programmingGradeToPass}
+                    touched={tf.has('programmingGradeToPass')}
+                    style={INPUT_STYLE}
+                  />
+                </div>
+              } />
           </>)}
 
-        </div>
-      </div>
+          {!sep && showDifficultyPass && (
+            <DifficultyPassSection />
+          )}
+        </>)}
+      </SpecCard>
 
-      {/* Additional Options */}
-      <div className="mt-4">
-        <div className="flex items-center gap-1.5 mb-2">
-          <Shield size={13} style={{ color: D.purple }} />
-          <span className="text-xs font-bold" style={{ color: D.textMain, fontFamily: FONT }}>
-            Additional Options
-          </span>
-        </div>
-        <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${D.border}` }}>
-          {[
-            {
-              key: 'anonymousSubmissions',
-              label: 'Anonymous Submissions',
-              sub: "Enable for unbiased grading — graders won't see student names",
-              icon: <EyeOff size={14} />,
-              color: D.purple,
-              val: formData.additionalOptions.anonymousSubmissions,
-            },
-            {
-              key: 'hideGraderIdentity',
-              label: 'Hide Grader Identity',
-              sub: 'Hide evaluator details from students',
-              icon: <Shield size={14} />,
-              color: D.blue,
-              val: formData.additionalOptions.hideGraderIdentity,
-            },
-          ].map((row, idx) => (
-            <div key={row.key}
-              className="flex items-center justify-between px-3 py-2.5 transition-all"
-              style={{ background: D.bg, borderTop: idx > 0 ? `1px solid ${D.border}` : 'none' }}>
-              <div className="flex items-center gap-2.5">
-                <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-                  style={{ background: row.color + '12', color: row.color }}>
-                  {row.icon}
-                </div>
-                <div>
-                  <div className="text-xs font-semibold" style={{ color: D.textMain, fontFamily: FONT }}>
-                    {row.label}
-                  </div>
-                  <div className="text-[10.5px]" style={{ color: D.textMuted }}>{row.sub}</div>
-                </div>
-              </div>
-              <button type="button"
-                onClick={() => setFormData((prev: any) => ({
-                  ...prev,
-                  additionalOptions: { ...prev.additionalOptions, [row.key]: !row.val },
-                }))}
-                className="relative inline-flex items-center h-5 w-9 flex-shrink-0 rounded-full border-transparent transition-colors duration-200 p-[2px]"
-                style={{ background: row.val ? D.orange : '#e5e7eb' }}>
-                <span className={`inline-block h-[13px] w-[13px] transform rounded-full bg-white shadow transition-transform duration-200 ${row.val ? 'translate-x-[17px]' : 'translate-x-0'}`} />
-              </button>
+      {/* ── Grade Bands — performance scale by % of Total Mark (always shown) ── */}
+      <SpecCard
+        title="Grade Bands"
+        icon={<List size={13} />}
+        right={<>
+          <span style={GREY_PILL}>Optional</span>
+          <button
+            type="button"
+            onClick={addGradeBand}
+            className="inline-flex items-center bg-white hover:bg-[#FAF9F8] transition-colors flex-shrink-0"
+            style={{
+              height: 29, padding: '0 10px', borderRadius: 8, border: `1px solid ${D.border2}`,
+              fontSize: 11.5, fontWeight: 600, color: D.textMain, gap: 6, cursor: 'pointer',
+            }}
+          >
+            <Plus size={12} /> Add
+          </button>
+        </>}
+      >
+        <p style={{ fontSize: 11.4, color: D.textMuted, marginBottom: 10 }}>
+          Label performance by score percentage. Recommended values shown — edit, add or remove.
+        </p>
+
+        <div style={TABLE_WRAP}>
+          <div
+            className="grid"
+            style={{ gridTemplateColumns: '1fr 190px 30px', gap: 8, background: '#FCFBFA', borderBottom: `1px solid ${D.border}` }}
+          >
+            <span style={TH}>Grade</span>
+            <span className="text-center" style={TH}>Score Range (%)</span>
+            <span />
+          </div>
+          {gradeBands.length === 0 ? (
+            <div style={{ padding: '7px 9px', fontSize: 11.4, color: D.textMuted, background: '#fff' }}>
+              No grade bands. Click <strong>Add</strong> to create one.
             </div>
-          ))}
+          ) : (
+            gradeBands.map((b: any, idx: number) => {
+              const from = b.fromPercent ?? 0;
+              const to = b.toPercent ?? 0;
+              const invalid = from < 0 || to > 100 || from >= to;
+              return (
+                <div key={b.id} className="grid items-center"
+                  style={{ gridTemplateColumns: '1fr 190px 30px', gap: 8, padding: '7px 9px', borderTop: idx > 0 ? `1px solid ${D.border}` : 'none', background: '#fff' }}>
+                  <input
+                    type="text"
+                    value={b.label}
+                    onChange={e => updateGradeBand(b.id, { label: e.target.value })}
+                    placeholder="Grade name"
+                    className="w-full border border-[#E9E5E1] bg-white outline-none transition-all focus:border-[#EE6A22] focus:shadow-[0_0_0_3px_rgba(238,106,34,0.13)]"
+                    style={{ height: 30, borderRadius: 8, padding: '0 11px', fontSize: 12, color: D.textMain }}
+                  />
+                  <div>
+                    <div className="flex items-center" style={{ gap: 5 }}>
+                      <ONumberInput
+                        value={from}
+                        onChange={v => updateGradeBand(b.id, { fromPercent: v })}
+                        placeholder="0"
+                        min={0}
+                        max={100}
+                        style={INPUT_SM_STYLE}
+                      />
+                      <span className="flex-shrink-0" style={{ fontSize: 11.5, fontWeight: 600, color: D.textMuted }}>–</span>
+                      <ONumberInput
+                        value={to}
+                        onChange={v => updateGradeBand(b.id, { toPercent: v })}
+                        placeholder="0"
+                        min={0}
+                        max={100}
+                        style={INPUT_SM_STYLE}
+                      />
+                      <span className="flex-shrink-0" style={{ fontSize: 11.5, fontWeight: 600, color: D.textMuted }}>%</span>
+                    </div>
+                    {invalid && (
+                      <p style={{ marginTop: 2, fontSize: 11.4, color: '#912018' }}>From must be less than To (0–100)</p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeGradeBand(b.id)}
+                    className="flex items-center justify-center bg-transparent text-[#6B7280] hover:text-[#D92D20] hover:bg-[#FEF3F2] transition-colors"
+                    style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid transparent', padding: 0, cursor: 'pointer' }}
+                    aria-label="Remove grade band"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              );
+            })
+          )}
+          <div style={{ padding: '7px 9px', background: '#FCFBFA', borderTop: `1px solid ${D.border}`, fontSize: 11.4, color: D.textMuted }}>
+            A student whose score percentage falls within a band’s range earns that grade. Percentages are of the Total Mark.
+          </div>
         </div>
-      </div>
+      </SpecCard>
+
+      {/* ── Additional Options ── */}
+      <SpecCard title="Additional Options" icon={<Shield size={13} />} bodyStyle={{ padding: '2px 13px 6px' }}>
+        {[
+          {
+            key: 'anonymousSubmissions',
+            label: 'Anonymous Submissions',
+            sub: "Enable for unbiased grading — graders won't see student names",
+            icon: <EyeOff size={14} />,
+            val: formData.additionalOptions.anonymousSubmissions,
+          },
+          {
+            key: 'hideGraderIdentity',
+            label: 'Hide Grader Identity',
+            sub: 'Hide evaluator details from students',
+            icon: <Shield size={14} />,
+            val: formData.additionalOptions.hideGraderIdentity,
+          },
+        ].map((row, idx) => (
+          <div key={row.key}
+            className="flex items-center flex-wrap"
+            style={{ gap: 12, padding: '9px 0', borderTop: idx > 0 ? `1px solid ${D.border}` : 'none' }}>
+            <div className="flex items-center" style={{ gap: 8, minWidth: 220 }}>
+              <span className="flex items-center flex-shrink-0" style={{ color: D.textHint }}>{row.icon}</span>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#101828', fontFamily: FONT }}>
+                  {row.label}
+                </div>
+                <div style={{ fontSize: 11.4, color: D.textMuted, marginTop: 1 }}>{row.sub}</div>
+              </div>
+            </div>
+            <SpecSwitch
+              on={row.val}
+              onClick={() => setFormData((prev: any) => ({
+                ...prev,
+                additionalOptions: { ...prev.additionalOptions, [row.key]: !row.val },
+              }))}
+              label={row.label}
+            />
+          </div>
+        ))}
+      </SpecCard>
     </div>
   );
 };

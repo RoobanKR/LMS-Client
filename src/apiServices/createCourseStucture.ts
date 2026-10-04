@@ -1,40 +1,7 @@
 // courseStructureService.ts - Updated version
-import axios from 'axios';
-
-const API_BASE_URL = 'https://lms-server-ym1q.onrender.com';
-
-// Configure axios instance
-const apiClient = axios.create({
-    baseURL: API_BASE_URL,
-    headers: {
-        'Content-Type': 'application/json',
-    },
-    timeout: 10000,
-});
-
-// Get current token
-const getCurrentToken = () => {
-    return localStorage.getItem('smartcliff_token');
-};
-
-// Add request interceptor
-apiClient.interceptors.request.use((config) => {
-    const token = getCurrentToken();
-    if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-});
-
-apiClient.interceptors.response.use(
-    (response) => response,
-    (error) => {
-        if (error.response?.status === 401) {
-            localStorage.removeItem('smartcliff_token');
-        }
-        return Promise.reject(error);
-    }
-);
+import { http as apiClient } from "@/lib/http";
+import { getToken as getCurrentToken } from "@/lib/session";
+import { WS_ORIGIN } from '@/lib/apiBase'
 
 const objectToFormData = (obj: any, formData: FormData = new FormData(), parentKey?: string): FormData => {
   for (let key in obj) {
@@ -97,10 +64,36 @@ const formatResourcesType = (resourcesType: any) => {
     };
 };
 
+// FULL payload — the shared ['courseStructures'] key feeds ELEVEN consumers,
+// including pedagogy2's usePedagogyManagement, ProgramCalendarContent,
+// PedagogyPage and the attendance pages, which resolve courses from this
+// list and read courseHierarchy / testConfiguration / I_Do-We_Do-You_Do.
+// Do NOT wire ?summary=1 into this fetcher: that projection omits those
+// fields and crashes those pages (caught in review). Summary-safe listing
+// consumers use fetchCourseStructuresSummary below instead.
 export const fetchAllCourseStructures = async (): Promise<any> => {
     const response = await apiClient.get('/courses-structure/getAll');
     return response.data.data;
 };
+
+// ?summary=1: listing projection (scalars + moduleCount/participantCount/
+// hasModuleHours), no populated rosters — a fraction of the full payload.
+// Cached under its OWN ['courseStructures','summary'] key; the shared
+// 'courseStructures' root prefix means invalidations of ['courseStructures']
+// refresh both entries, and the persister exclusion covers both. An older
+// server ignores the param and returns the full payload — a superset, so
+// summary consumers work against both.
+export const fetchCourseStructuresSummary = async (): Promise<any> => {
+    const response = await apiClient.get('/courses-structure/getAll?summary=1');
+    return response.data.data;
+};
+
+export const courseStructuresSummaryQuery = () => ({
+    queryKey: ['courseStructures', 'summary'] as const,
+    queryFn: fetchCourseStructuresSummary,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+});
 
 export const fetchCourseStructureById = async (courseId: string): Promise<any> => {
     const response = await apiClient.get(`/courses-structure/getById/${courseId}`);
@@ -111,6 +104,14 @@ export const createCourseStructure = async (courseData: any): Promise<any> => {
   const formData = new FormData();
   
   const preparedData = {
+    clientId: courseData.clientId,
+    // The ServiceMapping this setup was created from — it scopes the course's
+    // identity, so dropping it here would silently break per-mapping setups.
+    mappingId: courseData.mappingId,
+    // WHERE in that mapping the course sits. Same course name under two
+    // departments is two setups, and this is what tells them apart — without it
+    // they collapse back into one shared record.
+    coursePath: courseData.coursePath || '',
     clientName: courseData.clientName,
     serviceType: courseData.serviceType,
     serviceModal: courseData.serviceModal,
@@ -127,13 +128,34 @@ export const createCourseStructure = async (courseData: any): Promise<any> => {
     courseHierarchy: courseData.courseHierarchy || [],
     resourcesType: courseData.resourcesType,
     testConfiguration: courseData.testConfiguration, // Add this line
+    // Client-driven cascade values
+    studentType: courseData.studentType || '',
+    batch: courseData.batch || '',
+    skillingBatches: courseData.skillingBatches || [],
+    degree: courseData.degree || '',
+    departmentSections: courseData.departmentSections || [],
     createdBy: courseData.createdBy,
     institution: courseData.institution
   };
   
   // Convert to FormData
   objectToFormData(preparedData, formData);
-  
+
+  // Multiple client-configuration blocks — sent as JSON (deeply nested)
+  formData.append('clientConfigurations', JSON.stringify(courseData.clientConfigurations || []));
+
+  // The course's own batch names from the mapping (Degree Program per-course
+  // batches). JSON like clientConfigurations, so an empty list still reaches
+  // the server as "explicitly none" rather than an absent field.
+  formData.append('batches', JSON.stringify(courseData.batches || []));
+
+  // Batch-wise content config (Resources by batch section) — an OBJECT, so it
+  // rides as JSON like clientConfigurations; the bracket serializer would
+  // mangle it into unusable keys.
+  if (courseData.batchResources !== undefined) {
+    formData.append('batchResources', JSON.stringify(courseData.batchResources));
+  }
+
   // Handle image separately
   if (courseData.courseImage && courseData.courseImage instanceof File) {
     formData.append('courseImage', courseData.courseImage);
@@ -155,14 +177,31 @@ export const createCourseStructure = async (courseData: any): Promise<any> => {
 export const updateCourseStructure = async (courseId: string, courseData: any): Promise<any> => {
     const formData = new FormData();
     
-    // Format resourcesType properly
+    // Format resourcesType properly. clientConfigurations, batches and
+    // batchResources are sent as JSON separately, so keep them out of the
+    // bracket serializer — the server parses each as a JSON string.
+    const { clientConfigurations, batches, batchResources, ...rest } = courseData;
     const formattedData = {
-        ...courseData,
+        ...rest,
         resourcesType: formatResourcesType(courseData.resourcesType)
     };
-    
+
     // Convert the entire formattedData object to FormData
     objectToFormData(formattedData, formData);
+
+    // Multiple client-configuration blocks — sent as JSON
+    formData.append('clientConfigurations', JSON.stringify(clientConfigurations || []));
+
+    // Only when the caller actually passed the field: callers that predate it
+    // (the legacy Add Course Structure popup) must not wipe stored batches.
+    if (batches !== undefined) {
+        formData.append('batches', JSON.stringify(batches || []));
+    }
+
+    // Same only-when-sent rule for the batch-content config.
+    if (batchResources !== undefined) {
+        formData.append('batchResources', JSON.stringify(batchResources));
+    }
 
     // Ensure courseImage is properly handled if it's a File object
     if (courseData.courseImage && courseData.courseImage instanceof File) {
@@ -209,7 +248,7 @@ export const setupCourseStructuresWebSocket = (
         throw new Error('No authentication token available');
     }
 
-    socket = new WebSocket(`ws://localhost:5533/courses-structure/updates?token=${token}`);
+    socket = new WebSocket(`${WS_ORIGIN}/courses-structure/updates?token=${token}`);
 
     socket.onmessage = (event) => {
         const data = JSON.parse(event.data);
@@ -241,22 +280,25 @@ export const closeCourseStructuresWebSocket = () => {
     }
 };
 
-// React Query API configuration
+// React Query API configuration.
+// The single canonical key for GET /courses-structure/getAll is
+// ['courseStructures'] — the service-mapping wizard used to keep a private
+// ['course-structures','all'] copy and useCourseData a ['allCourseStructures']
+// copy, so a save that invalidated one didn't reach the other. Use this key
+// everywhere. Polling replaced by a normal cache: this endpoint's payload is
+// large (deep populate + pedagogy) and course changes come from THIS app's
+// own mutations, which already invalidate this key.
 export const courseStructureApi = {
     getAll: () => ({
         queryKey: ['courseStructures'],
         queryFn: fetchAllCourseStructures,
-        staleTime: 1000 * 30,
-        refetchInterval: 1000 * 30,
-        refetchIntervalInBackground: true,
+        staleTime: 5 * 60 * 1000,
         refetchOnWindowFocus: false,
     }),
     getById: (courseId: string) => ({
         queryKey: ['courseStructure', courseId],
         queryFn: () => fetchCourseStructureById(courseId),
-        staleTime: 1000 * 30,
-        refetchInterval: 1000 * 30,
-        refetchIntervalInBackground: true,
+        staleTime: 5 * 60 * 1000,
         refetchOnWindowFocus: false,
     }),
     create: () => ({

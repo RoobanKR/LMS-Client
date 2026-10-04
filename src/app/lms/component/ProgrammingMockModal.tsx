@@ -1,4 +1,5 @@
 "use client";
+import { getToken } from "@/lib/session";
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import axios from 'axios';
@@ -1210,7 +1211,7 @@ body {
     background-color: var(--bg-color);
     color: var(--text-color);
     line-height: 1.6;
-    min-height: 100vh;
+    min-height: calc(100vh * var(--ui-scale-inv, 1));
 }
 
 .container {
@@ -1709,9 +1710,9 @@ const [showQuestionSidebar, setShowQuestionSidebar] = useState(true);
   const performExit = useCallback(async () => {
     if (isAssessmentMode && hasStarted && currentQuestionIndex === questions.length - 1) {
       try {
-        const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
+        const token = getToken() || localStorage.getItem('token') || '';
         
-        await axios.post('https://lms-server-ym1q.onrender.com/exercise/lock', {
+        await axios.post('https://lmsserver-yeve.onrender.com/exercise/lock', {
           courseId,
           exerciseId,
           category,
@@ -1807,8 +1808,8 @@ const [showQuestionSidebar, setShowQuestionSidebar] = useState(true);
     setTerminationReason(reason);
 
     try {
-      const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
-      await axios.post('https://lms-server-ym1q.onrender.com/exercise/lock', {
+      const token = getToken() || localStorage.getItem('token') || '';
+      await axios.post('https://lmsserver-yeve.onrender.com/exercise/lock', {
         courseId,
         exerciseId,
         category,
@@ -2176,8 +2177,8 @@ const [showQuestionSidebar, setShowQuestionSidebar] = useState(true);
       if (!isAssessmentMode || !courseId || !exerciseId) return;
 
       try {
-        const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
-        const response = await axios.get('https://lms-server-ym1q.onrender.com/exercise/status', {
+        const token = getToken() || localStorage.getItem('token') || '';
+        const response = await axios.get('https://lmsserver-yeve.onrender.com/exercise/status', {
           params: { courseId, exerciseId, category, subcategory },
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -2219,7 +2220,7 @@ const [showQuestionSidebar, setShowQuestionSidebar] = useState(true);
 
   //   setIsLoadingPrevious(true);
   //   try {
-  //     const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
+  //     const token = getToken() || localStorage.getItem('token') || '';
       
   //     if (!token) {
   //       toast.error("Authentication token missing");
@@ -2227,7 +2228,7 @@ const [showQuestionSidebar, setShowQuestionSidebar] = useState(true);
   //     }
 
   //     const response = await fetch(
-  //       `https://lms-server-ym1q.onrender.com/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseId}&questionId=${questionId}&category=${category}`,
+  //       `https://lmsserver-yeve.onrender.com/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseId}&questionId=${questionId}&category=${category}`,
   //       {
   //         headers: {  
   //           'Authorization': `Bearer ${token}`,
@@ -2861,7 +2862,7 @@ const [showQuestionSidebar, setShowQuestionSidebar] = useState(true);
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                min-height: 100vh;
+                min-height: calc(100vh * var(--ui-scale-inv, 1));
                 margin: 0;
                 padding: 20px;
             }
@@ -3694,7 +3695,7 @@ document.addEventListener('DOMContentLoaded', init${name.charAt(0).toUpperCase()
     setIsSubmitting(true);
 
     try {
-      const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
+      const token = getToken() || localStorage.getItem('token') || '';
 
       if (!token) {
         toast.error("❌ Authentication token missing");
@@ -3736,7 +3737,7 @@ document.addEventListener('DOMContentLoaded', init${name.charAt(0).toUpperCase()
       };
 
       const response = await axios.post(
-        'https://lms-server-ym1q.onrender.com/courses/answers/submit-multiple-files',
+        'https://lmsserver-yeve.onrender.com/courses/answers/submit-multiple-files',
         payload,
         {
           headers: {

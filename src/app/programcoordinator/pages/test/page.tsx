@@ -307,7 +307,7 @@
       type: 'practice',
       description: 'Teacher provides questions for students to practice',
       icon: Play,
-      color: '#3B82F6',
+      color: '#FB923C',
       security: { ...defaultSecuritySettings },
       aiGeneration: { ...defaultAIGenerationSettings },
       compiler: { ...defaultCompilerSettings, enabled: false },
@@ -402,7 +402,7 @@
                 type="checkbox"
                 checked={enabled}
                 onChange={(e) => onEnabledChange(e.target.checked)}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
+                className="rounded border-gray-300 text-orange-600 focus:ring-orange-500 dark:bg-gray-700 dark:border-gray-600"
               />
               <span className="text-xs text-gray-600 dark:text-gray-400">Enable</span>
             </label>
@@ -456,7 +456,7 @@
             value={value}
             onChange={(e) => onChange(e.target.value)}
             disabled={disabled}
-            className="px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white disabled:opacity-50"
+            className="px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-orange-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white disabled:opacity-50"
           >
             {options.map(option => {
               const OptionIcon = option.icon;
@@ -474,7 +474,7 @@
               checked={value}
               onChange={(e) => onChange(e.target.checked)}
               disabled={disabled}
-              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 disabled:opacity-50"
+              className="rounded border-gray-300 text-orange-600 focus:ring-orange-500 dark:bg-gray-700 dark:border-gray-600 disabled:opacity-50"
             />
             <span className={`ml-2 text-xs ${disabled ? 'text-gray-400' : 'text-gray-600 dark:text-gray-400'}`}>
               {label}
@@ -487,7 +487,7 @@
             disabled={disabled}
             placeholder={placeholder}
             rows={2}
-            className="px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white disabled:opacity-50 resize-vertical"
+            className="px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-orange-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white disabled:opacity-50 resize-vertical"
           />
         ) : (
           <input
@@ -499,7 +499,7 @@
             step={step}
             placeholder={placeholder}
             disabled={disabled}
-            className="px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white disabled:opacity-50"
+            className="px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-orange-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white disabled:opacity-50"
           />
         )}
         
@@ -552,7 +552,7 @@
                 disabled={disabled}
                 className={`flex items-center gap-1 px-2 py-1 rounded border transition-colors text-xs ${
                   isSelected
-                    ? 'bg-blue-100 border-blue-500 text-blue-700 dark:bg-blue-900 dark:border-blue-400 dark:text-blue-300'
+                    ? 'bg-orange-100 border-orange-500 text-orange-700 dark:bg-orange-900 dark:border-orange-400 dark:text-orange-300'
                     : 'bg-gray-50 border-gray-300 text-gray-700 hover:bg-gray-100 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700'
                 } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
@@ -612,14 +612,14 @@
           {tags.map(tag => (
             <span
               key={tag}
-              className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs dark:bg-blue-900 dark:text-blue-200"
+              className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-800 rounded text-xs dark:bg-orange-900 dark:text-orange-200"
             >
               {tag}
               <button
                 type="button"
                 onClick={() => removeTag(tag)}
                 disabled={disabled}
-                className="text-blue-600 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-100"
+                className="text-orange-600 hover:text-orange-800 dark:text-orange-300 dark:hover:text-orange-100"
               >
                 <X className="w-3 h-3" />
               </button>
@@ -634,7 +634,7 @@
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           disabled={disabled}
-          className="px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white disabled:opacity-50"
+          className="px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-orange-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white disabled:opacity-50"
         />
       </div>
     );
@@ -862,7 +862,7 @@
           
           <button
             onClick={() => setShowAddElement(true)}
-            className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+            className="flex items-center gap-2 px-3 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm"
           >
             <Plus className="w-4 h-4" />
             Add Element
@@ -888,7 +888,7 @@
                 <button
                   onClick={handleAddElement}
                   disabled={!newElementName.trim()}
-                  className="flex-1 px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                  className="flex-1 px-3 py-2 bg-orange-600 text-white rounded hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                 >
                   Add Element
                 </button>

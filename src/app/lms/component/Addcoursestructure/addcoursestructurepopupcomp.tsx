@@ -4,17 +4,17 @@ import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, Check, X, CircleHelp, BookOpen, Pencil, Loader2, Eye } from "lucide-react";
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { useClients } from './utils/useClients';
+import { useClients } from '../../pages/coursestructure/utils/useClients';
 import { useCourseData } from './useCourseData';
 import { ConfirmationDialog } from './ConfirmationDialog';
 import { PreviewDialog } from './PreviewDialog';
 import { Step1BasicConfig } from './Step1BasicConfig';
 import { Step2CourseDetails } from './Step2CourseDetails';
-import { AddCourseSettingsPopupProps, Category, Service, ServiceModal } from './types';
-import { useCourseForm } from './utils/useCourseForm';
+import { AddCourseSettingsPopupProps, Category, Service, ServiceModal } from '../../pages/coursestructure/components/types';
+import { useCourseForm } from '../../pages/coursestructure/utils/useCourseForm';
 import { CourseCreationHelpDialog } from './CourseCreationHelpDialog';
-import { popupVariants, steps } from './utils/constants';
-import { generateCourseId, generateUniqueCourseId } from './utils/helpers';
+import { popupVariants, steps } from '../../pages/coursestructure/utils/constants';
+import { generateCourseId, generateUniqueCourseId, generateNextCourseId } from '../../pages/coursestructure/utils/helpers';
 const AddCourseSettingsPopup: React.FC<AddCourseSettingsPopupProps> = ({ 
     isOpen, 
     courseId, 
@@ -125,26 +125,25 @@ const AddCourseSettingsPopup: React.FC<AddCourseSettingsPopupProps> = ({
         }
     }, [isEditMode, isEditDataReady, courseData, clientList, services, categoriesData, populateEditForm, isOpen]);
 
-    // Generate course ID when dependencies change (only for create mode) - only once
+    // Generate course ID when dependencies change (only for create mode).
+    // Uses the Client Management names; works even with zero existing courses.
   useEffect(() => {
-    // Only proceed if all required data is available
+    const clientName =
+        formData.clientName ||
+        clientList.find(c => c._id === formData.client)?.clientCompany ||
+        '';
+
     if (
         !isEditMode &&
         formData.client &&
-        formData.modal &&
-        formData.duration &&
-        clientList.length > 0 &&
-        services.length > 0 &&
-        filteredServiceModels.length > 0 &&
-        existingCourseIds.size > 0
+        formData.serviceTypeName &&
+        formData.serviceModelName &&
+        clientName
     ) {
-        const newCourseId = generateUniqueCourseId(
-            formData.client,
-            formData.modal,
-            formData.duration,
-            clientList,
-            services,
-            filteredServiceModels,
+        const newCourseId = generateNextCourseId(
+            clientName,
+            formData.serviceTypeName,
+            formData.serviceModelName,
             existingCourseIds
         );
 
@@ -154,18 +153,17 @@ const AddCourseSettingsPopup: React.FC<AddCourseSettingsPopupProps> = ({
     }
 
     // Reset course ID when selections change
-    if (!isEditMode && (!formData.client || !formData.modal || !formData.duration)) {
+    if (!isEditMode && (!formData.client || !formData.serviceTypeName || !formData.serviceModelName)) {
         if (formData.courseid) {
             setFormData(prev => ({ ...prev, courseid: '' }));
         }
     }
 }, [
     formData.client,
-    formData.modal,
-    formData.duration,
+    formData.clientName,
+    formData.serviceTypeName,
+    formData.serviceModelName,
     clientList,
-    services,
-    filteredServiceModels,
     existingCourseIds,
     isEditMode,
     setFormData
@@ -316,6 +314,7 @@ const AddCourseSettingsPopup: React.FC<AddCourseSettingsPopupProps> = ({
                                                 setCustomCourseName={setCustomCourseName}
                                                 currentTime={currentTime}
                                                 totalCourses={existingCourses.length}
+                                                isEditMode={isEditMode}
                                             />
                                         )}
 

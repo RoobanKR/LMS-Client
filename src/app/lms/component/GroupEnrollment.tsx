@@ -1,4 +1,5 @@
 "use client"
+import { getToken } from "@/lib/session";
 
 import { useState, useEffect, useMemo } from 'react'
 import { Search, Filter, ChevronDown, ChevronUp, X, Mail, Users, UserPlus, Trash2, Eye, Plus, UserMinus, ChevronRight, Crown, Edit } from "lucide-react"
@@ -25,7 +26,7 @@ import {
   setGroupLeader,
   fetchGroupsCourseData, 
   removeGroupLeader
-} from '@/apiServices/userService'
+} from '@/app/lms/pages/usermanagement/api/userService'
 
 interface GroupEnrollmentTabProps {
   courseId: string
@@ -168,7 +169,7 @@ export default function GroupEnrollmentTab({ courseId }: GroupEnrollmentTabProps
   const modalUsersPerPage = 3
 
   useEffect(() => {
-    const storedToken = localStorage.getItem('smartcliff_token')
+    const storedToken = getToken()
     const storedInstitutionId = localStorage.getItem('smartcliff_institution')
     const storedBasedOn = localStorage.getItem('smartcliff_basedOn')
 
@@ -206,7 +207,7 @@ export default function GroupEnrollmentTab({ courseId }: GroupEnrollmentTabProps
   } = useQuery({
     queryKey: ['courseParticipantsForGroups', courseId, institutionId, token],
     queryFn: async () => {
-      if (!token || !institutionId || !courseId) return { singleParticipants: [] }
+      if (!token || !institutionId || !courseId) return { participants: [] }
       
       try {
         const data = await fetchGroupsCourseData(courseId, institutionId, token);
@@ -311,7 +312,7 @@ const {
 })
 
 const transformedParticipants = useMemo(() => {
-  const participants = courseData?.singleParticipants || [];
+  const participants = courseData?.participants || [];
   const users: User[] = [];
   
   participants.forEach((enrollment: any) => {
@@ -366,7 +367,7 @@ const transformedParticipants = useMemo(() => {
   });
   
   return users;
-}, [courseData?.singleParticipants])
+}, [courseData?.participants])
 
   const availableRoles = useMemo(() => {
     const roles = new Set<string>();

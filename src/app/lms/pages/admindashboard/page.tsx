@@ -1,515 +1,655 @@
 'use client';
 
-import React, { useMemo, useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import axios from 'axios';
+// ─────────────────────────────────────────────────────────────────────────────
+// Admin Dashboard — institution-wide insight board.
+// Everything on this page is derived client-side from ONE analytics call
+// (/student-Dashboard/courses-data/analytics?light=1, via useAdminAnalyticsQuery):
+//   Row 1  KPI stat cards — courses, learners, engagement, clients
+//   Row 2  Key-insight tiles — top course, most content, newest
+//   Row 3  Charts — enrollment per course, service mix, level mix, content density
+//   Row 4  Course directory with a working search filter
+// Every number is labelled; no decorative/dead controls.
+// ─────────────────────────────────────────────────────────────────────────────
+
+import React, { useMemo, useState } from 'react';
+import { motion } from 'framer-motion';
 import {
     BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer,
-    PieChart, Pie, Cell, CartesianGrid, AreaChart, Area
+    PieChart, Pie, Cell, CartesianGrid, Legend as RechartsLegend
 } from 'recharts';
 import {
-    Users, BookOpen, Layers, Search, Download, Calendar, 
-    AlertCircle, Filter, Sparkles, TrendingUp, Trophy
+    Users, BookOpen, Layers, AlertCircle, TrendingUp, Trophy,
+    Building2, RefreshCw, CalendarDays, X, BarChart3, PieChart as PieChartIcon,
+    SearchX, Inbox
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { useAdminAnalyticsQuery } from '@/queries/adminAnalytics';
+import { readStoredUserData } from '../../shared/ui/navItems';
 import DashboardLayout from '../../component/layout';
+import {
+    StatCard, StatusPill, EmptyState, Toolbar,
+    pageEnter, listStagger, listItem
+} from '../../shared/ui';
+import DataTable, { type Column } from '../../shared/listing/DataTable';
+import { CountUp } from './components/CountUp';
+import { ChartTooltip, legendFormatter } from './components/ChartTooltip';
+import { ChartCard } from './components/ChartCard';
+import { InsightTile } from './components/InsightTile';
+import { DistRow } from './components/DistRow';
+import { DashboardSkeleton } from './components/DashboardSkeleton';
 
-// --- API & UTILS ---
-const API_BASE_URL = 'https://lms-server-ym1q.onrender.com';
-const ENDPOINT = '/student-Dashboard/courses-data/analytics';
+// Categorical chart palette drawn from the token ramps (brand / info / success /
+// warn), ordered so adjacent slots stay distinguishable under CVD simulation.
+// Same 8-slot modulo mechanics as before — only the values are tokenized.
+const CHART_PALETTE = [
+    'var(--color-brand-500)',
+    'var(--color-info-700)',
+    'var(--color-warn-500)',
+    'var(--color-success-700)',
+    'var(--color-brand-400)',
+    'var(--color-brand-800)',
+    'var(--color-info-500)',
+    'var(--color-success-500)',
+];
 
-const fetchDashboardData = async () => {
-    const token = typeof window !== 'undefined'
-        ? localStorage.getItem('smartcliff_token') || localStorage.getItem('token')
-        : null;
-
-    if (!token) throw new Error("Authentication token not found.");
-
-    const response = await axios.get(`${API_BASE_URL}${ENDPOINT}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-    });
-    return response.data;
+const fmtDate = (v?: string) => {
+    if (!v) return '—';
+    const d = new Date(v);
+    if (isNaN(d.getTime())) return '—';
+    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 };
 
-// --- STYLING CONSTANTS ---
-const COLORS = {
-    primary: '#111827',
-    accent: '#6366f1',
-    chartPalette: ['#6366f1', '#8b5cf6', '#ec4899', '#10b981', '#f59e0b', '#3b82f6']
+const pct = (part: number, whole: number) => (whole > 0 ? Math.round((part / whole) * 100) : 0);
+
+// Two-letter monogram from a course name — e.g. "Java Basics" → "JB",
+// "Python 101" → "P1", single-word "Kubernetes" → "KU".
+const courseInitials = (name?: string, fallback = 'C') => {
+    if (!name || !name.trim()) return fallback;
+    const words = name.trim().split(/\s+/).filter(Boolean);
+    if (words.length === 1) return words[0].substring(0, 2).toUpperCase();
+    return (words[0][0] + words[1][0]).toUpperCase();
 };
 
-// --- ANIMATED COMPONENTS ---
+// Shared axis tick styles (tokens via CSS variables — Recharts reads them fine).
+const AXIS_TICK = { fill: 'var(--color-ink-400)', fontSize: 11 };
+const AXIS_TICK_STRONG = { fill: 'var(--color-ink-500)', fontSize: 11, fontWeight: 500 };
 
-const CountUp = ({ end, duration = 2000, suffix = "" }: { end: number, duration?: number, suffix?: string }) => {
-    const [count, setCount] = useState(0);
-
-    useEffect(() => {
-        let startTime: number | null = null;
-        const animate = (currentTime: number) => {
-            if (!startTime) startTime = currentTime;
-            const progress = Math.min((currentTime - startTime) / duration, 1);
-            const ease = 1 - Math.pow(1 - progress, 4); // Ease out quart
-            
-            setCount(Math.floor(ease * end));
-
-            if (progress < 1) {
-                requestAnimationFrame(animate);
-            }
-        };
-        requestAnimationFrame(animate);
-    }, [end, duration]);
-
-    return <span>{count.toLocaleString()}{suffix}</span>;
-};
-
-const RadialProgress = ({ percentage, color = "#6366f1" }: { percentage: number, color?: string }) => {
-    const radius = 24;
-    const circumference = 2 * Math.PI * radius;
-    const safePercentage = isNaN(percentage) ? 0 : Math.min(Math.max(percentage, 0), 100);
-    const offset = circumference - (safePercentage / 100) * circumference;
-
+// Page header — title, live pill, refresh. Rendered identically across the
+// loading / error / loaded states so the frame never jumps between them.
+function DashHeader({ isFetching, onRefresh }: { isFetching: boolean; onRefresh: () => void }) {
     return (
-        <div className="relative flex items-center justify-center">
-            <svg className="transform -rotate-90 w-16 h-16">
-                <circle cx="32" cy="32" r={radius} stroke="#f1f5f9" strokeWidth="6" fill="transparent" />
-                <circle 
-                    cx="32" cy="32" r={radius} 
-                    stroke={color} 
-                    strokeWidth="6" 
-                    fill="transparent" 
-                    strokeDasharray={circumference} 
-                    strokeDashoffset={offset} 
-                    strokeLinecap="round"
-                    className="transition-all duration-1000 ease-out"
-                />
-            </svg>
-            <span className="absolute text-[10px] font-bold text-slate-700">{safePercentage}%</span>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-3">
+                    <h1 className="text-2xl font-semibold tracking-[-0.01em] text-heading">Executive Overview</h1>
+                    <StatusPill tone="success" dot>
+                        Live · {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    </StatusPill>
+                </div>
+                <p className="mt-0.5 text-sm text-subtle">
+                    Institution-wide analytics across courses, learners and clients.
+                </p>
+            </div>
+            {/* mr-10 clears the shell's corner-pinned notification bell
+                (absolute top-3 right-4, 38px) that overlays this row. */}
+            <Button variant="outline" className="mr-10" onClick={onRefresh} disabled={isFetching}>
+                <RefreshCw size={14} className={isFetching ? 'animate-spin' : ''} />
+                {isFetching ? 'Refreshing…' : 'Refresh'}
+            </Button>
         </div>
     );
-};
-
-const BentoCard = ({ children, className = "", delay = 0 }: { children: React.ReactNode, className?: string, delay?: number }) => (
-    <div 
-        className={`bg-white rounded-3xl border border-gray-100 shadow-sm relative overflow-hidden
-        hover:shadow-[0_8px_30px_-4px_rgba(0,0,0,0.04)] hover:border-gray-200 transition-all duration-500 ease-out ${className}`}
-        style={{ animationDelay: `${delay}ms` }}
-    >
-        {children}
-    </div>
-);
-
-const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-        return (
-            <div className="bg-gray-900/95 backdrop-blur-md border border-gray-700 p-4 rounded-xl shadow-2xl z-50">
-                <p className="text-gray-200 font-medium text-xs mb-2 font-heading">{label}</p>
-                {payload.map((entry: any, index: number) => (
-                    <div key={index} className="flex items-center gap-2 text-sm">
-                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.fill || entry.stroke }} />
-                        <span className="text-white font-heading font-semibold">
-                            {entry.value}
-                        </span>
-                        <span className="text-gray-400 text-xs capitalize">{entry.name}</span>
-                    </div>
-                ))}
-            </div>
-        );
-    }
-    return null;
-};
+}
 
 export default function AdminDashboard() {
-    const { data: apiResponse, isLoading, isError, refetch } = useQuery({
-        queryKey: ['admin-analytics'],
-        queryFn: fetchDashboardData,
-        retry: 1
-    });
+    // The analytics payload is institution/role-scoped server-side, so the
+    // query is keyed per user (see queryKeys.analytics.adminDashboard).
+    const [userId] = useState<string | null>(() => readStoredUserData()?._id ?? null);
+    const { data: apiResponse, isLoading, isError, refetch, isFetching } = useAdminAnalyticsQuery(userId);
 
     const analytics = apiResponse?.data?.analytics;
     const courses = apiResponse?.data?.courses || [];
     const summary = apiResponse?.data?.summary;
 
-    // --- DATA PREPARATION ---
+    const [search, setSearch] = useState('');
 
-    // 1. Content Density Data (Bar Chart)
-    const densityData = useMemo(() => {
-        if (!courses || courses.length === 0) return [];
-        return courses
-            .map((c: any) => ({
-                name: c.courseCode || c.courseName?.substring(0, 8) + '...',
-                fullName: c.courseName,
-                modules: c.stats?.modules || 0,
-                topics: c.stats?.topics || 0,
-            }))
-            .sort((a: any, b: any) => b.topics - a.topics)
-            .slice(0, 8); 
+    // --- DERIVED INSIGHTS (all client-side, from the one analytics call) ---
+
+    const totalCourses = analytics?.totalCourses || 0;
+    const totalLearners = analytics?.totalParticipants || 0;
+    const activeLearners = analytics?.totalActiveParticipants || 0;
+    const engagementRate = pct(activeLearners, totalLearners);
+
+    const distinctClients = useMemo(
+        () => new Set(courses.map((c: any) => c.clientName).filter(Boolean)).size,
+        [courses]
+    );
+
+    // Enrollment per course — top 8, total vs active, horizontal so names read.
+    const enrollmentData = useMemo(() => {
+        return [...courses]
+            .sort((a: any, b: any) => (b.stats?.participants || 0) - (a.stats?.participants || 0))
+            .slice(0, 8)
+            .map((c: any) => {
+                const learners = c.stats?.participants || 0;
+                const active = c.stats?.activeParticipants || 0;
+                const engaged = learners > 0 ? active / learners : 1;
+                // Flag bars needing attention: red = has learners but none active,
+                // amber = active but engagement under 40%.
+                const alert: 'red' | 'yellow' | null =
+                    learners > 0 && active === 0 ? 'red'
+                    : learners > 0 && engaged < 0.4 ? 'yellow'
+                    : null;
+                return {
+                    name: c.courseCode || c.courseName?.substring(0, 10) || 'CC',
+                    fullName: c.courseName,
+                    Learners: learners,
+                    Active: active,
+                    alert,
+                };
+            });
     }, [courses]);
 
-    // 2. Service Distribution Data (Pie Chart)
     const serviceData = useMemo(() => {
         if (!summary?.coursesByService) return [];
-        return Object.entries(summary.coursesByService).map(([name, value], i) => ({
-            name,
-            value,
-            fill: COLORS.chartPalette[i % COLORS.chartPalette.length]
-        }));
+        return Object.entries(summary.coursesByService)
+            .map(([name, value], i) => ({
+                name,
+                value: Number(value) || 0,
+                fill: CHART_PALETTE[i % CHART_PALETTE.length],
+            }))
+            .sort((a, b) => b.value - a.value);
     }, [summary]);
 
-    // 3. Top Enrollment Trend Data (Area Chart)
-    const enrollmentTrendData = useMemo(() => {
-        if (!courses || courses.length === 0) return [];
-        return courses
-            .sort((a: any, b: any) => (b.stats?.participants || 0) - (a.stats?.participants || 0))
-            .slice(0, 10) // More data points for smoother graph
-            .map((c: any) => ({
-                name: c.courseCode || "CC",
-                participants: c.stats?.participants || 0
-            }));
-    }, [courses]);
+    const levelData = useMemo(() => {
+        if (!summary?.coursesByLevel) return [];
+        return Object.entries(summary.coursesByLevel)
+            .map(([name, value], i) => ({
+                name,
+                value: Number(value) || 0,
+                fill: CHART_PALETTE[(i + 3) % CHART_PALETTE.length],
+            }))
+            .sort((a, b) => b.value - a.value);
+    }, [summary]);
 
-    const engagementRate = useMemo(() => {
-        if (!analytics?.totalParticipants) return 0;
-        return Math.round((analytics.totalActiveParticipants / analytics.totalParticipants) * 100) || 0;
-    }, [analytics]);
+    // Named insight picks.
+    const topCourse = useMemo(() =>
+        [...courses].sort((a: any, b: any) => (b.stats?.participants || 0) - (a.stats?.participants || 0))[0],
+        [courses]);
+    const richestCourse = useMemo(() =>
+        [...courses].sort((a: any, b: any) => (b.stats?.topics || 0) - (a.stats?.topics || 0))[0],
+        [courses]);
+    const newestCourse = useMemo(() =>
+        [...courses].sort((a: any, b: any) =>
+            new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())[0],
+        [courses]);
+    const emptyCourses = useMemo(
+        () => courses.filter((c: any) => !(c.stats?.participants > 0)),
+        [courses]);
+
+    // Directory — working search over name / code / client / service / level.
+    const filteredCourses = useMemo(() => {
+        const q = search.trim().toLowerCase();
+        const base = [...courses].sort(
+            (a: any, b: any) => (b.stats?.participants || 0) - (a.stats?.participants || 0)
+        );
+        if (!q) return base;
+        return base.filter((c: any) =>
+            [c.courseName, c.courseCode, c.clientName, c.serviceType, c.courseLevel]
+                .some((v) => String(v || '').toLowerCase().includes(q))
+        );
+    }, [courses, search]);
+
+    const hasEnrollmentAlerts = useMemo(() => enrollmentData.some((d) => d.alert), [enrollmentData]);
+
+    // Recharts bar-label renderer: draws a pulsing red/amber alert dot at the tip
+    // of the "Active" bar for any flagged course, giving at-risk bars visual context.
+    const renderAlertDot = (props: any) => {
+        const { x, y, width, height, index } = props;
+        const d = enrollmentData[index];
+        if (!d?.alert) return null;
+        const color = d.alert === 'red' ? 'var(--color-danger-500)' : 'var(--color-warn-500)';
+        const cx = x + width + 8;
+        const cy = y + height / 2;
+        return (
+            <g key={`alert-${index}`} style={{ pointerEvents: 'none' }}>
+                <circle cx={cx} cy={cy} r={4} fill={color} opacity={0.3}>
+                    <animate attributeName="r" values="4;9;4" dur="1.6s" repeatCount="indefinite" />
+                    <animate attributeName="opacity" values="0.35;0;0.35" dur="1.6s" repeatCount="indefinite" />
+                </circle>
+                <circle cx={cx} cy={cy} r={3.5} fill={color} stroke="var(--color-surface)" strokeWidth={1.5} />
+            </g>
+        );
+    };
+
+    // --- DIRECTORY TABLE COLUMNS ---
+
+    const directoryColumns: Column<any>[] = [
+        {
+            key: 'course',
+            label: 'Course',
+            className: 'px-4 text-left',
+            skeletonWidth: '80%',
+            render: (course) => (
+                <div className="flex items-center gap-3 py-1.5">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-tile bg-brand-wash text-xs font-semibold text-brand-strong">
+                        {courseInitials(course.courseName, course.courseCode?.substring(0, 2).toUpperCase() || 'CC')}
+                    </div>
+                    <div className="min-w-0">
+                        <div className="max-w-[280px] truncate text-sm font-medium text-heading">
+                            {course.courseName}
+                        </div>
+                        <div className="mt-0.5 text-xs text-faint">
+                            {course.courseCode || ''}{course.clientName ? ` · ${course.clientName}` : ''}
+                        </div>
+                    </div>
+                </div>
+            ),
+        },
+        {
+            key: 'service',
+            label: 'Service',
+            className: 'px-3 text-left',
+            skeletonWidth: '60%',
+            render: (course) => (
+                <StatusPill tone="neutral">{course.serviceType || '—'}</StatusPill>
+            ),
+        },
+        {
+            key: 'level',
+            label: 'Level',
+            className: 'px-3 text-left',
+            skeletonWidth: '50%',
+            render: (course) => (
+                <span className="text-sm text-body">{course.courseLevel || '—'}</span>
+            ),
+        },
+        {
+            key: 'content',
+            label: 'Content',
+            className: 'px-3 text-left',
+            skeletonWidth: '65%',
+            render: (course) => (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-hairline bg-canvas px-2.5 py-1 text-xs font-medium text-subtle">
+                    <Layers size={13} className="text-brand" aria-hidden="true" />
+                    {course.stats?.modules || 0} mod · {course.stats?.topics || 0} topics
+                </span>
+            ),
+        },
+        {
+            key: 'learners',
+            label: 'Learners',
+            className: 'px-3 text-left',
+            skeletonWidth: '70%',
+            render: (course) => {
+                const learners = course.stats?.participants || 0;
+                const active = course.stats?.activeParticipants || 0;
+                const activePct = pct(active, learners);
+                if (learners > 0) {
+                    return (
+                        <div className="w-32">
+                            <div className="mb-1 flex items-center justify-between text-xs">
+                                <span className="font-semibold tabular-nums text-heading">{learners}</span>
+                                <span className="font-medium text-success-700">{activePct}% active</span>
+                            </div>
+                            <div className="h-1 overflow-hidden rounded-full bg-ink-100">
+                                <div className="h-full rounded-full bg-success-500" style={{ width: `${activePct}%` }} />
+                            </div>
+                        </div>
+                    );
+                }
+                return <StatusPill tone="neutral">No learners</StatusPill>;
+            },
+        },
+        {
+            key: 'created',
+            label: 'Created',
+            className: 'px-4 text-right',
+            skeletonWidth: '55%',
+            render: (course) => (
+                <span className="text-xs tabular-nums text-subtle">{fmtDate(course.createdAt)}</span>
+            ),
+        },
+    ];
 
     // --- RENDER STATES ---
 
-    if (isLoading) return (
+    // `!apiResponse && !isError` also covers the idle state when the stored
+    // user id hasn't been read yet (query disabled) — skeleton, not zeros.
+    if (isLoading || (!apiResponse && !isError)) return (
         <DashboardLayout>
-            <div className="min-h-screen bg-gray-50 p-8 space-y-8 flex flex-col justify-center items-center">
-                <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-                <p className="text-gray-500 font-heading animate-pulse">Synchronizing Dashboard...</p>
-            </div>
+            <motion.div
+                variants={pageEnter}
+                initial="hidden"
+                animate="visible"
+                className="min-h-screen px-6 py-5 md:px-8 md:py-6"
+            >
+                <DashHeader isFetching={isFetching} onRefresh={() => refetch()} />
+                <DashboardSkeleton />
+            </motion.div>
         </DashboardLayout>
     );
 
     if (isError) return (
         <DashboardLayout>
-            <div className="h-screen flex flex-col items-center justify-center bg-gray-50 font-sans">
-                <div className="bg-white p-8 rounded-3xl shadow-xl text-center max-w-md border border-red-100">
-                    <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <AlertCircle size={32} className="text-red-500" />
+            <motion.div
+                variants={pageEnter}
+                initial="hidden"
+                animate="visible"
+                className="min-h-screen px-6 py-5 md:px-8 md:py-6"
+            >
+                <DashHeader isFetching={isFetching} onRefresh={() => refetch()} />
+                <div className="mt-6 rounded-xl border border-hairline bg-surface shadow-xs">
+                    <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
+                        <div className="flex h-11 w-11 items-center justify-center rounded-tile bg-danger-50">
+                            <AlertCircle size={20} className="text-danger-700" aria-hidden="true" />
+                        </div>
+                        <h2 className="mt-4 text-md font-semibold text-heading">Connection failed</h2>
+                        <p className="mt-1 max-w-sm text-sm text-subtle">
+                            Unable to fetch live analytics data. Check that you are signed in and the analytics service is reachable.
+                        </p>
+                        <Button className="mt-4" onClick={() => refetch()}>Retry Connection</Button>
                     </div>
-                    <h2 className="text-xl font-heading font-bold text-gray-900 mb-2">Connection Failed</h2>
-                    <p className="text-gray-500 mb-6 text-sm">Unable to fetch live analytics data.</p>
-                    <Button onClick={() => refetch()} className="bg-gray-900 text-white rounded-full px-8">Retry Connection</Button>
                 </div>
-            </div>
+            </motion.div>
         </DashboardLayout>
     );
 
     return (
         <DashboardLayout>
-            <style jsx global>{`
-                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Montserrat:wght@500;600;700;800&display=swap');
-                
-                .font-sans { font-family: 'Inter', sans-serif; }
-                .font-heading { font-family: 'Montserrat', sans-serif; }
-                
-                .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-                .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
-                .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-                .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-            `}</style>
+            <motion.div
+                variants={pageEnter}
+                initial="hidden"
+                animate="visible"
+                className="min-h-screen px-6 py-5 md:px-8 md:py-6"
+            >
+                <DashHeader isFetching={isFetching} onRefresh={() => refetch()} />
 
-            <div className="min-h-screen bg-gray-50 font-sans text-gray-900 p-6 md:p-10 max-w-[1920px] mx-auto">
-                
-                {/* --- HEADER --- */}
-                <header className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-10 gap-6">
-                    <div>
-                        <div className="flex items-center gap-3 mb-2">
-                            <span className="flex h-2.5 w-2.5 relative">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-                            </span>
-                            <span className="text-xs font-bold tracking-widest text-gray-400 uppercase font-heading">Live Analytics</span>
-                        </div>
-                        <h1 className="text-3xl md:text-4xl font-heading font-bold text-gray-900 tracking-tight">
-                            Executive <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-600">Overview</span>
-                        </h1>
+                {/* --- KPI GRID --- */}
+                <motion.div
+                    variants={listStagger}
+                    initial="hidden"
+                    animate="visible"
+                    className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
+                >
+                    <motion.div variants={listItem}>
+                        <StatCard
+                            label="Total Courses"
+                            value={<CountUp end={totalCourses} />}
+                            icon={BookOpen}
+                            hint={`${serviceData.length} service type${serviceData.length === 1 ? '' : 's'}`}
+                        />
+                    </motion.div>
+                    <motion.div variants={listItem}>
+                        <StatCard
+                            label="Total Learners"
+                            value={<CountUp end={totalLearners} />}
+                            icon={Users}
+                            hint={`across ${totalCourses - emptyCourses.length} enrolled course${totalCourses - emptyCourses.length === 1 ? '' : 's'}`}
+                        />
+                    </motion.div>
+                    <motion.div variants={listItem}>
+                        <StatCard
+                            label="Learner Engagement"
+                            value={<CountUp end={engagementRate} suffix="%" />}
+                            icon={TrendingUp}
+                            hint={`${activeLearners.toLocaleString()} of ${totalLearners.toLocaleString()} learners active`}
+                        />
+                    </motion.div>
+                    <motion.div variants={listItem}>
+                        <StatCard
+                            label="Clients"
+                            value={<CountUp end={distinctClients} />}
+                            icon={Building2}
+                            hint="with at least one course"
+                        />
+                    </motion.div>
+                </motion.div>
+
+                {/* --- KEY INSIGHTS --- */}
+                <div className="mt-6 rounded-xl border border-hairline bg-surface p-5 shadow-xs">
+                    <h3 className="text-md font-semibold text-heading">Key insights</h3>
+                    <p className="mt-0.5 text-xs text-subtle">Standout courses across the catalogue</p>
+                    <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+                        <InsightTile
+                            icon={Trophy}
+                            label="Highest Enrollment"
+                            value={topCourse?.courseName || '—'}
+                            sub={topCourse ? `${topCourse.stats?.participants || 0} learners · ${topCourse.stats?.activeParticipants || 0} active` : 'No courses yet'}
+                        />
+                        <InsightTile
+                            icon={Layers}
+                            label="Richest Content"
+                            value={richestCourse?.courseName || '—'}
+                            sub={richestCourse ? `${richestCourse.stats?.topics || 0} topics across ${richestCourse.stats?.modules || 0} modules` : 'No content yet'}
+                        />
+                        <InsightTile
+                            icon={CalendarDays}
+                            label="Newest Course"
+                            value={newestCourse?.courseName || '—'}
+                            sub={newestCourse ? `Created ${fmtDate(newestCourse.createdAt)}` : '—'}
+                        />
                     </div>
+                </div>
 
-                    <div className="flex items-center gap-3 bg-white p-1.5 rounded-full border border-gray-200 shadow-sm">
-                        <div className="relative group">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-hover:text-indigo-500 transition-colors" size={16} />
-                            <input 
-                                className="pl-9 pr-4 py-2 bg-transparent text-sm outline-none w-48 transition-all focus:w-64 placeholder:text-gray-400 font-medium" 
-                                placeholder="Filter data..." 
-                            />
-                        </div>
-                        <div className="h-6 w-px bg-gray-200" />
-                        <Button variant="ghost" className="rounded-full h-9 w-9 p-0 hover:bg-gray-100 text-gray-500">
-                            <Calendar size={16} />
-                        </Button>
-                        <Button className="rounded-full bg-gray-900 hover:bg-black text-white px-5 h-9 shadow-lg shadow-gray-900/10 font-heading text-xs font-bold uppercase tracking-wide">
-                            <Download size={14} className="mr-2" /> Export
-                        </Button>
-                    </div>
-                </header>
-
-                {/* --- KPI GRID (4 COLUMNS) --- */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-                    
-                    {/* CARD 1: Total Courses */}
-                    <BentoCard className="p-6 relative group flex flex-col justify-between h-[180px]">
-                        <div className="flex justify-between items-start">
-                            <div className="p-2.5 bg-indigo-50 rounded-xl group-hover:bg-indigo-600 transition-colors duration-300">
-                                <BookOpen size={18} className="text-indigo-600 group-hover:text-white transition-colors" />
-                            </div>
-                            <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
-                                <TrendingUp size={10} /> Active
-                            </div>
-                        </div>
-                        <div>
-                            <div className="text-4xl font-heading font-bold text-gray-900 tracking-tight">
-                                <CountUp end={analytics?.totalCourses || 0} />
-                            </div>
-                            <p className="text-sm font-medium text-gray-400 mt-1">Total Curriculums</p>
-                        </div>
-                        <div className="absolute right-0 bottom-0 opacity-5 group-hover:opacity-10 transition-opacity pointer-events-none">
-                            <BookOpen size={100} />
-                        </div>
-                    </BentoCard>
-
-                    {/* CARD 2: Total Learners */}
-                    <BentoCard className="p-6 relative group flex flex-col justify-between h-[180px]">
-                         <div className="flex justify-between items-start">
-                            <div className="p-2.5 bg-violet-50 rounded-xl group-hover:bg-violet-600 transition-colors duration-300">
-                                <Users size={18} className="text-violet-600 group-hover:text-white transition-colors" />
-                            </div>
-                            <Badge variant="outline" className="border-violet-100 text-violet-600 text-[10px]">Students</Badge>
-                        </div>
-                        <div className="flex items-end justify-between">
-                            <div>
-                                <div className="text-4xl font-heading font-bold text-gray-900 tracking-tight">
-                                    <CountUp end={analytics?.totalParticipants || 0} />
-                                </div>
-                                <p className="text-sm font-medium text-gray-400 mt-1">Total Learners</p>
-                            </div>
-                            <div className="mb-1 mr-2">
-                                <RadialProgress percentage={engagementRate} color="#8b5cf6" />
-                            </div>
-                        </div>
-                    </BentoCard>
-
-                    {/* CARD 3: Content Modules */}
-                    <BentoCard className="p-6 group flex flex-col justify-between h-[180px]">
-                        <div className="flex justify-between items-start mb-2">
-                            <div className="p-2.5 bg-blue-50 rounded-xl group-hover:bg-blue-600 transition-colors duration-300">
-                                <Layers size={18} className="text-blue-600 group-hover:text-white transition-colors" />
-                            </div>
-                            <div className="flex flex-col items-end">
-                                <span className="text-[10px] text-gray-400 font-bold uppercase">Topics</span>
-                                <span className="text-lg font-bold text-gray-900 leading-none">{analytics?.totalTopics || 0}</span>
-                            </div>
-                        </div>
-                        <div className="mt-auto">
-                            <div className="text-4xl font-heading font-bold text-gray-900 tracking-tight">
-                                <CountUp end={analytics?.totalModules || 0} />
-                            </div>
-                            <p className="text-sm font-medium text-gray-400 mt-1">Learning Modules</p>
-                        </div>
-                    </BentoCard>
-
-                    {/* CARD 4: Top Enrollment (Standard Card Style, Black Graph) */}
-                    <BentoCard className="p-0 flex flex-col justify-between group h-[180px] overflow-hidden">
-                        <div className="p-6 pb-0 relative z-10">
-                            <div className="flex justify-between items-start mb-2">
-                                <div className="p-2.5 bg-gray-50 rounded-xl group-hover:bg-gray-800 transition-colors duration-300">
-                                    <Trophy size={18} className="text-gray-600 group-hover:text-white transition-colors" />
-                                </div>
-                                <span className="text-[10px] font-bold text-gray-500 bg-gray-50 px-2 py-1 rounded-full border border-gray-100">
-                                    Top Courses
+                {/* --- ANALYTICS CHARTS, ROW 1 --- */}
+                <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
+                    <ChartCard
+                        className="lg:col-span-2"
+                        title="Enrollment by course"
+                        description={`Top ${enrollmentData.length} courses — total learners vs currently active`}
+                        meta={hasEnrollmentAlerts ? (
+                            <div className="mt-1.5 flex items-center gap-3 text-2xs text-faint">
+                                <span className="inline-flex items-center gap-1">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-danger-500" /> No active learners
+                                </span>
+                                <span className="inline-flex items-center gap-1">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-warn-500" /> Low engagement (&lt;40%)
                                 </span>
                             </div>
-                            <div>
-                                <h3 className="text-2xl font-heading font-bold text-gray-900 tracking-tight mb-1">Enrollment</h3>
-                                <p className="text-gray-400 text-xs font-medium">Participant Trend</p>
-                            </div>
-                        </div>
-                        
-                        <div className="h-20 w-full mt-auto">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={enrollmentTrendData} margin={{ top: 5, right: 0, left: 0, bottom: 0 }}>
-                                    <defs>
-                                        <linearGradient id="blackGradient" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#111827" stopOpacity={0.3}/>
-                                            <stop offset="95%" stopColor="#111827" stopOpacity={0}/>
-                                        </linearGradient>
-                                    </defs>
-                                    <RechartsTooltip 
-                                        content={<CustomTooltip />}
-                                        cursor={{ stroke: '#e5e7eb' }}
-                                    />
-                                    {/* isAnimationActive defaults to true, but explicitly setting it */}
-                                    <Area 
-                                        type="monotone" 
-                                        dataKey="participants" 
-                                        stroke="#111827" 
-                                        strokeWidth={2} 
-                                        fill="url(#blackGradient)"
-                                        isAnimationActive={true}
-                                        animationDuration={1500}
-                                        animationEasing="ease-out"
-                                    />
-                                </AreaChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </BentoCard>
-                </div>
-
-                {/* --- ANALYTICS CHARTS --- */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-10">
-                    <BentoCard className="lg:col-span-2 p-8">
-                        <div className="flex items-center justify-between mb-8">
-                            <div>
-                                <h3 className="text-lg font-heading font-bold text-gray-900">Content Density</h3>
-                                <p className="text-sm text-gray-500">Complexity breakdown by top courses</p>
-                            </div>
-                            <Button variant="outline" size="sm" className="hidden sm:flex rounded-full text-xs font-bold border-gray-200 text-gray-500 hover:text-indigo-600 hover:border-indigo-200 bg-white">
-                                <Filter size={12} className="mr-2" /> Filter View
-                            </Button>
-                        </div>
+                        ) : undefined}
+                    >
                         <div className="h-[320px] w-full">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={densityData} barSize={32} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                    <XAxis 
-                                        dataKey="name" 
-                                        axisLine={false} 
-                                        tickLine={false} 
-                                        tick={{ fill: '#6b7280', fontSize: 11, fontWeight: 500, fontFamily: 'Inter' }} 
-                                        dy={10}
-                                    />
-                                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 11, fontFamily: 'Inter' }} />
-                                    <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: '#f9fafb' }} />
-                                    <Bar dataKey="topics" name="Total Topics" stackId="a" fill="#6366f1" radius={[0, 0, 4, 4]} />
-                                    <Bar dataKey="modules" name="Total Modules" stackId="a" fill="#e5e7eb" radius={[6, 6, 0, 0]} />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </BentoCard>
-
-                    <BentoCard className="p-8 flex flex-col">
-                        <div className="mb-4">
-                            <h3 className="text-lg font-heading font-bold text-gray-900">Service Distribution</h3>
-                            <p className="text-sm text-gray-500">Allocation by course category</p>
-                        </div>
-                        <div className="flex-1 relative min-h-[250px]">
-                            {serviceData.length > 0 ? (
+                            {enrollmentData.length > 0 ? (
                                 <ResponsiveContainer width="100%" height="100%">
-                                    <PieChart>
-                                        <Pie
-                                            data={serviceData} cx="50%" cy="50%"
-                                            innerRadius={60} outerRadius={100} paddingAngle={5}
-                                            dataKey="value" stroke="none" cornerRadius={4}
-                                        >
-                                            {serviceData.map((entry, index) => (
-                                                <Cell key={`cell-${index}`} fill={entry.fill} className="hover:opacity-80 transition-opacity cursor-pointer" />
-                                            ))}
-                                        </Pie>
-                                        <RechartsTooltip content={<CustomTooltip />} />
-                                    </PieChart>
+                                    <BarChart data={enrollmentData} layout="vertical" barSize={10} barGap={2} margin={{ top: 0, right: 24, left: 8, bottom: 0 }}>
+                                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--color-line)" />
+                                        <XAxis type="number" axisLine={false} tickLine={false} tick={AXIS_TICK} allowDecimals={false} />
+                                        <YAxis
+                                            type="category"
+                                            dataKey="name"
+                                            axisLine={false}
+                                            tickLine={false}
+                                            width={90}
+                                            tick={AXIS_TICK_STRONG}
+                                        />
+                                        <RechartsTooltip content={<ChartTooltip />} cursor={{ fill: 'var(--color-ink-50)' }} />
+                                        <RechartsLegend formatter={legendFormatter} iconType="circle" iconSize={8} />
+                                        <Bar dataKey="Learners" fill="var(--color-ink-200)" radius={[0, 4, 4, 0]} />
+                                        <Bar dataKey="Active" fill="var(--color-brand-600)" radius={[0, 4, 4, 0]} label={renderAlertDot} />
+                                    </BarChart>
                                 </ResponsiveContainer>
                             ) : (
-                                <div className="h-full flex items-center justify-center text-gray-400 text-sm">No distribution data available</div>
-                            )}
-                            {serviceData.length > 0 && (
-                                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                                    <Sparkles size={20} className="text-gray-300 mb-1" />
-                                    <span className="text-xs font-bold text-gray-400 uppercase tracking-widest font-heading">Services</span>
+                                <div className="flex h-full items-center justify-center">
+                                    <EmptyState
+                                        icon={BarChart3}
+                                        title="No enrollment data yet"
+                                        message="Once learners enroll in courses, per-course enrollment appears here."
+                                    />
                                 </div>
                             )}
                         </div>
-                        <div className="flex flex-wrap justify-center gap-2 mt-4">
-                            {serviceData.map((item, i) => (
-                                <div key={i} className="flex items-center gap-1.5 px-2 py-1 bg-gray-50 rounded-md border border-gray-100">
-                                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.fill }} />
-                                    <span className="text-[10px] font-bold text-gray-600">{item.name}</span>
+                    </ChartCard>
+
+                    {/* Service mix — labelled donut with counts */}
+                    <ChartCard title="Service mix" description="Courses per service type" className="flex flex-col">
+                        <div className="relative min-h-[190px] flex-1">
+                            {serviceData.length > 0 ? (
+                                <>
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <PieChart>
+                                            <Pie
+                                                data={serviceData} cx="50%" cy="50%"
+                                                innerRadius={55} outerRadius={85} paddingAngle={4}
+                                                dataKey="value" stroke="none" cornerRadius={4}
+                                            >
+                                                {serviceData.map((entry, index) => (
+                                                    <Cell key={`cell-${index}`} fill={entry.fill} className="transition-opacity hover:opacity-80" />
+                                                ))}
+                                            </Pie>
+                                            <RechartsTooltip content={<ChartTooltip />} />
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                    <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                                        <span className="text-3xl font-semibold tabular-nums text-heading">{totalCourses}</span>
+                                        <span className="text-2xs font-semibold uppercase tracking-wider text-faint">Courses</span>
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="flex h-full items-center justify-center">
+                                    <EmptyState
+                                        icon={PieChartIcon}
+                                        title="No distribution data"
+                                        message="Service mix appears once courses are mapped to services."
+                                    />
                                 </div>
+                            )}
+                        </div>
+                        <div className="mt-3 space-y-2">
+                            {serviceData.map((item, i) => (
+                                <DistRow key={i} label={item.name} count={item.value} total={totalCourses} color={item.fill} />
                             ))}
                         </div>
-                    </BentoCard>
+                    </ChartCard>
                 </div>
 
-                {/* --- DATA TABLE SECTION (FIXED HEIGHT + SCROLL) --- */}
-                <div className="mb-6">
-                    <div className="flex justify-between items-end mb-6">
-                        <div>
-                            <h3 className="text-2xl font-heading font-bold text-gray-900">Active Curriculum</h3>
-                            <p className="text-gray-500 mt-1">Full directory of active courses and their live status.</p>
-                        </div>
-                        <Button variant="outline" className="border-gray-200 text-gray-600 font-bold text-xs uppercase tracking-wider">
-                            View All Directory
-                        </Button>
-                    </div>
+                {/* --- LEVEL MIX + CONTENT DENSITY --- */}
+                <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
+                    <ChartCard title="Course levels" description="Difficulty spread across the catalogue">
+                        {levelData.length > 0 ? (
+                            <div className="space-y-3">
+                                {levelData.map((item, i) => (
+                                    <DistRow key={i} label={item.name} count={item.value} total={totalCourses} color={item.fill} />
+                                ))}
+                            </div>
+                        ) : (
+                            <EmptyState
+                                icon={Layers}
+                                title="No level data"
+                                message="Course levels appear once courses declare a difficulty."
+                            />
+                        )}
+                    </ChartCard>
 
-                    <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm flex flex-col">
-                        <div className="overflow-y-auto h-[500px] custom-scrollbar relative">
-                            <table className="w-full text-left border-collapse">
-                                <thead className="sticky top-0 z-10 bg-gray-50/95 backdrop-blur-sm shadow-sm border-b border-gray-100">
-                                    <tr>
-                                        <th className="py-5 pl-8 text-[11px] font-bold text-gray-400 uppercase tracking-widest font-heading">Course Details</th>
-                                        <th className="py-5 text-[11px] font-bold text-gray-400 uppercase tracking-widest font-heading">Service Type</th>
-                                        <th className="py-5 text-center text-[11px] font-bold text-gray-400 uppercase tracking-widest font-heading">Structure</th>
-                                        <th className="py-5 text-right text-[11px] font-bold text-gray-400 uppercase tracking-widest font-heading">Participants</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-50">
-                                    {courses.length > 0 ? courses.map((course: any) => (
-                                        <tr key={course._id || course.courseCode} className="group hover:bg-gray-50/50 transition-colors duration-200">
-                                            <td className="py-4 pl-8">
-                                                <div className="flex items-center gap-4">
-                                                    <div className="w-12 h-12 rounded-xl bg-gray-100 text-gray-500 group-hover:bg-indigo-600 group-hover:text-white flex items-center justify-center font-bold text-sm transition-all duration-300 shadow-sm font-heading">
-                                                        {course.courseCode?.substring(0,2).toUpperCase() || "CC"}
-                                                    </div>
-                                                    <div>
-                                                        <div className="font-bold text-sm text-gray-800 group-hover:text-indigo-700 transition-colors font-heading">
-                                                            {course.courseName}
-                                                        </div>
-                                                        <div className="text-xs text-gray-400 font-medium mt-0.5">
-                                                            {course.clientName || 'Standard Access'}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="py-4">
-                                                <Badge variant="secondary" className="bg-white border border-gray-200 text-gray-600 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-600 transition-all font-medium rounded-md px-2.5 py-1">
-                                                    {course.serviceType}
-                                                </Badge>
-                                            </td>
-                                            <td className="py-4 text-center">
-                                                <div className="inline-flex items-center gap-2 text-xs font-medium text-gray-500 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-100">
-                                                    <Layers size={14} className="text-indigo-400" />
-                                                    {course.stats?.modules || 0} Modules
-                                                </div>
-                                            </td>
-                                             <td className="py-4 pr-8 text-right">
-                                                <div className="flex flex-col items-end gap-1">
-                                                    <span className="text-sm font-bold text-gray-700 font-heading">{course.stats?.participants || 0}</span>
-                                                    <span className="text-[10px] text-emerald-600 flex items-center gap-1 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-100">
-                                                        Active
-                                                    </span>
-                                                </div>
-                                            </td>
-                                           
-                                        </tr>
-                                    )) : (
-                                        <tr>
-                                            <td colSpan={5} className="py-10 text-center text-gray-400 text-sm">
-                                                No courses found in the directory.
-                                            </td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
+                    <ChartCard
+                        className="lg:col-span-2"
+                        title="Content density"
+                        description={`${(analytics?.totalModules || 0).toLocaleString()} modules · ${(analytics?.totalTopics || 0).toLocaleString()} topics · ${(analytics?.totalSubTopics || 0).toLocaleString()} subtopics catalogue-wide — top courses by depth`}
+                    >
+                        <div className="h-[240px] w-full">
+                            {courses.length > 0 ? (
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart
+                                        data={[...courses]
+                                            .sort((a: any, b: any) => (b.stats?.topics || 0) - (a.stats?.topics || 0))
+                                            .slice(0, 8)
+                                            .map((c: any) => ({
+                                                name: c.courseCode || c.courseName?.substring(0, 8) || 'CC',
+                                                fullName: c.courseName,
+                                                Modules: c.stats?.modules || 0,
+                                                Topics: c.stats?.topics || 0,
+                                            }))}
+                                        barSize={22}
+                                        margin={{ top: 8, right: 0, left: -20, bottom: 0 }}
+                                    >
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-line)" />
+                                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={AXIS_TICK_STRONG} dy={8} />
+                                        <YAxis axisLine={false} tickLine={false} tick={AXIS_TICK} allowDecimals={false} />
+                                        <RechartsTooltip content={<ChartTooltip />} cursor={{ fill: 'var(--color-ink-50)' }} />
+                                        <RechartsLegend formatter={legendFormatter} iconType="circle" iconSize={8} />
+                                        <Bar dataKey="Modules" fill="var(--color-ink-200)" radius={[4, 4, 0, 0]} />
+                                        <Bar dataKey="Topics" fill="var(--color-info-500)" radius={[4, 4, 0, 0]} />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            ) : (
+                                <div className="flex h-full items-center justify-center">
+                                    <EmptyState
+                                        icon={BarChart3}
+                                        title="No content data yet"
+                                        message="Module and topic depth appears once course content is authored."
+                                    />
+                                </div>
+                            )}
                         </div>
-                    </div>
+                    </ChartCard>
                 </div>
 
-            </div>
+                {/* --- COURSE DIRECTORY --- */}
+                <div className="mt-6 overflow-hidden rounded-xl border border-hairline bg-surface shadow-xs">
+                    <div className="border-b border-hairline px-4 pb-4 pt-5">
+                        <h3 className="text-md font-semibold text-heading">Course directory</h3>
+                        <p className="mt-0.5 text-xs text-subtle">
+                            Every course with enrollment, content and client context — sorted by enrollment
+                        </p>
+                    </div>
+                    <Toolbar
+                        search={{
+                            value: search,
+                            onChange: setSearch,
+                            placeholder: 'Search course, client, service…',
+                        }}
+                        filters={search ? (
+                            <button
+                                type="button"
+                                onClick={() => setSearch('')}
+                                className="inline-flex h-7 items-center gap-1 rounded-chip px-2 text-xs font-medium text-subtle transition-colors duration-150 hover:bg-ink-100 hover:text-heading"
+                            >
+                                <X size={13} aria-hidden="true" />
+                                Clear
+                            </button>
+                        ) : undefined}
+                        actions={
+                            <span className="text-xs tabular-nums text-subtle">
+                                {filteredCourses.length} of {courses.length} courses
+                            </span>
+                        }
+                    />
+                    <DataTable<any>
+                        rows={filteredCourses}
+                        columns={directoryColumns}
+                        rowKey={(course: any) => String(course._id || course.courseCode || '')}
+                        sortKey={null}
+                        sortDir="desc"
+                        onSort={() => undefined}
+                        isLoading={false}
+                        isFiltered={Boolean(search.trim())}
+                        emptyTitle={search ? 'No matching courses' : 'No courses yet'}
+                        emptyHint={search ? `No courses match "${search}".` : 'Courses appear here once they are created.'}
+                        emptyAction="Clear search"
+                        onEmptyAction={() => setSearch('')}
+                        minWidth={920}
+                        maxHeight="500px"
+                        emptyState={search ? (
+                            <EmptyState
+                                icon={SearchX}
+                                title="No matching courses"
+                                message={`No courses match "${search}" by name, code, client, service or level.`}
+                                primaryAction={
+                                    <Button variant="outline" size="sm" onClick={() => setSearch('')}>
+                                        Clear search
+                                    </Button>
+                                }
+                            />
+                        ) : (
+                            <EmptyState
+                                icon={Inbox}
+                                title="No courses yet"
+                                message="Once courses are created they appear here with enrollment and content stats."
+                            />
+                        )}
+                    />
+                </div>
+            </motion.div>
         </DashboardLayout>
     );
 }

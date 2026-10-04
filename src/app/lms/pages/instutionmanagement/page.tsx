@@ -28,9 +28,9 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { institutionApi, Institution } from '../../../../apiServices/institutionService';
-import AddInstitutionForm from '../../component/AddInstitutionForm';
-import DashboardLayout from '../../component/layout';
+import { institutionApi, Institution } from '@/app/lms/pages/instutionmanagement/api/institutionService';
+import AddInstitutionForm from '@/app/lms/pages/instutionmanagement/components/AddInstitutionForm';
+import DashboardLayout from '@/app/lms/component/layout';
 
 // Custom Dropdown Component
 interface CustomDropdownProps {

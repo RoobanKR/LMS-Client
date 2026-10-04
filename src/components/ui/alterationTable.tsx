@@ -16,6 +16,7 @@ interface ColumnConfig {
   width?: string;
   align?: 'left' | 'center' | 'right';
   renderCell?: (user: any) => React.ReactNode;
+  stopRowClick?: boolean;
 }
 
 interface UserTableProps {
@@ -33,8 +34,15 @@ interface UserTableProps {
     totalItems: number;
     itemsPerPage: number;
     onPageChange: (page: number) => void;
+    // Noun shown in the "Showing X to Y of Z <label>" footer. Defaults to
+    // "Course Structures" so existing callers stay unchanged; pass "Clients",
+    // "Users", etc. per page.
+    itemLabel?: string;
   };
   onToggleStatus?: (userId: string, status: "active" | "inactive") => void;
+  onRowClick?: (user: any) => void;
+  fixedLayout?: boolean;
+  fillHeight?: boolean;
 }
 
 export const UserTable = ({
@@ -44,6 +52,9 @@ export const UserTable = ({
   actionButtons,
   pagination,
   onToggleStatus,
+  onRowClick,
+  fixedLayout,
+  fillHeight,
 }: UserTableProps) => {
   const [dropdownOpen, setDropdownOpen] = useState<string | null>(null);
 
@@ -131,10 +142,16 @@ export const UserTable = ({
   };
 
   return (
-    <div className="space-y-4">
-      <div className="overflow-hidden bg-white dark:bg-gray-800">
-        <Table className="min-w-full">
-          <TableHeader>
+    <div className={fillHeight ? "h-full min-h-0 flex flex-col" : "space-y-4"}>
+      <div
+        className={
+          fillHeight
+            ? "flex-1 min-h-0 overflow-auto bg-white dark:bg-gray-800 [&_[data-slot=table-container]]:overflow-visible"
+            : "overflow-hidden bg-white dark:bg-gray-800"
+        }
+      >
+        <Table className={fixedLayout ? "w-full table-fixed" : "min-w-full"}>
+          <TableHeader className={fillHeight ? "sticky top-0 z-10 bg-white dark:bg-gray-800 shadow-sm" : ""}>
             <TableRow className="border-b border-gray-300 dark:border-gray-700">
               {columns.map((column) => (
                 <TableHead
@@ -187,15 +204,21 @@ export const UserTable = ({
               ))
             ) : users.length > 0 ? (
               users.map((user, index) => (
-                <TableRow 
-                  key={user.id || `user-${index}`} 
-                  className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors last:border-b-0"
+                <TableRow
+                  key={user.id || `user-${index}`}
+                  onClick={onRowClick ? () => onRowClick(user) : undefined}
+                  className={`border-b border-gray-100 dark:border-gray-700 transition-colors last:border-b-0 ${
+                    onRowClick
+                      ? 'cursor-pointer hover:bg-indigo-50/70 dark:hover:bg-indigo-900/20'
+                      : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                  }`}
                 >
                   {columns.map((column, colIndex) => (
                     <TableCell
                       key={`${user.id || index}-${column.key || colIndex}`}
-                      className={`px-3 py-2 whitespace-nowrap ${
-                        column.align === 'center' ? 'text-center' : 
+                      onClick={column.stopRowClick ? (e) => e.stopPropagation() : undefined}
+                      className={`px-3 py-2 whitespace-nowrap ${fixedLayout ? 'overflow-hidden' : ''} ${
+                        column.align === 'center' ? 'text-center' :
                         column.align === 'right' ? 'text-right' : 'text-left'
                       }`}
                     >
@@ -284,11 +307,11 @@ export const UserTable = ({
 
       {/* Pagination */}
       {pagination && pagination.totalItems > 0 && (
-        <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 font-sans">
+        <div data-pagination-bar className="flex-shrink-0 flex items-center justify-between px-4 py-2 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 font-sans">
           <div className="text-sm font-normal text-gray-600 dark:text-gray-400">
             Showing <span className="font-semibold text-gray-900 dark:text-gray-100">{((pagination.currentPage - 1) * pagination.itemsPerPage) + 1}</span> to{" "}
             <span className="font-semibold text-gray-900 dark:text-gray-100">{Math.min(pagination.currentPage * pagination.itemsPerPage, pagination.totalItems)}</span> of{" "}
-            <span className="font-semibold text-gray-900 dark:text-gray-100">{pagination.totalItems}</span> Course Structures
+            <span className="font-semibold text-gray-900 dark:text-gray-100">{pagination.totalItems}</span> {pagination.itemLabel || "Course Structures"}
           </div>
           <div className="flex items-center gap-2">
             <Button

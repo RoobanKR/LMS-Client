@@ -66,12 +66,12 @@ export const showErrorToast = (message: Renderable | ValueFunction<Renderable, T
 // ℹ️ Info Toast
 export const showInfoToast = (message: Renderable | ValueFunction<Renderable, Toast>) => {
     toast(message, {
-        icon: <Info color="#3b82f6" size={24} />,
+        icon: <Info color="#fb923c" size={24} />,
         className: slideInFade,
         style: {
             ...baseStyle,
-            ...withStripe('#3b82f6'),
-            color: '#1e3a8a',
+            ...withStripe('#fb923c'),
+            color: '#9a3412',
         },
     });
 };

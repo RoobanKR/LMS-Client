@@ -1,4 +1,5 @@
 "use client";
+import { getToken, clearAllStorage } from "@/lib/session";
 import {
   Bell,
   Search,
@@ -22,7 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { logoutUser } from "@/apiServices/tokenVerify";
-import { postLogout } from "@/apiServices/activityLog";
+import { postLogout } from "@/app/lms/pages/logs/api/activityLog";
 import { toast } from "sonner";
 
 export function Navbarpro() {
@@ -32,9 +33,9 @@ export function Navbarpro() {
   const handleLogout = async () => {
     try {
       setIsLoggingOut(true);
-      const token = localStorage.getItem("smartcliff_token");
+      const token = getToken();
       if (!token) {
-        localStorage.removeItem("smartcliff_token");
+        clearAllStorage();
         toast.info("Logged out successfully");
         router.push("/login");
         return;
@@ -42,12 +43,12 @@ export function Navbarpro() {
       // Record logout time / session duration while the token is still present.
       await postLogout();
       const response = await logoutUser(token);
-      localStorage.removeItem("smartcliff_token");
+      clearAllStorage();
       toast.success(response.message?.[0]?.value || "Logged out successfully");
       router.push("/login");
     } catch (error: any) {
       console.error("Logout error:", error);
-      localStorage.removeItem("smartcliff_token");
+      clearAllStorage();
       if (error.response?.data?.message) {
         toast.error(error.response.data.message[0]?.value || "Logout failed");
       } else if (error.message) {

@@ -1,7 +1,8 @@
 
 import axios from 'axios';
+import { API_ORIGIN } from '@/lib/apiBase'
 
-const API_BASE_URL = 'https://lms-server-ym1q.onrender.com';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://lmsserver-yeve.onrender.com';
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -22,158 +23,213 @@ apiClient.interceptors.response.use(
   }
 );
 
-let usersCache: any = null;
-let cacheTimestamp: number = 0;
-let cacheVersion: number = 0;
-const CACHE_DURATION = 15 * 60 * 1000; // 15 minutes
-const BACKGROUND_REFRESH_INTERVAL = 2 * 60 * 1000; // 2 minutes
-
-// Store for tracking data changes
-let lastDataHash: string = '';
-let backgroundRefreshTimer: NodeJS.Timeout | null = null;
-
-// Helper function to create a simple hash of data
-const createDataHash = (data: any): string => {
-  return JSON.stringify(data).length.toString() + data.length.toString();
+// Plain fetcher — caching, background polling and invalidation live in the
+// React Query layer now (src/queries/users.ts). This module used to keep a
+// 15-minute cache plus a 2-minute setInterval poller that dispatched
+// 'usersDataUpdated' window events and never stopped after navigation; that
+// second cache layer under React Query is exactly what made permission-save
+// invalidations serve stale data.
+export const fetchUsers = async (
+  institutionId: string,
+  token: string,
+  // Kept for call-site compatibility; scoping happens server-side.
+  _basedOn: string,
+  _forceRefresh = false
+) => {
+  const response = await apiClient.get(`/getAll/userAccess/${institutionId}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return { users: response.data.Users };
 };
 
-// Start background refresh for live updates
-const startBackgroundRefresh = (institutionId: string, token: string,basedOn:string) => {
-  if (backgroundRefreshTimer) {
-    clearInterval(backgroundRefreshTimer);
-  }
+// ─────────────────────────────────────────────────────────────────────────────
+// Paginated directory read.
+//
+// The call above returns EVERY user in the institution; at six figures that is
+// neither shippable nor renderable. Passing `page` switches the SAME endpoint
+// into a mode where the search, the six filters and the sort all run in Mongo
+// and only one page crosses the wire. Callers that omit `page` are untouched.
+// ─────────────────────────────────────────────────────────────────────────────
 
-  backgroundRefreshTimer = setInterval(async () => {
-    try {
-      // Only do background refresh if we have cached data
-      if (usersCache) {
-        const response = await apiClient.get(`/getAll/userAccess/${institutionId}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        const newUsers = response.data.Users;
-        const newHash = createDataHash(newUsers);
-
-        // If data changed, update cache and increment version
-        if (newHash !== lastDataHash) {
-          usersCache = newUsers;
-          cacheTimestamp = Date.now();
-          cacheVersion++;
-          lastDataHash = newHash;
-
-          // Trigger a custom event to notify components
-          window.dispatchEvent(new CustomEvent('usersDataUpdated', {
-            detail: { users: newUsers, version: cacheVersion }
-          }));
-        }
-      }
-    } catch (error) {
-      console.warn('Background refresh failed:', error);
-    }
-  }, BACKGROUND_REFRESH_INTERVAL);
+export type UsersPageParams = {
+  page: number;
+  limit: number;
+  search?: string;
+  /** Scope the search to one column: 'user' | 'email' | 'phone' | 'role'.
+   *  Absent or 'all' searches every searchable field. */
+  searchField?: string;
+  roles?: string[];
+  status?: string;
+  degree?: string;
+  department?: string;
+  year?: string;
+  batch?: string;
+  sortKey?: string;
+  sortDir?: "asc" | "desc";
 };
 
-// Stop background refresh
-const stopBackgroundRefresh = () => {
-  if (backgroundRefreshTimer) {
-    clearInterval(backgroundRefreshTimer);
-    backgroundRefreshTimer = null;
-  }
+export type UsersPageResponse = {
+  Users: any[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  facets?: { batches?: string[] };
 };
 
-// Enhanced fetchUsers function
-export const fetchUsers = async (institutionId: string, token: string,basedOn:string, forceRefresh = false) => {
-  const now = Date.now();
-
-  // Return cached data if it's still valid and not forcing refresh
-  if (!forceRefresh && usersCache && (now - cacheTimestamp) < CACHE_DURATION) {
-    // Start background refresh if not already running
-    if (!backgroundRefreshTimer) {
-      startBackgroundRefresh(institutionId, token,basedOn);
-    }
-    return { users: usersCache, version: cacheVersion, fromCache: true };
+/** Only send what is actually set — an empty value means "no filter", and
+ *  omitting it keeps the query string (and so the cache key) stable. */
+const buildUsersPageParams = (p: UsersPageParams, isExport = false) => {
+  const q: Record<string, string> = { page: String(p.page), limit: String(p.limit) };
+  if (p.search?.trim()) {
+    q.search = p.search.trim();
+    // Only meaningful alongside a term, and omitting the default keeps the
+    // query string (and the cache key) identical to what it was before.
+    if (p.searchField && p.searchField !== "all") q.searchField = p.searchField;
   }
+  if (p.roles?.length) q.roles = p.roles.join(",");
+  if (p.status && p.status !== "all") q.status = p.status;
+  if (p.degree && p.degree !== "all") q.degree = p.degree;
+  if (p.department && p.department !== "all") q.department = p.department;
+  if (p.year && p.year !== "all") q.year = p.year;
+  if (p.batch && p.batch !== "all") q.batch = p.batch;
+  if (p.sortKey) {
+    q.sortKey = p.sortKey;
+    q.sortDir = p.sortDir || "asc";
+  }
+  if (isExport) q.export = "1";
+  return q;
+};
 
-  try {
+export const fetchUsersPage = async (
+  institutionId: string,
+  token: string,
+  params: UsersPageParams
+): Promise<UsersPageResponse> => {
+  const response = await apiClient.get(`/getAll/userAccess/${institutionId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    params: buildUsersPageParams(params),
+  });
+  return response.data;
+};
+
+/**
+ * Every row matching the current filters, for "Export all" — pulled in chunks
+ * of the thirteen CSV columns only (~366 bytes a row against ~2.6 KB for a
+ * table row). Deliberately NOT a React Query read: it answers a click, and
+ * caching a whole-directory dump would undo the point of paginating.
+ */
+export const fetchUsersForExport = async (
+  institutionId: string,
+  token: string,
+  params: Omit<UsersPageParams, "page" | "limit">,
+  onProgress?: (loaded: number, total: number) => void
+): Promise<any[]> => {
+  const CHUNK = 5000;
+  const rows: any[] = [];
+  let page = 1;
+  let total = Infinity;
+  // The page ceiling guards against a server build that ignores `page` and
+  // keeps returning the same chunk — without it this would never terminate.
+  while (rows.length < total && page <= 1000) {
     const response = await apiClient.get(`/getAll/userAccess/${institutionId}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      headers: { Authorization: `Bearer ${token}` },
+      params: buildUsersPageParams({ ...params, page, limit: CHUNK }, true),
     });
-    const users = response.data.Users;
-    const newHash = createDataHash(users);
-
-    // Update cache
-    usersCache = users;
-    cacheTimestamp = now;
-    lastDataHash = newHash;
-
-    // If this is initial load or force refresh, increment version
-    if (forceRefresh || !cacheVersion) {
-      cacheVersion++;
-    }
-
-    // Start background refresh
-    startBackgroundRefresh(institutionId, token, basedOn);
-
-    return { users, version: cacheVersion, fromCache: false };
-  } catch (error) {
-    // If we have cached data and the request fails, return cached data
-    if (usersCache) {
-      console.warn('Using cached data due to API error:', error);
-      return { users: usersCache, version: cacheVersion, fromCache: true };
-    }
-    throw error;
+    const batch: any[] = response.data?.Users || [];
+    total = typeof response.data?.total === "number" ? response.data.total : batch.length;
+    rows.push(...batch);
+    onProgress?.(rows.length, total);
+    if (!batch.length || batch.length < CHUNK) break;
+    page += 1;
   }
+  return rows;
 };
 
-// Function to invalidate users cache
-export const invalidateUsersCache = () => {
-  usersCache = null;
-  cacheTimestamp = 0;
-  cacheVersion = 0;
-  lastDataHash = '';
-  stopBackgroundRefresh();
+// The institution's permission allow-list, set by the Super Admin (Clients →
+// Permission Management). Self-service read so the LMS-side Permission Modal
+// can limit what it offers to a user's own institution, instead of the full
+// catalog. Same response shape as apiServices/superadmin/institutionService's
+// getInstitutionPermissions.
+export const getInstitutionPermissions = async (institutionId: string, token: string) => {
+  const response = await apiClient.get(`/institution/permissions/${institutionId}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return response.data.permissions || [];
 };
 
-// Enhanced addUser function
+// The institution's Resource Management config, set by the Super Admin
+// (I Do upload types + We Do / You Do AI features). Self-service read so the
+// course-creation "Resource Type" step can show only what's enabled for this
+// institution instead of every possible type.
+export const getInstitutionResourceSettings = async (institutionId: string, token: string) => {
+  const response = await apiClient.get(`/institution/resource-settings/${institutionId}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return response.data.resourcePedagogy;
+};
+
 export const addUser = async (userData: any, token: string) => {
-  const formattedUserData = {
+  const formattedUserData: any = {
     email: userData.email,
     firstName: userData.firstName,
     lastName: userData.lastName,
     phone: userData.phone,
-    role: userData.role, // This should be the ObjectId
+    role: userData.role,
     gender: userData.gender,
-    degree: userData.degree,
-    department: userData.department,
-    batch: userData.batch,
-    semester: userData.semester,
-    year: userData.year,
     status: userData.status || "active",
     ...(userData.password && { password: userData.password }),
-    // Include default permissions structure that matches your backend
-    permission: {
-      courseManagement: {
-        create: false,
-        edit: false,
-        delete: false,
-        report: false,
-      },
-      userManagement: {
-        create: false,
-        edit: false,
-        delete: false,
-        report: false,
-      },
-      testAccess: {
-        create: false,
-        edit: false,
-        delete: false,
-        report: false,
-      },
-    }
+  };
+
+  // Only add clientName if provided
+  if (userData.clientName) {
+    formattedUserData.clientName = userData.clientName;
+  }
+if (userData.clientId) {
+    formattedUserData.clientId = userData.clientId;
+  }
+  // Only add studentType if provided
+  if (userData.studentType) {
+    formattedUserData.studentType = userData.studentType;
+  }
+
+  // Add optional academic fields
+  if (userData.degree) formattedUserData.degree = userData.degree;
+  if (userData.department) formattedUserData.department = userData.department;
+  if (userData.batch) formattedUserData.batch = userData.batch;
+  if (userData.semester) formattedUserData.semester = userData.semester;
+  if (userData.section) formattedUserData.section = userData.section;
+  if (userData.year) formattedUserData.year = userData.year;
+  if (userData.phase) formattedUserData.phase = userData.phase;
+  if (userData.serviceModel) formattedUserData.serviceModel = userData.serviceModel;
+  if (userData.serviceMappingId) formattedUserData.serviceMappingId = userData.serviceMappingId;
+
+  // Include default permissions structure
+  formattedUserData.permission = {
+    courseManagement: {
+      create: false,
+      edit: false,
+      delete: false,
+      report: false,
+    },
+    userManagement: {
+      create: false,
+      edit: false,
+      delete: false,
+      report: false,
+    },
+    testAccess: {
+      create: false,
+      edit: false,
+      delete: false,
+      report: false,
+    },
   };
 
   try {
@@ -187,9 +243,6 @@ export const addUser = async (userData: any, token: string) => {
       }
     );
 
-    // Invalidate cache to force fresh data on next request
-    invalidateUsersCache();
-
     return response.data;
   } catch (error) {
     console.error('Error adding user:', error);
@@ -199,9 +252,35 @@ export const addUser = async (userData: any, token: string) => {
 
 export const updateUser = async (userId: string, userData: any, token: string) => {
   try {
+    // Prepare update data with all fields
+    const updateData: any = {
+      firstName: userData.firstName,
+      lastName: userData.lastName,
+      email: userData.email,
+      phone: userData.phone,
+      gender: userData.gender,
+      status: userData.status,
+      role: userData.role,
+    };
+
+    // Add optional fields only if they exist
+    if (userData.degree !== undefined) updateData.degree = userData.degree;
+    if (userData.department !== undefined) updateData.department = userData.department;
+    if (userData.semester !== undefined) updateData.semester = userData.semester;
+    if (userData.section !== undefined) updateData.section = userData.section;
+    if (userData.year !== undefined) updateData.year = userData.year;
+    if (userData.batch !== undefined) updateData.batch = userData.batch;
+    if (userData.phase !== undefined) updateData.phase = userData.phase;
+    if (userData.serviceModel !== undefined) updateData.serviceModel = userData.serviceModel;
+    if (userData.studentType !== undefined) updateData.studentType = userData.studentType;
+    if (userData.clientName !== undefined) updateData.clientName = userData.clientName;
+       if (userData.clientId !== undefined) updateData.clientId = userData.clientId;
+
+    if (userData.password) updateData.password = userData.password;
+
     const response = await apiClient.put(
       `/update/users/${userId}`,
-      userData,
+      updateData,
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -209,16 +288,12 @@ export const updateUser = async (userId: string, userData: any, token: string) =
       }
     );
 
-    // Invalidate cache to force fresh data on next request
-    invalidateUsersCache();
-
     return response.data;
   } catch (error) {
     console.error('Error updating user:', error);
     throw error;
   }
 };
-
 export const deleteUser = async (userId: string, token: string) => {
   try {
     const response = await apiClient.delete(
@@ -229,9 +304,6 @@ export const deleteUser = async (userId: string, token: string) => {
         }
       }
     );
-
-    // Invalidate cache to force fresh data on next request
-    invalidateUsersCache();
 
     return response.data;
   } catch (error) {
@@ -257,14 +329,60 @@ export const toggleUserStatus = async (userId: string, status?: 'active' | 'inac
       }
     );
 
-    // Invalidate cache to force fresh data on next request
-    invalidateUsersCache();
-
     return response.data;
   } catch (error) {
     console.error('Error toggling user status:', error);
     throw error;
   }
+};
+
+// Activate/deactivate many users in one request (PUT /user/bulk-status)
+export const bulkSetUserStatus = async (
+  userIds: string[],
+  status: 'active' | 'inactive',
+  token: string
+) => {
+  try {
+    if (!token) {
+      throw new Error('Authentication token not found');
+    }
+
+    const response = await apiClient.put(
+      `/user/bulk-status`,
+      { userIds, status },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        }
+      }
+    );
+
+    return response.data;
+  } catch (error) {
+    console.error('Error bulk updating user status:', error);
+    throw error;
+  }
+};
+
+// Reassign Users: ADD one service to many users. Additive — every user keeps
+// the services they already have; the server appends to user.services[] and
+// auto-enrols each user into the new service's courses.
+export const bulkAddServiceToUsers = async (
+  userIds: string[],
+  service: {
+    serviceMappingId: string;
+    serviceModel?: string;
+    clientId: string;
+    clientName?: string;
+  },
+  token: string
+): Promise<{ results: { userId: string; status: 'added' | 'already_mapped' | 'error'; email?: string; reason?: string; enrolled?: number }[] }> => {
+  const response = await apiClient.put(
+    `/user/bulk-add-service`,
+    { userIds, service },
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  return response.data;
 };
 
 // CORRECTED Bulk Upload API
@@ -286,9 +404,6 @@ export const bulkUploadUsers = async (formData: FormData, token: string) => {
     }
 
     const data = await response.json();
-
-    // Invalidate cache to force fresh data on next request
-    invalidateUsersCache();
 
     return data;
   } catch (error) {
@@ -312,9 +427,6 @@ export const bulkUploadUsersAxios = async (formData: FormData, token: string) =>
       }
     );
 
-    // Invalidate cache to force fresh data on next request
-    invalidateUsersCache();
-
     return response.data;
   } catch (error: any) {
     console.error('Error in bulk upload:', error);
@@ -336,22 +448,17 @@ export const bulkUploadUsersAxios = async (formData: FormData, token: string) =>
 
 
 
-// Cleanup function for component unmount
-export const cleanup = () => {
-  stopBackgroundRefresh();
-};
-
-// Get cache info
-export const getCacheInfo = () => ({
-  hasCache: !!usersCache,
-  cacheAge: usersCache ? Date.now() - cacheTimestamp : 0,
-  version: cacheVersion
-});
-
-
-export const addParticipantsToCourse = async (courseId: string, participantIds: string[], institutionId: string, token: string, enrollmentData: any = {}) => {
+export const addParticipantsToCourse = async (
+  courseId: string,
+  participantIds: string[],
+  institutionId: string,
+  token: string,
+  enrollmentData: any = {},
+  batchName?: string,
+  hierarchy?: { degree?: string; department?: string; section?: string; semester?: string }
+) => {
   try {
-    const response = await fetch(`https://lms-server-ym1q.onrender.com/add-participants/${courseId}`, {
+    const response = await fetch(`${API_ORIGIN}/add-participants/${courseId}`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -360,10 +467,15 @@ export const addParticipantsToCourse = async (courseId: string, participantIds: 
       },
       body: JSON.stringify({
         participantIds,
-        enrollmentData: {
-          status: enrollmentData.status || 'active',
-          enableEnrolmentDates: enrollmentData.enableEnrolmentDates || false,
-        }
+        // Participants are always stored inside a batch — the server matches
+        // the batch by name and pushes the users into its `users` array.
+        batchName,
+        status: enrollmentData.status || 'active',
+        // Hierarchy node the participants are being added at
+        degree: hierarchy?.degree || '',
+        department: hierarchy?.department || '',
+        section: hierarchy?.section || '',
+        semester: hierarchy?.semester || '',
       }),
     });
     
@@ -381,7 +493,7 @@ export const addParticipantsToCourse = async (courseId: string, participantIds: 
 
 export const updateParticipantEnrollment = async (courseId: string, userId: string, enrollmentData: any, institutionId: string, token: string) => {
   try {
-    const response = await fetch(`https://lms-server-ym1q.onrender.com/update-enrollment/${courseId}/${userId}`, {
+    const response = await fetch(`${API_ORIGIN}/update-enrollment/${courseId}/${userId}`, {
       method: 'PUT',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -407,11 +519,12 @@ export const removeParticipantFromCourse = async (
   courseId: string,
   userId: string,
   institutionId: string,
-  token: string
+  token: string,
+  batchId?: string
 ) => {
   try {
     const response = await fetch(
-      `https://lms-server-ym1q.onrender.com/delete/participant/${courseId}/${userId}`,
+      `${API_ORIGIN}/delete/participant/${courseId}/${userId}${batchId ? `?batchId=${batchId}` : ''}`,
       {
         method: 'DELETE',
         headers: {
@@ -439,7 +552,8 @@ export const removeMultipleParticipantsFromCourse = async (
   courseId: string,
   participantIds: string[],
   institutionId: string,
-  token: string
+  token: string,
+  batchId?: string
 ) => {
   try {
     console.log('Attempting to remove participants:', {
@@ -450,7 +564,7 @@ export const removeMultipleParticipantsFromCourse = async (
 
     // First, debug the course structure
     const debugResponse = await fetch(
-      `https://lms-server-ym1q.onrender.com/api/debug/course/${courseId}`,
+      `${API_ORIGIN}/api/debug/course/${courseId}`,
       {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -467,7 +581,7 @@ export const removeMultipleParticipantsFromCourse = async (
 
     // Now attempt to delete
     const response = await fetch(
-      `https://lms-server-ym1q.onrender.com/delete-participants/multiple/${courseId}`,
+      `${API_ORIGIN}/delete-participants/multiple/${courseId}`,
       {
         method: 'DELETE',
         headers: {
@@ -475,8 +589,9 @@ export const removeMultipleParticipantsFromCourse = async (
           'Content-Type': 'application/json',
           'institution': institutionId,
         },
-        body: JSON.stringify({ 
-          participantIds: participantIds.map(id => id.toString())
+        body: JSON.stringify({
+          participantIds: participantIds.map(id => id.toString()),
+          ...(batchId ? { batchId } : {})
         })
       }
     );
@@ -679,11 +794,11 @@ export const getGroupDetails = async (groupId: any, institutionId: any, token: a
 };
 
 
-// Fetch course data with singleParticipants
+// Fetch course data with batch participants (flattened `participants` array)
 export const fetchGroupsCourseData = async (courseId: string, institutionId: string, token: string) => {
   try {
     const response = await fetch(
-      `https://lms-server-ym1q.onrender.com/getAll/groups/courses-data/${courseId}`,
+      `${API_ORIGIN}/getAll/groups/courses-data/${courseId}`,
       {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -724,7 +839,7 @@ export const removeGroupLeader = async (
   token: string
 ): Promise<RemoveGroupLeaderResponse> => {
   const response = await fetch(
-    `https://lms-server-ym1q.onrender.com/remove-group-leader/${groupId}/${institution}`,
+    `${API_ORIGIN}/remove-group-leader/${groupId}/${institution}`,
     {
       method: "PUT",
       headers: {
@@ -734,4 +849,301 @@ export const removeGroupLeader = async (
     }
   );
   return response.json();
+};
+
+// ============================================================================
+// Approval Hierarchy
+// ============================================================================
+// A step now names ONE person. `userId`/`userName` are the actual approver;
+// role is the filter that narrowed the picker. Legacy chains (saved before
+// the person-specific rework) come back with userId null and are treated as
+// role-only fallback by the server.
+export type ApprovalStep = {
+  order: number;
+  roleId: string;
+  roleName: string;
+  userId?: string | null;
+  userName?: string;
+};
+export type AvailableRole = { roleId: string; roleName: string };
+export type AvailableUser = { userId: string; name: string; email?: string };
+
+export const fetchApprovalHierarchy = async (
+  courseId: string,
+  institutionId: string,
+  token: string
+): Promise<{
+  steps: ApprovalStep[];
+  availableRoles: AvailableRole[];
+  // { roleId: user[] } — the person picker filters by the picked role,
+  // no extra fetch per role.
+  availableUsersByRole: Record<string, AvailableUser[]>;
+  updatedAt: string | null;
+  // 'course' = chain saved on the course; 'default' = institution L&D
+  // fallback (course has no chain of its own); 'none' = no chain possible.
+  source?: 'course' | 'default' | 'none';
+}> => {
+  const response = await fetch(
+    `${API_ORIGIN}/courses/${courseId}/approval-hierarchy`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        institution: institutionId,
+      },
+    }
+  );
+  const data = await response.json();
+  if (!response.ok || !data.success) {
+    throw new Error(data?.message || 'Failed to fetch approval hierarchy');
+  }
+  return data.data;
+};
+
+export type ApprovalWorkflowStep = {
+  order: number;
+  roleId: string;
+  roleName: string;
+  status: 'waiting' | 'pending' | 'approved' | 'rejected';
+  decidedBy?: string | null;
+  decidedAt?: string | null;
+  comment?: string;
+};
+export type ApprovalWorkflow = {
+  steps: ApprovalWorkflowStep[];
+  currentStep: number;
+  overallStatus: 'in_progress' | 'approved' | 'rejected';
+  studentVisible: boolean;
+  initiatedAt?: string | null;
+  completedAt?: string | null;
+  editedSinceReject?: boolean;
+  // > 0 while in_progress means this run is a re-request after a reject.
+  resubmissionCount?: number;
+  lastResubmittedAt?: string | null;
+};
+export type CourseApprovalItem = {
+  exerciseId: string;
+  exerciseName: string;
+  exerciseType: string;
+  testType: string;
+  totalDuration: number | null;
+  totalMarks: number | null;
+  schedule: any;
+  entityType: 'modules' | 'submodules' | 'topics' | 'subtopics';
+  entityId: string;
+  entityName: string;
+  subcategory: string;
+  tabType: 'We_Do' | 'You_Do';
+  approvalWorkflow: ApprovalWorkflow | null;
+  canApprove: boolean;
+  createdAt: string | null;
+  updatedAt: string | null;
+  createdBy?: string | null;
+  exercise: any; // full exercise blob — all settings
+};
+
+export const fetchCourseApprovalsOverview = async (
+  courseId: string,
+  tabType: 'We_Do' | 'You_Do',
+  institutionId: string,
+  token: string
+): Promise<CourseApprovalItem[]> => {
+  const response = await fetch(
+    `${API_ORIGIN}/courses/${courseId}/approvals/overview?tabType=${tabType}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        institution: institutionId,
+      },
+    }
+  );
+  const data = await response.json();
+  if (!response.ok || !data.success) {
+    throw new Error(data?.message || 'Failed to fetch approvals overview');
+  }
+  return data.data;
+};
+
+export type QuestionContext = {
+  entityType: 'modules' | 'submodules' | 'topics' | 'subtopics';
+  entityId: string;
+  tabType: 'We_Do' | 'You_Do';
+  subcategory: string;
+  exerciseId: string;
+  questionId: string;
+};
+
+const _qBody = async (path: string, body: any, token: string) => {
+  const r = await fetch(`${API_ORIGIN}${path}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const d = await r.json();
+  if (!r.ok || !d.success) {
+    throw new Error(d?.message?.[0]?.value || d?.message || 'Request failed');
+  }
+  return d;
+};
+
+export const approveQuestion = (ctx: QuestionContext, token: string) =>
+  _qBody('/exercise/question/approve', ctx, token);
+
+// Bulk companion — approves every still-pending question in one call.
+// Queried / rejected questions are skipped server-side and reported back.
+export const approveAllQuestions = (
+  ctx: Omit<QuestionContext, 'questionId'>,
+  token: string
+) => _qBody('/exercise/question/approve-all', ctx, token);
+
+export const rejectQuestion = (ctx: QuestionContext, text: string, token: string) =>
+  _qBody('/exercise/question/reject', { ...ctx, text }, token);
+
+export const raiseQuestionQuery = (ctx: QuestionContext, text: string, token: string) =>
+  _qBody('/exercise/question/query', { ...ctx, text }, token);
+
+export const resolveQuestionQuery = (ctx: QuestionContext, note: string | undefined, token: string) =>
+  _qBody('/exercise/question/resolve-query', { ...ctx, note }, token);
+
+export const approveExerciseStep = async (
+  body: {
+    entityType: 'modules' | 'submodules' | 'topics' | 'subtopics';
+    entityId: string;
+    tabType: 'We_Do' | 'You_Do';
+    subcategory: string;
+    exerciseId: string;
+    comment?: string;
+  },
+  token: string
+) => {
+  const response = await fetch(`${API_ORIGIN}/exercise/approve`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  const data = await response.json();
+  if (!response.ok || !data.success) {
+    throw new Error(data?.message?.[0]?.value || data?.message || 'Failed to approve');
+  }
+  return data;
+};
+
+export const rejectExerciseStep = async (
+  body: {
+    entityType: 'modules' | 'submodules' | 'topics' | 'subtopics';
+    entityId: string;
+    tabType: 'We_Do' | 'You_Do';
+    subcategory: string;
+    exerciseId: string;
+    comment: string; // rejection message, required
+  },
+  token: string
+) => {
+  const response = await fetch(`${API_ORIGIN}/exercise/reject`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  const data = await response.json();
+  if (!response.ok || !data.success) {
+    throw new Error(data?.message?.[0]?.value || data?.message || 'Failed to reject');
+  }
+  return data;
+};
+
+export const resubmitExerciseForApproval = async (
+  body: {
+    entityType: 'modules' | 'submodules' | 'topics' | 'subtopics';
+    entityId: string;
+    tabType: 'We_Do' | 'You_Do';
+    subcategory: string;
+    exerciseId: string;
+  },
+  token: string
+) => {
+  const response = await fetch(`${API_ORIGIN}/exercise/resubmit`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  const data = await response.json();
+  if (!response.ok || !data.success) {
+    throw new Error(data?.message?.[0]?.value || data?.message || 'Failed to resubmit');
+  }
+  return data;
+};
+
+export const saveApprovalHierarchy = async (
+  courseId: string,
+  // Person-specific: each step must carry the picked user's id, not just a role.
+  steps: { roleId: string; userId: string }[],
+  institutionId: string,
+  token: string
+) => {
+  const response = await fetch(
+    `${API_ORIGIN}/courses/${courseId}/approval-hierarchy`,
+    {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        institution: institutionId,
+      },
+      body: JSON.stringify({ steps }),
+    }
+  );
+  const data = await response.json();
+  if (!response.ok || !data.success) {
+    throw new Error(data?.message || 'Failed to save approval hierarchy');
+  }
+  return data;
+};
+// ─── Self-service profile update ──────────────────────────────────────────────
+// Photo and password only, for the CALLER — the server route takes no user id
+// (see UpdateMyProfile in server/controllers/userAuth.js). Sent as FormData
+// because the photo is a file; Content-Type is left unset so the browser adds
+// the multipart boundary.
+export interface UpdateMyProfileInput {
+  photo?: File | null;
+  currentPassword?: string;
+  newPassword?: string;
+}
+
+export const updateMyProfile = async (input: UpdateMyProfileInput, token: string) => {
+  const form = new FormData();
+  if (input.photo) form.append('profile', input.photo);
+  if (input.newPassword) {
+    form.append('currentPassword', input.currentPassword || '');
+    form.append('newPassword', input.newPassword);
+  }
+
+  const response = await fetch(`${API_BASE_URL}/user/me/profile`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    // The API answers with `message: [{ key, value }]` throughout, so the
+    // first entry's value is the human-readable reason.
+    const reason = Array.isArray(data?.message)
+      ? data.message[0]?.value
+      : data?.message;
+    throw new Error(reason || 'Failed to update profile');
+  }
+  return data as {
+    message: { key: string; value: string }[];
+    user: { _id: string; email: string; firstName: string; lastName: string; profile?: string; updatedAt: string };
+  };
 };

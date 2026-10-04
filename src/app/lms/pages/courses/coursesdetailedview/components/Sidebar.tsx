@@ -1,47 +1,47 @@
 // components/Sidebar.tsx
-// ─── SELF-CONTAINED dark sidebar ──────────────────────────────────────────
+// ─── SELF-CONTAINED light sidebar (SmartCliff orange theme) ────────────────
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import {
-  Search, X, ChevronDown, ChevronUp,
+  Search, X, ChevronDown, ChevronRight,
   GraduationCap, Home, LayoutDashboard,
-  Code2, Braces, Atom, Server, Layers,
+  Layers, Library, File as FileIcon,
   Crown, ArrowRight, ChevronsUpDown, ChevronsDownUp,
-  AlertTriangle, PanelLeftClose,
+  AlertTriangle, PanelLeftClose, FileText, FolderOpen,
 } from "lucide-react"
 import { FONT_PRIMARY, FONT_INTER_IMPORT } from "./types/constants"
-import { hasChildItems, hasPedagogyData } from "./types/utils"
-import { CourseData, SelectedItem, SelectedItemType } from "./types/types"
+import { CourseData, SelectedItem, SelectedItemType, TopicProgressMap, TopicStatus } from "./types/types"
 import { fetchAllPedagogyViews } from "../../../../../../apiServices/pedagogyAndModuleAdd/pedagogy"
 
 /* ─── Design Tokens ──────────────────────────────────────────────────────── */
 const C = {
-  bg:            "#111827",
-  surface:       "#1f2937",
-  surfaceHover:  "rgba(148,163,184,0.16)",
-  surfaceActive: "rgba(56,189,248,0.20)",
-  border:        "#334155",
-  borderSub:     "#475569",
-  accent:        "#38bdf8",
-  accentLight:   "rgba(56,189,248,0.18)",
-  text:          "#f8fafc",
-  textSub:       "#e2e8f0",
-  textMuted:     "#cbd5e1",
+  bg:            "#ffffff",
+  surface:       "#f5f6f8",
+  surfaceHover:  "rgba(15,23,42,0.04)",
+  surfaceActive: "rgba(249,115,22,0.10)",
+  border:        "#eef0f3",
+  borderSub:     "#e5e7eb",
+  accent:        "#F97316",
+  accentLight:   "rgba(249,115,22,0.10)",
+  text:          "#171725",
+  textSub:       "#334155",
+  textMuted:     "#64748b",
   textFaint:     "#94a3b8",
-  textGhost:     "#64748b",
-  gold:          "#facc15",
+  textGhost:     "#94a3b8",
+  gold:          "#F59E0B",
  font: FONT_PRIMARY
 }
 
-/* ─── Module icon helper ─────────────────────────────────────────────────── */
-function getModuleIcon(title: string, size = 11) {
-  const k = title.toLowerCase().replace(/[^a-z]/g, "")
-  if (k.includes("css"))       return <Braces  size={size} strokeWidth={1.8} />
-  if (k.includes("react"))     return <Atom    size={size} strokeWidth={1.8} />
-  if (k.includes("node"))      return <Server  size={size} strokeWidth={1.8} />
-  if (k.includes("express"))   return <Server  size={size} strokeWidth={1.8} />
-  if (k.includes("bootstrap")) return <Layers  size={size} strokeWidth={1.8} />
-  return                               <Code2   size={size} strokeWidth={1.8} />
+/* ─── Type icon helper — shape carries the level, not a text tag ───────────
+   Matches the upload-resources sidebar: module → shelf, submodule → folder,
+   topic → file, subtopic → plain file. Same icon for every node of a level,
+   regardless of title. */
+function getTypeIcon(type: SelectedItemType, size = 13) {
+  const props = { size, strokeWidth: 1.8 }
+  if (type === "module")    return <Library    {...props} />
+  if (type === "submodule") return <FolderOpen {...props} />
+  if (type === "topic")     return <FileText   {...props} />
+  return                           <FileIcon   {...props} />
 }
 
 /* ─── Pedagogy / Hours types ─────────────────────────────────────────────── */
@@ -69,6 +69,33 @@ export function buildHoursMap(
   }
   return map
 }
+
+/* ─── Topic completion indicator ────────────────────────────────────────────
+   One small circle at the right of each syllabus row — the sidebar tick
+   from the target screenshot. Fed by the server-authoritative
+   `topicProgress` map (server/utils/topicCompletion.js), NEVER by
+   selection or "opened" state. Selection remains a separate visual
+   (orange pill + orange text) so the two can never conflict.
+
+   Shapes carry meaning too so we don't rely on colour alone (spec):
+     completed   → filled green circle with a check
+     in_progress → pale-orange ring with an orange centre dot
+     not_started → hollow gray circle
+     locked      → muted lock icon                                              */
+const STATUS_LABEL: Record<TopicStatus, string> = {
+  completed: "Completed",
+  in_progress: "In progress",
+  not_started: "Not started",
+  locked: "Locked",
+}
+
+// Completion circles removed per product decision — students found the
+// small right-edge circle (green check / orange dot / hollow ring / lock)
+// noisy on every row. Component now returns null so each syllabus row's
+// right cluster is clean; the row still receives the `status` prop from
+// its parent and could reinstate a visual here without a wider refactor.
+// STATUS_LABEL is kept above for the same reason.
+const TopicStatusIndicator: React.FC<{ status: TopicStatus | undefined }> = () => null
 
 /* ─── Smooth collapse ────────────────────────────────────────────────────── */
 const AnimCollapse: React.FC<{ open: boolean; children: React.ReactNode }> = ({ open, children }) => {
@@ -101,7 +128,7 @@ const AnimCollapse: React.FC<{ open: boolean; children: React.ReactNode }> = ({ 
 /* ─── Shared primitives ──────────────────────────────────────────────────── */
 const SectionLabel: React.FC<{ label: string }> = ({ label }) => (
   <div style={{
-    fontFamily: C.font, fontSize: 10, fontWeight: 600,  // Reduced from 10.5/700
+    fontFamily: C.font, fontSize: 11.5, fontWeight: 500,  // Reduced from 10.5/700
     letterSpacing: "0.03em",  // Reduced from 0.04em
     color: C.textGhost, padding: "16px 16px 8px",
     marginTop: 4,
@@ -124,8 +151,8 @@ const ToolBtn: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement>> = ({ chil
       style={{
         width: 28, height: 28, borderRadius: 7, flexShrink: 0,
         display: "flex", alignItems: "center", justifyContent: "center",
-        border: `1px solid ${hov ? "rgba(78,130,255,0.38)" : C.border}`,
-        background: hov ? "rgba(78,130,255,0.12)" : C.surface,
+        border: `1px solid ${hov ? "rgba(249,115,22,0.38)" : C.border}`,
+        background: hov ? "rgba(249,115,22,0.12)" : C.surface,
         cursor: "pointer", color: hov ? C.accent : C.textFaint,
         transition: "all 0.15s", fontFamily: C.font,
       }}
@@ -145,6 +172,7 @@ const NavItem: React.FC<{
       onClick={onClick}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
+      title={label}
       style={{
         display: "flex", alignItems: "center", gap: 10,
         padding: "10px 16px", borderRadius: 8, margin: "2px 8px",
@@ -161,7 +189,7 @@ const NavItem: React.FC<{
         {icon}
       </div>
       <span style={{
-        fontFamily: C.font, fontSize: 12.5, fontWeight: active ? 500 : 400,  // Reduced from 13.5/600/500
+        fontFamily: C.font, fontSize: 14, fontWeight: active ? 400 : 300,  // Reduced from 13.5/600/500
         color: active ? C.text : C.textMuted, flex: 1,
         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
       }}>
@@ -175,52 +203,55 @@ const NavItem: React.FC<{
 const TreeModuleRow: React.FC<{
   icon: React.ReactNode; label: string
   isOpen: boolean; isActive?: boolean; depth?: number; onToggle: () => void
-}> = ({ icon, label, isOpen, isActive, depth = 0, onToggle }) => {
+  status?: TopicStatus
+}> = ({ icon, label, isOpen, isActive, depth = 0, onToggle, status }) => {
   const [hover, setHover] = useState(false)
-  const pl = depth === 0 ? "8px 14px 8px 12px" : "7px 14px 7px 10px"
-  const iSize = depth === 0 ? 25 : 21
+  const pl = depth === 0 ? "8px 14px 8px 12px" : "6px 12px 6px 10px"
+  const iSize = depth === 0 ? 25 : 20
   return (
     <div
       onClick={onToggle}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
+      title={label}
       style={{
         display: "flex", alignItems: "center", gap: 10,
-        padding: pl, borderRadius: 6, margin: "0 8px",
+        padding: pl, borderRadius: 10, margin: "0 8px",
         cursor: "pointer", userSelect: "none",
-        background: isActive ? "rgba(56,189,248,0.18)" : (hover ? C.surfaceHover : "transparent"),
-        border: isActive ? "1px solid rgba(56,189,248,0.38)" : "1px solid transparent",
-        boxShadow: isActive ? "inset 3px 0 0 rgba(56,189,248,0.95)" : "none",
+        // Selected = white raised pill + orange text/icon; unselected rows
+        // stay plain (matches the upload-resources sidebar exactly).
+        background: isActive ? "#ffffff" : (hover ? "#E9EBF0" : "transparent"),
+        border: isActive ? "1px solid #E4E7EC" : "1px solid transparent",
+        boxShadow: isActive ? "0 1px 2px rgba(16,24,40,0.06)" : "none",
         transition: "background 0.12s,border-color 0.12s,box-shadow 0.12s",
       }}
     >
+      <span style={{ color: isActive ? C.accent : C.textGhost, display: "flex", flexShrink: 0 }}>
+        {isOpen
+          ? <ChevronDown size={12} strokeWidth={2} />
+          : <ChevronRight size={12} strokeWidth={2} />}
+      </span>
       <div style={{
         width: iSize, height: iSize,
         borderRadius: depth === 0 ? 6 : 5, flexShrink: 0,
         display: "flex", alignItems: "center", justifyContent: "center",
-        background: isActive || isOpen ? C.accentLight : C.surface,
-        transition: "background 0.13s",
+        background: "transparent",
       }}>
-        <span style={{ color: isActive || isOpen ? C.accent : C.textFaint, display: "flex" }}>
+        <span style={{ color: isActive ? C.accent : C.textMuted, display: "flex" }}>
           {icon}
         </span>
       </div>
       <span style={{
         fontFamily: C.font, flex: 1,
-        fontSize: depth === 0 ? 12.5 : 12, fontWeight: 400,  // Reduced from 13.5/12.5/500
-        color: isOpen || isActive ? C.text : C.textMuted,
-        textTransform: depth === 0 ? "uppercase" as const : "none" as const,
-        letterSpacing: depth === 0 ? "0.015em" : "0",  // Reduced from 0.02em
+        fontSize: depth === 0 ? 14 : 13.5,
+        fontWeight: isActive ? 500 : 400,
+        color: isActive ? C.accent : C.text,
         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-        transition: "color 0.13s",
+        transition: "color 0.13s,font-weight 0.13s",
       }}>
         {label}
       </span>
-      <span style={{ color: isOpen ? C.accent : C.textGhost, display: "flex", flexShrink: 0 }}>
-        {isOpen
-          ? <ChevronUp size={11} strokeWidth={2} />
-          : <ChevronDown size={11} strokeWidth={2} />}
-      </span>
+      {status && <TopicStatusIndicator status={status} />}
     </div>
   )
 }
@@ -228,21 +259,25 @@ const TreeModuleRow: React.FC<{
 /* ─── Leaf / subtopic row ────────────────────────────────────────────────── */
 const SubtopicRow: React.FC<{
   title: string; isSelected: boolean; isCurrentTopic?: boolean; onClick: () => void
-}> = ({ title, isSelected, isCurrentTopic, onClick }) => {
+  status?: TopicStatus
+}> = ({ title, isSelected, isCurrentTopic, onClick, status }) => {
   const [hover, setHover] = useState(false)
   return (
     <div
       onClick={onClick}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
+      title={title}
       style={{
         display: "flex", alignItems: "center", gap: 10,
         paddingLeft: 14, paddingRight: 12, paddingTop: 8, paddingBottom: 8,
-        borderRadius: 6, margin: "0 8px 0 0",
+        borderRadius: 10, margin: "0 8px 0 0",
         cursor: "pointer", userSelect: "none",
-        background: isSelected ? "rgba(56,189,248,0.18)" : (hover ? C.surfaceHover : "transparent"),
-        border: isSelected ? "1px solid rgba(56,189,248,0.38)" : "1px solid transparent",
-        boxShadow: isSelected ? "inset 3px 0 0 rgba(56,189,248,0.95)" : "none",
+        // Selected = raised WHITE pill on the flat gray rail (matches the
+        // upload-resources / shell rails), not an orange-tinted block.
+        background: isSelected ? "#ffffff" : (hover ? "#E9EBF0" : "transparent"),
+        border: isSelected ? "1px solid #E4E7EC" : "1px solid transparent",
+        boxShadow: isSelected ? "0 1px 2px rgba(16,24,40,0.06)" : "none",
         transition: "background 0.12s,border-color 0.12s,box-shadow 0.12s",
       }}
     >
@@ -252,8 +287,8 @@ const SubtopicRow: React.FC<{
         transition: "background 0.13s",
       }} />
       <span style={{
-        fontFamily: C.font, fontSize: 12, flex: 1,  // Reduced from 12.5
-        fontWeight: isSelected ? 500 : 400,  // Reduced from 600/400
+        fontFamily: C.font, fontSize: 13.5, flex: 1,  // Reduced from 12.5
+        fontWeight: isSelected ? 400 : 300,  // Reduced from 600/400
         color: isSelected ? C.text : C.textFaint,
         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
       }}>
@@ -261,13 +296,72 @@ const SubtopicRow: React.FC<{
       </span>
       {isCurrentTopic && (
         <span style={{
-          fontFamily: C.font, fontSize: 9.5, fontWeight: 500,  // Reduced from 10/600
+          fontFamily: C.font, fontSize: 11, fontWeight: 500,  // Reduced from 10/600
           color: C.accent, background: C.accentLight,
           padding: "2px 7px", borderRadius: 4, flexShrink: 0, whiteSpace: "nowrap",
         }}>
           Current Topic
         </span>
       )}
+      {status && <TopicStatusIndicator status={status} />}
+    </div>
+  )
+}
+
+/* ─── Leaf row (topic / subtopic — no expander) ─────────────────────────────
+   Selected = white pill + orange dot + orange bold text, exactly matching
+   the upload-resources sidebar's leaf styling. */
+const LeafRow: React.FC<{
+  title: string; icon: React.ReactNode; isSelected: boolean; isCurrentTopic?: boolean; onClick: () => void
+  status?: TopicStatus
+}> = ({ title, icon, isSelected, isCurrentTopic, onClick, status }) => {
+  const [hover, setHover] = useState(false)
+  return (
+    <div
+      onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      title={title}
+      style={{
+        display: "flex", alignItems: "center", gap: 9,
+        padding: "6px 10px", borderRadius: 10, margin: "0 8px",
+        cursor: "pointer", userSelect: "none",
+        // White raised pill on the flat gray rail (shell language).
+        background: isSelected ? "#ffffff" : (hover ? "#E9EBF0" : "transparent"),
+        border: isSelected ? "1px solid #E4E7EC" : "1px solid transparent",
+        boxShadow: isSelected ? "0 1px 2px rgba(16,24,40,0.06)" : "none",
+        transition: "background 0.12s, box-shadow 0.12s, border-color 0.12s",
+      }}
+    >
+      <span style={{
+        width: 4, height: 4, borderRadius: "50%", flexShrink: 0, marginLeft: 2,
+        background: isSelected ? C.accent : C.textGhost,
+      }} />
+      <div style={{
+        width: 20, height: 20, borderRadius: 5, flexShrink: 0,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        color: isSelected ? C.accent : C.textMuted,
+      }}>
+        {icon}
+      </div>
+      <span style={{
+        fontFamily: C.font, fontSize: 13.5, flex: 1,
+        fontWeight: isSelected ? 500 : 400,
+        color: isSelected ? C.accent : C.text,
+        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+      }}>
+        {title}
+      </span>
+      {isCurrentTopic && (
+        <span style={{
+          fontFamily: C.font, fontSize: 10.5, fontWeight: 500,
+          color: C.accent, background: C.accentLight,
+          padding: "2px 6px", borderRadius: 4, flexShrink: 0, whiteSpace: "nowrap",
+        }}>
+          Current
+        </span>
+      )}
+      {status && <TopicStatusIndicator status={status} />}
     </div>
   )
 }
@@ -276,22 +370,22 @@ const SubtopicRow: React.FC<{
 const UpgradeBanner: React.FC = () => (
   <div style={{
     margin: "6px 8px 8px",
-    background: "#1a1f2e",
+    background: "#f8fafc",
     border: `1px solid ${C.borderSub}`,
     borderRadius: 10, padding: "12px 14px",
     fontFamily: C.font, flexShrink: 0,
   }}>
     <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
       <Crown size={13} color={C.gold} strokeWidth={2} />
-      <span style={{ fontSize: 11.5, fontWeight: 600, color: C.gold }}>Upgrade to Pro</span>  {/* Reduced from 12/700 */}
+      <span style={{ fontSize: 13, fontWeight: 600, color: C.gold }}>Upgrade to Pro</span>  {/* Reduced from 12/700 */}
     </div>
-    <p style={{ fontSize: 10, color: C.textFaint, lineHeight: 1.5, margin: "0 0 10px" }}>  {/* Reduced from 10.5 */}
+    <p style={{ fontSize: 11.5, color: C.textFaint, lineHeight: 1.5, margin: "0 0 10px" }}>  {/* Reduced from 10.5 */}
       Unlock advanced features and boost your learning experience.
     </p>
     <button style={{
       width: "100%",
-      background: "linear-gradient(135deg,#4e82ff 0%,#3a6fd8 100%)",
-      color: "#fff", fontSize: 10.5, fontWeight: 500,  // Reduced from 11/600
+      background: "linear-gradient(135deg,#F97316 0%,#EA580C 100%)",
+      color: "#fff", fontSize: 12, fontWeight: 500,  // Reduced from 11/600
       border: "none", borderRadius: 7, padding: "8px 10px",
       cursor: "pointer", display: "flex", alignItems: "center",
       justifyContent: "center", gap: 6, fontFamily: C.font,
@@ -328,21 +422,21 @@ export const SidebarHeader: React.FC<SidebarHeaderProps> = ({
   }
 
   return (
-    <div style={{ background: C.bg, flexShrink: 0, borderBottom: `1px solid ${C.border}` }}>
+    <div style={{ background: "transparent", flexShrink: 0 }}>
 
       {/* Course icon + modules count */}
       <div style={{ padding: "12px 16px", display: "flex", alignItems: "center", gap: 10 }}>
         <div style={{
           width: 24, height: 24, borderRadius: 6, flexShrink: 0,
-          background: "linear-gradient(135deg,#4f8ef7 0%,#3a6fd8 100%)",
+          background: "linear-gradient(135deg,#F97316 0%,#EA580C 100%)",
           display: "flex", alignItems: "center", justifyContent: "center",
-          boxShadow: "0 2px 6px rgba(78,130,255,0.25)",
+          boxShadow: "0 2px 6px rgba(249,115,22,0.25)",
         }}>
           <Layers size={12} strokeWidth={2} color="#fff" />
         </div>
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{
-            fontFamily: C.font, fontSize: 12.5, fontWeight: 500,  // Reduced from 13/600
+            fontFamily: C.font, fontSize: 14, fontWeight: 400,  // Reduced from 13/600
             color: C.text, overflow: "hidden", textOverflow: "ellipsis",
             whiteSpace: "nowrap", letterSpacing: "-0.01em",
           }}>
@@ -350,7 +444,7 @@ export const SidebarHeader: React.FC<SidebarHeaderProps> = ({
           </div>
         </div>
         <span style={{
-          fontFamily: C.font, fontSize: 9.5, fontWeight: 500,  // Reduced from 10/500
+          fontFamily: C.font, fontSize: 11, fontWeight: 500,  // Reduced from 10/500
           color: C.textFaint, background: C.surface,
           border: `1px solid ${C.border}`,
           padding: "2px 7px", borderRadius: 16, flexShrink: 0,
@@ -370,7 +464,7 @@ export const SidebarHeader: React.FC<SidebarHeaderProps> = ({
           style={{
             width: 28, height: 28, borderRadius: 7, flexShrink: 0,
             display: "flex", alignItems: "center", justifyContent: "center",
-            border: `1px solid ${searchOpen ? "rgba(78,130,255,0.42)" : C.border}`,
+            border: `1px solid ${searchOpen ? "rgba(249,115,22,0.42)" : C.border}`,
             background: searchOpen ? C.accentLight : C.surface,
             cursor: "pointer", color: searchOpen ? C.accent : C.textFaint,
             transition: "all 0.15s",
@@ -424,14 +518,14 @@ export const SidebarHeader: React.FC<SidebarHeaderProps> = ({
               style={{
                 width: "100%", boxSizing: "border-box" as const,
                 paddingLeft: 28, paddingRight: 10, paddingTop: 7, paddingBottom: 7,
-                fontFamily: C.font, fontSize: 12,  // Reduced from 12.5
+                fontFamily: C.font, fontSize: 13.5,  // Reduced from 12.5
                 background: C.surface, border: `1px solid ${C.border}`,
                 borderRadius: 9, color: C.text, outline: "none",
                 transition: "border-color 0.15s, background 0.15s",
               }}
               onFocus={e => {
-                e.currentTarget.style.borderColor = "rgba(78,130,255,0.5)"
-                e.currentTarget.style.background = "#1a1f2e"
+                e.currentTarget.style.borderColor = "rgba(249,115,22,0.5)"
+                e.currentTarget.style.background = "#f8fafc"
               }}
               onBlur={e => {
                 e.currentTarget.style.borderColor = C.border
@@ -466,6 +560,12 @@ interface SidebarProps {
   onLogout?: () => void
   courseId?: string
   currentTopicId?: string
+  // Server-authoritative per-node completion (from courseData.topicProgress).
+  // Drives the right-edge status indicator on every syllabus row. Absent
+  // nodes fall through to `not_started`; the prop being undefined disables
+  // indicators entirely (unauthenticated/preview render).
+  topicProgress?: TopicProgressMap | null
+  /** @deprecated legacy prop kept only to avoid breaking older call sites. */
   studentProgress?: { visitedNodes: string[]; openedResources: string[] } | null
 }
 
@@ -474,10 +574,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   expandedModules, expandedSubModules, expandedTopics,
   sidebarSearch, onItemSelect,
   onToggleModule, onToggleSubModule, onToggleTopic,
-  courseId, currentTopicId,
+  courseId, currentTopicId, topicProgress,
 }) => {
   const [pedagogyViews, setPedagogyViews] = useState<PedagogyView[]>([])
-  const [courseTreeOpen, setCourseTreeOpen] = useState(true)
 
   useEffect(() => {
     fetchAllPedagogyViews().then(setPedagogyViews).catch(console.error)
@@ -506,144 +605,94 @@ export const Sidebar: React.FC<SidebarProps> = ({
     m.topics?.some((t: any) => t.title.toLowerCase().includes(sidebarSearch.toLowerCase()))
   )
 
+  // Recursive tree renderer — expandable when the node has children, file-leaf otherwise.
+  const renderNode = (
+    node: any,
+    type: SelectedItemType,
+    hierarchy: string[],
+    depth: number,
+  ): React.ReactNode => {
+    const isSel = selectedItem?.id === node._id
+    // Server-driven; falls back to `not_started` (hollow ring) when the map
+    // is present but this node isn't listed — never lies with a green tick.
+    // When the prop itself is absent (unauthenticated preview) we render no
+    // indicator at all rather than a misleading hollow ring on every row.
+    const status: TopicStatus | undefined = topicProgress
+      ? (topicProgress[node._id]?.status || "not_started")
+      : undefined
+    const kids: { list: any[]; childType: SelectedItemType } | null =
+      node.subModules?.length ? { list: node.subModules, childType: "submodule" }
+      : node.topics?.length ? { list: node.topics, childType: "topic" }
+      : node.subTopics?.length ? { list: node.subTopics, childType: "subtopic" }
+      : null
+
+    if (!kids) {
+      return (
+        <LeafRow
+          key={node._id}
+          title={node.title}
+          icon={getTypeIcon(type)}
+          isSelected={isSel}
+          isCurrentTopic={node._id === currentTopicId}
+          status={status}
+          onClick={() => sel(node._id, node.title, type, hierarchy, node.pedagogy)}
+        />
+      )
+    }
+
+    const isOpen =
+      type === "module" ? expandedModules.has(node._id)
+      : type === "submodule" ? expandedSubModules.has(node._id)
+      : expandedTopics.has(node._id)
+
+    const toggle =
+      type === "module" ? onToggleModule
+      : type === "submodule" ? onToggleSubModule
+      : onToggleTopic
+
+    return (
+      <div key={node._id} style={{ marginBottom: depth === 0 ? 2 : 0 }}>
+        <TreeModuleRow
+          icon={getTypeIcon(type)}
+          label={node.title}
+          isOpen={isOpen}
+          isActive={isSel}
+          depth={depth}
+          status={status}
+          onToggle={() => {
+            sel(node._id, node.title, type, hierarchy, node.pedagogy)
+            toggle(node._id)
+          }}
+        />
+        <AnimCollapse open={isOpen}>
+          <div style={{ marginLeft: 12, borderLeft: `1.5px solid ${C.border}` }}>
+            {kids.list.map((child: any) =>
+              renderNode(child, kids.childType, [...hierarchy, child._id], depth + 1),
+            )}
+          </div>
+        </AnimCollapse>
+      </div>
+    )
+  }
+
   return (
-    <div style={{ fontFamily: C.font, background: C.bg, paddingBottom: 8 }}>
+    <div style={{ fontFamily: C.font, background: "transparent", paddingBottom: 4 }}>
       <style dangerouslySetInnerHTML={{
         __html: `
 ${FONT_INTER_IMPORT}          .sbd-scroll::-webkit-scrollbar{width:3px}
           .sbd-scroll::-webkit-scrollbar-track{background:transparent}
-          .sbd-scroll::-webkit-scrollbar-thumb{background:#1e2430;border-radius:8px}
-          .sbd-scroll::-webkit-scrollbar-thumb:hover{background:#2a3048}
+          .sbd-scroll::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:8px}
+          .sbd-scroll::-webkit-scrollbar-thumb:hover{background:#9ca3af}
         `
       }} />
 
-      {/* SYLLABUS */}
-      <SectionLabel label="Syllabus Overview" />
-
-      {filtered.map((m: any, index: number) => {
-        const mExp = expandedModules.has(m._id)
-        const mSel = selectedItem?.id === m._id
-
-        return (
-          <div key={m._id} style={{ marginBottom: index < filtered.length - 1 ? 12 : 0 }}>
-            <TreeModuleRow
-              icon={getModuleIcon(m.title)}
-              label={m.title}
-              isOpen={mExp}
-              isActive={mSel}
-              depth={1}
-              onToggle={() => {
-                sel(m._id, m.title, "module", [m._id], m.pedagogy)
-                onToggleModule(m._id)
-              }}
-            />
-
-            <AnimCollapse open={mExp}>
-              <div style={{ marginLeft: 12, borderLeft: `1.5px solid ${C.border}` }}>
-
-                {m.subModules?.map((sm: any) => {
-                  const sExp = expandedSubModules.has(sm._id)
-                  const sSel = selectedItem?.id === sm._id
-                  return (
-                    <div key={sm._id}>
-                      <TreeModuleRow
-                        icon={getModuleIcon(sm.title)}
-                        label={sm.title}
-                        isOpen={sExp}
-                        isActive={sSel}
-                        depth={2}
-                        onToggle={() => {
-                          sel(sm._id, sm.title, "submodule", [m._id, sm._id], sm.pedagogy)
-                          onToggleSubModule(sm._id)
-                        }}
-                      />
-                      <AnimCollapse open={sExp}>
-                        <div style={{ marginLeft: 12, borderLeft: `1.5px solid ${C.border}` }}>
-                          {sm.topics?.map((t: any) => {
-                            const tExp = expandedTopics.has(t._id)
-                            const tSel = selectedItem?.id === t._id
-                            return (
-                              <div key={t._id}>
-                                <TreeModuleRow
-                                  icon={getModuleIcon(t.title)}
-                                  label={t.title}
-                                  isOpen={tExp}
-                                  isActive={tSel}
-                                  depth={2}
-                                  onToggle={() => {
-                                    sel(t._id, t.title, "topic",
-                                      [m._id, sm._id, t._id], t.pedagogy)
-                                    onToggleTopic(t._id)
-                                  }}
-                                />
-                                <AnimCollapse open={tExp}>
-                                  <div style={{ marginLeft: 12, borderLeft: `1.5px solid ${C.border}` }}>
-                                    {t.subTopics?.map((st: any) => (
-                                      <SubtopicRow
-                                        key={st._id}
-                                        title={st.title}
-                                        isSelected={selectedItem?.id === st._id}
-                                        isCurrentTopic={st._id === currentTopicId}
-                                        onClick={() =>
-                                          sel(st._id, st.title, "subtopic",
-                                            [m._id, sm._id, t._id, st._id], st.pedagogy)
-                                        }
-                                      />
-                                    ))}
-                                  </div>
-                                </AnimCollapse>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </AnimCollapse>
-                    </div>
-                  )
-                })}
-
-                {!m.subModules?.length && m.topics?.map((t: any) => {
-                  const tExp = expandedTopics.has(t._id)
-                  const tSel = selectedItem?.id === t._id
-                  return (
-                    <div key={t._id}>
-                      <TreeModuleRow
-                        icon={getModuleIcon(t.title)}
-                        label={t.title}
-                        isOpen={tExp}
-                        isActive={tSel}
-                        depth={2}
-                        onToggle={() => {
-                          sel(t._id, t.title, "topic", [m._id, t._id], t.pedagogy)
-                          onToggleTopic(t._id)
-                        }}
-                      />
-                      <AnimCollapse open={tExp}>
-                        <div style={{ marginLeft: 12, borderLeft: `1.5px solid ${C.border}` }}>
-                          {t.subTopics?.map((st: any) => (
-                            <SubtopicRow
-                              key={st._id}
-                              title={st.title}
-                              isSelected={selectedItem?.id === st._id}
-                              isCurrentTopic={st._id === currentTopicId}
-                              onClick={() =>
-                                sel(st._id, st.title, "subtopic",
-                                  [m._id, t._id, st._id], st.pedagogy)
-                              }
-                            />
-                          ))}
-                        </div>
-                      </AnimCollapse>
-                    </div>
-                  )
-                })}
-
-              </div>
-            </AnimCollapse>
-          </div>
-        )
-      })}
-      <div style={{ height: 16 }} />
-      {/* <UpgradeBanner /> */}
+      {/* Modules → topics — no repeated course-name row, the course card above
+          already names it (matches the upload-resources sidebar). */}
+      <SectionLabel label="Syllabus" />
+      <div style={{ paddingTop: 2 }}>
+        {filtered.map((m: any) => renderNode(m, "module", [m._id], 0))}
+      </div>
+      <div style={{ height: 8 }} />
     </div>
   )
 }
@@ -661,7 +710,7 @@ export const LogoutModal: React.FC<{
     display: "flex", alignItems: "center", justifyContent: "center",
   }}>
     <div style={{
-      background: "#161b25", borderRadius: 16, padding: "28px 24px",
+      background: "#ffffff", borderRadius: 16, padding: "28px 24px",
       maxWidth: 300, width: "90%",
       border: `1px solid ${C.border}`,
       boxShadow: "0 24px 64px rgba(0,0,0,0.5)",
@@ -669,16 +718,16 @@ export const LogoutModal: React.FC<{
     }}>
       <div style={{
         width: 44, height: 44, borderRadius: 12,
-        background: "rgba(78,130,255,0.15)",
+        background: "rgba(249,115,22,0.15)",
         display: "flex", alignItems: "center", justifyContent: "center",
         margin: "0 auto 14px",
       }}>
         <AlertTriangle size={20} color={C.accent} />
       </div>
-      <h3 style={{ margin: "0 0 6px", fontSize: 14.5, fontWeight: 600, color: C.text, fontFamily: C.font }}>  {/* Reduced from 15/700 */}
+      <h3 style={{ margin: "0 0 6px", fontSize: 16, fontWeight: 600, color: C.text, fontFamily: C.font }}>  {/* Reduced from 15/700 */}
         Logout?
       </h3>
-      <p style={{ margin: "0 0 22px", fontSize: 12, color: C.textMuted, lineHeight: 1.65, fontFamily: C.font }}>  {/* Reduced from 12.5 */}
+      <p style={{ margin: "0 0 22px", fontSize: 13.5, color: C.textMuted, lineHeight: 1.65, fontFamily: C.font }}>  {/* Reduced from 12.5 */}
         Your progress is saved. You can resume anytime.
       </p>
       <div style={{ display: "flex", gap: 8 }}>
@@ -687,7 +736,7 @@ export const LogoutModal: React.FC<{
           style={{
             flex: 1, padding: "9px 0", borderRadius: 9,
             border: `1.5px solid ${C.border}`, background: "transparent",
-            color: C.textMuted, fontWeight: 500, fontSize: 12.5,  // Reduced from 600/13
+            color: C.textMuted, fontWeight: 500, fontSize: 14,  // Reduced from 600/13
             cursor: "pointer", fontFamily: C.font,
           }}
         >
@@ -697,8 +746,8 @@ export const LogoutModal: React.FC<{
           onClick={onConfirm}
           style={{
             flex: 1, padding: "9px 0", borderRadius: 9, border: "none",
-            background: "linear-gradient(135deg,#4e82ff,#3a6fd8)",
-            color: "#fff", fontWeight: 600, fontSize: 12.5,  // Reduced from 700/13
+            background: "linear-gradient(135deg,#F97316,#EA580C)",
+            color: "#fff", fontWeight: 600, fontSize: 14,  // Reduced from 700/13
             cursor: "pointer", fontFamily: C.font,
           }}
         >

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import {
   X, FileText, Video, FileArchive, Link2, BookOpen, FolderPlus,
   Search, File, Presentation, FilePlus2, Star, Info, Sparkles,
@@ -30,6 +30,11 @@ interface NotionResourceModalProps {
   isOpen: boolean;
   onClose: () => void;
   fileTypes: FileTypeConfig[];
+  // Notes / AI — shown in their own "Student Used Feature" section below the
+  // main picker, and only when the Super Admin enabled at least one of them
+  // for this institution (see Resource Management). Empty/omitted → section
+  // is hidden entirely.
+  studentFeatureItems?: { key: string; label: string; description: string; icon: React.ReactNode; color: string }[];
   selectedNode: CourseNode | null;
   activeTab: "I_Do" | "We_Do" | "You_Do" | null;
   activeSubcategory: string;
@@ -51,13 +56,37 @@ interface NotionResourceModalProps {
 }
 
 // ─── Picker items ──────────────────────────────────────────────────────────────
-const PICKER_ITEMS = [
+/**
+ * The upload types the "File" card stands for. The card is a doorway into the
+ * file upload modal, which itself only offers the types the course enabled — so
+ * with none of these enabled the card would open an empty modal and is hidden.
+ * Notes / AI are deliberately absent: they're "Student Used Feature" items with
+ * their own section, and must not keep the File card alive on their own.
+ */
+const FILE_CARD_TYPES = ["video", "ppt", "pdf", "image", "zip"] as const;
+
+type PickerItem = {
+  key: string;
+  label: string;
+  description: string;
+  icon: React.ReactNode;
+  color: string;
+  badge?: string;
+  /**
+   * Which enabled resource-type keys this card needs. `undefined` → structural
+   * card (Folder / Page / Reference), always shown: course setup has no switch
+   * for them, so there is nothing to gate them on.
+   */
+  requires?: readonly string[];
+};
+
+const PICKER_ITEMS: PickerItem[] = [
   { key: "folder",        label: "Folder",       description: "Organise files into named folders",          icon: <FolderPlus />, color: "#F27757" },
-  { key: "file",          label: "File",          description: "Upload PDF, PPT, Video, ZIP and more",       icon: <File />,       color: "#3b82f6" },
+  { key: "file",          label: "File",          description: "Upload PDF, PPT, Video, ZIP and more",       icon: <File />,       color: "#3b82f6", requires: FILE_CARD_TYPES },
   { key: "page_creation", label: "Page",          description: "Build rich content with editable blocks",    icon: <FilePlus2 />,  color: "#6366f1", badge: "Live Edit" },
-  { key: "url",           label: "URL",           description: "Link to external websites or articles",      icon: <Link2 />,      color: "#10b981" },
+  { key: "url",           label: "URL",           description: "Link to external websites or articles",      icon: <Link2 />,      color: "#10b981", requires: ["url"] },
   { key: "reference",     label: "Reference",     description: "Add supplementary reference materials",      icon: <BookOpen />,   color: "#8b5cf6" },
-] as const;
+];
 
 // ─── Location breadcrumb helper ─────────────────────────────────────────────────
 /**
@@ -109,7 +138,7 @@ function buildPlainPathCrumbs(
 
 // ─── NotionResourceModal ───────────────────────────────────────────────────────
 export const NotionResourceModal: React.FC<NotionResourceModalProps> = ({
-  isOpen, onClose, fileTypes, selectedNode, activeTab, activeSubcategory,
+  isOpen, onClose, fileTypes, studentFeatureItems = [], selectedNode, activeTab, activeSubcategory,
   currentFolderPath, onSelectType, onCreateFolder, onOpenFileUploadModal,
   onCreatePage, hierarchyInfo, onPageCreated, onNavigateTo, pathCrumbs,
 }) => {
@@ -136,9 +165,37 @@ export const NotionResourceModal: React.FC<NotionResourceModalProps> = ({
     return () => document.removeEventListener("keydown", h);
   }, [isOpen, onClose]);
 
+  /**
+   * The cards this course actually gets. `fileTypes` has already been narrowed
+   * by the parent to the types the course enabled in Course Setup (which is
+   * itself narrowed by the service mapping and the institution's Resource
+   * Management), so gating on it keeps the chain Super Admin → mapping →
+   * course setup → picker intact with no second source of truth.
+   *
+   * The "File" card also takes its description from the enabled types, so it
+   * never advertises a format the upload modal won't accept.
+   */
+  const availableItems = useMemo(() => {
+    const enabled = new Set(fileTypes.map(t => t.key));
+    const fileLabels = FILE_CARD_TYPES.filter(k => enabled.has(k))
+      .map(k => fileTypes.find(t => t.key === k)?.label ?? k);
+
+    return PICKER_ITEMS
+      .filter(item => !item.requires || item.requires.some(k => enabled.has(k)))
+      .map(item =>
+        item.key === "file" && fileLabels.length > 0
+          ? { ...item, description: `Upload ${fileLabels.join(", ")}` }
+          : item
+      );
+  }, [fileTypes]);
+
   if (!isOpen) return null;
 
-  const filtered = PICKER_ITEMS.filter(item =>
+  const filtered = availableItems.filter(item =>
+    item.label.toLowerCase().includes(search.toLowerCase()) ||
+    item.description.toLowerCase().includes(search.toLowerCase())
+  );
+  const filteredStudentFeatures = studentFeatureItems.filter(item =>
     item.label.toLowerCase().includes(search.toLowerCase()) ||
     item.description.toLowerCase().includes(search.toLowerCase())
   );
@@ -148,6 +205,194 @@ export const NotionResourceModal: React.FC<NotionResourceModalProps> = ({
     else if (key === "file")          { onClose(); onOpenFileUploadModal(); }
     else if (key === "page_creation") { setShowPageModal(true); }
     else                              { onClose(); onSelectType(key); }
+  };
+
+  type PickerCardItem = { key: string; label: string; description: string; icon: React.ReactNode; color: string; badge?: string };
+  const renderCard = (item: PickerCardItem) => {
+    const isHov  = hoveredKey === item.key;
+    const isFav  = favorites.has(item.key);
+    const isInfo = infoKey === item.key;
+
+    return (
+      <div
+        key={item.key}
+        className="relative flex flex-col items-center rounded-xl cursor-pointer select-none"
+        style={{
+          background: T.bg,
+          border: `1.5px solid ${isHov ? item.color : T.border}`,
+          boxShadow: isHov
+            ? `0 8px 24px ${item.color}22, 0 1px 4px rgba(0,0,0,0.05)`
+            : "0 1px 3px rgba(0,0,0,0.05)",
+          transform: isHov ? "translateY(-3px)" : "none",
+          transition: "all 0.18s cubic-bezier(0.4,0,0.2,1)",
+          padding: "16px 10px 12px",
+        }}
+        onMouseEnter={() => { setHoveredKey(item.key); setInfoKey(null); }}
+        onMouseLeave={() => setHoveredKey(null)}
+        onClick={() => handleSelect(item.key)}
+      >
+        {/* Top colour accent bar */}
+        <div style={{
+          position: "absolute", top: 0, left: 0, right: 0, height: 2.5,
+          borderRadius: "10px 10px 0 0",
+          background: isHov ? item.color : "transparent",
+          transition: "background 0.18s",
+        }} />
+
+        {/* Icon bubble */}
+        <div
+          className="flex items-center justify-center mb-3"
+          style={{
+            width: 44, height: 44, borderRadius: 12,
+            background: isHov ? `${item.color}16` : `${item.color}0e`,
+            border: `1.5px solid ${item.color}${isHov ? "45" : "22"}`,
+            color: item.color,
+            boxShadow: isHov ? `0 4px 14px ${item.color}22` : "none",
+            transform: isHov ? "scale(1.08)" : "scale(1)",
+            transition: "all 0.18s cubic-bezier(0.4,0,0.2,1)",
+            flexShrink: 0,
+          }}
+        >
+          {React.cloneElement(item.icon as React.ReactElement, { size: 20, strokeWidth: 1.7 })}
+        </div>
+
+        {/* Label */}
+        <p
+          style={{
+            fontSize: 12.5,
+            fontWeight: 700,
+            textAlign: "center",
+            lineHeight: 1.2,
+            color: isHov ? item.color : T.textMain,
+            marginBottom: 2,
+            transition: "color 0.15s",
+          }}
+        >
+          {item.label}
+        </p>
+
+        {/* Badge */}
+        {item.badge && (
+          <span
+            style={{
+              fontSize: 7.5,
+              fontWeight: 800,
+              letterSpacing: "0.06em",
+              textTransform: "uppercase",
+              padding: "2px 5px",
+              borderRadius: 5,
+              background: `${item.color}14`,
+              color: item.color,
+              border: `1px solid ${item.color}28`,
+              marginBottom: 4,
+            }}
+          >
+            {item.badge}
+          </span>
+        )}
+
+        {/* Star + Info row */}
+        <div
+          className="flex items-center gap-1 mt-2"
+          onClick={e => e.stopPropagation()}
+        >
+          {/* ⭐ Star */}
+          <button
+            type="button"
+            title={isFav ? "Unfavourite" : "Favourite"}
+            onClick={e => toggleFav(item.key, e)}
+            className="flex items-center justify-center transition-all"
+            style={{
+              width: 26, height: 26, borderRadius: 7,
+              background: isFav ? "rgba(245,158,11,0.10)" : "transparent",
+              border: `1px solid ${isFav ? "#f59e0b44" : T.border}`,
+              color: isFav ? "#f59e0b" : T.textHint,
+            }}
+            onMouseEnter={e => {
+              if (!isFav) {
+                (e.currentTarget as HTMLElement).style.background = "rgba(245,158,11,0.08)";
+                (e.currentTarget as HTMLElement).style.color = "#f59e0b";
+                (e.currentTarget as HTMLElement).style.borderColor = "#f59e0b44";
+              }
+            }}
+            onMouseLeave={e => {
+              if (!isFav) {
+                (e.currentTarget as HTMLElement).style.background = "transparent";
+                (e.currentTarget as HTMLElement).style.color = T.textHint;
+                (e.currentTarget as HTMLElement).style.borderColor = T.border;
+              }
+            }}
+          >
+            <Star size={11} fill={isFav ? "#f59e0b" : "none"} strokeWidth={isFav ? 0 : 1.8} />
+          </button>
+
+          {/* ℹ Info */}
+          <div className="relative">
+            <button
+              type="button"
+              title="What is this?"
+              onClick={e => { e.stopPropagation(); setInfoKey(isInfo ? null : item.key); }}
+              className="flex items-center justify-center transition-all"
+              style={{
+                width: 26, height: 26, borderRadius: 7,
+                background: isInfo ? `${item.color}12` : "transparent",
+                border: `1px solid ${isInfo ? item.color + "38" : T.border}`,
+                color: isInfo ? item.color : T.textHint,
+              }}
+              onMouseEnter={e => {
+                if (!isInfo) {
+                  (e.currentTarget as HTMLElement).style.background = `${item.color}0d`;
+                  (e.currentTarget as HTMLElement).style.color = item.color;
+                  (e.currentTarget as HTMLElement).style.borderColor = `${item.color}38`;
+                }
+              }}
+              onMouseLeave={e => {
+                if (!isInfo) {
+                  (e.currentTarget as HTMLElement).style.background = "transparent";
+                  (e.currentTarget as HTMLElement).style.color = T.textHint;
+                  (e.currentTarget as HTMLElement).style.borderColor = T.border;
+                }
+              }}
+            >
+              <Info size={11} />
+            </button>
+
+            {/* Tooltip */}
+            {isInfo && (
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: "calc(100% + 7px)",
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  width: 140,
+                  background: "#1a1a2e",
+                  color: "#fff",
+                  borderRadius: 9,
+                  padding: "7px 9px",
+                  fontSize: 10.5,
+                  lineHeight: 1.45,
+                  textAlign: "center",
+                  boxShadow: "0 8px 20px rgba(0,0,0,0.26)",
+                  pointerEvents: "none",
+                  zIndex: 30,
+                }}
+              >
+                {item.description}
+                <div style={{
+                  position: "absolute", top: "100%", left: "50%",
+                  transform: "translateX(-50%)",
+                  width: 0, height: 0,
+                  borderLeft: "5px solid transparent",
+                  borderRight: "5px solid transparent",
+                  borderTop: "5px solid #1a1a2e",
+                }} />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
   };
 
   const handlePageConfirm = async (payload: PagesPayload) => {
@@ -176,7 +421,7 @@ export const NotionResourceModal: React.FC<NotionResourceModalProps> = ({
             border: `1.5px solid ${T.border}`,
             boxShadow: "0 24px 60px rgba(0,0,0,0.18)",
             animation: "nrmSlideUp 0.22s cubic-bezier(0.16,1,0.3,1) both",
-            fontFamily: "'Inter',-apple-system,sans-serif",
+            fontFamily: "'Poppins',-apple-system,sans-serif",
           }}
           onClick={e => e.stopPropagation()}
         >
@@ -321,7 +566,7 @@ export const NotionResourceModal: React.FC<NotionResourceModalProps> = ({
               scrollbarColor: `${T.border} transparent`,
             }}
           >
-            {filtered.length === 0 ? (
+            {filtered.length === 0 && filteredStudentFeatures.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center">
                 <div
                   className="flex items-center justify-center mb-3"
@@ -335,197 +580,44 @@ export const NotionResourceModal: React.FC<NotionResourceModalProps> = ({
                 <p className="text-[11.5px] mt-1" style={{ color: T.textMuted }}>Try a different keyword</p>
               </div>
             ) : (
+              <>
+              {filtered.length > 0 && (
               <div
                 className="grid gap-3"
                 style={{ gridTemplateColumns: `repeat(${Math.min(filtered.length, 5)}, 1fr)` }}
               >
-                {filtered.map(item => {
-                  const isHov  = hoveredKey === item.key;
-                  const isFav  = favorites.has(item.key);
-                  const isInfo = infoKey === item.key;
-
-                  return (
-                    <div
-                      key={item.key}
-                      className="relative flex flex-col items-center rounded-xl cursor-pointer select-none"
-                      style={{
-                        background: T.bg,
-                        border: `1.5px solid ${isHov ? item.color : T.border}`,
-                        boxShadow: isHov
-                          ? `0 8px 24px ${item.color}22, 0 1px 4px rgba(0,0,0,0.05)`
-                          : "0 1px 3px rgba(0,0,0,0.05)",
-                        transform: isHov ? "translateY(-3px)" : "none",
-                        transition: "all 0.18s cubic-bezier(0.4,0,0.2,1)",
-                        padding: "16px 10px 12px",
-                      }}
-                      onMouseEnter={() => { setHoveredKey(item.key); setInfoKey(null); }}
-                      onMouseLeave={() => setHoveredKey(null)}
-                      onClick={() => handleSelect(item.key)}
-                    >
-                      {/* Top colour accent bar */}
-                      <div style={{
-                        position: "absolute", top: 0, left: 0, right: 0, height: 2.5,
-                        borderRadius: "10px 10px 0 0",
-                        background: isHov ? item.color : "transparent",
-                        transition: "background 0.18s",
-                      }} />
-
-                      {/* Icon bubble */}
-                      <div
-                        className="flex items-center justify-center mb-3"
-                        style={{
-                          width: 44, height: 44, borderRadius: 12,
-                          background: isHov ? `${item.color}16` : `${item.color}0e`,
-                          border: `1.5px solid ${item.color}${isHov ? "45" : "22"}`,
-                          color: item.color,
-                          boxShadow: isHov ? `0 4px 14px ${item.color}22` : "none",
-                          transform: isHov ? "scale(1.08)" : "scale(1)",
-                          transition: "all 0.18s cubic-bezier(0.4,0,0.2,1)",
-                          flexShrink: 0,
-                        }}
-                      >
-                        {React.cloneElement(item.icon as React.ReactElement, { size: 20, strokeWidth: 1.7 })}
-                      </div>
-
-                      {/* Label */}
-                      <p
-                        style={{
-                          fontSize: 12.5,
-                          fontWeight: 700,
-                          textAlign: "center",
-                          lineHeight: 1.2,
-                          color: isHov ? item.color : T.textMain,
-                          marginBottom: 2,
-                          transition: "color 0.15s",
-                        }}
-                      >
-                        {item.label}
-                      </p>
-
-                      {/* Badge */}
-                      {"badge" in item && item.badge && (
-                        <span
-                          style={{
-                            fontSize: 7.5,
-                            fontWeight: 800,
-                            letterSpacing: "0.06em",
-                            textTransform: "uppercase",
-                            padding: "2px 5px",
-                            borderRadius: 5,
-                            background: `${item.color}14`,
-                            color: item.color,
-                            border: `1px solid ${item.color}28`,
-                            marginBottom: 4,
-                          }}
-                        >
-                          {item.badge}
-                        </span>
-                      )}
-
-                      {/* Star + Info row */}
-                      <div
-                        className="flex items-center gap-1 mt-2"
-                        onClick={e => e.stopPropagation()}
-                      >
-                        {/* ⭐ Star */}
-                        <button
-                          type="button"
-                          title={isFav ? "Unfavourite" : "Favourite"}
-                          onClick={e => toggleFav(item.key, e)}
-                          className="flex items-center justify-center transition-all"
-                          style={{
-                            width: 26, height: 26, borderRadius: 7,
-                            background: isFav ? "rgba(245,158,11,0.10)" : "transparent",
-                            border: `1px solid ${isFav ? "#f59e0b44" : T.border}`,
-                            color: isFav ? "#f59e0b" : T.textHint,
-                          }}
-                          onMouseEnter={e => {
-                            if (!isFav) {
-                              (e.currentTarget as HTMLElement).style.background = "rgba(245,158,11,0.08)";
-                              (e.currentTarget as HTMLElement).style.color = "#f59e0b";
-                              (e.currentTarget as HTMLElement).style.borderColor = "#f59e0b44";
-                            }
-                          }}
-                          onMouseLeave={e => {
-                            if (!isFav) {
-                              (e.currentTarget as HTMLElement).style.background = "transparent";
-                              (e.currentTarget as HTMLElement).style.color = T.textHint;
-                              (e.currentTarget as HTMLElement).style.borderColor = T.border;
-                            }
-                          }}
-                        >
-                          <Star size={11} fill={isFav ? "#f59e0b" : "none"} strokeWidth={isFav ? 0 : 1.8} />
-                        </button>
-
-                        {/* ℹ Info */}
-                        <div className="relative">
-                          <button
-                            type="button"
-                            title="What is this?"
-                            onClick={e => { e.stopPropagation(); setInfoKey(isInfo ? null : item.key); }}
-                            className="flex items-center justify-center transition-all"
-                            style={{
-                              width: 26, height: 26, borderRadius: 7,
-                              background: isInfo ? `${item.color}12` : "transparent",
-                              border: `1px solid ${isInfo ? item.color + "38" : T.border}`,
-                              color: isInfo ? item.color : T.textHint,
-                            }}
-                            onMouseEnter={e => {
-                              if (!isInfo) {
-                                (e.currentTarget as HTMLElement).style.background = `${item.color}0d`;
-                                (e.currentTarget as HTMLElement).style.color = item.color;
-                                (e.currentTarget as HTMLElement).style.borderColor = `${item.color}38`;
-                              }
-                            }}
-                            onMouseLeave={e => {
-                              if (!isInfo) {
-                                (e.currentTarget as HTMLElement).style.background = "transparent";
-                                (e.currentTarget as HTMLElement).style.color = T.textHint;
-                                (e.currentTarget as HTMLElement).style.borderColor = T.border;
-                              }
-                            }}
-                          >
-                            <Info size={11} />
-                          </button>
-
-                          {/* Tooltip */}
-                          {isInfo && (
-                            <div
-                              style={{
-                                position: "absolute",
-                                bottom: "calc(100% + 7px)",
-                                left: "50%",
-                                transform: "translateX(-50%)",
-                                width: 140,
-                                background: "#1a1a2e",
-                                color: "#fff",
-                                borderRadius: 9,
-                                padding: "7px 9px",
-                                fontSize: 10.5,
-                                lineHeight: 1.45,
-                                textAlign: "center",
-                                boxShadow: "0 8px 20px rgba(0,0,0,0.26)",
-                                pointerEvents: "none",
-                                zIndex: 30,
-                              }}
-                            >
-                              {item.description}
-                              <div style={{
-                                position: "absolute", top: "100%", left: "50%",
-                                transform: "translateX(-50%)",
-                                width: 0, height: 0,
-                                borderLeft: "5px solid transparent",
-                                borderRight: "5px solid transparent",
-                                borderTop: "5px solid #1a1a2e",
-                              }} />
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+                {filtered.map(renderCard)}
               </div>
+              )}
+
+              {/* ── Student Used Feature (Notes / AI) ──────────────────────
+                  Only rendered when the Super Admin enabled at least one of
+                  them for this institution's Resource Management. */}
+              {filteredStudentFeatures.length > 0 && (
+                <>
+                  <div
+                    style={{
+                      display: "flex", alignItems: "center", gap: 8,
+                      margin: filtered.length > 0 ? "16px 0 10px" : "0 0 10px",
+                    }}
+                  >
+                    <span style={{
+                      fontSize: 10.5, fontWeight: 800, letterSpacing: "0.06em",
+                      textTransform: "uppercase", color: T.textMuted,
+                    }}>
+                      Student Used Feature
+                    </span>
+                    <div style={{ flex: 1, height: 1, background: T.border }} />
+                  </div>
+                  <div
+                    className="grid gap-3"
+                    style={{ gridTemplateColumns: `repeat(${Math.min(filteredStudentFeatures.length, 5)}, 1fr)` }}
+                  >
+                    {filteredStudentFeatures.map(renderCard)}
+                  </div>
+                </>
+              )}
+              </>
             )}
           </div>
 

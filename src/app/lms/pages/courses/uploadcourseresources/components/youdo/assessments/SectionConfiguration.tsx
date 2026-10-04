@@ -1432,35 +1432,36 @@ useImperativeHandle(ref, () => ({
 
     return (
       <div className="space-y-3 mt-2">
-        <div className="p-3 rounded-lg" style={{ background: D.blue + '06', border: `1px solid ${D.blue}18` }}>
-          <div className="mb-3">
-            <label className="text-[10px] font-semibold uppercase tracking-wide mb-1 block" style={{ color: D.textMuted }}>Scoring Type</label>
-            <ODropdown
-              value={section.mcqConfig?.scoreSettings?.scoreType || 'equalDistribution'}
-              options={mcqScoringOptions}
-              onChange={(v: string) => {
-                if (v === 'questionSpecific') {
-                  handleMCQUpdate(section.id, {
-                    scoreSettings: { ...section.mcqConfig?.scoreSettings, scoreType: v }
-                  });
-                } else {
-                  handleMCQUpdate(section.id, {
-                    scoreSettings: {
-                      ...section.mcqConfig?.scoreSettings,
-                      scoreType: v,
-                      equalDistribution: v === 'equalDistribution' && section.mcqConfig?.generalQuestionCount > 0
-                        ? effectiveTotal / (section.mcqConfig?.generalQuestionCount || 1)
-                        : 0
-                    }
-                  });
-                }
-              }}
-            />
-            {activeErrors?.mcqScoreType && (
-              <p className="mt-1 text-[10px]" style={{ color: D.red }}>{activeErrors.mcqScoreType}</p>
-            )}
-          </div>
-
+        <div className="">
+      <div className="mb-3">
+  <label className="text-[10px] font-semibold uppercase tracking-wide mb-1 block" style={{ color: D.textMuted }}>Scoring Type</label>
+  <div className="max-w-[220px]">
+    <ODropdown
+      value={section.mcqConfig?.scoreSettings?.scoreType || 'equalDistribution'}
+      options={mcqScoringOptions}
+      onChange={(v: string) => {
+        if (v === 'questionSpecific') {
+          handleMCQUpdate(section.id, {
+            scoreSettings: { ...section.mcqConfig?.scoreSettings, scoreType: v }
+          });
+        } else {
+          handleMCQUpdate(section.id, {
+            scoreSettings: {
+              ...section.mcqConfig?.scoreSettings,
+              scoreType: v,
+              equalDistribution: v === 'equalDistribution' && section.mcqConfig?.generalQuestionCount > 0
+                ? effectiveTotal / (section.mcqConfig?.generalQuestionCount || 1)
+                : 0
+            }
+          });
+        }
+      }}
+    />
+  </div>
+  {activeErrors?.mcqScoreType && (
+    <p className="mt-1 text-[10px]" style={{ color: D.red }}>{activeErrors.mcqScoreType}</p>
+  )}
+</div>
           {isEqual ? (
             <>
               <div className="grid grid-cols-2 gap-2">
@@ -1610,16 +1611,15 @@ useImperativeHandle(ref, () => ({
 
     const selectedLevels = getSelectedLevels();
 
-    return (
-      <div className="space-y-3">
-        <div className="p-3 rounded-lg" style={{ background: D.orange + '06', border: `1px solid ${D.orange}18` }}>
-
-          {effectiveTotal > 0 && (
+  return (
+      <div className="space-y-3 mt-2">
+        <div className="">
+          {/* {effectiveTotal > 0 && (
             <div className="mb-3 px-2 py-1.5 rounded flex items-center gap-1.5 text-[10px]" style={{ background: D.orange + '12', color: D.orange }}>
               <Calculator size={10} />
               <span>Allocated for this section: <strong>{formatDecimal(effectiveTotal)} marks</strong></span>
             </div>
-          )}
+          )} */}
 
           {exceedsSectionAllocated && (
             <div className="mb-2 p-2 rounded flex items-start gap-1.5" style={{ background: D.red + '10', border: `1px solid ${D.red}25` }}>
@@ -1988,10 +1988,9 @@ useImperativeHandle(ref, () => ({
               )}
             </div>
           )}
-
-          <div className="mt-3">
+<div className="mt-3">
             <label className="text-[10px] font-semibold uppercase tracking-wide mb-1 block" style={{ color: D.textMuted }}>Question Flow</label>
-            <div className="flex gap-1.5">
+            <div className="flex gap-2">
               {questionFlowOptions.map((opt: any) => {
                 const isSelected = section.programmingConfig?.questionFlow === opt.value;
                 return (
@@ -1999,11 +1998,12 @@ useImperativeHandle(ref, () => ({
                     key={opt.value}
                     type="button"
                     onClick={() => handleProgrammingUpdate(section.id, { questionFlow: opt.value })}
-                    className="flex items-center gap-1 px-2.5 py-1 rounded text-[10px] font-semibold transition-all border"
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all border"
                     style={{
                       borderColor: isSelected ? D.orange : D.border,
                       background: isSelected ? D.orange + '12' : D.bg,
-                      color: isSelected ? D.orange : D.textMuted
+                      color: isSelected ? D.orange : D.textMuted,
+                      borderWidth: isSelected ? 1.5 : 1
                     }}
                   >
                     {opt.label}
@@ -2015,7 +2015,6 @@ useImperativeHandle(ref, () => ({
               <p className="mt-0.5 text-[10px]" style={{ color: D.red }}>{sectionErrors[section.id].progQuestionFlow}</p>
             )}
           </div>
-
           <div className="mt-3 pt-2 border-t" style={{ borderColor: D.border }}>
             <OToggle
               enabled={section.programmingConfig?.attemptLimitEnabled || false}
@@ -2279,12 +2278,15 @@ const renderCombinedConfig = (section: Section) => {
 
   return (
     <div className="p-4 space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: D.orangeLight }}>
-            <Layers size={16} style={{ color: D.orange }} />
+      <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: '#ede9fe', color: '#7c3aed' }}>
+            <Layers size={16} />
           </div>
-          <h3 className="text-base font-bold" style={{ color: D.textMain }}>Section Configuration</h3>
+          <div>
+            <h2 className="text-[15px] font-bold leading-tight" style={{ color: D.textMain }}>Section Configuration</h2>
+            <p className="text-xs mt-0.5" style={{ color: D.textMuted }}>Organize the exercise into sections with their own questions and marks.</p>
+          </div>
         </div>
 
         <div className="flex gap-4">
@@ -2349,18 +2351,10 @@ const renderCombinedConfig = (section: Section) => {
                   background: isActive ? `${D.orangeLight}` : 'transparent'
                 }}
               >
-                {statusIcon}
+         {statusIcon}
                 <span className="max-w-[150px] truncate">
                   {section.name || `Section ${section.sectionNumber}`}
                 </span>
-                {(() => {
-                  const allocatedMarks = initialSections.find(s => s.name === section.name)?.totalMarks ?? section.totalMarks;
-                  return allocatedMarks > 0 ? (
-                    <span className="text-[10px]" style={{ color: exceedsTotal ? D.red : status === 'error' ? D.red : D.textMuted }}>
-                      ({formatDecimal(allocatedMarks)})
-                    </span>
-                  ) : null;
-                })()}
                 {exceedsTotal && (
                   <span className="ml-1 text-[8px] font-bold bg-red-100 text-red-600 px-1 rounded">OVER</span>
                 )}
@@ -2369,113 +2363,91 @@ const renderCombinedConfig = (section: Section) => {
           })}
         </div>
       </div>
-
-      {activeSection ? (
-        <div className="rounded-lg border" style={{ borderColor: D.border, background: '#fff' }}>
-          <div className="flex items-center justify-between px-4 py-2.5 border-b" style={{ borderColor: D.border }}>
-            <div className="flex items-center gap-2">
-              <div
-                className="w-6 h-6 rounded flex items-center justify-center"
-                style={{ background: activeSection.exerciseType && activeSection.totalMarks > 0 ? D.emerald + '15' : D.orangeLight }}
-              >
-                {activeSection.exerciseType && activeSection.totalMarks > 0
-                  ? <Check size={13} style={{ color: D.emerald }} />
-                  : <Settings size={13} style={{ color: D.orange }} />
-                }
-              </div>
-              <span className="text-xs font-bold" style={{ color: D.textMain }}>
-                {activeSection.name || `Section ${activeSection.sectionNumber}`}
+{activeSection ? (
+  <div className="" style={{ borderColor: D.border, background: '#fff' }}>
+    {/* REMOVED the duplicate header section */}
+    
+    <div className="space-y-3">
+     <div>
+        <div className="flex items-center justify-between mb-1">
+          <label className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: D.textMuted }}>
+            Exercise Type <span style={{ color: D.red }}>*</span>
+          </label>
+          {(() => {
+            const allocatedMarks = initialSections.find(s => s.name === activeSection.name)?.totalMarks ?? activeSection.totalMarks;
+            return allocatedMarks > 0 ? (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap" style={{ background: D.blue + '10', color: D.blue }}>
+                Total: {formatDecimal(allocatedMarks)} marks
               </span>
-              {activeSection.exerciseType && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold" style={{ background: D.orange + '12', color: D.orange }}>
-                  {activeSection.exerciseType}
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-3 text-[10px]" style={{ color: D.textMuted }}>
-              {(() => {
-                const allocatedMarks = initialSections.find(s => s.name === activeSection.name)?.totalMarks || 0;
-                return allocatedMarks > 0 ? (
-                  <span>Allocated: <strong style={{ color: D.orange }}>{formatDecimal(allocatedMarks)}</strong> marks</span>
-                ) : null;
-              })()}
-              {formData.sectionBasedDuration && (() => {
-                const dur = initialSections.find(s => s.name === activeSection.name)?.totalDuration || 0;
-                return dur > 0 ? <span><strong style={{ color: D.orange }}>{dur}</strong> min</span> : null;
-              })()}
-            </div>
-          </div>
-
-          <div className="p-4 space-y-3">
-            <div>
-              <label className="text-[10px] font-semibold uppercase tracking-wide mb-1 block" style={{ color: D.textMuted }}>Exercise Type <span style={{ color: D.red }}>*</span></label>
-              <div className="flex gap-1.5">
-                {exerciseTypeOptions.map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => updateSection(activeSection.id, 'exerciseType', opt.value as any)}
-                    className="flex-1 px-2 py-1.5 rounded text-[10px] font-semibold transition-all border"
-                    style={{
-                      borderColor: activeSection.exerciseType === opt.value ? opt.color : D.border,
-                      background: activeSection.exerciseType === opt.value ? `${opt.color}10` : D.bg,
-                      color: activeSection.exerciseType === opt.value ? opt.color : D.textMuted,
-                      borderWidth: activeSection.exerciseType === opt.value ? 1.5 : 1
-                    }}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-              {activeErrors?.exerciseType && (
-                <p className="mt-1 text-[10px]" style={{ color: D.red }}>{activeErrors.exerciseType}</p>
-              )}
-            </div>
-
-            {activeSection.exerciseType && isTotalMarksSet && renderExerciseConfiguration(activeSection)}
-
-            {activeSection.exerciseType && !isTotalMarksSet && (
-              <div className="p-2 rounded text-center text-[10px]" style={{ background: D.amber + '10', color: D.amber }}>
-                ⚠️ Set total marks in Exercise Details to enable configuration
-              </div>
-            )}
-
-            {!activeSection.exerciseType && (
-              <div className="p-2 rounded text-center text-[10px]" style={{ background: D.blue + '08', color: D.textMuted }}>
-                Select an exercise type above to configure this section
-              </div>
-            )}
-
-            {activeErrors && Object.keys(activeErrors).length > 0 && (
-              <div className="p-2 rounded space-y-1" style={{ background: D.red + '08', borderLeft: `2px solid ${D.red}` }}>
-                {Object.entries(activeErrors).map(([key, error]) => (
-                  <div key={key} className="flex items-start gap-1.5 text-[10px]" style={{ color: D.red }}>
-                    <AlertCircle size={11} className="flex-shrink-0 mt-0.5" />
-                    <span>{error}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {activeWarnings && Object.keys(activeWarnings).length > 0 && (
-              <div className="p-2 rounded space-y-1" style={{ background: D.amber + '08' }}>
-                {Object.entries(activeWarnings).map(([key, warning]) => (
-                  <div key={key} className="flex items-start gap-1.5 text-[10px]" style={{ color: D.amber }}>
-                    <AlertTriangle size={11} className="flex-shrink-0 mt-0.5" />
-                    <span>{warning}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+            ) : null;
+          })()}
         </div>
-      ) : (
-        <div className="text-center py-8 rounded-lg border-2 border-dashed" style={{ borderColor: D.border }}>
-          <Layers size={32} style={{ color: D.textMuted, margin: '0 auto 8px', opacity: 0.4 }} />
-          <p className="text-xs" style={{ color: D.textMuted }}>No sections available</p>
+        <div className="flex gap-1.5">
+          {exerciseTypeOptions.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => updateSection(activeSection.id, 'exerciseType', opt.value as any)}
+              className="flex-1 px-2 py-1.5 rounded text-[10px] font-semibold transition-all border"
+              style={{
+                borderColor: activeSection.exerciseType === opt.value ? opt.color : D.border,
+                background: activeSection.exerciseType === opt.value ? `${opt.color}10` : D.bg,
+                color: activeSection.exerciseType === opt.value ? opt.color : D.textMuted,
+                borderWidth: activeSection.exerciseType === opt.value ? 1.5 : 1
+              }}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        {activeErrors?.exerciseType && (
+          <p className="mt-1 text-[10px]" style={{ color: D.red }}>{activeErrors.exerciseType}</p>
+        )}
+      </div>
+
+      {activeSection.exerciseType && isTotalMarksSet && renderExerciseConfiguration(activeSection)}
+
+      {activeSection.exerciseType && !isTotalMarksSet && (
+        <div className="p-2 rounded text-center text-[10px]" style={{ background: D.amber + '10', color: D.amber }}>
+          ⚠️ Set total marks in Exercise Details to enable configuration
         </div>
       )}
 
+      {!activeSection.exerciseType && (
+        <div className="p-2 rounded text-center text-[10px]" style={{ background: D.blue + '08', color: D.textMuted }}>
+          Select an exercise type above to configure this section
+        </div>
+      )}
+
+      {activeErrors && Object.keys(activeErrors).length > 0 && (
+        <div className="p-2 rounded space-y-1" style={{ background: D.red + '08', borderLeft: `2px solid ${D.red}` }}>
+          {Object.entries(activeErrors).map(([key, error]) => (
+            <div key={key} className="flex items-start gap-1.5 text-[10px]" style={{ color: D.red }}>
+              <AlertCircle size={11} className="flex-shrink-0 mt-0.5" />
+              <span>{error}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {activeWarnings && Object.keys(activeWarnings).length > 0 && (
+        <div className="p-2 rounded space-y-1" style={{ background: D.amber + '08' }}>
+          {Object.entries(activeWarnings).map(([key, warning]) => (
+            <div key={key} className="flex items-start gap-1.5 text-[10px]" style={{ color: D.amber }}>
+              <AlertTriangle size={11} className="flex-shrink-0 mt-0.5" />
+              <span>{warning}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  </div>
+) : (
+  <div className="text-center py-8 rounded-lg border-2 border-dashed" style={{ borderColor: D.border }}>
+    <Layers size={32} style={{ color: D.textMuted, margin: '0 auto 8px', opacity: 0.4 }} />
+    <p className="text-xs" style={{ color: D.textMuted }}>No sections available</p>
+  </div>
+)}
       {sortedSections.length > 0 && (
         <div className="pt-4 border-t" style={{ borderColor: D.border }}>
           <div className="flex justify-between items-center">

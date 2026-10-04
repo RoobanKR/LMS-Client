@@ -38,7 +38,7 @@ function DialogOverlay({
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
       className={cn(
-        "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/50",
+        "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-overlay bg-ink-900/40",
         className
       )}
       {...props}
@@ -57,10 +57,17 @@ function DialogContent({
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay />
+      {/* grid-cols-[minmax(0,1fr)]: a grid item defaults to min-width:auto, so
+          its min-content size becomes the column's floor. One nowrap child (a
+          .truncate hint, a long button row) then widens the track past the
+          dialog's own max-w and everything spills out the right edge — clipped
+          away entirely when the dialog sets overflow-hidden. Pinning the single
+          column to a 0 minimum keeps the track at the dialog's width and lets
+          truncation do its job. */}
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border p-6 shadow-lg duration-200",
+          "bg-surface data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-modal grid grid-cols-[minmax(0,1fr)] w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-xl border border-hairline p-6 shadow-xl duration-200",
           className
         )}
         {...props}
@@ -69,9 +76,7 @@ function DialogContent({
         {showCloseButton && (
           <DialogPrimitive.Close
             data-slot="dialog-close"
-            // className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground absolute top-4 right-4 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
-            className="absolute top-4 right-4 cursor-pointer rounded-xs bg-red-600 text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 p-1 transition-colors disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
-
+            className="absolute top-4 right-4 cursor-pointer rounded-chip p-1 text-subtle transition-colors duration-150 hover:bg-row-hover hover:text-heading focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
           >
             <XIcon />
             <span className="sr-only">Close</span>
@@ -112,7 +117,7 @@ function DialogTitle({
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
-      className={cn("text-lg leading-none font-semibold", className)}
+      className={cn("text-lg leading-none font-semibold text-heading", className)}
       {...props}
     />
   )
@@ -125,7 +130,7 @@ function DialogDescription({
   return (
     <DialogPrimitive.Description
       data-slot="dialog-description"
-      className={cn("text-muted-foreground text-sm", className)}
+      className={cn("text-subtle text-sm", className)}
       {...props}
     />
   )

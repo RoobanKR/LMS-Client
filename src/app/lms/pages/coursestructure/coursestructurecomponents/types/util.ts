@@ -1,4 +1,5 @@
 import { Permission, UserData } from ".";
+import { getFlatPages, storedListMatches } from "@/app/lms/pages/usermanagement/config/permissions.helpers";
 
 const USER_DATA_KEY = "smartcliff_userData";
 
@@ -41,26 +42,24 @@ export const getUserRole = (): string => {
     }
 };
 
+// Alias-aware — see usermanagement/components/permissions.ts for the
+// motivation. Old call-sites pass legacy functionality labels; the tree may
+// have renamed them, and storage now writes the new names. Delegating through
+// storedListMatches makes both directions resolve.
 export const hasPermission = (
     permissions: Permission[],
     permissionKey: string,
     functionality?: string
 ): boolean => {
     const permission = permissions.find(p => p.permissionKey === permissionKey);
-    
-    if (!permission || !permission.isActive) {
-        return false;
-    }
-    
-    if (functionality) {
-        const trimmedFunctionality = functionality.trim();
-        const hasFunc = permission.permissionFunctionality.some(func => 
-            func.trim() === trimmedFunctionality
-        );
-        return hasFunc;
-    }
-    
-    return true;
+    if (!permission || !permission.isActive) return false;
+    if (!functionality) return true;
+    const stored = permission.permissionFunctionality || [];
+    const pageIds = getFlatPages()
+        .filter((p) => p.key === permissionKey)
+        .map((p) => p.id);
+    if (pageIds.some((id) => storedListMatches(id, functionality, stored))) return true;
+    return stored.some((f) => f.trim().toLowerCase() === functionality.trim().toLowerCase());
 };
 
 export const getPermission = (

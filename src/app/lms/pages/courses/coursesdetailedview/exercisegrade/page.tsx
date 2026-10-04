@@ -1,4 +1,5 @@
 "use client"
+import { getToken } from "@/lib/session";
 
 import { useState, useEffect, useMemo } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
@@ -16,6 +17,7 @@ import { Loading } from "@/components/loading-ui/loading"
 
 // Import Google Fonts
 import { Montserrat, Inter } from 'next/font/google'
+import { API_ORIGIN } from '@/lib/apiBase'
 
 // Configure Google Fonts
 const montserrat = Montserrat({
@@ -173,7 +175,7 @@ export default function ExerciseGradeDashboard() {
     else if (!apiData) setLoading(true)
 
     try {
-      const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || ''
+      const token = getToken() || localStorage.getItem('token') || ''
       const courseId = searchParams.get("courseId")
       const category = searchParams.get("category")
       const subcategory = searchParams.get("subcategory")
@@ -189,7 +191,7 @@ export default function ExerciseGradeDashboard() {
       if (subcategory) params.append('subcategory', subcategory || '')
       
       const response = await fetch(
-        `https://lms-server-ym1q.onrender.com/analytics/exercise/${exerciseId}?${params.toString()}`,
+        `${API_ORIGIN}/analytics/exercise/${exerciseId}?${params.toString()}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -199,7 +201,14 @@ export default function ExerciseGradeDashboard() {
       )
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        // The API answers every failure with { success, message, error }.
+        // Throwing the bare status discarded all of it, so a 500 here surfaced
+        // as "HTTP error! status: 500" and could only be diagnosed by reading
+        // the server console.
+        const detail = await response.json().catch(() => null)
+        throw new Error(
+          detail?.error || detail?.message || `HTTP error! status: ${response.status}`
+        )
       }
 
       const data: ApiResponse = await response.json()
@@ -237,7 +246,7 @@ export default function ExerciseGradeDashboard() {
       title: "Dashboard",
       icon: Home,
       onClick: () => router.push('/lms/pages/studentdashboard'),
-      color: "text-blue-600 hover:text-blue-700"
+      color: "text-orange-600 hover:text-orange-700"
     })
 
     if (contextInfo?.courseId) {
@@ -250,7 +259,7 @@ export default function ExerciseGradeDashboard() {
           localStorage.removeItem('lms_student_selected_activity')
           router.push(`/lms/pages/courses/coursesdetailedview/${contextInfo.courseId}`)
         },
-        color: "text-gray-600 hover:text-blue-600"
+        color: "text-gray-600 hover:text-orange-600"
       })
     }
 
@@ -276,7 +285,7 @@ export default function ExerciseGradeDashboard() {
         title: methodName,
         icon: Target,
         onClick: null,
-        color: "text-blue-600",
+        color: "text-orange-600",
         isActive: false
       })
     }
@@ -286,7 +295,7 @@ export default function ExerciseGradeDashboard() {
         title: apiData.exercise.foundInSubcategory.replace(/_/g, " "),
         icon: Activity,
         onClick: null,
-        color: "text-blue-600",
+        color: "text-orange-600",
         isActive: false
       })
     }
@@ -305,7 +314,7 @@ export default function ExerciseGradeDashboard() {
       title: "Grade",
       icon: Trophy,
       onClick: null,
-      color: "text-blue-600 font-semibold",
+      color: "text-orange-600 font-semibold",
       isActive: true
     })
 
@@ -314,37 +323,43 @@ export default function ExerciseGradeDashboard() {
       return text.substring(0, maxLength) + "..."
     }
 
+    // Compact chrome: a Back chip on the far left, then only the FINAL
+    // trail (course → exercise name → Grade). The old nav pushed six+
+    // icon chips horizontally scrollable — visually noisy and dwarfed the
+    // Back affordance. Trimmed titles cap at 24 chars. We drop Dashboard,
+    // hierarchy tail (module/topic), method, and subcategory because the
+    // Back button already handles walking backward.
+    const shortTrail = [
+      // Course (if we have it)
+      ...breadcrumbItems.filter((it) => it.icon === GraduationCap).slice(0, 1),
+      // Exercise name
+      ...breadcrumbItems.filter((it) => it.icon === FileText).slice(0, 1),
+      // Final "Grade" pill
+      ...breadcrumbItems.filter((it) => it.isActive).slice(0, 1),
+    ]
     return (
-      <div className="bg-white rounded-lg p-2">
-        <nav className="flex items-center gap-1 text-xs px-1 overflow-x-auto custom-scrollbar">
-          <div className="flex justify-between items-center">
-            <button
-              onClick={() => router.back()}
-              className="flex items-center gap-1 px-3 py-1 text-xs text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded transition-all duration-200"
-            >
-              <ArrowLeft className="w-3 h-3" />
-              Back to Exercises
-            </button>
-          </div>
-          {breadcrumbItems.map((item, index) => (
-            <div key={index} className="flex items-center">
-              {index > 0 && (
-                <ChevronRight className="w-3 h-3 text-gray-400 mx-1 flex-shrink-0" />
-              )}
+      <div className="bg-white">
+        <nav className="flex items-center gap-2 px-3 py-2 text-xs">
+          <button
+            onClick={() => router.back()}
+            title="Back"
+            aria-label="Back"
+            className="flex items-center gap-1 px-2 py-1 rounded-md text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span className="font-medium">Back</span>
+          </button>
+          <span aria-hidden="true" className="text-slate-300">/</span>
+          {shortTrail.map((item, index) => (
+            <div key={index} className="flex items-center gap-2 min-w-0">
+              {index > 0 && <span aria-hidden="true" className="text-slate-300">/</span>}
               <div
                 onClick={item.onClick || undefined}
-                className={`
-                  flex items-center gap-1 px-2 py-1.5 rounded-md transition-all duration-200 whitespace-nowrap flex-shrink-0
-                  ${item.onClick 
-                    ? "hover:bg-blue-50 hover:text-blue-700 cursor-pointer" 
-                    : "cursor-default"
-                  }
-                  ${item.color}
-                  ${item.isActive ? "bg-blue-50 border border-blue-200" : ""}
-                `}
+                title={item.title}
+                className={`flex items-center gap-1 whitespace-nowrap
+                  ${item.onClick ? "text-slate-500 hover:text-orange-700 cursor-pointer" : "text-slate-900 font-semibold cursor-default"}`}
               >
-                <item.icon className="w-3 h-3" />
-                <span className="font-medium">{truncateText(item.title)}</span>
+                <span className="font-medium truncate max-w-[24ch]">{truncateText(item.title, 24)}</span>
               </div>
             </div>
           ))}
@@ -506,8 +521,8 @@ export default function ExerciseGradeDashboard() {
   const SortIcon = ({ active, direction }: { active: boolean, direction: SortDirection }) => {
     if (!active) return <ArrowUpDown className="w-3 h-3 text-slate-300 ml-1" />
     return direction === 'asc' 
-      ? <ArrowUp className="w-3 h-3 text-blue-600 ml-1" /> 
-      : <ArrowDown className="w-3 h-3 text-blue-600 ml-1" />
+      ? <ArrowUp className="w-3 h-3 text-orange-600 ml-1" />
+      : <ArrowDown className="w-3 h-3 text-orange-600 ml-1" />
   }
 
   if (loading) return (
@@ -520,7 +535,7 @@ export default function ExerciseGradeDashboard() {
     <div className={`h-screen w-screen flex flex-col items-center justify-center bg-slate-50 ${inter.variable} font-sans`}>
       <AlertCircle className="w-12 h-12 text-rose-500 mb-4" />
       <p className="text-lg text-slate-600">{error || 'No data available'}</p>
-      <button onClick={() => fetchExerciseAnalytics(true)} className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg">Retry</button>
+      <button onClick={() => fetchExerciseAnalytics(true)} className="mt-4 px-4 py-2 bg-orange-600 text-white rounded-lg">Retry</button>
     </div>
   )
 
@@ -587,26 +602,30 @@ export default function ExerciseGradeDashboard() {
           
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-full">
             
-            {/* LEFT COLUMN: Table */}
-            <div className="lg:col-span-3 flex flex-col h-full order-2 lg:order-1 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-              
-              <div className="p-4 border-b border-slate-100 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-4 flex-shrink-0">
+            {/* LEFT COLUMN: Table — L/R borders dropped, corners squared,
+                shadow removed to match the We_Do assignment list panel
+                (edge-to-edge white surface separated only by top/bottom
+                hairlines). Header font sizes stepped down so the title +
+                subtitle share the same rhythm as the assignments toolbar. */}
+            <div className="lg:col-span-3 flex flex-col h-full order-2 lg:order-1 bg-white border-y border-slate-200 overflow-hidden">
+
+              <div className="p-3 border-b border-slate-100 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 flex-shrink-0">
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900 font-heading">Question Details</h3>
-                  <div className="text-xs text-slate-500 mt-0.5">
+                  <h3 className="text-sm font-semibold text-slate-900">Question Details</h3>
+                  <div className="text-2xs text-slate-500 mt-0.5">
                     Showing {processedQuestions.length} of {apiData.questions.length} questions
                   </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <div className="flex bg-slate-100 rounded-lg p-1">
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <div className="flex bg-slate-100 rounded-lg p-0.5">
                     {(['all', 'easy', 'medium', 'hard'] as const).map((filter) => (
                       <button
                         key={filter}
                         onClick={() => setDifficultyFilter(filter)}
-                        className={`px-3 py-1.5 text-xs font-medium rounded-md capitalize transition-all ${
-                          difficultyFilter === filter 
-                          ? 'bg-white text-slate-900 shadow-sm' 
+                        className={`px-2.5 py-1 text-2xs font-semibold rounded-md capitalize transition-all ${
+                          difficultyFilter === filter
+                          ? 'bg-white text-slate-900 shadow-sm'
                           : 'text-slate-500 hover:text-slate-700'
                         }`}
                       >
@@ -616,13 +635,13 @@ export default function ExerciseGradeDashboard() {
                   </div>
 
                   <div className="relative">
-                    <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
-                    <input 
-                      type="text" 
-                      placeholder="Search questions..." 
+                    <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Search questions..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-9 pr-4 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 w-full sm:w-48 bg-slate-50"
+                      className="pl-8 pr-3 py-1 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 w-full sm:w-44 bg-slate-50"
                     />
                   </div>
                 </div>
@@ -690,7 +709,7 @@ export default function ExerciseGradeDashboard() {
                                 <span className="font-semibold">{attemptStatus.text}</span>
                               </div>
                             </td>
-                            <td className="px-6 py-4 font-medium text-slate-900 group-hover:text-blue-600 transition-colors">
+                            <td className="px-6 py-4 font-medium text-slate-900 group-hover:text-orange-600 transition-colors">
                               {question.title}
                             </td>
                             <td className="px-6 py-4">
@@ -738,7 +757,7 @@ export default function ExerciseGradeDashboard() {
             {/* RIGHT COLUMN: Stats Cards */}
             <div className="lg:col-span-1 h-full overflow-y-auto custom-scrollbar order-1 lg:order-2 space-y-4 pb-4">
               {/* Grade Summary Card */}
-              <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-5 text-white shadow-sm">
+              <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-5 text-white shadow-sm">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <Trophy className="w-5 h-5 text-yellow-300" />
@@ -758,6 +777,14 @@ export default function ExerciseGradeDashboard() {
                   <div className="text-4xl font-bold">{apiData.grade.percentage}%</div>
                   <div className="text-sm opacity-90 mt-1">
                     {apiData.grade.obtained} / {apiData.grade.outOf} points
+                  </div>
+                  {/* Correct-question count beside the marks. The points line
+                      alone doesn't answer "how many did I actually get right"
+                      once questions carry different weights — 8/20 and 2/5 are
+                      the same result told two ways, and students read the
+                      second one faster. */}
+                  <div className="text-sm opacity-90 mt-0.5">
+                    {apiData.summary.correctQuestions} / {apiData.summary.totalQuestions} questions correct
                   </div>
                   {apiData.grade.passingMarksRequired && (
                     <div className="text-xs opacity-75 mt-1">
@@ -864,7 +891,7 @@ export default function ExerciseGradeDashboard() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500">Evaluated:</span>
-                    <span className="font-semibold text-blue-600">{apiData.summary.evaluatedQuestions}</span>
+                    <span className="font-semibold text-orange-600">{apiData.summary.evaluatedQuestions}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500">Correct (70%+):</span>

@@ -1,295 +1,55 @@
 "use client";
+import { getToken } from "@/lib/session";
 
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
-    ChevronLeft,
-    ChevronRight,
     X,
-    Plus,
-    MoreHorizontal,
-    MoreVertical,
-    ShieldCheck,
-    Home,
-    UserCircle,
-    Settings,
-    Trash2,
+    BookOpen,
+    ChevronDown,
+    LogOut,
+    User as UserIcon,
+    Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
+import * as TooltipPrimitive from "@radix-ui/react-tooltip";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useSidebar } from "./layout";
-
-// Define types for permissions
-interface UserPermission {
-    _id: string;
-    permissionName: string;
-    permissionKey: string;
-    permissionFunctionality: string[];
-    icon: string;
-    color: string;
-    description: string;
-    isActive: boolean;
-    order: number;
-    createdAt: string;
-    updatedAt: string;
-}
-
-interface UserData {
-    _id: string;
-    email: string;
-    firstName: string;
-    lastName: string;
-    permissions: UserPermission[];
-    // Other user fields...
-}
-
-interface SidebarItem {
-    title: string;
-    href: string;
-    icon: any;
-    iconName: string;
-    color: string;
-    hasChevron?: boolean;
-    hasDropdown?: boolean;
-    permissionKey?: string;
-    children?: SidebarItem[];
-}
-
-// Import all icons from lucide-react
-import * as LucideIcons from "lucide-react";
-
-// Get icon by name from lucide-icons
-const getIconByName = (iconName: string): any => {
-    if (!iconName) return ShieldCheck;
-    
-    if (LucideIcons[iconName as keyof typeof LucideIcons]) {
-        return LucideIcons[iconName as keyof typeof LucideIcons];
-    }
-    
-    const pascalCaseName = iconName
-        .split(/[-_]/)
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-        .join('');
-    
-    if (LucideIcons[pascalCaseName as keyof typeof LucideIcons]) {
-        return LucideIcons[pascalCaseName as keyof typeof LucideIcons];
-    }
-    
-    const iconMappings: Record<string, any> = {
-        "user": LucideIcons.Users,
-        "users": LucideIcons.Users,
-        "user-circle": UserCircle,
-        "usercircle": UserCircle,
-        "book": LucideIcons.BookOpen,
-        "book-open": LucideIcons.BookOpen,
-        "bookopen": LucideIcons.BookOpen,
-        "file": LucideIcons.FileText,
-        "file-text": LucideIcons.FileText,
-        "filetext": LucideIcons.FileText,
-        "chart": LucideIcons.BarChart3,
-        "bar-chart": LucideIcons.BarChart3,
-        "barchart": LucideIcons.BarChart3,
-        "bar-chart-3": LucideIcons.BarChart3,
-        "barchart3": LucideIcons.BarChart3,
-        "settings": Settings,
-        "setting": Settings,
-        "gear": Settings,
-        "cog": Settings,
-        "dashboard": Home,
-        "home": Home,
-        "graduation-cap": LucideIcons.GraduationCap,
-        "graduationcap": LucideIcons.GraduationCap,
-        "calendar": LucideIcons.Calendar,
-        "message": LucideIcons.MessageSquare,
-        "message-square": LucideIcons.MessageSquare,
-        "messagesquare": LucideIcons.MessageSquare,
-        "landmark": LucideIcons.Landmark,
-        "sliders": LucideIcons.Sliders,
-        "globe": LucideIcons.Globe,
-        "wrench": LucideIcons.Wrench,
-        "layout": LucideIcons.Layout,
-        "database": LucideIcons.Database,
-        "bell": LucideIcons.Bell,
-        "help-circle": LucideIcons.HelpCircle,
-        "helpcircle": LucideIcons.HelpCircle,
-        "shield": ShieldCheck,
-        "shield-check": ShieldCheck,
-        "shieldcheck": ShieldCheck,
-        "folder": LucideIcons.Folder,
-    };
-    
-    const lowerIconName = iconName.toLowerCase();
-    if (iconMappings[lowerIconName]) {
-        return iconMappings[lowerIconName];
-    }
-    
-    return ShieldCheck;
-};
-
-// Color classes mapping
-const colorClasses: Record<string, any> = {
-    blue: {
-        bg: "bg-blue-50",
-        border: "border-blue-500",
-        text: "text-blue-600",
-        bgLight: "bg-blue-100",
-        textLight: "text-blue-700",
-        hover: "hover:bg-blue-50",
-        iconBg: "bg-blue-100",
-        iconText: "text-blue-600",
-    },
-    green: {
-        bg: "bg-green-50",
-        border: "border-green-500",
-        text: "text-green-600",
-        bgLight: "bg-green-100",
-        textLight: "text-green-700",
-        hover: "hover:bg-green-50",
-        iconBg: "bg-green-100",
-        iconText: "text-green-600",
-    },
-    purple: {
-        bg: "bg-purple-50",
-        border: "border-purple-500",
-        text: "text-purple-600",
-        bgLight: "bg-purple-100",
-        textLight: "text-purple-700",
-        hover: "hover:bg-purple-50",
-        iconBg: "bg-purple-100",
-        iconText: "text-purple-600",
-    },
-    orange: {
-        bg: "bg-orange-50",
-        border: "border-orange-500",
-        text: "text-orange-600",
-        bgLight: "bg-orange-100",
-        textLight: "text-orange-700",
-        hover: "hover:bg-orange-50",
-        iconBg: "bg-orange-100",
-        iconText: "text-orange-600",
-    },
-    teal: {
-        bg: "bg-teal-50",
-        border: "border-teal-500",
-        text: "text-teal-600",
-        bgLight: "bg-teal-100",
-        textLight: "text-teal-700",
-        hover: "hover:bg-teal-50",
-        iconBg: "bg-teal-100",
-        iconText: "text-teal-600",
-    },
-    gray: {
-        bg: "bg-gray-50",
-        border: "border-gray-500",
-        text: "text-gray-600",
-        bgLight: "bg-gray-100",
-        textLight: "text-gray-700",
-        hover: "hover:bg-gray-50",
-        iconBg: "bg-gray-100",
-        iconText: "text-gray-600",
-    },
-    red: {
-        bg: "bg-red-50",
-        border: "border-red-500",
-        text: "text-red-600",
-        bgLight: "bg-red-100",
-        textLight: "text-red-700",
-        hover: "hover:bg-red-50",
-        iconBg: "bg-red-100",
-        iconText: "text-red-600",
-    },
-    pink: {
-        bg: "bg-pink-50",
-        border: "border-pink-500",
-        text: "text-pink-600",
-        bgLight: "bg-pink-100",
-        textLight: "text-pink-700",
-        hover: "hover:bg-pink-50",
-        iconBg: "bg-pink-100",
-        iconText: "text-pink-600",
-    },
-    indigo: {
-        bg: "bg-indigo-50",
-        border: "border-indigo-500",
-        text: "text-indigo-600",
-        bgLight: "bg-indigo-100",
-        textLight: "text-indigo-700",
-        hover: "hover:bg-indigo-50",
-        iconBg: "bg-indigo-100",
-        iconText: "text-indigo-600",
-    },
-    yellow: {
-        bg: "bg-yellow-50",
-        border: "border-yellow-500",
-        text: "text-yellow-600",
-        bgLight: "bg-yellow-100",
-        textLight: "text-yellow-700",
-        hover: "hover:bg-yellow-50",
-        iconBg: "bg-yellow-100",
-        iconText: "text-yellow-600",
-    },
-    cyan: {
-        bg: "bg-cyan-50",
-        border: "border-cyan-500",
-        text: "text-cyan-600",
-        bgLight: "bg-cyan-100",
-        textLight: "text-cyan-700",
-        hover: "hover:bg-cyan-50",
-        iconBg: "bg-cyan-100",
-        iconText: "text-cyan-600",
-    },
-};
-
-const getColorClass = (color: string) => {
-    return colorClasses[color] || colorClasses.blue;
-};
-
-const sidebarTextStyle = {
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif',
-    fontStyle: 'normal' as const,
-    fontWeight: 500,
-    color: 'rgb(80, 82, 88)',
-    fontSize: '13px',
-    lineHeight: 'normal' as const,
-};
+import { logoutUser } from "@/apiServices/tokenVerify";
+import { postLogout } from "@/apiServices/activityLog";
+import NotificationDot from "./NotificationDot";
+// The permission → route derivation (types, icon lookup, admin whitelist and
+// the Client Management merge) lives in ONE shared pure module so the
+// command palette can never disagree with the sidebar.
+import {
+    buildNavForStoredUser,
+    groupSidebarItems,
+    USER_DATA_KEY,
+    type SidebarItem,
+    type UserData,
+    type UserPermission,
+} from "../shared/ui/navItems";
 
 interface SidebarProps {
     className?: string;
 }
 
-// Local storage key for recent items
-const RECENT_ITEMS_KEY = "smartcliff_recent_sidebar_items";
-const MAX_RECENT_ITEMS = 5;
-
-// Local storage key for user data
-const USER_DATA_KEY = "smartcliff_userData";
-
-// Tooltip Component - Clean design without arrow
-interface TooltipProps {
-    title: string;
-    position: { x: number; y: number };
-    isVisible: boolean;
-}
-
-const Tooltip = ({ title, position, isVisible }: TooltipProps) => {
-    if (!isVisible) return null;
-
-    return (
-        <div
-            className="fixed z-[100] pointer-events-none transition-opacity duration-200"
-            style={{
-                left: `${position.x}px`,
-                top: `${position.y}px`,
-                transform: 'translateY(-50%)',
-            }}
-        >
-            <div className="bg-gray-800 text-white text-xs font-medium py-2 px-3 rounded-md shadow-lg whitespace-nowrap">
-                {title}
-            </div>
-        </div>
-    );
-};
+// Rail geometry + the one spring every width/pill move shares.
+// 268, not 244: at 244 the label box came out ~150px once the 18px icon, the
+// 12px gap, the chevron and the submenu indent were subtracted — and the
+// longest real labels ("Attendance Management", "Business Management") need
+// ~165px at text-sm. They truncated in the live nav, which reads as unfinished.
+const EXPANDED_W = 268;
+const COLLAPSED_W = 64;
+const sidebarSpring = { type: "spring" as const, stiffness: 400, damping: 34 };
 
 export function Sidebar({ className }: SidebarProps) {
     const pathname = usePathname();
@@ -298,26 +58,15 @@ export function Sidebar({ className }: SidebarProps) {
     const [isMobile, setIsMobile] = useState(false);
     const [userPermissions, setUserPermissions] = useState<UserPermission[]>([]);
     const [sidebarItems, setSidebarItems] = useState<SidebarItem[]>([]);
-    const [recentItems, setRecentItems] = useState<SidebarItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [hoveredItem, setHoveredItem] = useState<string | null>(null);
-    
-    // Tooltip state
-    const [tooltip, setTooltip] = useState<{
-        title: string;
-        position: { x: number; y: number };
-        isVisible: boolean;
-    }>({
-        title: "",
-        position: { x: 0, y: 0 },
-        isVisible: false,
-    });
-
-    // Refs for tooltip positioning
-    const sidebarRef = useRef<HTMLDivElement>(null);
-    const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    // Store refs for each sidebar item for tooltip positioning
-    const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
+    const [currentUser, setCurrentUser] = useState<UserData | null>(null);
+    const [showUserMenu, setShowUserMenu] = useState(false);
+    const [isLoggingOut, setIsLoggingOut] = useState(false);
+    // Submenus the user has explicitly toggled. A key absent here falls back to
+    // "open while you are inside that section", so the submenu is there when it
+    // is relevant without the user having to open it first.
+    const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
 
     // Check if mobile view
     useEffect(() => {
@@ -335,7 +84,7 @@ export function Sidebar({ className }: SidebarProps) {
         const loadUserPermissions = () => {
             try {
                 const userDataString = localStorage.getItem(USER_DATA_KEY);
-                
+
                 if (!userDataString) {
                     console.error("No user data found in localStorage");
                     setLoading(false);
@@ -343,21 +92,16 @@ export function Sidebar({ className }: SidebarProps) {
                 }
 
                 const userData: UserData = JSON.parse(userDataString);
-                
-                if (userData?.permissions) {
-                    const permissions: UserPermission[] = userData.permissions;
-                    setUserPermissions(permissions);
-                    
-                    // Build sidebar items from permissions
-                    const sidebarItemsFromPermissions = buildSidebarItems(permissions);
-                    setSidebarItems(sidebarItemsFromPermissions);
-                    
-                    // Load recent items from localStorage
-                    loadRecentItems(sidebarItemsFromPermissions);
-                } else {
-                    console.error("No permissions found in user data");
-                    setSidebarItems([]);
-                }
+                setCurrentUser(userData);
+
+                setUserPermissions(userData?.permissions || []);
+                // EVERY role's rail comes from the permissions this account
+                // holds — there is no per-role nav constant any more. Grant or
+                // revoke a module in Assign Permission and the rail follows on
+                // the next sign-in. Going through the shared helper (rather
+                // than buildSidebarItems) keeps the command palette on exactly
+                // the same item set.
+                setSidebarItems(buildNavForStoredUser(userData));
             } catch (error) {
                 console.error("Error loading user data from localStorage:", error);
                 setSidebarItems([]);
@@ -367,443 +111,416 @@ export function Sidebar({ className }: SidebarProps) {
         };
 
         loadUserPermissions();
-    }, []);
-
-    // Update recent items when pathname changes
-    useEffect(() => {
-        if (sidebarItems.length > 0 && pathname) {
-            updateRecentItems(pathname);
-        }
-    }, [pathname, sidebarItems]);
-
-    // Clean up timeout on unmount
-    useEffect(() => {
-        return () => {
-            if (hoverTimeoutRef.current) {
-                clearTimeout(hoverTimeoutRef.current);
+        const onStorage = (event: StorageEvent) => {
+            if (!event.key || event.key === USER_DATA_KEY || event.key === 'smartcliff_permissions') {
+                loadUserPermissions();
             }
         };
+        window.addEventListener('storage', onStorage);
+        return () => window.removeEventListener('storage', onStorage);
     }, []);
 
-    // Build sidebar items from user permissions
-    const buildSidebarItems = (permissions: UserPermission[]): SidebarItem[] => {
-        const items: SidebarItem[] = [];
-        const sortedPermissions = [...permissions].sort((a, b) => a.order - b.order);
-
-        sortedPermissions.forEach((permission) => {
-            if (permission.isActive) {
-                const IconComponent = getIconByName(permission.icon || "ShieldCheck");
-                const routeKey = permission.permissionKey.toLowerCase();
-                const route = `/lms/pages/${routeKey}`;
-                
-                items.push({
-                    title: permission.permissionName, // Full permission name for tooltip
-                    href: route,
-                    icon: IconComponent,
-                    iconName: permission.icon || "ShieldCheck",
-                    color: permission.color || "blue",
-                    hasChevron: false,
-                    permissionKey: permission.permissionKey,
-                });
-            }
-        });
-
-        return items;
-    };
-
-    // Load recent items from localStorage
-    const loadRecentItems = (allItems: SidebarItem[]) => {
-        try {
-            const stored = localStorage.getItem(RECENT_ITEMS_KEY);
-            if (stored) {
-                const storedItems = JSON.parse(stored);
-                // Map stored items to current sidebar items
-                const recent = storedItems
-                    .map((storedItem: any) => {
-                        return allItems.find(item => 
-                            item.permissionKey === storedItem.permissionKey || 
-                            item.href === storedItem.href
-                        );
-                    })
-                    .filter(Boolean)
-                    .slice(0, MAX_RECENT_ITEMS);
-                setRecentItems(recent);
-            } else {
-                // If no stored items, default to first item (usually Dashboard)
-                if (allItems.length > 0) {
-                    const defaultItem = allItems[0];
-                    setRecentItems([defaultItem]);
-                    saveRecentItems([defaultItem]);
-                }
-            }
-        } catch (error) {
-            console.error("Error loading recent items:", error);
-            if (allItems.length > 0) {
-                const defaultItem = allItems[0];
-                setRecentItems([defaultItem]);
-            }
-        }
-    };
-
-    // Save recent items to localStorage
-    const saveRecentItems = (items: SidebarItem[]) => {
-        try {
-            const itemsToStore = items.map(item => ({
-                title: item.title,
-                href: item.href,
-                iconName: item.iconName,
-                color: item.color,
-                permissionKey: item.permissionKey,
-            }));
-            localStorage.setItem(RECENT_ITEMS_KEY, JSON.stringify(itemsToStore));
-        } catch (error) {
-            console.error("Error saving recent items:", error);
-        }
-    };
-
-    // Update recent items when a sidebar item is clicked
-    const updateRecentItems = (currentPath: string) => {
-        const clickedItem = sidebarItems.find(item => 
-            currentPath === item.href || currentPath?.startsWith(item.href + '/')
-        );
-        
-        if (clickedItem) {
-            setRecentItems(prev => {
-                // Remove if already exists
-                const filtered = prev.filter(item => 
-                    item.permissionKey !== clickedItem.permissionKey
-                );
-                // Add to beginning
-                const updated = [clickedItem, ...filtered].slice(0, MAX_RECENT_ITEMS);
-                // Save to localStorage
-                saveRecentItems(updated);
-                return updated;
-            });
-        }
-    };
-
-    // Handle sidebar item click
+    // Handle sidebar item click — no side effects beyond navigation.
+    // (The Recents section that lived here was removed; the localStorage
+    // purge in clearUserData still cleans up any legacy stored entries.)
     const handleItemClick = (item: SidebarItem) => {
-        // Hide tooltip if visible
-        setTooltip(prev => ({ ...prev, isVisible: false }));
-        
-        // Clear any pending hover timeout
-        if (hoverTimeoutRef.current) {
-            clearTimeout(hoverTimeoutRef.current);
-        }
-        
-        // Update recent items
-        setRecentItems(prev => {
-            // Remove if already exists
-            const filtered = prev.filter(prevItem => 
-                prevItem.permissionKey !== item.permissionKey
-            );
-            // Add to beginning
-            const updated = [item, ...filtered].slice(0, MAX_RECENT_ITEMS);
-            // Save to localStorage
-            saveRecentItems(updated);
-            return updated;
-        });
-        
-        // Navigate to the item
+        if (isMobile) setIsCollapsed(true);
         router.push(item.href);
     };
 
-    // Handle mouse enter for tooltip
-    const handleMouseEnter = (item: SidebarItem, element: HTMLDivElement | null) => {
-        if (!isCollapsed || !element) return; // Only show tooltip when sidebar is collapsed
-        
-        // Clear any existing timeout
-        if (hoverTimeoutRef.current) {
-            clearTimeout(hoverTimeoutRef.current);
-        }
-        
-        // Set a timeout to show tooltip after a short delay
-        hoverTimeoutRef.current = setTimeout(() => {
-            const rect = element.getBoundingClientRect();
-            setTooltip({
-                title: item.title, // This is the full permissionName from your data
-                position: {
-                    x: rect.right + 10, // Position to the right of the icon with more spacing
-                    y: rect.top + rect.height / 2, // Center vertically
-                },
-                isVisible: true,
-            });
-        }, 200); // 200ms delay before showing tooltip (reduced from 300ms)
-    };
-
-    // Handle mouse leave for tooltip
-    const handleMouseLeave = () => {
-        // Clear timeout if mouse leaves before tooltip shows
-        if (hoverTimeoutRef.current) {
-            clearTimeout(hoverTimeoutRef.current);
-        }
-        
-        // Hide tooltip
-        setTooltip(prev => ({ ...prev, isVisible: false }));
-    };
-
-    // Remove a single recent item
-    const removeRecentItem = (permissionKey: string, e: React.MouseEvent) => {
-        e.stopPropagation(); // Prevent navigation when clicking remove button
-        
-        setRecentItems(prev => {
-            const updated = prev.filter(item => item.permissionKey !== permissionKey);
-            // Save to localStorage
-            saveRecentItems(updated);
-            return updated;
-        });
-    };
-
-    // Clear all recent items
-    const clearRecentItems = () => {
-        setRecentItems([]);
-        localStorage.removeItem(RECENT_ITEMS_KEY);
-    };
-
-    // Function to get user data from localStorage
-    const getCurrentUser = (): UserData | null => {
+    const handleSignOut = async () => {
+        setIsLoggingOut(true);
+        const token = getToken();
         try {
-            const userDataString = localStorage.getItem(USER_DATA_KEY);
-            return userDataString ? JSON.parse(userDataString) : null;
+            await postLogout();
+            if (token) await logoutUser(token);
         } catch (error) {
-            console.error("Error getting user data:", error);
-            return null;
+            console.error("Logout error:", error);
+        } finally {
+            // Clear every smartcliff_* key plus cached query data
+            const keysToRemove: string[] = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && (key.startsWith('smartcliff') || key.includes('rq-cache') || key.includes('react-query') || key.includes('tanstack'))) {
+                    keysToRemove.push(key);
+                }
+            }
+            keysToRemove.forEach(key => localStorage.removeItem(key));
+            window.location.href = "/login";
         }
     };
+
+    const userFullName = currentUser
+        ? `${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() || 'User'
+        : 'User';
+    const userRoleLabel = currentUser?.role?.renameRole || currentUser?.role?.originalRole || 'User';
+    // The email is the account's unique identity — two people can share a name
+    // and a role, so the identity row shows it under them. Rendered only when
+    // there is one, so an account without it keeps a two-line row rather than
+    // gaining a blank third.
+    const userEmail = (currentUser?.email || '').trim();
+    const userInitial = (currentUser?.firstName?.charAt(0) || 'U').toUpperCase();
+
+    // Every href the rail offers, parents and children alike — the pool a
+    // prefix match has to win against.
+    const allHrefs = sidebarItems.flatMap((item) => [
+        item.href,
+        ...(item.children || []).map((child) => child.href),
+        ...(item.tabs || []).map((tab) => tab.href),
+    ]).filter(Boolean);
+
+    // Active when this href is the BEST match for the current path, not merely
+    // A match.
+    //
+    // The plain prefix test lit BOTH Question Bank children at once: Internal
+    // is /lms/pages/questionbanks and External is /lms/pages/questionbanks/
+    // external, so opening External also satisfied Internal's prefix. Letting
+    // the LONGEST matching href win gives the highlight to the more specific
+    // route alone, and leaves a parent whose own page has no rail sibling
+    // (Course Management over /lms/pages/coursestructure/pedagogy2) still lit.
+    const onRoute = (href: string) => {
+        if (!href || !pathname) return false;
+        const matches = (h: string) => pathname === h || pathname.startsWith(h + '/');
+        if (!matches(href)) return false;
+        return !allHrefs.some(
+            (other) => other !== href && other.length > href.length && matches(other),
+        );
+    };
+
+    const navGroups = groupSidebarItems(sidebarItems);
 
     return (
-        <>
-            <div
-                ref={sidebarRef}
+        <TooltipPrimitive.Provider delayDuration={200} skipDelayDuration={100}>
+            <motion.div
+                initial={false}
+                animate={{ width: isCollapsed ? COLLAPSED_W : EXPANDED_W }}
+                transition={sidebarSpring}
                 className={cn(
-                    "border-r border-gray-200 transition-all duration-300 relative z-40 h-full",
-                    isCollapsed ? "w-16" : "w-60",
-                    isMobile && !isCollapsed && "fixed top-0 left-0 shadow-lg",
+                    // Flat on the gray canvas (floating-workspace shell): no
+                    // surface, no right border. The mobile overlay keeps a
+                    // solid surface so content can't bleed through it.
+                    "relative z-40 h-full flex flex-col overflow-hidden",
+                    isMobile && !isCollapsed ? "fixed top-0 left-0 shadow-xl bg-surface" : "bg-transparent",
                     className
                 )}
             >
-                {!(isMobile && !isCollapsed) && (
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="absolute -right-4 top-1/2 transform -translate-y-1/2 w-9 h-9 rounded-full border-2 border-gray-200 bg-white shadow-lg hover:bg-gray-100 hover:shadow-xl hover:border-gray-300 z-10 transition-all duration-200"
-                        onClick={() => setIsCollapsed(!isCollapsed)}
-                    >
-                        {isCollapsed ? (
-                            <ChevronRight className="h-4 w-4 text-gray-600" />
-                        ) : (
-                            <ChevronLeft className="h-4 w-4 text-gray-600" />
+                {/* Brand card — a raised white block on the gray rail. It also
+                    hosts the collapse toggle, which used to live in the (now
+                    removed) navbar's hamburger. */}
+                <div className={cn("flex-shrink-0 overflow-hidden", isCollapsed ? "px-2 pt-3 pb-1" : "px-3 pt-3 pb-1")}>
+                    <div className={cn(
+                        "flex items-center rounded-[14px] border border-hairline bg-surface shadow-xs",
+                        isCollapsed ? "flex-col gap-1.5 px-1 py-2" : "gap-2.5 px-3 py-2"
+                    )}>
+                        <div className="w-8 h-8 bg-gradient-to-b from-brand-400 to-brand-600 rounded-tile flex items-center justify-center flex-shrink-0 shadow-sm">
+                            <BookOpen className="w-[17px] h-[17px] text-white" />
+                        </div>
+                        {!isCollapsed && (
+                            <div className="min-w-0 flex-1 whitespace-nowrap">
+                                <p className="text-md font-bold tracking-[-0.01em] text-heading leading-tight">
+                                    SmartCliff
+                                </p>
+                                <p className="text-2xs text-subtle truncate leading-tight">
+                                    {userRoleLabel}
+                                </p>
+                            </div>
                         )}
-                    </Button>
-                )}
+                        <button
+                            type="button"
+                            aria-label={isCollapsed ? "Expand navigation" : "Collapse navigation"}
+                            aria-expanded={!isCollapsed}
+                            onClick={() => setIsCollapsed(!isCollapsed)}
+                            className="flex-shrink-0 inline-flex h-6 w-6 items-center justify-center rounded-control text-faint hover:bg-row-hover hover:text-body transition-colors"
+                        >
+                            <ChevronDown className={cn(
+                                "w-4 h-4 transition-transform duration-150",
+                                isCollapsed ? "-rotate-90" : "rotate-90"
+                            )} />
+                        </button>
+                    </div>
+                </div>
 
-                <div className="pt-6">
-                    {/* Loading state */}
+                {/* Scrollable middle: grouped nav */}
+                <div className="flex-1 overflow-y-auto overflow-x-hidden pt-3 pb-3 [scrollbar-width:thin]">
                     {loading ? (
-                        <div className="px-4 py-0.5">
-                            <div className="animate-pulse flex items-center gap-3">
-                                <div className="p-1.5 bg-gray-200 rounded"></div>
-                                {!isCollapsed && <div className="h-4 bg-gray-200 rounded w-24"></div>}
+                        <div className="px-4 py-2">
+                            <div className="animate-pulse space-y-3">
+                                {[...Array(6)].map((_, i) => (
+                                    <div key={i} className="flex items-center gap-3">
+                                        <div className="w-8 h-8 bg-ink-100 rounded-lg flex-shrink-0" />
+                                        {!isCollapsed && <div className="h-3.5 bg-ink-100 rounded w-28" />}
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     ) : (
-                        <>
-                            {/* Main Navigation - FIRST */}
-                            <div>
-                                {sidebarItems.map((item) => {
-                                    const Icon = item.icon;
-                                    const isActive = pathname === item.href || 
-                                                   pathname?.startsWith(item.href + '/');
-                                    const colorClass = getColorClass(item.color);
-                                    const itemKey = item.permissionKey || item.href;
-
-                                    return (
-                                        <div
-                                            key={itemKey}
-                                            ref={(el) => {
-                                                itemRefs.current[itemKey] = el;
-                                            }}
-                                            onClick={() => handleItemClick(item)}
-                                            onMouseEnter={() => handleMouseEnter(item, itemRefs.current[itemKey])}
-                                            onMouseLeave={handleMouseLeave}
-                                            className={cn(
-                                                "flex items-center justify-between px-4 py-0.5 hover:bg-gray-100 cursor-pointer group transition-colors relative",
-                                                isActive && `${colorClass.bg} border-r-2 ${colorClass.border}`,
-                                                isCollapsed ? "justify-center" : "",
-                                            )}
-                                            title={isCollapsed ? item.title : ""} // HTML title attribute as fallback
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                <div className={cn(
-                                                    "p-1.5",
-                                                    isActive ? colorClass.bgLight : ""
-                                                )}>
-                                                    <Icon className={cn(
-                                                        "w-3.5 h-3.5",
-                                                        isActive ? colorClass.iconText : "text-gray-600 group-hover:text-gray-700"
-                                                    )} />
-                                                </div>
-                                                {!isCollapsed && (
-                                                    <span style={{
-                                                        ...sidebarTextStyle,
-                                                        color: isActive ? colorClass.textLight : 'rgb(80, 82, 88)',
-                                                        fontWeight: isActive ? 600 : 500
-                                                    }}>
-                                                        {item.title}
-                                                    </span>
-                                                )}
-                                            </div>
-                                            {!isCollapsed && item.hasChevron && (
-                                                <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-
-                            {/* Separator between Main Navigation and Quick Actions */}
-                            {!isCollapsed && recentItems.length > 0 && (
-                                <div className="border-t border-gray-200 mx-4 my-4"></div>
-                            )}
-
-                            {/* Quick Actions Section - SECOND (below Main Navigation) */}
-                            {!isCollapsed && recentItems.length > 0 && (
-                                <div className="mb-4">
-                                    <div className="flex items-center justify-between px-4 py-2">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-4 h-4 flex items-center justify-center">
-                                                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                                            </div>
-                                            <span style={{...sidebarTextStyle, fontWeight: 600}}>
-                                                Recents
-                                            </span>
-                                        </div>
-                                        <div className="flex items-center gap-1">
-                                            <Trash2 
-                                                className="w-3.5 h-3.5 text-gray-400 hover:text-gray-600 cursor-pointer"
-                                                onClick={clearRecentItems}
-                                            />
-                                        </div>
-                                    </div>
-
-                                    {/* Recent Items */}
-                                    <div className="mt-2">
-                                        {recentItems.map((item) => {
+                        <nav className="px-3 space-y-0.5">
+                            {/* Group labels are not rendered — a flat list,
+                                matching the app's other rails. groupSidebarItems
+                                still orders the items. */}
+                            {navGroups.map((group) => (
+                                <div key={group.label}>
+                                    <div className="space-y-0.5">
+                                        {group.items.map((item) => {
                                             const Icon = item.icon;
-                                            const isActive = pathname === item.href || 
-                                                           pathname?.startsWith(item.href + '/');
-                                            const colorClass = getColorClass(item.color);
-                                            const isHovered = hoveredItem === item.permissionKey;
-                                            const itemKey = `recent-${item.permissionKey}`;
-                                            
-                                            return (
+                                            // Children are real routes now, so the parent
+                                            // counts as active when ANY of its pages is open —
+                                            // its own href only points at the first child.
+                                            const isActive = onRoute(item.href) ||
+                                                (item.tabs || []).some((tab) => onRoute(tab.href)) ||
+                                                (item.children || []).some((c) => onRoute(c.href));
+                                            const itemKey = item.permissionKey || item.href;
+                                            // The collapsed rail has no room for a submenu,
+                                            // so there the parent stays a plain link and the
+                                            // pages are reached through it instead.
+                                            const subItems = isCollapsed ? [] : (item.children || []);
+                                            // Parent + submenu behavior:
+                                            //   - Closed by default; clicking the parent toggles it.
+                                            //   - Auto-opens ONLY when the user is already inside the
+                                            //     section (a child matches the current route), so they
+                                            //     can see where they are.
+                                            //   - No subitem is preselected — the parent itself does not
+                                            //     navigate, so nothing is picked until the user clicks a
+                                            //     specific child.
+                                            const hasActiveChild = subItems.some((c) => onRoute(c.href));
+                                            const submenuOpen = subItems.length > 0 && (openMenus[itemKey] ?? hasActiveChild);
+                                            const isParentToggle = subItems.length > 0;
+
+                                            const row = (
                                                 <div
-                                                    key={itemKey}
-                                                    ref={(el) => {
-                                                        itemRefs.current[itemKey] = el;
-                                                    }}
-                                                    onClick={() => handleItemClick(item)}
-                                                    onMouseEnter={() => {
-                                                        handleMouseEnter(item, itemRefs.current[itemKey]);
-                                                        setHoveredItem(item.permissionKey || null);
-                                                    }}
-                                                    onMouseLeave={() => {
-                                                        handleMouseLeave();
-                                                        setHoveredItem(null);
+                                                    onClick={() => {
+                                                        if (isParentToggle) {
+                                                            // Pure disclosure: open/close the submenu, do
+                                                            // NOT navigate. The parent's own href only
+                                                            // points at the first child, so navigating on
+                                                            // click would auto-select that child — which
+                                                            // is exactly what the user asked us to stop.
+                                                            setOpenMenus((prev) => ({ ...prev, [itemKey]: !submenuOpen }));
+                                                        } else {
+                                                            handleItemClick(item);
+                                                        }
                                                     }}
                                                     className={cn(
-                                                        "flex items-center justify-between px-8 py-2 hover:bg-gray-100 cursor-pointer transition-colors group relative",
-                                                        isActive && colorClass.bg
+                                                        "relative flex items-center rounded-[10px] cursor-pointer group transition-colors duration-150 border",
+                                                        isCollapsed
+                                                            ? "justify-center w-9 h-9 mx-auto"
+                                                            : "justify-between gap-3 pl-3 pr-2 h-9",
+                                                        // White raised pill on the gray rail; hover one step
+                                                        // darker than the canvas so it stays visible there.
+                                                        isActive
+                                                            ? "bg-surface border-hairline shadow-xs"
+                                                            : "border-transparent hover:bg-line"
                                                     )}
-                                                    title={isCollapsed ? item.title : ""} // HTML title attribute as fallback
                                                 >
-                                                    <div className="flex items-center gap-3 flex-1">
-                                                        <div className={cn(
-                                                            "w-5 h-5 rounded flex items-center justify-center",
-                                                            colorClass.bgLight
-                                                        )}>
-                                                            <Icon className={cn(
-                                                                "w-3 h-3",
-                                                                colorClass.text
-                                                            )} />
-                                                        </div>
-                                                        <span style={{
-                                                            ...sidebarTextStyle,
-                                                            color: isActive ? colorClass.textLight : 'rgb(80, 82, 88)',
-                                                            fontWeight: isActive ? 600 : 500
-                                                        }}>
-                                                            {item.title}
-                                                        </span>
-                                                    </div>
-                                                    
-                                                    {/* Remove button - shows on hover */}
-                                                    <button
-                                                        onClick={(e) => removeRecentItem(item.permissionKey || '', e)}
-                                                        className={cn(
-                                                            "opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-gray-200 rounded",
-                                                            isHovered && "opacity-100"
+                                                    <div className={cn("flex items-center", isCollapsed ? "" : "gap-3 min-w-0")}>
+                                                        <Icon className={cn(
+                                                            "w-[18px] h-[18px] flex-shrink-0",
+                                                            isActive
+                                                                ? "text-heading"
+                                                                : "text-subtle group-hover:text-body"
+                                                        )} />
+                                                        {!isCollapsed && (
+                                                            <span className={cn(
+                                                                "text-sm truncate whitespace-nowrap flex items-center gap-1",
+                                                                // Both states read in normal weight — the raised
+                                                                // white pill + shadow already carries "selected",
+                                                                // and heavy weight on every row made the rail
+                                                                // feel loud.
+                                                                isActive
+                                                                    ? "text-heading font-medium"
+                                                                    : "text-body font-normal"
+                                                            )}>
+                                                                {item.title}
+                                                                {/* Red blinking unread indicator, only for the
+                                                                    Notification entry — mounted here so the dot
+                                                                    lives beside the label text (not the icon)
+                                                                    and reads as "N unread" at a glance. */}
+                                                                {item.permissionKey === 'notifications' && (
+                                                                    <NotificationDot />
+                                                                )}
+                                                            </span>
                                                         )}
-                                                        title="Remove from Quick Actions"
-                                                    >
-                                                        <Trash2 className="w-3 h-3 text-gray-500 hover:text-red-500" />
-                                                    </button>
+                                                    </div>
+                                                    {/* Selection is carried by bg-brand-wash ALONE. There used to
+                                                        be three markers competing here — a left bar, the wash,
+                                                        and a trailing dot — so a parent and its active child were
+                                                        marked two different ways, and the dot read as a
+                                                        notification badge rather than "you are here". The chevron
+                                                        below is disclosure, not selection. */}
+                                                    {!isCollapsed && subItems.length > 0 && (
+                                                        <button
+                                                            type="button"
+                                                            aria-label={submenuOpen ? `Collapse ${item.title}` : `Expand ${item.title}`}
+                                                            aria-expanded={submenuOpen}
+                                                            onClick={(e) => {
+                                                                // Without this the parent row's own click
+                                                                // handler would navigate away as it opens.
+                                                                e.stopPropagation();
+                                                                setOpenMenus(prev => ({ ...prev, [itemKey]: !submenuOpen }));
+                                                            }}
+                                                            className="p-0.5 rounded hover:bg-black/5 flex-shrink-0"
+                                                        >
+                                                            <ChevronDown className={cn(
+                                                                "w-3.5 h-3.5 transition-transform duration-150",
+                                                                submenuOpen && "rotate-180",
+                                                                isActive ? "text-heading" : "text-faint"
+                                                            )} />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            );
+
+                                            return (
+                                                <div key={itemKey}>
+                                                    {isCollapsed ? (
+                                                        <TooltipPrimitive.Root>
+                                                            <TooltipPrimitive.Trigger asChild>
+                                                                {row}
+                                                            </TooltipPrimitive.Trigger>
+                                                            <TooltipPrimitive.Portal>
+                                                                <TooltipPrimitive.Content
+                                                                    side="right"
+                                                                    sideOffset={12}
+                                                                    className="z-popover rounded-chip bg-ink-800 px-3 py-1.5 text-xs font-medium text-white shadow-md whitespace-nowrap select-none"
+                                                                >
+                                                                    {item.title}
+                                                                </TooltipPrimitive.Content>
+                                                            </TooltipPrimitive.Portal>
+                                                        </TooltipPrimitive.Root>
+                                                    ) : (
+                                                        row
+                                                    )}
+
+                                                    {/* Tabs of the section, as their own rows. The rule down the
+                                                        left ties them to the parent so a long list still reads as
+                                                        one group. */}
+                                                    {submenuOpen && (
+                                                        <div className="mt-0.5 mb-1 ml-[27px] pl-2.5 border-l border-hairline space-y-0.5">
+                                                            {subItems.map((child) => {
+                                                                const ChildIcon = child.icon;
+                                                                const childActive = onRoute(child.href);
+                                                                return (
+                                                                    <div
+                                                                        key={child.href}
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            handleItemClick(child);
+                                                                        }}
+                                                                        className={cn(
+                                                                            "flex items-center gap-2.5 h-8 px-2 rounded-[8px] cursor-pointer group transition-colors duration-150 border",
+                                                                            childActive
+                                                                                ? "bg-surface border-hairline shadow-xs"
+                                                                                : "border-transparent hover:bg-line"
+                                                                        )}
+                                                                    >
+                                                                        <ChildIcon className={cn(
+                                                                            "w-[15px] h-[15px] flex-shrink-0",
+                                                                            childActive
+                                                                                ? "text-heading"
+                                                                                : "text-faint group-hover:text-body"
+                                                                        )} />
+                                                                        <span className={cn(
+                                                                            "text-sm truncate whitespace-nowrap",
+                                                                            childActive
+                                                                                ? "text-heading font-medium"
+                                                                                : "text-body font-normal"
+                                                                        )}>
+                                                                            {child.title}
+                                                                        </span>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             );
                                         })}
                                     </div>
                                 </div>
-                            )}
+                            ))}
 
-                            {/* Bottom Navigation - Settings */}
-                            {!isCollapsed && (
-                                <div className="mt-8 relative">
-                                    <div 
-                                        className="flex items-center justify-between px-4 py-2 hover:bg-gray-100 cursor-pointer group"
-                                        ref={(el) => {
-                                            itemRefs.current["settings"] = el;
-                                        }}
-                                        onMouseEnter={() => {
-                                            if (isCollapsed) {
-                                                const item = { 
-                                                    title: "Settings", 
-                                                    href: "#",
-                                                    icon: Settings,
-                                                    iconName: "settings",
-                                                    color: "gray"
-                                                };
-                                                handleMouseEnter(item, itemRefs.current["settings"]);
-                                            }
-                                        }}
-                                        onMouseLeave={handleMouseLeave}
-                                        title={isCollapsed ? "Settings" : ""}
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <MoreVertical className="w-4 h-4 text-gray-600" />
-                                            <span style={sidebarTextStyle}>
-                                                Settings
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </>
+                        </nav>
                     )}
                 </div>
-            </div>
 
-            {/* Tooltip - Clean design without arrow */}
-            <Tooltip
-                title={tooltip.title}
-                position={tooltip.position}
-                isVisible={tooltip.isVisible && isCollapsed}
-            />
+                {/* User card (bottom) */}
+                <div className={cn("flex-shrink-0 border-t border-hairline", isCollapsed ? "p-2" : "p-3")}>
+                    <DropdownMenu open={showUserMenu} onOpenChange={setShowUserMenu}>
+                        <DropdownMenuTrigger asChild>
+                            <button
+                                // Flat identity row (no card box), reference-style.
+                                className={cn(
+                                    "w-full flex items-center rounded-tile transition-colors duration-150",
+                                    isCollapsed
+                                        ? "justify-center p-1.5 hover:bg-line"
+                                        : "gap-2.5 p-2 hover:bg-line"
+                                )}
+                            >
+                                <div className="w-8 h-8 rounded-full bg-ink-900 flex items-center justify-center flex-shrink-0">
+                                    <span className="text-white text-xs font-semibold">{userInitial}</span>
+                                </div>
+                                {!isCollapsed && (
+                                    <>
+                                        <div className="flex-1 min-w-0 text-left whitespace-nowrap">
+                                            <p className="text-sm font-semibold text-heading truncate leading-tight">
+                                                {userFullName}
+                                            </p>
+                                            <p className="text-2xs text-subtle truncate leading-tight mt-0.5">
+                                                {userRoleLabel}
+                                            </p>
+                                            {userEmail && (
+                                                <p className="text-2xs text-faint truncate leading-tight mt-0.5" title={userEmail}>
+                                                    {userEmail}
+                                                </p>
+                                            )}
+                                        </div>
+                                        <ChevronDown className={cn(
+                                            "w-4 h-4 text-faint flex-shrink-0 transition-transform duration-150",
+                                            showUserMenu && "rotate-180"
+                                        )} />
+                                    </>
+                                )}
+                            </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                            side="top"
+                            align="start"
+                            sideOffset={8}
+                            className="w-52 bg-surface border border-hairline-strong rounded-tile shadow-lg p-1.5 z-popover"
+                        >
+                            <DropdownMenuItem
+                                onClick={() => { setShowUserMenu(false); router.push('/lms/pages/profile'); }}
+                                className="flex items-center gap-2.5 px-2.5 py-2 text-sm font-medium text-body rounded-chip hover:bg-row-hover transition-colors cursor-pointer"
+                            >
+                                <UserIcon className="w-4 h-4 text-subtle" />
+                                Profile
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator className="my-1 bg-hairline" />
+                            <DropdownMenuItem
+                                onSelect={(e) => {
+                                    // Keep the menu open so the signing-out spinner is
+                                    // visible until the redirect lands.
+                                    e.preventDefault();
+                                    handleSignOut();
+                                }}
+                                disabled={isLoggingOut}
+                                className="flex items-center gap-2.5 px-2.5 py-2 text-sm font-medium text-danger-700 rounded-chip hover:bg-danger-50 transition-colors cursor-pointer disabled:opacity-60"
+                            >
+                                {isLoggingOut
+                                    ? <Loader2 className="w-4 h-4 animate-spin" />
+                                    : <LogOut className="w-4 h-4 text-danger-700" />}
+                                {isLoggingOut ? "Signing out..." : "Sign Out"}
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </div>
+            </motion.div>
 
             {isMobile && !isCollapsed && (
                 <Button
                     variant="ghost"
                     size="icon"
-                    className="fixed top-4 right-4 w-10 h-10 rounded-full bg-white shadow-lg hover:bg-gray-50 z-50 border"
+                    className="fixed top-4 right-4 w-10 h-10 rounded-full bg-surface shadow-lg hover:bg-row-hover z-overlay border border-hairline-strong"
                     onClick={() => setIsCollapsed(true)}
                 >
                     <X className="h-5 w-5" />
@@ -816,7 +533,7 @@ export function Sidebar({ className }: SidebarProps) {
                     onClick={() => setIsCollapsed(true)}
                 />
             )}
-        </>
+        </TooltipPrimitive.Provider>
     );
 }
 

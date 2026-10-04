@@ -1,13 +1,14 @@
+import { getToken } from "@/lib/session";
 // AddCourseSettingsPopup/hooks/useCourseData.tsx
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { User, Users } from 'lucide-react';
-import { useServices } from '@/apiServices/dynamicFields/servicemodel';
-import { fetchCategories } from '@/apiServices/dynamicFields/category';
-import { courseStructureApi } from '@/apiServices/createCourseStucture';
-import { pedagogyStructureApi } from '@/apiServices/dynamicFields/pedagogyStructureService';
-import { FormData, Service, Category, Client, PedagogyActivity } from './types';
-import { initializeResourcesType } from './utils/helpers';
+import { useServices } from '@/app/lms/pages/dynamicfieldsettings/api/servicemodel';
+import { fetchCategories } from '@/app/lms/pages/dynamicfieldsettings/api/category';
+import { courseStructureApi, courseStructuresSummaryQuery } from '@/app/lms/pages/coursestructure/api/createCourseStucture';
+import { pedagogyStructureApi } from '@/app/lms/pages/dynamicfieldsettings/api/pedagogyStructureService';
+import { FormData, Service, Category, Client, PedagogyActivity } from '../../pages/coursestructure/components/types';
+import { initializeResourcesType } from '../../pages/coursestructure/utils/helpers';
 import { transformTestConfigurationForFrontend } from './Step2CourseDetails';
 
 interface UseCourseDataProps {
@@ -40,7 +41,7 @@ export const useCourseData = ({
     const prevCourseDataRef = useRef<any>(null);
     const isMounted = useRef(true);
     
-    const token = typeof window !== 'undefined' ? localStorage.getItem('smartcliff_token') : null;
+    const token = typeof window !== 'undefined' ? getToken() : null;
     const institutionId = typeof window !== 'undefined' ? localStorage.getItem('smartcliff_institution') || '' : '';
 
     // Fetch services
@@ -72,31 +73,34 @@ export const useCourseData = ({
         gcTime: 0,
     });
 
-    // Fetch all courses and extract existing course IDs
+    // Fetch all courses via the shared summary cache entry — this hook only
+    // derives existingCourseIds (courseCode) and a count from the list, both
+    // present in the summary projection. The old queryFn also did a setState
+    // side effect inside itself, which desyncs on cache hits —
+    // existingCourseIds is derived from the query data in an effect below.
     const { data: allCourses } = useQuery({
-        queryKey: ["allCourseStructures"],
-        queryFn: async () => {
-            try {
-                const response = await courseStructureApi.getAll().queryFn();
-                // Check if response has data property
-                const coursesData = response?.data || response;
-                if (coursesData && Array.isArray(coursesData) && isMounted.current) {
-                    const ids = new Set(
-                        coursesData
-                            .map((course: any) => course.courseCode)
-                            .filter((code: string) => code) // Filter out falsy values
-                    );
-                    setExistingCourseIds(ids);
-                }
-                return response;
-            } catch (error) {
-                console.error('Error fetching courses:', error);
-                return { data: [] };
-            }
-        },
+        ...courseStructuresSummaryQuery(),
         enabled: isOpen,
-        staleTime: 5 * 60 * 1000,
     });
+
+    useEffect(() => {
+        if (!isMounted.current) return;
+        const coursesData = (allCourses as any)?.data || allCourses;
+        if (!Array.isArray(coursesData)) return;
+        const ids = new Set(
+            coursesData
+                .map((course: any) => course.courseCode)
+                .filter((code: string) => code) as string[]
+        );
+        setExistingCourseIds((prev) => {
+            if (prev.size === ids.size) {
+                let same = true;
+                for (const id of ids) if (!prev.has(id)) { same = false; break; }
+                if (same) return prev;
+            }
+            return ids;
+        });
+    }, [allCourses]);
     
     const filteredServices = services;
     const selectedService = formData ? filteredServices.find((s: Service) => s.id === formData.modal) : undefined;
@@ -154,26 +158,62 @@ export const useCourseData = ({
         const data = courseData.data;
         prevCourseDataRef.current = data._id;
 
-        const matchedClient = clientList.find(client => client.clientCompany === data.clientName);
-        const matchedService = services.find((s: Service) => s.name === data.serviceType);
-        const matchedModel = matchedService?.serviceModals.find((m: any) => m.name === data.serviceModal);
+        // Resolve the Client Management client by its id (falls back to name for old data)
+        const matchedClient =
+            clientList.find(client => client._id === data.clientId) ||
+            clientList.find(client => client._id === data.clientName) ||
+            clientList.find(client => client.clientCompany === data.clientName);
         const matchedCategory = categoriesData?.allCategories?.find((cat: Category) => cat.categoryName === data.category);
 
         // Transform testConfiguration from backend to frontend format
         const frontendTestConfig = transformTestConfigurationForFrontend(data.testConfiguration);
 
         setFormData({
-            client: matchedClient?._id || '',
-            clientName: data.clientName || '',
+            client: matchedClient?._id || data.clientId || '',
+            clientName: matchedClient?.clientCompany || data.clientName || '',
             categoryName: matchedCategory?._id || '',
             categoryDisplayName: data.category || '',
+            // Client-driven cascade values
+            studentType: data.studentType || '',
+            batch: data.batch || '',
+            skillingBatches: data.skillingBatches || [],
+            degree: data.degree || '',
+            department: data.department || '',
+            semester: data.semester || '',
+            sections: data.sections || [],
+            departmentSections: data.departmentSections || [],
+            // Multiple client-configuration blocks. The backend stores each block's
+            // departments under `departments`; the form uses `departmentSections` —
+            // map them so the checkboxes/sections/semesters repopulate on edit.
+            clientConfigurations: (data.clientConfigurations && data.clientConfigurations.length)
+                ? data.clientConfigurations.map((c: any) => ({
+                    batch: c.batch || '',
+                    degree: c.degree || '',
+                    departmentSections: (c.departmentSections || c.departments || []).map((d: any) => ({
+                        department: d.department || '',
+                        sections: [...(d.sections || [])],
+                        semesters: [...(d.semesters || [])],
+                    })),
+                }))
+                : (data.batch || data.degree || (data.departmentSections || []).length)
+                    ? [{
+                        batch: data.batch || '',
+                        degree: data.degree || '',
+                        departmentSections: (data.departmentSections || []).map((d: any) => ({
+                            department: d.department || '',
+                            sections: [...(d.sections || [])],
+                            semesters: [...(d.semesters || [])],
+                        })),
+                    }]
+                    : [],
             level: data.courseLevel || '',
-            duration: matchedModel?.id || '',
+            // Service type / model come from Client Management (stored as names)
+            duration: data.serviceModal || '',
             serviceModelName: data.serviceModal || '',
             selectedCourseName: data.courseName || '',
             title: data.courseName || '',
             courseid: data.courseCode || '',
-            modal: matchedService?.id || '',
+            modal: data.serviceType || '',
             serviceTypeName: data.serviceType || '',
             courseDescription: data.courseDescription || '',
             instructor: data.instructor || '',

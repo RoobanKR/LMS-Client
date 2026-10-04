@@ -1,4 +1,15 @@
 import axios from "axios";
+// Resources by Batch — every request below carries the batch the Resources
+// screens are working in, stamped in ONE place so no call site can be missed.
+// With no batch selected nothing is added and the server uses the shared,
+// course-level container. See apiServices/resourceBatch.ts.
+import {
+  stampBatch,
+  withBatchBody,
+  batchParams,
+  getActiveBatchId,
+  type ResourceBatchContext,
+} from "./resourceBatch";
 export interface PageBlock {
   type: string;
   content: string;
@@ -48,7 +59,7 @@ const modelMap = {
   subtopic: { path: "subtopics" },
 };
 
-const BASE_URL = "https://lms-server-ym1q.onrender.com";
+const BASE_URL = "https://lmsserver-yeve.onrender.com";
 
 // Helper function to get token
 const getToken = (): string | null => {
@@ -68,7 +79,7 @@ export const entityApi = {
     const token = getToken();
     const response = await axios.put(
       `${BASE_URL}/uploadResourses/${modelMap[entityType].path}/${entityId}`,
-      formData,
+      stampBatch(formData),
       {
         headers: {
           "Content-Type": "multipart/form-data",
@@ -135,7 +146,7 @@ export const entityApi = {
 
     const response = await axios.put(
       `${BASE_URL}/uploadResourses/${modelMap[entityType].path}/${entityId}`,
-      formData,
+      stampBatch(formData),
       {
         headers: {
           "Content-Type": "multipart/form-data",
@@ -197,7 +208,7 @@ updateFolder: async (
 
   const response = await axios.put(
     `${BASE_URL}/uploadResourses/${modelMap[entityType].path}/${entityId}`,
-    formData,
+    stampBatch(formData),
     {
       headers: {
         "Content-Type": "multipart/form-data",
@@ -247,7 +258,7 @@ updateFolder: async (
 
     const response = await axios.put(
       `${BASE_URL}/uploadResourses/${modelMap[entityType].path}/${entityId}`,
-      formData,
+      stampBatch(formData),
       {
         headers: {
           "Content-Type": "multipart/form-data",
@@ -298,7 +309,7 @@ updateFolder: async (
 
     const response = await axios.put(
       `${BASE_URL}/uploadResourses/${modelMap[entityType].path}/${entityId}`,
-      formData,
+      stampBatch(formData),
       {
         headers: {
           "Content-Type": "multipart/form-data",
@@ -339,7 +350,7 @@ updateFolder: async (
 
       const response = await axios.post(
         `${BASE_URL}/pages/${entityType}/${entityId}/pages`,
-        {
+        withBatchBody({
           // Send the full PagesPayload structure
           pages: payload.pages,
           combinedCode: payload.combinedHtml, // Map combinedHtml to combinedCode for backend
@@ -358,7 +369,7 @@ updateFolder: async (
           // Group context — lets the backend attach the page to a group row
           groupId: payload.hierarchyInfo?.groupId,
           groupName: payload.hierarchyInfo?.groupName,
-        },
+        }),
         {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -390,7 +401,7 @@ updateFolder: async (
     const response = await axios.get(
       `${BASE_URL}/pages/${entityType}/${entityId}/pages`,
       { 
-        params,
+        params: { ...params, ...batchParams() },
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -413,7 +424,7 @@ updateFolder: async (
     const response = await axios.get(
       `${BASE_URL}/pages/${entityType}/${entityId}/pages/${pageId}`,
       { 
-        params,
+        params: { ...params, ...batchParams() },
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -438,7 +449,7 @@ updatePage: async (
   const token = getToken();
   const response = await axios.put(
     `${BASE_URL}/pages/${entityType}/${entityId}/pages/${pageId}`,
-    pageData,
+    withBatchBody(pageData),
     {
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -462,8 +473,8 @@ updatePage: async (
     const token = getToken();
     const response = await axios.delete(
       `${BASE_URL}/pages/${entityType}/${entityId}/pages/${pageId}`,
-      { 
-        data,
+      {
+        data: withBatchBody(data),
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -487,7 +498,7 @@ updatePage: async (
     const token = getToken();
     const response = await axios.post(
       `${BASE_URL}/pages/${entityType}/${entityId}/pages/${pageId}/move`,
-      data,
+      withBatchBody(data),
       {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -546,7 +557,7 @@ export const fileSettingsApi = {
 
     const response = await axios.put(
       `${BASE_URL}/uploadResourses/${modelMap[entityType].path}/${entityId}/settings`,
-      formData,
+      stampBatch(formData),
       {
         headers: {
           "Content-Type": "multipart/form-data",
@@ -620,11 +631,19 @@ export type SubTopic = {
 };
 
 export const courseDataApi = {
+  // ── Resources by Batch and the query keys below ──
+  //
+  // The active batch is part of every key. It has to be: React Query would
+  // otherwise serve Batch A's cached pedagogy after the user switches the
+  // strip to Batch B, and the switch would silently do nothing. `batchParams()`
+  // returns {} when no batch is selected, so courses without batches (and
+  // students, who never select) keep exactly the keys they had before.
   getById: (id: string) => ({
-    queryKey: ["course", id],
+    queryKey: ["course", id, getActiveBatchId()],
     queryFn: async (): Promise<{ data: CourseStructureData }> => {
       const token = getToken();
       const response = await axios.get(`${BASE_URL}/getAll/courses-data/${id}`, {
+        params: batchParams(),
         headers: {
           ...(token && { 'Authorization': `Bearer ${token}` })
         }
@@ -635,7 +654,7 @@ export const courseDataApi = {
 
   // ── Lightweight variants used by `uploadcourseresources` ──
   //
-  // `getById` above returns the FULL payload (singleParticipants + every
+  // `getById` above returns the FULL payload (batchAndParticipants + every
   // node's pedagogy). The Resources page only renders the sidebar tree +
   // selected-node pedagogy, so it would otherwise download ~95% wasted data
   // on every cold load. These two backed-by-projection endpoints give it
@@ -644,7 +663,7 @@ export const courseDataApi = {
   //   • `getLight(id)`         — tree skeleton (id + title at each level)
   //                              plus course-level fields (courseName,
   //                              resourcesType, testConfiguration). No
-  //                              pedagogy, no singleParticipants.
+  //                              pedagogy, no batchAndParticipants.
   //   • `getNodePedagogy(...)` — pedagogy + a couple of small siblings for
   //                              ONE specific module/submodule/topic/subtopic.
   //                              Used in place of the second full
@@ -656,10 +675,11 @@ export const courseDataApi = {
   // `["course", id]` query that other pages (reviewSubmission, etc.) still
   // rely on. The heavy `getById` is intentionally left intact.
   getLight: (id: string) => ({
-    queryKey: ["course-light", id],
+    queryKey: ["course-light", id, getActiveBatchId()],
     queryFn: async (): Promise<{ data: CourseStructureData }> => {
       const token = getToken();
       const response = await axios.get(`${BASE_URL}/getAll/courses-data/light/${id}`, {
+        params: batchParams(),
         headers: {
           ...(token && { 'Authorization': `Bearer ${token}` }),
         },
@@ -672,19 +692,43 @@ export const courseDataApi = {
     type: "module" | "submodule" | "topic" | "subtopic",
     id: string,
   ) => ({
-    queryKey: ["course-node-pedagogy", type, id],
+    queryKey: ["course-node-pedagogy", type, id, getActiveBatchId()],
     queryFn: async (): Promise<{
-      data: { _id: string; title: string; pedagogy?: any; testConfiguration?: any };
+      data: {
+        _id: string;
+        title: string;
+        pedagogy?: any;
+        testConfiguration?: any;
+        resourceBatchContext?: ResourceBatchContext;
+      };
     }> => {
       const token = getToken();
       const response = await axios.get(
         `${BASE_URL}/getAll/courses-data/node-pedagogy/${type}/${id}`,
         {
+          params: batchParams(),
           headers: {
             ...(token && { 'Authorization': `Bearer ${token}` }),
           },
         },
       );
+      return response.data;
+    },
+  }),
+
+  // Resources-by-Batch context on its own — mode, batch list, the caller's own
+  // batch. Cheap enough to fetch before the course payload, so the page knows
+  // whether to render the batch strip on its first paint instead of flashing
+  // the wrong shape and correcting itself.
+  getResourceBatchContext: (courseId: string) => ({
+    queryKey: ["resource-batch-context", courseId],
+    queryFn: async (): Promise<{ data: ResourceBatchContext & { courseName: string } }> => {
+      const token = getToken();
+      const response = await axios.get(`${BASE_URL}/resource-batches/${courseId}`, {
+        headers: {
+          ...(token && { 'Authorization': `Bearer ${token}` }),
+        },
+      });
       return response.data;
     },
   }),

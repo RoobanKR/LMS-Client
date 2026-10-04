@@ -1,6 +1,7 @@
 import axios from 'axios';
+import { API_ORIGIN } from '@/lib/apiBase'
 
-const BASE_URL = 'https://lms-server-ym1q.onrender.com';
+const BASE_URL = `${API_ORIGIN}`;
 
 // Interfaces
 export interface HintData {
@@ -319,6 +320,10 @@ export const questionApi = {
           questionType: 'mcq',
           sequence: block.sequence ?? 0,
           sectionId: block.sectionId || null, // 🆕 Include sectionId
+          // Source tag: only sent when the block carries one — the server
+          // preserves the stored tag when the field is absent, so legacy
+          // untagged edits can't wipe anything.
+          ...(block.source ? { source: block.source } : {}),
           hasExplanation: block.hasExplanation || false,
           ...(block.hasExplanation && block.explanation?.trim()
             ? { mcqQuestionDescription: block.explanation.trim() }

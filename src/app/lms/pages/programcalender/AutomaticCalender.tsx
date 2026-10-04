@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Calendar, Clock, MapPin, User, Settings, Zap, CheckCircle } from 'lucide-react';
+import { usePermissions } from '@/hooks/usePermissions';
+import { PERMISSION_IDS } from '@/app/lms/pages/usermanagement/components/permissions/index';
 
 interface Course {
   _id: string;
@@ -33,6 +35,12 @@ interface AutoSettings {
 }
 
 const AutoCalendarSetup: React.FC<AutoCalendarSetupProps> = ({ course, onBack, onClose }) => {
+  // Program-calendar permissions — Add covers generate/save + excluded-date
+  // add; Delete covers per-row remove.
+  const { can } = usePermissions();
+  const canAdd = can(PERMISSION_IDS.ADMIN_PROGRAM_CALENDAR, 'Add');
+  const canDelete = can(PERMISSION_IDS.ADMIN_PROGRAM_CALENDAR, 'Delete');
+
   const [currentStep, setCurrentStep] = useState<'settings' | 'preview' | 'generated'>('settings');
   const [isGenerating, setIsGenerating] = useState(false);
   
@@ -389,18 +397,20 @@ const AutoCalendarSetup: React.FC<AutoCalendarSetupProps> = ({ course, onBack, o
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   min={autoSettings.startDate}
                 />
-                <button
-                  onClick={() => {
-                    const input = document.getElementById('exclude-date') as HTMLInputElement;
-                    if (input.value) {
-                      addExcludedDate(input.value);
-                      input.value = '';
-                    }
-                  }}
-                  className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
-                >
-                  Add
-                </button>
+                {canAdd && (
+                  <button
+                    onClick={() => {
+                      const input = document.getElementById('exclude-date') as HTMLInputElement;
+                      if (input.value) {
+                        addExcludedDate(input.value);
+                        input.value = '';
+                      }
+                    }}
+                    className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+                  >
+                    Add
+                  </button>
+                )}
               </div>
               
               {autoSettings.excludedDates.length > 0 && (
@@ -413,12 +423,14 @@ const AutoCalendarSetup: React.FC<AutoCalendarSetupProps> = ({ course, onBack, o
                         className="inline-flex items-center gap-1 bg-red-100 text-red-800 px-2 py-1 rounded text-xs"
                       >
                         {new Date(date).toLocaleDateString()}
-                        <button
-                          onClick={() => removeExcludedDate(date)}
-                          className="text-red-600 hover:text-red-800"
-                        >
-                          ×
-                        </button>
+                        {canDelete && (
+                          <button
+                            onClick={() => removeExcludedDate(date)}
+                            className="text-red-600 hover:text-red-800"
+                          >
+                            ×
+                          </button>
+                        )}
                       </span>
                     ))}
                   </div>
@@ -469,25 +481,27 @@ const AutoCalendarSetup: React.FC<AutoCalendarSetupProps> = ({ course, onBack, o
             </div>
 
             {/* Generate Button */}
-            <div className="mt-6">
-              <button
-                onClick={handleGenerate}
-                disabled={!autoSettings.startDate || isGenerating}
-                className="w-full bg-green-600 text-white py-3 px-6 rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center gap-2"
-              >
-                {isGenerating ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    Generating Calendar...
-                  </>
-                ) : (
-                  <>
-                    <Zap className="w-4 h-4" />
-                    Generate Calendar
-                  </>
-                )}
-              </button>
-            </div>
+            {canAdd && (
+              <div className="mt-6">
+                <button
+                  onClick={handleGenerate}
+                  disabled={!autoSettings.startDate || isGenerating}
+                  className="w-full bg-green-600 text-white py-3 px-6 rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center gap-2"
+                >
+                  {isGenerating ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      Generating Calendar...
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="w-4 h-4" />
+                      Generate Calendar
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -536,12 +550,14 @@ const AutoCalendarSetup: React.FC<AutoCalendarSetupProps> = ({ course, onBack, o
 
           {/* Action Buttons */}
           <div className="flex gap-4 pt-6">
-            <button
-              onClick={handleSaveCalendar}
-              className="flex-1 bg-green-600 text-white py-3 px-6 rounded-md hover:bg-green-700 transition-colors font-medium"
-            >
-              Save Generated Calendar
-            </button>
+            {canAdd && (
+              <button
+                onClick={handleSaveCalendar}
+                className="flex-1 bg-green-600 text-white py-3 px-6 rounded-md hover:bg-green-700 transition-colors font-medium"
+              >
+                Save Generated Calendar
+              </button>
+            )}
             <button
               onClick={() => setCurrentStep('settings')}
               className="px-6 py-3 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"

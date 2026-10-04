@@ -1,4 +1,5 @@
 import { QueryClient } from "@tanstack/react-query";
+import { clearSession } from "./session";
 
 const STALE_5_MIN = 5 * 60 * 1000;
 const GC_10_MIN = 10 * 60 * 1000;
@@ -28,14 +29,7 @@ export const isNotFoundError = (err: unknown): boolean => {
 
 const clearAuthAndRedirect = () => {
   if (typeof window === "undefined") return;
-  const keys = [
-    "smartcliff_token", "smartcliff_institution", "smartcliff_institutionname",
-    "smartcliff_basedOn", "smartcliff_userId", "smartcliff_userData",
-    "smartcliff_role", "smartcliff_roleId", "smartcliff_roleValue",
-    "smartcliff_originalRole", "smartcliff_renameRole",
-    "smartcliff_firstPermissionKey", "smartcliff_permissions",
-  ];
-  keys.forEach((k) => localStorage.removeItem(k));
+  clearSession();
   const currentHref = encodeURIComponent(window.location.href);
   window.location.href = `/login?redirect=${currentHref}`;
 };

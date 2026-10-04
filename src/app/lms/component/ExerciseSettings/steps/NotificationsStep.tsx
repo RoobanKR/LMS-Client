@@ -1,44 +1,118 @@
+import { SettingsHelp } from '../SettingsHelp';
 import React from 'react';
-import { Bell, Clock, Home, Mail, MessageCircle, UserCheck } from 'lucide-react';
-import { D, FONT } from '../shared/tokens';
+import { Home, Mail, MessageCircle } from 'lucide-react';
+import { D as sharedColors, FONT } from '../../../pages/courses/uploadcourseresources/components/youdo/assessments/shared/tokens';
+const D = { ...sharedColors, orange: '#EE6A22', orangeDark: '#D65A16', orangeLight: '#FDF0E9', orangeMed: '#FADFCE', orangeGlow: '#FADFCE', border: '#e0e5eb', border2: '#b6c0cb', surface: '#f7f9fc', surface2: '#f1f5f9' };
+import styles from '../AssignmentSettings.module.css';
 
 // ── Props ────────────────────────────────────────────────────────────────────
 // Loose `formData: any` mirrors the parent's existing typing — no behavioural
-// change, no type tightening during extraction.
+// change, no type tightening.
 interface NotificationsStepProps {
   formData: any;
   setFormData: React.Dispatch<React.SetStateAction<any>>;
+  /** Smaller type, tighter rows and a slimmer "Notify via" strip (You Do). */
+  compact?: boolean;
 }
 
+// ── FormRow ──────────────────────────────────────────────────────────────────
+// Same 306px-label + control shape as ExerciseDetailsStep. Keeps every step
+// visually consistent (label on the left, teal ? tooltip, control on the
+// right, helper text under the control).
+function FormRow({ label, help, required, children, note, compact }: {
+  label: string;
+  help?: string;
+  required?: boolean;
+  children: React.ReactNode;
+  note?: string;
+  compact?: boolean;
+}) {
+  return (
+    <div className={styles.fieldRow} style={compact ? { paddingTop: 6, paddingBottom: 6 } : undefined}>
+      <div className={styles.fieldLabel}>
+        <label style={compact ? { fontSize: 13 } : undefined}>{label}{required && <span className={styles.required} aria-label="required">*</span>}</label>
+        {help && <SettingsHelp content={help} />}
+      </div>
+      <div className={styles.fieldControl}>
+        {children}
+        {note && <p className={styles.fieldNote} style={compact ? { fontSize: 11.5, marginTop: 4 } : undefined}>{note}</p>}
+      </div>
+    </div>
+  );
+}
+
+// ── SpecSwitch ───────────────────────────────────────────────────────────────
+// Local copy of the 35×20 emerald switch used across the settings wizard.
+const SpecSwitch: React.FC<{ on: boolean; onClick: () => void }> = ({ on, onClick }) => (
+  <button
+    type="button"
+    role="switch"
+    aria-checked={on}
+    onClick={onClick}
+    className="relative flex-shrink-0"
+    style={{
+      width: 35, height: 20, borderRadius: 999, padding: 0, border: 'none',
+      background: on ? D.emerald : '#DEDAD5', cursor: 'pointer', transition: 'background .16s',
+    }}
+  >
+    <span
+      style={{
+        position: 'absolute', top: 2, left: 2, width: 16, height: 16, borderRadius: '50%',
+        background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,.25)',
+        transition: 'transform .16s', transform: on ? 'translateX(15px)' : 'translateX(0)',
+      }}
+    />
+  </button>
+);
+
+// ── Section title — matches ExerciseDetailsStep's group titles: orange band
+// with a hairline. Used to separate Graders / Students groups.
+const SectionTitle: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <div style={{
+    display: 'flex', alignItems: 'center', gap: 12,
+    margin: '4px 0 10px', padding: '0 12px',
+  }}>
+    <span style={{
+      fontSize: 13, fontWeight: 600, color: D.textMain,
+      letterSpacing: '-.005em', whiteSpace: 'nowrap',
+      fontFamily: FONT,
+    }}>{children}</span>
+    <span aria-hidden style={{ flex: 1, height: 1, background: D.border }} />
+  </div>
+);
+
 // ── NotificationsStep ────────────────────────────────────────────────────────
-// Lifted verbatim from renderNotifications in ExerciseSettings.tsx. Same toggle
-// rows, same channel checkboxes, same Graded vs Non-Graded branching.
+// Restyled to match the ExerciseDetailsStep field-row layout: 306px label
+// column on the left with a teal ? tooltip, control column on the right with
+// the toggle + channels. Business logic (formData shape, setters, isGraded
+// branching, channel keys) is unchanged.
 export const NotificationsStep: React.FC<NotificationsStepProps> = ({
   formData,
   setFormData,
+  compact = false,
 }) => {
-  // Channel options definition
+  // Type / spacing scale — compact is the You Do assessment's denser layout.
+  const sz = compact
+    ? { state: 12.5, via: 12.5, ch: 12.5, check: 14, pad: '6px 12px', mt: 8, gap: 14, row: 26 }
+    : { state: 15, via: 14, ch: 14, check: 16, pad: '10px 14px', mt: 12, gap: 18, row: 32 };
   const channelOptions = [
-    { key: 'dashboard', label: 'Dashboard', icon: <Home size={12} />, color: D.blue },
-    { key: 'gmail', label: 'Gmail', icon: <Mail size={12} />, color: D.blue },
-    { key: 'whatsapp', label: 'WhatsApp', icon: <MessageCircle size={12} />, color: D.blue },
+    { key: 'dashboard', label: 'Dashboard', icon: <Home size={12} /> },
+    { key: 'gmail',     label: 'Gmail',     icon: <Mail size={12} /> },
+    { key: 'whatsapp',  label: 'WhatsApp',  icon: <MessageCircle size={12} /> },
   ];
 
-  // Student-only row for Non-Graded exercises
   const studentOnlyRow = {
     key: 'notifyStudent',
     label: 'Notify Student',
-    description: formData.notifications.notifyStudent
-      ? 'Students will be notified when the exercise is available.'
-      : 'Students will not be notified about this exercise.',
-    icon: <Bell size={14} />,
-    color: D.orange,
+    help: 'Send alerts to students when the exercise becomes available.',
+    onDesc: 'Students will be notified when the exercise is available.',
+    offDesc: 'Students will not be notified about this exercise.',
     value: formData.notifications.notifyStudent,
     onChange: (v: boolean) => setFormData((prev: any) => ({ ...prev, notifications: { ...prev.notifications, notifyStudent: v } })),
     channels: {
       dashboard: formData.notifications.notifyStudentChannels?.dashboard ?? false,
-      gmail: formData.notifications.notifyStudentChannels?.gmail ?? false,
-      whatsapp: formData.notifications.notifyStudentChannels?.whatsapp ?? false,
+      gmail:     formData.notifications.notifyStudentChannels?.gmail ?? false,
+      whatsapp:  formData.notifications.notifyStudentChannels?.whatsapp ?? false,
     },
     onChannelChange: (channelKey: string, value: boolean) => {
       setFormData((prev: any) => ({
@@ -54,22 +128,19 @@ export const NotificationsStep: React.FC<NotificationsStepProps> = ({
     },
   };
 
-  // Grader rows - only for Graded exercises
   const graderRows = [
     {
       key: 'notifyGradersSubmissions',
       label: 'Notify Graders about Submissions',
-      description: formData.notifications.notifyGradersSubmissions
-        ? 'Graders will receive alerts when students submit.'
-        : 'Graders will not receive alerts when students submit.',
-      icon: <UserCheck size={14} />,
-      color: D.blue,
+      help: 'Send an alert to graders each time a student submits.',
+      onDesc: 'Graders will receive alerts when students submit.',
+      offDesc: 'Graders will not receive alerts when students submit.',
       value: formData.notifications.notifyGradersSubmissions,
       onChange: (v: boolean) => setFormData((prev: any) => ({ ...prev, notifications: { ...prev.notifications, notifyGradersSubmissions: v } })),
       channels: {
         dashboard: formData.notifications.notifyGradersSubmissionsChannels?.dashboard ?? false,
-        gmail: formData.notifications.notifyGradersSubmissionsChannels?.gmail ?? false,
-        whatsapp: formData.notifications.notifyGradersSubmissionsChannels?.whatsapp ?? false,
+        gmail:     formData.notifications.notifyGradersSubmissionsChannels?.gmail ?? false,
+        whatsapp:  formData.notifications.notifyGradersSubmissionsChannels?.whatsapp ?? false,
       },
       onChannelChange: (channelKey: string, value: boolean) => {
         setFormData((prev: any) => ({
@@ -87,17 +158,15 @@ export const NotificationsStep: React.FC<NotificationsStepProps> = ({
     {
       key: 'notifyGradersLateSubmissions',
       label: 'Notify Graders about Late Submissions',
-      description: formData.notifications.notifyGradersLateSubmissions
-        ? 'Graders will receive alerts for late submissions.'
-        : 'No alerts for late submissions.',
-      icon: <Clock size={14} />,
-      color: D.amber,
+      help: 'Only send alerts when a submission arrives during the grace period.',
+      onDesc: 'Graders will receive alerts for late submissions.',
+      offDesc: 'No alerts for late submissions.',
       value: formData.notifications.notifyGradersLateSubmissions,
       onChange: (v: boolean) => setFormData((prev: any) => ({ ...prev, notifications: { ...prev.notifications, notifyGradersLateSubmissions: v } })),
       channels: {
         dashboard: formData.notifications.notifyGradersLateSubmissionsChannels?.dashboard ?? false,
-        gmail: formData.notifications.notifyGradersLateSubmissionsChannels?.gmail ?? false,
-        whatsapp: formData.notifications.notifyGradersLateSubmissionsChannels?.whatsapp ?? false,
+        gmail:     formData.notifications.notifyGradersLateSubmissionsChannels?.gmail ?? false,
+        whatsapp:  formData.notifications.notifyGradersLateSubmissionsChannels?.whatsapp ?? false,
       },
       onChannelChange: (channelKey: string, value: boolean) => {
         setFormData((prev: any) => ({
@@ -114,238 +183,77 @@ export const NotificationsStep: React.FC<NotificationsStepProps> = ({
     },
   ];
 
-  return (
-    <div className="px-4 py-3">
-      <div className="mb-3 flex items-center gap-2">
-        <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
-          style={{ background: D.orangeLight, color: D.orange }}>
-          <Bell size={13} />
-        </div>
-        <h3 className="text-sm font-bold"
-          style={{ color: D.textMain, fontFamily: FONT }}>
-          Notifications
-        </h3>
+  const renderNotifyRow = (row: any) => (
+    <FormRow
+      key={row.key}
+      label={row.label}
+      help={row.help}
+      note={row.value ? row.onDesc : row.offDesc}
+      compact={compact}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: compact ? 8 : 12, height: sz.row }}>
+        <SpecSwitch on={!!row.value} onClick={() => row.onChange(!row.value)} />
+        <span style={{
+          fontSize: sz.state, fontWeight: 700,
+          color: row.value ? D.emerald : D.textHint,
+          fontFamily: FONT,
+        }}>
+          {row.value ? 'On' : 'Off'}
+        </span>
       </div>
 
-      {/* For Graded exercises: show all rows */}
-      {formData.isGraded !== false && (
+      {/* Channel picker — indented block that appears only when the row is On. */}
+      {row.value && (
+        <div style={{
+          marginTop: sz.mt, padding: sz.pad,
+          borderRadius: 8, background: D.surface,
+          border: `1px solid ${D.border}`,
+          display: compact ? 'inline-flex' : 'flex', alignItems: 'center', flexWrap: 'wrap', gap: sz.gap,
+        }}>
+          <span style={{ fontSize: sz.via, fontWeight: 600, color: '#101828', fontFamily: FONT }}>
+            Notify via:
+          </span>
+          {channelOptions.map(ch => (
+            <label key={ch.key}
+              className="flex items-center cursor-pointer select-none"
+              style={{ gap: compact ? 6 : 8 }}>
+              <input
+                type="checkbox"
+                checked={row.channels[ch.key]}
+                onChange={(e) => row.onChannelChange(ch.key, e.target.checked)}
+                style={{ width: sz.check, height: sz.check, accentColor: D.orange, cursor: 'pointer' }}
+              />
+              <span className="flex items-center" style={{ gap: 6 }}>
+                <span style={{ color: D.textMuted }}>{ch.icon}</span>
+                <span style={{ fontSize: sz.ch, color: D.textSub, fontFamily: FONT }}>
+                  {ch.label}
+                </span>
+              </span>
+            </label>
+          ))}
+        </div>
+      )}
+    </FormRow>
+  );
+
+  return (
+    <div style={{ fontFamily: FONT }}>
+      {formData.isGraded !== false ? (
         <>
-          <p className="text-xs mb-3" style={{ color: D.textMuted }}>
-            Configure who gets notified about submissions and grading.
-          </p>
-          <div className="space-y-2 mb-4">
-            {graderRows.map(row => (
-              <div key={row.key}>
-                {/* Main toggle row */}
-                <div className="flex items-start justify-between p-3 rounded-xl border"
-                  style={{ borderColor: D.border, background: D.bg }}>
-                  <div className="flex items-start gap-2.5 flex-1 mr-3">
-                    <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
-                      style={{ background: row.color + '12', color: row.color }}>
-                      {row.icon}
-                    </div>
-                    <div>
-                      <div className="text-xs font-semibold leading-tight"
-                        style={{ color: D.textMain, fontFamily: FONT }}>
-                        {row.label}
-                      </div>
-                      <div className="text-[10.5px] mt-0.5 leading-relaxed"
-                        style={{ color: D.textMuted }}>
-                        {row.description}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <span className="text-[10px] font-bold"
-                      style={{ color: row.value ? D.emerald : D.red }}>
-                      {row.value ? 'Yes' : 'No'}
-                    </span>
-                    <button type="button" onClick={() => row.onChange(!row.value)}
-                      className="relative inline-flex items-center h-5 w-9 flex-shrink-0 rounded-full border-transparent transition-colors duration-200 p-[2px]"
-                      style={{ background: row.value ? D.emerald : '#e5e7eb' }}>
-                      <span className={`inline-block h-[13px] w-[13px] transform rounded-full bg-white shadow transition-transform duration-200 ${row.value ? 'translate-x-[17px]' : 'translate-x-0'}`} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Channel checkboxes — single row below when toggled ON */}
-                {row.value && (
-                  <div className="mt-1 ml-4 p-3 rounded-lg border animate-in fade-in slide-in-from-top-1 duration-150"
-                    style={{ borderColor: D.border, background: D.surface }}>
-                    <div className="flex items-center gap-4 flex-wrap">
-                      <span className="text-[10px] font-medium" style={{ color: D.textMuted }}>
-                        Notify via:
-                      </span>
-                      {channelOptions.map(ch => (
-                        <label
-                          key={ch.key}
-                          className="flex items-center gap-2 cursor-pointer select-none"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={row.channels[ch.key as keyof typeof row.channels]}
-                            onChange={(e) => row.onChannelChange(ch.key, e.target.checked)}
-                            className="w-3.5 h-3.5 rounded cursor-pointer"
-                            style={{ accentColor: D.blue }}
-                          />
-                          <span className="flex items-center gap-1.5">
-                            <span style={{ color: D.blue }}>
-                              {ch.icon}
-                            </span>
-                            <span className="text-[10.5px] font-medium" style={{ color: D.textMain }}>
-                              {ch.label}
-                            </span>
-                          </span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-
-            {/* Student notification row (for Graded) */}
-            <div key={studentOnlyRow.key}>
-              <div className="flex items-start justify-between p-3 rounded-xl border"
-                style={{ borderColor: D.border, background: D.bg }}>
-                <div className="flex items-start gap-2.5 flex-1 mr-3">
-                  <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
-                    style={{ background: studentOnlyRow.color + '12', color: studentOnlyRow.color }}>
-                    {studentOnlyRow.icon}
-                  </div>
-                  <div>
-                    <div className="text-xs font-semibold leading-tight"
-                      style={{ color: D.textMain, fontFamily: FONT }}>
-                      {studentOnlyRow.label}
-                    </div>
-                    <div className="text-[10.5px] mt-0.5 leading-relaxed"
-                      style={{ color: D.textMuted }}>
-                      {studentOnlyRow.description}
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1.5 flex-shrink-0">
-                  <span className="text-[10px] font-bold"
-                    style={{ color: studentOnlyRow.value ? D.emerald : D.red }}>
-                    {studentOnlyRow.value ? 'Yes' : 'No'}
-                  </span>
-                  <button type="button" onClick={() => studentOnlyRow.onChange(!studentOnlyRow.value)}
-                    className="relative inline-flex items-center h-5 w-9 flex-shrink-0 rounded-full border-transparent transition-colors duration-200 p-[2px]"
-                    style={{ background: studentOnlyRow.value ? D.emerald : '#e5e7eb' }}>
-                    <span className={`inline-block h-[13px] w-[13px] transform rounded-full bg-white shadow transition-transform duration-200 ${studentOnlyRow.value ? 'translate-x-[17px]' : 'translate-x-0'}`} />
-                  </button>
-                </div>
-              </div>
-
-              {studentOnlyRow.value && (
-                <div className="mt-1 ml-4 p-3 rounded-lg border animate-in fade-in slide-in-from-top-1 duration-150"
-                  style={{ borderColor: D.border, background: D.surface }}>
-                  <div className="flex items-center gap-4 flex-wrap">
-                    <span className="text-[10px] font-medium" style={{ color: D.textMuted }}>
-                      Notify via:
-                    </span>
-                    {channelOptions.map(ch => (
-                      <label
-                        key={ch.key}
-                        className="flex items-center gap-2 cursor-pointer select-none"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={studentOnlyRow.channels[ch.key as keyof typeof studentOnlyRow.channels]}
-                          onChange={(e) => studentOnlyRow.onChannelChange(ch.key, e.target.checked)}
-                          className="w-3.5 h-3.5 rounded cursor-pointer"
-                          style={{ accentColor: D.blue }}
-                        />
-                        <span className="flex items-center gap-1.5">
-                          <span style={{ color: D.blue }}>
-                            {ch.icon}
-                          </span>
-                          <span className="text-[10.5px] font-medium" style={{ color: D.textMain }}>
-                            {ch.label}
-                          </span>
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+          <SectionTitle>Graders</SectionTitle>
+          <div className={styles.generalFields}>
+            {graderRows.map(row => renderNotifyRow(row))}
+          </div>
+          <SectionTitle>Students</SectionTitle>
+          <div className={styles.generalFields}>
+            {renderNotifyRow(studentOnlyRow)}
           </div>
         </>
-      )}
-
-      {/* For Non-Graded exercises: show ONLY the Student row */}
-      {formData.isGraded === false && (
+      ) : (
         <>
-          <p className="text-xs mb-3" style={{ color: D.textMuted }}>
-            Students will be notified when the exercise becomes available.
-          </p>
-          <div className="space-y-2">
-            <div key={studentOnlyRow.key}>
-              <div className="flex items-start justify-between p-3 rounded-xl border"
-                style={{ borderColor: D.border, background: D.bg }}>
-                <div className="flex items-start gap-2.5 flex-1 mr-3">
-                  <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
-                    style={{ background: studentOnlyRow.color + '12', color: studentOnlyRow.color }}>
-                    {studentOnlyRow.icon}
-                  </div>
-                  <div>
-                    <div className="text-xs font-semibold leading-tight"
-                      style={{ color: D.textMain, fontFamily: FONT }}>
-                      {studentOnlyRow.label}
-                    </div>
-                    <div className="text-[10.5px] mt-0.5 leading-relaxed"
-                      style={{ color: D.textMuted }}>
-                      {studentOnlyRow.description}
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1.5 flex-shrink-0">
-                  <span className="text-[10px] font-bold"
-                    style={{ color: studentOnlyRow.value ? D.emerald : D.red }}>
-                    {studentOnlyRow.value ? 'Yes' : 'No'}
-                  </span>
-                  <button type="button" onClick={() => studentOnlyRow.onChange(!studentOnlyRow.value)}
-                    className="relative inline-flex items-center h-5 w-9 flex-shrink-0 rounded-full border-transparent transition-colors duration-200 p-[2px]"
-                    style={{ background: studentOnlyRow.value ? D.emerald : '#e5e7eb' }}>
-                    <span className={`inline-block h-[13px] w-[13px] transform rounded-full bg-white shadow transition-transform duration-200 ${studentOnlyRow.value ? 'translate-x-[17px]' : 'translate-x-0'}`} />
-                  </button>
-                </div>
-              </div>
-
-              {studentOnlyRow.value && (
-                <div className="mt-1 ml-4 p-3 rounded-lg border animate-in fade-in slide-in-from-top-1 duration-150"
-                  style={{ borderColor: D.border, background: D.surface }}>
-                  <div className="flex items-center gap-4 flex-wrap">
-                    <span className="text-[10px] font-medium" style={{ color: D.textMuted }}>
-                      Notify via:
-                    </span>
-                    {channelOptions.map(ch => (
-                      <label
-                        key={ch.key}
-                        className="flex items-center gap-2 cursor-pointer select-none"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={studentOnlyRow.channels[ch.key as keyof typeof studentOnlyRow.channels]}
-                          onChange={(e) => studentOnlyRow.onChannelChange(ch.key, e.target.checked)}
-                          className="w-3.5 h-3.5 rounded cursor-pointer"
-                          style={{ accentColor: D.blue }}
-                        />
-                        <span className="flex items-center gap-1.5">
-                          <span style={{ color: D.blue }}>
-                            {ch.icon}
-                          </span>
-                          <span className="text-[10.5px] font-medium" style={{ color: D.textMain }}>
-                            {ch.label}
-                          </span>
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+          <SectionTitle>Students</SectionTitle>
+          <div className={styles.generalFields}>
+            {renderNotifyRow(studentOnlyRow)}
           </div>
         </>
       )}

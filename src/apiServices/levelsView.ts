@@ -1,40 +1,7 @@
 // levelViewService.ts - React Query version
-import axios from 'axios';
-
-const API_BASE_URL = 'https://lms-server-ym1q.onrender.com';
-
-// Configure axios instance
-const apiClient = axios.create({
-    baseURL: API_BASE_URL,
-    headers: {
-        'Content-Type': 'application/json',
-    },
-    timeout: 10000,
-});
-
-// Get current token
-const getCurrentToken = () => {
-    return localStorage.getItem('smartcliff_token');
-};
-
-// Add request interceptor
-apiClient.interceptors.request.use((config) => {
-    const token = getCurrentToken();
-    if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-});
-
-apiClient.interceptors.response.use(
-    (response) => response,
-    (error) => {
-        if (error.response?.status === 401) {
-            localStorage.removeItem('smartcliff_token');
-        }
-        return Promise.reject(error);
-    }
-);
+import { http as apiClient } from "@/lib/http";
+import { getToken as getCurrentToken } from "@/lib/session";
+import { WS_ORIGIN } from '@/lib/apiBase'
 
 // Basic fetch functions
 export const fetchAllLevelViews = async (): Promise<any> => {
@@ -92,7 +59,7 @@ export const setupLevelViewsWebSocket = (
         throw new Error('No authentication token available');
     }
 
-    socket = new WebSocket(`ws://localhost:5533/levels/updates?token=${token}`);
+    socket = new WebSocket(`${WS_ORIGIN}/levels/updates?token=${token}`);
 
     socket.onmessage = (event) => {
         const data = JSON.parse(event.data);

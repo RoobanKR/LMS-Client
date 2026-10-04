@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Search, Filter, Loader, Check, ChevronRight, ChevronLeft, BookOpen, Code, Database, Layout, AlertCircle, Eye, Info, CheckCircle } from 'lucide-react';
-import { questionBankService } from '@/apiServices/questionBankService';
+import { questionBankService } from '@/app/lms/pages/questionbanks/api/questionBankService';
 import { toast } from 'react-toastify';
 
 interface Question {
@@ -365,7 +365,6 @@ const TestYourSKillsQuestionBanklist: React.FC<QuestionBankSelectorProps> = ({
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState<'all' | 'mcq' | 'programming' | 'frontend' | 'database'>('all');
   const [selectedQuestions, setSelectedQuestions] = useState<Set<string>>(new Set());
   const [selectAll, setSelectAll] = useState(false);
   const [selectedQuestionForDetail, setSelectedQuestionForDetail] = useState<Question | null>(null);
@@ -381,13 +380,22 @@ const TestYourSKillsQuestionBanklist: React.FC<QuestionBankSelectorProps> = ({
       const response = await questionBankService.getAllQuestions({
         isActive: true
       });
-      
+
       if (response && response.success) {
-        const questionsData = response.questions || [];
+        // Test Your Skills runs MCQs only — drop the Programming/Frontend/
+        // Database questions this screen cannot add. Filtered here rather than
+        // via the API's questionType param because that compares exact strings
+        // and the bank stores BOTH "mcq" and legacy "MCQ" (see the schema enum),
+        // so asking the server for one casing would hide the other's questions.
+        // The Select All count and action both read this list, so it has to be
+        // the filtered one.
+        const questionsData = (response.questions || []).filter(
+          (q: Question) => (q.questionType || '').toLowerCase() === 'mcq'
+        );
         setQuestions(questionsData);
-        
+
         if (questionsData.length === 0) {
-          toast.info('No questions found in question bank');
+          toast.info('No MCQ questions found in question bank');
         }
       } else {
         setQuestions([]);
@@ -539,19 +547,16 @@ const TestYourSKillsQuestionBanklist: React.FC<QuestionBankSelectorProps> = ({
     setShowQuestionDetailModal(true);
   };
 
+  // `questions` is already MCQ-only (see fetchQuestionBank), so search is the
+  // only thing left to narrow by.
   const getFilteredQuestions = () => {
     return questions.filter(q => {
       const title = getQuestionTitle(q);
       const description = getQuestionDescription(q);
       const searchLower = searchTerm.toLowerCase();
-      const matchesSearch = searchTerm === '' || 
+      return searchTerm === '' ||
         (title && title.toLowerCase().includes(searchLower)) ||
         (description && description.toLowerCase().includes(searchLower));
-
-      const questionType = q.questionType?.toLowerCase() || '';
-      const matchesType = filterType === 'all' || questionType === filterType;
-
-      return matchesSearch && matchesType;
     });
   };
 
@@ -654,20 +659,16 @@ const TestYourSKillsQuestionBanklist: React.FC<QuestionBankSelectorProps> = ({
                   className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-400"
                 />
               </div>
-              <div className="flex items-center gap-2">
-                <Filter className="h-4 w-4 text-gray-400" />
-                <select
-                  value={filterType}
-                  onChange={(e) => setFilterType(e.target.value as any)}
-                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-200"
-                >
-                  <option value="all">All Types</option>
-                  <option value="mcq">MCQ</option>
-                  <option value="programming">Programming</option>
-                  <option value="frontend">Frontend</option>
-                  <option value="database">Database</option>
-                </select>
-              </div>
+              {/* Test Your Skills takes MCQs only, so there is nothing to pick
+                  between — a type dropdown here would just offer options that
+                  always return nothing. State what the list is instead. */}
+              <span
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border border-purple-200 bg-purple-50 text-purple-800"
+                title="Test Your Skills supports MCQ questions only"
+              >
+                <Filter className="h-4 w-4" />
+                MCQ only
+              </span>
             </div>
           </div>
 
@@ -682,10 +683,10 @@ const TestYourSKillsQuestionBanklist: React.FC<QuestionBankSelectorProps> = ({
                 <BookOpen className="h-12 w-12 mx-auto text-gray-300 mb-3" />
                 <h3 className="text-sm font-medium text-gray-900 mb-1">No questions found</h3>
                 <p className="text-sm text-gray-500">
-                  {questions.length === 0 
-                    ? 'Question bank is empty' 
-                    : searchTerm || filterType !== 'all' 
-                      ? 'Try adjusting your filters' 
+                  {questions.length === 0
+                    ? 'No MCQ questions in the question bank yet'
+                    : searchTerm
+                      ? 'No MCQ matches your search'
                       : 'No matching questions found'}
                 </p>
               </div>

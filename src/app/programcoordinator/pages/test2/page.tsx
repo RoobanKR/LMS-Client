@@ -225,7 +225,7 @@ const defaultLearningElements: LearningElementSettings[] = [
     type: 'practice',
     description: 'Learn and practice with guidance',
     icon: Play,
-    color: '#3B82F6',
+    color: '#FB923C',
     security: { 
       enabled: false,
       screenCapture: false,
@@ -840,7 +840,7 @@ const QuestionsModal: React.FC<QuestionsModalProps> = ({
       return { status: 'submitted', color: 'bg-emerald-500' };
     }
     if (answers[question.id]) {
-      return { status: 'answered', color: 'bg-blue-500' };
+      return { status: 'answered', color: 'bg-orange-500' };
     }
     return { status: 'unanswered', color: 'bg-slate-400' };
   };
@@ -865,7 +865,7 @@ const QuestionsModal: React.FC<QuestionsModalProps> = ({
           darkMode ? 'border-slate-700' : 'border-slate-200'
         }`}>
           <div className="flex items-center gap-3">
-            <List className="w-6 h-6 text-blue-500" />
+            <List className="w-6 h-6 text-orange-500" />
             <h2 className="text-xl font-bold">All Questions</h2>
             <span className={`px-3 py-1 rounded-full text-sm font-medium ${
               darkMode ? 'bg-slate-700 text-slate-300' : 'bg-slate-100 text-slate-700'
@@ -898,8 +898,8 @@ const QuestionsModal: React.FC<QuestionsModalProps> = ({
                   className={`p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
                     isCurrent
                       ? darkMode 
-                        ? 'border-blue-500 bg-blue-500/10 shadow-lg' 
-                        : 'border-blue-500 bg-blue-50 shadow-lg'
+                        ? 'border-orange-500 bg-orange-500/10 shadow-lg' 
+                        : 'border-orange-500 bg-orange-50 shadow-lg'
                       : darkMode
                       ? 'border-slate-700 bg-slate-800/50 hover:bg-slate-700/50 hover:border-slate-600'
                       : 'border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300'
@@ -945,7 +945,7 @@ const QuestionsModal: React.FC<QuestionsModalProps> = ({
                             status.status === 'submitted' 
                               ? 'text-emerald-500' 
                               : status.status === 'answered'
-                              ? 'text-blue-500'
+                              ? 'text-orange-500'
                               : darkMode 
                               ? 'text-slate-500' 
                               : 'text-slate-400'
@@ -959,7 +959,7 @@ const QuestionsModal: React.FC<QuestionsModalProps> = ({
                     </div>
                     {isCurrent && (
                       <div className={`px-2 py-1 rounded text-xs font-medium ${
-                        darkMode ? 'bg-blue-500 text-white' : 'bg-blue-500 text-white'
+                        darkMode ? 'bg-orange-500 text-white' : 'bg-orange-500 text-white'
                       }`}>
                         Current
                       </div>
@@ -981,7 +981,7 @@ const QuestionsModal: React.FC<QuestionsModalProps> = ({
               <span className={darkMode ? 'text-slate-300' : 'text-slate-700'}>Submitted</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+              <div className="w-3 h-3 rounded-full bg-orange-500"></div>
               <span className={darkMode ? 'text-slate-300' : 'text-slate-700'}>Answered</span>
             </div>
             <div className="flex items-center gap-2">
@@ -1186,7 +1186,7 @@ const HintsModal: React.FC<HintsModalProps> = ({
                   >
                     <div className="flex items-start gap-3">
                       <span className={`w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold ${
-                        darkMode ? 'bg-blue-500 text-white' : 'bg-blue-500 text-white'
+                        darkMode ? 'bg-orange-500 text-white' : 'bg-orange-500 text-white'
                       }`}>
                         {index + 1}
                       </span>
@@ -1237,7 +1237,7 @@ const HintsModal: React.FC<HintsModalProps> = ({
         } flex justify-end`}>
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 transition-colors shadow-lg shadow-blue-500/25"
+            className="px-4 py-2 bg-orange-500 text-white rounded-lg font-medium hover:bg-orange-600 transition-colors shadow-lg shadow-orange-500/25"
           >
             Got It
           </button>
@@ -1261,14 +1261,14 @@ const ElementSelector: React.FC<ElementSelectorProps> = ({ onElementSelect, dark
     <div className={`min-h-screen transition-colors duration-300 ${
       darkMode 
         ? 'bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-slate-100' 
-        : 'bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 text-slate-900'
+        : 'bg-gradient-to-br from-orange-50 via-indigo-50 to-purple-50 text-slate-900'
     }`}>
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="text-center mb-12">
           <div className="flex items-center justify-center gap-3 mb-4">
-            <Code className="w-8 h-8 text-blue-500" />
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            <Code className="w-8 h-8 text-orange-500" />
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-orange-600 to-purple-600 bg-clip-text text-transparent">
               CodeLearning IDE
             </h1>
           </div>
@@ -1311,7 +1311,7 @@ const ElementSelector: React.FC<ElementSelectorProps> = ({ onElementSelect, dark
                   </div>
                   <ArrowRight className={`w-5 h-5 ${
                     darkMode ? 'text-slate-500' : 'text-slate-400'
-                  } group-hover:text-blue-500 transition-colors`} />
+                  } group-hover:text-orange-500 transition-colors`} />
                 </div>
 
                 {/* Features */}
@@ -1359,7 +1359,7 @@ const ElementSelector: React.FC<ElementSelectorProps> = ({ onElementSelect, dark
                   {/* Evaluation Features */}
                   {element.evaluation.enabled && (
                     <div className="flex items-center gap-2 text-sm">
-                      <Target className="w-4 h-4 text-blue-500" />
+                      <Target className="w-4 h-4 text-orange-500" />
                       <span className={darkMode ? 'text-slate-300' : 'text-slate-700'}>
                         {element.evaluation.passingScore}% to pass
                       </span>
@@ -1451,7 +1451,7 @@ const Pagination: React.FC<PaginationProps> = ({
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'submitted': return 'bg-emerald-500';
-      case 'answered': return 'bg-blue-500';
+      case 'answered': return 'bg-orange-500';
       default: return 'bg-slate-400';
     }
   };
@@ -1466,8 +1466,8 @@ const Pagination: React.FC<PaginationProps> = ({
           onClick={onShowQuestionsModal}
           className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors shadow-lg ${
             darkMode 
-              ? 'bg-blue-500 hover:bg-blue-600 text-white shadow-blue-500/25' 
-              : 'bg-blue-500 hover:bg-blue-600 text-white shadow-blue-500/25'
+              ? 'bg-orange-500 hover:bg-orange-600 text-white shadow-orange-500/25' 
+              : 'bg-orange-500 hover:bg-orange-600 text-white shadow-orange-500/25'
           }`}
         >
           <List className="w-4 h-4" />
@@ -1794,7 +1794,7 @@ const LearningIDE: React.FC<LearningIDEProps> = ({
     <div className={`h-screen flex flex-col transition-colors duration-300 ${
       darkMode 
         ? 'bg-gradient-to-br from-slate-900 to-slate-800 text-slate-100' 
-        : 'bg-gradient-to-br from-slate-50 to-blue-50 text-slate-900'
+        : 'bg-gradient-to-br from-slate-50 to-orange-50 text-slate-900'
     }`}>
       
       {/* Security Warning */}
@@ -1963,8 +1963,8 @@ const LearningIDE: React.FC<LearningIDEProps> = ({
                   ? 'bg-red-500 text-white shadow-red-500/25' 
                   : 'bg-red-500 text-white shadow-red-500/25'
                 : darkMode 
-                ? 'bg-blue-500 text-white shadow-blue-500/25' 
-                : 'bg-blue-500 text-white shadow-blue-500/25'
+                ? 'bg-orange-500 text-white shadow-orange-500/25' 
+                : 'bg-orange-500 text-white shadow-orange-500/25'
             }`}>
               <Clock className="w-4 h-4" />
               <span className="font-mono font-bold">{formatTime(timeRemaining)}</span>
@@ -2090,7 +2090,7 @@ const LearningIDE: React.FC<LearningIDEProps> = ({
                   {/* Description */}
                   {currentQuestion.description && (
                     <div className={`text-sm mb-5 p-3 rounded-xl ${
-                      darkMode ? 'bg-slate-700/50 text-slate-300' : 'bg-blue-50 text-blue-800'
+                      darkMode ? 'bg-slate-700/50 text-slate-300' : 'bg-orange-50 text-orange-800'
                     }`}>
                       <strong>💡 Description:</strong> {currentQuestion.description}
                     </div>
@@ -2173,8 +2173,8 @@ const LearningIDE: React.FC<LearningIDEProps> = ({
                         className={`flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-colors ${
                           answers[currentQuestion.id] === option
                             ? darkMode 
-                              ? 'bg-blue-500/20 border-blue-500' 
-                              : 'bg-blue-50 border-blue-500'
+                              ? 'bg-orange-500/20 border-orange-500' 
+                              : 'bg-orange-50 border-orange-500'
                             : darkMode
                             ? 'bg-slate-700/50 border-slate-600 hover:bg-slate-600/50'
                             : 'bg-slate-50 border-slate-300 hover:bg-slate-100'
@@ -2186,7 +2186,7 @@ const LearningIDE: React.FC<LearningIDEProps> = ({
                           value={option}
                           checked={answers[currentQuestion.id] === option}
                           onChange={(e) => handleAnswerChange(currentQuestion.id, e.target.value)}
-                          className="text-blue-600 focus:ring-blue-500"
+                          className="text-orange-600 focus:ring-orange-500"
                         />
                         <span className="text-sm flex-1">{option}</span>
                       </label>
@@ -2202,7 +2202,7 @@ const LearningIDE: React.FC<LearningIDEProps> = ({
                       value={answers[currentQuestion.id] || ''}
                       onChange={(e) => handleAnswerChange(currentQuestion.id, e.target.value)}
                       rows={6}
-                      className={`w-full p-4 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-vertical text-sm transition-colors ${
+                      className={`w-full p-4 border rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 resize-vertical text-sm transition-colors ${
                         darkMode 
                           ? 'bg-slate-700/50 border-slate-600 text-slate-100 placeholder-slate-500' 
                           : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'
@@ -2235,7 +2235,7 @@ const LearningIDE: React.FC<LearningIDEProps> = ({
                       />
                       <label
                         htmlFor="file-upload"
-                        className="inline-block px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 cursor-pointer transition-colors shadow-lg shadow-blue-500/25"
+                        className="inline-block px-4 py-2 bg-orange-500 text-white rounded-lg text-sm hover:bg-orange-600 cursor-pointer transition-colors shadow-lg shadow-orange-500/25"
                       >
                         Choose File
                       </label>
@@ -2330,7 +2330,7 @@ const LearningIDE: React.FC<LearningIDEProps> = ({
                 )}
                 {selectedElement.compiler.syntaxHighlighting && (
                   <span className={`px-2 py-1 rounded font-medium ${
-                    darkMode ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-100 text-blue-800'
+                    darkMode ? 'bg-orange-500/20 text-orange-300' : 'bg-orange-100 text-orange-800'
                   }`}>Syntax Highlighting</span>
                 )}
               </div>
@@ -2360,8 +2360,8 @@ const LearningIDE: React.FC<LearningIDEProps> = ({
                 className={`p-2 rounded-lg transition-colors ${
                   showOutputPanel 
                     ? darkMode 
-                      ? 'bg-blue-500 text-white' 
-                      : 'bg-blue-500 text-white'
+                      ? 'bg-orange-500 text-white' 
+                      : 'bg-orange-500 text-white'
                     : darkMode 
                     ? 'hover:bg-slate-700 text-slate-400 hover:text-slate-300' 
                     : 'hover:bg-slate-200 text-slate-500 hover:text-slate-700'

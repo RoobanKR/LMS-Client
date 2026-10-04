@@ -13,7 +13,7 @@ import {
   Layers, ArrowRight, PenLine, Navigation,
   Play, Undo2, Redo2, Columns, RefreshCw
 } from "lucide-react"
-import { entityApi } from "@/apiServices/coursesData"
+import { entityApi } from "@/app/lms/pages/courses/api/coursesData"
 import { PlainBreadcrumb } from "./PlainBreadcrumb"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -274,8 +274,8 @@ const SHARED_HTML_CSS = `
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   html { scroll-behavior: smooth; font-size: 16px; }
   html, body {
-    width: 100%; min-height: 100vh;
-    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    width: 100%; min-height: calc(100vh * var(--ui-scale-inv, 1));
+    font-family: 'Poppins', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     background: #ffffff; color: #111827; line-height: 1.7;
   }
   .page-wrap { width: 100%; max-width: 820px; margin: 0 auto; padding: 56px 48px 100px; }
@@ -423,8 +423,8 @@ function renderBlocksToHTMLString(
           return `<table${s}><tbody>${rows}</tbody></table>`
         }
         case "callout": {
-          const bg = b.metadata?.backgroundColor || "#eff6ff"
-          const bc = b.metadata?.borderColor || "#bfdbfe"
+          const bg = b.metadata?.backgroundColor || "#FFF7ED"
+          const bc = b.metadata?.borderColor || "#FED7AA"
           const emoji = b.metadata?.url || "💡"
           return `<div class="callout" style="background:${bg};border:1px solid ${bc};">
   <span class="callout-icon">${emoji}</span>
@@ -723,8 +723,8 @@ const StylePanel: React.FC<{ block: PageBlock; onChange: (u: Partial<PageBlock["
           </div>
           <div>
             <label className="text-xs block mb-1 text-gray-500">Font Family</label>
-            <select value={block.metadata?.fontFamily || "Inter, sans-serif"} onChange={e => onChange({ fontFamily: e.target.value })} className={`w-full text-xs p-1.5 rounded-lg border ${isDark ? "bg-gray-700 border-gray-600 text-gray-200" : "bg-white border-gray-200"}`}>
-              {["Inter, sans-serif", "Arial, sans-serif", "Georgia, serif", "Courier New, monospace", "Times New Roman, serif", "Helvetica, sans-serif"].map(f => <option key={f} value={f} style={{ fontFamily: f }}>{f.split(",")[0]}</option>)}
+            <select value={block.metadata?.fontFamily || "Poppins, sans-serif"} onChange={e => onChange({ fontFamily: e.target.value })} className={`w-full text-xs p-1.5 rounded-lg border ${isDark ? "bg-gray-700 border-gray-600 text-gray-200" : "bg-white border-gray-200"}`}>
+              {["Poppins, sans-serif", "Arial, sans-serif", "Georgia, serif", "Courier New, monospace", "Times New Roman, serif", "Helvetica, sans-serif"].map(f => <option key={f} value={f} style={{ fontFamily: f }}>{f.split(",")[0]}</option>)}
             </select>
           </div>
           <div className="grid grid-cols-2 gap-2">
@@ -1917,7 +1917,7 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
       case "callout": {
         const cs = buildInlineStyle(block.metadata)
         return (
-          <div className="w-full p-4 rounded-xl border flex gap-3 items-start" style={{ backgroundColor: cs.backgroundColor || (isDark ? "#1e293b" : "#eff6ff"), borderColor: cs.borderColor || (isDark ? "#334155" : "#bfdbfe"), borderWidth: "1px", borderStyle: "solid", borderRadius: "12px" }}>
+          <div className="w-full p-4 rounded-xl border flex gap-3 items-start" style={{ backgroundColor: cs.backgroundColor || (isDark ? "#1e293b" : "#FFF7ED"), borderColor: cs.borderColor || (isDark ? "#334155" : "#FED7AA"), borderWidth: "1px", borderStyle: "solid", borderRadius: "12px" }}>
             <select value={block.metadata?.url || "💡"} onChange={e => onChange(updateMetaSafe(block, { url: e.target.value }))} className="text-xl bg-transparent border-none outline-none cursor-pointer mt-1">
               {["💡", "⚠️", "✅", "❌", "🔥", "📌", "💬", "🎯", "🚀", "📝"].map(e => <option key={e} value={e}>{e}</option>)}
             </select>
@@ -2118,7 +2118,7 @@ const PreviewRenderer: React.FC<{
             </table>
           )
           case "callout": return (
-            <div key={i} className="flex gap-3 p-4 rounded-xl my-3" style={{ backgroundColor: s.backgroundColor || (isDark ? "#1e293b" : "#eff6ff"), border: `1px solid ${s.borderColor || (isDark ? "#334155" : "#bfdbfe")}`, borderRadius: "12px" }}>
+            <div key={i} className="flex gap-3 p-4 rounded-xl my-3" style={{ backgroundColor: s.backgroundColor || (isDark ? "#1e293b" : "#FFF7ED"), border: `1px solid ${s.borderColor || (isDark ? "#334155" : "#FED7AA")}`, borderRadius: "12px" }}>
               <span className="text-xl flex-shrink-0">{block.metadata?.url || "💡"}</span>
               <div dangerouslySetInnerHTML={{ __html: block.content }} />
             </div>
@@ -2332,7 +2332,7 @@ export const PageCreationModal: React.FC<PageCreationModalProps> = ({
       metadata:
         type === "todo" ? { checked: false }
           : type === "table" ? { data: [["Header 1", "Header 2"], ["", ""]] }
-            : type === "callout" ? { backgroundColor: isDark ? "#1e293b" : "#eff6ff", url: "💡" }
+            : type === "callout" ? { backgroundColor: isDark ? "#1e293b" : "#FFF7ED", url: "💡" }
               : type === "container" ? { columns: 2, gap: "16px", backgroundColor: isDark ? "#1e293b" : "#f9fafb", padding: "16px", borderRadius: "8px", minHeight: "80px" }
                 : type === "video" ? { controls: true }
                   : type === "snippet" ? { snippetTitle: "", snippetLanguage: "html" }
@@ -2409,7 +2409,7 @@ export const PageCreationModal: React.FC<PageCreationModalProps> = ({
       const newMeta =
         type === "todo" ? { checked: false }
           : type === "table" ? { data: [["Header 1", "Header 2"], ["", ""]] }
-            : type === "callout" ? { backgroundColor: isDark ? "#1e293b" : "#eff6ff", url: "💡" }
+            : type === "callout" ? { backgroundColor: isDark ? "#1e293b" : "#FFF7ED", url: "💡" }
               : type === "container" ? { columns: 2, gap: "16px", backgroundColor: isDark ? "#1e293b" : "#f9fafb", padding: "16px", borderRadius: "8px", minHeight: "80px" }
                 : type === "button" ? { backgroundColor: "#4f46e5", textColor: "#ffffff", borderRadius: "8px", align: "left" }
                   : type === "progress" ? { opacity: 0.7, backgroundColor: "#4ade80", borderColor: isDark ? "#374151" : "#e5e7eb" }

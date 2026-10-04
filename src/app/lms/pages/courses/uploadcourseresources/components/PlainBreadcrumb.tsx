@@ -8,8 +8,8 @@ const T = {
   textSub:   "#475569",
   textMuted: "#94a3b8",
   textHint:  "#cbd5e1",
-  link:      "#2563eb",
-  linkHover: "#1d4ed8",
+  link:      "#f97316",
+  linkHover: "#ea580c",
   border:    "#eef0f4",
   pageBg:    "#fafafb",
 };
@@ -36,7 +36,7 @@ interface PlainBreadcrumbProps {
 // ─── PlainBreadcrumb ───────────────────────────────────────────────────────────
 /**
  * Lightweight, no-frills breadcrumb. Plain text segments joined by a `>`
- * separator. Segments with an `onClick` render as clickable blue links;
+ * separator. Segments with an `onClick` render as clickable orange links;
  * segments without are plain muted text.
  *
  * Used across NotionResourceModal, PageCreationModal, the URL/Reference
@@ -52,7 +52,7 @@ export const PlainBreadcrumb: React.FC<PlainBreadcrumbProps> = ({ crumbs, style,
       style={{
         borderBottom: `1px solid ${T.border}`,
         background: T.pageBg,
-        fontFamily: "'Inter', -apple-system, sans-serif",
+        fontFamily: "'Poppins', -apple-system, sans-serif",
         ...style,
       }}
     >

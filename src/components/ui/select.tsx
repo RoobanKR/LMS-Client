@@ -37,9 +37,9 @@ function SelectTrigger({
       data-size={size}
       /* make it a ‘group’ so children can react to data‑state */
       className={cn(
-        "group flex w-fit items-center justify-between gap-2 cursor-pointer text-gray-500  border border-input bg-transparent px-3 py-2",
+        "group flex w-fit items-center justify-between gap-2 cursor-pointer text-body rounded-control border border-hairline-strong bg-surface px-3 py-2",
         "text-xs sm:text-xs h-8 select-none outline-none",
-        "transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
+        "transition-colors duration-150 hover:border-line-hover focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/15",
         "disabled:cursor-not-allowed disabled:opacity-50",
         className
       )}
@@ -54,7 +54,7 @@ function SelectTrigger({
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 320 512"
           /* same sizing & color you had before + the rotation hack */
-          className="size-4 fill-gray-800 opacity-70
+          className="size-4 fill-ink-500 opacity-70
                transition-transform duration-100
                group-data-[state=open]:rotate-180"
         >
@@ -89,7 +89,7 @@ function SelectContent({
             transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
             style={{ originY: 0 }}
             className={cn(
-              "z-50 min-w-[8rem] overflow-y-auto cursor-pointer  border bg-popover text-popover-foreground shadow-md",
+              "z-popover min-w-[8rem] overflow-y-auto cursor-pointer rounded-tile border border-hairline bg-surface text-body shadow-lg",
               position === "popper" &&
               "data-[side=bottom]:translate-y-1 data-[side=top]:-translate-y-1",
               className
@@ -110,7 +110,7 @@ function SelectLabel({
   return (
     <SelectPrimitive.Label
       data-slot="select-label"
-      className={cn("text-muted-foreground px-2 cursor-pointer py-1.5 text-xs", className)}
+      className={cn("text-faint px-2 cursor-pointer py-1.5 text-xs", className)}
       {...props}
     />
   )
@@ -126,15 +126,15 @@ function SelectItem({
       <motion.div
         whileTap={{ scale: 0.97 }}
         className={cn(
-          "relative flex w-full cursor-default select-none items-center gap-2 cursor-pointer  py-1.5 pl-2 pr-8 text-xs",
-          "focus:bg-accent focus:text-accent-foreground",
+          "relative flex w-full cursor-default select-none items-center gap-2 cursor-pointer rounded-chip py-1.5 pl-2 pr-8 text-xs text-body",
+          "focus:bg-row-hover focus:text-heading data-[highlighted]:bg-row-hover data-[highlighted]:text-heading",
           "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
           className
         )}
       >
         <span className="absolute right-2 flex size-3.5 items-center justify-center">
           <SelectPrimitive.ItemIndicator>
-            <CheckIcon className="size-4" />
+            <CheckIcon className="size-4 text-brand-strong" />
           </SelectPrimitive.ItemIndicator>
         </span>
         <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
@@ -150,7 +150,7 @@ function SelectSeparator({
   return (
     <SelectPrimitive.Separator
       data-slot="select-separator"
-      className={cn("bg-border pointer-events-none cursor-pointer -mx-1 my-1 h-px", className)}
+      className={cn("bg-hairline pointer-events-none cursor-pointer -mx-1 my-1 h-px", className)}
       {...props}
     />
   )

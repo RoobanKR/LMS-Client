@@ -3,7 +3,7 @@
 
 import React, { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import DBQueryEditor from '@/app/lms/component/student/YouDo/assessment/components/db-queryEditor';
+import DBQueryEditor from '@/app/lms/pages/courses/coursesdetailedview/components/YouDo/db-queryEditor';
 import { ArrowLeft } from 'lucide-react';
 
 const SQLCompilerPageContent = () => {
@@ -91,8 +91,7 @@ const handleBack = () => {
     return (
       <div className="w-full h-screen bg-[#1e1e1e] flex items-center justify-center">
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-white text-lg">Loading SQL Exercise...</p>
+          <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
         </div>
       </div>
     );
@@ -151,6 +150,7 @@ const handleBack = () => {
         nodeType={entityType}
         subcategory={subcategory}
         category={category}
+        skipSecurityModal={searchParams.get('securityAck') === '1'}
         onCloseExercise={handleBack}
         onResetExercise={() => {
           if (questions.length > 0 && questions[0]?.schema) {
@@ -166,7 +166,7 @@ export default function SQLCompilerPage() {
   return (
     <Suspense fallback={
       <div className="w-full h-screen bg-[#1e1e1e] flex items-center justify-center">
-        <div className="text-white">Loading SQL compiler...</div>
+        <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
       </div>
     }>
       <SQLCompilerPageContent />

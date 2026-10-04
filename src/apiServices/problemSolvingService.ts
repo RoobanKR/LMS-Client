@@ -63,7 +63,7 @@ export interface SingleQuestionResponse {
 }
 
 // API service functions
-const API_BASE_URL = 'https://lms-server-ym1q.onrender.com';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://lmsserver-yeve.onrender.com';
 
 const handleResponse = async (response: Response) => {
   if (!response.ok) {

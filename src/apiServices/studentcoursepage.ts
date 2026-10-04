@@ -1,19 +1,44 @@
 import React from "react";
+import { useQuery, UseQueryResult } from "@tanstack/react-query";
+import { api } from "@/lib/apiClient";
 import {
-  useQuery,
-  UseQueryResult,
-  useInfiniteQuery,
-} from "@tanstack/react-query";
+  courseMatchesUserHierarchy,
+  enrollmentStatusOf,
+  getStoredHierarchyUser,
+  isStudentRole,
+  type CourseEnrollmentStatus,
+} from "@/lib/api/courses";
 
-export interface SingleParticipant {
-  user: string | { $oid: string };
+export interface BatchUser {
+  user: string | { $oid: string } | { _id: string };
   status: string;
-  enableEnrolmentDates: boolean;
-  enrolmentStartsDate: string | null;
-  enrolmentEndsDate: string | null;
-  createdAt: string;
-  updatedAt: string;
+  joinedAt?: string;
+  updatedAt?: string;
   _id: string;
+}
+
+export interface CourseBatch {
+  _id: string;
+  batchName: string;
+  batchDescription?: string;
+  batchStartDate: string | null;
+  batchEndDate: string | null;
+  users: BatchUser[];
+  status: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CourseDepartmentSection {
+  department?: string;
+  sections?: string[];
+  semesters?: string[];
+}
+
+export interface CourseClientConfiguration {
+  batch?: string;
+  degree?: string;
+  departments?: CourseDepartmentSection[];
 }
 
 export interface Course {
@@ -27,21 +52,33 @@ export interface Course {
   clientName: string;
   createdAt: string;
   updatedAt: string;
-  singleParticipants?: SingleParticipant[];
+  batchAndParticipants?: CourseBatch[];
   groups?: string[];
+  // Service-mapping hierarchy (present on courses created with a client config)
+  clientId?: string;
+  studentType?: string;
+  batch?: string;
+  skillingBatches?: string[];
+  degree?: string;
+  departmentSections?: CourseDepartmentSection[];
+  clientConfigurations?: CourseClientConfiguration[];
+  // Attached by /courses-structure/getAll in the same pass that populates
+  // batches: real module count, distinct participant count, calendar gate.
+  moduleCount?: number;
+  participantCount?: number;
+  hasModuleHours?: boolean;
+  // The signed-in user's own enrolment on this course, stamped by the filter
+  // below. Absent when they reach the course through their hierarchy rather
+  // than a roster entry — there is no enrolment to gate on in that case.
+  enrollmentStatus?: CourseEnrollmentStatus;
 }
 
+// /courses-structure/getAll returns { message, data } — it has never paged,
+// so there is no `pagination` block to describe here.
 interface CoursesApiResponse {
   data: Course[];
   message?: string;
   success?: boolean;
-  pagination?: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-    hasNext: boolean;
-  };
 }
 
 interface CoursesQueryError {
@@ -49,9 +86,17 @@ interface CoursesQueryError {
   status?: number;
 }
 
-const normalizeMongoId = (id: string | { $oid: string }): string => {
+const normalizeMongoId = (id: any): string => {
+  if (!id) return "";
   if (typeof id === "string") return id;
-  if (id && typeof id === "object" && id.$oid) return id.$oid;
+  if (typeof id === "object") {
+    if (id.$oid) return id.$oid;
+    // `batchAndParticipants.users.user` is populated server-side into a full
+    // LMS-User document ({ _id, name, email, ... }). Unwrap its _id so enrolment
+    // matching works — otherwise String(object) → "[object Object]" never
+    // matches and the student sees zero courses.
+    if (id._id) return normalizeMongoId(id._id);
+  }
   return String(id);
 };
 
@@ -81,6 +126,14 @@ export const getCurrentUserIdFromAuth = (): string | null => {
   return null;
 };
 
+// `?summary=enrolled`: the listing projection plus the roster ids/statuses and
+// the hierarchy scalars the filter below reads — everything the grades pages
+// render (_id, courseImage, courseLevel, courseName, institution, serviceType)
+// and nothing else. Measured on the wire, 68 courses: 348,390 B full vs
+// 78,358 B here. Plain `?summary=1` is NOT usable: it strips batchAndParticipants
+// and the hierarchy fields, so every user would filter down to zero courses.
+// An older server that ignores the param returns the full document — a
+// superset, so this keeps working against it.
 const fetchCourses = async (
   token: string,
   userId: string | null,
@@ -89,28 +142,12 @@ const fetchCourses = async (
     throw new Error("Authentication token not found");
   }
 
-  const response = await fetch(
-    `https://lms-server-ym1q.onrender.com/courses-structure/getAll`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-    }
+  // Shared client: base URL from NEXT_PUBLIC_API_URL, Authorization attached
+  // by the interceptor, and errors carry `.status` for the retry predicate
+  // below. Was a hardcoded https://lmsserver-yeve.onrender.com fetch, dev-machine only.
+  const data = await api.get<CoursesApiResponse>(
+    "/courses-structure/getAll?summary=enrolled"
   );
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    const err: any = new Error(
-      errorData.message ||
-        `HTTP error! status: ${response.status}` ||
-        "Failed to fetch courses"
-    );
-    err.status = response.status;
-    throw err;
-  }
-
-  const data: CoursesApiResponse = await response.json();
 
   if (!data.data || !Array.isArray(data.data)) {
     throw new Error("Invalid data format received from API");
@@ -120,34 +157,26 @@ const fetchCourses = async (
 
   if (userId) {
     const normalizedUserId = normalizeMongoId(userId);
+    const hierarchyUser = isStudentRole() ? getStoredHierarchyUser() : null;
 
-    filteredCourses = data.data.filter((course) => {
-      if (
-        !course.singleParticipants ||
-        !Array.isArray(course.singleParticipants)
-      ) {
-        return false;
-      }
-
-      const userParticipant = course.singleParticipants.find(
-        (participant: SingleParticipant) => {
-          // Handle both string user ID and populated user object
-          const participantUserId = normalizeMongoId(participant.user);
-          
-          const matches = participantUserId === normalizedUserId;
-
-          if (matches) {
-            console.log('User found in course:', course.courseName);
-          }
-
-          return matches;
-        }
+    filteredCourses = data.data
+      // Stamp the user's own enrolment so the card can gate on it. A roster
+      // entry of ANY status keeps the course visible — suspended and dropped
+      // students see it and are stopped at the card, rather than the course
+      // vanishing from their list with no explanation and nothing to take to
+      // an administrator.
+      .map((course) => {
+        const enrollmentStatus = enrollmentStatusOf(course, normalizedUserId);
+        return enrollmentStatus ? { ...course, enrollmentStatus } : course;
+      })
+      .filter((course) =>
+        course.enrollmentStatus
+          ? true
+          // Students also see courses mapped to their own hierarchy
+          // (client → batch → degree → department → section/semester), even
+          // without being added via Add Participant.
+          : courseMatchesUserHierarchy(course, hierarchyUser)
       );
-
-      const isEnrolled = userParticipant && userParticipant.status === "active";
-
-      return isEnrolled;
-    });
   }
 
   console.log('Filtered courses count:', filteredCourses.length);
@@ -164,42 +193,19 @@ export const coursesQueryKeys = {
   lists: () => [...coursesQueryKeys.all, "list"] as const,
   list: (filters: Record<string, any>) =>
     [...coursesQueryKeys.lists(), { filters }] as const,
-  infinite: () => [...coursesQueryKeys.all, "infinite"] as const,
-  infiniteList: (filters: Record<string, any>) =>
-    [...coursesQueryKeys.infinite(), { filters }] as const,
   details: () => [...coursesQueryKeys.all, "detail"] as const,
   detail: (id: string) => [...coursesQueryKeys.details(), id] as const,
 };
 
-export const useCoursesInfiniteQuery = (
-  token: string | null,
-  userId: string | null,
-  filters: {
-    searchTerm: string;
-    selectedCategory: string;
-  }
-) => {
-  return useInfiniteQuery({
-    queryKey: [...coursesQueryKeys.infiniteList(filters), userId, filters],
-    queryFn: ({ pageParam = 1 }) => fetchCourses(token!, userId,),
-    enabled: !!token && !!userId,
-    getNextPageParam: (lastPage) => {
-      if (lastPage.pagination?.hasNext) {
-        return lastPage.pagination.page + 1;
-      }
-      return undefined;
-    },
-    staleTime: 10 * 60 * 1000,
-    gcTime: 30 * 60 * 1000,
-    retry: (failureCount, error: any) => {
-      if (error?.status === 401 || error?.status === 403) {
-        return false;
-      }
-      return failureCount < 2;
-    },
-    initialPageParam: 1,
-  });
-};
+// There was a useCoursesInfiniteQuery here. It could not page: its queryFn
+// destructured `pageParam` and dropped it, fetchCourses takes no page
+// argument, and getNextPageParam read a `pagination` block this endpoint has
+// never returned — so hasNextPage was permanently false and the scroll
+// handlers on the grades pages were decoration. Its key also included the
+// search term, so every keystroke opened a new cache entry and refetched the
+// whole list. The endpoint returns all courses in one response; the plain
+// query below is what that actually is. Restore an infinite query only
+// alongside real server-side pagination.
 
 export const useCoursesQuery = (
   token: string | null,

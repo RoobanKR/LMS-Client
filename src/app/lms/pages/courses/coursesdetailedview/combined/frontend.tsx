@@ -1,4 +1,5 @@
 "use client";
+import { getToken } from "@/lib/session";
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
@@ -55,13 +56,13 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
-  AlertTriangle,
-  Info
+  AlertTriangle
 } from 'lucide-react';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import dynamic from 'next/dynamic';
 import RichTextDisplay from '@/app/lms/component/RichTextDisplay';
+import { API_ORIGIN } from '@/lib/apiBase'
 
 const MonacoEditor = dynamic(
   () => import('@monaco-editor/react'),
@@ -69,7 +70,7 @@ const MonacoEditor = dynamic(
     ssr: false,
     loading: () => (
       <div className="w-full h-full flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+        <Loader2 className="w-8 h-8 text-orange-600 animate-spin" />
       </div>
     )
   }
@@ -297,11 +298,17 @@ const FrontendQuestion: React.FC<FrontendQuestionProps> = ({
 
     const initialFiles: FileType[] = [];
 
-    if (question.solutions?.htmlCode) {
+    // Code Setup's starterCode (html/css/javascript) takes priority over the
+    // legacy solutions.htmlCode/cssCode/jsCode fields.
+    const starterHtml = question.starterCode?.html || question.solutions?.htmlCode;
+    const starterCss = question.starterCode?.css || question.solutions?.cssCode;
+    const starterJs = question.starterCode?.javascript || question.solutions?.jsCode;
+
+    if (starterHtml) {
       const htmlFile: FileType = {
         id: 'file-html',
         filename: 'index.html',
-        content: question.solutions.htmlCode,
+        content: starterHtml,
         language: 'html',
         path: '/index.html',
         folderPath: '/',
@@ -310,11 +317,11 @@ const FrontendQuestion: React.FC<FrontendQuestionProps> = ({
       };
       initialFiles.push(htmlFile);
     }
-    if (question.solutions?.cssCode) {
+    if (starterCss) {
       const cssFile: FileType = {
         id: 'file-css',
         filename: 'styles.css',
-        content: question.solutions.cssCode,
+        content: starterCss,
         language: 'css',
         path: '/styles.css',
         folderPath: '/',
@@ -322,11 +329,11 @@ const FrontendQuestion: React.FC<FrontendQuestionProps> = ({
       };
       initialFiles.push(cssFile);
     }
-    if (question.solutions?.jsCode) {
+    if (starterJs) {
       const jsFile: FileType = {
         id: 'file-js',
         filename: 'script.js',
-        content: question.solutions.jsCode,
+        content: starterJs,
         language: 'javascript',
         path: '/script.js',
         folderPath: '/',
@@ -829,7 +836,7 @@ const FrontendQuestion: React.FC<FrontendQuestionProps> = ({
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                min-height: 100vh;
+                min-height: calc(100vh * var(--ui-scale-inv, 1));
                 margin: 0;
                 padding: 20px;
             }
@@ -1387,7 +1394,7 @@ console.log('${fileName} loaded');
   const loadPreviousSubmission = useCallback(async () => {
     setIsLoadingPrevious(true);
     try {
-      const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
+      const token = getToken() || localStorage.getItem('token') || '';
 
       if (!token) {
         toast.error("Authentication token missing");
@@ -1395,7 +1402,7 @@ console.log('${fileName} loaded');
       }
 
       const response = await fetch(
-        `https://lms-server-ym1q.onrender.com/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseId}&questionId=${question._id}&category=${category}`,
+        `${API_ORIGIN}/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseId}&questionId=${question._id}&category=${category}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -1725,7 +1732,7 @@ console.log('${fileName} loaded');
       return (
         <div key={folder.id} className="mt-0.5">
           <div
-            className={`flex items-center gap-2 px-2 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded cursor-pointer text-sm ${isSelected ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
+            className={`flex items-center gap-2 px-2 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded cursor-pointer text-sm ${isSelected ? 'bg-orange-50 dark:bg-orange-900/20' : ''}`}
             style={{ marginLeft: `${depth * 12}px` }}
             onClick={() => {
               handleFolderSelect(folder.path);
@@ -1845,7 +1852,7 @@ console.log('${fileName} loaded');
                 return (
                   <div key={file.id}
                     className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer text-sm group ${activeFileId === file.id
-                      ? 'bg-blue-50 dark:bg-blue-900/20'
+                      ? 'bg-orange-50 dark:bg-orange-900/20'
                       : 'hover:bg-gray-100 dark:hover:bg-gray-800'
                       }`}
                     style={{ marginLeft: `${(depth + 1) * 12}px` }}
@@ -1887,7 +1894,7 @@ console.log('${fileName} loaded');
                     )}
 
                     {file.isDirty && !isRenamingFile && (
-                      <div className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-blue-500" />
+                      <div className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-orange-500" />
                     )}
 
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -2013,7 +2020,7 @@ console.log('${fileName} loaded');
             <div
               key={file.id}
               className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer text-sm group ${activeFileId === file.id
-                ? 'bg-blue-50 dark:bg-blue-900/20'
+                ? 'bg-orange-50 dark:bg-orange-900/20'
                 : 'hover:bg-gray-100 dark:hover:bg-gray-800'
                 }`}
               onClick={() => {
@@ -2066,7 +2073,7 @@ console.log('${fileName} loaded');
 
               {file.isDirty && !isRenaming && (
                 <div
-                  className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-blue-500"
+                  className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-orange-500"
                   title="Unsaved changes"
                 />
               )}
@@ -2192,7 +2199,7 @@ console.log('${fileName} loaded');
     setIsSubmitting(true);
 
     try {
-      const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
+      const token = getToken() || localStorage.getItem('token') || '';
 
       // Store structured files/folders via submit-multiple-files — exactly like the
       // standalone frontendCompiler.tsx (and the combined SQL question). The backend
@@ -2225,7 +2232,7 @@ console.log('${fileName} loaded');
         depth: folder.depth,
       }));
 
-      const response = await fetch('https://lms-server-ym1q.onrender.com/courses/answers/submit-multiple-files', {
+      const response = await fetch(`${API_ORIGIN}/courses/answers/submit-multiple-files`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
@@ -2701,8 +2708,8 @@ console.log('${fileName} loaded');
             (dragging it open expands the sidebar). */}
         <div
           onMouseDown={startQuestionSidebarResize}
-          className="cursor-ew-resize flex-shrink-0 hover:bg-blue-500 transition-colors"
-          style={{ width: 4, backgroundColor: isResizingQuestionSidebar ? '#3b82f6' : 'transparent' }}
+          className="cursor-ew-resize flex-shrink-0 hover:bg-orange-500 transition-colors"
+          style={{ width: 4, backgroundColor: isResizingQuestionSidebar ? '#fb923c' : 'transparent' }}
           title="Drag to resize"
         />
 
@@ -2791,7 +2798,7 @@ console.log('${fileName} loaded');
                   compileCode();
                 }}
                 disabled={isRunning || files.length === 0}
-                className="h-7 px-2.5 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 flex items-center gap-1"
+                className="h-7 px-2.5 text-xs bg-orange-500 text-white rounded hover:bg-orange-600 disabled:opacity-50 flex items-center gap-1"
                 title="Show Output"
               >
                 {isRunning ? <Loader2 className="w-3 h-3 animate-spin" /> : <Eye className="w-3 h-3" />}
@@ -2826,7 +2833,7 @@ console.log('${fileName} loaded');
 
               <button
                 onClick={() => setSelectedTab(selectedTab === 'preview' ? 'editor' : 'preview')}
-                className={`p-2 rounded transition-colors ${selectedTab === 'preview' ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-200'}`}
+                className={`p-2 rounded transition-colors ${selectedTab === 'preview' ? 'bg-orange-100 text-orange-600' : 'hover:bg-gray-200'}`}
                 style={{
                   color: selectedTab === 'preview' ? colors.primary : colors.textSecondary,
                   backgroundColor: selectedTab === 'preview' ? (theme === 'light' ? '#e3f2fd' : '#094771') : 'transparent'
@@ -3005,7 +3012,7 @@ console.log('${fileName} loaded');
                       </p>
                       <button
                         onClick={startCreatingFile}
-                        className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center gap-2"
+                        className="px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600 flex items-center gap-2"
                       >
                         <FilePlus className="w-4 h-4" />
                         Create New File
@@ -3171,7 +3178,7 @@ console.log('${fileName} loaded');
                 <div className="flex items-center gap-4" style={{ color: colors.textSecondary }}>
                   <button
                     onClick={() => setShowTerminal(true)}
-                    className="flex items-center gap-1 hover:text-blue-600 transition-colors"
+                    className="flex items-center gap-1 hover:text-orange-600 transition-colors"
                   >
                     <Terminal size={12} />
                     <span>Output</span>
@@ -3187,14 +3194,14 @@ console.log('${fileName} loaded');
                 <div className="flex items-center gap-3" style={{ color: colors.textSecondary }}>
                   <button
                     onClick={() => setLayout(layout === 'horizontal' ? 'vertical' : 'horizontal')}
-                    className="hover:text-blue-600 transition-colors"
+                    className="hover:text-orange-600 transition-colors"
                     title="Toggle Layout"
                   >
                     {layout === 'horizontal' ? <SplitSquareHorizontal size={12} /> : <SplitSquareVertical size={12} />}
                   </button>
                   <button
                     onClick={() => setSelectedTab(selectedTab === 'preview' ? 'editor' : 'preview')}
-                    className="hover:text-blue-600 transition-colors"
+                    className="hover:text-orange-600 transition-colors"
                     title="Toggle Preview"
                   >
                     {selectedTab === 'preview' ? <PanelLeftClose size={12} /> : <PanelLeftOpen size={12} />}

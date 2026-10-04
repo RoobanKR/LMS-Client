@@ -13,7 +13,8 @@ import {
   Presentation,
   X,
 } from "lucide-react"
-import PPTViewer from "./ppt-viewer"
+import PPTViewer from "../../pages/courses/coursesdetailedview/components/ppt-viewer"
+import { API_ORIGIN } from '@/lib/apiBase'
 
 interface LearningItem {
   type: string
@@ -53,7 +54,7 @@ const elementIcons: Record<string, React.ComponentType<{ className?: string }>> 
 }
 
 const PPT_URL = "https://yromfbntadbtdyanclef.supabase.co/storage/v1/object/public/smartlms/course/ppts/1757046939955_Animated-Intro-for-Social-Media-Platforms-by-Slidesgo.pptx"
-const API_BASE = "https://lms-server-ym1q.onrender.com"
+const API_BASE = `${API_ORIGIN}`
 
 export function LearningActivities({ methods, subtopicTitle }: LearningActivitiesProps) {
   const [showPPTViewer, setShowPPTViewer] = useState(false)
@@ -81,19 +82,10 @@ export function LearningActivities({ methods, subtopicTitle }: LearningActivitie
 
 
       try {
-        console.log("📥 Fetching PPTX from Supabase...")
-        const fileRes = await fetch(PPT_URL)
-        if (!fileRes.ok) throw new Error(`Supabase fetch failed: ${fileRes.status}`)
-        const blob = await fileRes.blob()
-        console.log("✅ PPTX fetched, size:", blob.size, "sending to server...")
-
-        const formData = new FormData()
-        formData.append("file", blob, "presentation.pptx")
-        formData.append("pptUrl", PPT_URL)
-
         const res = await fetch(`${API_BASE}/api/ppt/convert`, {
           method: "POST",
-          body: formData,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pptUrl: PPT_URL }),
         })
         const data = await res.json()
         console.log("Server response:", data.success, data.error || "", data.totalSlides)

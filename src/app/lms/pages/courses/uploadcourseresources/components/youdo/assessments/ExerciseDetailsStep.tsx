@@ -14,7 +14,11 @@ import {
   Info,
   Plus,
   Trash2,
-  Layers
+  Layers,
+  Monitor,
+  ClipboardList,
+  CheckCircle2,
+  Circle
 } from "lucide-react";
 import { D, moduleLanguages } from "./constants";
 import { FormDataType, ValidationErrors } from "./types";
@@ -53,7 +57,7 @@ const OInput: React.FC<{
     'w-full px-3 py-2 text-sm rounded-lg border transition-all duration-150 outline-none font-[Plus_Jakarta_Sans,sans-serif]',
     error && touched
       ? 'border-red-300 bg-red-50/30 focus:border-red-400 focus:ring-1 focus:ring-red-100'
-      : 'border-[#ecedf1] bg-white focus:border-[#F27757] focus:ring-1 focus:ring-[rgba(242,119,87,0.12)]',
+      : 'border-[#eef0f4] bg-white focus:border-[#E8640C] focus:ring-1 focus:ring-[rgba(232,100,12,0.12)]',
     disabled ? 'bg-[#fafafa] text-[#9b9bae] cursor-not-allowed' : 'text-[#1a1a2e]',
     readOnly ? 'bg-[#fafafa] cursor-default text-[#9b9bae]' : '',
     className,
@@ -165,7 +169,7 @@ const ONumberInput: React.FC<{
           'w-full px-3 py-2 text-sm rounded-lg border transition-all duration-150 outline-none font-[Plus_Jakarta_Sans,sans-serif]',
           error && touched
             ? 'border-red-300 bg-red-50/30 focus:border-red-400 focus:ring-1 focus:ring-red-100'
-            : 'border-[#ecedf1] bg-white focus:border-[#F27757] focus:ring-1 focus:ring-[rgba(242,119,87,0.12)]',
+            : 'border-[#eef0f4] bg-white focus:border-[#E8640C] focus:ring-1 focus:ring-[rgba(232,100,12,0.12)]',
           disabled ? 'bg-[#fafafa] text-[#9b9bae] cursor-not-allowed' : 'text-[#1a1a2e]',
           className,
         ].filter(Boolean).join(' ')}
@@ -216,7 +220,7 @@ const InfoTooltip: React.FC<{ content: string; side?: 'top' | 'bottom' | 'left' 
         <div
           ref={tipRef}
           className="fixed z-[9999] p-2.5 text-xs rounded-xl shadow-2xl leading-relaxed"
-          style={{ left: pos.left, top: pos.top, maxWidth: 'min(280px,calc(100vw - 40px))', width: 'max-content', background: D.textMain, color: '#fff', fontFamily: 'Inter, sans-serif' }}
+          style={{ left: pos.left, top: pos.top, maxWidth: 'min(280px,calc(100vw - 40px))', width: 'max-content', background: D.textMain, color: '#fff', fontFamily: 'Poppins, sans-serif' }}
         >
           {content}
         </div>
@@ -228,7 +232,7 @@ const InfoTooltip: React.FC<{ content: string; side?: 'top' | 'bottom' | 'left' 
 // ─── SectionLabel Component ──────────────────────────────────────────────────
 const SectionLabel: React.FC<{ children: React.ReactNode; required?: boolean; info?: string; className?: string }> = ({ children, required, info, className = '' }) => (
   <div className={`flex items-center gap-1 mb-1 ${className}`}>
-    <label className="text-xs font-semibold" style={{ color: D.textSub, fontFamily: 'Inter, sans-serif' }}>{children}</label>
+    <label className="text-xs font-semibold" style={{ color: D.textSub, fontFamily: 'Poppins, sans-serif' }}>{children}</label>
     {required && <span className="text-xs font-bold" style={{ color: D.orange }}>*</span>}
     {info && <InfoTooltip content={info} />}
   </div>
@@ -394,6 +398,9 @@ export const ExerciseDetailsStep = forwardRef<ExerciseDetailsStepRef, ExerciseDe
 }, ref) => {
   const [isSectionBased, setIsSectionBased] = useState(isSectionBasedProp);
   const [isSectionBasedDuration, setIsSectionBasedDuration] = useState(isSectionBasedDurationProp);
+  // Remember the exercise type chosen before section-based was enabled, so turning
+  // section-based off again restores it instead of leaving it blank.
+  const prevExerciseTypeRef = useRef<string>('');
   const [sections, setSections] = useState<SectionItem[]>(sectionsProp.length > 0 ? sectionsProp : [
     { id: crypto.randomUUID?.() || Math.random().toString(), name: '', order: 1, description: '', totalMarks: 0 }
   ]);
@@ -482,8 +489,8 @@ export const ExerciseDetailsStep = forwardRef<ExerciseDetailsStepRef, ExerciseDe
     const newTotal = mcqMarks + progMarks;
     setFormData((prev) => ({
       ...prev,
-      mcqMarks: mcqMarks,
-      programmingMarks: progMarks,
+      totalMarksMCQ: mcqMarks,
+      totalMarksProgramming: progMarks,
       totalMarks: newTotal,
     }));
     
@@ -593,6 +600,9 @@ export const ExerciseDetailsStep = forwardRef<ExerciseDetailsStepRef, ExerciseDe
     setIsSectionBased(enabled);
 
     if (enabled) {
+      // Remember the current type before clearing it (type selector is hidden in
+      // section-based mode), so it can be restored when section-based is turned off.
+      prevExerciseTypeRef.current = formData.exerciseType || prevExerciseTypeRef.current || '';
       setFormData(prev => ({ ...prev, exerciseType: "" }));
       setValidationErrors(prev => {
         const e = { ...prev };
@@ -601,6 +611,12 @@ export const ExerciseDetailsStep = forwardRef<ExerciseDetailsStepRef, ExerciseDe
       });
     } else {
       setSections([{ id: crypto.randomUUID?.() || Math.random().toString(), name: '', order: 1, description: '', totalMarks: 0, totalDuration: 0 }]);
+      // Restore a valid exercise type — disabling left it blank, which blocked the save.
+      // (Stale section configs are dropped from the save payload in CreateAssessmentModal.)
+      setFormData(prev => ({
+        ...prev,
+        exerciseType: (prev.exerciseType || prevExerciseTypeRef.current || 'MCQ') as any,
+      }));
     }
   };
 
@@ -632,28 +648,11 @@ export const ExerciseDetailsStep = forwardRef<ExerciseDetailsStepRef, ExerciseDe
   };
 
   return (
-    <div className="px-4 py-3">
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div
-            className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
-            style={{ background: D.orangeLight, color: D.orange }}
-          >
-            <FileText size={13} />
-          </div>
-          <h3
-            className="text-sm font-bold"
-            style={{
-              color: D.textMain,
-              fontFamily: "Inter, sans-serif",
-            }}
-          >
-            Exercise Details
-          </h3>
-        </div>
-      </div>
-      <div className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
+    <div className="px-10 pt-4 pb-6">
+      <div className="space-y-6">
+        {/* ── Section 1: Basic Information ── */}
+        <div style={{ padding: 0 }}>
+          <div className="grid grid-cols-2 gap-4">
           <div>
             <SectionLabel info="Auto-generated unique identifier for this exercise">
               Exercise ID
@@ -702,57 +701,48 @@ export const ExerciseDetailsStep = forwardRef<ExerciseDetailsStepRef, ExerciseDe
 
        
 
-        {/* NEW: Test Type Dropdown - Always visible, not dependent on isSectionBased */}
-        <div className="grid grid-cols-[140px_1fr] items-start gap-3">
-          <div className="flex items-center gap-1 pt-2 min-w-0">
-            <span
-              className="text-xs font-semibold truncate"
-              style={{ color: D.textSub }}
-            >
-              Test Type
-            </span>
-            <span
-              className="text-xs font-bold flex-shrink-0"
-              style={{ color: D.orange }}
-            >
-              *
-            </span>
+        </div>
+
+        {/* ── Section 2: Test Configuration ── */}
+        <div style={{ padding: 0 }}>
+
+          {/* Test Type */}
+          <div className="flex items-center gap-1 mb-2">
+            <span className="text-xs font-semibold" style={{ color: D.textSub }}>Test Type</span>
+            <span className="text-xs font-bold" style={{ color: D.orange }}>*</span>
             <InfoTooltip content="Select the type of test - Practice, Mock, or Final. This affects grading rules and test conditions." />
           </div>
-          <div>
-            <div className="flex gap-2">
-              {testTypeOptions.map((option) => (
+          {/* Compact choice chips — one row, same selection behaviour. */}
+          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Test type">
+            {testTypeOptions.map((option) => {
+              const sel = formData.testType === option.value;
+              const Icon = option.value === 'final' ? ClipboardList : Monitor;
+              return (
                 <button
                   key={option.value}
                   type="button"
-                  onClick={() => {
-                    setFormData((prev) => ({ 
-                      ...prev, 
-                      testType: option.value as "practice" | "mock" | "final"
-                    }));
-                  }}
-                  className="flex-1 px-3 py-2 rounded-lg border-2 text-xs font-semibold transition-all"
-                  style={{
-                    borderColor: formData.testType === option.value ? getTestTypeColor() : D.border,
-                    background: formData.testType === option.value ? `${getTestTypeColor()}10` : D.bg,
-                    color: formData.testType === option.value ? getTestTypeColor() : D.textMuted,
-                  }}
+                  role="radio"
+                  aria-checked={sel}
+                  title={option.description}
+                  onClick={() => setFormData((prev) => ({ ...prev, testType: option.value as "practice" | "mock" | "final" }))}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-left transition-all"
+                  style={{ borderColor: sel ? D.orange : D.border, background: sel ? D.orangeLight : D.bg, minWidth: 200 }}
                 >
-                  {option.label}
-                  <span className="block text-[10px] font-normal mt-0.5" style={{ color: D.textMuted }}>
-                    {option.description}
+                  <Icon size={14} style={{ color: sel ? D.orange : D.textMuted }} className="flex-shrink-0" />
+                  <span className="flex-1 min-w-0 leading-tight">
+                    <span className="block text-[12.5px] font-semibold" style={{ color: sel ? '#1a1a2e' : D.textSub }}>{option.label}</span>
+                    <span className="block text-[10.5px]" style={{ color: D.textMuted }}>{option.description}</span>
                   </span>
+                  {sel
+                    ? <CheckCircle2 size={15} style={{ color: D.orange }} className="flex-shrink-0" />
+                    : <Circle size={15} style={{ color: '#d1d5db' }} className="flex-shrink-0" />}
                 </button>
-              ))}
-            </div>
-            <p className="text-[10px] mt-1.5" style={{ color: D.textMuted }}>
-              Current selection: <span style={{ color: getTestTypeColor(), fontWeight: 600 }}>{getSelectedTestTypeLabel()}</span>
-            </p>
+              );
+            })}
           </div>
-        </div>
  {/* Section-Based Toggle */}
-        <div className="grid grid-cols-[140px_1fr] items-start gap-3">
-          <div className="flex items-center gap-1 pt-2 min-w-0">
+        <div className="flex items-center gap-3 mt-4 pt-4" style={{ borderTop: `1px solid ${D.border}` }}>
+          <div className="flex items-center gap-1">
             <span
               className="text-xs font-semibold truncate"
               style={{ color: D.textSub }}
@@ -790,10 +780,10 @@ export const ExerciseDetailsStep = forwardRef<ExerciseDetailsStepRef, ExerciseDe
 
         {/* Section-Based Duration Toggle */}
         {isSectionBased && (
-          <div className="grid grid-cols-[140px_1fr] items-start gap-3">
-            <div className="flex items-center gap-1 pt-2 min-w-0">
+          <div className="flex items-center gap-3 mt-3">
+            <div className="flex items-center gap-1">
               <span
-                className="text-xs font-semibold truncate"
+                className="text-xs font-semibold"
                 style={{ color: D.textSub }}
               >
                 Section Based Duration
@@ -825,7 +815,7 @@ export const ExerciseDetailsStep = forwardRef<ExerciseDetailsStepRef, ExerciseDe
 
         {/* Total Marks - Show below Section Based toggle when section-based is enabled */}
         {isSectionBased && (
-          <div className="grid grid-cols-[140px_1fr] items-start gap-3">
+          <div className="grid grid-cols-[140px_1fr] items-start gap-3 mt-3">
             <div className="flex items-center gap-1 pt-2 min-w-0">
               <span
                 className="text-xs font-semibold truncate"
@@ -871,7 +861,7 @@ export const ExerciseDetailsStep = forwardRef<ExerciseDetailsStepRef, ExerciseDe
 
         {/* Total Duration - Show below Section Based Duration toggle when enabled */}
         {isSectionBased && isSectionBasedDuration && (
-          <div className="grid grid-cols-[140px_1fr] items-start gap-3">
+          <div className="grid grid-cols-[140px_1fr] items-start gap-3 mt-3">
             <div className="flex items-center gap-1 pt-2 min-w-0">
               <span
                 className="text-xs font-semibold truncate"
@@ -911,27 +901,20 @@ export const ExerciseDetailsStep = forwardRef<ExerciseDetailsStepRef, ExerciseDe
             </div>
           </div>
         )}
-        <div style={{ borderTop: `1px solid ${D.border}` }} />
-        
+        </div>
+
+        {/* ── Section 3: Exercise Setup ── */}
+        <div style={{ padding: 0 }} className="space-y-3">
+
         {/* Exercise Type Section - Disabled when section-based is enabled */}
         {!isSectionBased && (
           <>
-            <div className="grid grid-cols-[140px_1fr] items-start gap-3">
-              <div className="flex items-center gap-1 pt-2 min-w-0">
-                <span
-                  className="text-xs font-semibold truncate"
-                  style={{ color: D.textSub }}
-                >
-                  Exercise Type
-                </span>
-                <span
-                  className="text-xs font-bold flex-shrink-0"
-                  style={{ color: D.orange }}
-                >
-                  *
-                </span>
-              </div>
+            <div className="grid grid-cols-2 gap-4 items-start">
               <div>
+                <div className="flex items-center gap-1 mb-1.5">
+                  <span className="text-xs font-semibold" style={{ color: D.textSub }}>Exercise Type</span>
+                  <span className="text-xs font-bold" style={{ color: D.orange }}>*</span>
+                </div>
                 <select
                   value={formData.exerciseType || ""}
                   onChange={(e) => {
@@ -945,7 +928,7 @@ export const ExerciseDetailsStep = forwardRef<ExerciseDetailsStepRef, ExerciseDe
                       });
                   }}
                   onBlur={() => markTouched("exerciseType")}
-                  className="px-3 py-2 text-xs rounded-lg border outline-none transition-all"
+                  className="w-full px-3 py-2 text-xs rounded-lg border outline-none transition-all"
                   style={{
                     borderColor:
                       validationErrors.exerciseType &&
@@ -954,10 +937,10 @@ export const ExerciseDetailsStep = forwardRef<ExerciseDetailsStepRef, ExerciseDe
                         : D.border,
                     background: D.bg,
                     color: formData.exerciseType ? D.textMain : D.textMuted,
-                    fontFamily: "Inter, sans-serif",
+                    fontFamily: "Poppins, sans-serif",
                     fontWeight: 600,
-                    width: "auto",
-                    minWidth: "200px",
+                    width: "100%",
+                    minWidth: 0,
                   }}
                 >
                   <option value="" disabled>
@@ -980,24 +963,13 @@ export const ExerciseDetailsStep = forwardRef<ExerciseDetailsStepRef, ExerciseDe
                     </p>
                   )}
               </div>
-            </div>
 
-            {/* Module/Language Section */}
+            {/* Module/Language Section (second column) */}
             {showModuleSection && (
-              <div className="grid grid-cols-[140px_1fr] items-start gap-3">
-                <div className="flex items-center gap-1 pt-2 min-w-0">
-                  <span
-                    className="text-xs font-semibold truncate"
-                    style={{ color: D.textSub }}
-                  >
-                    {hasPreConfiguredLanguages ? "Skill Set" : "Module"}
-                  </span>
-                  <span
-                    className="text-xs font-bold flex-shrink-0"
-                    style={{ color: D.orange }}
-                  >
-                    *
-                  </span>
+              <div>
+                <div className="flex items-center gap-1 mb-1.5">
+                  <span className="text-xs font-semibold" style={{ color: D.textSub }}>{hasPreConfiguredLanguages ? "Skill Set" : "Module"}</span>
+                  <span className="text-xs font-bold" style={{ color: D.orange }}>*</span>
                 </div>
                 <div className="space-y-2">
                   {hasPreConfiguredLanguages ? (
@@ -1168,6 +1140,7 @@ export const ExerciseDetailsStep = forwardRef<ExerciseDetailsStepRef, ExerciseDe
                 </div>
               </div>
             )}
+            </div>
           </>
         )}
 
@@ -1195,7 +1168,7 @@ export const ExerciseDetailsStep = forwardRef<ExerciseDetailsStepRef, ExerciseDe
               </button>
             </div>
             
-            <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1 ca-dark-scroll">
+            <div className="space-y-3">
               {sections.map((section, index) => (
                 <SectionItemComponent
                   key={section.id}
@@ -1213,34 +1186,16 @@ export const ExerciseDetailsStep = forwardRef<ExerciseDetailsStepRef, ExerciseDe
 
         <div style={{ borderTop: `1px solid ${D.border}` }} />
         
+        {/* Difficulty · Duration · Total Marks — one row.
+            Section-based mode captures duration and marks PER SECTION further
+            up, so those two cells are absent there and Difficulty takes the
+            row on its own rather than sitting in a 3-column grid with two
+            holes in it. */}
+        <div className={isSectionBased ? undefined : "grid grid-cols-1 sm:grid-cols-3 gap-4 items-start"}>
+        {/* Difficulty Level */}
         <div>
-          <SectionLabel info="A brief overview shown to students before they start">
-            Description
-          </SectionLabel>
-          <TipTapEditor
-            value={formData.description}
-            onChange={(v) =>
-              setFormData((prev) => ({ ...prev, description: v }))
-            }
-            onBlur={() => markTouched("description")}
-            placeholder="Enter a brief description..."
-            minHeight="72px"
-            maxHeight="72px"
-            showToolbar
-            editable
-            error={validationErrors.description}
-            touched={touchedFields.has("description")}
-          />
-        </div>
-        
-        <div className="grid grid-cols-[140px_1fr] items-start gap-3">
-          <div className="flex items-center gap-1 pt-2 min-w-0">
-            <span
-              className="text-xs font-semibold truncate"
-              style={{ color: D.textSub }}
-            >
-              Difficulty Level
-            </span>
+          <div className="flex items-center gap-1 mb-1.5">
+            <span className="text-xs font-semibold" style={{ color: D.textSub }}>Difficulty Level</span>
           </div>
           <select
             value={formData.exerciseLevel}
@@ -1250,15 +1205,15 @@ export const ExerciseDetailsStep = forwardRef<ExerciseDetailsStepRef, ExerciseDe
                 exerciseLevel: e.target.value as any,
               }))
             }
-            className="px-3 py-2 text-xs rounded-lg border outline-none transition-all"
+            className="w-full px-3 py-2 text-xs rounded-lg border outline-none transition-all"
             style={{
               borderColor: D.border,
               background: D.bg,
               color: D.textMain,
-              fontFamily: "Inter, sans-serif",
+              fontFamily: "Poppins, sans-serif",
               fontWeight: 600,
-              width: "auto",
-              minWidth: "200px",
+              width: "100%",
+              minWidth: 0,
             }}
           >
             {difficultyOptions.map((o) => (
@@ -1269,11 +1224,11 @@ export const ExerciseDetailsStep = forwardRef<ExerciseDetailsStepRef, ExerciseDe
           </select>
         </div>
         
-        {/* Duration and Marks Section - Hide when section-based is enabled */}
+        {/* Duration and Marks — the other two cells of the row above. Hidden
+            when section-based, where both are per-section. */}
         {!isSectionBased && (
-          <div className="space-y-3">
-            <div className="flex gap-3">
-              <div className="w-2/5">
+          <>
+            <div>
                 <SectionLabel required info="Total time allowed in minutes">
                   Duration (min)
                 </SectionLabel>
@@ -1296,7 +1251,7 @@ export const ExerciseDetailsStep = forwardRef<ExerciseDetailsStepRef, ExerciseDe
                 />
               </div>
 
-              <div className={isCombined ? "w-3/5" : "w-3/5"}>
+              <div>
                 {!isCombined ? (
                 <div>
                   <SectionLabel required info="Maximum marks a student can score">
@@ -1330,15 +1285,15 @@ export const ExerciseDetailsStep = forwardRef<ExerciseDetailsStepRef, ExerciseDe
                       MCQ Marks
                     </SectionLabel>
                     <ONumberInput
-                      value={formData.mcqMarks || 0}
+                      value={formData.totalMarksMCQ || 0}
                       onChange={(v) => {
                         const numValue = v || 0;
-                        updateCombinedMarks(numValue, formData.programmingMarks || 0);
+                        updateCombinedMarks(numValue, formData.totalMarksProgramming || 0);
                         validateMarksField(numValue, 'totalMarksMCQ');
                       }}
                       onBlur={() => {
                         markTouched("totalMarksMCQ");
-                        if ((formData.mcqMarks || 0) <= 0) {
+                        if ((formData.totalMarksMCQ || 0) <= 0) {
                           setValidationErrors(prev => ({ 
                             ...prev, 
                             totalMarksMCQ: 'MCQ marks must be greater than 0' 
@@ -1356,15 +1311,15 @@ export const ExerciseDetailsStep = forwardRef<ExerciseDetailsStepRef, ExerciseDe
                       Prog. Marks
                     </SectionLabel>
                     <ONumberInput
-                      value={formData.programmingMarks || 0}
+                      value={formData.totalMarksProgramming || 0}
                       onChange={(v) => {
                         const numValue = v || 0;
-                        updateCombinedMarks(formData.mcqMarks || 0, numValue);
+                        updateCombinedMarks(formData.totalMarksMCQ || 0, numValue);
                         validateMarksField(numValue, 'totalMarksProgramming');
                       }}
                       onBlur={() => {
                         markTouched("totalMarksProgramming");
-                        if ((formData.programmingMarks || 0) <= 0) {
+                        if ((formData.totalMarksProgramming || 0) <= 0) {
                           setValidationErrors(prev => ({ 
                             ...prev, 
                             totalMarksProgramming: 'Programming marks must be greater than 0' 
@@ -1406,22 +1361,42 @@ export const ExerciseDetailsStep = forwardRef<ExerciseDetailsStepRef, ExerciseDe
                 </div>
               )}
             </div>
-          </div>
-          
-          {isCombined && !isSectionBased && (
-            <div className="flex justify-end">
-              <div className="text-right">
-                <p className="text-xs font-semibold" style={{ color: D.textSub }}>
-                  Total Marks: {formData.totalMarks}
-                </p>
-                <p className="text-[10px]" style={{ color: D.textMuted }}>
-                  Auto-calculated from MCQ + Programming marks
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
+          </>
         )}
+        </div>{/* ── close the Difficulty · Duration · Marks row ── */}
+
+        {/* Combined marks roll-up — a caption for the row above, so it sits
+            under the whole row rather than inside the marks cell. */}
+        {isCombined && !isSectionBased && (
+          <div className="flex justify-end">
+            <div className="text-right">
+              <p className="text-xs font-semibold" style={{ color: D.textSub }}>
+                Total Marks: {formData.totalMarks}
+              </p>
+              <p className="text-[10px]" style={{ color: D.textMuted }}>
+                Auto-calculated from MCQ + Programming marks
+              </p>
+            </div>
+          </div>
+        )}
+
+        </div>{/* ── close Section 3: Exercise Setup ── */}
+
+        {/* ── Section 4: Description ── */}
+        <div style={{ padding: 0 }}>
+          <TipTapEditor
+            value={formData.description}
+            onChange={(v: string) => setFormData((prev) => ({ ...prev, description: v }))}
+            onBlur={() => markTouched("description")}
+            placeholder="Enter description here..."
+            minHeight="120px"
+            maxHeight="160px"
+            showToolbar
+            editable
+            error={validationErrors.description}
+            touched={touchedFields.has("description")}
+          />
+        </div>
       </div>
     </div>
   );

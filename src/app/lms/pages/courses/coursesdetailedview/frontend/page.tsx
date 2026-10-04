@@ -1,9 +1,11 @@
 "use client";
+import { getToken } from "@/lib/session";
 
 import React, { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import FrontendCompiler from '@/app/lms/component/student/frontendCompiler';
+import FrontendCompiler from '@/app/lms/pages/courses/coursesdetailedview/components/frontendCompiler';
 import { Loading } from '@/components/loading-ui/loading';
+import { API_ORIGIN } from '@/lib/apiBase'
 
 const CompilerPageContent = () => {
   const router = useRouter();
@@ -26,24 +28,27 @@ const CompilerPageContent = () => {
   const nodeId = searchParams.get('nodeId');
   const hierarchy = searchParams.get('hierarchy')?.split(',') || [];
 
-  // Function to fetch exercise data from API
-  const fetchExerciseData = async () => {
+  // Function to fetch exercise data from API. `silent=true` skips
+  // toggling the full-screen loader so a background revalidation after
+  // the localStorage hydration doesn't blank the compiler that's already
+  // painted.
+  const fetchExerciseData = async (opts: { silent?: boolean } = {}) => {
     if (!exerciseId) {
       console.error("No exercise ID provided");
-      setIsLoading(false);
+      if (!opts.silent) setIsLoading(false);
       return;
     }
 
     try {
-      const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
-      
+      const token = getToken() || localStorage.getItem('token') || '';
+
       if (!token) {
         console.error("Authentication token missing");
-        setIsLoading(false);
+        if (!opts.silent) setIsLoading(false);
         return;
       }
 
-      const response = await fetch(`https://lms-server-ym1q.onrender.com/exercise/${exerciseId}`, {
+      const response = await fetch(`${API_ORIGIN}/exercise/${exerciseId}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -93,9 +98,12 @@ const CompilerPageContent = () => {
       }
     } catch (error) {
       console.error("❌ Error fetching exercise:", error);
-      toast.error("Failed to load exercise data");
+      // Suppress the toast on the silent (background) refresh — if the
+      // student is already looking at the compiler because we hydrated
+      // from localStorage, a network hiccup shouldn't scream at them.
+      if (!opts.silent) toast.error("Failed to load exercise data");
     } finally {
-      setIsLoading(false);
+      if (!opts.silent) setIsLoading(false);
     }
   };
 
@@ -108,7 +116,7 @@ const CompilerPageContent = () => {
 
     setIsLoadingSubmission(true);
     try {
-      const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
+      const token = getToken() || localStorage.getItem('token') || '';
       
       if (!token) {
         console.error("Authentication token missing");
@@ -116,7 +124,7 @@ const CompilerPageContent = () => {
       }
 
       const response = await fetch(
-        `https://lms-server-ym1q.onrender.com/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseId}&questionId=${questionId}&category=${category}`,
+        `${API_ORIGIN}/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseId}&questionId=${questionId}&category=${category}`,
         {
           method: 'GET',
           headers: {
@@ -238,9 +246,44 @@ const CompilerPageContent = () => {
     return foundId.toString();
   };
 
-  // Load data on component mount
+  // Load data on component mount.
+  //
+  // The parent stashes the full exercise under `currentFrontendExercise`
+  // in localStorage before router.push()'ing here. Read that FIRST and
+  // paint the compiler on frame 1 (no full-screen spinner), then fire a
+  // silent background refresh so the display stays in sync with the
+  // server. Falls back to the loud fetch on cache miss.
   useEffect(() => {
+    if (!exerciseId) {
+      setIsLoading(false);
+      return;
+    }
+    try {
+      const raw = typeof window !== 'undefined'
+        ? window.localStorage.getItem('currentFrontendExercise')
+        : null;
+      if (raw) {
+        const stash = JSON.parse(raw);
+        // Only trust the stash if it matches THIS exerciseId — the key is
+        // a single slot shared across every exercise the student opens.
+        const stashId = String(stash?._id || stash?.id || '');
+        if (stashId && stashId === String(exerciseId)) {
+          setExerciseData(stash);
+          const qs = Array.isArray(stash.questions) ? stash.questions
+            : Array.isArray(stash?.exerciseInformation?.questions) ? stash.exerciseInformation.questions
+            : [];
+          setQuestions(qs);
+          setCourseId(urlCourseId || stash.courseId || '');
+          setIsLoading(false);
+          // Fire the fetch silently — updates state in the background
+          // if the server has a newer copy.
+          fetchExerciseData({ silent: true });
+          return;
+        }
+      }
+    } catch { /* fall through to the loud fetch */ }
     fetchExerciseData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [exerciseId, urlCourseId]);
 
   const handleBack = () => {
@@ -261,7 +304,7 @@ const CompilerPageContent = () => {
   if (isLoading) {
     return (
       <div className="w-full h-screen bg-[#1e1e1e] flex items-center justify-center text-white">
-        <Loading size="size-10" color="blue" label="Loading exercise data..." spinnerClassName="text-blue-400" />
+        <Loading size="size-10" color="blue" label="Loading exercise data..." spinnerClassName="text-orange-400" />
       </div>
     );
   }
@@ -273,7 +316,7 @@ const CompilerPageContent = () => {
           <p className="text-red-400 mb-2">Failed to load exercise data</p>
           <button 
             onClick={handleBack}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            className="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700"
           >
             Go Back
           </button>

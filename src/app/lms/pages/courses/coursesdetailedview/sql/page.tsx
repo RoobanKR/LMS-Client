@@ -3,7 +3,7 @@
 
 import React, { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import DBQueryEditor from '@/app/lms/component/student/db-queryEditor';
+import DBQueryEditor from '@/app/lms/pages/courses/coursesdetailedview/components/db-queryEditor';
 import { ArrowLeft } from 'lucide-react';
 import { Loading } from '@/components/loading-ui/loading';
 
@@ -91,7 +91,7 @@ const handleBack = () => {
   if (isLoading) {
     return (
       <div className="w-full h-screen bg-[#1e1e1e] flex items-center justify-center">
-        <Loading size="size-12" color="blue" label="Loading SQL Exercise..." spinnerClassName="text-blue-400" />
+        <Loading size="size-12" color="blue" label="Loading SQL Exercise..." spinnerClassName="text-orange-400" />
       </div>
     );
   }
@@ -108,7 +108,7 @@ const handleBack = () => {
               localStorage.removeItem('currentFrontendExercise');
               router.back();
             }}
-            className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+            className="p-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors"
             title="Go Back"
           >
             <ArrowLeft className="w-5 h-5" />

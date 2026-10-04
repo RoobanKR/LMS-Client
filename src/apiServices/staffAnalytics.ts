@@ -1,7 +1,7 @@
 // apiServices/staffAnalytics.js
 import axios from 'axios';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://lms-server-ym1q.onrender.com';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://lmsserver-yeve.onrender.com';
 
 export const getStaffStudentAnalytics = async () => {
     const token = localStorage.getItem("smartcliff_token");

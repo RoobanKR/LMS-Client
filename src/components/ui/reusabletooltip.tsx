@@ -13,6 +13,7 @@ interface InfoTooltipProps {
     iconSize?: string;
     iconClassName?: string;
     contentClassName?: string;
+    side?: "top" | "right" | "bottom" | "left";
 }
 
 const InfoTooltip: React.FC<InfoTooltipProps> = ({
@@ -20,7 +21,8 @@ const InfoTooltip: React.FC<InfoTooltipProps> = ({
     maxWidth = "max-w-xs",
     iconSize = "h-3 w-3",
     iconClassName = "text-slate-400 hover:text-slate-600 cursor-pointer",
-    contentClassName = "text-xs"
+    contentClassName = "text-xs",
+    side = "top"
 }) => {
     return (
         <TooltipProvider>
@@ -28,7 +30,7 @@ const InfoTooltip: React.FC<InfoTooltipProps> = ({
                 <TooltipTrigger asChild>
                     <Info className={`${iconSize} ${iconClassName}`} />
                 </TooltipTrigger>
-                <TooltipContent className={`${maxWidth} ${contentClassName}`}>
+                <TooltipContent side={side} className={`${maxWidth} ${contentClassName}`}>
                     <p>{content}</p>
                 </TooltipContent>
             </Tooltip>

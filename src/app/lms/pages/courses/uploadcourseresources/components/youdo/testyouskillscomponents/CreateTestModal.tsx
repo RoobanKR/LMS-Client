@@ -1,3 +1,5 @@
+import { getToken } from "@/lib/session";
+import { API_BASE_URL } from "@/lib/http";
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Plus, Trash2, AlertCircle, Loader, X, ChevronUp, ChevronDown, Sparkles,
@@ -19,7 +21,7 @@ import {
   CheckCircle
 } from 'lucide-react';
 
-import { youDoMcqApi, getEntityTypeFromNodeType } from '@/apiServices/pedagogyAndModuleAdd/testYourSkillsApi';
+import { youDoMcqApi, getEntityTypeFromNodeType } from '@/app/lms/pages/courses/api/testYourSkillsApi';
 import TestYourSkillsGenerateMCQAIQuestion,  { GeneratedQuestion } from './TestYourSkillsGenerateMCQAIQuestion';
 
 // ─── TOAST SYSTEM ───────────────────────────────────────────────────────────
@@ -139,9 +141,9 @@ const injectFonts = (() => {
         --lms-danger:        #e53e3e;
         --lms-danger-bg:     #fff5f5;
         --lms-danger-bdr:    #fed7d7;
-        --lms-info:          #2563eb;
-        --lms-info-bg:       #eff6ff;
-        --lms-info-bdr:      #bfdbfe;
+        --lms-info:          #F97316;
+        --lms-info-bg:       #FFF7ED;
+        --lms-info-bdr:      #FED7AA;
         --lms-warning:       #d97706;
         --lms-warning-bg:    #fffbeb;
         --lms-warning-bdr:   #fde68a;
@@ -152,7 +154,7 @@ const injectFonts = (() => {
         --lms-radius-sm:     8px;
         --lms-radius-md:     10px;
         --lms-radius-lg:     14px;
-        --lms-font:          'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        --lms-font:          'Poppins', -apple-system, BlinkMacSystemFont, sans-serif;
         --lms-shadow-sm:     0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
         --lms-shadow-md:     0 4px 14px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.04);
       }
@@ -215,7 +217,7 @@ const injectFonts = (() => {
         font-family: var(--lms-font); background: none; border: none;
         padding: 0; cursor: pointer; transition: color 0.15s;
       }
-      .lms-answer-key-btn:hover { color: #1d4ed8; }
+      .lms-answer-key-btn:hover { color: #EA580C; }
       .lms-answer-key-checkbox {
         width: 16px; height: 16px; border: 2px solid var(--lms-info);
         border-radius: 4px; display: flex; align-items: center;
@@ -601,7 +603,7 @@ const diffConfig = {
 
 const typeConfig: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
   'multiple-choice': { label: 'Multiple Choice', icon: <List className="h-3.5 w-3.5" />, color: '#7c3aed' },
-  'multiple-select': { label: 'Multiple Select', icon: <CheckSquare className="h-3.5 w-3.5" />, color: '#2563eb' },
+  'multiple-select': { label: 'Multiple Select', icon: <CheckSquare className="h-3.5 w-3.5" />, color: '#F97316' },
   'true-false': { label: 'True / False', icon: <ToggleLeft className="h-3.5 w-3.5" />, color: '#0d9488' },
   'short-answer': { label: 'Short Answer', icon: <AlignLeft className="h-3.5 w-3.5" />, color: '#ea580c' },
   paragraph: { label: 'Essay', icon: <BookOpen className="h-3.5 w-3.5" />, color: '#db2777' },
@@ -614,24 +616,30 @@ const typeConfig: Record<string, { label: string; icon: React.ReactNode; color: 
 // ─── BREADCRUMB ───────────────────────────────────────────────────────────────
 const QuestionFormBreadcrumb: React.FC<{
   breadcrumbs: any[]; actionLabel: string; questionLabel: string;
-}> = ({ breadcrumbs, actionLabel, questionLabel }) => (
-  <nav className="flex items-center" style={{ fontFamily: 'var(--lms-font)' }}>
-    <ol className="flex items-center flex-wrap gap-y-0.5">
-      {breadcrumbs.map((crumb: any, idx: number) => (
-        <React.Fragment key={idx}>
-          <li><span className="text-[12.5px] font-semibold" style={{ color: 'var(--lms-text-sec)' }}>{crumb.name}</span></li>
-          <li><span className="lms-breadcrumb-sep">»</span></li>
-        </React.Fragment>
-      ))}
-      <li>
-        <span className="text-[12.5px] font-bold" style={{ color: 'var(--lms-text-main)' }}>
-          {actionLabel}
-          {questionLabel && <span className="ml-1.5 font-normal" style={{ color: 'var(--lms-text-muted)' }}>· {questionLabel}</span>}
-        </span>
-      </li>
-    </ol>
-  </nav>
-);
+}> = ({ breadcrumbs, actionLabel, questionLabel }) => {
+  const courseName = breadcrumbs?.[0]?.name;
+  const exerciseName = breadcrumbs && breadcrumbs.length > 1 ? breadcrumbs[breadcrumbs.length - 1]?.name : '';
+  return (
+    <nav className="flex items-center" style={{ fontFamily: 'var(--lms-font)' }}>
+      <ol className="flex items-center flex-wrap gap-y-0.5">
+        {courseName && (
+          <><li><span className="text-[12.5px] font-semibold" style={{ color: 'var(--lms-text-sec)' }}>{courseName}</span></li>
+            <li><span className="lms-breadcrumb-sep">»</span></li></>
+        )}
+        {exerciseName && exerciseName !== courseName && (
+          <><li><span className="text-[12.5px] font-semibold truncate max-w-[140px]" style={{ color: 'var(--lms-text-main)' }}>{exerciseName}</span></li>
+            <li><span className="lms-breadcrumb-sep">»</span></li></>
+        )}
+        <li>
+          <span className="text-[12.5px] font-bold" style={{ color: 'var(--lms-text-main)' }}>
+            {actionLabel}
+            {questionLabel && <span className="ml-1.5 font-normal" style={{ color: 'var(--lms-text-muted)' }}>· {questionLabel}</span>}
+          </span>
+        </li>
+      </ol>
+    </nav>
+  );
+};
 
 // ─── RICH TEXT EDITOR COMPONENT ──────────────────────────────────────────────
 const RichTextEditor: React.FC<{
@@ -702,10 +710,10 @@ const ImageUploadModal: React.FC<{
     if (!file.type.startsWith('image/')) { setError('Please select an image file.'); return; }
     setUploading(true); setError('');
     try {
-      const token = localStorage.getItem('smartcliff_token');
+      const token = getToken();
       const fd = new FormData();
       fd.append('image', file);
-      const res = await fetch('https://lms-server-ym1q.onrender.com/upload/question-image', {
+      const res = await fetch(`${API_BASE_URL}/upload/question-image`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: fd,
@@ -2438,7 +2446,7 @@ const handleSubmitQuiz = () => {
                 </div>
               )}
               {rev && block.hasExplanation && block.explanation && (
-                <div className="mt-4 px-4 py-3 rounded-xl" style={{ background: '#eff6ff', border: '1.5px solid #bfdbfe' }}>
+                <div className="mt-4 px-4 py-3 rounded-xl" style={{ background: '#FFF7ED', border: '1.5px solid #FED7AA' }}>
                   <div className="flex items-center gap-2 mb-1"><Info className="h-3.5 w-3.5 text-blue-500" /><span className="text-xs font-bold text-blue-600">Explanation</span></div>
                   <p className="text-xs leading-relaxed text-gray-600" dangerouslySetInnerHTML={{ __html: block.explanation }} />
                 </div>
@@ -2722,7 +2730,7 @@ if (block.type === 'paragraph') {
           <div className="space-y-1 p-2 rounded-lg bg-gray-50">
             {sortedItems.map((item, idx) => (
               <div key={item.id} className="flex items-center gap-2 text-sm">
-                <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 text-xs font-bold flex items-center justify-center">{idx + 1}</span>
+                <span className="w-5 h-5 rounded-full bg-orange-100 text-orange-700 text-xs font-bold flex items-center justify-center">{idx + 1}</span>
                 <span>{item.text}</span>
               </div>
             ))}
@@ -2776,7 +2784,7 @@ if (block.type === 'paragraph') {
                         </span>
                       )}
                       {block.score && block.score > 0 && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-600">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-orange-50 text-orange-600">
                           {block.score} pts
                         </span>
                       )}

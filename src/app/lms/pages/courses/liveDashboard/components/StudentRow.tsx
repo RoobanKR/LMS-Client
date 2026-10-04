@@ -1,8 +1,7 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { MoreVertical, ClipboardCheck, MessageSquare } from "lucide-react";
+import React from "react";
+import { ClipboardCheck, MessageSquare } from "lucide-react";
 import type { StudentProgress, TestStatus } from "../types/liveDashboard.types";
 
 interface StudentRowProps {
@@ -20,21 +19,34 @@ interface StudentRowProps {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 /**
- * Collapse the raw fields into the three-value status we render.
+ * Row status (Recovery & Resume expansion).
  *
- * Rules (per product feedback):
- *   - `submitted`   → has submitted their attempt.
- *   - `started`     → currently in the test live (active session). We use
- *                     ONLY `inProgress` here — `completed > 0` no longer
- *                     promotes a row to "started" because a student who
- *                     answered some questions earlier and walked away is
- *                     not actively attending.
- *   - `not-started` → everything else (truly never started, OR previously
- *                     started but no live session).
+ *   • `terminated`   — server ended the attempt without an explicit submit
+ *                      (timer expiry OR a security violation). Distinct from
+ *                      `submitted` so trainers can spot enforcement.
+ *   • `submitted`    — student pressed Submit (terminal, clean end).
+ *   • `disconnected` — has an active attempt but the live socket is down
+ *                      (browser closed / crashed / lost Wi-Fi). Attempt is
+ *                      NOT lost — the recovery system will resume it.
+ *   • `started`      — live session, actively in the attempt.
+ *   • `not-started`  — truly never began.
+ *
+ * Rules:
+ *   1. `attemptStatus === 'terminated'` → terminated (regardless of anything else).
+ *   2. `attemptStatus === 'submitted'` OR `submitted` → submitted.
+ *   3. `attemptStatus === 'active'` AND NOT online → disconnected.
+ *   4. Live session (`inProgress`) OR any persisted answer → started.
+ *   5. Fallback → not-started.
  */
 export function deriveTestStatus(s: StudentProgress): TestStatus {
-  if (s.submitted) return "submitted";
+  if (s.attemptStatus === "terminated") return "terminated";
+  if (s.submitted || s.attemptStatus === "submitted") return "submitted";
+  // Awaiting approval takes precedence over disconnected — trainer should
+  // spot pending requests first.
+  if (s.resumeState === "awaiting_approval") return "awaiting-approval";
+  if (s.attemptStatus === "active" && s.isOnline === false) return "disconnected";
   if (s.inProgress) return "started";
+  if ((s.completed || 0) > 0) return "started";
   return "not-started";
 }
 
@@ -49,20 +61,32 @@ export function formatDuration(totalSeconds: number): string {
   return `${s}s`;
 }
 
-const STATUS_BADGE: Record<TestStatus, { label: string; cls: string }> = {
-  "not-started":  { label: "Not Started", cls: "bg-gray-100  text-gray-600" },
-  "started":      { label: "Started",     cls: "bg-amber-50  text-amber-700" },
-  "submitted":    { label: "Submitted",   cls: "bg-green-50  text-green-700" },
+// High-contrast, solid-colour badges so the three states are instantly
+// distinguishable at a glance (the previous pastel fills were hard to spot on
+// a busy dashboard). White text on a saturated background, plus a small dot to
+// reinforce the colour cue for users with mild colour-vision differences.
+const STATUS_BADGE: Record<TestStatus, { label: string; cls: string; dot: string }> = {
+  "not-started":       { label: "Not Started",       cls: "bg-slate-500   text-white",   dot: "bg-white/80" },
+  "started":           { label: "In Progress",       cls: "bg-amber-500   text-white",   dot: "bg-white"    },
+  "disconnected":      { label: "Disconnected",      cls: "bg-orange-500  text-white",   dot: "bg-white"    },
+  "awaiting-approval": { label: "Awaiting Approval", cls: "bg-yellow-500  text-white",   dot: "bg-white"    },
+  "submitted":         { label: "Submitted",         cls: "bg-emerald-600 text-white",   dot: "bg-white"    },
+  "terminated":        { label: "Terminated",        cls: "bg-red-600     text-white",   dot: "bg-white"    },
 };
 
 // ─── Row ────────────────────────────────────────────────────────────────────
 function StudentRowBase({ student, index, onSendMessage, onCheckAnswers }: StudentRowProps) {
   const s = student;
   const status = deriveTestStatus(s);
-  // "Check Answers" is only enabled once the student has submitted their
-  // attempt. Renamed from `isCompleted` to `isSubmitted` after the status
-  // refactor — same gate, clearer name.
   const isCompleted = status === "submitted";
+
+  // "Check Answer" visibility gate — mirrors the Manage Users page's
+  // "Submitted / In Progress / Not Submitted" logic: if the student has
+  // written even one answer to the DB (completedQuestions > 0) or has
+  // finalized their attempt, they have something reviewable. A row that
+  // is only "in the room" (inProgress with no persisted answer yet) or
+  // truly never started renders no Check Answer button.
+  const hasAnswerInDb = (s.completed || 0) > 0 || !!s.submitted;
 
   // Display ID prefers an explicit field; falls back to the raw id (truncated).
   const displayId = s.studentDisplayId || s.id || "";
@@ -72,105 +96,53 @@ function StudentRowBase({ student, index, onSendMessage, onCheckAnswers }: Stude
     ? formatDuration(s.durationSeconds)
     : "—";
 
-  const btnRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const [open, setOpen] = useState(false);
-  const [coords, setCoords] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
-
-  const openMenu = () => {
-    const r = btnRef.current?.getBoundingClientRect();
-    if (r) setCoords({ top: r.bottom + 6, left: r.right - 180 });
-    setOpen(true);
-  };
-
-  useEffect(() => {
-    if (!open) return;
-    const onDocClick = (e: MouseEvent) => {
-      if (menuRef.current?.contains(e.target as Node) || btnRef.current?.contains(e.target as Node)) return;
-      setOpen(false);
-    };
-    const onClose = () => setOpen(false);
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    document.addEventListener("mousedown", onDocClick);
-    window.addEventListener("scroll", onClose, true);
-    window.addEventListener("resize", onClose);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDocClick);
-      window.removeEventListener("scroll", onClose, true);
-      window.removeEventListener("resize", onClose);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
-
   const statusBadge = STATUS_BADGE[status];
 
   return (
-    <tr className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-      {/* S. No. cell removed — the row counter added visual noise without
-          much value. Student ID + Name are the natural identifiers. */}
-      <td className="px-4 py-3 text-[13px] text-gray-700 font-mono truncate max-w-[120px]" title={displayId}>
+    // Borderless row: no bottom hairline, no divider — rows separate only
+    // via hover-tint, matching the borderless listing style the user asked
+    // for. Typography aligned to the app's shared listing:
+    //   • Name → text-sm font-medium text-gray-900 (heading)
+    //   • Meta (email, id, duration) → text-sm text-gray-500 (subtle)
+    // Same 14px baseline as Client Management + User Management rows.
+    <tr className="hover:bg-gray-50 transition-colors">
+      <td className="px-4 py-3 text-sm text-gray-500 font-mono truncate max-w-[120px]" title={displayId}>
         {displayId}
       </td>
-      <td className="px-4 py-3 text-[13px] font-medium text-gray-900">{s.studentName}</td>
-      <td className="px-4 py-3 text-[13px] text-gray-500">{s.email}</td>
-      <td className="px-4 py-3 text-[13px] text-center">
+      <td className="px-4 py-3 text-sm font-medium text-gray-900">{s.studentName}</td>
+      <td className="px-4 py-3 text-sm text-gray-500">{s.email}</td>
+      <td className="px-4 py-3 text-sm text-center">
         <span
-          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[12px] font-semibold whitespace-nowrap ${statusBadge.cls}`}
+          className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] font-semibold whitespace-nowrap ${statusBadge.cls}`}
         >
+          <span className={`inline-block w-1.5 h-1.5 rounded-full ${statusBadge.dot}`} />
           {statusBadge.label}
         </span>
       </td>
-      <td className="px-4 py-3 text-[13px] text-center text-gray-700">{durationText}</td>
-      <td className="px-4 py-3 text-[13px] text-center">
-        <button
-          ref={btnRef}
-          type="button"
-          onClick={() => (open ? setOpen(false) : openMenu())}
-          aria-label="Row actions"
-          className={`inline-flex items-center justify-center w-8 h-8 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors ${open ? "bg-gray-100 text-gray-700" : ""}`}
-        >
-          <MoreVertical size={18} />
-        </button>
-
-        {open &&
-          createPortal(
-            <div
-              ref={menuRef}
-              style={{ position: "fixed", top: coords.top, left: coords.left, width: 180 }}
-              className="z-[1000] rounded-lg border border-gray-200 bg-white shadow-lg py-1 animate-[fadeIn_0.12s_ease-out]"
+      <td className="px-4 py-3 text-sm text-center text-gray-500">{durationText}</td>
+      <td className="px-4 py-3 text-sm">
+        <div className="flex items-center justify-center gap-2">
+          {hasAnswerInDb && (
+            <button
+              type="button"
+              onClick={() => onCheckAnswers(s.id)}
+              title="Review this student's answers"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[12px] font-medium text-white bg-emerald-600 hover:bg-emerald-700 transition-colors"
             >
-              {/* Check Answers — enabled only when the student has submitted.
-                  No-op for now; wired later when the answers view is built. */}
-              <button
-                type="button"
-                disabled={!isCompleted}
-                onClick={() => {
-                  if (!isCompleted) return;
-                  setOpen(false);
-                  onCheckAnswers(s.id);
-                }}
-                title={isCompleted ? "Review this student's answers" : "Available after the student submits"}
-                className={`flex w-full items-center gap-2.5 px-3.5 py-2 text-[13px] transition-colors ${
-                  isCompleted
-                    ? "text-gray-700 hover:bg-gray-50"
-                    : "text-gray-400 cursor-not-allowed"
-                }`}
-              >
-                <ClipboardCheck size={15} className={isCompleted ? "text-gray-400" : "text-gray-300"} />
-                Check Answers
-              </button>
-              <button
-                type="button"
-                onClick={() => { setOpen(false); onSendMessage(s.id); }}
-                className="flex w-full items-center gap-2.5 px-3.5 py-2 text-[13px] text-gray-700 hover:bg-gray-50 transition-colors"
-              >
-                <MessageSquare size={15} className="text-gray-400" />
-                Send Message
-              </button>
-            </div>,
-            document.body,
+              <ClipboardCheck size={13} />
+              Check Answer
+            </button>
           )}
+          <button
+            type="button"
+            onClick={() => onSendMessage(s.id)}
+            title="Send a message to this student"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[12px] font-medium text-indigo-600 bg-white border border-indigo-200 hover:bg-indigo-50 transition-colors"
+          >
+            <MessageSquare size={13} />
+            Send Message
+          </button>
+        </div>
       </td>
     </tr>
   );
@@ -191,7 +163,12 @@ function areEqual(prev: StudentRowProps, next: StudentRowProps) {
     a.completed === b.completed &&
     a.inProgress === b.inProgress &&
     a.submitted === b.submitted &&
-    a.durationSeconds === b.durationSeconds
+    a.durationSeconds === b.durationSeconds &&
+    // Recovery & Resume — repaint the badge when lifecycle / presence /
+    // resume-permission state changes on the wire.
+    a.attemptStatus === b.attemptStatus &&
+    a.isOnline === b.isOnline &&
+    a.resumeState === b.resumeState
   );
 }
 

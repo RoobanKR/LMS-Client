@@ -5,6 +5,11 @@ import { Eye, EyeOff, GraduationCap } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast, ToastContainer } from "react-toastify";
 import { showErrorToast } from "@/components/ui/toastUtils";
+import { isPocSession, isPocRoleValue, isPocRoute, POC_HOME } from "@/lib/session";
+// Same route map the sidebar links from, so the post-login landing page can
+// never point at a folder that does not exist (POC Dashboard, Feedback).
+import { routeForPermissionKey } from "@/app/lms/shared/navRoutes";
+import { API_ORIGIN } from '@/lib/apiBase'
 
 interface Permission {
   permissionName: string;
@@ -146,6 +151,13 @@ const SmartCliffLogin = () => {
 
     if (existingToken && existingInstitution && existingBasedOn) {
       const redirectTo = getRedirectParam();
+      // A POC may only follow a ?redirect= that points into its own console;
+      // anything else would land on a route the gate refuses.
+      if (isPocSession()) {
+        toast.info("Welcome back!");
+        window.location.href = redirectTo && isPocRoute(redirectTo) ? redirectTo : POC_HOME;
+        return;
+      }
       if (redirectTo) { toast.info("Welcome back!"); window.location.href = redirectTo; return; }
       let redirectPath = "/lms/pages/admindashboard";
       const firstPermissionKey = localStorage.getItem("smartcliff_firstPermissionKey");
@@ -153,7 +165,7 @@ const SmartCliffLogin = () => {
       const existingRoleValue = localStorage.getItem("smartcliff_roleValue");
       const originalRole = localStorage.getItem("smartcliff_originalRole");
       if (firstPermissionKey) {
-        redirectPath = `/lms/pages/${firstPermissionKey}`;
+        redirectPath = routeForPermissionKey(firstPermissionKey);
       } else if (existingRole && existingRoleValue) {
         const userRole = originalRole?.toLowerCase() || existingRoleValue?.toLowerCase() || existingRole?.toLowerCase() || "";
         if (userRole === "student" || userRole.includes("student")) redirectPath = "/lms/pages/studentdashboard";
@@ -187,7 +199,14 @@ const SmartCliffLogin = () => {
           if (loc) clientInfo.location = loc;
         }
       } catch { /* best effort — login is never blocked beyond the timeout */ }
-      const response = await fetch("https://lms-server-ym1q.onrender.com/user/login", {
+      // Respect NEXT_PUBLIC_API_URL — every other apiService in the codebase
+      // does. Hardcoding the deployed URL here meant a localhost dev
+      // session still authenticated against the Render instance (with its
+      // 30–60 s cold-start), and any server-side change under test would
+      // never be observable to a browser signed in this way. Falls back to
+      // the deployed URL so production behaviour is unchanged.
+      const LOGIN_BASE = process.env.NEXT_PUBLIC_API_URL || "https://lmsserver-yeve.onrender.com";
+      const response = await fetch(`${LOGIN_BASE}/user/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...credentials, clientInfo }),
@@ -243,7 +262,7 @@ const SmartCliffLogin = () => {
           localStorage.setItem("smartcliff_roleId", "");
           localStorage.setItem("smartcliff_originalRole", "User");
         }
-        const verifyResponse = await fetch("https://lms-server-ym1q.onrender.com/user/verify-token", {
+        const verifyResponse = await fetch(`${API_ORIGIN}/user/verify-token`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         });
@@ -251,9 +270,18 @@ const SmartCliffLogin = () => {
         // IP / location / device were already captured with the login request
         // (clientInfo), so they persist even though we redirect immediately below.
         if (!user.firstTimeLoginDone) localStorage.setItem("showWelcomeToast", "true");
+        // Roles with a dedicated console are routed by ROLE, ahead of both
+        // ?redirect= and smartcliff_firstPermissionKey. Existing POC accounts
+        // carry stale admin permission keys whose lowest-order entry is
+        // `admindashboard` — a route the POC gate now denies, so honouring the
+        // key would drop them straight onto Access Restricted.
+        if (isPocRoleValue(userRoleValue) || isPocRoleValue(originalRoleValue)) {
+          window.location.href = redirectTo && isPocRoute(redirectTo) ? redirectTo : POC_HOME;
+          return;
+        }
         if (redirectTo) { window.location.href = redirectTo; return; }
         const firstPermissionKey = localStorage.getItem("smartcliff_firstPermissionKey");
-        if (firstPermissionKey) { window.location.href = `/lms/pages/${firstPermissionKey}`; return; }
+        if (firstPermissionKey) { window.location.href = routeForPermissionKey(firstPermissionKey); return; }
         const roleForRedirect = originalRoleValue || userRoleValue;
         window.location.href = roleForRedirect.includes("student") ? "/lms/pages/studentdashboard" : "/lms/pages/admindashboard";
       } catch (error) {
@@ -399,6 +427,8 @@ const SmartCliffLogin = () => {
                   ) : "Sign In"}
                 </button>
 
+                <div className="sc-divider"><span>or</span></div>
+
                 <button type="button" className="sc-google">
                   <svg width="17" height="17" viewBox="0 0 24 24">
                     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -443,10 +473,10 @@ const SmartCliffLogin = () => {
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
         .sc-page {
-          --orange:       #F27757;
-          --orange-dark:  #e0623f;
-          --orange-glow:  rgba(242,119,87,0.30);
-          --orange-light: rgba(242,119,87,0.08);
+          --orange:       #F97316;
+          --orange-dark:  #EA580C;
+          --orange-glow:  rgba(249,115,22,0.30);
+          --orange-light: rgba(249,115,22,0.08);
           --text-main:    #1a1a2e;
           --text-secondary:#6b6b7e;
           --text-muted:   #8b8b9e;
@@ -459,10 +489,10 @@ const SmartCliffLogin = () => {
           /* ── Fixed, full-screen, NO scroll ── */
           position: fixed;
           inset: 0;
-          width: 100vw;
-          height: 100vh;
+          width: calc(100vw * var(--ui-scale-inv, 1));
+          height: calc(100vh * var(--ui-scale-inv, 1));
           overflow: hidden;
-          font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+          font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
           color: var(--text-main);
           background: var(--bg-white);
         }
@@ -480,8 +510,21 @@ const SmartCliffLogin = () => {
           flex: 0 0 46%;
           position: relative;
           overflow: hidden;
-          background: linear-gradient(155deg, #F27757 0%, #ED6445 55%, #E4573A 100%);
+          background:
+            radial-gradient(120% 80% at 78% 12%, rgba(253,186,116,0.55) 0%, rgba(253,186,116,0) 45%),
+            radial-gradient(110% 90% at 12% 92%, rgba(154,52,18,0.75) 0%, rgba(154,52,18,0) 50%),
+            linear-gradient(155deg, #FB923C 0%, #EA580C 52%, #9A3412 100%);
           animation: fadeSlideRight 0.55s ease-out both;
+        }
+
+        /* Subtle top-highlight sheen for depth */
+        .sc-left::after {
+          content: "";
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0) 22%);
+          pointer-events: none;
+          z-index: 1;
         }
 
         .sc-arcs {
@@ -495,13 +538,18 @@ const SmartCliffLogin = () => {
 
         .sc-carousel {
           position: absolute;
-          bottom: 0;
+          top: 50%;
           left: 50%;
-          transform: translateX(-50%);
-          width: 72%;
-          max-width: 400px;
-          height: 82%;
+          transform: translate(-50%, -50%);
+          width: 74%;
+          max-width: 420px;
+          height: 72%;
+          border-radius: 20px;
           z-index: 2;
+          box-shadow:
+            0 30px 60px -20px rgba(67,20,7,0.55),
+            0 0 0 1px rgba(255,255,255,0.10),
+            0 0 0 6px rgba(255,255,255,0.06);
         }
 
         .sc-carousel__slide {
@@ -511,6 +559,8 @@ const SmartCliffLogin = () => {
           transform: scale(1.04);
           transition: opacity 0.6s ease, transform 0.6s ease;
           will-change: opacity, transform;
+          border-radius: 20px;
+          overflow: hidden;
         }
 
         .sc-carousel__slide--active {
@@ -522,15 +572,14 @@ const SmartCliffLogin = () => {
           width: 100%;
           height: 100%;
           object-fit: cover;
-          object-position: top center;
+          object-position: center;
           display: block;
-          border-radius: 18px 18px 0 0;
-          filter: drop-shadow(0 -6px 20px rgba(0,0,0,0.18));
+          border-radius: 20px;
         }
 
         .sc-dots {
           position: absolute;
-          bottom: 20px;
+          bottom: clamp(28px, 8%, 64px);
           left: 50%;
           transform: translateX(-50%);
           display: flex;
@@ -592,14 +641,13 @@ const SmartCliffLogin = () => {
 
         .sc-logo__mark {
           width: 38px; height: 38px;
-          background: var(--orange);
-          border-radius: 10px;
+          background: linear-gradient(135deg, #FB923C 0%, var(--orange) 55%, var(--orange-dark) 100%);
+          border-radius: 11px;
           display: flex;
           align-items: center;
           justify-content: center;
           color: #fff;
           flex-shrink: 0;
-          box-shadow: 0 4px 12px var(--orange-glow);
         }
 
         .sc-logo__name {
@@ -653,11 +701,11 @@ const SmartCliffLogin = () => {
           font-size: clamp(13px, 1.3vw, 14px);
           font-family: inherit;
           color: var(--text-main);
-          background: var(--bg-white);
+          background: #f8f9fc;
           border: 1.5px solid var(--border);
           border-radius: 10px;
           outline: none;
-          transition: border-color 0.2s, box-shadow 0.2s;
+          transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
           box-sizing: border-box;
         }
 
@@ -666,8 +714,8 @@ const SmartCliffLogin = () => {
           font-weight: 400;
         }
 
-        .sc-field input:hover  { border-color: var(--border-hover); }
-        .sc-field input:focus  { border-color: var(--orange); box-shadow: 0 0 0 3px var(--orange-light); }
+        .sc-field input:hover  { border-color: var(--border-hover); background: #f4f6fb; }
+        .sc-field input:focus  { border-color: var(--orange); background: var(--bg-white); box-shadow: 0 0 0 4px var(--orange-light); }
         .sc-field input.has-error { border-color: var(--danger); background: #fffafa; }
 
         .sc-err {
@@ -733,30 +781,28 @@ const SmartCliffLogin = () => {
         .sc-submit {
           width: 100%;
           height: clamp(42px, 5.8vh, 50px);
-          background: var(--orange);
+          background: linear-gradient(180deg, #FB923C 0%, var(--orange) 100%);
           color: #fff;
           font-family: inherit;
           font-size: clamp(14px, 1.4vw, 15.5px);
           font-weight: 600;
+          letter-spacing: 0.01em;
           border: none;
-          border-radius: 10px;
+          border-radius: 11px;
           cursor: pointer;
-          transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
-          box-shadow: 0 4px 14px var(--orange-glow);
+          transition: filter 0.2s, transform 0.12s;
           display: flex;
           align-items: center;
           justify-content: center;
         }
 
         .sc-submit:hover:not(:disabled) {
-          background: var(--orange-dark);
-          box-shadow: 0 6px 20px rgba(242,119,87,0.4);
+          filter: brightness(1.06);
           transform: translateY(-1px);
         }
 
         .sc-submit:active:not(:disabled) {
           transform: translateY(0);
-          box-shadow: 0 2px 8px var(--orange-glow);
         }
 
         .sc-submit:disabled { opacity: 0.6; cursor: not-allowed; }
@@ -769,6 +815,24 @@ const SmartCliffLogin = () => {
           border-top-color: #fff;
           border-radius: 50%;
           animation: sc-spin 0.6s linear infinite;
+        }
+
+        /* Divider */
+        .sc-divider {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          margin: clamp(2px, 0.6vh, 6px) 0;
+          color: var(--text-muted);
+          font-size: clamp(11px, 1.1vw, 12.5px);
+          font-weight: 500;
+        }
+        .sc-divider::before,
+        .sc-divider::after {
+          content: "";
+          flex: 1;
+          height: 1px;
+          background: var(--border);
         }
 
         /* Google */
@@ -860,7 +924,7 @@ const SmartCliffLogin = () => {
 
         /* ═══ Loader ═══ */
         .sc-loader {
-          width: 100vw; height: 100vh;
+          width: calc(100vw * var(--ui-scale-inv, 1)); height: calc(100vh * var(--ui-scale-inv, 1));
           display: flex; align-items: center; justify-content: center;
           background: #fff;
         }
@@ -868,7 +932,7 @@ const SmartCliffLogin = () => {
         .sc-loader__spin {
           width: 28px; height: 28px;
           border: 3px solid #f0f0f5;
-          border-top-color: var(--orange, #F27757);
+          border-top-color: var(--orange, #F97316);
           border-radius: 50%;
           animation: sc-spin 0.7s linear infinite;
         }
@@ -901,7 +965,7 @@ const SmartCliffLogin = () => {
           .sc-page {
             position: relative;      /* allow natural height */
             height: auto;
-            min-height: 100vh;
+            min-height: calc(100vh * var(--ui-scale-inv, 1));
             overflow-y: auto;        /* page-level scroll only on small screens */
           }
 

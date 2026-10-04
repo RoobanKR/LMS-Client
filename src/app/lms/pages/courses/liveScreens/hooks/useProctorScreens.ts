@@ -1,3 +1,4 @@
+import { getToken } from "@/lib/session";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getSocket } from "@/apiServices/socketClient";
 import { getIceServers } from "@/lib/webrtc";
@@ -10,7 +11,7 @@ import type {
   ScreenStudentViolation,
 } from "../types/liveScreens.types";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://lms-server-ym1q.onrender.com";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://lmsserver-yeve.onrender.com";
 
 interface UseProctorScreensArgs {
   assessmentId: string;
@@ -34,7 +35,7 @@ interface UseProctorScreensResult {
 
 function readToken(): string {
   if (typeof window === "undefined") return "";
-  return localStorage.getItem("smartcliff_token") || localStorage.getItem("token") || "";
+  return getToken() || localStorage.getItem("token") || "";
 }
 
 export function useProctorScreens({

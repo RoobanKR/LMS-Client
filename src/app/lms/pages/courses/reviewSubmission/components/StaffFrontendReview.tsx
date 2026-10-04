@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import dynamic from 'next/dynamic';
+import { applyFrontendLibraries, isBootstrapEnabled, BOOTSTRAP_LABEL } from '@/lib/frontendLibraries';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import {
@@ -182,7 +183,7 @@ const StaffFrontendReview: React.FC<StaffFrontendReviewProps> = ({
             display: flex;
             justify-content: center;
             align-items: center;
-            min-height: 100vh;
+            min-height: calc(100vh * var(--ui-scale-inv, 1));
             margin: 0;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
@@ -282,6 +283,13 @@ const StaffFrontendReview: React.FC<StaffFrontendReviewProps> = ({
   });
 
   const [srcDoc, setSrcDoc] = useState<string>('');
+  // Same libraries the student's compiler loaded (e.g. Bootstrap), so staff see
+  // the submission exactly as the student did.
+  const bootstrapEnabled = isBootstrapEnabled(selectedLanguages);
+  const previewSrcDoc = useMemo(
+    () => applyFrontendLibraries(srcDoc, { bootstrap: bootstrapEnabled }),
+    [srcDoc, bootstrapEnabled]
+  );
   const [showFileTree, setShowFileTree] = useState(true);
   const [showPreview, setShowPreview] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -660,7 +668,7 @@ useEffect(() => {
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                min-height: 100vh;
+                min-height: calc(100vh * var(--ui-scale-inv, 1));
                 margin: 0;
                 padding: 20px;
             }
@@ -969,7 +977,7 @@ useEffect(() => {
               if (newWindow && activeFile && activeFile.language === 'html') {
                 const htmlContent = generateSrcDocForFile(activeFile);
                 newWindow.document.open();
-                newWindow.document.write(htmlContent);
+                newWindow.document.write(applyFrontendLibraries(htmlContent, { bootstrap: bootstrapEnabled }));
                 newWindow.document.close();
               }
             }}
@@ -1289,6 +1297,15 @@ useEffect(() => {
                   }}>
                     {currentPreviewFile || 'No file'}
                   </span>
+                  {bootstrapEnabled && (
+                    <span
+                      className="text-[10px] font-bold px-1.5 py-0.5 rounded border"
+                      style={{ color: '#7952b3', borderColor: '#7952b3' }}
+                      title="Bootstrap is loaded into this preview, as it was for the student"
+                    >
+                      {BOOTSTRAP_LABEL}
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-1">
                   <button
@@ -1306,7 +1323,7 @@ useEffect(() => {
                         if (newWindow && activeFile && activeFile.language === 'html') {
                           const htmlContent = generateSrcDocForFile(activeFile);
                           newWindow.document.open();
-                          newWindow.document.write(htmlContent);
+                          newWindow.document.write(applyFrontendLibraries(htmlContent, { bootstrap: bootstrapEnabled }));
                           newWindow.document.close();
                         }
                       }, 100);
@@ -1345,7 +1362,7 @@ useEffect(() => {
                       </button>
                     </div>
                     <iframe
-                      srcDoc={srcDoc}
+                      srcDoc={previewSrcDoc}
                       title="preview"
                       sandbox="allow-scripts allow-same-origin allow-forms allow-modals"
                       className="w-full h-[calc(100vh-3rem)] border-0"
@@ -1354,7 +1371,7 @@ useEffect(() => {
                   </div>
                 ) : (
                   <iframe
-                    srcDoc={srcDoc}
+                    srcDoc={previewSrcDoc}
                     title="preview"
                     sandbox="allow-scripts allow-same-origin allow-forms allow-modals"
                     className="w-full h-full border-0"
@@ -1473,7 +1490,7 @@ useEffect(() => {
                       if (newWindow && activeFile && activeFile.language === 'html') {
                         const htmlContent = generateSrcDocForFile(activeFile);
                         newWindow.document.open();
-                        newWindow.document.write(htmlContent);
+                        newWindow.document.write(applyFrontendLibraries(htmlContent, { bootstrap: bootstrapEnabled }));
                         newWindow.document.close();
                       }
                     }}
@@ -1580,7 +1597,7 @@ useEffect(() => {
                       </div>
                       <div className="flex-1">
                         <iframe
-                          srcDoc={srcDoc}
+                          srcDoc={previewSrcDoc}
                           title="modal-preview"
                           sandbox="allow-scripts allow-same-origin allow-forms allow-modals"
                           className="w-full h-full border-0"

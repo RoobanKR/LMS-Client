@@ -1,5 +1,6 @@
 'use client'
-import { QueryClientProvider } from '@tanstack/react-query'
+import { getToken, isPocSession, POC_HOME } from "@/lib/session";
+import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query'
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { ReactNode, useState, useEffect, useMemo } from 'react'
@@ -8,9 +9,14 @@ import { useAuthStore } from '@/stores/authStore'
 import { toast } from "react-toastify"
 import { showSuccessToast } from '@/components/ui/toastUtils'
 import { Settings2 } from 'lucide-react'
-import { Loading } from '@/components/loading-ui/loading'
+import ClientWorkspaceSkeleton from '@/features/businessmanagement/ClientWorkspaceSkeleton'
 import { createQueryClient } from '@/lib/queryClient'
 import { buildQueryPersister, queryPersistOptions } from '@/lib/queryPersister'
+import { fetchCurrentUser } from '@/queries/auth'
+// The gate and the sidebar MUST resolve a permission key to the same route or
+// the rail shows entries that land on Access Restricted.
+import { canonicalPermissionKey, isMirroredSectionRoute, routePrefixesForPermissionKey } from '@/app/lms/shared/navRoutes'
+import { isCourseManagementRoute, usesTrainerShellRole } from '@/lib/dashboardRoutes'
 
 interface Permission {
   permissionName: string;
@@ -24,7 +30,14 @@ interface Permission {
   _id: string;
 }
 
-import { getCurrentUser } from '../apiServices/tokenVerify'
+// Where "home" is for whoever is signed in. A POC cannot reach the admin
+// dashboard, so a hardcoded link there would bounce it straight back into the
+// Access Restricted screen it just came from.
+const homeRouteForSession = (): string => {
+  if (isPocSession()) return POC_HOME
+  const role = (localStorage.getItem('smartcliff_originalRole') || '').toLowerCase()
+  return role.includes('student') ? '/lms/pages/studentdashboard' : '/lms/pages/admindashboard'
+}
 
 // Access Restricted Component
 function AccessRestricted() {
@@ -57,7 +70,7 @@ function AccessRestricted() {
             </button>
 
             <button
-              onClick={() => window.location.href = '/lms/pages/admindashboard'}
+              onClick={() => window.location.href = homeRouteForSession()}
               className="w-full py-3 px-4 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
             >
               Go to Dashboard
@@ -78,10 +91,13 @@ function AccessRestricted() {
   )
 }
 
-// Fetch and update user permissions from API
-const fetchAndUpdateUserPermissions = async (): Promise<boolean> => {
+// Fetch and update user permissions from API. Goes through the shared
+// ["currentUser"] React Query entry (maxAge 0 = always a fresh fetch on this
+// boot-time path) so the layout's useSyncPermissions and the account menu —
+// which mount concurrently — join this request instead of issuing their own.
+const fetchAndUpdateUserPermissions = async (queryClient: QueryClient): Promise<boolean> => {
   try {
-    const response = await getCurrentUser();
+    const response = await fetchCurrentUser(queryClient, 0);
 
     if (response && response.user) {
       const userData = response.user;
@@ -166,15 +182,130 @@ const checkPermissionForPath = (path: string, permissionKey: string): boolean =>
   return false
 }
 
+// Extra route prefixes a POC's granted module opens beyond its own page.
+//
+// Only needed where one module legitimately spans more than one folder — the
+// sidebar collapses these into a single entry, so without them a POC holding
+// Course Management could open the list but not a course inside it. Kept
+// POC-local rather than in the shared nav map because these are widenings
+// that only make sense against the POC's server-side scoping.
+const POC_COMPANION_ROUTES: Record<string, string[]> = {
+  // Opening a course from Course Management lands in /lms/pages/courses/*.
+  coursestructure: ['/lms/pages/courses'],
+  // Client Management + Service Mapping render as one tabbed Business
+  // Management section; either key opens all three routes.
+  clientmanagement: ['/lms/pages/businessmanagement', '/lms/pages/servicemapping', '/lms/pages/businessreports'],
+  servicemapping: ['/lms/pages/businessmanagement', '/lms/pages/clientmanagement', '/lms/pages/businessreports'],
+  businessmanagement: ['/lms/pages/clientmanagement', '/lms/pages/servicemapping', '/lms/pages/businessreports'],
+  // Both spellings exist in routes and links.
+  grades: ['/lms/pages/grade'],
+  // Standalone Performance Report — the POC rail carries a static "Report"
+  // entry (buildNavForStoredUser), so the console's core grant opens it.
+  pocdashboard: ['/lms/pages/reports'],
+}
+
+// ── Public routes ─────────────────────────────────────────────────────────
+// Reachable with no token and no permission. This was three inline copies of
+// the same array (one of which listed '/login' twice); it is one definition
+// now so a route added here is public in ALL of the places that ask.
+//
+// PREFIXES exist for the external-assessment invitation link: an external
+// participant is NOT an LMS user, has no account and no token, and reaches
+// their assessment through a per-participant URL mailed to them
+// (/assessment/<invitation-token>). The token IS the credential and the
+// server validates it on every call, so the whole /assessment subtree has to
+// sit outside the LMS auth gate — a redirect to /login would strand exactly
+// the person the link was sent to.
+const PUBLIC_ROUTES = ['/login', '/register', '/forgot-password', '/']
+const PUBLIC_ROUTE_PREFIXES = ['/assessment']
+
+// `/dev/*` holds the component layout harnesses (see src/app/dev/*), which
+// mount a single component with mock props so its layout can be inspected at
+// each breakpoint. They are dev-only twice over: the pages themselves call
+// notFound() outside development, and this predicate is false in a production
+// build — so the production gate is bit-for-bit unchanged.
+const isDevHarnessPath = (pathname: string): boolean =>
+  process.env.NODE_ENV !== 'production' && pathname.startsWith('/dev/')
+
+export const isPublicPath = (pathname: string): boolean =>
+  PUBLIC_ROUTES.includes(pathname)
+  || PUBLIC_ROUTE_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'))
+  || isDevHarnessPath(pathname)
+
 const hasPermissionForRoute = (pathname: string): { hasAccess: boolean; requiredPermission?: string } => {
-  const publicRoutes = ['/login', '/login', '/register', '/forgot-password', '/']
-  if (publicRoutes.includes(pathname)) return { hasAccess: true }
+  if (isPublicPath(pathname)) return { hasAccess: true }
 
   const userRole = localStorage.getItem("smartcliff_originalRole") || ''
   const isStudent = userRole.toLowerCase().includes('student')
 
+  // ── POC: closed allowlist, derived from the POC's OWN permissions ───────
+  //
+  // Placed FIRST and returning unconditionally, because several checks below
+  // grant on `!isStudent` alone (admindashboard, logs) or unconditionally
+  // (live-mcq, codinganalytics). A POC is not a student, so any of those
+  // sitting above this would hand it a page nobody granted.
+  //
+  // What changed: the list used to be a hardcoded set of route prefixes keyed
+  // off the ROLE. It is now derived from the modules the POC actually holds,
+  // through the SAME route map the sidebar links from — so the rail and the
+  // gate cannot disagree. Grant "POC Dashboard" in Assign Permission and
+  // /lms/pages/poc/dashboard opens; revoke a module and both the rail entry
+  // and the route go away together.
+  //
+  // Existing POC accounts predate this and carry admin-era grants that the
+  // old role-driven list ignored. Those are now live — run
+  // server/scripts/migratePocPermissions.js to clear them.
+  //
+  // The POC works on the REAL admin pages; the server scopes every read there
+  // to its enrolled courses and refuses every write outside that scope
+  // (server/utils/pocScope.js), which is what makes a per-module grant safe.
+  if (isPocSession()) {
+    const keys = getActivePermissionKeys().map(canonicalPermissionKey)
+    const allowed = keys.some((key) =>
+      [...routePrefixesForPermissionKey(key), ...(POC_COMPANION_ROUTES[key] ?? [])]
+        .some((p) => pathname === p || pathname.startsWith(p + '/'))
+      // …plus the other section's copy of a screen this key already opens —
+      // Check Answer pushes /lms/pages/courses/reviewSubmission even from
+      // Course Structure, and a POC holding only `courses` has no companion
+      // route covering it.
+      || isMirroredSectionRoute(pathname, key)
+    )
+    return { hasAccess: allowed, requiredPermission: 'poc' }
+  }
+
   if (pathname.startsWith('/lms/pages/studentdashboard')) {
     return { hasAccess: isStudent, requiredPermission: 'studentdashboard' }
+  }
+
+  // Student Feedback list at /lms/pages/feedback — every student always
+  // has access to their own open feedback forms, no per-user permission
+  // required. Staff previewing as a student get the same list via the
+  // isDummyStudent flag; anyone else falls through to normal matching so
+  // an admin who explicitly holds the `feedback` module still opens it.
+  if (pathname.startsWith('/lms/pages/feedback')) {
+    const previewingAsStudent = typeof window !== 'undefined'
+      && localStorage.getItem('smartcliff_isDummyStudent') === 'true'
+    if (isStudent || previewingAsStudent) {
+      return { hasAccess: true, requiredPermission: 'feedback' }
+    }
+  }
+
+  // Student calendar at /lms/pages/studentcalendar — the read-only holiday
+  // calendar for the learner's institute and the client they are enrolled
+  // with. Granted on the ROLE, like the feedback list above: knowing when
+  // there is no class is reference data every learner needs, and most student
+  // user docs seed only `studentdashboard`, so requiring a per-user grant
+  // would leave the page dark for everyone already in the system.
+  //
+  // The `studentcalendar` module still exists in the permission tree, so an
+  // admin can hand this page to a non-student account with one checkbox —
+  // those fall through to the normal matching below.
+  if (pathname.startsWith('/lms/pages/studentcalendar')) {
+    const previewingAsStudent = typeof window !== 'undefined'
+      && localStorage.getItem('smartcliff_isDummyStudent') === 'true'
+    if (isStudent || previewingAsStudent) {
+      return { hasAccess: true, requiredPermission: 'studentcalendar' }
+    }
   }
 
   if (pathname === '/lms/pages/admindashboard') {
@@ -186,14 +317,164 @@ const hasPermissionForRoute = (pathname: string): { hasAccess: boolean; required
     return { hasAccess: true }
   }
 
+  // ── Coding Analytics: open to every authenticated user during the
+  //    hardcoded-accounts verification phase; tie to a permission once the
+  //    per-student account store lands. ──────────────────────────────────────
+  if (pathname.startsWith('/lms/pages/codinganalytics')) {
+    return { hasAccess: true }
+  }
+
   // ── Allow logs page for all non-student staff/admin roles ─────────────────
   if (pathname.startsWith('/lms/pages/logs')) {
     return { hasAccess: !isStudent }
   }
 
+  // ── Standalone Performance Report — any non-student staff role. The page
+  //    itself scopes what a trainer can pick (only their enrolled clients /
+  //    courses); a POC reaches here via POC_COMPANION_ROUTES above instead
+  //    (the POC branch returns before this line). ────────────────────────────
+  if (pathname.startsWith('/lms/pages/reports')) {
+    return { hasAccess: !isStudent, requiredPermission: 'reports' }
+  }
+  // The per-course report Reports ▸ View opens (mounted under both sections).
+  // Same audience as the Reports list it is reached from — a trainer without
+  // a course grant would otherwise hit Access Restricted on every View.
+  if (/^\/lms\/pages\/(coursestructure|courses)\/courseReport(\/|$)/.test(pathname) && !isStudent) {
+    return { hasAccess: true, requiredPermission: 'reports' }
+  }
+
+  // ── The feedback manager lives under /coursestructure/feedback but is its
+  //    own module: the `feedback` permission alone must open it (roles like
+  //    the POC get a Feedback sidebar item without holding `coursestructure`).
+  if (pathname.startsWith('/lms/pages/coursestructure/feedback')) {
+    const keys = getActivePermissionKeys()
+    if (keys.includes('feedback')) return { hasAccess: true, requiredPermission: 'feedback' }
+    // else fall through — `coursestructure` holders pass via normal matching
+  }
+
+  // ── Business Management combines Client Management + Service Mapping +
+  //    Reports into one tabbed page; any underlying permission grants access.
+  //    `businessreports` is the workspace's third tab and reports on the very
+  //    records the other two list, so it rides on the same grant rather than
+  //    needing a permission key the Super Admin's tree does not define — the
+  //    tab would otherwise render and then refuse to open. ────────────────────
+  //    The L&D rail's Business Management item opens these same routes, so —
+  //    like Approvals below — an `lddashboard` holder gets in without an extra
+  //    module grant. In-page actions (add / edit / delete / full details) stay
+  //    on the clientmanagement / servicemapping permissions.
+  if (['clientmanagement', 'servicemapping', 'businessreports', 'businessmanagement']
+    .some((s) => pathname === `/lms/pages/${s}` || pathname.startsWith(`/lms/pages/${s}/`))
+    && getActivePermissionKeys().includes('lddashboard')) {
+    return { hasAccess: true, requiredPermission: 'clientmanagement' }
+  }
+  if (pathname.startsWith('/lms/pages/businessmanagement') || pathname.startsWith('/lms/pages/businessreports')) {
+    const keys = getActivePermissionKeys()
+    const hasEither = keys.includes('clientmanagement') || keys.includes('servicemapping')
+    return { hasAccess: hasEither, requiredPermission: 'clientmanagement' }
+  }
+
+  // ── Flows that legitimately land inside /lms/pages/courses without holding
+  //    the `courses` module itself, granted here and letting everyone else
+  //    fall through to the normal permission matching below (purely additive):
+  //      1. actual students — /lms/pages/courses IS the student courses list
+  //         (StudentLayout), and many student user docs seed only
+  //         `studentdashboard`, so gate on the role rather than requiring an
+  //         extra permission key on every learner
+  //      2. the L&D console's Learning Content cards, which open the real
+  //         learner view of a course — L&D owns content oversight, not authoring
+  //      3. any staff role previewing as a student, which is exactly what the
+  //         "Switch to Student" menu item routes into
+  //
+  // The `/`-terminated test matters: a bare
+  // `pathname.startsWith('/lms/pages/courses')` ALSO matches
+  // /lms/pages/coursestructure — "coursestructure" begins with "courses" —
+  // which handed every student, and every staff account previewing as one,
+  // the entire Course Structure admin section (batches, participants,
+  // sections, pedagogy, program calendar). Comparing against the exact
+  // segment closes that.
+  const COURSES_ROOT = '/lms/pages/courses'
+  if (pathname === COURSES_ROOT || pathname.startsWith(COURSES_ROOT + '/')) {
+    const keys = getActivePermissionKeys()
+    const previewingAsStudent = localStorage.getItem('smartcliff_isDummyStudent') === 'true'
+    if (isStudent || previewingAsStudent || keys.includes('lddashboard')) {
+      return { hasAccess: true, requiredPermission: 'courses' }
+    }
+  }
+
+  // Trainer Course Management uses the trainer's existing course grant.
+  // Reads the keys itself: `permissionKeys` is declared further down, and
+  // touching it here threw a TDZ ReferenceError that the auth check's catch
+  // turned into "clear session + redirect to login" for every trainer.
+  // Its sidebar item now opens the admin Course Management screen
+  // (/lms/pages/coursestructure + its per-course pages), so the same grant
+  // opens those for a trainer.
+  const trainerCourseGrant = () => !isStudent &&
+    getActivePermissionKeys().some((key) => ['courses', 'coursestructure'].includes(canonicalPermissionKey(key)))
+  if (pathname === '/lms/pages/coursemanagement' && trainerCourseGrant()) {
+    return { hasAccess: true, requiredPermission: 'courses' }
+  }
+  if (isCourseManagementRoute(pathname) &&
+      usesTrainerShellRole(localStorage.getItem('smartcliff_roleValue') || userRole) && trainerCourseGrant()) {
+    return { hasAccess: true, requiredPermission: 'courses' }
+  }
+
+  // ── Approvals is a shared destination — the admin rail links here, and
+  //    the L&D rail's Approvals item now points at the SAME page (the two
+  //    former L&D hash views #appr-queue / #appr-rules collapsed into it).
+  //    An L&D console user typically holds `lddashboard` but not the
+  //    standalone `approvals` module, so grant access on either key rather
+  //    than forcing an extra permission grant just so the rail item works.
+  // Same for Notification: the L&D rail links every L&D user to their own
+  // inbox, so `lddashboard` opens it without a separate grant.
+  if (pathname.startsWith('/lms/pages/notifications') && getActivePermissionKeys().includes('lddashboard')) {
+    return { hasAccess: true, requiredPermission: 'notifications' }
+  }
+  if (pathname.startsWith('/lms/pages/approvals')) {
+    const keys = getActivePermissionKeys()
+    if (keys.includes('lddashboard')) {
+      return { hasAccess: true, requiredPermission: 'approvals' }
+    }
+    // else fall through — `approvals` holders (admin / any role granted the
+    // module) pass via normal permission matching below.
+  }
+
   const permissionKeys = getActivePermissionKeys()
 
   if (permissionKeys.length === 0) return { hasAccess: false }
+
+  // Modules whose page is NOT at /lms/pages/<key> — the pattern generator
+  // below can never match those. Read from the same map the sidebar links
+  // from, so whatever a role's own rail points at is a route it can open.
+  // "POC Dashboard" (/lms/pages/poc/dashboard) is the case this exists for.
+  for (const permissionKey of permissionKeys) {
+    const prefixes = routePrefixesForPermissionKey(permissionKey)
+    if (prefixes.some((p) => pathname === p || pathname.startsWith(p + '/'))) {
+      return { hasAccess: true, requiredPermission: permissionKey }
+    }
+  }
+
+  // ── Section-mirrored screens (courses ⇄ coursestructure) ────────────────
+  //
+  // Review Submission, Manage Users, Live Dashboard, Upload Resources and the
+  // per-course Grade drill are each mounted under BOTH section prefixes and
+  // render the SAME component (the coursestructure route is a one-line
+  // re-export). Which prefix a user lands on is decided by the link they
+  // followed, not by what they are allowed to do — so a key that opens one
+  // copy opens the other.
+  //
+  // Without this, "Check Answer" was a dead end for an admin: Course
+  // Management grants `coursestructure`, the button pushed
+  // /lms/pages/courses/reviewSubmission, and the generic matching below looks
+  // only at the `courses` segment — Access Restricted on a page the product
+  // had just navigated them to. `courses` (Trainer Courses) had the same hole
+  // pointing the other way.
+  //
+  // Students are excluded deliberately: they already pass the
+  // /lms/pages/courses branch above on their role, and nothing should hand
+  // them a Course Structure route they cannot reach today.
+  if (!isStudent && permissionKeys.some((key) => isMirroredSectionRoute(pathname, key))) {
+    return { hasAccess: true, requiredPermission: 'courses' }
+  }
 
   for (const permissionKey of permissionKeys) {
     if (checkPermissionForPath(pathname, permissionKey)) {
@@ -241,11 +522,17 @@ const redirectToLogin = (router: ReturnType<typeof useRouter>) => {
 function AuthWrapper({ children }: { children: ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
+  const queryClient = useQueryClient()
   const { isAuthenticated, verifyToken, clearToken } = useAuthStore()
   const [isLoading, setIsLoading] = useState(true)
   const [accessDenied, setAccessDenied] = useState(false)
   const [requiredPermission, setRequiredPermission] = useState<string>('')
   const [permissionsRefreshed, setPermissionsRefreshed] = useState(false)
+
+  // The Super Admin module is a fully independent auth domain (its own
+  // login, token, and guard — see app/superadmin/_components/SuperAdminGuard).
+  // It must never be routed through the LMS's smartcliff_token check below.
+  const isSuperAdminRoute = pathname?.startsWith('/superadmin') ?? false
 
   // Show welcome toast only once after login
   useEffect(() => {
@@ -262,7 +549,7 @@ function AuthWrapper({ children }: { children: ReactNode }) {
     const refreshPermissions = async () => {
       if (!permissionsRefreshed) {
         try {
-          const success = await fetchAndUpdateUserPermissions()
+          const success = await fetchAndUpdateUserPermissions(queryClient)
           if (success) {
             setPermissionsRefreshed(true)
             console.log("Permissions refreshed from API")
@@ -273,25 +560,23 @@ function AuthWrapper({ children }: { children: ReactNode }) {
       }
     }
 
-    const publicRoutes = ['/login', '/login', '/register', '/forgot-password', '/']
-    if (!publicRoutes.includes(pathname)) {
+    if (!isPublicPath(pathname) && !isSuperAdminRoute) {
       refreshPermissions()
     }
-  }, [pathname, permissionsRefreshed])
+  }, [pathname, permissionsRefreshed, isSuperAdminRoute, queryClient])
 
   useEffect(() => {
     const checkAuthAndPermissions = async () => {
       setAccessDenied(false)
 
       try {
-        const publicRoutes = ['/login', '/login', '/register', '/forgot-password', '/']
-        if (publicRoutes.includes(pathname)) {
+        if (isPublicPath(pathname) || isSuperAdminRoute) {
           setIsLoading(false)
           return
         }
 
         // ── No token → go to login and KEEP the current URL as ?redirect= ──
-        const smartcliffToken = localStorage.getItem("smartcliff_token")
+        const smartcliffToken = getToken()
         if (!smartcliffToken) {
           clearAuthData()
           redirectToLogin(router)   // ← FIXED (was router.push('/login'))
@@ -304,6 +589,24 @@ function AuthWrapper({ children }: { children: ReactNode }) {
           clearAuthData()
           redirectToLogin(router)   // ← FIXED (was router.push('/login'))
           return
+        }
+
+        // A POC landing on either legacy dashboard — a stale bookmark, an old
+        // firstPermissionKey redirect, a hardcoded link — is sent to its own
+        // console rather than shown Access Restricted. Checked BEFORE the gate
+        // because the gate denies those routes for a POC, so the redirect the
+        // sibling block below intends was never reached. Skipped when the POC
+        // was actually granted that dashboard: the rail is permission-driven
+        // now, so a deliberate grant must open the real page.
+        if (isPocSession() && /\/lms\/pages\/(admin|student)dashboard/.test(pathname)) {
+          const keys = getActivePermissionKeys()
+          const grantedThis = pathname.includes('studentdashboard')
+            ? keys.includes('studentdashboard')
+            : keys.includes('admindashboard')
+          if (!grantedThis) {
+            router.push(POC_HOME)
+            return
+          }
         }
 
         // Check permission for current route
@@ -326,13 +629,15 @@ function AuthWrapper({ children }: { children: ReactNode }) {
           const isOnStudentDashboard = pathname.includes('studentdashboard')
           const isOnAdminDashboard = pathname.includes('admindashboard')
 
+          // (The POC redirect for these two routes runs above, before the gate.)
+
           if (isStudent && isOnAdminDashboard) {
             router.push('/lms/pages/studentdashboard')
             return
           }
 
           if (!isStudent && isOnStudentDashboard) {
-            router.push('/lms/pages/admindashboard')
+            router.push(homeRouteForSession())
             return
           }
         }
@@ -346,7 +651,7 @@ function AuthWrapper({ children }: { children: ReactNode }) {
     }
 
     checkAuthAndPermissions()
-  }, [pathname, verifyToken, clearToken, router, permissionsRefreshed])
+  }, [pathname, verifyToken, clearToken, router, permissionsRefreshed, isSuperAdminRoute])
 
   const clearAuthData = () => {
     clearToken()
@@ -356,24 +661,20 @@ function AuthWrapper({ children }: { children: ReactNode }) {
     localStorage.removeItem("smartcliff_userData")
   }
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <Loading size="size-12" color="gray" />
-      </div>
-    )
-  }
+  // Match route loading while authentication and permissions resolve.
+  if (isLoading) return <ClientWorkspaceSkeleton showTabs={false} />
 
   if (accessDenied) {
     return <AccessRestricted />
   }
 
-  if (!['/login', '/login', '/register', '/forgot-password', '/'].includes(pathname) && !isAuthenticated) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <Loading size="size-12" color="gray" />
-      </div>
-    )
+  if (
+    !isSuperAdminRoute &&
+    !isDevHarnessPath(pathname) &&
+    !['/login', '/login', '/register', '/forgot-password', '/'].includes(pathname) &&
+    !isAuthenticated
+  ) {
+    return <ClientWorkspaceSkeleton showTabs={false} />
   }
 
   return <>{children}</>

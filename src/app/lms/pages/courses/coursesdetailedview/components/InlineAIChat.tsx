@@ -4,8 +4,8 @@ import React, { useState, useRef, useEffect, useCallback } from "react"
 import { Send, X, Loader2, Copy, Check, RotateCcw, Sparkles, StopCircle } from "lucide-react"
  
 // ── Gemini config ──────────────────────────────────────────────────────────
-const GEMINI_KEY = "AIzaSyCVI2igqbIDxB6Oez-ap7bOhmG6FNQXvSw"
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`
+const GEMINI_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY ?? ""
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=${GEMINI_KEY}`
  
 // ── Types ──────────────────────────────────────────────────────────────────
 interface Msg {
@@ -174,7 +174,7 @@ export default function InlineAIChat({ onClose, context }: Props) {
   }
  
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#fff", fontFamily: "'Inter',system-ui,-apple-system,sans-serif", WebkitFontSmoothing: "antialiased" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#fff", fontFamily: "'Poppins','Poppins',system-ui,-apple-system,sans-serif", WebkitFontSmoothing: "antialiased" }}>
  
       {/* ── Header ── */}
       <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 10, padding: "0 16px", height: 52, borderBottom: "1px solid #e5e5e5", background: "#fff" }}>

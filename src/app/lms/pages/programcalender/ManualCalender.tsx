@@ -3,6 +3,14 @@
 import type React from "react"
 import { useState, useEffect } from "react"
 import { ArrowLeft, Plus, Trash2, Calendar, Clock, MapPin, User, AlertCircle, ChevronDown, ChevronRight, BookOpen, FileText, List, Hash, Layers, FolderOpen, Target, Zap } from 'lucide-react'
+import { usePermissions } from '@/hooks/usePermissions'
+// NOTE the explicit /index: there is BOTH a permissions.ts file and a
+// permissions/ directory here, and the bare specifier resolves to the FILE,
+// which has no PERMISSION_IDS — so `can(PERMISSION_IDS.X, ...)` threw on
+// undefined and took the whole Program Calendar page down. AutomaticCalender
+// imports the same constant this way.
+import { PERMISSION_IDS } from '@/app/lms/pages/usermanagement/components/permissions/index'
+import { API_ORIGIN } from '@/lib/apiBase'
 
 interface Course {
   _id: string
@@ -119,6 +127,13 @@ interface ManualCalendarSetupProps {
 }
 
 const ManualCalendarSetup: React.FC<ManualCalendarSetupProps> = ({ course, onBack, onClose }) => {
+  // Program-calendar permissions — Add covers create/save; Delete covers the
+  // per-row remove buttons. Read-only users still see the schedule they scroll
+  // through, minus the mutating controls.
+  const { can } = usePermissions()
+  const canAdd = can(PERMISSION_IDS.ADMIN_PROGRAM_CALENDAR, 'Add')
+  const canDelete = can(PERMISSION_IDS.ADMIN_PROGRAM_CALENDAR, 'Delete')
+
   const [detailedCourse, setDetailedCourse] = useState<DetailedCourse | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedHierarchy, setSelectedHierarchy] = useState<string>("")
@@ -147,7 +162,7 @@ const ManualCalendarSetup: React.FC<ManualCalendarSetupProps> = ({ course, onBac
     const fetchDetailedCourse = async () => {
       try {
         setLoading(true)
-        const response = await fetch(`https://lms-server-ym1q.onrender.com/getAll/courses-data/${course._id}`)
+        const response = await fetch(`${API_ORIGIN}/getAll/courses-data/${course._id}`)
         const data = await response.json()
         if (data.success) {
           setDetailedCourse(data.data)
@@ -811,14 +826,16 @@ const ManualCalendarSetup: React.FC<ManualCalendarSetupProps> = ({ course, onBac
                       </p>
                     </div>
                   </div>
-                  <button
-                    onClick={generateSchedule}
-                    disabled={getHierarchyItems().length === 0}
-                    className="bg-gradient-to-r from-green-500 to-emerald-500 text-white px-4 py-1.5 text-sm rounded-lg hover:from-green-600 hover:to-emerald-600 transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-1.5 font-medium"
-                  >
-                    <Calendar className="w-3.5 h-3.5" />
-                    Create Schedule
-                  </button>
+                  {canAdd && (
+                    <button
+                      onClick={generateSchedule}
+                      disabled={getHierarchyItems().length === 0}
+                      className="bg-gradient-to-r from-green-500 to-emerald-500 text-white px-4 py-1.5 text-sm rounded-lg hover:from-green-600 hover:to-emerald-600 transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-1.5 font-medium"
+                    >
+                      <Calendar className="w-3.5 h-3.5" />
+                      Create Schedule
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -1030,13 +1047,15 @@ const ManualCalendarSetup: React.FC<ManualCalendarSetupProps> = ({ course, onBac
                   <div className="bg-gray-50 rounded-lg p-3 h-full">
                     <div className="flex items-center justify-between mb-3">
                       <h4 className="text-sm font-semibold text-gray-900">Holidays & Breaks</h4>
-                      <button
-                        onClick={addHoliday}
-                        className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded hover:bg-red-200 transition-all duration-200 transform hover:scale-105"
-                      >
-                        <Plus className="w-2.5 h-2.5 inline mr-0.5" />
-                        Add
-                      </button>
+                      {canAdd && (
+                        <button
+                          onClick={addHoliday}
+                          className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded hover:bg-red-200 transition-all duration-200 transform hover:scale-105"
+                        >
+                          <Plus className="w-2.5 h-2.5 inline mr-0.5" />
+                          Add
+                        </button>
+                      )}
                     </div>
                     <div className="space-y-2 overflow-y-auto" style={{ maxHeight: "calc(85vh - 200px)" }}>
                       {holidays.map((holiday) => (
@@ -1049,12 +1068,14 @@ const ManualCalendarSetup: React.FC<ManualCalendarSetupProps> = ({ course, onBac
                               placeholder="Holiday name"
                               className="flex-1 px-1.5 py-1 text-xs border border-gray-300 rounded mr-1"
                             />
-                            <button
-                              onClick={() => removeHoliday(holiday.id)}
-                              className="text-red-600 hover:text-red-700 p-0.5 hover:bg-red-50 rounded transition-all duration-200"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
+                            {canDelete && (
+                              <button
+                                onClick={() => removeHoliday(holiday.id)}
+                                className="text-red-600 hover:text-red-700 p-0.5 hover:bg-red-50 rounded transition-all duration-200"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            )}
                           </div>
                           <input
                             type="date"
@@ -1097,12 +1118,14 @@ const ManualCalendarSetup: React.FC<ManualCalendarSetupProps> = ({ course, onBac
                                   </span>
                                   <h6 className="text-sm font-semibold text-gray-900">{session.sessionTitle}</h6>
                                 </div>
-                                <button
-                                  onClick={() => removeSession(session.id)}
-                                  className="text-red-600 hover:text-red-700 p-1 hover:bg-red-50 rounded transition-all duration-200"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
+                                {canDelete && (
+                                  <button
+                                    onClick={() => removeSession(session.id)}
+                                    className="text-red-600 hover:text-red-700 p-1 hover:bg-red-50 rounded transition-all duration-200"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
                               </div>
                               <div className="grid grid-cols-6 gap-2.5">
                                 <div>
@@ -1221,12 +1244,14 @@ const ManualCalendarSetup: React.FC<ManualCalendarSetupProps> = ({ course, onBac
             
             <div className="p-4 border-t bg-gray-50 rounded-b-xl">
               <div className="flex gap-3">
-                <button
-                  onClick={handleSaveCalendar}
-                  className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-2 px-4 text-sm rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 transform hover:scale-[1.02] font-semibold shadow-lg"
-                >
-                  Save Calendar ({sessions.length} Sessions)
-                </button>
+                {canAdd && (
+                  <button
+                    onClick={handleSaveCalendar}
+                    className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-2 px-4 text-sm rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 transform hover:scale-[1.02] font-semibold shadow-lg"
+                  >
+                    Save Calendar ({sessions.length} Sessions)
+                  </button>
+                )}
                 <button
                   onClick={() => setShowScheduleModal(false)}
                   className="px-4 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50 transition-all duration-200 font-medium"

@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Sparkles, User, Bot, Square, Play, Code, Copy, Check, Eye, AlertCircle, RefreshCw, FileText, Sun, Moon, Settings, Download, Upload, Trash2, MessageCircle } from 'lucide-react';
+import { API_ORIGIN } from '@/lib/apiBase'
 
 interface Message {
   id: string;
@@ -119,7 +120,7 @@ const SmartCliffCompiler: React.FC = () => {
 
   const checkOllamaConnection = async () => {
     try {
-      const response = await fetch('https://lms-server-ym1q.onrender.com/api/chat/health');
+      const response = await fetch(`${API_ORIGIN}/api/chat/health`);
       const data = await response.json();
       setIsOllamaConnected(data.success);
     } catch (error) {
@@ -131,7 +132,7 @@ const SmartCliffCompiler: React.FC = () => {
   const testOllamaConnection = async () => {
     setIsTestingConnection(true);
     try {
-      const response = await fetch('https://lms-server-ym1q.onrender.com/api/chat/simple', {
+      const response = await fetch(`${API_ORIGIN}/api/chat/simple`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -338,7 +339,7 @@ const SmartCliffCompiler: React.FC = () => {
   const stopGeneration = async () => {
     if (currentStreamId) {
       try {
-        await fetch('https://lms-server-ym1q.onrender.com/api/chat/stop-generation', {
+        await fetch(`${API_ORIGIN}/api/chat/stop-generation`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -390,7 +391,7 @@ const SmartCliffCompiler: React.FC = () => {
     setMessages(prev => [...prev, aiMessage]);
 
     try {
-      const response = await fetch('https://lms-server-ym1q.onrender.com/api/chat/ollama-stream', {
+      const response = await fetch(`${API_ORIGIN}/api/chat/ollama-stream`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

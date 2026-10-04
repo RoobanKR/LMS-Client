@@ -1,5 +1,10 @@
 import { create } from 'zustand';
 import { jwtDecode } from 'jwt-decode';
+import {
+  getToken,
+  setToken as persistToken,
+  clearToken as clearStoredToken,
+} from '@/lib/session';
 
 interface AuthState {
   token: string | null;
@@ -16,18 +21,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
 
   setToken: (token) => {
-    localStorage.setItem('smartcliff_token', token);
+    persistToken(token);
     const decoded = jwtDecode(token);
     set({ token, isAuthenticated: true, user: decoded });
   },
 
   clearToken: () => {
-    localStorage.removeItem('smartcliff_token');
+    clearStoredToken();
     set({ token: null, isAuthenticated: false, user: null });
   },
 
   verifyToken: async () => {
-    const token = localStorage.getItem('smartcliff_token');
+    const token = getToken();
     if (!token) {
       get().clearToken();
       return false;

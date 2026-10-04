@@ -11,7 +11,7 @@ import {
     ShuffleIcon
 } from 'lucide-react';
 import { toast } from 'react-toastify';
-import { exerciseApi } from '../../../../apiServices/exercise'; // Your API service
+import { exerciseApi } from '../../pages/courses/api/exercise'; // Your API service
 
 // Define the complete payload interface matching the API
 export interface ExercisePayload {

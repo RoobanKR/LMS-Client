@@ -131,7 +131,7 @@ export const ResourceItem = ({
     display: 'flex', alignItems: 'center', gap: 8,
     width: '100%', padding: '7px 10px', borderRadius: 6,
     border: 'none', background: 'transparent', cursor: 'pointer',
-    color: '#334155', fontSize: '12px', fontWeight: 400,
+    color: '#334155', fontSize: '13.5px', fontWeight: 400,
     textAlign: 'left', fontFamily: 'inherit', whiteSpace: 'nowrap',
   }
 
@@ -146,7 +146,7 @@ export const ResourceItem = ({
         background: rowBg,
         borderBottom: '1px solid #eef0f4',
         transition: 'background 0.15s ease',
-        fontFamily: "'Inter','Inter',-apple-system,BlinkMacSystemFont,sans-serif",
+        fontFamily: "'Poppins','Poppins',-apple-system,BlinkMacSystemFont,sans-serif",
         WebkitFontSmoothing: 'antialiased',
         ...animStyle,
       }}
@@ -174,7 +174,7 @@ export const ResourceItem = ({
           margin: 0,
           flex: 1,
           minWidth: 0,
-          fontSize: '12.5px',
+          fontSize: '14px',
           fontWeight: 500,
           color: '#0F172A',
           overflow: 'hidden',
@@ -188,13 +188,13 @@ export const ResourceItem = ({
 
       {/* Updated */}
       <div style={{ width: '16%', minWidth: 132, paddingRight: 12 }}>
-        <span style={{ fontSize: '11px', color: '#475569', fontWeight: 400, letterSpacing: '-0.004em', whiteSpace: 'nowrap' }}>{updated}</span>
+        <span style={{ fontSize: '12.5px', color: '#475569', fontWeight: 400, letterSpacing: '-0.004em', whiteSpace: 'nowrap' }}>{updated}</span>
       </div>
 
       {/* Category */}
       <div style={{ width: '24%', minWidth: 100, paddingLeft: 48, paddingRight: 12 }}>
         <span style={{
-          fontSize: '11px', fontWeight: 400,
+          fontSize: '12.5px', fontWeight: 400,
           textTransform: 'capitalize' as const, letterSpacing: '-0.004em',
           color: '#334155', whiteSpace: 'nowrap' as const,
         }}>{category}</span>
@@ -202,7 +202,7 @@ export const ResourceItem = ({
 
       {/* Size */}
       <div style={{ width: '8%', minWidth: 64, paddingRight: 12 }}>
-        <span style={{ fontSize: '11px', fontWeight: 400, color: '#334155', letterSpacing: '-0.006em' }}>{sizeText}</span>
+        <span style={{ fontSize: '12.5px', fontWeight: 400, color: '#334155', letterSpacing: '-0.006em' }}>{sizeText}</span>
       </div>
 
       {/* Actions */}
@@ -348,7 +348,7 @@ export const ResourceGroupRow = ({
           background: '#ffffff',
           borderBottom: '1px solid #eef0f4',
           transition: 'background 0.15s ease',
-          fontFamily: "'Inter','Inter',-apple-system,BlinkMacSystemFont,sans-serif",
+          fontFamily: "'Poppins','Poppins',-apple-system,BlinkMacSystemFont,sans-serif",
           WebkitFontSmoothing: 'antialiased',
           ...animStyle,
         }}
@@ -358,21 +358,21 @@ export const ResourceGroupRow = ({
         {/* Name */}
         <div style={{ width: '36%', minWidth: 0, display: 'flex', alignItems: 'center', paddingRight: 12, paddingLeft: nameIndent, gap: 8 }}>
           {expanded
-            ? <ChevronDown size={14} style={{ color: '#2563eb', flexShrink: 0 }} strokeWidth={2.5} />
-            : <ChevronRight size={14} style={{ color: '#2563eb', flexShrink: 0 }} strokeWidth={2.5} />}
+            ? <ChevronDown size={14} style={{ color: '#F97316', flexShrink: 0 }} strokeWidth={2.5} />
+            : <ChevronRight size={14} style={{ color: '#F97316', flexShrink: 0 }} strokeWidth={2.5} />}
           <div style={{
             flexShrink: 0, width: 22, height: 22, borderRadius: 6,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'rgba(37,99,235,0.10)', border: '1px solid rgba(37,99,235,0.20)',
+            background: 'rgba(249,115,22,0.10)', border: '1px solid rgba(249,115,22,0.20)',
             marginRight: 4,
           }}>
-            {expanded ? <FolderOpen size={12} style={{ color: '#2563eb' }} /> : <Folder size={12} style={{ color: '#2563eb' }} />}
+            {expanded ? <FolderOpen size={12} style={{ color: '#F97316' }} /> : <Folder size={12} style={{ color: '#F97316' }} />}
           </div>
-          <p title={groupName} style={{ margin: 0, flex: 1, minWidth: 0, fontSize: '12.5px', fontWeight: 500, color: '#0F172A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '-0.005em' }}>
+          <p title={groupName} style={{ margin: 0, flex: 1, minWidth: 0, fontSize: '14px', fontWeight: 500, color: '#0F172A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '-0.005em' }}>
             {groupName}
           </p>
           {/* <span style={{
-            fontSize: '9.5px', fontWeight: 700, color: '#c2410c',
+            fontSize: '9.5px', fontWeight: 700, color: '#EA580C',
             background: 'rgba(249,115,22,0.12)', border: '1px solid rgba(249,115,22,0.25)',
             padding: '2px 7px', borderRadius: 999, letterSpacing: '0.04em', flexShrink: 0,
           }}>
@@ -381,21 +381,21 @@ export const ResourceGroupRow = ({
         </div>
         {/* Updated */}
         <div style={{ width: '16%', minWidth: 132, paddingRight: 12 }}>
-          <span style={{ fontSize: '11px', color: '#475569', fontWeight: 400, letterSpacing: '-0.004em', whiteSpace: 'nowrap' }}>
+          <span style={{ fontSize: '12.5px', color: '#475569', fontWeight: 400, letterSpacing: '-0.004em', whiteSpace: 'nowrap' }}>
             {latest ? fmtDate(new Date(latest).toISOString()) : '—'}
           </span>
         </div>
         {/* Category */}
         <div style={{ width: '24%', minWidth: 100, paddingLeft: 48, paddingRight: 12 }}>
           <span style={{
-            fontSize: '11px', fontWeight: 400,
+            fontSize: '12.5px', fontWeight: 400,
             textTransform: 'capitalize' as const, letterSpacing: '-0.004em',
             color: '#334155', whiteSpace: 'nowrap' as const,
           }}>Group</span>
         </div>
         {/* Size */}
         <div style={{ width: '8%', minWidth: 64, paddingRight: 12 }}>
-          <span style={{ fontSize: '11px', fontWeight: 400, color: '#334155', letterSpacing: '-0.006em' }}>
+          <span style={{ fontSize: '12.5px', fontWeight: 400, color: '#334155', letterSpacing: '-0.006em' }}>
             {groupTotalBytes > 0 ? fmtSize(String(groupTotalBytes)) : '—'}
           </span>
         </div>
@@ -450,14 +450,14 @@ export const ResourceTableHeader = () => (
       position: 'sticky',
       top: 0,
       zIndex: 5,
-      fontFamily: "'Inter','Inter',-apple-system,BlinkMacSystemFont,sans-serif",
+      fontFamily: "'Poppins','Poppins',-apple-system,BlinkMacSystemFont,sans-serif",
     }}
   >
-    <div style={{ width: '36%', minWidth: 0, fontSize: '11px', fontWeight: 500, color: '#0F172A', paddingRight: 12, letterSpacing: '0.04em' }}>Name</div>
-    <div style={{ width: '16%', minWidth: 132, fontSize: '11px', fontWeight: 500, color: '#0F172A', paddingRight: 12, letterSpacing: '0.04em' }}>Date Modified</div>
-    <div style={{ width: '24%', minWidth: 100, fontSize: '11px', fontWeight: 500, color: '#0F172A', paddingLeft: 48, paddingRight: 12, letterSpacing: '0.04em' }}>Type</div>
-    <div style={{ width: '8%', minWidth: 64, fontSize: '11px', fontWeight: 500, color: '#0F172A', paddingRight: 12, letterSpacing: '0.04em' }}>Size</div>
-    <div style={{ width: '16%', minWidth: 130, fontSize: '11px', fontWeight: 500, color: '#0F172A', textAlign: 'right' as const, letterSpacing: '0.04em' }}>Actions</div>
+    <div style={{ width: '36%', minWidth: 0, fontSize: '12.5px', fontWeight: 500, color: '#0F172A', paddingRight: 12, letterSpacing: '0.04em' }}>Name</div>
+    <div style={{ width: '16%', minWidth: 132, fontSize: '12.5px', fontWeight: 500, color: '#0F172A', paddingRight: 12, letterSpacing: '0.04em' }}>Date Modified</div>
+    <div style={{ width: '24%', minWidth: 100, fontSize: '12.5px', fontWeight: 500, color: '#0F172A', paddingLeft: 48, paddingRight: 12, letterSpacing: '0.04em' }}>Type</div>
+    <div style={{ width: '8%', minWidth: 64, fontSize: '12.5px', fontWeight: 500, color: '#0F172A', paddingRight: 12, letterSpacing: '0.04em' }}>Size</div>
+    <div style={{ width: '16%', minWidth: 130, fontSize: '12.5px', fontWeight: 500, color: '#0F172A', textAlign: 'right' as const, letterSpacing: '0.04em' }}>Actions</div>
   </div>
 )
 
@@ -470,8 +470,8 @@ export const SortHeader = ({ onSort, cfg }: { onSort: (f: SortField) => void; cf
       </span>
     )
     : cfg.direction === 'asc'
-      ? <ChevronUp size={11} style={{ color: '#2563eb', marginLeft: 3 }} />
-      : <ChevronDown size={11} style={{ color: '#2563eb', marginLeft: 3 }} />
+      ? <ChevronUp size={11} style={{ color: '#F97316', marginLeft: 3 }} />
+      : <ChevronDown size={11} style={{ color: '#F97316', marginLeft: 3 }} />
 
   const btn = (label: string, f: SortField, extra: React.CSSProperties = {}) => (
     <button
@@ -479,8 +479,8 @@ export const SortHeader = ({ onSort, cfg }: { onSort: (f: SortField) => void; cf
       style={{
         display: 'flex', alignItems: 'center',
         background: 'none', border: 'none', cursor: 'pointer',
-        fontSize: '11px', fontWeight: 600,
-        color: cfg.field === f ? '#2563eb' : '#94a3b8',
+        fontSize: '12.5px', fontWeight: 600,
+        color: cfg.field === f ? '#F97316' : '#94a3b8',
         padding: '4px 0', letterSpacing: '0.03em',
         ...extra,
       }}
@@ -609,7 +609,7 @@ export const ResourceCard = ({
               <h3
                 style={{
                   margin: '0 0 4px',
-                  fontSize: '14px',
+                  fontSize: '15.5px',
                   fontWeight: 600,
                   color: '#1e293b',
                   lineHeight: 1.3,
@@ -624,7 +624,7 @@ export const ResourceCard = ({
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
                 <span
                   style={{
-                    fontSize: '11px',
+                    fontSize: '12.5px',
                     color: '#6b7280',
                     fontWeight: 500,
                     background: '#f1f5f9',
@@ -639,7 +639,7 @@ export const ResourceCard = ({
                 {updated && (
                   <span
                     style={{
-                      fontSize: '10px',
+                      fontSize: '11.5px',
                       color: '#9ca3af',
                       fontWeight: 400,
                     }}
@@ -656,7 +656,7 @@ export const ResourceCard = ({
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span
                 style={{
-                  fontSize: '12px',
+                  fontSize: '13.5px',
                   color: '#64748b',
                   fontWeight: 500,
                 }}
@@ -684,7 +684,7 @@ export const ResourceCard = ({
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: 6,
-                    fontSize: '11px',
+                    fontSize: '12.5px',
                     fontWeight: 600,
                     transition: 'all 0.15s',
                   }}
@@ -746,7 +746,7 @@ export const ResourceCard = ({
                           borderRadius: 6,
                           background: '#1e293b',
                           color: '#ffffff',
-                          fontSize: '10px',
+                          fontSize: '11.5px',
                           whiteSpace: 'nowrap',
                           zIndex: 10,
                           pointerEvents: 'none',
@@ -1001,8 +1001,8 @@ export const EmptyCard = ({
   color?: "blue" | "orange" | "green" | "gray"
 }) => {
   const colorMap = {
-    blue: { bg: 'rgba(37,99,235,0.08)', border: 'rgba(37,99,235,0.15)', icon: '#2563eb', button: '#2563eb' },
-    orange: { bg: 'rgba(251,146,60,0.12)', border: 'rgba(251,146,60,0.25)', icon: '#f97316', button: '#f97316' },
+    blue: { bg: 'rgba(249,115,22,0.08)', border: 'rgba(249,115,22,0.15)', icon: '#F97316', button: '#F97316' },
+    orange: { bg: 'rgba(249,115,22,0.12)', border: 'rgba(249,115,22,0.25)', icon: '#F97316', button: '#F97316' },
     green: { bg: 'rgba(34,197,94,0.08)', border: 'rgba(34,197,94,0.15)', icon: '#22c55e', button: '#22c55e' },
     gray: { bg: 'rgba(100,116,139,0.08)', border: 'rgba(100,116,139,0.15)', icon: '#64748b', button: '#64748b' },
   }
@@ -1027,8 +1027,8 @@ export const EmptyCard = ({
         }}>
           <Icon size={24} style={{ color: c.icon }} />
         </div>
-        <p style={{ fontWeight: 700, fontSize: '14px', color: '#1e293b', margin: '0 0 6px' }}>{title}</p>
-        <p style={{ fontSize: '12.5px', color: '#64748b', margin: '0 0 16px', lineHeight: 1.6 }}>{sub}</p>
+        <p style={{ fontWeight: 700, fontSize: '15.5px', color: '#1e293b', margin: '0 0 6px' }}>{title}</p>
+        <p style={{ fontSize: '14px', color: '#64748b', margin: '0 0 16px', lineHeight: 1.6 }}>{sub}</p>
         {action && onAction && (
           <button
             onClick={onAction}
@@ -1038,7 +1038,7 @@ export const EmptyCard = ({
               border: 'none',
               background: c.button,
               color: '#fff',
-              fontSize: '12px',
+              fontSize: '13.5px',
               fontWeight: 600,
               cursor: 'pointer',
               transition: 'all 0.2s ease',

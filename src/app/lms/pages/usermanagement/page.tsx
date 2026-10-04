@@ -1,268 +1,215 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
-import { Button } from "@/components/ui/button";
+import { getToken } from "@/lib/session";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Loading } from "@/components/loading-ui/loading";
 import {
-  Edit,
-  Trash2,
   Plus,
-  Search,
   Loader2,
   Briefcase,
   UserCheck,
   Handshake,
   ClipboardList,
   ShieldCheck,
-  GraduationCap,
-  Filter,
+  SlidersHorizontal,
   KeyRound,
-  Eye,
-  Copy,
-  MoreVertical,
-  UserX,
+  Search,
+  Users,
+  SearchX,
+  Trash2,
+  X,
+  ChevronDown,
+  Upload,
+  UserCog,
+  Layers,
+  BarChart3,
 } from "lucide-react";
-import { toast } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
-import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { toast, Toaster } from "sonner";
 import DashboardLayout from "../../component/layout";
 import { StaffLayout } from "../../component/stafflayout/staff-layout";
-import { StatusCards } from "../../component/StatusCards";
 import { motion, AnimatePresence } from "framer-motion";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { addUser, deleteUser, fetchUsers, toggleUserStatus, updateUser } from "@/apiServices/userService";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { addUser, deleteUser, toggleUserStatus, updateUser, bulkSetUserStatus, fetchUsersForExport } from "@/apiServices/userService";
 import { Switch } from "@/components/ui/switch";
-import { fetchRoles } from "@/apiServices/rolesApi";
+import { Button } from "@/components/ui/button";
 import { userPermission } from "@/apiServices/tokenVerify";
+import { useUsersPageQuery, useUsersListQuery, useRolesQuery, transformUser } from "./queries/users";
+import { useUserRoleCountsQuery } from "@/queries/userRoleCounts";
+import { UserCountModal } from "./components/UserCountModal";
+import { queryKeys } from "@/lib/queryKeys";
+import { API_BASE_URL } from "@/lib/http";
 
-// Import local components
-import { UserTable } from "./components/UserTable";
+// Shared design kit
+import { EmptyState, Modal, pageEnter } from "../../shared/ui";
+import { Tabs, TabsList, TabsTrigger } from "../../shared/ui/Tabs";
+import TableFooter from "../../shared/listing/TableFooter";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+
+// Local components
 import { UserModals } from "./components/UserModals";
-import { UserFiltersSection } from "./components/UserFiltersSection";
-import { User, Role, UserFormData, ApiPermission, Column } from "./components/types";
+import BulkUserModal from "./components/BulkUserModal";
+import BulkEditModal from "./components/BulkEditModal";
+import { RowActionsMenu, rowHasAnyAction } from "./components/RowActionsMenu";
+import { UsersTable } from "./components/UsersTable";
+import UsersOverview from "./components/UsersOverview";
+import UserReportPage from "./components/UserReportPage";
+import {
+  MappingMultiFilter,
+  serviceLabel,
+} from "@/app/lms/pages/servicemapping/components/MappingReportFilters";
+import { useServiceMappings } from "@/app/lms/pages/servicemapping/api/serviceMappingService";
+import { hasPermission } from "./components/permissions";
+import { User, Role, UserFormData, ApiPermission } from "./components/types";
+import { defaultPermissionsForRole } from "./config/permissions.helpers";
 
-// Permission utility functions
-const hasPermission = (permissions: ApiPermission[], permissionKey: string, functionality?: string): boolean => {
-  const permission = permissions.find(p => p.permissionKey === permissionKey);
-  if (!permission || !permission.isActive) return false;
-  if (functionality) {
-    return permission.permissionFunctionality.some(func => func.trim() === functionality.trim());
-  }
-  return true;
+// The only two account states the directory has. Multi-select so "both" is
+// expressible, which is the same as picking neither.
+const STATUS_OPTIONS = [
+  { value: "active", label: "Active" },
+  { value: "inactive", label: "Inactive" },
+];
+
+// Pull the human-readable message out of a backend error response. The API
+// returns { message: [{ key, value }] } (or sometimes a plain string), so try
+// those shapes before falling back to a generic message.
+const getApiErrorMessage = (error: any, fallback: string): string => {
+  const data = error?.response?.data ?? error?.raw;
+  const msg = data?.message;
+  if (Array.isArray(msg) && msg[0]?.value) return msg[0].value;
+  if (typeof msg === 'string' && msg.trim()) return msg;
+  if (typeof data?.error === 'string' && data.error.trim()) return data.error;
+  if (typeof error?.message === 'string' && error.message.trim() &&
+      !/^Request failed with status code \d+$/i.test(error.message)) return error.message;
+  return fallback;
 };
 
-const getPermission = (permissions: ApiPermission[], permissionKey: string): ApiPermission | undefined => {
-  return permissions.find(p => p.permissionKey === permissionKey && p.isActive);
-};
+// Constants - All fields available for all users
 
-function getRoleIcon(roleName: string) {
-  const lowerRole = roleName.toLowerCase();
-  if (lowerRole.includes('lms')) return ShieldCheck;
-  if (lowerRole.includes('manager')) return Briefcase;
-  if (lowerRole.includes('hr')) return UserCheck;
-  if (lowerRole.includes('poc')) return Handshake;
-  if (lowerRole.includes('coordinator')) return ClipboardList;
-  if (lowerRole.includes('student')) return GraduationCap;
-  return ShieldCheck;
-}
+// Search scope — the picker to the right of the search box. "All fields" is the
+// default and is what the box did before the picker existed; the other four name
+// the table's own columns, so what you pick is what you see. Values travel to
+// getUserAccessPaginated as `searchField`, which narrows the Mongo $or.
+type SearchField = "all" | "user" | "email" | "phone" | "role";
+const SEARCH_FIELD_OPTIONS: { value: SearchField; label: string; placeholder: string }[] = [
+  { value: "all", label: "All fields", placeholder: "Search users…" },
+  { value: "user", label: "User", placeholder: "Search by name…" },
+  { value: "email", label: "Email", placeholder: "Search by email…" },
+  { value: "phone", label: "Phone", placeholder: "Search by phone…" },
+  { value: "role", label: "Role", placeholder: "Search by role…" },
+];
 
-function getRoleColor(roleName: string) {
-  const lowerRole = roleName.toLowerCase();
-  if (lowerRole.includes('lms')) return "text-blue-500 dark:text-blue-400";
-  if (lowerRole.includes('manager')) return "text-green-500 dark:text-green-400";
-  if (lowerRole.includes('hr')) return "text-pink-500 dark:text-pink-400";
-  if (lowerRole.includes('poc')) return "text-yellow-500 dark:text-yellow-400";
-  if (lowerRole.includes('coordinator')) return "text-orange-500 dark:text-orange-400";
-  if (lowerRole.includes('student')) return "text-purple-500 dark:text-purple-400";
-  return "text-gray-500 dark:text-gray-400";
-}
-
-// Custom Dropdown Component
-interface CustomDropdownProps {
-  user: User;
-  onEdit: (user: User) => void;
-  onPermissions: (user: User) => void;
-  onDelete: (user: User) => void;
-  onViewDetails?: (user: User) => void;
-  onToggleStatus?: (user: User) => void;
-  onDuplicate?: (user: User) => void;
-  userPermissions: ApiPermission[];
-}
-
-const CustomDropdown: React.FC<CustomDropdownProps> = ({ 
-  user, onEdit, onPermissions, onDelete, onViewDetails, onToggleStatus, onDuplicate, userPermissions
-}) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  
-  const canEditUser = hasPermission(userPermissions, 'usermanagement', 'Edit');
-  const canAssignPermissions = hasPermission(userPermissions, 'usermanagement', 'Permissions');
-  const canToggleStatus = hasPermission(userPermissions, 'usermanagement', 'Toggle User Status');
-  const canDeleteUser = hasPermission(userPermissions, 'usermanagement', 'Delete');
-  const canDuplicateUser = hasPermission(userPermissions, 'usermanagement', 'Duplicate User');
-  const canViewDetails = hasPermission(userPermissions, 'usermanagement', 'View Full Details');
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const handleAction = (action: string) => {
-    setIsOpen(false);
-    switch (action) {
-      case 'view': onViewDetails?.(user); break;
-      case 'edit': onEdit(user); break;
-      case 'permissions': onPermissions(user); break;
-      case 'toggle': onToggleStatus?.(user); break;
-      case 'duplicate': onDuplicate?.(user); break;
-      case 'delete': onDelete(user); break;
-    }
-  };
-  
-  const userPermission = getPermission(userPermissions, 'usermanagement');
-  const hasUserManagementAccess = userPermission?.isActive || false;
-
-  if (!hasUserManagementAccess) {
-    return (
-      <button className="flex items-center gap-1 px-2 py-1 rounded bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 opacity-50 cursor-not-allowed" disabled>
-        <MoreVertical className="h-3 w-3 text-gray-400 dark:text-gray-500" />
-      </button>
-    );
-  }
-
-  return (
-    <div className="relative" ref={dropdownRef}>
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-1 px-2 py-1 rounded bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 transition-all duration-200 group"
-      >
-        <MoreVertical className="h-3 w-3 text-gray-600 dark:text-gray-400" />
-      </button>
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: -5 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: -5 }}
-            className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50 py-1"
-          >
-            {canViewDetails && onViewDetails && (
-              <>
-                <button onClick={() => handleAction('view')} className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 w-full text-left">
-                  <Eye className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                  View Details
-                </button>
-                {(canEditUser || canAssignPermissions || canToggleStatus || canDuplicateUser || canDeleteUser) && (
-                  <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
-                )}
-              </>
-            )}
-            {canEditUser && (
-              <button onClick={() => handleAction('edit')} className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 w-full text-left">
-                <Edit className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                Edit User
-              </button>
-            )}
-            {canAssignPermissions && (
-              <button onClick={() => handleAction('permissions')} className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 w-full text-left">
-                <KeyRound className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                Assign Permissions
-              </button>
-            )}
-            {canToggleStatus && (
-              <button onClick={() => handleAction('toggle')} className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 w-full text-left">
-                {user.status === 'active' ? (
-                  <><UserX className="h-4 w-4 text-orange-600 dark:text-orange-400" /> Deactivate User</>
-                ) : (
-                  <><UserCheck className="h-4 w-4 text-green-600 dark:text-green-400" /> Activate User</>
-                )}
-              </button>
-            )}
-            {canDuplicateUser && (
-              <button onClick={() => handleAction('duplicate')} className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 w-full text-left">
-                <Copy className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                Duplicate
-              </button>
-            )}
-            {(canEditUser || canAssignPermissions || canToggleStatus || canDuplicateUser) && canDeleteUser && (
-              <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
-            )}
-            {canDeleteUser && (
-              <button onClick={() => handleAction('delete')} className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 w-full text-left">
-                <Trash2 className="h-4 w-4" />
-                Delete User
-              </button>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-};
-
-// Constants
-const degreeOptions = ["B.Tech", "B.E", "B.Sc", "B.Com", "B.A", "M.Tech", "M.Sc", "MBA", "PhD"];
-const departmentOptions = ["Computer Science", "Electrical", "Mechanical", "Civil", "Electronics", "Information Technology", "Mathematics", "Physics", "Chemistry"];
-const semesterOptions = ["1", "2", "3", "4", "5", "6", "7", "8"];
-const yearOptions = ["1st Year", "2nd Year", "3rd Year", "4th Year", "5th Year"];
-const batchOptions = ["2021-2025", "2022-2026", "2023-2027", "2024-2028", "2025-2029"];
+const BULK_BTN_BASE =
+  "h-7 px-2.5 rounded-full text-xs font-medium disabled:opacity-40 disabled:hover:bg-transparent " +
+  "disabled:cursor-not-allowed transition-colors duration-150";
+const BULK_BAR_BTN = `${BULK_BTN_BASE} text-white/90 hover:bg-white/10 hover:text-white`;
+const BULK_BAR_BTN_DANGER = `${BULK_BTN_BASE} text-danger-500 hover:bg-danger-500/15`;
 
 export default function UserManagementPage() {
   const [userRole, setUserRole] = useState<string | null>(null);
+  // Two top-level tabs: the existing Users directory workflow and the new
+  // per-client Reports view. Default 'users' so the page opens on the same
+  // list the toolbar has always shown.
+  const [tab, setTab] = useState<'users' | 'reports'>('users');
   const [currentPage, setCurrentPage] = useState(1);
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [newUserId, setNewUserId] = useState("");
+  const [createdUser, setCreatedUser] = useState<User | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState<Record<string, boolean>>({});
   const [token, setToken] = useState<string | null>(null);
   const [institutionId, setInstitutionId] = useState<string | null>(null);
   const [basedOn, setBasedOn] = useState<string | null>(null);
-  const [allUser, setAllUsers] = useState<User[]>([]);
-  const [roles, setRoles] = useState<Role[]>([]);
   const [userPermissions, setUserPermissions] = useState<ApiPermission[]>([]);
   const [isLoadingPermissions, setIsLoadingPermissions] = useState(true);
   const [canAddUser, setCanAddUser] = useState(false);
   const [canBulkUpload, setCanBulkUpload] = useState(false);
   const [canBulkPermission, setCanBulkPermission] = useState(false);
   const [showBulkUploadModal, setShowBulkUploadModal] = useState(false);
+  const [showBulkUserModal, setShowBulkUserModal] = useState(false);
+  const [showBulkEditModal, setShowBulkEditModal] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [showPermissionModal, setShowPermissionModal] = useState(false);
   const [selectedUserForPermission, setSelectedUserForPermission] = useState<User | null>(null);
   const [showBulkPermissionModal, setShowBulkPermissionModal] = useState(false);
+  const [showUserCountModal, setShowUserCountModal] = useState(false);
   const [selectedUserForBulkPermissions, setSelectedUserForBulkPermissions] = useState<User | null>(null);
   const [showViewDetailsModal, setShowViewDetailsModal] = useState(false);
   const [selectedUserForDetails, setSelectedUserForDetails] = useState<User | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
+  const [searchField, setSearchField] = useState<SearchField>("all");
   const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
   const [selectedStatus, setSelectedStatus] = useState<string>("");
+  // The filter bar's multi-selects. `selectedStatuses` supersedes the single
+  // `selectedStatus` above, which the row-level status toggle still writes to.
+  const [selectedClients, setSelectedClients] = useState<string[]>([]);
+  const [selectedServices, setSelectedServices] = useState<string[]>([]);
+  const [selectedServiceModels, setSelectedServiceModels] = useState<string[]>([]);
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
+  // Service Providing Year and Course were added to the filter panel so the
+  // Users tab reads with the same six columns Course Setup and the Reports
+  // tab expose. Options live under filterOptions.providingYears / .courses
+  // and stay empty until the users endpoint returns those facets.
+  const [selectedProvidingYears, setSelectedProvidingYears] = useState<string[]>([]);
+  const [selectedCourses, setSelectedCourses] = useState<string[]>([]);
   const [selectedDegree, setSelectedDegree] = useState<string>("");
   const [selectedDepartment, setSelectedDepartment] = useState<string>("");
   const [selectedYear, setSelectedYear] = useState<string>("");
+
+  // Add loading state for form submission
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Table UX state (selection, sorting, layout, page size)
+  //
+  // Selection keeps the ROW, not just the id: it spans pages, and with the
+  // directory paginated the rows for other pages are no longer in memory —
+  // bulk actions and "Export selected" both need the user objects themselves.
+  const [selectedRows, setSelectedRows] = useState<Record<string, User>>({});
+  const selectedIds = useMemo(() => Object.keys(selectedRows), [selectedRows]);
+  const [sortKey, setSortKey] = useState<string>("");
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  // A FIXED 10 rows per page.
+  //
+  // This used to default to 25 and then auto-fit to the wrapper's height, so
+  // the row count changed with the window and no two screens showed the same
+  // page. A stable, predictable page is worth more here than filling every
+  // pixel — "page 3" should mean the same 10 users on a laptop and a monitor.
+  // The footer's page-size control still overrides it per session.
+  const [pageSize, setPageSize] = useState(10);
+  const tableCardRef = useRef<HTMLDivElement | null>(null);
+  // The viewport-sized box the floating bulk bar is dragged within, so it can
+  // be pushed off the pagination but never off the screen.
+  const bulkBarBoundsRef = useRef<HTMLDivElement | null>(null);
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const [newUser, setNewUser] = useState<UserFormData>({
     id: "", firstName: "", lastName: "", email: "", phone: "", password: "",
     role: "Student", roleId: "", status: "active", gender: "Male",
     degree: "", department: "", semester: "", year: "", batch: "",
+    phase: "", serviceModel: "", rollNumber: "",
+    studentType: "",
+    clientId: "",
+    clientName: "",
   });
 
-  const usersPerPage = 5;
   const queryClient = useQueryClient();
-  const [dataVersion, setDataVersion] = useState(0);
 
   // Fetch user role and permissions
   useEffect(() => {
     const role = localStorage.getItem('smartcliff_roleValue');
     setUserRole(role);
-    
+
     const fetchUserPermissions = async () => {
       try {
         setIsLoadingPermissions(true);
@@ -284,35 +231,22 @@ export default function UserManagementPage() {
 
   // Get token and institution info
   useEffect(() => {
-    setToken(localStorage.getItem('smartcliff_token'));
+    setToken(getToken());
     setInstitutionId(localStorage.getItem('smartcliff_institution'));
     setBasedOn(localStorage.getItem('smartcliff_basedOn'));
   }, []);
 
-  // Data update listener
-  useEffect(() => {
-    const handleDataUpdate = (event: CustomEvent) => {
-      setDataVersion(event.detail.version);
-      queryClient.invalidateQueries({ queryKey: ['users'] });
-    };
-    window.addEventListener('usersDataUpdated', handleDataUpdate as EventListener);
-    return () => window.removeEventListener('usersDataUpdated', handleDataUpdate as EventListener);
-  }, [queryClient]);
+  // Roles — one shared cache entry (see src/queries/users.ts); no more token
+  // in the key, no copy into local state.
+  const { data: rolesData, isLoading: isLoadingRoles } = useRolesQuery(institutionId);
+  const roles: Role[] = useMemo(() => rolesData ?? [], [rolesData]);
 
-  // Fetch roles
-  const { data: rolesData, isLoading: isLoadingRoles } = useQuery({
-    queryKey: ['roles', token],
-    queryFn: async () => {
-      if (!token) return [];
-      const result = await fetchRoles(token);
-      return result.roles || [];
-    },
-    enabled: !!token,
-  });
-
-  useEffect(() => {
-    if (rolesData && Array.isArray(rolesData)) setRoles(rolesData);
-  }, [rolesData]);
+  // Service mappings — the source of truth for the filter panel's
+  // Service Providing Year and Course dropdowns. Same list Course Setup
+  // paints its filters from (useServiceMappings), so all three admin lists
+  // read the same courses and years.
+  const { data: mappingsData } = useServiceMappings();
+  const mappings = useMemo(() => mappingsData ?? [], [mappingsData]);
 
   // Debounce search
   useEffect(() => {
@@ -320,95 +254,147 @@ export default function UserManagementPage() {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  useEffect(() => {
+  // Changing a filter goes back to page 1. This adjusts state DURING render
+  // rather than in an effect: as an effect it committed the new filter with
+  // the OLD page number first, so a filter change while on page 3 fired a
+  // request for page 3 and then immediately a second one for page 1. React
+  // re-runs this render before committing, so only the page-1 request is ever
+  // made.
+  const filterSignature = JSON.stringify([
+    debouncedSearchTerm, searchField, selectedRoles, selectedStatus,
+    selectedClients, selectedServices, selectedServiceModels, selectedStatuses,
+    selectedDegree, selectedDepartment, selectedYear,
+  ]);
+  const [lastFilterSignature, setLastFilterSignature] = useState(filterSignature);
+  if (lastFilterSignature !== filterSignature) {
+    setLastFilterSignature(filterSignature);
     setCurrentPage(1);
-  }, [debouncedSearchTerm, selectedRoles, selectedStatus, selectedDegree, selectedDepartment, selectedYear]);
+  }
 
-  // Fetch users
-  const { data: usersData, isLoading: isLoadingUsers, isFetching, refetch } = useQuery({
-    queryKey: ['users', institutionId, token, basedOn, currentPage, debouncedSearchTerm, selectedRoles, selectedStatus, selectedDegree, selectedDepartment, selectedYear, dataVersion],
-    queryFn: async () => {
-      if (!token || !institutionId || !basedOn) return { users: [], allUsers: [], pagination: { currentPage: 1, totalPages: 1, totalUsers: 0, hasNextPage: false, hasPrevPage: false } };
-      const allUsers = await fetchUsers(institutionId, token, basedOn);
-      const transformedUsers: User[] = (allUsers.users || []).map((user: any) => ({
-        id: user._id || user.id,
-        firstName: user.firstName || '',
-        lastName: user.lastName || '',
-        gender: user.gender,
-        email: user.email,
-        phone: user.phone || '',
-        role: user.role?.renameRole || (typeof user.role === 'string' ? user.role : 'Unknown Role'),
-        roleId: user.role?._id || user.role,
-        status: user.status || 'active',
-        lastLogin: user.lastLogin || '',
-        degree: user.degree || '',
-        department: user.department || '',
-        semester: user.semester || '',
-        year: user.year || '',
-        batch: user.batch || '',
-      }));
-      
-      const filteredUsers = transformedUsers.filter(user => {
-        const matchesSearch = !debouncedSearchTerm ||
-          user.firstName.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
-          user.lastName.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
-          user.email.toLowerCase().includes(debouncedSearchTerm.toLowerCase());
-        const matchesRoles = selectedRoles.length === 0 || selectedRoles.includes(user.roleId);
-        const matchesStatus = !selectedStatus || selectedStatus === "all" || user.status === selectedStatus;
-        const matchesDegree = !selectedDegree || selectedDegree === "all" || user.degree === selectedDegree;
-        const matchesDepartment = !selectedDepartment || selectedDepartment === "all" || user.department === selectedDepartment;
-        const matchesYear = !selectedYear || selectedYear === "all" || user.year === selectedYear;
-        return matchesSearch && matchesRoles && matchesStatus && matchesDegree && matchesDepartment && matchesYear;
-      });
-      
-      setAllUsers(transformedUsers);
-      const startIndex = (currentPage - 1) * usersPerPage;
-      const paginatedUsers = filteredUsers.slice(startIndex, startIndex + usersPerPage);
-      return {
-        users: paginatedUsers,
-        allUsers: transformedUsers,
-        pagination: {
-          currentPage,
-          totalPages: Math.ceil(filteredUsers.length / usersPerPage),
-          totalUsers: filteredUsers.length,
-          hasNextPage: currentPage < Math.ceil(filteredUsers.length / usersPerPage),
-          hasPrevPage: currentPage > 1
-        }
-      };
-    },
-    enabled: !!token && !!institutionId && !!basedOn,
-  });
+  // ── The directory read ─────────────────────────────────────────────────────
+  // The page used to pull EVERY user in the institution and filter, sort and
+  // slice the array in the browser. That works at 179 users and collapses at
+  // 100,000: a ~300 MB response, parsed and held in React state, before a
+  // single row is drawn. The search, the six filters, the sort and the slice
+  // now all run in Mongo, and one page crosses the wire.
+  //
+  // Everything below the fetch — the filter predicate, the comparator, the
+  // slice — was deleted rather than reimplemented: the server-side port in
+  // getUserAccessPaginated (server/controllers/userAuth.js) is a field-for-
+  // field copy of it, checked against this page's own predicate over live data
+  // across every filter, both sort directions and deep pages.
+  const queryParams = useMemo(
+    () => ({
+      page: currentPage,
+      limit: pageSize,
+      search: debouncedSearchTerm,
+      searchField,
+      roles: selectedRoles,
+      status: selectedStatus,
+      clients: selectedClients,
+      services: selectedServices,
+      serviceModels: selectedServiceModels,
+      statuses: selectedStatuses,
+      degree: selectedDegree,
+      department: selectedDepartment,
+      year: selectedYear,
+      sortKey,
+      sortDir,
+    }),
+    [currentPage, pageSize, debouncedSearchTerm, searchField, selectedRoles, selectedStatus,
+      selectedClients, selectedServices, selectedServiceModels, selectedStatuses,
+      selectedDegree, selectedDepartment, selectedYear, sortKey, sortDir],
+  );
+
+  // `isLoading` is true only for the very first page — keepPreviousData holds
+  // the previous rows through every later fetch, so the table never blanks
+  // while paging or typing, which is how the in-memory version behaved.
+  const { data: usersPage, isLoading: isLoadingUsers } =
+    useUsersPageQuery(institutionId, queryParams);
+
+  // The Bulk Permission picker is the one consumer here that still wants every
+  // user at once. It now loads ONLY while a bulk modal is open, instead of on
+  // every page view — so the table's cost no longer includes it. The Bulk
+  // Upload flow (email-existence pre-flight) and Bulk Edit (roster picker)
+  // both need it too, so the gate widens accordingly.
+  const { data: allUsersForPicker } = useUsersListQuery(
+    institutionId,
+    basedOn,
+    showBulkPermissionModal || showBulkUserModal || showBulkEditModal,
+  );
 
   // Mutations
   const addUserMutation = useMutation({
     mutationFn: async (userData: any) => addUser(userData, token!),
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['users'] });
-      setNewUserId(data.user._id);
+    onSuccess: async (data, submittedUserData) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
+      const createdId = data.user?._id;
+      setNewUserId(createdId);
+      // Kept so the success modal's "Configure Permissions" has the row: the
+      // new user may not be on the visible page, and the full directory is no
+      // longer loaded to look them up in.
+      setCreatedUser(data.user ? transformUser(data.user) : null);
+
+      // Persist role-based baseline permissions right after creation so the
+      // account can sign in and reach its "home" pages without the admin
+      // having to open Assign Permission first. The role name is looked up
+      // from the roles list against the id we just submitted, and mapped to
+      // one of three buckets by `defaultPermissionsForRole` — admin/POC/
+      // coordinator get Admin Dashboard + Profile; trainer gets Staff
+      // Dashboard + Courses + Profile; student gets Student Dashboard +
+      // Courses + Profile. Failures here are non-fatal — the account is
+      // already created; the admin can still open Assign Permission.
+      try {
+        const roleObj = roles.find((r) => r._id === submittedUserData.role);
+        const roleName =
+          roleObj?.originalRole || roleObj?.renameRole || newUser.role || "";
+        const defaults = defaultPermissionsForRole(roleName);
+        if (createdId && defaults.length > 0 && token) {
+          await fetch(`${API_BASE_URL}/user-permission/update/${createdId}`, {
+            method: "PUT",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ permissions: defaults }),
+          });
+        }
+      } catch (e) {
+        console.error("Failed to seed role-based default permissions:", e);
+      }
+
       setShowAddUserModal(false);
       setShowSuccessModal(true);
       resetForm();
       toast.success("User added successfully");
+      setIsSubmitting(false);
     },
-    onError: () => toast.error("Failed to add user"),
+    onError: (error) => {
+      toast.error(getApiErrorMessage(error, "Failed to add user"));
+      setIsSubmitting(false);
+    },
   });
 
   const updateUserMutation = useMutation({
     mutationFn: async ({ userId, userData }: { userId: string; userData: any }) => updateUser(userId, userData, token!),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
       setShowAddUserModal(false);
       setShowSuccessModal(true);
       resetForm();
       toast.success("User updated successfully");
+      setIsSubmitting(false);
     },
-    onError: () => toast.error("Failed to update user"),
+    onError: (error) => {
+      toast.error(getApiErrorMessage(error, "Failed to update user"));
+      setIsSubmitting(false);
+    },
   });
 
   const deleteUserMutation = useMutation({
     mutationFn: async (userId: string) => deleteUser(userId, token!),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
       setShowDeleteModal(false);
       toast.success("User deleted successfully");
     },
@@ -420,31 +406,71 @@ export default function UserManagementPage() {
       id: "", firstName: "", lastName: "", email: "", phone: "", password: "",
       role: "Student", roleId: "", status: "active", gender: "Male",
       degree: "", department: "", semester: "", year: "", batch: "",
+      phase: "", serviceModel: "", rollNumber: "",
+      studentType: "",
+      clientId: "",
+      clientName: "",
     });
   };
 
   const handleAddUserSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validate required fields
     if (!newUser.roleId) {
       toast.error("Please select a role");
       return;
     }
-    const userData: any = {
-      email: newUser.email, firstName: newUser.firstName, lastName: newUser.lastName,
-      phone: newUser.phone, role: newUser.roleId, gender: newUser.gender,
-      status: newUser.status, ...(newUser.password && { password: newUser.password }),
-    };
-    if (basedOn === 'college') {
+
+    // Only students are placed into a client's service-mapping hierarchy — the
+    // Client field is hidden for every other role, so don't require it there.
+    const selectedRole = roles.find(r => r._id === newUser.roleId);
+    const isStudentRole =
+      (selectedRole?.renameRole?.toLowerCase() || '').includes('student') ||
+      (selectedRole?.originalRole?.toLowerCase() || '').includes('student');
+    if (isStudentRole && !newUser.clientName) {
+      toast.error("Please select a client");
+      return;
+    }
+
+    // Start loading
+    setIsSubmitting(true);
+
+    try {
+      const userData: any = {
+        email: newUser.email,
+        firstName: newUser.firstName,
+        lastName: newUser.lastName,
+        phone: newUser.phone,
+        role: newUser.roleId,
+        gender: newUser.gender,
+        status: newUser.status,
+        ...(newUser.password && { password: newUser.password }),
+      };
+
+      // Client + service model drive the whole hierarchy — sent for every user.
+      if (newUser.clientName) userData.clientName = newUser.clientName;
+      if (newUser.clientId) userData.clientId = newUser.clientId;
+      if (newUser.serviceModel) userData.serviceModel = newUser.serviceModel;
+      if (newUser.serviceMappingId) userData.serviceMappingId = newUser.serviceMappingId;
+      if (newUser.studentType) userData.studentType = newUser.studentType;
+
+      // Hierarchy fields, driven by the selected service mapping
       if (newUser.degree) userData.degree = newUser.degree;
       if (newUser.department) userData.department = newUser.department;
       if (newUser.semester) userData.semester = newUser.semester;
-      if (newUser.year) userData.year = newUser.year;
+      if (newUser.section) userData.section = newUser.section;
+      if (newUser.rollNumber) userData.rollNumber = newUser.rollNumber;
       if (newUser.batch) userData.batch = newUser.batch;
-    }
-    if (newUser.id) {
-      await updateUserMutation.mutateAsync({ userId: newUser.id, userData });
-    } else {
-      await addUserMutation.mutateAsync(userData);
+      if (newUser.phase) userData.phase = newUser.phase;
+
+      if (newUser.id) {
+        await updateUserMutation.mutateAsync({ userId: newUser.id, userData });
+      } else {
+        await addUserMutation.mutateAsync(userData);
+      }
+    } catch (error) {
+      console.error('Error submitting user:', error);
     }
   };
 
@@ -455,7 +481,11 @@ export default function UserManagementPage() {
       role: user.role, roleId: user.roleId, status: user.status,
       gender: user.gender as "Male" | "Female",
       degree: user.degree || "", department: user.department || "",
-      semester: user.semester || "", year: user.year || "", batch: user.batch || "",
+      semester: user.semester || "", section: user.section || "", rollNumber: user.rollNumber || "", year: user.year || "", batch: user.batch || "",
+      phase: user.phase || "", serviceModel: user.serviceModel || "",
+      studentType: user.studentType || "",
+      clientId: user.clientId || "",
+      clientName: user.clientName || "",
     });
     setShowAddUserModal(true);
   };
@@ -474,7 +504,7 @@ export default function UserManagementPage() {
       setUpdatingStatus(prev => ({ ...prev, [userId]: true }));
       await toggleUserStatus(userId, newStatus, token || undefined);
       toast.success(`Status changed to ${newStatus}`);
-      await refetch();
+      await queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
     } catch (error) {
       toast.error("Failed to update user status");
     } finally {
@@ -509,7 +539,11 @@ export default function UserManagementPage() {
       role: user.role, roleId: user.roleId, status: "active",
       gender: user.gender as "Male" | "Female",
       degree: user.degree || "", department: user.department || "",
-      semester: user.semester || "", year: user.year || "", batch: user.batch || "",
+      semester: user.semester || "", section: user.section || "", rollNumber: user.rollNumber || "", year: user.year || "", batch: user.batch || "",
+      phase: user.phase || "", serviceModel: user.serviceModel || "",
+      studentType: user.studentType || "",
+      clientId: user.clientId || "",
+      clientName: user.clientName || "",
     });
     setShowAddUserModal(true);
   };
@@ -517,253 +551,1000 @@ export default function UserManagementPage() {
   const clearAllFilters = () => {
     setSelectedRoles([]);
     setSelectedStatus("");
+    setSelectedClients([]);
+    setSelectedServices([]);
+    setSelectedServiceModels([]);
+    setSelectedStatuses([]);
+    setSelectedProvidingYears([]);
+    setSelectedCourses([]);
     setSelectedDegree("");
     setSelectedDepartment("");
     setSelectedYear("");
     setSearchTerm("");
+    setSearchField("all");
     setCurrentPage(1);
   };
 
   const hasActiveFilters = () => {
-    return selectedRoles.length > 0 || selectedStatus !== "" || 
-           selectedDegree !== "" || selectedDepartment !== "" || 
-           selectedYear !== "" || searchTerm !== "";
+    return selectedRoles.length > 0 || selectedStatus !== "" ||
+      selectedClients.length > 0 || selectedServices.length > 0 ||
+      selectedServiceModels.length > 0 || selectedStatuses.length > 0 ||
+      selectedProvidingYears.length > 0 || selectedCourses.length > 0 ||
+      selectedDegree !== "" || selectedDepartment !== "" ||
+      selectedYear !== "" || searchTerm !== "";
   };
 
-  const dynamicRoleOptions = Array.from(new Map(roles.map(role => [role.renameRole, role])).values()).map(role => ({
-    value: role.renameRole, label: role.renameRole, icon: getRoleIcon(role.renameRole), color: getRoleColor(role.renameRole)
-  }));
-
-  const currentUsers = usersData?.users || [];
-  const pagination = usersData?.pagination || { currentPage: 1, totalPages: 1, totalUsers: 0, hasNextPage: false, hasPrevPage: false };
-
-  const columns: Column<User>[] = [
-    {
-      key: 'name', label: 'Name', width: '25%', align: 'left',
-      renderCell: (user: User) => (
-        <div className="flex items-center">
-          <div className="flex-shrink-0 h-6 w-6 sm:h-8 sm:w-8 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
-            <span className="text-indigo-600 dark:text-indigo-400 text-xs sm:text-sm font-medium">
-              {user.firstName?.charAt(0).toUpperCase() || '?'}
-            </span>
-          </div>
-          <div className="ml-2">
-            <div className="text-xs font-medium text-gray-900 dark:text-gray-100">{user.firstName} {user.lastName}</div>
-            <div className="text-xxs text-gray-500 dark:text-gray-400">Gender: {user.gender}</div>
-          </div>
-        </div>
-      )
-    },
-    { key: 'email', label: 'Email', width: '25%', align: 'center', renderCell: (user: User) => <span className="text-xs text-gray-700 dark:text-gray-300">{user.email}</span> },
-    { key: 'phone', label: 'Phone', width: '15%', align: 'center', renderCell: (user: User) => <span className="text-xs text-gray-700 dark:text-gray-300">{user.phone}</span> },
-    {
-      key: 'role', label: 'Role', width: '15%', align: 'center',
-      renderCell: (user: User) => {
-        const roleLower = user.role.toLowerCase();
-        let badgeClasses = "px-1.5 py-0.5 rounded-full text-xxs sm:text-xs";
-        if (roleLower.includes('lms')) badgeClasses += " bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300";
-        else if (roleLower.includes('manager')) badgeClasses += " bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300";
-        else if (roleLower.includes('coordinator')) badgeClasses += " bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300";
-        else badgeClasses += " bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300";
-        return <Badge className={badgeClasses}>{user.role}</Badge>;
+  // What the filter bar and the report offer. Roles come from the roles query;
+  // the other three are the institution-wide facets the users endpoint returns
+  // alongside the page, so the lists do not shrink as filters narrow the rows.
+  const filterOptions = useMemo(() => {
+    const facets = usersPage?.facets;
+    // Course + Providing Year come off the SERVICE MAPPINGS the institution
+    // owns, not off users — same source Course Setup ▸ Report reads. Course
+    // values are lower-cased to match `service-mapping` course-name matching
+    // downstream; the label keeps the mapping's original casing.
+    const providingYears = new Set<string>();
+    const courseNames = new Map<string, string>();
+    for (const mapping of mappings) {
+      const year = String(mapping.year ?? '').trim();
+      if (year) providingYears.add(year);
+      for (const course of mapping.courses ?? []) {
+        const name = String(course.courseName ?? '').trim();
+        if (!name) continue;
+        const key = name.toLowerCase();
+        if (!courseNames.has(key)) courseNames.set(key, name);
       }
-    },
-    {
-      key: 'status', label: 'Status', width: '10%', align: 'center',
-      renderCell: (user: User) => {
-        const canToggleStatus = hasPermission(userPermissions, 'usermanagement', 'Toggle User Status');
-        return (
-          <div className="flex items-center justify-center gap-2">
-            <div className="flex items-center gap-1">
-              <div className={`w-2 h-2 rounded-full ${user.status === "active" ? "bg-green-500 dark:bg-green-400" : "bg-red-500 dark:bg-red-400"}`} />
-              <span className={`text-xs font-medium ${user.status === "active" ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
-                {user.status === "active" ? "Active" : "Inactive"}
-              </span>
-            </div>
-            {canToggleStatus && (
-              <Switch
-                checked={user.status === "active"}
-                onCheckedChange={(checked) => toggleStatus(user.id, checked ? "active" : "inactive")}
-                disabled={updatingStatus[user.id]}
-                className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-red-500"
-              />
-            )}
-          </div>
-        );
-      }
-    },
-    {
-      key: 'actions', label: 'Actions', width: '10%', align: 'center',
-      renderCell: (user: User) => (
-        <CustomDropdown
-          user={user}
-          onEdit={handleEdit}
-          onPermissions={handlePermissionsClick}
-          onDelete={handleDelete}
-          onViewDetails={handleViewDetails}
-          onToggleStatus={handleToggleStatus}
-          onDuplicate={handleDuplicateUser}
-          userPermissions={userPermissions}
-        />
-      )
     }
-  ];
+    return {
+      roles: roles.map((role) => ({ value: role._id, label: role.renameRole })),
+      clients: (facets?.clients || []).map(([id, name]) => ({ value: id, label: name })),
+      services: (facets?.services || []).map((name) => ({ value: name, label: serviceLabel(name) })),
+      serviceModels: (facets?.serviceModels || []).map((name) => ({ value: name, label: name })),
+      providingYears: [...providingYears].sort().map((value) => ({ value, label: value })),
+      courses: [...courseNames.entries()]
+        .map(([value, label]) => ({ value, label }))
+        .sort((a, b) => a.label.localeCompare(b.label)),
+    };
+  }, [roles, usersPage?.facets, mappings]);
+
+
+  // ── Sorting ────────────────────────────────────────────────────────────────
+  const sortValue = (u: User, key: string): string => {
+    if (key === 'name') return `${u.firstName} ${u.lastName}`.toLowerCase();
+    return String((u as any)[key] ?? '').toLowerCase();
+  };
+
+  const toggleSort = (key: string) => {
+    if (sortKey === key) {
+      setSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  };
+
+  // ── Pagination ─────────────────────────────────────────────────────────────
+  // All four numbers are the server's now. `total` is the count of rows
+  // matching the filters, which is what the old `sortedUsers.length` was.
+  const currentUsers = usersPage?.users ?? [];
+  const totalFiltered = usersPage?.total ?? 0;
+  const totalPages = usersPage?.totalPages ?? 1;
+  const safePage = Math.min(currentPage, totalPages);
+  const rangeStart = totalFiltered === 0 ? 0 : (safePage - 1) * pageSize + 1;
+  const rangeEnd = Math.min(safePage * pageSize, totalFiltered);
+
+  useEffect(() => {
+    setCurrentPage((p) => Math.min(p, totalPages));
+  }, [pageSize, totalPages]);
+
+  // (The height-driven auto-fit effect that lived here is gone — pageSize is
+  // fixed at 10 above. The table wrapper still flexes; it just no longer
+  // rewrites the page size as the window resizes.)
+
+  // Selected ids that still match the current filters.
+  //
+  // This used to be `selectedIds` intersected with the loaded list. Selection
+  // spans pages, and off-page rows are no longer in memory — so the page keeps
+  // the selected ROW next to its id, and re-runs the page's own predicate over
+  // those rows. Same rule as before ("a selection survives only while it still
+  // matches"), evaluated against the handful of selected users instead of the
+  // whole directory.
+  const matchesCurrentFilters = useCallback((user: User) => {
+    const q = debouncedSearchTerm.toLowerCase();
+    const has = (v?: string) => (v || '').toLowerCase().includes(q);
+    // Mirrors the scoped $or in getUserAccessPaginated field for field, so a
+    // selection survives exactly as long as the server would still return it.
+    const searchable: Record<SearchField, (string | undefined)[]> = {
+      user: [user.firstName, user.lastName],
+      email: [user.email],
+      phone: [user.phone],
+      role: [user.role],
+      all: [user.firstName, user.lastName, user.email, user.phone,
+        user.degree, user.department, user.role],
+    };
+    const matchesSearch = !debouncedSearchTerm || searchable[searchField].some(has);
+    const matchesRoles = selectedRoles.length === 0 || selectedRoles.includes(user.roleId);
+    const matchesStatus = !selectedStatus || selectedStatus === "all" || user.status === selectedStatus;
+    const matchesDegree = !selectedDegree || selectedDegree === "all" || user.degree === selectedDegree;
+    const matchesDepartment = !selectedDepartment || selectedDepartment === "all" || user.department === selectedDepartment;
+    const matchesYear = !selectedYear || selectedYear === "all" || user.year === selectedYear;
+    return matchesSearch && matchesRoles && matchesStatus && matchesDegree && matchesDepartment && matchesYear;
+  }, [debouncedSearchTerm, searchField, selectedRoles, selectedStatus, selectedDegree, selectedDepartment, selectedYear]);
+
+  const visibleSelectedRows = useMemo(
+    () => Object.values(selectedRows).filter(matchesCurrentFilters),
+    [selectedRows, matchesCurrentFilters]
+  );
+  // Institution-wide user count and its per-role split. Numbers only, counted
+  // in Mongo, so this costs the page a couple of hundred bytes rather than the
+  // roster it would take to group them here.
+  const { data: roleCounts, isLoading: isLoadingRoleCounts } = useUserRoleCountsQuery(institutionId);
+
+  const visibleSelectedIds = useMemo(
+    () => visibleSelectedRows.map(u => u.id),
+    [visibleSelectedRows]
+  );
+
+  // ── Selection ──────────────────────────────────────────────────────────────
+  const pageIds = currentUsers.map(u => u.id);
+  const allPageSelected = pageIds.length > 0 && pageIds.every(id => selectedIds.includes(id));
+  const somePageSelected = pageIds.some(id => selectedIds.includes(id));
+  // (The header checkbox's indeterminate state is owned by UsersTable, which
+  // receives somePageSelected/allPageSelected as props.)
+
+  const toggleSelectAllPage = () => {
+    setSelectedRows(prev => {
+      const next = { ...prev };
+      if (allPageSelected) {
+        pageIds.forEach(id => { delete next[id]; });
+      } else {
+        currentUsers.forEach(u => { next[u.id] = u; });
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectOne = (id: string) => {
+    setSelectedRows(prev => {
+      if (prev[id]) {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      }
+      const row = currentUsers.find(u => u.id === id);
+      return row ? { ...prev, [id]: row } : prev;
+    });
+  };
+
+  // ── Bulk actions ───────────────────────────────────────────────────────────
+  const canToggleStatusPerm = hasPermission(userPermissions, 'usermanagement', 'Toggle User Status');
+  const canDeletePerm = hasPermission(userPermissions, 'usermanagement', 'Delete');
+
+  const handleBulkStatus = async (status: 'active' | 'inactive') => {
+    if (!visibleSelectedIds.length || !token) return;
+    setBulkBusy(true);
+    try {
+      await bulkSetUserStatus(visibleSelectedIds, status, token);
+      toast.success(`${visibleSelectedIds.length} user${visibleSelectedIds.length > 1 ? 's' : ''} ${status === 'active' ? 'activated' : 'deactivated'}`);
+      setSelectedRows({});
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Failed to update status"));
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const confirmBulkDelete = async () => {
+    if (!visibleSelectedIds.length || !token) return;
+    setBulkBusy(true);
+    try {
+      const results = await Promise.allSettled(visibleSelectedIds.map(id => deleteUser(id, token)));
+      const ok = results.filter(r => r.status === 'fulfilled').length;
+      const failed = results.length - ok;
+      if (ok) toast.success(`${ok} user${ok > 1 ? 's' : ''} deleted`);
+      if (failed) toast.error(`${failed} user${failed > 1 ? 's' : ''} could not be deleted`);
+      setSelectedRows({});
+      setShowBulkDeleteModal(false);
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  // ── Export ─────────────────────────────────────────────────────────────────
+  // "Export all" still means every row matching the filters, not just the
+  // visible page — but those rows no longer live in the browser, so it asks the
+  // server for them, sorted the same way, carrying only the thirteen CSV
+  // columns (~366 bytes a row against ~2.6 KB for a table row).
+  // "Export selected" needs no request at all: the rows are already in hand.
+  const [isExporting, setIsExporting] = useState(false);
+
+  const exportUsers = async (scope: 'selected' | 'all') => {
+    if (isExporting) return;
+    let rows: User[];
+    if (scope === 'selected') {
+      // Ordered by the active sort, as it was when the whole list was sorted
+      // in memory and then filtered down to the selection.
+      rows = [...visibleSelectedRows];
+      if (sortKey) {
+        rows.sort((a, b) => sortValue(a, sortKey).localeCompare(sortValue(b, sortKey), undefined, { numeric: true }));
+        if (sortDir === 'desc') rows.reverse();
+      }
+    } else {
+      if (!institutionId || !token) return;
+      setIsExporting(true);
+      try {
+        const raw = await fetchUsersForExport(institutionId, token, {
+          search: debouncedSearchTerm,
+          searchField,
+          roles: selectedRoles,
+          status: selectedStatus,
+          degree: selectedDegree,
+          department: selectedDepartment,
+          year: selectedYear,
+          sortKey,
+          sortDir,
+        });
+        rows = raw.map(transformUser);
+      } catch (error) {
+        toast.error(getApiErrorMessage(error, "Export failed"));
+        return;
+      } finally {
+        setIsExporting(false);
+      }
+    }
+    if (!rows.length) {
+      toast.info("Nothing to export");
+      return;
+    }
+    const esc = (v: any) => {
+      const s = String(v ?? '');
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const header = ["First Name", "Last Name", "Email", "Phone", "Gender", "Role", "Batch", "Degree", "Department", "Semester", "Section", "Client", "Status"];
+    const lines = [
+      header.join(','),
+      ...rows.map(u => [
+        u.firstName, u.lastName, u.email, u.phone, u.gender, u.role, u.batch,
+        u.degree, u.department, u.semester, u.section, u.clientName, u.status,
+      ].map(esc).join(',')),
+    ];
+    const blob = new Blob(["﻿" + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `users-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${rows.length} user${rows.length > 1 ? 's' : ''}`);
+  };
+
+  // ── Shared cell renderers ──────────────────────────────────────────────────
+  // Status column mirrors the Client Management pattern: a real sliding
+  // Switch (green when active, gray when inactive) with a compact Active /
+  // Inactive text label beside it — a bare knob names nothing to a screen
+  // reader, and the pill-plus-switch combo repeated the same signal twice.
+  const renderStatus = (user: User) => {
+    const isActive = user.status === "active";
+    const isToggling = Boolean(updatingStatus[user.id]);
+    return (
+      <div className="flex items-center justify-end gap-2">
+        {canToggleStatusPerm && (
+          <Switch
+            checked={isActive}
+            disabled={isToggling}
+            onCheckedChange={(checked) => toggleStatus(user.id, checked ? "active" : "inactive")}
+            aria-label={isActive ? 'Deactivate user' : 'Activate user'}
+            title={isActive ? 'Active — switch off to deactivate' : 'Inactive — switch on to activate'}
+            className="scale-90 data-[state=checked]:bg-success-500 data-[state=unchecked]:bg-ink-200"
+          />
+        )}
+        <span className={`text-[11px] font-medium ${isActive ? 'text-success-700' : 'text-subtle'} ${isToggling ? 'animate-pulse' : ''}`}>
+          {isActive ? 'Active' : 'Inactive'}
+        </span>
+      </div>
+    );
+  };
+
+  const renderActions = (user: User) => (
+    <RowActionsMenu
+      user={user}
+      onEdit={handleEdit}
+      onPermissions={handlePermissionsClick}
+      onDelete={handleDelete}
+      onViewDetails={handleViewDetails}
+      onDuplicate={handleDuplicateUser}
+      userPermissions={userPermissions}
+    />
+  );
+
+  // Only render the Actions column when the signed-in admin has at least one
+  // row-level action (Edit / Assign / Delete / Duplicate / View Full Details).
+  // Deactivate lives in the Status column, so it doesn't count toward this.
+  const showActionsColumn = rowHasAnyAction(userPermissions);
 
   if (isLoadingPermissions) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-white dark:bg-gray-950">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin text-indigo-600 dark:text-indigo-400 mx-auto mb-4" />
-          <p className="text-sm text-gray-600 dark:text-gray-400">Loading permissions...</p>
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-6 w-6 animate-spin text-brand" />
+          <p className="text-sm text-subtle">Loading permissions…</p>
         </div>
       </div>
     );
   }
 
+  // Initial load only. Background refreshes (the 2-min interval, post-mutation
+  // invalidations) update rows in place instead of swapping the table for
+  // skeletons — the old `|| isFetching` here re-skeletoned the table on every
+  // filter change because filters lived in the query key.
+  const isTableLoading = isLoadingUsers;
+
+  // Differentiated empty states: no matches (offer to clear filters) vs a
+  // truly empty directory (offer the Add User CTA, when permitted).
+  const usersEmptyState = hasActiveFilters() ? (
+    <EmptyState
+      icon={SearchX}
+      title="No users match your filters"
+      message="Try a different search, or clear the filters to see every user."
+      secondaryAction={
+        <button
+          type="button"
+          onClick={clearAllFilters}
+          className="h-9 px-3.5 rounded-control border border-hairline-strong bg-surface text-sm font-medium text-body hover:bg-row-hover hover:text-heading transition-colors duration-150"
+        >
+          Clear filters
+        </button>
+      }
+    />
+  ) : (
+    <EmptyState
+      icon={Users}
+      title="No users yet"
+      message="Users you add will appear here with their role, client and status."
+      primaryAction={canAddUser ? (
+        <button
+          type="button"
+          onClick={handleAddUserClick}
+          className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-control bg-brand-strong text-white text-sm font-semibold shadow-xs hover:bg-brand-800 transition-colors duration-150"
+        >
+          <Plus size={15} strokeWidth={2.4} /> Add User
+        </button>
+      ) : undefined}
+    />
+  );
+
+  // Bulk actions for the floating selection bar (shown only once rows are
+  // selected): Activate · Deactivate · Permissions · Export · Delete.
+  const renderBulkActions = () => (
+    <>
+      {canToggleStatusPerm && (
+        <>
+          <button
+            type="button"
+            onClick={() => handleBulkStatus('active')}
+            disabled={!visibleSelectedIds.length || bulkBusy}
+            className={BULK_BAR_BTN}
+          >
+            Activate
+          </button>
+          <button
+            type="button"
+            onClick={() => handleBulkStatus('inactive')}
+            disabled={!visibleSelectedIds.length || bulkBusy}
+            className={BULK_BAR_BTN}
+          >
+            Deactivate
+          </button>
+        </>
+      )}
+      {canBulkPermission && (
+        <button
+          type="button"
+          onClick={() => setShowBulkPermissionModal(true)}
+          disabled={!visibleSelectedIds.length || bulkBusy}
+          className={BULK_BAR_BTN}
+        >
+          Permissions
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={() => exportUsers('selected')}
+        disabled={!visibleSelectedIds.length || bulkBusy}
+        className={BULK_BAR_BTN}
+      >
+        Export
+      </button>
+      {canDeletePerm && (
+        <button
+          type="button"
+          onClick={() => setShowBulkDeleteModal(true)}
+          disabled={!visibleSelectedIds.length || bulkBusy}
+          className={BULK_BAR_BTN_DANGER}
+        >
+          Delete
+        </button>
+      )}
+      {bulkBusy && <Loader2 className="w-3.5 h-3.5 animate-spin text-white/70" />}
+    </>
+  );
+
+  // The picked scope drives both the trigger label and the input's placeholder,
+  // so the box always says which column it is about to search.
+  const activeSearchField =
+    SEARCH_FIELD_OPTIONS.find((o) => o.value === searchField) ?? SEARCH_FIELD_OPTIONS[0];
+
+  // A filter counts as active only when it holds a real value ("all" and "" both
+  // mean "no filter", matching how the users query interprets them).
+  const isSet = (v: string) => !!v && v !== "all";
+  const activeFilterCount =
+    (selectedRoles.length ? 1 : 0) +
+    (selectedClients.length ? 1 : 0) +
+    (selectedServices.length ? 1 : 0) +
+    (selectedServiceModels.length ? 1 : 0) +
+    (selectedStatuses.length ? 1 : 0) +
+    (selectedProvidingYears.length ? 1 : 0) +
+    (selectedCourses.length ? 1 : 0) +
+    (isSet(selectedStatus) ? 1 : 0) +
+    (isSet(selectedDegree) ? 1 : 0) +
+    (isSet(selectedDepartment) ? 1 : 0) +
+    (isSet(selectedYear) ? 1 : 0);
+
+  const labelOf = (options: { value: string; label: string }[], value: string) =>
+    options.find((option) => option.value === value)?.label || value;
+
+  // Removable chips for the applied filters (search has its own input, so it is
+  // not chipped here). Each chip's remove clears exactly that filter.
+  const filterChips: { key: string; label: string; onRemove: () => void }[] = [
+    ...selectedRoles.map((id) => ({
+      key: `role-${id}`,
+      label: roles.find((r) => r._id === id)?.renameRole || "Role",
+      onRemove: () => setSelectedRoles(selectedRoles.filter((r) => r !== id)),
+    })),
+    ...selectedClients.map((id) => ({
+      key: `client-${id}`,
+      label: labelOf(filterOptions.clients, id),
+      onRemove: () => setSelectedClients(selectedClients.filter((c) => c !== id)),
+    })),
+    ...selectedServices.map((name) => ({
+      key: `service-${name}`,
+      label: serviceLabel(name),
+      onRemove: () => setSelectedServices(selectedServices.filter((c) => c !== name)),
+    })),
+    ...selectedServiceModels.map((name) => ({
+      key: `model-${name}`,
+      label: name,
+      onRemove: () => setSelectedServiceModels(selectedServiceModels.filter((c) => c !== name)),
+    })),
+    ...selectedStatuses.map((value) => ({
+      key: `statuses-${value}`,
+      label: value === "active" ? "Active" : "Inactive",
+      onRemove: () => setSelectedStatuses(selectedStatuses.filter((c) => c !== value)),
+    })),
+    ...selectedProvidingYears.map((year) => ({
+      key: `providingYear-${year}`,
+      label: year,
+      onRemove: () => setSelectedProvidingYears(selectedProvidingYears.filter((c) => c !== year)),
+    })),
+    ...selectedCourses.map((course) => ({
+      key: `course-${course}`,
+      label: course,
+      onRemove: () => setSelectedCourses(selectedCourses.filter((c) => c !== course)),
+    })),
+    ...(isSet(selectedStatus) ? [{ key: "status", label: selectedStatus === "active" ? "Active" : "Inactive", onRemove: () => setSelectedStatus("") }] : []),
+    ...(isSet(selectedDegree) ? [{ key: "degree", label: selectedDegree, onRemove: () => setSelectedDegree("") }] : []),
+    ...(isSet(selectedDepartment) ? [{ key: "dept", label: selectedDepartment, onRemove: () => setSelectedDepartment("") }] : []),
+    ...(isSet(selectedYear) ? [{ key: "year", label: selectedYear, onRemove: () => setSelectedYear("") }] : []),
+  ];
+
   const pageContent = (
-    <div className="p-1 bg-white dark:bg-gray-950 min-h-screen">
-      <div className="mx-auto">
-        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="mb-2">
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbLink href="/lms/pages/admindashboard" className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400">
-                  Dashboard
-                </BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator className="text-gray-400 dark:text-gray-600" />
-              <BreadcrumbItem>
-                <BreadcrumbPage className="text-xs sm:text-sm font-medium text-indigo-600 dark:text-indigo-400">User Management</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-        </motion.div>
+    <div className="min-h-full h-full flex flex-col">
+      <Toaster position="top-right" richColors closeButton />
+      {/* Top-level tabs — same primitives Course Structure / Business
+          Management use (`Tabs` / `TabsList` / `TabsTrigger`), so Users /
+          Reports sits at the top of the panel the same way those pages
+          expose their sections. Local state drives the active value: the
+          two views live on the same route, so no router push. */}
+      <Tabs
+        value={tab}
+        onValueChange={(value) => setTab(value as 'users' | 'reports')}
+        activationMode="manual"
+        className="flex h-full min-h-0 min-w-0 flex-col"
+      >
+        <div className="no-print shrink-0 flex items-center justify-between gap-3 flex-wrap px-4 sm:px-6 md:px-8 pt-14 md:pt-3">
+          <TabsList aria-label="User management sections" className="gap-1 overflow-x-auto overflow-y-hidden">
+            <TabsTrigger
+              value="users"
+              className="mr-0 inline-flex items-center gap-2 whitespace-nowrap rounded-t-lg px-3.5 text-sm font-bold tracking-tight text-subtle hover:bg-row-hover hover:text-heading data-[state=active]:bg-brand-wash data-[state=active]:text-brand-strong"
+            >
+              <Users className="h-4 w-4 shrink-0" aria-hidden="true" />
+              Users
+            </TabsTrigger>
+            <TabsTrigger
+              value="reports"
+              className="mr-0 inline-flex items-center gap-2 whitespace-nowrap rounded-t-lg px-3.5 text-sm font-bold tracking-tight text-subtle hover:bg-row-hover hover:text-heading data-[state=active]:bg-brand-wash data-[state=active]:text-brand-strong"
+            >
+              <BarChart3 className="h-4 w-4 shrink-0" aria-hidden="true" />
+              Reports
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
-        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.2 }}>
-          <StatusCards users={allUser} />
-        </motion.div>
+        {/* No `TabsContent` per view — the two tabs share one host
+            container so the existing Users workflow can keep its own
+            layout without being unmounted by a Radix tab swap. */}
+        <div className="flex h-full min-h-0 flex-col">
+        {tab === 'reports' ? (
+          <div className="flex flex-1 min-h-0 flex-col">
+            <UserReportPage />
+          </div>
+        ) : (
+      <motion.div
+        variants={pageEnter}
+        initial="hidden"
+        animate="visible"
+        className="flex flex-1 min-h-0 flex-col px-4 sm:px-6 md:px-8 pt-3 pb-3"
+      >
 
-        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.4 }} className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-4">
-          <div className="flex items-center w-full md:w-96">
-            <div className="relative w-full">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500" />
-              <Input
-                type="search"
-                placeholder={basedOn === 'college' ? "Search name, email, degree, department..." : "Search name or email..."}
-                className="w-full pl-10 h-9 shadow-none bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700"
+        {/* Institution-wide counts, the same four-tile header Service Mapping
+            and Course Setup carry. Not page- or filter-scoped. */}
+        <div>
+          <UsersOverview
+            stats={usersPage?.stats}
+            isError={false}
+            onViewUsersByRole={roleCounts ? () => setShowUserCountModal(true) : undefined}
+          />
+        </div>
+
+        {/* One toolbar: search left · Filter · Reports grouped right
+            · vertical divider · Add User (primary). Mirrors Client
+            Management so the two admin lists read the same. */}
+        <div className="no-print mt-3 flex items-center gap-2 flex-wrap min-w-0">
+          {/* Compact search + the scope picker on its right edge. The two share
+              one bordered shell so they read as a single control: the term on
+              the left, the column it applies to on the right. */}
+          {/* Uncapped: `flex-1` takes every pixel the action cluster does not,
+              so the box grows with the window instead of stopping at a fixed
+              width and leaving a gap. Same as Service Mapping and Course Setup. */}
+          <div className="relative flex-1 min-w-[260px] flex items-stretch h-8 rounded-control border border-hairline-strong bg-surface focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/15 transition-colors duration-150">
+            <div className="relative flex-1 min-w-0">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-faint pointer-events-none" />
+              <input
+                type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder={activeSearchField.placeholder}
+                className="w-full h-full pl-8 pr-7 bg-transparent rounded-l-control text-[13px] text-body placeholder:text-faint focus:outline-none"
               />
+              {searchTerm && (
+                <button
+                  type="button"
+                  aria-label="Clear search"
+                  onClick={() => setSearchTerm("")}
+                  className="absolute right-1 top-1/2 -translate-y-1/2 inline-flex size-5 items-center justify-center rounded-chip text-faint hover:bg-ink-100 hover:text-heading transition-colors duration-150"
+                >
+                  <X size={12} />
+                </button>
+              )}
             </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  aria-label={`Search in: ${activeSearchField.label}`}
+                  className={`inline-flex items-center gap-1 h-full pl-2 pr-2 border-l border-hairline-strong rounded-r-control text-xs font-medium whitespace-nowrap transition-colors duration-150 ${searchField === "all" ? "text-subtle hover:bg-row-hover hover:text-heading" : "bg-brand-wash text-brand-strong"}`}
+                >
+                  {activeSearchField.label}
+                  <ChevronDown className="w-3 h-3 opacity-70" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" sideOffset={6} className="w-44">
+                <DropdownMenuLabel className="text-2xs font-semibold uppercase tracking-wider text-subtle">
+                  Search in
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuRadioGroup
+                  value={searchField}
+                  onValueChange={(v) => setSearchField(v as SearchField)}
+                >
+                  {SEARCH_FIELD_OPTIONS.map((opt) => (
+                    <DropdownMenuRadioItem key={opt.value} value={opt.value} className="cursor-pointer">
+                      {opt.label}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
-          <div className="flex items-center gap-2 w-full md:w-auto">
-            <Button onClick={() => setShowFilters(!showFilters)} variant={hasActiveFilters() ? "default" : "outline"} className={`h-9 gap-2 text-xs ${hasActiveFilters() ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300'}`}>
-              <Filter className="h-3.5 w-3.5" />
-             
-             <span>FILTER</span> {hasActiveFilters() && <span className="hidden sm:inline">Filters</span>}
-            </Button>
-            {canBulkPermission && (
-              <Button onClick={() => setShowBulkPermissionModal(true)} variant="outline" className="h-9 gap-2 text-xs">
-                <KeyRound className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Bulk Permission</span>
-              </Button>
-            )}
-            {canAddUser && (
-              <Button onClick={handleAddUserClick} className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2 h-9 text-xs">
-                <Plus className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Add User</span>
-              </Button>
-            )}
-          </div>
-        </motion.div>
 
-        <UserFiltersSection
-          showFilters={showFilters}
-          onClose={() => setShowFilters(false)}
-          selectedRoles={selectedRoles}
-          setSelectedRoles={setSelectedRoles}
-          selectedStatus={selectedStatus}
-          setSelectedStatus={setSelectedStatus}
-          selectedDegree={selectedDegree}
-          setSelectedDegree={setSelectedDegree}
-          selectedDepartment={selectedDepartment}
-          setSelectedDepartment={setSelectedDepartment}
-          selectedYear={selectedYear}
-          setSelectedYear={setSelectedYear}
-          onClearFilters={clearAllFilters}
-          dynamicRoleOptions={dynamicRoleOptions}
-          basedOn={basedOn}
-          degreeOptions={degreeOptions}
-          departmentOptions={departmentOptions}
-          yearOptions={yearOptions}
-          hasActiveFilters={hasActiveFilters}
-          allUsers={allUser}
+          {/* Secondary-action cluster (Show filters · Bulk Actions · Reports) pushed right */}
+          <div className="ml-auto flex items-center gap-1.5 flex-wrap">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              aria-expanded={showFilters}
+              aria-controls="user-management-filters"
+              onClick={() => setShowFilters((v) => !v)}
+              className="text-xs"
+            >
+              <SlidersHorizontal className="size-3.5" />
+              {showFilters ? "Hide filters" : "Show filters"}
+              {activeFilterCount > 0 && (
+                <span className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-wash px-1 text-[10px] font-semibold tabular-nums text-brand-strong">
+                  {activeFilterCount}
+                </span>
+              )}
+            </Button>
+
+            {/* Bulk Actions — one dropdown gathering every bulk operation
+                (Upload / Edit / Permission). Replaces the earlier standalone
+                Bulk Upload button + the "More actions" kebab that hid Bulk
+                Permission (spec Sections 1, 16). Only rendered when at least
+                one of the three items is permitted to the caller. */}
+            {(canBulkUpload || canAddUser || canBulkPermission) && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label="Bulk actions"
+                    className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-control border border-hairline-strong bg-surface text-xs font-medium text-body hover:bg-row-hover hover:text-heading transition-colors duration-150"
+                  >
+                    <Layers className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Bulk Actions</span>
+                    <ChevronDown className="w-3 h-3 opacity-70" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" sideOffset={6} className="w-56">
+                  <DropdownMenuLabel className="text-2xs font-semibold uppercase tracking-wider text-subtle">
+                    Bulk operations
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {canBulkUpload && (
+                    <DropdownMenuItem onClick={() => setShowBulkUserModal(true)} className="cursor-pointer">
+                      <Upload className="h-4 w-4" />
+                      <div className="flex-1">
+                        <div className="text-sm font-medium">Bulk Upload</div>
+                        <div className="text-2xs text-subtle">Upload a spreadsheet, preview and add new users.</div>
+                      </div>
+                    </DropdownMenuItem>
+                  )}
+                  {canAddUser && (
+                    <DropdownMenuItem onClick={() => setShowBulkEditModal(true)} className="cursor-pointer">
+                      <UserCog className="h-4 w-4" />
+                      <div className="flex-1">
+                        <div className="text-sm font-medium">Reassign Client / Service</div>
+                        <div className="text-2xs text-subtle">Move many users to a different client or service.</div>
+                      </div>
+                    </DropdownMenuItem>
+                  )}
+                  {canBulkPermission && (
+                    <DropdownMenuItem onClick={() => setShowBulkPermissionModal(true)} className="cursor-pointer">
+                      <KeyRound className="h-4 w-4" />
+                      <div className="flex-1">
+                        <div className="text-sm font-medium">Bulk Permission</div>
+                        <div className="text-2xs text-subtle">Copy permissions to many users at once.</div>
+                      </div>
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
+            {/* Export used to sit here as its own dropdown, then as a
+                Reports button opening a dialog. Both are gone — the
+                Reports tab at the top of the page owns that surface now,
+                so the toolbar does not repeat the entry point. */}
+          </div>
+
+          {/* Primary action — Add User only. Every bulk path now lives inside
+              the Bulk Actions dropdown above. */}
+          {canAddUser && (
+            <>
+              <span className="hidden sm:inline-block h-5 w-px bg-hairline-strong mx-0.5" aria-hidden />
+              <motion.button
+                type="button"
+                onClick={handleAddUserClick}
+                whileTap={{ scale: 0.98 }}
+                className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-control bg-brand-strong text-white shadow-sm hover:bg-brand-800 transition-colors duration-150 ease-standard focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 flex-shrink-0"
+                aria-label="Add user"
+              >
+                <Plus size={14} strokeWidth={2.4} />
+                <span className="text-xs font-semibold hidden sm:inline">Add User</span>
+              </motion.button>
+            </>
+          )}
+        </div>
+
+        {/* ── Inline filter panel — expands on the same screen under the toolbar ──
+            Order mirrors the Reports tab and Course Setup:
+              Business Model → Service Providing Year → Service Model →
+              Client → Course → Role, with Status kept at the end for the
+              account-state narrowing the other three admin lists don't have. */}
+        {showFilters && (
+          <div id="user-management-filters" className="no-print mt-3 shrink-0 rounded-xl border border-hairline bg-canvas/40 p-3">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+              <div className="min-w-0">
+                <p className="mb-1.5 text-xs font-medium text-subtle">Business Model</p>
+                <MappingMultiFilter label="Business Model" options={filterOptions.services} value={selectedServices} onChange={setSelectedServices} placeholder="Select business model" />
+              </div>
+              <div className="min-w-0">
+                <p className="mb-1.5 text-xs font-medium text-subtle">Service Providing Year</p>
+                <MappingMultiFilter label="Service Providing Year" options={filterOptions.providingYears} value={selectedProvidingYears} onChange={setSelectedProvidingYears} placeholder="Select service providing year" />
+              </div>
+              <div className="min-w-0">
+                <p className="mb-1.5 text-xs font-medium text-subtle">Service Model</p>
+                <MappingMultiFilter label="Service Model" options={filterOptions.serviceModels} value={selectedServiceModels} onChange={setSelectedServiceModels} placeholder="Select service model" />
+              </div>
+              <div className="min-w-0">
+                <p className="mb-1.5 text-xs font-medium text-subtle">Client</p>
+                <MappingMultiFilter label="Client" options={filterOptions.clients} value={selectedClients} onChange={setSelectedClients} placeholder="Select client" />
+              </div>
+              <div className="min-w-0">
+                <p className="mb-1.5 text-xs font-medium text-subtle">Course</p>
+                <MappingMultiFilter label="Course" options={filterOptions.courses} value={selectedCourses} onChange={setSelectedCourses} placeholder="Select course" />
+              </div>
+              <div className="min-w-0">
+                <p className="mb-1.5 text-xs font-medium text-subtle">Role</p>
+                <MappingMultiFilter label="Role" options={filterOptions.roles} value={selectedRoles} onChange={setSelectedRoles} placeholder="Select role" />
+              </div>
+              <div className="min-w-0">
+                <p className="mb-1.5 text-xs font-medium text-subtle">Status</p>
+                <MappingMultiFilter label="Status" options={STATUS_OPTIONS} value={selectedStatuses} onChange={setSelectedStatuses} placeholder="Select status" />
+              </div>
+            </div>
+            {activeFilterCount > 0 && (
+              <button type="button" onClick={clearAllFilters} className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-subtle hover:text-heading">
+                <X className="size-3" />Clear all
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* ── Active-filter chips (appear only when filters are applied) ── */}
+        {filterChips.length > 0 && (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {filterChips.map((chip) => (
+              <span
+                key={chip.key}
+                className="inline-flex items-center gap-1.5 h-7 pl-2.5 pr-1.5 rounded-full border border-brand-500/30 bg-brand-wash text-xs font-medium text-brand-strong"
+              >
+                {chip.label}
+                <button
+                  type="button"
+                  aria-label={`Remove ${chip.label} filter`}
+                  onClick={chip.onRemove}
+                  className="inline-flex size-4 items-center justify-center rounded-full hover:bg-brand-500/20 transition-colors duration-150"
+                >
+                  <X size={11} />
+                </button>
+              </span>
+            ))}
+            <button
+              type="button"
+              onClick={clearAllFilters}
+              className="text-xs font-medium text-subtle hover:text-heading transition-colors duration-150 ml-0.5"
+            >
+              Clear all
+            </button>
+          </div>
+        )}
+
+        {/* Flat listing — flex-1 min-h-0 lets the wrapper absorb the vertical
+            space between the toolbar and the pagination footer; the auto-fit
+            effect then picks the row count that exactly fills that height, so
+            no scrollbar appears and no empty band sits below the last row. */}
+        <div ref={tableCardRef} className="mt-2 flex flex-1 min-h-0 flex-col">
+          <UsersTable
+            users={currentUsers}
+            isLoading={isTableLoading}
+            skeletonRows={pageSize}
+            sortKey={sortKey}
+            sortDir={sortDir}
+            onSort={toggleSort}
+            selectedIds={selectedIds}
+            onToggleOne={toggleSelectOne}
+            allPageSelected={allPageSelected}
+            somePageSelected={somePageSelected}
+            onToggleAllPage={toggleSelectAllPage}
+            renderStatus={renderStatus}
+            renderActions={renderActions}
+            emptyState={usersEmptyState}
+            showActionsColumn={showActionsColumn}
+          />
+
+          {/* Footer / pagination */}
+          {!isTableLoading && totalFiltered > 0 && (
+            <TableFooter
+              from={rangeStart}
+              to={rangeEnd}
+              total={totalFiltered}
+              pageSize={pageSize}
+              onPageSize={(n) => { setPageSize(n); setCurrentPage(1); }}
+              currentPage={safePage}
+              totalPages={totalPages}
+              onPage={setCurrentPage}
+            />
+          )}
+        </div>
+
+        {/* ── Bulk delete confirmation ── */}
+        <Modal
+          open={showBulkDeleteModal}
+          onClose={() => { if (!bulkBusy) setShowBulkDeleteModal(false); }}
+          size="sm"
+          title={`Delete ${visibleSelectedIds.length} user${visibleSelectedIds.length > 1 ? 's' : ''}?`}
+          footer={
+            <>
+              <button
+                type="button"
+                onClick={() => setShowBulkDeleteModal(false)}
+                disabled={bulkBusy}
+                className="h-9 px-3.5 rounded-control border border-hairline-strong bg-surface text-sm font-medium text-body hover:bg-row-hover hover:text-heading disabled:opacity-50 transition-colors duration-150"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmBulkDelete}
+                disabled={bulkBusy}
+                className="inline-flex items-center gap-2 h-9 px-3.5 rounded-control bg-danger-700 text-white text-sm font-semibold shadow-xs hover:bg-danger-700/90 disabled:opacity-60 transition-colors duration-150"
+              >
+                {bulkBusy && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                Delete
+              </button>
+            </>
+          }
+        >
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-tile bg-danger-50 flex items-center justify-center flex-shrink-0">
+              <Trash2 className="w-5 h-5 text-danger-700" />
+            </div>
+            <p className="text-sm text-subtle pt-0.5">
+              This action cannot be undone. The selected user accounts will be permanently removed.
+            </p>
+          </div>
+        </Modal>
+
+        <UserModals
+          institutionId={institutionId}
+          showAddUserModal={showAddUserModal}
+          setShowAddUserModal={setShowAddUserModal}
+          showSuccessModal={showSuccessModal}
+          setShowSuccessModal={setShowSuccessModal}
+          showDeleteModal={showDeleteModal}
+          setShowDeleteModal={setShowDeleteModal}
+          showPermissionModal={showPermissionModal}
+          setShowPermissionModal={setShowPermissionModal}
+          showBulkUploadModal={showBulkUploadModal}
+          setShowBulkUploadModal={setShowBulkUploadModal}
+          showBulkPermissionModal={showBulkPermissionModal}
+          setShowBulkPermissionModal={setShowBulkPermissionModal}
+          // Opened from the bulk bar, the picker starts on the rows already
+          // ticked here. Opened from the Bulk Actions menu with nothing
+          // selected this is empty, which is the old behaviour.
+          bulkPermissionUserIds={visibleSelectedIds}
+          showViewDetailsModal={showViewDetailsModal}
+          setShowViewDetailsModal={setShowViewDetailsModal}
+          newUser={newUser}
+          setNewUser={setNewUser}
+          newUserId={newUserId}
+          userToDelete={userToDelete}
+          selectedUserForPermission={selectedUserForPermission}
+          setSelectedUserForPermission={setSelectedUserForPermission}
+          selectedUserForDetails={selectedUserForDetails}
+          setSelectedUserForDetails={setSelectedUserForDetails}
+          selectedUserForBulkPermissions={selectedUserForBulkPermissions}
+          setSelectedUserForBulkPermissions={setSelectedUserForBulkPermissions}
           roles={roles}
-          searchTerm={debouncedSearchTerm}
+          isLoadingRoles={isLoadingRoles}
+          basedOn={basedOn}
+          userPermissions={userPermissions}
+          allUsers={allUsersForPicker ?? []}
+          onAddUserSubmit={handleAddUserSubmit}
+          onConfirmDelete={confirmDelete}
+          onConfigurePermissions={() => {
+            // The just-created user came back on the create response — it is
+            // not necessarily on the visible page, and the whole directory is
+            // no longer in memory to search.
+            const user = createdUser;
+            if (user) {
+              setSelectedUserForPermission(user);
+              setShowSuccessModal(false);
+              setShowPermissionModal(true);
+            }
+          }}
+          isDeleting={deleteUserMutation.isPending}
+          isEditing={!!newUser.id}
+          canBulkUpload={canBulkUpload}
+          canBulkPermission={canBulkPermission}
+          isSubmitting={isSubmitting}
+          onSubmitSuccess={() => {}}
         />
 
-        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.6 }} className="overflow-x-auto bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-          <UserTable
-            users={currentUsers}
-            isLoading={isLoadingUsers || isFetching}
-            columns={columns}
-            pagination={{
-              currentPage: pagination.currentPage,
-              totalPages: pagination.totalPages,
-              totalItems: pagination.totalUsers,
-              itemsPerPage: usersPerPage,
-              onPageChange: setCurrentPage,
-            }}
-          />
-        </motion.div>
+        <BulkUserModal
+          isOpen={showBulkUserModal}
+          onClose={() => setShowBulkUserModal(false)}
+          roles={roles}
+          existingUsers={allUsersForPicker ?? []}
+          onComplete={() => queryClient.invalidateQueries({ queryKey: queryKeys.users.all })}
+        />
 
+        <BulkEditModal
+          isOpen={showBulkEditModal}
+          onClose={() => setShowBulkEditModal(false)}
+          roles={roles}
+          existingUsers={allUsersForPicker ?? []}
+          onComplete={() => queryClient.invalidateQueries({ queryKey: queryKeys.users.all })}
+        />
+      </motion.div>
+        )}
+        </div>
+      </Tabs>
 
-<UserModals
-  showAddUserModal={showAddUserModal}
-  setShowAddUserModal={setShowAddUserModal}
-  showSuccessModal={showSuccessModal}
-  setShowSuccessModal={setShowSuccessModal}
-  showDeleteModal={showDeleteModal}
-  setShowDeleteModal={setShowDeleteModal}
-  showPermissionModal={showPermissionModal}
-  setShowPermissionModal={setShowPermissionModal}
-  showBulkUploadModal={showBulkUploadModal}
-  setShowBulkUploadModal={setShowBulkUploadModal}
-  showBulkPermissionModal={showBulkPermissionModal}
-  setShowBulkPermissionModal={setShowBulkPermissionModal}
-  showViewDetailsModal={showViewDetailsModal}
-  setShowViewDetailsModal={setShowViewDetailsModal}
-  newUser={newUser}
-  setNewUser={setNewUser}
-  newUserId={newUserId}
-  userToDelete={userToDelete}
-  selectedUserForPermission={selectedUserForPermission}
-  setSelectedUserForPermission={setSelectedUserForPermission}  // ADD THIS LINE
-  selectedUserForDetails={selectedUserForDetails}
-  setSelectedUserForDetails={setSelectedUserForDetails}  // ADD THIS LINE
-  selectedUserForBulkPermissions={selectedUserForBulkPermissions}
-  setSelectedUserForBulkPermissions={setSelectedUserForBulkPermissions}
-  roles={roles}
-  isLoadingRoles={isLoadingRoles}
-  basedOn={basedOn}
-  userPermissions={userPermissions}
-  allUsers={allUser}
-  onAddUserSubmit={handleAddUserSubmit}
-  onConfirmDelete={confirmDelete}
-  onConfigurePermissions={() => {
-    const user = usersData?.users.find(u => u.id === newUserId);
-    if (user) {
-      setSelectedUserForPermission(user);
-      setShowSuccessModal(false);
-      setShowPermissionModal(true);
-    }
-  }}
-  isDeleting={deleteUserMutation.isPending}
-  isEditing={!!newUser.id}
-  canBulkUpload={canBulkUpload}
-  canBulkPermission={canBulkPermission}
-/>
-      </div>
+      <UserCountModal
+        isOpen={showUserCountModal}
+        onClose={() => setShowUserCountModal(false)}
+        data={roleCounts}
+        isLoading={isLoadingRoleCounts}
+      />
+
+      {/* ── Floating bulk bar — appears only after a selection. Rendered OUTSIDE
+          the animated page wrapper so its `fixed` positioning is viewport-
+          relative, never trapped by the entrance transform.
+
+          It is DRAGGABLE: parked at the bottom it covers the pagination, so it
+          can be pulled aside instead of forcing the selection to be cleared to
+          reach Next. The bar is centred by this full-viewport flex box rather
+          than by a transform of its own — dragging owns the transform, and the
+          two cannot share it. For the same reason the entrance animates
+          opacity and scale but NOT y: a declarative `y: 0` would snap the bar
+          home again on every re-render (each selection change is one).
+
+          The outer box is a motion.div rather than a plain one because it
+          is AnimatePresence's direct child — a plain div there would
+          unmount at once and the exit would never play. ── */}
+      <AnimatePresence>
+        {visibleSelectedIds.length > 0 && (
+          <motion.div
+            ref={bulkBarBoundsRef}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
+            className="pointer-events-none fixed inset-0 z-dropdown flex items-end justify-center p-6"
+          >
+            <motion.div
+              drag
+              dragConstraints={bulkBarBoundsRef}
+              dragMomentum={false}
+              dragElastic={0.05}
+              initial={{ scale: 0.96 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.96 }}
+              transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
+              className="pointer-events-auto flex cursor-move touch-none select-none items-center gap-3 rounded-full bg-ink-900 py-2 pl-4 pr-2 text-white shadow-xl active:cursor-grabbing"
+            >
+              <span className="text-xs font-semibold whitespace-nowrap tabular-nums">
+                {visibleSelectedIds.length} selected
+              </span>
+              <span className="h-4 w-px bg-white/20" />
+              <span className="flex items-center gap-1.5">{renderBulkActions()}</span>
+              <button
+                type="button"
+                aria-label="Clear selection"
+                onClick={() => setSelectedRows({})}
+                className="inline-flex size-7 items-center justify-center rounded-full text-white/70 hover:bg-white/10 hover:text-white transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+              >
+                <X size={14} />
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 
@@ -771,5 +1552,10 @@ export default function UserManagementPage() {
     return <div className="min-h-screen flex items-center justify-center"><Loading size="size-8" /></div>;
   }
 
-  return userRole === 'admin' ? <DashboardLayout>{pageContent}</DashboardLayout> : <StaffLayout>{pageContent}</StaffLayout>;
+  return userRole === 'admin' || userRole === 'ldhead' || userRole === 'subhead' || userRole === 'programcoordinator'
+    ? <DashboardLayout>{pageContent}</DashboardLayout>
+    // noBuiltInPadding: the flex-1 chain assumes the admin shell's zero outer
+    // padding; StaffLayout would otherwise add ~2.5rem on top and push the
+    // table below the viewport in POC / trainer roles.
+    : <StaffLayout noBuiltInPadding>{pageContent}</StaffLayout>;
 }

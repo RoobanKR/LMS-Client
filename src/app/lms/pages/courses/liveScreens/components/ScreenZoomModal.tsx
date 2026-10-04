@@ -1,10 +1,11 @@
 "use client";
+import { getToken } from "@/lib/session";
 
 import React, { useEffect, useRef, useState } from "react";
 import { X, AlertTriangle, ShieldAlert, Clock, Monitor, WifiOff, ChevronDown, Send, MessageSquare, Loader2 } from "lucide-react";
 import type { ScreenStudent, ScreenViolationsResponse, ScreenViolationItem } from "../types/liveScreens.types";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://lms-server-ym1q.onrender.com";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://lmsserver-yeve.onrender.com";
 
 interface ScreenZoomModalProps {
   assessmentId: string;
@@ -26,7 +27,7 @@ const VIOLATION_LABEL: Record<string, string> = {
 
 function readToken(): string {
   if (typeof window === "undefined") return "";
-  return localStorage.getItem("smartcliff_token") || localStorage.getItem("token") || "";
+  return getToken() || localStorage.getItem("token") || "";
 }
 
 function fmtElapsed(fromIso: string | null): string {

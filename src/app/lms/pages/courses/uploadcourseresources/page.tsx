@@ -1,7 +1,20 @@
 "use client";
+import { getToken, clearAllStorage } from "@/lib/session";
+import { API_BASE_URL } from "@/lib/http";
 
 import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
-import { Loading } from "@/components/loading-ui/loading";
+import { Poppins } from "next/font/google";
+
+// Poppins is scoped to this page tree. Every child (sidebar, modals, portaled
+// dialogs, the youdo subtree, etc.) inherits it via the injected global style
+// below, without us touching the dozens of inline `fontFamily` styles spread
+// across the subtree.
+const poppins = Poppins({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+  variable: "--font-poppins-upload",
+  display: "swap",
+});
 import {
   Brain, Users, HelpCircle, FileText, Video, FileArchive,
   Link2, BookOpen, FolderPlus, Download, Eye, RefreshCw,
@@ -13,7 +26,8 @@ import {
   User, LogOut, UserCheck2, Zap,
   ChevronDown,
   FilePlus2,
-  Target
+  Target,
+  Image as ImageIcon, StickyNote, Bot
 } from "lucide-react";
 
 import {
@@ -25,32 +39,49 @@ import { getCurrentUser } from "@/apiServices/tokenVerify"
 import { postLogout } from "@/apiServices/activityLog"
 // import "react-quill/dist/quill.snow.css";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+// Resources by Batch — the batch the page is working in. `setActiveBatchId`
+// feeds the API layer, which stamps it onto every read and write.
+import { getActiveBatchId, reconcileBatch, setActiveBatchId, withBatchUrl } from "@/app/lms/pages/courses/api/resourceBatch";
+import { BatchScopeBar } from "./components/ResourceBatchStrip";
 import {
-  courseDataApi, entityApi,
-  type CourseStructureData, type Module, type SubModule,
-  type Topic, type SubTopic, updateFileSettingsInComponent,
-} from "@/apiServices/coursesData";
-// Used during the restore-from-liveDashboard flow: the parent subscribes to
-// the same YouDo exercises query that Assessment.tsx consumes so the full-
-// page overlay stays up until the assessment rows are ready to paint.
-import { useYouDoExercises } from "@/apiServices/hooks/useYouDoExercises";
-import type { EntityType } from "@/apiServices/exercise";
-import { useUploadResourceMutation } from "@/queries/courses";
-import { queryKeys } from "@/lib/queryKeys";
-import { useRouter, useSearchParams } from "next/navigation";
+  courseDataApi, entityApi, updateFileSettingsInComponent,
+} from "@/app/lms/pages/courses/api/coursesData";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import ContentSkeleton from "@/components/ContentSkeleton";
 import axios from "axios";
+import { getUploadErrorMessage } from "./components/uploadError";
 import { showErrorToast, showSuccessToast } from "@/components/ui/toastUtils";
-import PDFViewer from "../../../component/pdfView";
-import VideoViewer from "../../../component/videosViewer";
-import ZipViewer from "../../../component/zipViewer";
-import PPTViewer from "../../../component/pptView";
+import { studentRouteForCurrentCourse } from "../coursesdetailedview/components/useAccountMenu";
+import PDFViewer from "../components/pdfView";
+import VideoViewer from "../components/videosViewer";
+import ZipViewer from "../components/zipViewer";
+import PPTViewer from "../components/pptView";
 import { updateURL } from "@/apiServices/urlParams";
-import { StudentNavbar } from "@/app/lms/component/student/student-navbar";
+import { StaffLayout } from "@/app/lms/component/stafflayout/staff-layout";
+import { usesTrainerShellRole } from "@/lib/dashboardRoutes";
 
 import { CourseSidebar } from "./components/Coursesidebar";
+import { transformToCourseNodes } from "./components/courseTree";
 import { CourseContent } from "./components/Coursecontent";
+// Warm-prefetch plumbing: the exact query keys + fetchers the We Do / You Do
+// section components read on mount, so a first node visit can load their
+// lists IN PARALLEL with the node content, behind ONE ring loader.
+import {
+  getEntityType as toExerciseEntityType,
+  problemSolvingPageKey,
+  fetchProblemSolvingPage,
+  getLastProblemSolvingPageSize,
+} from "@/app/lms/pages/courses/uploadcourseresources/components/ProblemSolving";
+import {
+  testYourSkillsQueryKey,
+  fetchTestYourSkillsQuestions,
+} from "./components/youdo/TestYourSkills";
+import { youDoExercisesQuery } from "@/app/lms/pages/courses/hooks/useYouDoExercises";
 import { NotionResourceModal } from "./components/Notionresourcemodal";
 import { FileUploadModal, type UploadOptions } from "./components/FileUploadModal";
+import {
+  buildAllowedRules, partitionFiles, fmtLimit, TYPE_FILE_RULES, UPLOADABLE_TYPE_KEYS,
+} from "./components/resourceFileFormats";
 import { PlainBreadcrumb, type PlainCrumb } from "./components/PlainBreadcrumb";
 import { NotificationBell } from "@/app/lms/component/NotificationBell";
 
@@ -60,8 +91,8 @@ import {
 } from "../uploadcourseresources/components/Types";
 import toast from "react-hot-toast";
 import TipTapEditor from "@/app/lms/component/tiptopEditor";
-import ImageViewer from "../../../component/ImageViewer";
-import WordViewer from "../../../component/wordView";
+import ImageViewer from "../components/ImageViewer";
+import WordViewer from "../components/wordView";
 import TxtViewer from "../../../component/textdoc";
 import TxtViewerTeacher from "../../../component/textdoc";
 
@@ -74,8 +105,8 @@ const T = {
   orangeGlow: 'rgba(232,100,12,0.18)',
   orangeLight: 'rgba(232,100,12,0.08)',
   orangeMid: 'rgba(232,100,12,0.14)',
-  blue: '#3B82F6',
-  blueLight: 'rgba(59,130,246,0.08)',
+  blue: '#FB923C',
+  blueLight: 'rgba(251,146,60,0.08)',
   textMain: '#0F172A',
   textSub: '#334155',
   textMuted: '#475569',
@@ -87,37 +118,15 @@ const T = {
   pageBg: '#f8fafc',       // clean light canvas
   cardShadow: '0 1px 2px rgba(15,23,42,0.04), 0 1px 3px rgba(15,23,42,0.03)',
 };
+
+const COURSE_LIGHT_STALE_MS = 5 * 60 * 1000;
+const COURSE_LIGHT_GC_MS = 30 * 60 * 1000;
+const NODE_PEDAGOGY_STALE_MS = 3 * 60 * 1000;
+const NODE_PEDAGOGY_GC_MS = 20 * 60 * 1000;
+
 // ─── Transform Helpers ─────────────────────────────────────────────────────────
-function transformToCourseNodes(courseData: CourseStructureData): CourseNode[] {
-  return [{
-    id: courseData._id, name: courseData.courseName, type: "course", level: 0,
-    originalData: courseData,
-    children: courseData.modules.map((module: Module) => ({
-      id: module._id, name: module.title, type: "module" as const, level: 1,
-      originalData: module,
-      children: [
-        ...module.topics.map((topic: Topic) => ({
-          id: topic._id, name: topic.title, type: "topic" as const, level: 2,
-          originalData: topic,
-          children: topic.subTopics.map((st: SubTopic) => ({
-            id: st._id, name: st.title, type: "subtopic" as const, level: 3, originalData: st,
-          })),
-        })),
-        ...module.subModules.map((sm: SubModule) => ({
-          id: sm._id, name: sm.title, type: "submodule" as const, level: 2,
-          originalData: sm,
-          children: sm.topics.map((topic: Topic) => ({
-            id: topic._id, name: topic.title, type: "topic" as const, level: 3,
-            originalData: topic,
-            children: topic.subTopics.map((st: SubTopic) => ({
-              id: st._id, name: st.title, type: "subtopic" as const, level: 4, originalData: st,
-            })),
-          })),
-        })),
-      ],
-    })),
-  }];
-}
+// transformToCourseNodes now lives in ./components/courseTree so the Grades
+// detail screen can build the same SYLLABUS rail from one implementation.
 
 const toBackendTab = (tab: "I_Do" | "We_Do" | "You_Do" | null): "I_Do" | "We_Do" | "You_Do" => {
   if (tab === "We_Do") return "We_Do";
@@ -125,27 +134,10 @@ const toBackendTab = (tab: "I_Do" | "We_Do" | "You_Do" | null): "I_Do" | "We_Do"
   return "I_Do";
 };
 
-// ─── Dark Mode Hook ────────────────────────────────────────────────────────────
-const useDarkMode = () => {
-  const [isDark, setIsDark] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('lms_theme');
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      return saved ? saved === 'dark' : prefersDark;
-    }
-    return false;
-  });
-
-
-
-  useEffect(() => {
-    const root = document.documentElement;
-    if (isDark) { root.classList.add('dark'); localStorage.setItem('lms_theme', 'dark'); }
-    else { root.classList.remove('dark'); localStorage.setItem('lms_theme', 'light'); }
-  }, [isDark]);
-
-  return { isDark, toggleDark: () => setIsDark(prev => !prev) };
-};
+// Dark mode is owned by the shared StaffTopBar (localStorage "theme" +
+// html.dark) since this page moved into StaffLayout — the page must not write
+// the html class itself or it clobbers the navbar's toggle. The `.dark .ql-*`
+// styles below keep working off the shared class.
 
 // ─── Orange Toggle ────────────────────────────────────────────────────────────
 const OrangeToggle = ({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) => (
@@ -161,6 +153,105 @@ const OrangeToggle = ({ checked, onChange }: { checked: boolean; onChange: (v: b
       />
     </div>
   </label>
+);
+
+const CourseWorkspaceLoader = ({
+  courseName,
+  message = "Preparing course workspace",
+}: {
+  courseName?: string;
+  message?: string;
+}) => (
+  <div
+    className="uc-loader-wrap"
+    role="status"
+    aria-live="polite"
+    aria-label={message}
+    style={{
+      height: "100%",
+      width: "100%",
+      display: "grid",
+      gridTemplateRows: "auto 1fr",
+      background: T.bg,
+      overflow: "hidden",
+    }}
+  >
+    <div
+      style={{
+        height: 58,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 14,
+        padding: "0 22px",
+        borderBottom: `1px solid ${T.border}`,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 11, minWidth: 0 }}>
+        <span className="uc-loader-mark">
+          <BookOpen size={17} />
+        </span>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: T.textMain, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {courseName || "Loading course"}
+          </div>
+          <div style={{ fontSize: 11.5, color: T.textMuted, marginTop: 2 }}>{message}</div>
+        </div>
+      </div>
+      <div className="uc-loader-progress" aria-hidden><span /></div>
+    </div>
+
+    <div style={{ display: "grid", gridTemplateRows: "50px 1fr", minHeight: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 22px", borderBottom: `1px solid ${T.borderSoft}` }}>
+        {["I Do", "We Do", "You Do"].map((label, i) => (
+          <span
+            key={label}
+            className="uc-loader-pill"
+            style={{ width: i === 1 ? 82 : 70, opacity: i === 1 ? 1 : 0.72 }}
+          />
+        ))}
+        <span style={{ marginLeft: "auto" }} className="uc-loader-chip" />
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 280px", gap: 18, padding: 22, minHeight: 0 }}>
+        <div style={{ display: "grid", gap: 14, alignContent: "start" }}>
+          <div className="uc-loader-hero">
+            <div className="uc-loader-line w-40" />
+            <div className="uc-loader-line w-70" />
+            <div className="uc-loader-line w-55" />
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12 }}>
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="uc-loader-card">
+                <div className="uc-loader-icon" />
+                <div className="uc-loader-line w-70" />
+                <div className="uc-loader-line w-45" />
+              </div>
+            ))}
+          </div>
+          <div className="uc-loader-table">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="uc-loader-row">
+                <div className="uc-loader-icon small" />
+                <div className="uc-loader-line w-55" />
+                <div className="uc-loader-line w-20" />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="uc-loader-side">
+          <div className="uc-loader-line w-45" />
+          {[0, 1, 2, 3, 4].map((i) => (
+            <div key={i} className="uc-loader-row compact">
+              <div className="uc-loader-icon small" />
+              <div className="uc-loader-line w-70" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  </div>
 );
 
 // ─── Breadcrumb Icon map ───────────────────────────────────────────────────────
@@ -294,8 +385,8 @@ function UserMenuButton({
                 icon={UserCheck2}
                 label="Switch to Student"
                 sub="Preview student experience"
-                color="#3b82f6"
-                hoverBg="#eff6ff"
+                color="#fb923c"
+                hoverBg="#fff7ed"
                 onClick={handleSwitchToStudent}
               />
             )}
@@ -359,12 +450,38 @@ function UMRow({ icon: Icon, label, sub, color, hoverBg, onClick }: {
 // ─── Clean Breadcrumb Bar with Proper Clickable States ──────────────────────
 const BRAND_ORANGE = "#E8640C";
 
+/**
+ * Where "back" goes.
+ *
+ * This screen serves TWO routes with the same component — `/lms/pages/courses/
+ * uploadcourseresources` (reached from the Courses list) and `/lms/pages/
+ * coursestructure/uploadcourseresources` (reached from a course's Actions ▸
+ * Upload Resources). Hard-coding the Courses list would strand anyone who came
+ * in through Course Management on a page they never navigated from, so the crumb
+ * follows the route actually in the address bar.
+ */
+const useParentSection = () => {
+  const pathname = usePathname() || "";
+  const fromCourseStructure = pathname.startsWith("/lms/pages/coursestructure");
+  return fromCourseStructure
+    ? {
+        href: "/lms/pages/coursestructure",
+        label: "Course Management",
+        // Changing which batch you are filing into is a Course Management job.
+        // The Courses route is for working inside a course, so it only NAMES
+        // the batch — see ResourceBatchStrip's `canSwitchBatch`.
+        canSwitchBatch: true,
+      }
+    : { href: "/lms/pages/courses", label: "Courses", canSwitchBatch: false };
+};
+
 const BreadcrumbBar = ({
   breadcrumbs,
 }: {
   breadcrumbs: Array<{ id: string; type: string; label: string; onClick?: () => void }>;
 }) => {
   const router = useRouter();
+  const parent = useParentSection();
 
   if (!breadcrumbs || breadcrumbs.length === 0) return null;
 
@@ -373,14 +490,22 @@ const BreadcrumbBar = ({
 
   if (filteredCrumbs.length === 0) return null;
 
+  // Each shell's own Dashboard: the trainer rail links /dashboard, the admin
+  // rail (which owns the Course Management route) /admindashboard.
+  const dashboardHref = () => {
+    let role = "";
+    try { role = localStorage.getItem("smartcliff_roleValue") || localStorage.getItem("smartcliff_originalRole") || ""; } catch {}
+    return usesTrainerShellRole(role) || !parent.canSwitchBatch ? "/lms/pages/dashboard" : "/lms/pages/admindashboard";
+  };
+
   const handleCrumbClick = (crumb: any) => {
-    if (crumb.type === "dashboard") { router.push("/lms/pages/dashboard"); return; }
-    if (crumb.type === "courses") { router.push("/lms/pages/courses"); return; }
+    if (crumb.type === "dashboard") { router.push(dashboardHref()); return; }
+    if (crumb.type === "courses") { router.push(parent.href); return; }
     if (crumb.type === "course" && crumb.onClick) crumb.onClick();
   };
 
-  const LINK_BLUE = "#2563EB";
-  const LINK_BLUE_HOVER = "#1D4ED8";
+  const LINK_BLUE = "#F97316";
+  const LINK_BLUE_HOVER = "#EA580C";
   const ACTIVE_GRAY = "#475569";
   const MUTED = "#94A3B8";
 
@@ -449,7 +574,7 @@ const BreadcrumbBar = ({
                 <span
                   data-crumb-label
                   style={{
-                    fontFamily: "'Inter', 'Inter', sans-serif",
+                    fontFamily: "'Poppins', 'Plus Jakarta Sans', sans-serif",
                     fontWeight: isLast ? 600 : 500,
                     fontSize: 12.5,
                     color: labelColor,
@@ -657,38 +782,134 @@ interface VirtualFolderItem {
 
 // ─── Main Component ────────────────────────────────────────────────────────────
 export default function DynamicLMSCoordinator() {
-  const { isDark, toggleDark } = useDarkMode();
   const searchParams = useSearchParams();
   const courseId = searchParams.get("courseId");
-  // Switched from `courseDataApi.getById` (heavy: pulls `singleParticipants`
-  // + every node's pedagogy) to `courseDataApi.getLight` (tree skeleton +
-  // course meta only). Per-node pedagogy now loads on demand inside
-  // `fetchAndRefresh` via `courseDataApi.getNodePedagogy`. The heavy route
-  // stays untouched for callers that actually need it (reviewSubmission,
-  // dashboard marks computation).
-  const { data: courseStructureResponse, isLoading: isCourseStructureLoading, isFetching: isCourseStructureFetching } = useQuery({
-    ...courseDataApi.getLight(courseId || ""),
+
+  // ── Resources by Batch ──────────────────────────────────────────────────────
+  // Fetched BEFORE the course payload so the page knows on its first paint
+  // whether this course has batches at all, whether resources are shared, and
+  // (for staff) which batch is selected. The selected batch is stamped onto
+  // every subsequent request by the API layer and is part of the course query
+  // key, so switching batches refetches instead of serving the previous
+  // batch's cached pedagogy.
+  const { data: batchCtxResponse, isFetched: isBatchContextSettled } = useQuery({
+    ...courseDataApi.getResourceBatchContext(courseId || ""),
     enabled: !!courseId,
-    staleTime: 5 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
+    staleTime: COURSE_LIGHT_STALE_MS,
+    gcTime: COURSE_LIGHT_GC_MS,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
+  const resourceBatchCtx = batchCtxResponse?.data ?? null;
+  const [activeBatchId, setActiveBatchIdState] = useState<string>("");
+
+  // Reconcile the remembered selection against what the server says exists —
+  // a batch that was deleted, or a course flipped back to shared, must not
+  // leave the page pinned to a dead id showing an empty screen.
+  useEffect(() => {
+    if (!courseId) return;
+    setActiveBatchIdState(reconcileBatch(courseId, resourceBatchCtx));
+  }, [courseId, resourceBatchCtx]);
+
   const queryClient = useQueryClient();
-  const uploadResourceMutation = useUploadResourceMutation();
-  // True while the initial course payload is in flight (no cached data yet).
-  // Used to gate the empty-state Welcome card so the user sees a loader, not
-  // a misleading "select a module" screen, before the sidebar/tree exists.
-  const isInitialCourseLoad = (isCourseStructureLoading || isCourseStructureFetching) && !courseStructureResponse?.data;
+  const handleSelectBatch = useCallback(
+    (batchId: string) => {
+      if (!courseId || batchId === activeBatchId) return;
+      setActiveBatchId(courseId, batchId);
+      setActiveBatchIdState(batchId);
+      // The batch is baked into the query keys, so anything cached for the
+      // previous batch lives under a different key and cannot be served by
+      // mistake. What is NOT keyed is the node pedagogy this page holds in
+      // local state, and any exercise list already in flight — hence the
+      // explicit clear + invalidate.
+      //
+      // `youDoExercises` covers BOTH We Do assignments and You Do assessments:
+      // one hook serves both tabs, differing only by its `tabType` argument.
+      // Leaving it out was what let the We Do table keep showing batch 1's
+      // assignments after the strip had been switched to batch 2.
+      // BOTH caches. `cachedContentData` is keyed by node id alone, so leaving
+      // it behind meant re-selecting a node after a batch switch replayed the
+      // previous batch's material out of cache without ever hitting the server.
+      setContentData({});
+      setCachedContentData({});
+      queryClient.invalidateQueries({ queryKey: ["course"] });
+      queryClient.invalidateQueries({ queryKey: ["course-node-pedagogy"] });
+      queryClient.invalidateQueries({ queryKey: ["youDoExercises"] });
+    },
+    [courseId, activeBatchId, queryClient],
+  );
+
+  // `getLight`, not `getById`. coursesData.ts documents getLight as built for
+  // exactly this page ("would otherwise download ~95% wasted data on every
+  // cold load") but the call site was never switched over. Everything this
+  // response actually feeds — the I_Do/We_Do/You_Do subcategory lists,
+  // resourcesType and courseName — is present and byte-identical in the light
+  // projection, verified against the heavy one on three courses
+  // (896,864 -> 7,507 / 116,324 -> 6,659 / 513,920 -> 11,953 bytes).
+  // Its `modules` tree is only read by findModuleForNode below, which is
+  // defined and never called; the light tree carries the same node ids anyway.
+  // The heavy ["course", id] entry is deliberately left alone — reviewSubmission
+  // and other pages still rely on it.
+  const { data: courseStructureResponse, isFetching: isCourseStructureFetching } = useQuery({
+    ...courseDataApi.getLight(courseId || ""),
+    enabled: !!courseId && isBatchContextSettled,
+    staleTime: COURSE_LIGHT_STALE_MS,
+    gcTime: COURSE_LIGHT_GC_MS,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  });
+
+  // ── Scope Poppins to this page's entire DOM subtree (including portaled
+  //    modals/dropdowns rendered under document.body). The injected rule uses
+  //    !important so it wins over the many inline `fontFamily: T.font` styles
+  //    in the child components without us editing each one. Monospace elements
+  //    (code, pre, Monaco) are intentionally excluded.
+  useEffect(() => {
+    if (typeof document === "undefined") return
+    document.body.classList.add(poppins.variable, poppins.className, "lms-poppins-scope")
+    const style = document.createElement("style")
+    style.setAttribute("data-lms-poppins", "1")
+    style.textContent = `
+      body.lms-poppins-scope, body.lms-poppins-scope * {
+        font-family: ${poppins.style.fontFamily}, 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+      }
+      body.lms-poppins-scope pre,
+      body.lms-poppins-scope code,
+      body.lms-poppins-scope kbd,
+      body.lms-poppins-scope samp,
+      body.lms-poppins-scope .monaco-editor,
+      body.lms-poppins-scope .monaco-editor *,
+      body.lms-poppins-scope [data-monaco-editor],
+      body.lms-poppins-scope [data-monaco-editor] * {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+      }
+    `
+    document.head.appendChild(style)
+    return () => {
+      document.body.classList.remove(poppins.variable, poppins.className, "lms-poppins-scope")
+      style.remove()
+    }
+  }, [])
+
+  // You_Do "Assessments" labels drift across courses ("Assessments",
+  // "Assessment", legacy "Assesment"). The whole pipeline — Coursecontent's
+  // You_Do dispatch, review submissions, marks computation, the server's
+  // legacy-key lists — already speaks the legacy "assesment" key, so every
+  // derived variant is canonicalized onto it before it enters state/URL/LS.
+  const canonYouDoSubKey = (key: string) => (/^assess?ments?$/.test(key) ? "assesment" : key);
 
   const getLS = (key: string) => (typeof window !== "undefined" ? localStorage.getItem(key) || "" : "");
   const setLS = (key: string, val: string) => localStorage.setItem(key, val);
   const delLS = (key: string) => localStorage.removeItem(key);
-
   // ── Core state ────────────────────────────────────────────────────────────────
   const [courseData, setCourseData] = useState<CourseNode[]>([]);
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
   const [selectedNode, setSelectedNode] = useState<CourseNode | null>(null);
   const [activeTab, setActiveTab] = useState<"I_Do" | "We_Do" | "You_Do" | null>(() => getLS("lms_selected_tab") as any || null);
-  const [activeSubcategory, setActiveSubcategory] = useState(() => getLS("lms_selected_subcategory"));
+  const [activeSubcategory, setActiveSubcategory] = useState(() =>
+    getLS("lms_selected_tab") === "You_Do"
+      ? canonYouDoSubKey(getLS("lms_selected_subcategory"))
+      : getLS("lms_selected_subcategory"));
   const [contentData, setContentData] = useState<Record<string, ContentData>>({});
   const [folders, setFolders] = useState<FolderItem[]>([]);
   const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbItem[]>([]);
@@ -696,14 +917,7 @@ export default function DynamicLMSCoordinator() {
   const [sidebarWidth, setSidebarWidth] = useState(280);
   const [isResizing, setIsResizing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  // NOTE: previously this was a state flag set true → 300 ms timeout → false to
-  // guard the auto-select effect while we restored selection from localStorage.
-  // It caused two real perf bugs: (a) a guaranteed 300 ms delay on every back
-  // navigation from analytics/liveDashboard, and (b) because the fetchAndRefresh
-  // effect's dep array doesn't include the flag, when the timeout cleared the
-  // flag the fetch never re-ran — leaving the page stuck on the loader. We now
-  // use the synchronous `hasAutoSelected` ref + a URL check inside auto-select
-  // to coordinate the two effects without any artificial wait.
+  const [isRestoringFromAnalytics, setIsRestoringFromAnalytics] = useState(false);
   const [currentPPTFileId, setCurrentPPTFileId] = useState("");
   const [currentVideoFileId, setCurrentVideoFileId] = useState("");
   const [currentPDFFileId, setCurrentPDFFileId] = useState("");
@@ -718,7 +932,7 @@ export default function DynamicLMSCoordinator() {
   const [uploadDescription, setUploadDescription] = useState("");
   const [uploadTags, setUploadTags] = useState<Tag[]>([]);
   const [uploadCurrentTag, setUploadCurrentTag] = useState("");
-  const [uploadTagColor, setUploadTagColor] = useState("#3B82F6");
+  const [uploadTagColor, setUploadTagColor] = useState("#FB923C");
   const [uploadAccessLevel, setUploadAccessLevel] = useState("private");
   const [isButtonLoading, setIsButtonLoading] = useState(false);
   const [expandedUploadSection, setExpandedUploadSection] = useState<string | null>("description");
@@ -856,6 +1070,8 @@ export default function DynamicLMSCoordinator() {
   const [currentPPTUrl, setCurrentPPTUrl] = useState("");
   const [currentPPTName, setCurrentPPTName] = useState("");
   const router = useRouter() // add this if not present
+  // Courses list vs Course Structure — see useParentSection.
+  const parentSection = useParentSection()
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [isDummyStudent, setIsDummyStudent] = useState(false)
@@ -866,69 +1082,35 @@ export default function DynamicLMSCoordinator() {
   const isFetchingRef = useRef<string | null>(null);
   const lastFetchedDataRef = useRef<string>("");
   const initialDataLoadedRef = useRef(false);
+  // One-shot guard for the URL deep-link restore effect below — see the
+  // comment inside it. Without this, every courseData rebuild re-selected the
+  // pedagogy-less light node named by `?nodeId=` and wiped page rows.
+  const urlRestoreDoneRef = useRef(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
-  // When we land here via the liveDashboard / analytics back path
-  // (`?fromAnalytics=true`), we know up-front that we're going to restore a
-  // node from localStorage. Seed both flags to true so the very first render
-  // shows the loader — not the "Welcome to Your Course" card — instead of
-  // briefly flashing welcome before the fromAnalytics effect can run.
-  const isFromAnalyticsMount = typeof window !== "undefined" &&
-    new URLSearchParams(window.location.search).get("fromAnalytics") === "true";
-  // Full-page overlay flag for the restore flow. While true we render ONLY
-  // a centered spinner — sidebar + content area stay hidden so the user
-  // doesn't see the staggered "sidebar then spinner then list" sequence.
-  // Cleared when contentData for the restored node arrives (see useEffect
-  // further below).
-  const [isRestoringSelection, setIsRestoringSelection] = useState(isFromAnalyticsMount);
-  const [isNodeSelected, setIsNodeSelected] = useState(isFromAnalyticsMount);
+  const [isNodeSelected, setIsNodeSelected] = useState(false);
   const [isSidebarLoading, setIsSidebarLoading] = useState(true);
   const [cachedContentData, setCachedContentData] = useState<Record<string, ContentData>>({});
   const [loadingNodes, setLoadingNodes] = useState<Set<string>>(new Set());
   const [referenceDisplayName, setReferenceDisplayName] = useState("Reference Material");
   // Add these state variables with your other state declarations
-  const [isContentLoading, setIsContentLoading] = useState(isFromAnalyticsMount);
+  const [isContentLoading, setIsContentLoading] = useState(false);
+  // First full load of a node: the id whose content AND active-section list
+  // are still being warmed. While set, the central pane keeps the ONE ring
+  // loader up, so the page opens once — with its data — instead of
+  // loader → page → second section loader.
+  const [nodeWarmupId, setNodeWarmupId] = useState<string | null>(null);
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
 
-  // ── Parent-side prefetch for the YouDo exercises list during restore ──
-  // When we land here from liveDashboard with `?fromAnalytics=true`, the
-  // user was previously on `You Do → <subcategory>` and wants that list back.
-  // We subscribe to the same React Query key Assessment.tsx will consume, so:
-  //   1. The fetch starts as soon as we know the restored node — it doesn't
-  //      have to wait for CourseContent → Assessment to mount.
-  //   2. The "clear overlay" effect below can gate on this hook's success,
-  //      keeping the single full-page spinner up until the list is actually
-  //      ready (instead of dismissing on pedagogy content and then showing
-  //      Assessment.tsx's own internal "Loading assessments..." spinner).
-  //   3. When Assessment.tsx mounts a moment later it reads cached data and
-  //      paints instantly — no second loader, no flicker.
-  // Only enabled while the overlay is up AND the restored tab is You_Do;
-  // otherwise this is a noop and Assessment.tsx (if rendered) owns its own
-  // fetch lifecycle.
-  const restoreEntityType: EntityType | null = useMemo(() => {
-    if (!selectedNode?.type) return null;
-    switch (selectedNode.type) {
-      case "module": return "modules";
-      case "submodule": return "submodules";
-      case "topic": return "topics";
-      case "subtopic": return "subtopics";
-      default: return null;
-    }
-  }, [selectedNode?.type]);
-
-  const restoreShouldPrefetchExercises =
-    isRestoringSelection && activeTab === "You_Do" && !!restoreEntityType && !!selectedNode?.id && !!activeSubcategory;
-
-  const {
-    isSuccess: isRestoreExercisesSuccess,
-    isError: isRestoreExercisesError,
-    fetchStatus: restoreExercisesFetchStatus,
-  } = useYouDoExercises({
-    entityType: restoreEntityType,
-    entityId: selectedNode?.id ?? null,
-    tabType: "You_Do",
-    subcategory: activeSubcategory || null,
-    enabled: restoreShouldPrefetchExercises,
-  });
+  // Safety timeout — if a content fetch stalls (server down, network hang,
+  // uncaught error before finally runs), the loader used to sit on screen
+  // forever. Force-clear after 15s so the trainer falls through to whatever
+  // content is available (or CourseContent's own empty state) and isn't
+  // trapped in an eternal spinner.
+  useEffect(() => {
+    if (!isContentLoading) return;
+    const t = setTimeout(() => setIsContentLoading(false), 15000);
+    return () => clearTimeout(t);
+  }, [isContentLoading]);
 
   // Add these state variables in DynamicLMSCoordinator component
   const [showWordViewer, setShowWordViewer] = useState(false);
@@ -949,78 +1131,130 @@ export default function DynamicLMSCoordinator() {
     return {
       I_Do: d.I_Do.map((item: string) => ({ key: item.toLowerCase().replace(/\s+/g, "_"), label: item, icon: <Brain size={14} />, component: null })),
       We_Do: d.We_Do.map((item: string) => ({ key: item.toLowerCase().replace(/\s+/g, "_"), label: item, icon: <Users size={14} />, component: item.toLowerCase().replace(/\s+/g, "_") === "project_development" ? "Practical" : null })),
-      You_Do: d.You_Do.map((item: string) => ({ key: item.toLowerCase().replace(/\s+/g, "_"), label: item, icon: <HelpCircle size={14} />, component: null })),
+      You_Do: d.You_Do.map((item: string) => ({ key: canonYouDoSubKey(item.toLowerCase().replace(/\s+/g, "_")), label: item, icon: <HelpCircle size={14} />, component: null })),
     };
   }, [courseStructureResponse]);
 
   const fileTypes: FileTypeConfig[] = useMemo(() => {
-    // Static file types that are always available
+    // Structural tools — not part of the resource catalog, so always available.
     const staticFileTypes: FileTypeConfig[] = [
       { key: "folder", label: "New Folder", icon: <FolderPlus size={22} />, color: T.orange, tooltip: "Create a new folder" },
       { key: "page_creation", label: "Page Builder", icon: <FilePlus2 size={22} />, color: T.orange, tooltip: "Build rich content pages with editable blocks" },
-      { key: "zip", label: "ZIP File", icon: <FileArchive size={22} />, color: "#a855f7", tooltip: "Upload ZIP archives", accept: ".zip,.rar,.7z,.tar,.gz" },
       { key: "reference", label: "REFERENCE", icon: <BookOpen size={22} />, color: "#8b5cf6", tooltip: "Upload reference materials", accept: "*" },
     ];
 
-    // Dynamic file types based on resourcesType.iDo configuration
-    const dynamicFileTypes: FileTypeConfig[] = [];
+    // The resource catalog, in the same order the Super Admin's Resource
+    // Management lists it. A type only appears here if the course enabled it,
+    // and a course can only enable what the institution was granted — so this
+    // list is Super Admin → course setup → upload page, end to end.
+    const CATALOG: (FileTypeConfig & { configKey: string })[] = [
+      { configKey: "video", key: "video", label: "Video", icon: <Video size={22} />, color: "#3b82f6", tooltip: "Upload video files", accept: "video/*,.mp4,.avi,.mov,.mkv" },
+      { configKey: "ppt", key: "ppt", label: "PPT", icon: <FileText size={22} />, color: "#f97316", tooltip: "Upload PowerPoint files", accept: ".ppt,.pptx" },
+      { configKey: "pdf", key: "pdf", label: "PDF", icon: <FileText size={22} />, color: "#ef4444", tooltip: "Upload PDF documents", accept: ".pdf" },
+      { configKey: "image", key: "image", label: "Image", icon: <ImageIcon size={22} />, color: "#10b981", tooltip: "Upload image files", accept: "image/*,.png,.jpg,.jpeg,.gif,.webp,.svg" },
+      { configKey: "zip", key: "zip", label: "ZIP File", icon: <FileArchive size={22} />, color: "#a855f7", tooltip: "Upload ZIP archives", accept: ".zip,.rar,.7z,.tar,.gz" },
+      { configKey: "url", key: "url", label: "URL", icon: <Link2 size={22} />, color: "#10b981", tooltip: "Add external URLs", accept: "url" },
+      // Notes / AI are "Student Used Feature" items — kept here too (not just
+      // in studentFeatureTypes below) so icon/accept lookups and the content
+      // filter dropdown still resolve them once something's been uploaded.
+      { configKey: "notes", key: "notes", label: "Notes", icon: <StickyNote size={22} />, color: "#84cc16", tooltip: "Upload downloadable study notes", accept: ".pdf,.doc,.docx,.txt" },
+      { configKey: "ai", key: "ai", label: "AI", icon: <Bot size={22} />, color: "#6366f1", tooltip: "AI-generated content", accept: "*" },
+    ];
 
-    // Check if resourcesType exists and is an object with iDo property
-    if (courseStructureResponse?.data?.resourcesType && typeof courseStructureResponse.data.resourcesType === 'object' && !Array.isArray(courseStructureResponse.data.resourcesType) && 'iDo' in courseStructureResponse.data.resourcesType) {
-      const iDoResources = (courseStructureResponse.data.resourcesType as any).iDo;
+    const rt = courseStructureResponse?.data?.resourcesType;
+    const iDoResources =
+      rt && typeof rt === "object" && !Array.isArray(rt) && "iDo" in rt
+        ? (rt as any).iDo
+        : null;
 
-      // Video resource
-      if (iDoResources.video?.enabled === true) {
-        dynamicFileTypes.push({
-          key: "video",
-          label: "Video",
-          icon: <Video size={22} />,
-          color: "#3b82f6",
-          tooltip: "Upload video files",
-          accept: "video/*,.mp4,.avi,.mov,.mkv"
-        });
-      }
+    // No saved config at all (legacy course) → fall back to the catalog rather
+    // than showing the user an upload bar with nothing but folder/reference.
+    const dynamicFileTypes = iDoResources
+      ? CATALOG.filter((t) => iDoResources[t.configKey]?.enabled === true)
+      : CATALOG;
 
-      // PPT resource
-      if (iDoResources.ppt?.enabled === true) {
-        dynamicFileTypes.push({
-          key: "ppt",
-          label: "PPT",
-          icon: <FileText size={22} />,
-          color: "#f97316",
-          tooltip: "Upload PowerPoint files",
-          accept: ".ppt,.pptx"
-        });
-      }
+    return [...staticFileTypes, ...dynamicFileTypes.map(({ configKey, ...t }) => t)];
+  }, [courseStructureResponse]);
 
-      // PDF resource
-      if (iDoResources.pdf?.enabled === true) {
-        dynamicFileTypes.push({
-          key: "pdf",
-          label: "PDF",
-          icon: <FileText size={22} />,
-          color: "#ef4444",
-          tooltip: "Upload PDF documents",
-          accept: ".pdf"
-        });
-      }
+  // The subset of `fileTypes` that represents an actual uploadable file format,
+  // handed to FileUploadModal so its accepted-type chips, browse filter and
+  // drag & drop validation all follow the course's Resource Type config.
+  // Excludes the structural entries (folder / page / reference), URL (not a
+  // file), and the Notes / AI student features — none of them describe a format
+  // the drop zone should accept on its own.
+  const uploadableTypeKeys = useMemo(
+    () => fileTypes.map((t) => t.key).filter((k) => UPLOADABLE_TYPE_KEYS.includes(k)),
+    [fileTypes]
+  );
 
-      // URL resource
-      if (iDoResources.url?.enabled === true) {
-        dynamicFileTypes.push({
-          key: "url",
-          label: "URL",
-          icon: <Link2 size={22} />,
-          color: "#10b981",
-          tooltip: "Add external URLs",
-          accept: "url"
-        });
-      }
-    }
+  // Course Setup's per-type "Max file size", in MB. Each type carries its own
+  // ceiling (PPT 2 MB, PDF 3 MB …), so this is a map rather than one number.
+  // A type with no saved maxSize stays unlimited.
+  const uploadMaxSizeByType = useMemo(() => {
+    const rt = courseStructureResponse?.data?.resourcesType;
+    const iDo =
+      rt && typeof rt === "object" && !Array.isArray(rt) && "iDo" in rt ? (rt as any).iDo : null;
+    if (!iDo) return {};
+    return UPLOADABLE_TYPE_KEYS.reduce<Record<string, number | undefined>>((acc, key) => {
+      const size = Number(iDo[key]?.maxSize);
+      if (Number.isFinite(size) && size > 0) acc[key] = size;
+      return acc;
+    }, {});
+  }, [courseStructureResponse]);
 
-    const result = [...staticFileTypes, ...dynamicFileTypes];
+  /**
+   * The AI Chat / AI Summary / Notes switches Course Setup stores per resource
+   * type (`resourcesType.iDo.<type>.aiChat` etc.). Staff viewers show the same
+   * buttons students do, so they read the same switches — otherwise staff would
+   * be looking at a feature their students can't see.
+   *
+   * Defaults to off: a course with no saved config has enabled nothing.
+   */
+  const viewerFeaturesFor = useCallback((type: string) => {
+    const rt = courseStructureResponse?.data?.resourcesType;
+    const iDo =
+      rt && typeof rt === "object" && !Array.isArray(rt) && "iDo" in rt ? (rt as any).iDo : null;
+    const cfg = iDo?.[type];
+    return {
+      aiChatEnabled: !!cfg?.aiChat,
+      aiSummaryEnabled: !!cfg?.aiSummary,
+      notesEnabled: !!cfg?.notes,
+    };
+  }, [courseStructureResponse]);
 
-    return result;
+  // The same rules the Upload Files modal applies, for the page's own two file
+  // entry points: the Folder Builder drop zone and the per-type upload modal.
+  // Without this a blocked format or an oversized file could still get in
+  // through those routes. No fallback needed — `fileTypes` already widens to
+  // the full catalog for a legacy course, so an empty list here genuinely
+  // means "nothing enabled".
+  const uploadFileRules = useMemo(
+    () => buildAllowedRules(uploadableTypeKeys, uploadMaxSizeByType),
+    [uploadableTypeKeys, uploadMaxSizeByType]
+  );
+
+  // "Student Used Feature" — Notes / AI, shown separately in the "Add a new
+  // resource" picker. Only appears when the course enabled at least one
+  // (which itself only happens if the institution's Super Admin granted it —
+  // see Resourcetypesection), so this mirrors that chain end to end.
+  const studentFeatureTypes: FileTypeConfig[] = useMemo(() => {
+    const CATALOG: (FileTypeConfig & { configKey: string })[] = [
+      { configKey: "notes", key: "notes", label: "Notes", icon: <StickyNote size={22} />, color: "#84cc16", tooltip: "Upload downloadable study notes", accept: ".pdf,.doc,.docx,.txt" },
+      { configKey: "ai", key: "ai", label: "AI", icon: <Bot size={22} />, color: "#6366f1", tooltip: "AI-generated content", accept: "*" },
+    ];
+
+    const rt = courseStructureResponse?.data?.resourcesType;
+    const iDoResources =
+      rt && typeof rt === "object" && !Array.isArray(rt) && "iDo" in rt
+        ? (rt as any).iDo
+        : null;
+
+    // No saved config at all (legacy course) → nothing to show; unlike the
+    // main list, there's no sensible "show everything" fallback for a brand
+    // new feature the institution may never have enabled.
+    if (!iDoResources) return [];
+
+    return CATALOG.filter((t) => iDoResources[t.configKey]?.enabled === true).map(({ configKey, ...t }) => t);
   }, [courseStructureResponse]);
 
 
@@ -1240,7 +1474,7 @@ export default function DynamicLMSCoordinator() {
                   folderPath: folderPath.join("/"),
                   tags: file.tags?.map((t: any) => ({
                     tagName: t.tagName || t.name || "",
-                    tagColor: t.tagColor || t.color || "#3B82F6"
+                    tagColor: t.tagColor || t.color || "#FB923C"
                   })) || [],
                   fileSettings: file.fileSettings ? {
                     showToStudents: file.fileSettings.showToStudents ?? true,
@@ -1319,7 +1553,7 @@ export default function DynamicLMSCoordinator() {
               folderId: null,
               tags: file.tags?.map((t: any) => ({
                 tagName: t.tagName || "",
-                tagColor: t.tagColor || "#3B82F6"
+                tagColor: t.tagColor || "#FB923C"
               })) || [],
               fileSettings: file.fileSettings ? {
                 showToStudents: file.fileSettings.showToStudents ?? true,
@@ -1350,7 +1584,7 @@ export default function DynamicLMSCoordinator() {
             }
           });
 
-          const pagesAsFiles: UploadedFile[] = Array.from(pagesMap.values()).map((page: any) => ({
+          const pagesAsFiles: UploadedFile[] = Array.from(pagesMap.values()).map((page: any): any => ({
             id: page._id,
             name: page.title || "Untitled Page",
             type: "page",
@@ -1360,6 +1594,12 @@ export default function DynamicLMSCoordinator() {
             subcategory: subcatKey,
             folderId: null,
             tags: [],
+            // Group context — group-bound pages carry groupId/groupName on the
+            // record (see server createPage); without forwarding them here the
+            // fallback render in Coursecontent shows the page standalone
+            // instead of inside its group row.
+            groupId: page.groupId || undefined,
+            groupName: page.groupName || undefined,
             _combinedCode: page.combinedCode || "",
             _pageCount: page.pageCount || 1,
             _blocks: page.blocks || [],
@@ -1420,26 +1660,86 @@ const refreshContentData = useCallback(async (node: CourseNode, backendData?: an
   setIsInitialLoad(false);
 }, [processNodeContent]);
 
-  // Walk the in-memory course tree and return a NEW tree with the matching
-  // node's `originalData` replaced. Used after `fetchAndRefresh` lands fresh
-  // pedagogy for one node so the rest of the tree sees the same updated
-  // payload (`findFolderInTree`, breadcrumb lookups, etc.).
-  const patchNodeOriginalDataInTree = (
-    nodes: CourseNode[],
-    targetId: string,
-    nextOriginalData: any,
-  ): CourseNode[] => {
-    return nodes.map((n) => {
-      if (n.id === targetId) {
-        return { ...n, originalData: nextOriginalData };
-      }
-      if (!n.children?.length) return n;
-      return { ...n, children: patchNodeOriginalDataInTree(n.children, targetId, nextOriginalData) };
-    });
-  };
+  // ── The course payload, through React Query ─────────────────────────────────
+  //
+  // Both refresh paths below pull the WHOLE course from the same endpoint, so
+  // clicking through six nodes used to mean six full downloads of the same
+  // document and a spinner each time. They now share one React Query entry
+  // keyed by course + batch:
+  //
+  //   • node selection asks for it normally → a hit inside `staleTime` returns
+  //     instantly with no request at all, which is what removes the reload when
+  //     moving between nodes and between I Do / We Do / You Do;
+  //   • anything that CHANGED the data (upload, delete, folder edit, batch
+  //     switch) asks with `fresh`, which drops the entry first so the next read
+  //     is a real fetch rather than the copy from before the change.
+  //
+  // The batch is part of the key: batch 1 and batch 2 are different documents
+  // from this endpoint, and sharing one entry would serve the wrong one.
+  // The two reads that replace the old whole-course `loadCourseData`.
+  //
+  // That function fetched the ENTIRE course (every node's pedagogy) for two
+  // jobs its callers do together: read ONE node's content, and rebuild the
+  // sidebar when the structure changed. coursesData.ts already ships a
+  // purpose-built endpoint for each — this is the split it describes.
+  //
+  //   • loadNodePedagogy — the selected node's pedagogy/testConfiguration,
+  //     a few KB instead of ~900 KB.
+  //   • loadCourseLight  — the tree skeleton, same entry the page already
+  //     reads at mount, so it is normally a cache hit costing nothing.
+  //
+  // Both keep the old `fresh` contract -- the next read is a real fetch, used
+  // after an upload / delete / batch switch -- but spell it with staleTime 0
+  // rather than removeQueries. Dropping the entry ALSO aborted whatever fetch
+  // was already in flight for that key, so a plain overlap (the node-click read
+  // and the batch-settle re-read landing together) rejected the first caller
+  // with CancelledError. staleTime 0 forces the network read and dedupes
+  // against an in-flight one instead of killing it, so both callers get data.
+  // The batch is part of both keys (getActiveBatchId is baked into them by
+  // coursesData.ts), so batch 1 and batch 2 never share an entry.
+
+  // getNodePedagogy has no notion of the course root. The old code had the
+  // same hole — `findInFresh` only walked modules/submodules/topics/subtopics,
+  // so a selected course node fell through to refreshContentData. Returning
+  // null here reproduces that exactly.
+  const nodePedagogyType = (
+    t: CourseNode["type"],
+  ): "module" | "submodule" | "topic" | "subtopic" | null =>
+    t === "module" || t === "submodule" || t === "topic" || t === "subtopic" ? t : null;
+
+  const loadNodePedagogy = useCallback(
+    async (node: CourseNode, opts?: { fresh?: boolean }): Promise<any | null> => {
+      const type = nodePedagogyType(node.type);
+      if (!type) return null;
+      const spec = courseDataApi.getNodePedagogy(type, node.id);
+      const res = await queryClient.fetchQuery({
+        ...spec,
+        staleTime: opts?.fresh ? 0 : NODE_PEDAGOGY_STALE_MS,
+        gcTime: NODE_PEDAGOGY_GC_MS,
+      });
+      return res?.data ?? null;
+    },
+    [queryClient],
+  );
+
+  const loadCourseLight = useCallback(
+    async (opts?: { fresh?: boolean }): Promise<any> => {
+      const spec = courseDataApi.getLight(courseId || "");
+      return queryClient.fetchQuery({
+        ...spec,
+        staleTime: opts?.fresh ? 0 : COURSE_LIGHT_STALE_MS,
+        gcTime: COURSE_LIGHT_GC_MS,
+      });
+    },
+    [courseId, queryClient],
+  );
 
   const fetchAndRefresh = useCallback(async (node: CourseNode) => {
-    const fetchKey = `${node.id}`;
+    // The batch belongs in the key. Keyed by node alone, a read still in flight
+    // for the batch the user just left blocked the read for the batch they just
+    // picked — the switch silently did nothing and the list stayed empty.
+    const startedForBatch = getActiveBatchId();
+    const fetchKey = `${node.id}:${startedForBatch}`;
     if (isFetchingRef.current === fetchKey) return;
     isFetchingRef.current = fetchKey;
 
@@ -1447,102 +1747,85 @@ const refreshContentData = useCallback(async (node: CourseNode, backendData?: an
     setIsContentLoading(true);
 
     try {
-      // ── Why this got rewritten ──
-      // Previously this called `GET /getAll/courses-data/{courseId}` and
-      // walked the entire returned tree just to find one node's pedagogy.
-      // That endpoint returns the FULL course payload + every student's
-      // submission history → multi-MB response + a heavy
-      // `JSON.stringify`-based diff. We now hit the targeted
-      // `/getAll/courses-data/node-pedagogy/{type}/{id}` endpoint which
-      // returns only this node's pedagogy + testConfiguration. The tree
-      // skeleton lives in the React Query `course-light` cache from the
-      // initial page load — unchanged.
-      const BASE_URL = "https://lms-server-ym1q.onrender.com";
-      const token = typeof window !== "undefined" ? localStorage.getItem("smartcliff_token") : null;
+      // `fresh`: this path runs after a change (upload, delete, batch switch),
+      // so the cached copies are known to be out of date.
+      const nodePedagogy = await loadNodePedagogy(node, { fresh: true });
 
-      // Tree node types are `course | module | submodule | topic | subtopic`.
-      // The slim endpoint accepts the last four. A course-level node has no
-      // pedagogy of its own — fall back to re-processing whatever we already
-      // have.
-      const ALLOWED_TYPES = new Set(["module", "submodule", "topic", "subtopic"]);
-      if (!ALLOWED_TYPES.has(node.type)) {
+      // The user may have switched batches again while this was in flight.
+      // Applying it now would paint the previous batch's material over theirs.
+      if (getActiveBatchId() !== startedForBatch) return;
+
+      if (nodePedagogy) {
+        // Overlay the fresh pedagogy on the node's existing structural fields
+        // — the node-pedagogy endpoint returns only the content half.
+        const merged = { ...(node.originalData || {}), ...nodePedagogy };
+        const freshNode: CourseNode = { ...node, originalData: merged };
+
+        const nodeChanged = JSON.stringify(node.originalData) !== JSON.stringify(merged);
+
+        if (nodeChanged) {
+          // Structure comes from the light entry, which the page already holds
+          // — normally a cache hit, and a few KB when it is not.
+          const light = await loadCourseLight({ fresh: true });
+          if (light?.data) setCourseData(transformToCourseNodes(light.data));
+          setSelectedNode(freshNode);
+        }
+
+        await refreshContentData(freshNode);
+      } else {
         await refreshContentData(node);
-        setInitialLoadComplete(true);
-        return;
       }
-
-      const nodeRes = await fetch(
-        `${BASE_URL}/getAll/courses-data/node-pedagogy/${node.type}/${node.id}`,
-        {
-          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        },
-      );
-
-      if (!nodeRes.ok) {
-        await refreshContentData(node);
-        return;
-      }
-
-      const nodeJson = await nodeRes.json();
-      const freshNodeData = nodeJson?.data;
-      if (!freshNodeData) {
-        await refreshContentData(node);
-        return;
-      }
-
-      // Merge into existing originalData so we preserve any sibling fields
-      // (counts, dates, etc.) the slim endpoint didn't ship back. Only
-      // pedagogy + testConfiguration are authoritative from this response.
-      const mergedOriginalData = {
-        ...(node.originalData || {}),
-        pedagogy: freshNodeData.pedagogy,
-        ...(freshNodeData.testConfiguration !== undefined
-          ? { testConfiguration: freshNodeData.testConfiguration }
-          : {}),
-      };
-      const freshNode: CourseNode = { ...node, originalData: mergedOriginalData };
-
-      // Cheap pedagogy-only diff. Previously we stringified the entire node
-      // (folders + files + AI notes + …) — orders of magnitude bigger than
-      // just the pedagogy section, and ran on every fetchAndRefresh call
-      // from ~20+ sites. Stringifying only pedagogy keeps the change-detect
-      // accurate without the main-thread stall.
-      const oldPed = JSON.stringify(node.originalData?.pedagogy ?? null);
-      const newPed = JSON.stringify(freshNodeData.pedagogy ?? null);
-      const nodeChanged = oldPed !== newPed;
-
-      if (nodeChanged) {
-        setSelectedNode(freshNode);
-        // Patch the same node inside the tree so subsequent lookups via
-        // courseData see the fresh pedagogy too.
-        setCourseData((prev) => patchNodeOriginalDataInTree(prev, node.id, mergedOriginalData));
-      }
-
-      await refreshContentData(freshNode);
 
       setInitialLoadComplete(true);
-    } catch (err) {
+    } catch (err: any) {
+      // The same benign race fetchAndCacheNodeData guards against, seen from
+      // the other side. A cancelled read (unmount, a cache reset on batch
+      // switch) means this node is no longer the one to paint, or another path
+      // is already fetching it. Falling back would duplicate that work and log
+      // a scary error for a normal overlap.
+      if (err?.name === "CancelledError" || err?.silent) return;
       console.error("fetchAndRefresh error:", err);
       await refreshContentData(node);
     } finally {
       setIsContentLoading(false);
       isFetchingRef.current = null;
     }
-  }, [refreshContentData]);
+  }, [courseId, refreshContentData, loadNodePedagogy, loadCourseLight]);
+
+  // ── Re-read the open node when the batch changes ────────────────────────────
+  //
+  // Switching batches empties the content caches, but nothing was refetching
+  // afterwards: `selectNode` only runs on a click and returns early for the node
+  // already selected. So the tree stayed on screen while its resource list went
+  // blank and stayed blank — which is what "switch to batch 2, switch back to
+  // batch 1, nothing shows" was. The node is re-read here instead, through the
+  // now batch-aware `fetchAndRefresh`.
+  const lastBatchRef = useRef<string | null>(null);
+  useEffect(() => {
+    // Skip the first settle — the initial load already fetched this batch.
+    if (lastBatchRef.current === null) {
+      lastBatchRef.current = activeBatchId;
+      return;
+    }
+    if (lastBatchRef.current === activeBatchId) return;
+    lastBatchRef.current = activeBatchId;
+    if (selectedNode) fetchAndRefresh(selectedNode);
+  }, [activeBatchId, selectedNode, fetchAndRefresh]);
 
   const generateBreadcrumbs = useCallback((node: CourseNode | null): BreadcrumbItem[] => {
-    const base: BreadcrumbItem[] = [{ label: "Dashboard", type: "dashboard", id: "dashboard", path: "/lms/pages/dashboard" }, { label: "Courses", type: "courses", id: "courses", path: "/lms/pages/courses" }];
+    const base: BreadcrumbItem[] = [{ label: "Dashboard", type: "dashboard", id: "dashboard", path: "/lms/pages/dashboard" }, { label: parentSection.label, type: "courses", id: "courses", path: parentSection.href }];
     if (!node || !courseData.length) return base;
     const findPath = (nodes: CourseNode[], id: string, path: CourseNode[] = []): CourseNode[] | null => { for (const n of nodes) { if (n.id === id) return [...path, n]; const found = findPath(n.children || [], id, [...path, n]); if (found) return found; } return null; };
     const nodePath = findPath(courseData, node.id);
     if (!nodePath) return [...base, { label: courseStructureResponse?.data?.courseName || "Course", type: "course", id: courseId || "" }];
     return [...base, { label: courseStructureResponse?.data?.courseName || "Course", type: "course", id: nodePath.find((n) => n.type === "course")?.id || courseId || "" }, ...nodePath.filter((n) => n.type !== "course").map((n) => ({ label: n.name, type: n.type, id: n.id }))];
-  }, [courseData, courseStructureResponse, courseId]);
+  }, [courseData, courseStructureResponse, courseId, parentSection.href, parentSection.label]);
 
 
 
   const fetchAndCacheNodeData = useCallback(async (node: CourseNode) => {
     const nodeId = node.id;
+    const startedForBatch = getActiveBatchId();
 
     // Prevent multiple simultaneous fetches for the same node
     if (loadingNodes.has(nodeId)) return;
@@ -1551,65 +1834,53 @@ const refreshContentData = useCallback(async (node: CourseNode, backendData?: an
     setIsContentLoading(true);
 
     try {
-      // Same migration as `fetchAndRefresh` — use the targeted node-pedagogy
-      // endpoint instead of re-downloading the whole course. See the long
-      // comment in `fetchAndRefresh` for the rationale.
-      const BASE_URL = "https://lms-server-ym1q.onrender.com";
-      const token = typeof window !== "undefined" ? localStorage.getItem("smartcliff_token") : null;
+      // Node SELECTION — the cached copy is exactly what we want. Within
+      // `staleTime` this resolves with no network call, so moving between nodes
+      // and between I Do / We Do / You Do is instant. It now reads only THIS
+      // node's pedagogy rather than re-downloading the whole course.
+      const nodePedagogy = await loadNodePedagogy(node);
 
-      const ALLOWED_TYPES = new Set(["module", "submodule", "topic", "subtopic"]);
-      if (!ALLOWED_TYPES.has(node.type)) {
+      // Batch switched while this was in flight — dropping it is correct; the
+      // switch has already queued a read for the batch now on screen.
+      if (getActiveBatchId() !== startedForBatch) return;
+
+      if (nodePedagogy) {
+        // Overlay the fresh pedagogy on the node's existing structural fields.
+        const merged = { ...(node.originalData || {}), ...nodePedagogy };
+        const freshNode: CourseNode = { ...node, originalData: merged };
+
+        // Check if node content changed
+        const nodeChanged = JSON.stringify(node.originalData) !== JSON.stringify(merged);
+
+        if (nodeChanged) {
+          // Only re-select — no tree rebuild here. This is the plain
+          // node-CLICK path, which cannot change the course structure;
+          // structural changes arrive through fetchAndRefresh below, which
+          // does rebuild. Rebuilding here also had both paths racing on the
+          // light entry, which surfaced as a CancelledError and dropped this
+          // fetch into its fallback.
+          setSelectedNode(freshNode);
+        }
+
+        // Process and cache the content data
+        const processedContent = await processNodeContent(freshNode);
+
+        // Store in both caches
+        setCachedContentData(prev => ({ ...prev, [node.id]: processedContent }));
+        setContentData(prev => ({ ...prev, [node.id]: processedContent }));
+
+      } else {
         await refreshContentData(node);
-        setInitialLoadComplete(true);
-        return;
       }
-
-      const nodeRes = await fetch(
-        `${BASE_URL}/getAll/courses-data/node-pedagogy/${node.type}/${node.id}`,
-        {
-          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        },
-      );
-
-      if (!nodeRes.ok) {
-        await refreshContentData(node);
-        return;
-      }
-
-      const nodeJson = await nodeRes.json();
-      const freshNodeData = nodeJson?.data;
-      if (!freshNodeData) {
-        await refreshContentData(node);
-        return;
-      }
-
-      // Merge into existing skeleton originalData, then process pedagogy.
-      const mergedOriginalData = {
-        ...(node.originalData || {}),
-        pedagogy: freshNodeData.pedagogy,
-        ...(freshNodeData.testConfiguration !== undefined
-          ? { testConfiguration: freshNodeData.testConfiguration }
-          : {}),
-      };
-      const freshNode: CourseNode = { ...node, originalData: mergedOriginalData };
-
-      const oldPed = JSON.stringify(node.originalData?.pedagogy ?? null);
-      const newPed = JSON.stringify(freshNodeData.pedagogy ?? null);
-      const nodeChanged = oldPed !== newPed;
-
-      if (nodeChanged) {
-        setSelectedNode(freshNode);
-        setCourseData((prev) => patchNodeOriginalDataInTree(prev, node.id, mergedOriginalData));
-      }
-
-      // Process and cache the content data — pedagogy is now ready on
-      // `freshNode.originalData`, so this is just the local processing pass.
-      const processedContent = await processNodeContent(freshNode);
-      setCachedContentData(prev => ({ ...prev, [node.id]: processedContent }));
-      setContentData(prev => ({ ...prev, [node.id]: processedContent }));
 
       setInitialLoadComplete(true);
-    } catch (err) {
+    } catch (err: any) {
+      // A CancelledError here is not a failure: the batch-settle re-read
+      // (fetchAndRefresh) dropped this node's entry with `fresh` while this
+      // read was in flight, so it is already fetching the same node and will
+      // set the content itself. Falling back would duplicate that work and
+      // log a scary error for a benign race.
+      if (err?.name === "CancelledError" || err?.silent) return;
       console.error("fetchAndCacheNodeData error:", err);
       await refreshContentData(node);
     } finally {
@@ -1620,10 +1891,7 @@ const refreshContentData = useCallback(async (node: CourseNode, backendData?: an
         return newSet;
       });
     }
-  // `courseId` is no longer referenced inside this callback (the slim
-  // node-pedagogy endpoint is keyed by node id + type, not course id), so
-  // it's dropped from the dep array. `loadingNodes` remains.
-  }, [loadingNodes]);
+  }, [courseId, loadingNodes, loadNodePedagogy]);
 
   const selectNode = useCallback(async (node: CourseNode) => {
     // Prevent duplicate selections
@@ -1662,6 +1930,23 @@ const refreshContentData = useCallback(async (node: CourseNode, backendData?: an
         [node.id]: cachedContentData[node.id]
       }));
       setIsContentLoading(false);
+      // The tree node comes from the LIGHT course payload, which carries no
+      // pedagogy — but CourseContent renders the page rows from
+      // selectedNode.originalData.pedagogy. Without re-attaching it here, the
+      // cached path selected a pedagogy-less node and every created page
+      // disappeared from the list (while the count badge, fed by contentData,
+      // still counted them). loadNodePedagogy is a React Query cache hit
+      // within staleTime, so this is free in the common case.
+      loadNodePedagogy(node)
+        .then((nodePedagogy) => {
+          if (!nodePedagogy) return;
+          setSelectedNode((prev) =>
+            prev && prev.id === node.id
+              ? { ...prev, originalData: { ...(prev.originalData || {}), ...nodePedagogy } }
+              : prev
+          );
+        })
+        .catch(() => { /* content already painted from cache — never block on this */ });
     } else {
       // Fetch fresh data
       await fetchAndCacheNodeData(node);
@@ -1671,7 +1956,7 @@ const refreshContentData = useCallback(async (node: CourseNode, backendData?: an
     if (node.type === "topic" || node.type === "subtopic") {
       updateURL({ nodeId: node.id, activeTab, activeSubcategory });
     }
-  }, [courseData, selectedNode, activeTab, activeSubcategory, subcategories, findPathToNode, generateBreadcrumbs, cachedContentData]);
+  }, [courseData, selectedNode, activeTab, activeSubcategory, subcategories, findPathToNode, generateBreadcrumbs, cachedContentData, loadNodePedagogy]);
 
 
   const getParentNodeName = useCallback((node: CourseNode, targetType: string): string => {
@@ -1774,7 +2059,7 @@ const navigateToFolder = useCallback((folderId: string, folderName: string) => {
       });
       await fetchAndRefresh(selectedNode);
       // No success toast here — callers (modal, folder builder) show their own consolidated toast.
-    } catch { showErrorToast("Failed to create folder"); }
+    } catch (error) { throw error; }
   };
 
   // ── Folder Builder helpers ───────────────────────────────────────────────────
@@ -2118,7 +2403,14 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
   };
 
   /** Add files at current nav level. Same routing rules as addVirtualFolder. */
-  const fbAddFilesHere = (files: File[]) => {
+  const fbAddFilesHere = (incoming: File[]) => {
+    // Same gate as the Upload Files modal — the Folder Builder is just another
+    // way into the same course, so it can't accept a format the course didn't
+    // enable, or a file over that type's size limit.
+    const { allowed: files, blockedMessage } = partitionFiles(incoming, uploadFileRules);
+    if (blockedMessage) showErrorToast(blockedMessage);
+    if (!files.length) return;
+
     const toAdd = files.map(fbMakeVFF);
 
     if (fbNavPath.length === 0) {
@@ -2613,7 +2905,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
     setUploadDescription("");
     setUploadTags([]);
     setUploadCurrentTag("");
-    setUploadTagColor("#3B82F6");
+    setUploadTagColor("#FB923C");
     setUploadAccessLevel("private");
     setFolderUrl("");
     setUrlFileName("");
@@ -2623,8 +2915,22 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
     setFileDisplayNames({});
     setReferenceDisplayName("Reference Material"); // ← add this
   };
-  const handleFileSelection = (files: FileList | null) => {
-    if (!files?.length) return;
+  const handleFileSelection = (rawFiles: FileList | null) => {
+    if (!rawFiles?.length) return;
+
+    // This modal is scoped to one chosen type, so it validates against that
+    // type alone — picking "PDF" and dropping a .mp4 is wrong even when the
+    // course also enabled Video, and a 3.5 MB file is wrong when PDF is capped
+    // at 3 MB. Types with no format rule (reference, which accepts anything)
+    // pass through untouched.
+    let files: File[] = Array.from(rawFiles);
+    if (TYPE_FILE_RULES[selectedFileType]) {
+      const rules = buildAllowedRules([selectedFileType], uploadMaxSizeByType);
+      const { allowed, blockedMessage } = partitionFiles(files, rules);
+      if (blockedMessage) showErrorToast(blockedMessage);
+      if (!allowed.length) return;
+      files = allowed;
+    }
 
     if (updateFileId) {
       // UPDATE MODE — replace existing selection with new file
@@ -2809,7 +3115,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
     } catch (err: any) {
       setUploadingFiles((prev) => prev.map((f) => f.status === "uploading" ? { ...f, status: "error" } : f));
       setIsButtonLoading(false);
-      const _msg = axios.isAxiosError(err) ? (typeof err.response?.data?.message === "string" ? err.response?.data?.message : JSON.stringify(err.response?.data ?? err.message)) : (err?.message || String(err));
+      const _msg = getUploadErrorMessage(err);
       showErrorToast(`Upload failed: ${_msg}`);
     }
   };
@@ -2951,7 +3257,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
         const msg = axios.isAxiosError(err)
           ? (typeof err.response?.data?.message === "string" ? err.response?.data?.message : JSON.stringify(err.response?.data ?? err.message))
           : (err?.message || String(err));
-        showErrorToast(`Update failed: ${msg}`);
+        throw new Error(getUploadErrorMessage(err));
       }
       setUpdateFileId(null);
       clearUploadModalEditState();
@@ -2983,7 +3289,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
             },
           );
         } catch (err: any) {
-          showErrorToast(`Rename failed: ${axios.isAxiosError(err) ? err.response?.data?.message : err.message}`);
+          throw new Error(getUploadErrorMessage(err));
         }
       }
       // 2. Apply any pending deletions of files inside this folder.
@@ -3068,12 +3374,11 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
     renamed.forEach(f => formData.append("files", f));
 
     try {
-      const response = await uploadResourceMutation.mutateAsync({
-        entityType: selectedNode.type as any,
-        entityId: selectedNode.id,
-        courseId: courseId || "",
+      const response = await entityApi.updateEntity(
+        selectedNode.type as any,
+        selectedNode.id,
         formData,
-        onProgress: onProgress
+        onProgress
           ? (evt) => {
             if (evt.total) {
               const pct = Math.min(Math.round((evt.loaded / evt.total) * 100), 98);
@@ -3081,19 +3386,15 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
             }
           }
           : undefined,
-      }) as { data?: unknown } | undefined;
-      if (response && (response as { data?: unknown }).data) {
+      );
+      if (response.data) {
         onProgress?.(100);
         await fetchAndRefresh(selectedNode);
         // No success toast here — the modal already showed a single optimistic toast before closing.
       }
     } catch (err: any) {
-      // Surface a retryable error — mutation state already cleared isPending,
-      // so the modal's submit becomes available again automatically.
-      const msg = axios.isAxiosError(err)
-        ? (typeof err.response?.data?.message === "string" ? err.response?.data?.message : JSON.stringify(err.response?.data ?? err.message))
-        : (err?.message || String(err));
-      showErrorToast(`Upload failed: ${msg}. Tap upload again to retry.`);
+      // The modal owns failure state and must not treat this request as saved.
+      throw new Error(getUploadErrorMessage(err));
     }
   };
 
@@ -3434,7 +3735,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
     return images;
   };
   const extractFileNameFromUrl = (url: string) => { try { return decodeURIComponent(url).split("/").pop()?.split("?")[0] || "link"; } catch { return "link"; } };
-  const addTag = async (name: string, color: string = "#3B82F6") => { if (!name || folderTags.some((t) => t.tagName === name)) return; setLoading(true); setSuccess(false); await new Promise((r) => setTimeout(r, 500)); setFolderTags((prev) => [...prev, { tagName: name, tagColor: color }]); setCurrentTag(""); setLoading(false); setSuccess(true); };
+  const addTag = async (name: string, color: string = "#FB923C") => { if (!name || folderTags.some((t) => t.tagName === name)) return; setLoading(true); setSuccess(false); await new Promise((r) => setTimeout(r, 500)); setFolderTags((prev) => [...prev, { tagName: name, tagColor: color }]); setCurrentTag(""); setLoading(false); setSuccess(true); };
   const removeTag = (i: number) => setFolderTags((prev) => prev.filter((_, idx) => idx !== i));
   const addUploadTag = async (name: string, color: string) => { if (!name || uploadTags.some((t) => t.tagName === name)) return; setUploadTags((prev) => [...prev, { tagName: name, tagColor: color }]); setUploadCurrentTag(""); };
   const removeUploadTag = (i: number) => setUploadTags((prev) => prev.filter((_, idx) => idx !== i));
@@ -3495,27 +3796,31 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
     }
   }, [courseStructureResponse?.data]);
 
-  // ── Auto-select: first module → deepest leaf, I Do, first subcategory ─────────
+  // ── Auto-select: first module → deepest leaf, first section, first subcategory ─────
   const hasAutoSelected = useRef(false);
   useEffect(() => {
+    // Skip auto-select entirely when the URL already tells us where to go —
+    // otherwise this fires first and slams the tab to I Do, and the later
+    // URL-restore useEffect's setState can lose the race in some renders.
+    // fromAnalytics = Back from reviewSubmission with a preserved tab.
+    // nodeId       = deep-linked node from a notification / return URL.
+    if (typeof window !== "undefined") {
+      const sp = new URLSearchParams(window.location.search);
+      if (sp.get("fromAnalytics") === "true" || sp.get("nodeId")) return;
+    }
+    // The section to land on is the first the course configured -- a course with
+    // no I Do activities but some We Do ones used to fail this guard outright
+    // and never auto-select at all.
+    const firstTab = (["I_Do", "We_Do", "You_Do"] as const)
+      .find((t) => subcategories[t].length > 0);
+
     // Only run once, after courseData and subcategories are ready, and no node selected yet
     if (
       hasAutoSelected.current ||
       !courseData.length ||
       selectedNode ||
-      !subcategories.I_Do.length
+      !firstTab
     ) return;
-
-    // If the caller (analytics page / liveDashboard back button) asked us to
-    // restore the previous selection from localStorage, skip the auto-select
-    // entirely — the fromAnalytics effect below will set the node/tab/sub.
-    // Without this bail, auto-select fires first in the same commit cycle and
-    // wastes a render setting the wrong node + isContentLoading=true.
-    if (typeof window !== "undefined" &&
-        new URLSearchParams(window.location.search).get("fromAnalytics") === "true") {
-      hasAutoSelected.current = true;
-      return;
-    }
 
     // Helper: walk down first child at each level until no more children
     const getDeepestFirstLeaf = (node: CourseNode): CourseNode => {
@@ -3541,11 +3846,11 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
       });
     }
 
-    // Set tab → I Do, subcategory → first one
-    const firstSub = subcategories.I_Do[0];
-    setActiveTabPersistent("I_Do");
+    // Set tab → first configured section, subcategory → its first one
+    const firstSub = subcategories[firstTab][0];
+    setActiveTabPersistent(firstTab);
     setActiveSubcategoryPersistent(firstSub?.key ?? "");
-    updateURL({ activeTab: "I_Do", activeSubcategory: firstSub?.key ?? "" });
+    updateURL({ activeTab: firstTab, activeSubcategory: firstSub?.key ?? "" });
 
     // Select the node — also flip isNodeSelected so the welcome screen hides
     setIsNodeSelected(true);
@@ -3555,36 +3860,151 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
     updateNavState({ currentFolderPath: [], currentFolderId: null });
   }, [courseData, selectedNode, subcategories, findPathToNode, generateBreadcrumbs]);
 
-  useEffect(() => { setBreadcrumbs(generateBreadcrumbs(selectedNode)); }, [selectedNode, courseData, generateBreadcrumbs]);
+  // A section with no configured activities is no longer rendered as a tab (see
+  // TabBar in Coursecontent), but `activeTab` can still arrive pointing at one:
+  // from the URL on a deep link, or from the tab this browser remembered for a
+  // course whose activities have since changed. That left the pane stuck on
+  // "Select an Activity" with no tab on screen to click away from. Land on the
+  // first section the course actually configured instead.
   useEffect(() => {
-    if (selectedNode && !contentData[selectedNode.id]) {
-      fetchAndRefresh(selectedNode);
+    if (!activeTab) return;
+    const available = (["I_Do", "We_Do", "You_Do"] as const)
+      .filter((t) => subcategories[t].length > 0);
+    if (!available.length || available.includes(activeTab)) return;
+    const fallback = available[0];
+    const firstSub = subcategories[fallback][0];
+    setActiveTabPersistent(fallback);
+    setActiveSubcategoryPersistent(firstSub?.key ?? "");
+    updateURL({ activeTab: fallback, activeSubcategory: firstSub?.key ?? "" });
+  }, [activeTab, subcategories]);
+
+  useEffect(() => { setBreadcrumbs(generateBreadcrumbs(selectedNode)); }, [selectedNode, courseData, generateBreadcrumbs]);
+  // Warm the ACTIVE section's list while the node's own content loads. Both
+  // requests run in parallel behind the pane's single ring loader
+  // (nodeWarmupId); when they settle, the section components mount onto a
+  // warm React Query cache and paint their data (or empty state) instantly —
+  // no second "Loading Assignment… / Loading Assessment…" pass.
+  const prefetchActiveSectionList = useCallback(async (node: CourseNode) => {
+    try {
+      if (!activeTab || !activeSubcategory) return;
+      const entityType = toExerciseEntityType(node.type);
+      if (activeTab === "You_Do" && activeSubcategory === "assesment") {
+        await queryClient.prefetchQuery(youDoExercisesQuery({
+          entityType,
+          entityId: node.id,
+          tabType: "You_Do",
+          subcategory: activeSubcategory,
+          batchId: activeBatchId,
+        }));
+      } else if (activeTab === "You_Do" && activeSubcategory === "test_your_skills") {
+        await queryClient.prefetchQuery({
+          queryKey: testYourSkillsQueryKey(node.type, node.id),
+          queryFn: () => fetchTestYourSkillsQuestions(node.type, node.id),
+          staleTime: 30 * 1000,
+        });
+      } else if (activeTab === "We_Do" || (activeTab === "You_Do" && activeSubcategory === "self_work")) {
+        // Warm page 1 of the server-paginated list, at the page size the
+        // component will mount with (module-scope memory) and no filters —
+        // exactly the key its first render computes, so it's a cache hit.
+        const pageArgs = {
+          page: 1,
+          limit: getLastProblemSolvingPageSize(),
+          search: '',
+          exerciseType: '',
+          status: '',
+        };
+        const pageData = await fetchProblemSolvingPage(node.type, node.id, activeTab, activeSubcategory, pageArgs);
+        queryClient.setQueryData(
+          problemSolvingPageKey(
+            { nodeType: node.type, nodeId: node.id, activeTab, subcategory: activeSubcategory, courseId },
+            pageArgs,
+          ),
+          pageData,
+        );
+      }
+    } catch { /* section falls back to its own loader — never block the pane */ }
+  }, [activeTab, activeSubcategory, activeBatchId, courseId, queryClient]);
+
+  useEffect(() => {
+    if (selectedNode && !isRestoringFromAnalytics && !contentData[selectedNode.id]) {
+      const warmId = selectedNode.id;
+      setNodeWarmupId(warmId);
+      Promise.allSettled([
+        fetchAndRefresh(selectedNode),
+        prefetchActiveSectionList(selectedNode),
+      ]).finally(() => setNodeWarmupId(prev => (prev === warmId ? null : prev)));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedNode?.id]); // Only depends on node ID, not the whole object
   useEffect(() => {
     if (!courseData.length) return;
 
+    // ONE-SHOT restore. This effect re-runs whenever `courseData` changes —
+    // and fetchAndRefresh rebuilds courseData from the LIGHT payload after
+    // every upload / page create / delete. With `nodeId` still in the URL,
+    // each re-run re-selected the light tree node (which carries NO pedagogy),
+    // clobbering the pedagogy-laden selectedNode that fetchAndRefresh had just
+    // set — so freshly created pages vanished from the list while the count
+    // badge (fed by contentData) still counted them. The URL restore is a
+    // mount-time concern: apply it once when courseData first arrives, never
+    // on refreshes.
+    if (urlRestoreDoneRef.current) return;
+    urlRestoreDoneRef.current = true;
+
     const params = new URLSearchParams(window.location.search);
+
+    // Direct deep-link via URL params (e.g. from a rejection notification):
+    // `nodeId`, `activeTab`, `activeSubcategory` in the URL take precedence
+    // over the localStorage remembered tab/node. The `highlightExerciseId`
+    // param is consumed inside Assessment.tsx; we don't need to touch it here.
+    const urlNodeId = params.get("nodeId");
+    const urlActiveTab = params.get("activeTab") as "I_Do" | "We_Do" | "You_Do" | null;
+    const urlActiveSub = params.get("activeSubcategory");
+    if (urlNodeId) {
+      const findNode = (nodes: CourseNode[]): CourseNode | null => {
+        for (const n of nodes) {
+          if (n.id === urlNodeId) return n;
+          const found = findNode(n.children || []);
+          if (found) return found;
+        }
+        return null;
+      };
+      const target = findNode(courseData);
+      if (target) {
+        setSelectedNodePersistent(target);
+        const path = findPathToNode(courseData, urlNodeId);
+        if (path) {
+          setExpandedNodes((prev) => {
+            const n = new Set(prev);
+            path.forEach((id) => n.add(id));
+            return n;
+          });
+        }
+        if (urlActiveTab) setActiveTabPersistent(urlActiveTab);
+        if (urlActiveSub) setActiveSubcategoryPersistent(urlActiveTab === "You_Do" ? canonYouDoSubKey(urlActiveSub) : urlActiveSub);
+      }
+    }
+
     if (params.get("fromAnalytics") === "true") {
-      // Synchronously mark auto-select as done so even if React runs the
-      // auto-select effect later in this commit (or on the next courseData
-      // change) it short-circuits and doesn't fight us.
-      hasAutoSelected.current = true;
+      setIsRestoringFromAnalytics(true);
 
-      // NOTE: do NOT clean `fromAnalytics` from the URL here. In React 18
-      // Strict Mode (dev) the component mounts → unmounts → remounts. If we
-      // strip the flag on the first mount, the second mount's `useState`
-      // lazy initializer reads a clean URL, isRestoringSelection seeds to
-      // false, and the full-page overlay never shows on subsequent mounts.
-      // The URL is cleaned in the "Clear restore overlay" effect below,
-      // AFTER the restore has visibly completed.
+      const cleanUrl = new URL(window.location.href);
+      cleanUrl.searchParams.delete("fromAnalytics");
+      window.history.replaceState({}, "", cleanUrl.toString());
 
+      // URL params win when present — the review Back handler promotes
+      // sourceTab/sourceSubcategory into activeTab/activeSubcategory
+      // precisely so the trainer returns to their original tab. Only fall
+      // back to the last-remembered localStorage tab when the URL is silent.
       const storedTab = getLS("lms_selected_tab") as "I_Do" | "We_Do" | "You_Do" | null;
       const storedSub = getLS("lms_selected_subcategory");
       const storedId = getLS("lms_selected_node_id");
 
-      if (storedTab) setActiveTabPersistent(storedTab);
-      if (storedSub) setActiveSubcategoryPersistent(storedSub);
+      const effectiveTab = (urlActiveTab as "I_Do" | "We_Do" | "You_Do" | null) || storedTab;
+      const effectiveSub = urlActiveSub || storedSub;
+
+      if (effectiveTab) setActiveTabPersistent(effectiveTab);
+      if (effectiveSub) setActiveSubcategoryPersistent(effectiveTab === "You_Do" ? canonYouDoSubKey(effectiveSub) : effectiveSub);
 
       if (storedId) {
         const findNode = (nodes: CourseNode[]): CourseNode | null => {
@@ -3598,17 +4018,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
 
         const found = findNode(courseData);
         if (found) {
-          // Mirror what auto-select does so the content area renders the
-          // restored node instead of the "Welcome to Your Course" card:
-          //   - isNodeSelected = true → hides the welcome card
-          //   - isContentLoading = true → shows the spinner (not welcome)
-          //     while fetchAndRefresh is in flight for this node
-          //   - breadcrumbs / nav state reset like a fresh node selection
-          setIsNodeSelected(true);
-          setIsContentLoading(true);
           setSelectedNodePersistent(found);
-          setBreadcrumbs(generateBreadcrumbs(found));
-          updateNavState({ currentFolderPath: [], currentFolderId: null });
           const path = findPathToNode(courseData, storedId);
           if (path) {
             setExpandedNodes((prev) => {
@@ -3617,95 +4027,12 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
               return n;
             });
           }
-          // Hot-cache shortcut: if this node was loaded earlier in the same
-          // session we already have its processed content. Hydrate
-          // `contentData` synchronously so the fetchAndRefresh effect (which
-          // gates on `!contentData[selectedNode.id]`) skips the network
-          // round-trip entirely. The clear-overlay effect then fires on the
-          // next render — the user sees the spinner for one frame, not the
-          // full network round-trip duration.
-          if (cachedContentData[storedId]) {
-            setContentData((prev) => (
-              prev[storedId] ? prev : { ...prev, [storedId]: cachedContentData[storedId] }
-            ));
-            setIsContentLoading(false);
-          }
-        } else {
-          // Saved node is gone (deleted / different course). Don't strand the
-          // user on the full-page overlay — release auto-select to run, drop
-          // the overlay so the welcome / auto-selected view can show, and
-          // strip the URL flag so a refresh doesn't replay this branch.
-          hasAutoSelected.current = false;
-          setIsRestoringSelection(false);
-          const u = new URL(window.location.href);
-          u.searchParams.delete("fromAnalytics");
-          window.history.replaceState({}, "", u.toString());
         }
-      } else {
-        // No stored node id at all — same fallback as above.
-        hasAutoSelected.current = false;
-        setIsRestoringSelection(false);
-        const u = new URL(window.location.href);
-        u.searchParams.delete("fromAnalytics");
-        window.history.replaceState({}, "", u.toString());
       }
-      // No 300 ms timeout: fetchAndRefresh below will fire as soon as
-      // selectedNode.id flips and fetch immediately.
+
+      setTimeout(() => setIsRestoringFromAnalytics(false), 300);
     }
   }, [courseData]);
-
-  // Clear the full-page restore overlay only once EVERYTHING the user is
-  // about to see is ready to paint in one shot. Three conditions:
-  //   (a) Pedagogy / files / pages payload for the node is in `contentData`
-  //       (so CourseContent has its tree, breadcrumbs, etc.).
-  //   (b) If the restored tab is You_Do, the exercises list query has also
-  //       settled — so Assessment.tsx will paint rows immediately from the
-  //       shared React Query cache instead of showing its own internal
-  //       "Loading assessments..." spinner.
-  //   (c) (For other tabs / subcategories that own their own fetch we
-  //       currently only wait on (a). If you add similar prefetches for
-  //       I_Do / We_Do later, extend this same gate.)
-  //
-  // Without (b), the parent overlay was dismissing as soon as pedagogy
-  // arrived — leaving the user staring at a second small spinner inside
-  // CourseContent. That's the staggered reveal the user reported.
-  //
-  // We also strip `?fromAnalytics=true` from the URL HERE (not in the
-  // restore effect) so the flag survives React 18's Strict Mode double-mount
-  // — otherwise the second mount sees a clean URL and never shows the
-  // overlay. After this point a manual refresh will go through the normal
-  // auto-select path, as intended.
-  useEffect(() => {
-    if (!isRestoringSelection) return;
-    const contentReady = !!selectedNode && !!contentData[selectedNode.id];
-    if (!contentReady) return;
-    // Are we expected to wait on the YouDo exercises prefetch?
-    const exercisesReady =
-      !restoreShouldPrefetchExercises ||
-      isRestoreExercisesSuccess ||
-      isRestoreExercisesError ||
-      // `fetchStatus === "idle"` means the query is not in flight (e.g. it
-      // got disabled mid-flight) — don't wait on a query that isn't running.
-      restoreExercisesFetchStatus === "idle";
-    if (!exercisesReady) return;
-
-    setIsRestoringSelection(false);
-    if (typeof window !== "undefined") {
-      const cleanUrl = new URL(window.location.href);
-      if (cleanUrl.searchParams.has("fromAnalytics")) {
-        cleanUrl.searchParams.delete("fromAnalytics");
-        window.history.replaceState({}, "", cleanUrl.toString());
-      }
-    }
-  }, [
-    isRestoringSelection,
-    selectedNode?.id,
-    contentData,
-    restoreShouldPrefetchExercises,
-    isRestoreExercisesSuccess,
-    isRestoreExercisesError,
-    restoreExercisesFetchStatus,
-  ]);
 
   useEffect(() => {
     if (!isResizing) return;
@@ -3732,7 +4059,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
     retry: 1,
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
-    enabled: typeof window !== 'undefined' && !!localStorage.getItem("smartcliff_token"),
+    enabled: typeof window !== 'undefined' && !!getToken(),
   })
   const user = userData?.user || null
 
@@ -3778,11 +4105,17 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
     setIsLoggingOut(true)
     try {
       await postLogout()
-      localStorage.clear()
       toast.success("Logged out successfully")
+    } catch {
+      toast.error("Logout failed")
+    } finally {
+      // Outside the try: a failed postLogout used to leave the session intact,
+      // so "Logout failed" still left the user signed in. Clearing here also
+      // wipes sessionStorage, which localStorage.clear() alone left behind.
+      clearAllStorage()
       router.push("/login")
-    } catch { toast.error("Logout failed") }
-    finally { setIsLoggingOut(false) }
+      setIsLoggingOut(false)
+    }
   }
 
   const handleProfileClick = () => {
@@ -3799,7 +4132,9 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
       setOriginalRoleInfo({ roleName: user?.role?.roleName || '', renameRole: user?.role?.renameRole || '' })
       setShowUserMenu(false)
       toast.success("Switched to Student View")
-      router.push("/lms/pages/courses")
+      // Keep the course you were working on — the point of the preview is to
+      // see THIS course as the learner sees it, not the whole course list.
+      router.push(studentRouteForCurrentCourse())
       setTimeout(() => window.dispatchEvent(new Event('storage')), 100)
     } catch { toast.error("Failed to switch role") }
   }
@@ -3819,12 +4154,10 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
       setTimeout(() => window.dispatchEvent(new Event('storage')), 100)
     } catch { toast.error("Failed to switch role") }
   }
-  // Add this loading component inside your DynamicLMSCoordinator (before the return)
-  const LoadingSpinner = () => (
-    <div className="flex flex-col items-center justify-center h-full w-full" style={{ background: T.bg }}>
-      <Loading size="size-16" color="orange" label="Loading Course Content" />
-    </div>
-  );
+  // LoadingSpinner removed — the app-wide route-change loader covers the
+  // transition, and CourseContent renders its own "No content yet" empty
+  // state while data is in flight. No more full-area spinner sitting in the
+  // content pane after navigation.
 
   // Add the keyframes for the animation in your global styles
   const LoadingStyles = () => (
@@ -3837,7 +4170,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
   );
   if (!courseId) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: T.pageBg, fontFamily: "'Inter', -apple-system, sans-serif" }}>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: T.pageBg, fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif" }}>
         <div className="text-center p-8 rounded-2xl" style={{ background: T.bg, border: `1.5px solid ${T.border}`, boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
           <div className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: T.orangeLight }}>
             <BookOpen size={20} style={{ color: T.orange }} />
@@ -3868,34 +4201,11 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
     )
   }
 
-  // Full-page restore overlay: while we're hydrating selection + first
-  // content fetch on the back-from-liveDashboard path, render ONLY a
-  // centered spinner — no sidebar, no content panel. This avoids the
-  // staggered reveal the user complained about (sidebar appearing, then
-  // a content spinner, then the list popping in). Cleared by the effect
-  // above as soon as contentData[selectedNode.id] arrives.
-  if (isRestoringSelection) {
-    return (
-      <div
-        style={{
-          height: "100vh",
-          width: "100vw",
-          background: T.pageBg,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <Loading size="size-16" color="orange" label="Loading Course Content" />
-      </div>
-    );
-  }
-
   return (
     <>
       <style jsx global>{`
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap');
-        * { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+        * { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif; }
         ::-webkit-scrollbar { width: 4px; height: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background-color: ${T.border}; border-radius: 20px; }
@@ -3906,269 +4216,215 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
         .dark .ql-picker-options { background-color: #1f2937; border-color: #374151; }
         @keyframes animateIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
         .animate-in { animation: animateIn 0.3s ease-out; }
+        @keyframes ucLoaderSweep { 0% { transform: translateX(-45%); } 100% { transform: translateX(185%); } }
+        @keyframes ucLoaderPulse { 0%, 100% { opacity: .56; } 50% { opacity: 1; } }
+        @keyframes ucLoaderBreathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.045); } }
+        .uc-loader-mark {
+          width: 34px;
+          height: 34px;
+          border-radius: 10px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+          color: #fff;
+          background: linear-gradient(135deg, ${T.orange}, ${T.orangeDark});
+          box-shadow: 0 8px 18px ${T.orangeGlow};
+          animation: ucLoaderBreathe 1.7s ease-in-out infinite;
+        }
+        .uc-loader-progress {
+          position: relative;
+          width: min(220px, 34vw);
+          height: 8px;
+          border-radius: 999px;
+          overflow: hidden;
+          background: #F1F5F9;
+        }
+        .uc-loader-progress span {
+          position: absolute;
+          inset: 0;
+          width: 48%;
+          border-radius: inherit;
+          background: linear-gradient(90deg, rgba(232,100,12,0), ${T.orange}, rgba(232,100,12,0));
+          animation: ucLoaderSweep 1.15s ease-in-out infinite;
+        }
+        .uc-loader-pill,
+        .uc-loader-chip,
+        .uc-loader-line,
+        .uc-loader-icon,
+        .uc-loader-card,
+        .uc-loader-hero,
+        .uc-loader-table,
+        .uc-loader-side {
+          background: linear-gradient(90deg, #F4F6F8 0%, #EEF1F5 45%, #F8FAFC 75%, #F4F6F8 100%);
+          background-size: 220% 100%;
+          animation: ucLoaderPulse 1.4s ease-in-out infinite;
+        }
+        .uc-loader-pill { height: 30px; border-radius: 999px; }
+        .uc-loader-chip { width: 150px; height: 32px; border-radius: 10px; }
+        .uc-loader-line { height: 10px; border-radius: 999px; }
+        .uc-loader-line.w-20 { width: 20%; }
+        .uc-loader-line.w-40 { width: 40%; }
+        .uc-loader-line.w-45 { width: 45%; }
+        .uc-loader-line.w-55 { width: 55%; }
+        .uc-loader-line.w-70 { width: 70%; }
+        .uc-loader-icon { width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0; }
+        .uc-loader-icon.small { width: 28px; height: 28px; border-radius: 8px; }
+        .uc-loader-hero,
+        .uc-loader-card,
+        .uc-loader-table,
+        .uc-loader-side {
+          border: 1px solid ${T.border};
+          background-color: #fff;
+          border-radius: 16px;
+        }
+        .uc-loader-hero {
+          min-height: 142px;
+          padding: 22px;
+          display: grid;
+          align-content: center;
+          gap: 13px;
+        }
+        .uc-loader-card {
+          min-height: 118px;
+          padding: 16px;
+          display: grid;
+          align-content: center;
+          gap: 12px;
+        }
+        .uc-loader-table {
+          padding: 10px 14px;
+          display: grid;
+          gap: 4px;
+        }
+        .uc-loader-side {
+          padding: 16px;
+          display: grid;
+          align-content: start;
+          gap: 12px;
+        }
+        .uc-loader-row {
+          min-height: 46px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          border-bottom: 1px solid ${T.borderSoft};
+        }
+        .uc-loader-row:last-child { border-bottom: 0; }
+        .uc-loader-row.compact { min-height: 38px; }
+        @media (prefers-reduced-motion: reduce) {
+          .uc-loader-progress span,
+          .uc-loader-mark,
+          .uc-loader-pill,
+          .uc-loader-chip,
+          .uc-loader-line,
+          .uc-loader-icon,
+          .uc-loader-card,
+          .uc-loader-hero,
+          .uc-loader-table,
+          .uc-loader-side {
+            animation: none !important;
+          }
+        }
       `}</style>
 
+      {/* Shared trainer shell (admin-style navbar); this workspace page puts
+          the course syllabus in the shell's SIDEBAR SLOT — one left rail, not
+          the trainer menu plus a second syllabus panel. The navbar hamburger
+          collapses the syllabus to its 56px icon rail. */}
+      <StaffLayout
+        fullBleed
+        hideCornerBell /* the bell rides the I/We/You Do tab row instead */
+        sidebar={
+          /* FLAT on the gray canvas, exactly like every shell sidebar in the
+             app: no card wrapper, no border — the rail's own course card and
+             white active pills are the raised elements. Collapse/expand lives
+             on the rail itself, so no shell strip / onMenuToggle is needed,
+             and the breadcrumb moved inside the workspace panel. */
+          <div
+            className="relative flex flex-col h-full flex-shrink-0"
+            style={{
+              width: `${sidebarWidth}px`,
+              overflow: 'hidden',
+              transition: isResizing ? 'none' : 'width 0.2s ease',
+              fontFamily: "'Poppins', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+            }}
+          >
+            <CourseSidebar
+              courseData={courseData}
+              selectedNode={selectedNode}
+              expandedNodes={expandedNodes}
+              sidebarWidth={sidebarWidth}
+              searchQuery={searchQuery}
+              courseName={courseStructureResponse?.data?.courseName || "Course"}
+              moduleCount={courseData[0]?.children?.length || 0}
+              onNodeSelect={selectNode}
+              onToggleNode={toggleNode}
+              onExpandAll={expandAllNodes}
+              onCollapseAll={collapseAllNodes}
+              onSidebarWidthChange={setSidebarWidth}
+              onSearchChange={setSearchQuery}
+              isLoading={isSidebarLoading}
+              onMouseDown={(e) => { setIsResizing(true); e.preventDefault(); }}
+            />
+          </div>
+        }
+      >
       <div style={{
-        height: '100vh',
-        fontFamily: "'Inter', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+        height: '100%',
+        fontFamily: "'Poppins', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
         WebkitFontSmoothing: 'antialiased',
         MozOsxFontSmoothing: 'grayscale',
         textRendering: 'optimizeLegibility',
       }}>
-        <div className="flex flex-col overflow-hidden" style={{ height: '100%', background: T.pageBg }}>
-          <div className="flex-1 flex overflow-hidden relative" style={{ padding: 12, gap: 12 }}>
+        <div className="flex flex-col overflow-hidden" style={{ height: '100%', background: T.bg }}>
+          <div className="flex-1 flex overflow-hidden relative">
 
-            {/* ── Sidebar Card ────────────────────────────────────────────────── */}
-            <div
-              className="relative flex flex-col h-full flex-shrink-0"
-              style={{
-                width: `${sidebarWidth}px`,
-                background: T.bg,
-                borderRadius: 16,
-                border: `1px solid ${T.border}`,
-                boxShadow: T.cardShadow,
-                overflow: 'hidden',
-                transition: isResizing ? 'none' : 'width 0.2s ease'
-              }}
-            >
-              <CourseSidebar
-                courseData={courseData}
-                selectedNode={selectedNode}
-                expandedNodes={expandedNodes}
-                sidebarWidth={sidebarWidth}
-                searchQuery={searchQuery}
-                courseName={courseStructureResponse?.data?.courseName || "Course"}
-                moduleCount={courseData[0]?.children?.length || 0}
-                onNodeSelect={selectNode}
-                onToggleNode={toggleNode}
-                onExpandAll={expandAllNodes}
-                onCollapseAll={collapseAllNodes}
-                onSidebarWidthChange={setSidebarWidth}
-                onSearchChange={setSearchQuery}
-                isLoading={isSidebarLoading}
-                onMouseDown={(e) => { setIsResizing(true); e.preventDefault(); }}
-              />
-            </div>
-
-            {/* ── Main content Card ────────────────────────────────────────── */}
+            {/* ── Main content — flat, edge-to-edge under the shared navbar,
+                  topped by the Dashboard › Course Management (or Courses) ›
+                  <course> trail. ──────────────────────────────────────── */}
             <div className="flex-1 flex flex-col overflow-hidden" style={{
               background: T.bg,
-              borderRadius: 16,
-              border: `1px solid ${T.border}`,
-              boxShadow: T.cardShadow,
               gap: 0,
             }}>
-              {/* ── Breadcrumb + User Menu Row ─────────────────────── */}
-              <div
-                className="flex items-center justify-between flex-shrink-0"
-                style={{
-                  background: T.bg,
-                  borderBottom: `1px solid ${T.border}`,
-                }}
-              >
-                {/* Breadcrumb on the left */}
-                <div className="flex-1 min-w-0">
-                  <BreadcrumbBar
-                    breadcrumbs={breadcrumbs}
-                    activeTab={activeTab}
-                    activeSubcategory={activeSubcategory}
-                  />
-                </div>
+              <BreadcrumbBar breadcrumbs={breadcrumbs} />
 
-                {/* Notifications bell — reuses the existing notification system */}
-                <div className="flex-shrink-0 py-2">
-                  <NotificationBell />
-                </div>
-
-                {/* User menu on the right */}
-                <div className="flex-shrink-0 pr-4 py-2" ref={userRef}>
-                  {/* Pill trigger */}
-                  <button
-                    onClick={() => setShowUserMenu(!showUserMenu)}
-                    className="flex items-center gap-2.5 transition-all"
-                    style={{
-                      background: showUserMenu ? "#FFF4F1" : "#ffffff",
-                      borderRadius: "999px",
-                      border: `1.5px solid ${showUserMenu ? "rgba(232,100,12,0.33)" : "#e8e4eb"}`,
-                      padding: "5px 12px 5px 6px",
-                      boxShadow: showUserMenu
-                        ? "0 2px 12px rgba(232,100,12,0.22)"
-                        : "0 2px 8px rgba(0,0,0,0.07), 0 1px 3px rgba(0,0,0,0.04)",
-                    }}
-                    onMouseEnter={e => {
-                      if (!showUserMenu) {
-                        (e.currentTarget as HTMLElement).style.background = "#f6f4f7"
-                          ; (e.currentTarget as HTMLElement).style.boxShadow = "0 3px 12px rgba(0,0,0,0.10)"
-                      }
-                    }}
-                    onMouseLeave={e => {
-                      if (!showUserMenu) {
-                        (e.currentTarget as HTMLElement).style.background = "#ffffff"
-                          ; (e.currentTarget as HTMLElement).style.boxShadow = "0 2px 8px rgba(0,0,0,0.07), 0 1px 3px rgba(0,0,0,0.04)"
-                      }
-                    }}
-                  >
-                    {userLoading ? (
-                      <div className="h-8 w-8 rounded-full animate-pulse" style={{ background: T.border }} />
-                    ) : (
-                      <div
-                        className="h-8 w-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0"
-                        style={{
-                          background: `linear-gradient(135deg, ${T.orange}, ${T.orangeDark})`,
-                          boxShadow: `0 2px 8px rgba(232,100,12,0.22)`,
-                        }}
-                      >
-                        {getUserInitials()}
-                      </div>
-                    )}
-                    <div className="hidden sm:block text-left">
-                      <p className="text-[12.5px] font-semibold leading-tight" style={{ color: T.textMain }}>
-                        {user?.firstName || "User"}
-                      </p>
-                      <p className="text-[10px] leading-tight mt-0.5" style={{ color: T.textMuted }}>
-                        {isDummyStudent ? "Student View" : user?.role?.renameRole || "Account"}
-                      </p>
-                    </div>
-                    <ChevronDown
-                      size={14}
-                      className="hidden sm:block ml-0.5"
-                      style={{
-                        color: "#bcbccc",
-                        transform: showUserMenu ? "rotate(180deg)" : "none",
-                        transition: "transform 0.2s",
-                      }}
-                    />
-                  </button>
-
-                  {/* Dropdown */}
-                  {showUserMenu && (
-                    <div
-                      className="absolute right-4 mt-2 w-64 overflow-hidden"
-                      style={{
-                        background: T.bg,
-                        borderRadius: "18px",
-                        border: `1px solid ${T.border}`,
-                        boxShadow: "0 16px 40px rgba(0,0,0,0.10), 0 4px 12px rgba(0,0,0,0.06)",
-                        animation: "scDrop .18s cubic-bezier(.16,1,.3,1) both",
-                        transformOrigin: "top right",
-                        zIndex: 9999,
-                      }}
-                    >
-                      {/* Header */}
-                      <div className="px-4 py-3" style={{ background: "#f6f4f7", borderBottom: `1px solid ${T.border}` }}>
-                        <div className="flex items-center gap-3">
-                          <div
-                            className="h-10 w-10 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
-                            style={{
-                              background: `linear-gradient(135deg, ${T.orange}, ${T.orangeDark})`,
-                              boxShadow: `0 4px 14px rgba(232,100,12,0.22)`,
-                            }}
-                          >
-                            {getUserInitials()}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-[13px] font-bold truncate" style={{ color: T.textMain }}>
-                              {user?.firstName} {user?.lastName}
-                            </p>
-                            <p className="text-[11px] truncate" style={{ color: T.textMuted }}>{user?.email}</p>
-                            <span
-                              className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded-md mt-0.5"
-                              style={{ background: T.orangeLight, color: T.orange }}
-                            >
-                              {isDummyStudent ? "⚡ Student View" : user?.role?.renameRole || "Account"}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Items */}
-                      <div className="p-1.5">
-                        {!isActualStudent() && !isDummyStudent && (
-                          <LMSMenuRow icon={UserCheck2} label="Switch to Student" sub="Preview student experience" color="#3b82f6" hoverBg="#eff6ff" onClick={handleSwitchToStudent} />
-                        )}
-                        {isDummyStudent && originalRoleInfo && (
-                          <LMSMenuRow icon={Zap} label={`Back to ${originalRoleInfo.renameRole}`} sub="Return to original role" color="#f59e0b" hoverBg="#fffbeb" onClick={handleSwitchBackToOriginal} />
-                        )}
-                        <div className="h-px my-1 mx-1" style={{ background: T.border }} />
-                        <LMSMenuRow icon={User} label="My Profile" sub="" color={T.textMuted} hoverBg="#f6f4f7" onClick={handleProfileClick} />
-                        <LMSMenuRow icon={Settings} label="Settings" sub="" color={T.textMuted} hoverBg="#f6f4f7" onClick={() => setShowUserMenu(false)} />
-                        <LMSMenuRow icon={HelpCircle} label="Help & Support" sub="" color={T.textMuted} hoverBg="#f6f4f7" onClick={() => setShowUserMenu(false)} />
-                      </div>
-
-                      {/* Sign out */}
-                      <div className="p-1.5" style={{ borderTop: `1px solid ${T.border}` }}>
-                        <button
-                          onClick={handleLogout}
-                          disabled={isLoggingOut}
-                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl transition-colors"
-                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#fff5f5" }}
-                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent" }}
-                        >
-                          <LogOut size={14} style={{ color: "#e53e3e" }} />
-                          <span className="text-[12px] font-semibold" style={{ color: "#e53e3e" }}>
-                            {isLoggingOut ? "Signing out…" : "Sign Out"}
-                          </span>
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* ── Course content — zero top gap ────────────────────────────── */}
+              {/* ── Course content — zero top gap. The batch picker rides the
+                    I Do / We Do / You Do tab row (CourseContent's tabBarRight),
+                    not a row of its own. ─────────────────────────────────── */}
               <div className="flex-1 overflow-hidden" style={{ marginTop: 0, paddingTop: 0 }}>
-                {isInitialCourseLoad ? (
-                  // Course payload is still in flight on first load — show a
-                  // loader instead of the misleading "Welcome / select a module"
-                  // card (the sidebar tree doesn't exist yet to select from).
-                  <LoadingSpinner />
-                ) : !isNodeSelected ? (
-                  // Show welcome screen when no node is selected
-                  <div className="flex flex-col items-center justify-center h-full text-center p-10" style={{ animation: "ccFadeIn 0.4s ease-out both" }}>      <div className="relative overflow-hidden w-full max-w-md mb-7 rounded-2xl"
-                    style={{ background: `linear-gradient(140deg,${T.orange} 0%,#E86440 50%,${T.orangeDark} 100%)`, padding: "32px 28px", boxShadow: `0 12px 40px ${T.orangeGlow}` }}>
-                    <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }} viewBox="0 0 480 130" fill="none">
-                      <circle cx="450" cy="-5" r="90" stroke="rgba(255,255,255,0.18)" strokeWidth="1.2" />
-                      <circle cx="450" cy="-5" r="145" stroke="rgba(255,255,255,0.08)" strokeWidth="1.2" />
-                      <circle cx="30" cy="140" r="70" stroke="rgba(255,255,255,0.10)" strokeWidth="1.2" />
-                    </svg>
-                    <div style={{ position: "relative", zIndex: 1 }}>
-                      <div className="w-11 h-11 rounded-xl flex items-center justify-center mb-4 mx-auto" style={{ background: "rgba(255,255,255,0.20)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.30)" }}>
-                        <BookOpen size={20} className="text-white" />
-                      </div>
-                      <h3 className="text-[20px] font-extrabold text-white mb-1.5 tracking-tight">Welcome to Your Course</h3>
-                      <p className="text-[11.5px] font-medium leading-relaxed" style={{ color: "rgba(255,255,255,0.80)" }}>Select a module, topic, or subtopic from the sidebar to start managing resources.</p>
-                    </div>
+                {/* Hold the course workspace skeleton across the ENTIRE central
+                    pane until course data has loaded AND a node is picked.
+                    Rendering CourseContent earlier flashes a broken layout —
+                    tab row, empty subcategories, its own "no node" tiles —
+                    instead of a single clean loading state. Once the flag
+                    below flips true, everything shows together in one paint.
+
+                    The remaining clauses cover a FIRST visit to a node:
+                    `nodeWarmupId` holds the loader until the node's content
+                    AND the active section's list (warmed in parallel — see
+                    prefetchActiveSectionList) have BOTH settled, so the page
+                    opens once with its data instead of loader → page →
+                    second section loader. The isContentLoading clause keeps
+                    the same guarantee for batch switches, which reset the
+                    content caches outside the warmup path. A node already in
+                    `contentData` skips both — revisits paint instantly. */}
+                {(!courseData.length || !selectedNode || nodeWarmupId === selectedNode.id || (isContentLoading && !contentData[selectedNode.id])) ? (
+                  <div className="flex items-center justify-center h-full w-full" style={{ background: T.bg }}>
+                    <ContentSkeleton />
                   </div>
-                    <div className="grid grid-cols-3 gap-3 max-w-md w-full">
-                      {([
-                        { icon: <Target size={20} />, color: "#dc2626", bg: "rgba(220,38,38,0.09)", title: "I Do", desc: "Teacher-led instruction" },
-                        { icon: <Users size={20} />, color: "#ea580c", bg: "rgba(234,88,12,0.09)", title: "We Do", desc: "Guided practice" },
-                        { icon: <BookOpen size={20} />, color: "#059669", bg: "rgba(5,150,105,0.09)", title: "You Do", desc: "Independent work" },
-                      ] as any[]).map(item => (
-                        <div key={item.title} className="p-4 rounded-2xl text-center"
-                          style={{ background: item.bg, border: `1.5px solid ${item.color}18`, transition: "all 0.22s" }}
-                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = "translateY(-2px)"; (e.currentTarget as HTMLElement).style.boxShadow = `0 8px 20px ${item.color}18`; }}
-                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = "none"; (e.currentTarget as HTMLElement).style.boxShadow = "none"; }}>
-                          <div className="w-10 h-10 mx-auto mb-3 rounded-xl flex items-center justify-center" style={{ background: `${item.color}14`, color: item.color }}>{item.icon}</div>
-                          <h4 className="text-[12px] font-bold tracking-tight" style={{ color: T.textMain }}>{item.title}</h4>
-                          <p className="text-[10.5px] mt-1 font-medium leading-relaxed" style={{ color: T.textMuted }}>{item.desc}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : isContentLoading || !initialLoadComplete ? (
-                  <LoadingSpinner />
                 ) : (
                   <CourseContent
-                    // Key on the selected node id only. The previous version
-                    // appended `Date.now()` so the key changed on every parent
-                    // render, which unmounted & remounted the entire
-                    // CourseContent subtree on every state update — throwing
-                    // away child state, DOM, and memoization on every tick of
-                    // the loader. React already re-renders on prop changes;
-                    // we only need a fresh mount when the node identity flips.
-                    key={selectedNode?.id ?? "no-node"}
-
+                    // Keyed by the NODE, not by `Date.now()`.
+                    //
+                    // A timestamp in the key made this subtree remount on every
+                    // single parent render, which threw away the children's
+                    // state and made React Query's cache useless — every render
+                    // was a fresh mount, so every visit showed a spinner even
+                    // when the list was already cached. `contentData` is a prop,
+                    // so a genuine content change re-renders this anyway; the
+                    // remount was never what refreshed it.
+                    key={selectedNode?.id ?? "none"}
                     selectedNode={selectedNode}
                     activeTab={activeTab}
                     activeSubcategory={activeSubcategory}
@@ -4183,6 +4439,23 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
                     courseId={courseId}
                     courseStructureName={courseStructureResponse?.data?.courseName || ""}
                     configuredLanguages={configuredLanguages}
+                    activeBatchId={activeBatchId}
+                    tabBarRight={
+                      /* Batch picker + bell share the tab row's right corner
+                         (the shell's floating bell is hidden on this page so
+                         nothing straddles the row divider). */
+                      <div className="flex items-center" style={{ gap: 10, padding: "4px 0" }}>
+                        <BatchScopeBar
+                          ctx={resourceBatchCtx}
+                          activeTab={activeTab}
+                          activeBatchId={activeBatchId}
+                          onSelectBatch={handleSelectBatch}
+                          canSwitchBatch={parentSection.canSwitchBatch}
+                          courseId={courseId || ""}
+                        />
+                        <NotificationBell />
+                      </div>
+                    }
 
                     onTabChange={(tab) => { setActiveTabPersistent(tab); setActiveSubcategoryPersistent(""); updateURL({ activeTab: tab, activeSubcategory: "" }); updateNavState({ currentFolderPath: [], currentFolderId: null }); }}
                     onSubcategoryChange={(sub, comp) => { setActiveSubcategoryPersistent(sub); updateURL({ activeSubcategory: sub }); updateNavState({ currentFolderPath: [], currentFolderId: null }); }}
@@ -4428,12 +4701,15 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
           </div>
         </div>
       </div>
+      </StaffLayout>
 
       {/* ── Notion Resource Modal ─────────────────────────────────────────────── */}
       <NotionResourceModal
         isOpen={showNotionModal}
         onClose={() => setShowNotionModal(false)}
         fileTypes={fileTypes}  // This already contains only Video (plus static folder, zip, reference)
+        // The picker cards read `description`; the catalog carries it as `tooltip`.
+        studentFeatureItems={studentFeatureTypes.map(({ key, label, icon, color, tooltip }) => ({ key, label, icon, color, description: tooltip }))}
         selectedNode={selectedNode}
         activeTab={activeTab}
         activeSubcategory={activeSubcategory}
@@ -4478,6 +4754,11 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
       {/* ── File Upload Modal ─────────────────────────────────────────────────── */}
       <FileUploadModal
         isOpen={showFileUploadModal}
+        // Only the types this course enabled are droppable / browsable — see
+        // uploadableTypeKeys. Empty (legacy course) → the modal falls back to
+        // its historical accept list rather than blocking every file.
+        allowedTypes={uploadableTypeKeys}
+        maxSizeByType={uploadMaxSizeByType}
         onClose={() => {
           setShowFileUploadModal(false);
           setUploadGroupId(undefined);
@@ -4576,7 +4857,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
               background: T.bg, borderRadius: '22px',
               border: `1.5px solid ${T.border}`,
               boxShadow: '0 24px 60px rgba(0,0,0,0.18)',
-              fontFamily: "'Inter',-apple-system,sans-serif",
+              fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif",
               animation: 'umSlideUp 0.22s cubic-bezier(0.16,1,0.3,1) both',
             }}
             onClick={e => e.stopPropagation()}
@@ -4822,7 +5103,16 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
                             {updateFileId ? "Click to choose a new file (optional)" : "Drop files here or click to browse"}
                           </p>
                           <p className="text-[10px]" style={{ color: T.textMuted }}>
-                            {updateFileId ? "Leave empty to keep current file" : `Accepted: ${fileTypes.find((t) => t.key === selectedFileType)?.accept}`}
+                            {updateFileId
+                              ? "Leave empty to keep current file"
+                              : `Accepted: ${fileTypes.find((t) => t.key === selectedFileType)?.accept}${
+                                  // Course Setup's ceiling for this type, so the
+                                  // rule is visible before the file is picked
+                                  // rather than only in the rejection message.
+                                  uploadMaxSizeByType[selectedFileType]
+                                    ? ` · max ${fmtLimit(uploadMaxSizeByType[selectedFileType]!)}`
+                                    : ""
+                                }`}
                           </p>
                           <input
                             ref={fileInputRef}
@@ -5168,11 +5458,26 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
         const { folders: totalFolders, files: totalFiles } = fbCountAll();
         const extColorMap: Record<string, string> = { pdf: '#ef4444', ppt: '#f97316', pptx: '#f97316', doc: '#3b82f6', docx: '#3b82f6', xls: '#10b981', xlsx: '#10b981', mp4: '#06b6d4', mov: '#06b6d4', zip: '#a855f7', rar: '#a855f7', png: '#ec4899', jpg: '#ec4899', jpeg: '#ec4899' };
         const fmtSz = (sz: number) => sz < 1024 ? `${sz} B` : sz < 1048576 ? `${(sz / 1024).toFixed(1)} KB` : `${(sz / 1048576).toFixed(1)} MB`;
+        // Windows-Explorer-style date, e.g. "7/25/2025 10:50 AM". Tolerates raw
+        // strings, epoch numbers, and Mongo extended-JSON ({ $date }).
+        const fmtDate = (d: any): string => {
+          if (!d) return '—';
+          const raw = (typeof d === 'object' && d !== null) ? (d.$date ?? d.date ?? d) : d;
+          const dt = new Date(raw);
+          if (isNaN(dt.getTime())) return '—';
+          return dt.toLocaleString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }).replace(',', '');
+        };
+        // Best-effort byte size off a raw server file object (size may be string).
+        const rawSize = (f: any): number => {
+          const s = f?.size ?? f?.fileSize ?? f?.bytes;
+          const n = typeof s === 'string' ? parseInt(s, 10) : Number(s);
+          return Number.isFinite(n) ? n : 0;
+        };
         const currentPageFolderPath = getCurrentNavState().currentFolderPath;
 
         return (
           <div className="fixed inset-0 z-[90] flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.52)', backdropFilter: 'blur(4px)' }}>
-            <div className="relative flex flex-col mx-4 overflow-hidden" style={{ background: T.bg, borderRadius: '20px', border: `1.5px solid ${T.border}`, width: 880, maxWidth: 'calc(100vw - 32px)', height: '88vh', maxHeight: '88vh', boxShadow: '0 24px 60px rgba(0,0,0,0.20)', fontFamily: "'Inter',-apple-system,sans-serif" }} onClick={e => e.stopPropagation()}>
+            <div className="relative flex flex-col mx-4 overflow-hidden" style={{ background: T.bg, borderRadius: '20px', border: `1.5px solid ${T.border}`, width: 924, maxWidth: 'calc(100vw - 32px)', height: '92.4vh', maxHeight: '92.4vh', boxShadow: '0 24px 60px rgba(0,0,0,0.20)', fontFamily: "'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" }} onClick={e => e.stopPropagation()}>
 
               {/* ── Upload overlay ─────────────────────────────────────────── */}
               {folderBuilderUploading && (
@@ -5196,7 +5501,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
               )}
 
               {/* ── Header ────────────────────────────────────────────────── */}
-              <div className="relative overflow-hidden flex-shrink-0" style={{ background: 'linear-gradient(135deg,#F08243 0%,#E8640C 52%,#C95308 100%)', padding: '12px 16px 14px', borderRadius: '18px 18px 0 0' }}>
+              <div className="relative overflow-hidden flex-shrink-0" style={{ background: '#F97316', padding: '12px 16px 14px', borderRadius: '18px 18px 0 0' }}>
                 <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0 }} viewBox="0 0 560 70" fill="none"><circle cx="530" cy="-8" r="65" stroke="rgba(255,255,255,0.15)" strokeWidth="1" /><circle cx="30" cy="80" r="50" stroke="rgba(255,255,255,0.10)" strokeWidth="1" /></svg>
                 <div className="flex items-center justify-between" style={{ position: 'relative', zIndex: 1 }}>
                   <div className="flex items-center gap-2">
@@ -5205,30 +5510,30 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
                     </div>
                     <div>
                       <h3 className="text-[14px] font-bold text-white leading-tight">Create Folders</h3>
-                      <p className="text-[10.5px]" style={{ color: 'rgba(255,255,255,0.72)' }}>Navigate · create sub-folders · upload files — all virtual until you click Create</p>
                     </div>
                   </div>
                   <button onClick={() => fbHasWork() ? setShowFolderUnsavedWarning(true) : closeFolderBuilder()}
-                    className="p-1.5 rounded-xl transition-all flex-shrink-0"
-                    style={{ background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.25)', color: 'rgba(255,255,255,0.85)' }}
-                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.30)'}
-                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.18)'}>
-                    <X size={15} />
+                    className="flex items-center justify-center w-8 h-8 rounded-full transition-all flex-shrink-0"
+                    style={{ background: '#fff', border: 'none', color: '#F97316', boxShadow: '0 2px 6px rgba(0,0,0,0.18)' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#fee2e2'; (e.currentTarget as HTMLElement).style.color = '#dc2626'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#fff'; (e.currentTarget as HTMLElement).style.color = '#F97316'; }}
+                    title="Close">
+                    <X size={17} strokeWidth={2.5} />
                   </button>
                 </div>
               </div>
 
               {/* ── Page location breadcrumb ───────────────────────────────── */}
-              <div className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2" style={{ background: '#faf8ff', borderBottom: `1px solid ${T.border}` }}>
+              <div className="flex-shrink-0 flex flex-wrap items-center gap-x-1.5 gap-y-1 px-4 py-2" style={{ background: '#faf8ff', borderBottom: `1px solid ${T.border}` }}>
                 <Home size={11} style={{ color: T.textMuted, flexShrink: 0 }} />
-                <span className="text-[10.5px] font-medium" style={{ color: T.textMuted }}>Location:</span>
+                <span className="text-[10.5px] font-medium flex-shrink-0" style={{ color: T.textMuted }}>Location:</span>
                 {(() => {
                   const hi = buildFullHierarchyInfo();
                   const crumbs = [hi?.courseName, hi?.moduleName, hi?.subModuleName, hi?.topicName, hi?.subTopicName, hi?.tabType, hi?.subcategory, ...currentPageFolderPath].filter(Boolean);
                   return crumbs.map((c, i) => (
                     <React.Fragment key={i}>
                       {i > 0 && <ChevronRight size={10} style={{ color: T.textHint, flexShrink: 0 }} />}
-                      <span className="text-[10.5px] font-semibold truncate max-w-[90px]" style={{ color: i === crumbs.length - 1 ? T.orange : T.textSub }} title={c}>{c}</span>
+                      <span className={`text-[10.5px] font-semibold ${i === crumbs.length - 1 ? 'flex-shrink-0' : 'truncate max-w-[150px]'}`} style={{ color: i === crumbs.length - 1 ? T.orange : T.textSub }} title={c}>{c}</span>
                     </React.Fragment>
                   ));
                 })()}
@@ -5253,7 +5558,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
                 return (
                   <PlainBreadcrumb
                     crumbs={crumbs}
-                    prefix="Folder location:"
+                    prefix="Folder will be saved in:"
                   />
                 );
               })()}
@@ -5283,170 +5588,64 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
                     <button onClick={() => fbFileInputRef.current?.click()} disabled={folderBuilderUploading}
                       className="flex items-center gap-1.5 px-3 py-2 text-[12px] font-bold rounded-xl transition-all flex-shrink-0"
                       style={{ background: T.bg, border: `1.5px solid ${T.border}`, color: T.textSub }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = '#3b82f6'; (e.currentTarget as HTMLElement).style.color = '#3b82f6'; }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = '#fb923c'; (e.currentTarget as HTMLElement).style.color = '#fb923c'; }}
                       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = T.border; (e.currentTarget as HTMLElement).style.color = T.textSub; }}>
                       <Upload size={13} /> Upload Files Here
                     </button>
                     <input ref={fbFileInputRef} type="file" multiple className="hidden"
+                      accept={uploadFileRules.accept}
                       onChange={e => { fbAddFilesHere(Array.from(e.target.files || [])); e.target.value = ''; }} />
                   </div>
 
                   {/* ── Drop zone ─────────────────────────────────────────── */}
                   <div
-                    className="rounded-xl flex flex-col items-center justify-center py-4 gap-1.5 cursor-pointer transition-all"
-                    style={{ border: `2px dashed ${fbDragOverRoot ? T.orange : T.border}`, background: fbDragOverRoot ? 'rgba(232,100,12,0.05)' : T.pageBg }}
+                    className="rounded-xl flex flex-col items-center justify-center py-5 gap-1.5 cursor-pointer transition-all"
+                    style={{
+                      border: `2px dashed ${fbDragOverRoot ? '#F97316' : 'rgba(249,115,22,0.45)'}`,
+                      background: fbDragOverRoot ? 'rgba(249,115,22,0.14)' : 'rgba(249,115,22,0.06)',
+                      boxShadow: fbDragOverRoot ? '0 0 0 3px rgba(249,115,22,0.20)' : 'none',
+                      transform: fbDragOverRoot ? 'scale(1.01)' : 'scale(1)',
+                    }}
                     onDragOver={e => { e.preventDefault(); setFbDragOverRoot(true); }}
                     onDragLeave={() => setFbDragOverRoot(false)}
                     onDrop={e => { e.preventDefault(); setFbDragOverRoot(false); fbAddFilesHere(Array.from(e.dataTransfer.files)); }}
                     onClick={() => fbFileInputRef.current?.click()}>
-                    <Upload size={18} style={{ color: fbDragOverRoot ? T.orange : T.textMuted }} strokeWidth={1.5} />
-                    <span className="text-[11.5px] font-semibold" style={{ color: fbDragOverRoot ? T.orange : T.textMuted }}>
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-0.5" style={{ background: fbDragOverRoot ? '#F97316' : 'rgba(249,115,22,0.14)', transition: 'background 0.15s' }}>
+                      <Upload size={17} style={{ color: fbDragOverRoot ? '#fff' : '#F97316' }} strokeWidth={2} />
+                    </div>
+                    <span className="text-[12px] font-bold" style={{ color: '#F97316' }}>
                       {fbDragOverRoot
                         ? 'Drop to add files here'
-                        : fbNavPath.length
-                          ? `Drop files into "${fbNavPath[fbNavPath.length - 1].name}"`
-                          : 'Drag & drop files to Root · or click to browse'}
+                        : uploadFileRules.chips.length === 0
+                          ? 'No file types are enabled for this course'
+                          : fbNavPath.length
+                            ? `Drop files into "${fbNavPath[fbNavPath.length - 1].name}"`
+                            : 'Drag & drop files to Root · or click to browse'}
                     </span>
+                    {/* Accepted types + each type's own size ceiling — the same
+                        chips the Upload Files modal shows, since this drop zone
+                        enforces the same rules. */}
+                    {uploadFileRules.chips.length > 0 ? (
+                      <div className="flex items-center justify-center gap-1.5 flex-wrap mt-0.5">
+                        {uploadFileRules.chips.map(({ label, color, limit }) => (
+                          <span key={label} style={{
+                            fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 4,
+                            background: `${color}10`, color, border: `1px solid ${color}20`,
+                            letterSpacing: '0.02em',
+                          }}>
+                            {label}
+                            {limit ? <span style={{ fontWeight: 500, opacity: 0.75 }}> · {fmtLimit(limit)}</span> : null}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-[10.5px]" style={{ color: T.textMuted }}>
+                        Enable one in Course Setup › Resource Type to upload files here
+                      </span>
+                    )}
                   </div>
 
-                  {/* ── Existing content at this nav level (Phase 1) ───────
-                      Surfaces what's already on the server so the user can
-                      see context and click into existing folders / groups.
-                      Read-only for now — delete/rename come in Phase 2/3. */}
-                  {(exGroups.length > 0 || exFolders.length > 0 || exFiles.length > 0 || exPages.length > 0) && (
-                    <div className="rounded-2xl overflow-hidden" style={{ border: `1.5px solid ${T.border}`, background: T.bg }}>
-                      <div className="px-3 py-1.5" style={{ background: T.pageBg, borderBottom: `1px solid ${T.border}` }}>
-                        <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: T.textMuted, letterSpacing: '0.08em' }}>
-                          Already here
-                        </span>
-                      </div>
-
-                      {/* Existing group rows (only ever at activity root) */}
-                      {exGroups.map((g, gi) => {
-                        const isLast = gi === exGroups.length - 1
-                          && exFolders.length === 0 && exFiles.length === 0;
-                        return (
-                          <div key={`exg-${g.groupId}`}
-                            style={{ borderBottom: isLast ? 'none' : `1px solid ${T.border}`, background: T.bg, cursor: 'pointer', transition: 'background 0.13s' }}
-                            onClick={() => fbNavigateIntoGroup(g.groupId, g.groupName)}
-                            onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(232,100,12,0.04)'}
-                            onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = T.bg}>
-                            <div className="flex items-center gap-2.5 px-3 py-2.5">
-                              <div className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: T.orangeLight, border: `1px solid rgba(232,100,12,0.22)` }}>
-                                <FolderOpen size={15} style={{ color: T.orange }} />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="truncate text-[12.5px] font-bold" style={{ color: T.textMain }}>{g.groupName}</p>
-                                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                                  <span className="text-[9px] font-bold px-1 py-px rounded" style={{ background: 'rgba(99,102,241,0.12)', color: '#4338ca', border: '1px solid rgba(99,102,241,0.25)' }}>group</span>
-                                  <span className="text-[10px] font-semibold" style={{ color: T.textMuted }}>click to enter</span>
-                                </div>
-                              </div>
-                              <ChevronRight size={15} style={{ color: T.orange, flexShrink: 0 }} />
-                            </div>
-                          </div>
-                        );
-                      })}
-
-                      {/* Existing folder rows */}
-                      {exFolders.map((ef: any, fi: number) => {
-                        const isLast = fi === exFolders.length - 1 && exFiles.length === 0;
-                        // Compute the absolute path of this folder for navigation
-                        const last = fbNavPath[fbNavPath.length - 1];
-                        const parentPath = last && last.kind === "existing"
-                          ? (last.existingPath ?? [])
-                          : [];
-                        const folderPath = [...parentPath, ef.name];
-                        return (
-                          <div key={`exf-${ef._id ?? ef.name}`}
-                            style={{ borderBottom: isLast ? 'none' : `1px solid ${T.border}`, background: T.bg, cursor: 'pointer', transition: 'background 0.13s' }}
-                            onClick={() => fbNavigateIntoExisting(ef.name, folderPath)}
-                            onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(232,100,12,0.04)'}
-                            onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = T.bg}>
-                            <div className="flex items-center gap-2.5 px-3 py-2.5">
-                              <div className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: T.orangeLight, border: `1px solid rgba(232,100,12,0.22)` }}>
-                                <FolderOpen size={15} style={{ color: T.orange }} />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="truncate text-[12.5px] font-bold" style={{ color: T.textMain }}>{ef.name}</p>
-                                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                                  {(() => {
-                                    // Count subfolders + files + pages — pages live in
-                                    // their own array on the folder document and were
-                                    // previously missed by this count.
-                                    const total =
-                                      (Array.isArray(ef.subfolders) ? ef.subfolders.length : 0) +
-                                      (Array.isArray(ef.files)      ? ef.files.length      : 0) +
-                                      (Array.isArray(ef.pages)      ? ef.pages.length      : 0);
-                                    return (
-                                      <span className="text-[10px] font-semibold" style={{ color: T.textMuted }}>
-                                        {total} item{total !== 1 ? 's' : ''}
-                                      </span>
-                                    );
-                                  })()}
-                                  <span className="text-[9px] font-bold px-1 py-px rounded" style={{ background: 'rgba(34,197,94,0.10)', color: '#15803d', border: '1px solid rgba(34,197,94,0.22)' }}>saved</span>
-                                </div>
-                              </div>
-                              <ChevronRight size={15} style={{ color: T.orange, flexShrink: 0 }} />
-                            </div>
-                          </div>
-                        );
-                      })}
-
-                      {/* Existing file rows (read-only for Phase 1) */}
-                      {exFiles.map((ef: any, fi: number) => {
-                        const isLast = fi === exFiles.length - 1 && exPages.length === 0;
-                        const name = ef.name || ef.fileName || 'Untitled';
-                        const ext = name.includes('.') ? name.split('.').pop()?.toLowerCase() ?? '' : '';
-                        const extColor = extColorMap[ext] ?? '#64748b';
-                        return (
-                          <div key={`exfile-${ef._id ?? name}`}
-                            style={{ borderBottom: isLast ? 'none' : `1px solid ${T.border}`, background: T.bg }}>
-                            <div className="flex items-center gap-2.5 px-3 py-2">
-                              <div className="flex-shrink-0 w-7 h-7 rounded-md flex items-center justify-center" style={{ background: `${extColor}14`, border: `1px solid ${extColor}28`, color: extColor }}>
-                                <FileIcon size={13} />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="truncate text-[12px] font-semibold" style={{ color: T.textMain }}>{name}</p>
-                                <div className="flex items-center gap-1.5 mt-0.5">
-                                  <span className="text-[9px] font-bold px-1 py-px rounded" style={{ background: 'rgba(34,197,94,0.10)', color: '#15803d', border: '1px solid rgba(34,197,94,0.22)' }}>saved</span>
-                                </div>
-                              </div>
-                              <span className="flex-shrink-0 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded"
-                                style={{ background: `${extColor}14`, color: extColor, border: `1px solid ${extColor}28`, letterSpacing: '0.05em' }}>{ext || 'file'}</span>
-                            </div>
-                          </div>
-                        );
-                      })}
-
-                      {/* Existing page rows (read-only for Phase 1) */}
-                      {exPages.map((ep: any, pi: number) => {
-                        const isLast = pi === exPages.length - 1;
-                        const title = ep.title || 'Untitled page';
-                        const pageColor = '#6366f1';
-                        return (
-                          <div key={`expage-${ep._id?.$oid ?? ep._id ?? title}`}
-                            style={{ borderBottom: isLast ? 'none' : `1px solid ${T.border}`, background: T.bg }}>
-                            <div className="flex items-center gap-2.5 px-3 py-2">
-                              <div className="flex-shrink-0 w-7 h-7 rounded-md flex items-center justify-center" style={{ background: `${pageColor}14`, border: `1px solid ${pageColor}28`, color: pageColor }}>
-                                <FileIcon size={13} />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="truncate text-[12px] font-semibold" style={{ color: T.textMain }}>{title}</p>
-                                <div className="flex items-center gap-1.5 mt-0.5">
-                                  <span className="text-[9px] font-bold px-1 py-px rounded" style={{ background: 'rgba(34,197,94,0.10)', color: '#15803d', border: '1px solid rgba(34,197,94,0.22)' }}>saved</span>
-                                </div>
-                              </div>
-                              <span className="flex-shrink-0 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded"
-                                style={{ background: `${pageColor}14`, color: pageColor, border: `1px solid ${pageColor}28`, letterSpacing: '0.05em' }}>PAGE</span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {/* ── Current level contents ─────────────────────────── */}
+                  {/* ── Current level contents (virtual / newly-added — shown FIRST so user sees their additions on top) ─────────────────────────── */}
                   {(lvFolders.length > 0 || lvFiles.length > 0) ? (
                     <div className="rounded-2xl overflow-hidden" style={{ border: `1.5px solid ${T.border}` }}>
 
@@ -5486,7 +5685,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
                                     {vf.files.length} file{vf.files.length !== 1 ? 's' : ''}
                                     {deepCount > 0 && ` · ${deepCount} sub-folder${deepCount !== 1 ? 's' : ''}`}
                                   </span>
-                                  <span className="text-[9px] font-bold px-1 py-px rounded" style={{ background: 'rgba(245,158,11,0.12)', color: '#d97706', border: '1px solid rgba(245,158,11,0.25)' }}>virtual</span>
+                                  <span className="text-[10px] font-bold" style={{ color: '#d97706' }}>· yet to save</span>
                                 </div>
                               </div>
                               {/* Arrow indicator */}
@@ -5567,6 +5766,111 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
                         </p>
                       </div>
                     )
+                  )}
+
+                  {/* ── Existing content at this nav level (Phase 1) ───────
+                      Surfaces what's already on the server so the user can
+                      see context and click into existing folders / groups.
+                      Read-only for now — delete/rename come in Phase 2/3. */}
+                  {(exGroups.length > 0 || exFolders.length > 0 || exFiles.length > 0 || exPages.length > 0) && (
+                    <div className="rounded-2xl overflow-hidden" style={{ border: `1.5px solid ${T.border}`, background: T.bg }}>
+                      {/* Section label */}
+                      <div className="px-3 py-1.5" style={{ background: T.pageBg, borderBottom: `1px solid ${T.border}` }}>
+                        <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: T.textMuted, letterSpacing: '0.08em' }}>
+                          Already here
+                        </span>
+                      </div>
+
+                      {/* Explorer-style column headers */}
+                      <div className="flex items-center gap-2 px-3 py-1.5" style={{ background: '#fbfbfd', borderBottom: `1px solid ${T.border}` }}>
+                        <span className="flex-1 min-w-0 text-[10.5px] font-bold" style={{ color: T.textSub }}>Name</span>
+                        <span className="w-[140px] flex-shrink-0 text-[10.5px] font-bold" style={{ color: T.textSub }}>Date modified</span>
+                        <span className="w-[96px] flex-shrink-0 text-[10.5px] font-bold" style={{ color: T.textSub }}>Type</span>
+                        <span className="w-[72px] flex-shrink-0 text-[10.5px] font-bold text-right" style={{ color: T.textSub }}>Size</span>
+                      </div>
+
+                      {/* Group rows (clickable — only ever at activity root) */}
+                      {exGroups.map((g) => (
+                        <div key={`exg-${g.groupId}`}
+                          className="flex items-center gap-2 px-3 py-2 cursor-pointer"
+                          style={{ borderBottom: `1px solid ${T.border}`, background: T.bg, transition: 'background 0.13s' }}
+                          onClick={() => fbNavigateIntoGroup(g.groupId, g.groupName)}
+                          onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(249,115,22,0.06)'}
+                          onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = T.bg}
+                          title="Open">
+                          <div className="flex-1 min-w-0 flex items-center gap-2">
+                            <Folder size={16} style={{ color: '#F97316', flexShrink: 0 }} fill="rgba(249,115,22,0.18)" />
+                            <span className="truncate text-[12.5px] font-semibold" style={{ color: T.textMain }}>{g.groupName}</span>
+                          </div>
+                          <span className="w-[140px] flex-shrink-0 text-[11px]" style={{ color: T.textMuted }}>—</span>
+                          <span className="w-[96px] flex-shrink-0 text-[11px]" style={{ color: T.textMuted }}>Folder group</span>
+                          <span className="w-[72px] flex-shrink-0 text-[11px] text-right" style={{ color: T.textMuted }} />
+                        </div>
+                      ))}
+
+                      {/* Folder rows (clickable) */}
+                      {exFolders.map((ef: any) => {
+                        const last = fbNavPath[fbNavPath.length - 1];
+                        const parentPath = last && last.kind === "existing" ? (last.existingPath ?? []) : [];
+                        const folderPath = [...parentPath, ef.name];
+                        return (
+                          <div key={`exf-${ef._id ?? ef.name}`}
+                            className="flex items-center gap-2 px-3 py-2 cursor-pointer"
+                            style={{ borderBottom: `1px solid ${T.border}`, background: T.bg, transition: 'background 0.13s' }}
+                            onClick={() => fbNavigateIntoExisting(ef.name, folderPath)}
+                            onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(249,115,22,0.06)'}
+                            onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = T.bg}
+                            title="Open">
+                            <div className="flex-1 min-w-0 flex items-center gap-2">
+                              <Folder size={16} style={{ color: '#F97316', flexShrink: 0 }} fill="rgba(249,115,22,0.18)" />
+                              <span className="truncate text-[12.5px] font-semibold" style={{ color: T.textMain }}>{ef.name}</span>
+                            </div>
+                            <span className="w-[140px] flex-shrink-0 text-[11px]" style={{ color: T.textMuted }}>{fmtDate(ef.updatedAt ?? ef.createdAt ?? ef.uploadedAt)}</span>
+                            <span className="w-[96px] flex-shrink-0 text-[11px]" style={{ color: T.textMuted }}>File folder</span>
+                            <span className="w-[72px] flex-shrink-0 text-[11px] text-right" style={{ color: T.textMuted }} />
+                          </div>
+                        );
+                      })}
+
+                      {/* File rows (read-only) */}
+                      {exFiles.map((ef: any) => {
+                        const name = ef.name || ef.fileName || 'Untitled';
+                        const ext = name.includes('.') ? name.split('.').pop()?.toLowerCase() ?? '' : '';
+                        const extColor = extColorMap[ext] ?? '#64748b';
+                        const sz = rawSize(ef);
+                        return (
+                          <div key={`exfile-${ef._id ?? name}`}
+                            className="flex items-center gap-2 px-3 py-2"
+                            style={{ borderBottom: `1px solid ${T.border}`, background: T.bg }}>
+                            <div className="flex-1 min-w-0 flex items-center gap-2">
+                              <FileIcon size={15} style={{ color: extColor, flexShrink: 0 }} />
+                              <span className="truncate text-[12px] font-medium" style={{ color: T.textMain }}>{name}</span>
+                            </div>
+                            <span className="w-[140px] flex-shrink-0 text-[11px]" style={{ color: T.textMuted }}>{fmtDate(ef.uploadedAt ?? ef.updatedAt ?? ef.createdAt)}</span>
+                            <span className="w-[96px] flex-shrink-0 text-[11px] uppercase" style={{ color: T.textMuted }}>{ext ? `${ext} file` : 'File'}</span>
+                            <span className="w-[72px] flex-shrink-0 text-[11px] text-right" style={{ color: T.textMuted }}>{sz > 0 ? fmtSz(sz) : ''}</span>
+                          </div>
+                        );
+                      })}
+
+                      {/* Page rows (read-only) */}
+                      {exPages.map((ep: any) => {
+                        const title = ep.title || 'Untitled page';
+                        return (
+                          <div key={`expage-${ep._id?.$oid ?? ep._id ?? title}`}
+                            className="flex items-center gap-2 px-3 py-2"
+                            style={{ borderBottom: `1px solid ${T.border}`, background: T.bg }}>
+                            <div className="flex-1 min-w-0 flex items-center gap-2">
+                              <FileText size={15} style={{ color: '#6366f1', flexShrink: 0 }} />
+                              <span className="truncate text-[12px] font-medium" style={{ color: T.textMain }}>{title}</span>
+                            </div>
+                            <span className="w-[140px] flex-shrink-0 text-[11px]" style={{ color: T.textMuted }}>{fmtDate(ep.updatedAt ?? ep.createdAt)}</span>
+                            <span className="w-[96px] flex-shrink-0 text-[11px]" style={{ color: T.textMuted }}>Page</span>
+                            <span className="w-[72px] flex-shrink-0 text-[11px] text-right" style={{ color: T.textMuted }} />
+                          </div>
+                        );
+                      })}
+                    </div>
                   )}
 
                 </div>
@@ -5783,7 +6087,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
     tabType={activeTab || ""} 
     subcategory={activeSubcategory || ""} 
     folderPath={getCurrentNavState().currentFolderPath} 
-    apiBaseUrl="https://lms-server-ym1q.onrender.com" 
+    apiBaseUrl={API_BASE_URL} 
     onClose={() => { 
       setShowPDFViewer(false); 
       setCurrentPDFUrl(""); 
@@ -5797,7 +6101,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
     onNavigateToCourse={() => {
       // Optional: handle course navigation when clicking course breadcrumb
       if (courseId) {
-        router.push(`/lms/pages/courses?courseId=${courseId}`);
+        router.push(`${parentSection.href}?courseId=${courseId}`);
       }
     }}
   />
@@ -5820,7 +6124,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
     tabType={toBackendTab(activeTab)} 
     subcategory={activeSubcategory} 
     folderPath={getCurrentNavState().currentFolderPath} 
-    apiBaseUrl="https://lms-server-ym1q.onrender.com" 
+    apiBaseUrl={API_BASE_URL} 
     isTeacher={true}
     breadcrumbs={breadcrumbs}  // ← ADD THIS
     currentCourseName={courseStructureResponse?.data?.courseName || "Course"}  // ← ADD THIS
@@ -5880,7 +6184,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
       setImagePlaylist([]);
       setCurrentImageIndex(0);
     }}
-    apiBaseUrl="https://lms-server-ym1q.onrender.com"
+    apiBaseUrl={API_BASE_URL}
     isTeacher={true}
     allImages={imagePlaylist}
     currentImageIndex={currentImageIndex}
@@ -5909,6 +6213,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
           folderPath={getCurrentNavState().currentFolderPath}
           availableResolutions={currentVideoResolutions}
           fileUrlMap={currentVideoFileUrlMap}
+          {...viewerFeaturesFor("video")}
           isVideo={true}
           allVideos={videoPlaylist}
           currentVideoIndex={currentVideoIndex}
@@ -5931,7 +6236,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
             setCurrentVideoIndex(0);
             setCurrentVideoFileId("");
           }}
-          apiBaseUrl="https://lms-server-ym1q.onrender.com"
+          apiBaseUrl={API_BASE_URL}
           isTeacher={true}
         />
       )}

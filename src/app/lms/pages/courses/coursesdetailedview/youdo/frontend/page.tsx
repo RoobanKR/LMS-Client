@@ -1,8 +1,10 @@
 "use client";
+import { getToken } from "@/lib/session";
 
 import React, { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import FrontendCompiler from '@/app/lms/component/student/YouDo/assessment/components/frontendCompiler';
+import FrontendCompiler from '@/app/lms/pages/courses/coursesdetailedview/components/YouDo/frontendCompiler';
+import { API_ORIGIN } from '@/lib/apiBase'
 
 const CompilerPageContent = () => {
   const router = useRouter();
@@ -34,7 +36,7 @@ const CompilerPageContent = () => {
     }
 
     try {
-      const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
+      const token = getToken() || localStorage.getItem('token') || '';
       
       if (!token) {
         console.error("Authentication token missing");
@@ -42,7 +44,7 @@ const CompilerPageContent = () => {
         return;
       }
 
-      const response = await fetch(`https://lms-server-ym1q.onrender.com/exercise/${exerciseId}`, {
+      const response = await fetch(`${API_ORIGIN}/exercise/${exerciseId}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -107,7 +109,7 @@ const CompilerPageContent = () => {
 
     setIsLoadingSubmission(true);
     try {
-      const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
+      const token = getToken() || localStorage.getItem('token') || '';
       
       if (!token) {
         console.error("Authentication token missing");
@@ -115,7 +117,7 @@ const CompilerPageContent = () => {
       }
 
       const response = await fetch(
-        `https://lms-server-ym1q.onrender.com/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseId}&questionId=${questionId}&category=${category}`,
+        `${API_ORIGIN}/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseId}&questionId=${questionId}&category=${category}`,
         {
           method: 'GET',
           headers: {
@@ -261,8 +263,7 @@ const CompilerPageContent = () => {
     return (
       <div className="w-full h-screen bg-[#1e1e1e] flex items-center justify-center text-white">
         <div className="text-center">
-          <div className="w-10 h-10 border-3 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-          <p>Loading exercise data...</p>
+          <div className="w-10 h-10 border-3 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
         </div>
       </div>
     );
@@ -316,6 +317,7 @@ const CompilerPageContent = () => {
         courseId={courseId}
         category={category}
         subcategory={subcategory}
+        skipSecurityModal={searchParams.get('securityAck') === '1'}
         selectedProgrammingLanguage={exerciseData?.programmingSettings?.selectedModule}
         
         // Pass previous submission data if available
@@ -333,7 +335,7 @@ const CompilerPageContent = () => {
 
 export default function FrontendCompilerPage() {
   return (
-    <Suspense fallback={<div className="text-white bg-[#1e1e1e]">Loading compiler...</div>}>
+    <Suspense fallback={<div className="w-full h-screen bg-[#1e1e1e] flex items-center justify-center"><div className="w-10 h-10 border-3 border-blue-500 border-t-transparent rounded-full animate-spin"></div></div>}>
       <CompilerPageContent />
     </Suspense>
   );

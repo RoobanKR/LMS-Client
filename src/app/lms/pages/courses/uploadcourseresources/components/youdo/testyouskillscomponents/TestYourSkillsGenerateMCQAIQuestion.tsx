@@ -43,9 +43,9 @@ const injectFonts = (() => {
         --lms-danger:        #e53e3e;
         --lms-danger-bg:     #fff5f5;
         --lms-danger-bdr:    #fed7d7;
-        --lms-info:          #2563eb;
-        --lms-info-bg:       #eff6ff;
-        --lms-info-bdr:      #bfdbfe;
+        --lms-info:          #F97316;
+        --lms-info-bg:       #FFF7ED;
+        --lms-info-bdr:      #FED7AA;
         --lms-warning:       #d97706;
         --lms-warning-bg:    #fffbeb;
         --lms-warning-bdr:   #fde68a;
@@ -55,7 +55,7 @@ const injectFonts = (() => {
         --lms-radius-sm:     8px;
         --lms-radius-md:     10px;
         --lms-radius-lg:     14px;
-        --lms-font:          'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        --lms-font:          'Poppins', -apple-system, BlinkMacSystemFont, sans-serif;
         --lms-shadow-sm:     0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
         --lms-shadow-md:     0 4px 14px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.04);
       }
@@ -118,8 +118,8 @@ const injectFonts = (() => {
 // deployment env for production. Same shape as `questionforms/geminiClient.ts`.
 const GEMINI_API_KEY: string =
   (typeof process !== 'undefined' && (process as any).env?.NEXT_PUBLIC_GEMINI_API_KEY) || '';
-const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${GEMINI_API_KEY}`;
-const GEMINI_API_URL_FALLBACK = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=${GEMINI_API_KEY}`;
+const GEMINI_API_URL_FALLBACK = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${GEMINI_API_KEY}`;
 
 // ─── TYPES ─────────────────────────────────────────────────────────────────
 type QuestionType =

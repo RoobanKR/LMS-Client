@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { Swirling } from "./swirling";
 
 const COLOR_MAP = {
-  blue: "text-blue-500",
+  blue: "text-orange-500",
   orange: "text-orange-500",
   gray: "text-gray-400",
 } as const;

@@ -243,7 +243,11 @@ interface CourseData {
   _id: string;
   courseName: string;
   modules: CourseModule[];
-  singleParticipants: Participant[];
+  batchAndParticipants: Array<{
+    _id?: string;
+    batchName?: string;
+    users?: Participant[];
+  }>;
 }
 
 interface BreadcrumbItem {
@@ -301,12 +305,14 @@ export default function ExerciseAnalytics() {
   const fetchCourseData = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`https://lms-server-ym1q.onrender.com/getAll/courses-data/${courseId}`);
+      const response = await fetch(`https://lmsserver-yeve.onrender.com/getAll/courses-data/${courseId}`);
       const result = await response.json();
 
       if (result.success && result.data) {
         setCourseData(result.data);
-        setParticipants(result.data.singleParticipants || []);
+        setParticipants(
+          (result.data.batchAndParticipants || []).flatMap((b: any) => b?.users || [])
+        );
 
         const allExercises: Exercise[] = [];
         if (result.data.modules) {

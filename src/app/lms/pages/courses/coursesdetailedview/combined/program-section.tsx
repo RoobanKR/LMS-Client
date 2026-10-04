@@ -1,4 +1,5 @@
 'use client';
+import { getToken } from "@/lib/session";
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import dynamic from 'next/dynamic';
@@ -26,6 +27,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import Script from 'next/script';
+import { API_ORIGIN } from '@/lib/apiBase'
 
 const MonacoEditor = dynamic(
   () => import('@monaco-editor/react'),
@@ -34,7 +36,7 @@ const MonacoEditor = dynamic(
     loading: () => (
       <div className="w-full h-full flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-2" />
+          <Loader2 className="w-8 h-8 text-orange-600 animate-spin mx-auto mb-2" />
           <p className="text-xs text-gray-500">Loading Editor...</p>
         </div>
       </div>
@@ -43,7 +45,7 @@ const MonacoEditor = dynamic(
 );
 
 // Piston API configuration
-const PISTON_API_URL = "https://emkc.org/api/v2/piston/execute";
+const PISTON_API_URL = process.env.NEXT_PUBLIC_PISTON_URL || "https://emkc.org/api/v2/piston/execute";
 
 // Types
 interface LogEntry {
@@ -349,8 +351,10 @@ const ProgrammingQuestion: React.FC<ProgrammingQuestionProps> = ({
     if (qid && initializedQuestionIdRef.current === qid) return;
     initializedQuestionIdRef.current = qid;
 
-    // Reset editor first — instantly clear stale code while the restore fetch runs
-    setCode('');
+    // Reset editor first — Code Setup's starterCode (or the legacy
+    // solutions.startedCode) shows immediately while the restore fetch runs;
+    // a found previous submission overrides it below.
+    setCode(question.starterCode || question.solutions?.startedCode || question.solutions?.staetedCode || '');
 
     // Set available languages
     if (question.allowedLanguages && question.allowedLanguages.length > 0) {
@@ -370,10 +374,10 @@ const ProgrammingQuestion: React.FC<ProgrammingQuestionProps> = ({
     (async () => {
       if (!qid || !courseId || !exerciseId || !category) return;
       try {
-        const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
+        const token = getToken() || localStorage.getItem('token') || '';
         if (!token) return;
         const res = await fetch(
-          `https://lms-server-ym1q.onrender.com/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseId}&questionId=${qid}&category=${category}`,
+          `${API_ORIGIN}/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseId}&questionId=${qid}&category=${category}`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
         if (!res.ok) return; // 404 — never submitted, keep blank
@@ -581,7 +585,7 @@ solution();`
 
     try {
       const currentCode = editorInstanceRef.current ? editorInstanceRef.current.getValue() : code;
-      const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
+      const token = getToken() || localStorage.getItem('token') || '';
 
       addTerminalLog('system', '📤 Submitting solution...');
 
@@ -620,7 +624,7 @@ solution();`
         isTestSubmission: false, // per-question save — never flips the exercise
       };
 
-      const response = await fetch('https://lms-server-ym1q.onrender.com/courses/answers/submit-multiple-files', {
+      const response = await fetch(`${API_ORIGIN}/courses/answers/submit-multiple-files`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -878,7 +882,7 @@ solution();`
                   Hints
                 </h3>
                 {question.hints.filter((h: any) => h.isPublic).map((hint: any, i: number) => (
-                  <div key={i} className={`text-xs p-2 rounded ${theme === 'dark' ? 'bg-blue-900/20 text-blue-300' : 'bg-blue-50 text-blue-700'}`}>
+                  <div key={i} className={`text-xs p-2 rounded ${theme === 'dark' ? 'bg-orange-900/20 text-orange-300' : 'bg-orange-50 text-orange-700'}`}>
                     💡 {hint.hintText}
                   </div>
                 ))}
@@ -892,10 +896,10 @@ solution();`
             (dragging it open expands the sidebar). */}
         <div
           onMouseDown={startQuestionSidebarResize}
-          className="cursor-ew-resize flex-shrink-0 hover:bg-blue-500 transition-colors"
+          className="cursor-ew-resize flex-shrink-0 hover:bg-orange-500 transition-colors"
           style={{
             width: 4,
-            backgroundColor: isResizingQuestionSidebar ? '#3b82f6' : (theme === 'dark' ? '#374151' : '#e5e7eb'),
+            backgroundColor: isResizingQuestionSidebar ? '#fb923c' : (theme === 'dark' ? '#374151' : '#e5e7eb'),
           }}
           title="Drag to resize"
         />
@@ -907,7 +911,7 @@ solution();`
               (moved here from the removed top header row). */}
           <div className={`px-3 py-1.5 border-b flex items-center justify-between ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'}`}>
             <div className="flex items-center gap-2 min-w-0">
-              <Code className={`w-3.5 h-3.5 flex-shrink-0 ${theme === 'dark' ? 'text-blue-400' : 'text-blue-500'}`} />
+              <Code className={`w-3.5 h-3.5 flex-shrink-0 ${theme === 'dark' ? 'text-orange-400' : 'text-orange-500'}`} />
               <span className={`text-xs font-medium truncate ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>Code Editor</span>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
@@ -926,7 +930,7 @@ solution();`
               <button
                 onClick={runCode}
                 disabled={isRunning}
-                className={`h-7 px-3 text-xs rounded flex items-center gap-1 ${theme === 'dark' ? 'bg-blue-600 hover:bg-blue-500' : 'bg-blue-500 hover:bg-blue-600'} text-white disabled:opacity-50`}
+                className={`h-7 px-3 text-xs rounded flex items-center gap-1 ${theme === 'dark' ? 'bg-orange-600 hover:bg-orange-500' : 'bg-orange-500 hover:bg-orange-600'} text-white disabled:opacity-50`}
               >
                 {isRunning ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
                 Run

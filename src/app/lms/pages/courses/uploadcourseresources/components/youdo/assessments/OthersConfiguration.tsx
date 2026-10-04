@@ -3,6 +3,7 @@ import React from 'react';
 import { FolderOpen, AlertCircle, Check, Shuffle, Calculator } from 'lucide-react';
 import { D, formatDecimal, isApproximatelyEqual } from './constants';
 import { BaseConfigProps } from './types';
+import { MarksMeter, MarksIssue } from './MarksMeter';
 
 export const OthersConfiguration: React.FC<BaseConfigProps> = ({
   formData, setFormData, setValidationErrors, validationErrors, touchedFields, markTouched,
@@ -12,6 +13,9 @@ export const OthersConfiguration: React.FC<BaseConfigProps> = ({
 }) => {
   const totalToUse = formData.totalMarks;
   const isMatch = isApproximatelyEqual(othersAllocatedMarks || 0, totalToUse);
+  const graded = formData.isGraded !== false;
+  // Locked until there are marks to split — same rule as Programming.
+  const strategyLocked = graded && !(totalToUse > 0);
 
   const scoringCounts = formData.othersConfig.questionConfigType === 'selectionLevel'
     ? formData.othersConfig.selectionLevelCounts
@@ -22,41 +26,38 @@ export const OthersConfiguration: React.FC<BaseConfigProps> = ({
 
   return (
     <div className="px-4 py-3">
-      <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: designTokens.orangeLight, color: designTokens.orange }}>
-            <FolderOpen size={13} />
+      <div className="mb-5 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: '#ede9fe', color: '#7c3aed' }}>
+            <FolderOpen size={16} />
           </div>
-          <h3 className="text-sm font-bold" style={{ color: designTokens.textMain, fontFamily: 'Inter, sans-serif' }}>
-            Others Configuration
-          </h3>
+          <div>
+            <h2 className="text-[15px] font-bold leading-tight" style={{ color: designTokens.textMain }}>Others Configuration</h2>
+            <p className="text-xs mt-0.5" style={{ color: designTokens.textMuted }}>Configure other-type question marks and distribution.</p>
+          </div>
         </div>
-        {isMatch && othersAllocatedMarks > 0 && (
-          <div className="text-right">
-            <div className="text-[10px] font-semibold" style={{ color: designTokens.emerald }}>Allocated</div>
-            <div className="text-sm font-bold" style={{ color: designTokens.emerald }}>
-              {formatDecimal(othersAllocatedMarks)}<span className="text-xs font-normal" style={{ color: designTokens.textMuted }}>/{totalToUse}</span>
-            </div>
-          </div>
-        )}
+        {/* Live Total / Used / Remaining — re-validates on every keystroke. */}
+        {graded && <MarksMeter total={totalToUse || 0} used={othersAllocatedMarks || 0} />}
       </div>
 
-      {othersLevelMismatch && (
-        <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: designTokens.red + '10', border: `1px solid ${designTokens.red}40` }}>
-          <AlertCircle size={13} style={{ color: designTokens.red }} />
-          <p className="text-xs font-semibold flex-1" style={{ color: designTokens.red }}>{othersLevelMismatch}</p>
+      {graded && (
+        <div className="mb-3">
+          <MarksIssue issue={othersLevelMismatch ?? null}
+            ok={isMatch && othersAllocatedMarks > 0 && totalToUse > 0} />
         </div>
       )}
 
-      <div className="space-y-3">
+      <div className="space-y-3" style={{ border: `1px solid ${designTokens.border}`, borderRadius: 14, background: '#fff', padding: '16px 18px' }}>
         {/* Config Strategy */}
         <div>
           <SectionLabel info="General: fixed question count; Level Based: questions by difficulty (Easy/Medium/Hard); Selection Level: pick up to 2 difficulty levels">
             Config Strategy
           </SectionLabel>
           <ODropdown
-            value={formData.othersConfig.questionConfigType}
+            value={strategyLocked ? '' : formData.othersConfig.questionConfigType}
             options={configOptions}
+            disabled={strategyLocked}
+            placeholder="Enter Total Marks first"
             onChange={v => {
               setFormData(prev => ({
                 ...prev,
@@ -74,7 +75,7 @@ export const OthersConfiguration: React.FC<BaseConfigProps> = ({
         </div>
 
         {/* General Configuration */}
-        {formData.othersConfig.questionConfigType === 'general' && (
+        {!strategyLocked && formData.othersConfig.questionConfigType === 'general' && (
           <div className="grid grid-cols-2 gap-3">
             <div>
               <SectionLabel required info="Total number of questions">Total Questions</SectionLabel>
@@ -95,6 +96,7 @@ export const OthersConfiguration: React.FC<BaseConfigProps> = ({
                   }));
                 }}
                 onBlur={() => markTouched('othersGeneralQuestionCount')}
+                liveUpdate
                 min={0}
                 placeholder="e.g. 5"
                 error={validationErrors.othersGeneralQuestionCount}
@@ -119,7 +121,7 @@ export const OthersConfiguration: React.FC<BaseConfigProps> = ({
         )}
 
         {/* Level Based / Selection Level Configuration */}
-        {(formData.othersConfig.questionConfigType === 'levelBased' || formData.othersConfig.questionConfigType === 'selectionLevel') && (
+        {!strategyLocked && (formData.othersConfig.questionConfigType === 'levelBased' || formData.othersConfig.questionConfigType === 'selectionLevel') && (
           <>
             <div className="flex items-center gap-1">
               <Calculator size={12} style={{ color: designTokens.textMuted }} />
@@ -195,6 +197,7 @@ export const OthersConfiguration: React.FC<BaseConfigProps> = ({
                             value={val}
                             onChange={handleChange}
                             onBlur={isSelLevel ? undefined : () => markTouched('othersLevelCounts')}
+                            liveUpdate
                             disabled={isSelLevel && !checked}
                             min={0}
                             placeholder={isSelLevel && !checked ? '—' : 'Count'}
@@ -245,6 +248,9 @@ export const OthersConfiguration: React.FC<BaseConfigProps> = ({
                           <ONumberInput
                             value={isQSpec ? (scoring?.totalMarks || 0) : (scoring?.marksPerQuestion || 0)}
                             onChange={v => updateOthersLevelScoringConfig?.(level, isQSpec ? { totalMarks: v } : { marksPerQuestion: v })}
+                            liveUpdate
+                            error={graded && count > 0 && !((isQSpec ? scoring?.totalMarks : scoring?.marksPerQuestion) > 0) ? 'Enter marks' : undefined}
+                            touched
                           />
                           {hasError && <span className="text-[10px]" style={{ color: designTokens.red }}>{scoringErrors[level]}</span>}
                         </div>

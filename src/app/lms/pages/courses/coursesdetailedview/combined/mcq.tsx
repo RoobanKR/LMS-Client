@@ -631,11 +631,11 @@ const MCQQuestion: React.FC<MCQQuestionProps> = ({
   };
 
   if (!isClient) {
-    return <div style={{ minHeight: '100vh', background: T.pageBg }} />;
+    return <div style={{ minHeight: 'calc(100vh * var(--ui-scale-inv, 1))', background: T.pageBg }} />;
   }
 
   return (
-    <div className={`w-full h-full flex flex-col ${montserrat.variable} ${inter.variable} font-sans`} style={{ background: T.pageBg, fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif" }}>
+    <div className={`w-full h-full flex flex-col ${montserrat.variable} ${inter.variable} font-sans`} style={{ background: T.pageBg, fontFamily: "'Poppins', -apple-system, BlinkMacSystemFont, sans-serif" }}>
       <style jsx global>{`
         .font-montserrat { font-family: var(--font-montserrat), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
         .font-inter { font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
@@ -709,8 +709,8 @@ const MCQQuestion: React.FC<MCQQuestionProps> = ({
 
           {/* Description (with info box) */}
           {question.mcqQuestionDescription && (
-            <div style={{ display: 'flex', gap: 10, padding: '12px 16px', borderRadius: 10, background: T.blueLight, border: `1px solid ${T.blue}20`, marginBottom: 20 }}>
-              <Info size={14} style={{ color: T.blue, flexShrink: 0, marginTop: 2 }} />
+            <div style={{ display: 'flex', gap: 10, padding: '12px 16px', borderRadius: 10, background: T.orangeLight, border: `1px solid ${T.orange}20`, marginBottom: 20 }}>
+              <Info size={14} style={{ color: T.orange, flexShrink: 0, marginTop: 2 }} />
               <p style={{ fontSize: 13, color: T.textSub, margin: 0, lineHeight: 1.6 }}>{question.mcqQuestionDescription}</p>
             </div>
           )}

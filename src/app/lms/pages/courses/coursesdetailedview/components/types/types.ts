@@ -32,16 +32,60 @@ export interface Topic    { _id:string; title:string; description:string; durati
 export interface SubModule{ _id:string; title:string; description:string; topics?:Topic[]; pedagogy?:Pedagogy }
 export interface Module   { _id:string; title:string; description:string; subModules?:SubModule[]; topics?:Topic[]; pedagogy?:Pedagogy }
 
+/**
+ * One resource type's row in Course Setup → Resource Type: whether it's on,
+ * its size ceiling, and the AI Chat / AI Summary / Notes sub-switches that
+ * decide which buttons its viewer shows.
+ */
+export interface ResourceTypeConfig {
+  enabled?: boolean;
+  maxSize?: number;
+  aiChat?: boolean;
+  aiSummary?: boolean;
+  notes?: boolean;
+}
+
+// One node's completion rollup — produced by server/utils/topicCompletion.js
+// and embedded in the /getAll/courses-data/:id response as `topicProgress`.
+// Keyed by node `_id`, indexed on the client per-node so the sidebar can
+// look up a topic's status in O(1). Missing nodes → treat as `not_started`.
+export type TopicStatus = 'completed' | 'in_progress' | 'not_started' | 'locked';
+export interface TopicProgressEntry {
+  status: TopicStatus;
+  completedRequiredItems: number;
+  totalRequiredItems: number;
+  iDoComplete: boolean;
+  weDoComplete: boolean;
+  youDoComplete: boolean;
+  iDo: { total: number; completed: number };
+  weDo: { total: number; completed: number };
+  youDo: { total: number; completed: number };
+}
+export type TopicProgressMap = Record<string, TopicProgressEntry>;
+
 export interface CourseData {
   _id:string; courseName:string; courseDescription:string; courseHierarchy?:string[];
   I_Do?:string[]; We_Do?:string[]; You_Do?:string[];
   modules?:Module[];
-  singleParticipants?: Array<{
-    user?: {
-      _id?: string
-      courses?: Array<{ courseId: string; answers?: Record<string, any> }>
+  /** Per-node completion rollup for the sidebar's tick — server authoritative. */
+  topicProgress?: TopicProgressMap;
+  /** Per-pedagogy-phase resource config saved by Course Setup. */
+  resourcesType?: {
+    iDo?: Record<string, ResourceTypeConfig | undefined>;
+    weDo?: Record<string, ResourceTypeConfig | undefined>;
+    youDo?: Record<string, ResourceTypeConfig | undefined>;
+  };
+  batchAndParticipants?: Array<{
+    _id?: string
+    batchName?: string
+    users?: Array<{
+      user?: {
+        _id?: string
+        courses?: Array<{ courseId: string; answers?: Record<string, any> }>
+        [key: string]: any
+      }
       [key: string]: any
-    }
+    }>
     [key: string]: any
   }>
 }

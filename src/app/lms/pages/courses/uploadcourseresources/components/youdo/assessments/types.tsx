@@ -1,6 +1,7 @@
 // types.tsx
 import { ReactNode } from "react";
 import { SecuritySettingsData } from "./SecuritySettings";
+import type { EvaluationMethodSetting } from "@/app/lms/pages/courses/coursesdetailedview/components/EvaluationMethodConfig";
 
 export interface ExercisePayload {
   configurationType: "manual";
@@ -49,6 +50,9 @@ onSave?: (payload: any) => void;
   // Node-scoped skill set (the topic's own testConfiguration). Preferred over
   // the whole-course config when rendering the Skill Set chips.
   configuredLanguages?: { coreProgram?: string[]; frontend?: string[]; database?: string[] };
+  // Which Mock/Final tab the create flow was launched from — pre-selects the
+  // Test Type in Exercise Details so the new assessment lands on that tab.
+  defaultTestType?: "mock" | "final";
 }
 // assessments/types.ts - Add these to existing types
 
@@ -65,7 +69,7 @@ export interface BaseConfigProps {
   ONumberInput: React.FC<any>;
   OToggle: React.FC<any>;
   OInput: React.FC<any>;
-  D: typeof D;
+  D: any;
   mcqScoringOptions: { value: string; label: string }[];
   configOptions: { value: string; label: string }[];
   questionFlowOptions: { value: string; label: string; description: string; icon: React.ReactNode }[];
@@ -113,8 +117,13 @@ export interface ValidationErrors {
   [key: string]: any;
 }
 
+export type NotifyChannels = { dashboard: boolean; gmail: boolean; whatsapp: boolean };
+
 export interface FormDataType {
-  exerciseType: "" | "MCQ";
+  // Supports every exercise type the form can hold ('' = unset, used while
+  // section-based hides the type selector). Previously typed as only "" | "MCQ",
+  // which produced spurious "no overlap" errors on every Programming/Combined/Other check.
+  exerciseType: "" | "MCQ" | "Programming" | "Combined" | "Other" | "SectionBased";
   selectedModule: string;
   selectedLanguages: string[];
   exerciseId: string;
@@ -126,7 +135,18 @@ export interface FormDataType {
   totalDuration: number;
   totalMarks: number;
   totalMarksMCQ: number;
+  totalMarksProgramming: number;
   mcqConfig: any;
+  // Question-config blocks for the non-MCQ exercise types + section-based state.
+  programmingConfig: any;
+  othersConfig: any;
+  isSectionBased?: boolean;
+  sections?: any[];
+  sectionConfigs?: Record<string, any>;
+  // Legacy aliases for the Combined per-part marks (kept for back-compat with
+  // any caller still reading them; canonical fields are totalMarksMCQ/Programming).
+  mcqMarks?: number;
+  programmingMarks?: number;
   schedule: any;
   notifyUsers: boolean;
   notifyGmail: boolean;
@@ -136,6 +156,10 @@ export interface FormDataType {
     notifyGradersSubmissions: boolean;
     notifyGradersLateSubmissions: boolean;
     notifyStudent: boolean;
+    // Delivery channels per toggle — shown as "Notify via" when it is on.
+    notifyStudentChannels?: NotifyChannels;
+    notifyGradersSubmissionsChannels?: NotifyChannels;
+    notifyGradersLateSubmissionsChannels?: NotifyChannels;
   };
   grades: {
     mcqGrade: number | null;
@@ -152,13 +176,41 @@ export interface FormDataType {
     // Key is the section id; value must be > 0 and strictly less than that
     // section's totalMarks (e.g. Part A total 50 → max pass mark 49).
     sectionPassMarks?: Record<string, number | null>;
+    // Grade-level "Section Based" split (independent of the Exercise Details
+    // section-based): when on, grading is broken into named parts each with its
+    // own total + pass mark. Persisted so editing restores the toggle + parts.
+    sectionBased?: boolean;
+    sections?: Array<{ id: string; name: string; totalMarks: number | null; passMark: number | null }>;
+    // Optional separate programming pass mark (used by GradeSettingsStep's
+    // separate-marks layout).
+    programmingGradeToPass?: number | null;
   };
   additionalOptions: {
     anonymousSubmissions: boolean;
     hideGraderIdentity: boolean;
   };
-  securitySettings: SecuritySettingsData; // ← ADD THIS
-  sectionBasedDuration?: boolean; // ← ADD THIS
+  securitySettings: SecuritySettingsData;
+  /**
+   * Graded / Non-Graded, carried through so an edit round-trips it.
+   *
+   * This wizard has no toggle for it — an assessment it CREATES is always
+   * graded — but a non-graded one can reach it from elsewhere (a seed, an
+   * import, the We Do wizard's toggle on a shared node). Without the field the
+   * form would read such an exercise as graded and show the Evaluation Method
+   * picker, whose You_Do allowed-set excludes Manual — silently promoting the
+   * stored Manual to Test Case and arming an evaluator on an exercise that
+   * records no score. Loaded on edit, defaulted to true, and NOT sent on save:
+   * the server preserves the stored value when the field is absent.
+   */
+  isGraded?: boolean;
+  // Evaluation Method config — test case or AI. Stored only; consumed by
+  // the grading pipeline later.
+  evaluationMethod: EvaluationMethodSetting;
+  sectionBasedDuration?: boolean;
+  // Select Assessment Content step — persisted so the student attend flow
+  // can scope questions to the chosen topics and show the instructions.
+  selectedTopics: Array<{ id: string; title: string; level: number }>;
+  instructions: string;
 }
 
 

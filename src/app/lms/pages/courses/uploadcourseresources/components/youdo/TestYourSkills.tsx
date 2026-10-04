@@ -1,5 +1,6 @@
 // TestYourSkills.tsx - Complete file with all question types support, delete confirmation, and bulk delete
 "use client";
+import { getToken } from "@/lib/session";
 
 import React, { useState, useEffect } from "react";
 import {
@@ -22,9 +23,15 @@ import {
   Check
 } from "lucide-react";
 import CreateTestModal from "./testyouskillscomponents/CreateTestModal";
-import { youDoMcqApi, getEntityTypeFromNodeType } from "@/apiServices/pedagogyAndModuleAdd/testYourSkillsApi";
+import CreateQuestionOptionModal from "./testyouskillscomponents/CreateQuestionOptionModal";
+import { youDoMcqApi, getEntityTypeFromNodeType } from "@/app/lms/pages/courses/api/testYourSkillsApi";
+// Resources by Batch — used by the raw `fetch` below, which the axios
+// interceptor cannot reach. `getActiveBatchId` also keys the reload effect so
+// the list refetches when the batch strip changes.
+import { withBatchBody, getActiveBatchId } from "@/app/lms/pages/courses/api/resourceBatch";
 import { toast } from "react-hot-toast";
-import AddQuestionViaDocument from "@/app/lms/component/AddQuestionViaDocument";
+import { useQuery } from "@tanstack/react-query";
+import AddQuestionViaDocument from "@/app/lms/pages/courses/components/AddQuestionViaDocument";
 import { questionBankService } from "@/apiServices/questionBankService";
 import TestYourSKillsQuestionBanklist from "./testyouskillscomponents/TestYourSKillsQuestionBanklist";
 
@@ -48,8 +55,8 @@ const T = {
   orangeDark: "#E0623F",
   purple:    "#8b5cf6",
   purpleLight: "rgba(139,92,246,0.08)",
-  blue:      "#3b82f6",
-  blueLight: "rgba(59,130,246,0.08)",
+  blue:      "#FB923C",
+  blueLight: "rgba(251,146,60,0.08)",
   red:       "#ef4444",
   redLight:  "rgba(239,68,68,0.08)",
   amber:     "#f59e0b",
@@ -75,6 +82,13 @@ export interface YouDoProps {
   };
   configuredLanguages?: { coreProgram?: string[]; frontend?: string[]; database?: string[] };
   onRefresh?: () => Promise<void>;
+  /**
+   * Resources by Batch — the batch currently selected in the strip above.
+   * Threaded down as a prop rather than read from module state so that a batch
+   * switch re-renders this subtree and the exercise list's cache key changes
+   * with it. "" when the course has no batches or the section is shared.
+   */
+  batchId?: string;
 }
 
 // ─── Question record - each question is a separate row ────────────────────────
@@ -205,13 +219,18 @@ const DropItem: React.FC<{
     type="button" onClick={onClick}
     className="flex items-center gap-2 w-full px-2.5 py-2 text-[11px] font-semibold rounded-lg"
     style={{
-      color: color || T.textSub,
+      // Resting state is the dark tone this row used to reach only on hover.
+      // The old muted textSub made every item read as disabled.
+      color: color || T.textMain,
       borderTop: divider ? `1px solid ${T.border}` : "none",
       marginTop: divider ? 3 : 0,
       background: "transparent", transition: "all 0.12s",
     }}
-    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = color ? `${color}10` : T.pageBg; (e.currentTarget as HTMLElement).style.color = color || T.textMain; }}
-    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = color || T.textSub; }}
+    // Hover lands on the theme orange over its wash — the old neutral hover
+    // background (T.pageBg) was near-identical to the menu's own surface, so
+    // hovering barely registered.
+    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = color ? `${color}10` : T.orangeLight; (e.currentTarget as HTMLElement).style.color = color || T.orange; }}
+    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = color || T.textMain; }}
   >
     {icon}{label}
   </button>
@@ -364,97 +383,11 @@ const BulkDeleteConfirmationModal: React.FC<{
   );
 };
 
-// ─── Create Option Modal Component ────────────────────────────────────────────
-const CreateOptionModal: React.FC<{
-  isOpen: boolean;
-  onClose: () => void;
-  onSelectFromScratch: () => void;
-  onSelectFromBank: () => void;
-  onSelectFromDocument: () => void;
-}> = ({ isOpen, onClose, onSelectFromScratch, onSelectFromBank, onSelectFromDocument }) => {
-  if (!isOpen) return null;
-
-  return (
-    <div 
-      className="fixed inset-0 z-[1000] flex items-center justify-center"
-      style={{ background: 'rgba(26,26,46,0.55)', backdropFilter: 'blur(3px)' }}
-      onClick={onClose}
-    >
-      <div 
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
-        style={{ border: '1px solid var(--lms-border)' }}
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="px-5 pt-5 pb-3 border-b" style={{ borderColor: T.border }}>
-          <h3 className="text-base font-bold" style={{ color: T.textMain }}>Add Question</h3>
-          <p className="text-xs mt-1" style={{ color: T.textMuted }}>Choose how you want to create questions</p>
-        </div>
-
-        <div className="p-4 space-y-3">
-          <button
-            onClick={onSelectFromScratch}
-            className="w-full flex items-start gap-4 p-4 rounded-xl transition-all text-left"
-            style={{ background: T.bg, border: `1.5px solid ${T.border}`, transition: 'all 0.2s' }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = T.green; e.currentTarget.style.background = T.greenLight; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.background = T.bg; }}
-          >
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#e8f5e9', color: T.green }}>
-              <Plus size={20} strokeWidth={1.5} />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-bold" style={{ color: T.textMain }}>Create From Scratch</p>
-              <p className="text-[11px] mt-0.5" style={{ color: T.textMuted }}>Build from scratch with custom content</p>
-            </div>
-          </button>
-
-          <button
-            onClick={onSelectFromBank}
-            className="w-full flex items-start gap-4 p-4 rounded-xl transition-all text-left"
-            style={{ background: T.bg, border: `1.5px solid ${T.border}`, transition: 'all 0.2s' }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = T.purple; e.currentTarget.style.background = T.purpleLight; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.background = T.bg; }}
-          >
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#f3e8ff', color: T.purple }}>
-              <Database size={20} strokeWidth={1.5} />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-bold" style={{ color: T.textMain }}>From Question Bank</p>
-              <p className="text-[11px] mt-0.5" style={{ color: T.textMuted }}>Import from existing question repository</p>
-            </div>
-          </button>
-
-          <button
-            onClick={onSelectFromDocument}
-            className="w-full flex items-start gap-4 p-4 rounded-xl transition-all text-left"
-            style={{ background: T.bg, border: `1.5px solid ${T.border}`, transition: 'all 0.2s' }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = T.amber; e.currentTarget.style.background = T.amberLight; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.background = T.bg; }}
-          >
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#fef3c7', color: T.amber }}>
-              <Upload size={20} strokeWidth={1.5} />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-bold" style={{ color: T.textMain }}>From Document</p>
-              <p className="text-[11px] mt-0.5" style={{ color: T.textMuted }}>Bulk import from JSON, CSV, TXT</p>
-            </div>
-          </button>
-        </div>
-
-        <div className="px-4 pb-4">
-          <button
-            onClick={onClose}
-            className="w-full py-2.5 rounded-xl text-sm font-semibold transition-all"
-            style={{ background: T.pageBg, border: `1.5px solid ${T.border}`, color: T.textSub }}
-            onMouseEnter={e => { e.currentTarget.style.background = T.bg; e.currentTarget.style.borderColor = T.border; }}
-            onMouseLeave={e => { e.currentTarget.style.background = T.pageBg; e.currentTarget.style.borderColor = T.border; }}
-          >
-            Cancel
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
+// ─── Create Option Modal ─────────────────────────────────────────────────────
+// 2026-09-02: the inline CreateOptionModal that used to live here was
+// replaced with the shared CreateQuestionOptionModal (rebuilt to the
+// "Add a programming question" mockup). Same prop contract — see the
+// call site below.
 
 // ─── Preview Modal Component (Supports All Question Types) ─────────────────────
 const PreviewModal: React.FC<{
@@ -614,7 +547,7 @@ const PreviewModal: React.FC<{
           <div className="p-3 rounded-lg bg-gray-50 border border-gray-200">
             {sortedItems.map((item: any, idx: number) => (
               <div key={idx} className="flex items-center gap-2 p-2 border-b border-gray-100">
-                <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold">{idx + 1}</span>
+                <span className="w-6 h-6 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center text-xs font-bold">{idx + 1}</span>
                 <span className="text-sm">{item.text}</span>
               </div>
             ))}
@@ -702,7 +635,7 @@ const PreviewModal: React.FC<{
           
           {questionData?.mcqQuestionDescription && (
             <div className="mb-4 p-3 rounded-lg" style={{ background: T.blueLight, border: `1px solid ${T.blue}30` }}>
-              <p className="text-xs font-semibold text-blue-600 mb-1">📌 Description</p>
+              <p className="text-xs font-semibold text-orange-600 mb-1">📌 Description</p>
               <div dangerouslySetInnerHTML={{ __html: questionData.mcqQuestionDescription }} className="text-sm text-gray-600" />
             </div>
           )}
@@ -710,10 +643,10 @@ const PreviewModal: React.FC<{
           {renderOptionsPreview()}
           
           {questionData?.explanation && (
-            <div className="mt-6 p-4 rounded-xl" style={{ background: '#eff6ff', border: '1px solid #bfdbfe' }}>
+            <div className="mt-6 p-4 rounded-xl" style={{ background: '#FFF7ED', border: '1px solid #FED7AA' }}>
               <div className="flex items-center gap-2 mb-2">
-                <Info className="h-3.5 w-3.5 text-blue-500" />
-                <span className="text-xs font-bold text-blue-600">Explanation</span>
+                <Info className="h-3.5 w-3.5 text-orange-500" />
+                <span className="text-xs font-bold text-orange-600">Explanation</span>
               </div>
               <p className="text-xs leading-relaxed text-gray-600" dangerouslySetInnerHTML={{ __html: questionData.explanation }} />
             </div>
@@ -1357,10 +1290,10 @@ const MockTestModal: React.FC<MockTestModalProps> = ({ isOpen, questions, onClos
             </div>
             
             <div className="p-4 rounded-xl" style={{ background: T.blueLight, border: `1px solid ${T.blue}30` }}>
-              <p className="text-xs font-semibold text-blue-600 mb-1">📋 Question Types Included:</p>
+              <p className="text-xs font-semibold text-orange-600 mb-1">📋 Question Types Included:</p>
               <div className="flex flex-wrap gap-2 mt-2">
                 {Array.from(new Set(questions.map(q => getTypeLabel(q.type)))).map(type => (
-                  <span key={type} className="text-xs px-2 py-1 rounded-full bg-white border border-blue-200 text-blue-600">{type}</span>
+                  <span key={type} className="text-xs px-2 py-1 rounded-full bg-white border border-orange-200 text-orange-600">{type}</span>
                 ))}
               </div>
             </div>
@@ -1546,6 +1479,85 @@ const MockTestModal: React.FC<MockTestModalProps> = ({ isOpen, questions, onClos
   );
 };
 
+// ─── Shared query identity + fetcher ──────────────────────────────────────────
+// Module scope and EXPORTED so the resources page can warm this exact cache
+// entry while its node-level ring loader is still up — the component then
+// mounts onto a warm cache and paints instantly, with no second loader.
+
+export const testYourSkillsQueryKey = (nodeType: string, nodeId: string) => [
+  'testYourSkillsQuestions',
+  getEntityTypeFromNodeType(nodeType),
+  nodeId || '',
+  getActiveBatchId() || '',
+] as const;
+
+export const fetchTestYourSkillsQuestions = async (
+  nodeType: string,
+  nodeId: string,
+): Promise<QuestionRecord[]> => {
+  const entityType = getEntityTypeFromNodeType(nodeType);
+  let response: any;
+  try {
+    // This should get all questions under test_your_skills
+    response = await youDoMcqApi.getAllQuestions(entityType, nodeId);
+  } catch (err: any) {
+    // "Nothing here yet" is a valid empty list, not an error — cache it
+    // as [] so revisiting an empty node doesn't loop the loader either.
+    if (err.message?.includes('not found') || err.response?.status === 404) {
+      return [];
+    }
+    throw err;
+  }
+
+  // Handle different response structures
+  let raw: any[] = [];
+  if (response.data) {
+    raw = response.data;
+  } else if (response.questions) {
+    raw = response.questions;
+  } else if (Array.isArray(response)) {
+    raw = response;
+  }
+
+  const transformedQuestions: QuestionRecord[] = raw.map((q: any) => {
+    let title = "Untitled Question";
+
+    if (typeof q.mcqQuestionTitle === 'string') {
+      title = q.mcqQuestionTitle.replace(/<[^>]*>/g, '').trim();
+    } else if (Array.isArray(q.mcqQuestionTitle)) {
+      const textBlocks = q.mcqQuestionTitle
+        .filter((block: any) => block.type === 'text')
+        .map((block: any) => {
+          const value = block.value || '';
+          return value.replace(/<[^>]*>/g, '').trim();
+        })
+        .filter(Boolean)
+        .join(' ');
+      title = textBlocks || "Untitled Question";
+    } else if (q.mcqQuestionTitle && typeof q.mcqQuestionTitle === 'object') {
+      title = q.mcqQuestionTitle.value || q.mcqQuestionTitle.text || "Untitled Question";
+    }
+
+    return {
+      id: q._id || q.questionId,
+      testItemKey: q.testItemKey || "test_your_skills",
+      title: title,
+      type: q.mcqQuestionType || "multiple_choice",
+      duration: q.testSettings?.timeLimit || 60,
+      marks: q.mcqQuestionScore || 1,
+      level: q.mcqQuestionDifficulty || "medium",
+      status: q.isActive ? "active" : "draft",
+      createdAt: q.createdAt || new Date().toISOString(),
+      sequence: q.sequence || 0,
+      questionData: q,
+    };
+  });
+
+  return transformedQuestions.sort((a, b) =>
+    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+};
+
 // ─── Main Component ────────────────────────────────────────────────────────────
 export default function TestYourSkills({
   nodeId,
@@ -1558,7 +1570,12 @@ export default function TestYourSkills({
   configuredLanguages,
   onRefresh,
 }: YouDoProps) {
-  const [questions, setQuestions] = useState<QuestionRecord[]>([]);
+  // The question list lives in the React Query cache (see the useQuery block
+  // below), keyed by (entityType, nodeId, batch). Every navigation path into
+  // Test Your Skills — We Do → You Do, Assessment → Test Your Skills, a
+  // syllabus node revisit — mounts onto the SAME key, so a revisit paints
+  // cached rows (including a cached EMPTY list) instantly with no loader,
+  // while React Query refreshes in the background when the data is stale.
   const [showModal, setShowModal] = useState(false);
   const [showCreateOptionModal, setShowCreateOptionModal] = useState(false);
   const [showMockTestModal, setShowMockTestModal] = useState(false);
@@ -1567,8 +1584,9 @@ export default function TestYourSkills({
   const [editingQuestionData, setEditingQuestionData] = useState<any>(null);
   const [openDrop, setOpenDrop] = useState<string | null>(null);
   const [dropUpward, setDropUpward] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Busy flag for MUTATION flows only (bulk delete, bank import, single
+  // delete, document import) — the query below owns the initial-load state.
+  const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [fullQuestionData, setFullQuestionData] = useState<any[]>([]);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
@@ -1786,15 +1804,20 @@ const handleBankQuestionsSelected = async (selectedQuestions: any[]) => {
           shuffleQuestions: false,
           showResults: true,
           pointsPerQuestion: score,
-          questionsData: [questionData] // Single question array
+          questionsData: [questionData], // Single question array
+          // Resources by Batch — this is a raw `fetch`, so the axios
+          // interceptor that stamps the batch onto every other call does not
+          // see it. Without this the question is written to the shared,
+          // course-level container and every batch would get it.
+          ...withBatchBody({}),
         };
-        
-        const token = localStorage.getItem('smartcliff_token');
+
+        const token = getToken();
         const entityPath = getEntityTypeFromNodeType(nodeType);
         const path = getEntityPath(entityPath);
         
         // IMPORTANT: Use the same testItemKey "test_your_skills" for all questions
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://lms-server-ym1q.onrender.com'}/you-do/createquestion/${path}/${nodeId}/you-do/${testItemKey}/mcq`, {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://lmsserver-yeve.onrender.com'}/you-do/createquestion/${path}/${nodeId}/you-do/${testItemKey}/mcq`, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json', 
@@ -1849,89 +1872,52 @@ const getEntityPath = (entityType: string): string => {
   };
   return pathMap[entityType] || 'topics';
 };
-const loadQuestions = async () => {
-  if (!nodeId?.trim()) {
-    setQuestions([]);
-    setIsLoading(false);
-    return;
-  }
-  
-  setIsLoading(true);
-  setError(null);
-  try {
-    const entityType = getEntityTypeFromNodeType(nodeType);
-    // This should get all questions under test_your_skills
-    const response = await youDoMcqApi.getAllQuestions(entityType, nodeId);
-    
-    // Handle different response structures
-    let questionsData = [];
-    if (response.data) {
-      questionsData = response.data;
-    } else if (response.questions) {
-      questionsData = response.questions;
-    } else if (Array.isArray(response)) {
-      questionsData = response;
-    } else {
-      questionsData = [];
-    }
-    
-    setFullQuestionData(questionsData);
-    
-    const transformedQuestions: QuestionRecord[] = questionsData.map((q: any) => {
-      let title = "Untitled Question";
-      
-      if (typeof q.mcqQuestionTitle === 'string') {
-        title = q.mcqQuestionTitle.replace(/<[^>]*>/g, '').trim();
-      } else if (Array.isArray(q.mcqQuestionTitle)) {
-        const textBlocks = q.mcqQuestionTitle
-          .filter((block: any) => block.type === 'text')
-          .map((block: any) => {
-            const value = block.value || '';
-            return value.replace(/<[^>]*>/g, '').trim();
-          })
-          .filter(Boolean)
-          .join(' ');
-        title = textBlocks || "Untitled Question";
-      } else if (q.mcqQuestionTitle && typeof q.mcqQuestionTitle === 'object') {
-        title = q.mcqQuestionTitle.value || q.mcqQuestionTitle.text || "Untitled Question";
-      }
-      
-      return {
-        id: q._id || q.questionId,
-        testItemKey: q.testItemKey || "test_your_skills",
-        title: title,
-        type: q.mcqQuestionType || "multiple_choice",
-        duration: q.testSettings?.timeLimit || 60,
-        marks: q.mcqQuestionScore || 1,
-        level: q.mcqQuestionDifficulty || "medium",
-        status: q.isActive ? "active" : "draft",
-        createdAt: q.createdAt || new Date().toISOString(),
-        sequence: q.sequence || 0,
-        questionData: q,
-      };
-    });
-    
-    const sorted = transformedQuestions.sort((a, b) => 
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
-    
-    setQuestions(sorted);
-    
-  } catch (err: any) {
-    console.error("Failed to load questions:", err);
-    setError(err.message || "Failed to load questions");
-    if (err.message?.includes('not found') || err.response?.status === 404) {
-      setQuestions([]);
-      setError(null);
-    }
-  } finally {
-    setIsLoading(false);
-  }
-};
+// Whether the query can run at all — no node selected means an empty list,
+// never a spinner.
+const hasNode = !!nodeId?.trim();
 
-  useEffect(() => {
-    loadQuestions();
-  }, [nodeId, nodeType]);
+// The Test Your Skills question list, owned by React Query. One key per
+// (entityType, entityId, batch): every page that navigates here lands on the
+// same key, so the cache is shared across all navigation paths. The active
+// batch is part of the key — switching the batch strip is a different list,
+// not a refetch of the same one.
+const {
+  data: questionsData,
+  isPending: isQuestionsPending,
+  error: questionsError,
+  refetch: refetchQuestions,
+} = useQuery<QuestionRecord[]>({
+  // Shared with the resources page's warm prefetch — see the exported
+  // testYourSkillsQueryKey / fetchTestYourSkillsQuestions at module scope.
+  queryKey: testYourSkillsQueryKey(nodeType, nodeId),
+  enabled: hasNode,
+  // Fresh for 30s: bouncing straight back re-renders from cache with no
+  // request at all. After that, a revisit still paints the cached rows
+  // instantly and refreshes silently in the background (isFetching), never
+  // returning to the full-page loader.
+  staleTime: 30 * 1000,
+  // Keep the list cached across long editing detours before it's collected.
+  gcTime: 30 * 60 * 1000,
+  refetchOnWindowFocus: false,
+  queryFn: () => fetchTestYourSkillsQuestions(nodeType, nodeId),
+});
+
+const questions = questionsData ?? [];
+// Full-page loader ONLY when there is no cached data AND the first request
+// for this key is in flight. A background refetch of stale data keeps the
+// cached rows on screen (isPending stays false once data exists).
+const isInitialLoading = hasNode && isQuestionsPending;
+const error = questionsError
+  ? ((questionsError as Error).message || "Failed to load questions")
+  : null;
+
+// Shared refresh hook for the mutation flows below (delete / import / save).
+// The `silent` option is obsolete — background refetches never show the
+// full-page loader anymore — but the signature is kept for callers.
+const loadQuestions = async (_opts: { silent?: boolean } = {}) => {
+  if (!hasNode) return;
+  await refetchQuestions();
+};
 
   const loadQuestionsForModal = async () => {
     if (!nodeId?.trim()) return [];
@@ -2262,23 +2248,27 @@ const loadQuestions = async () => {
 
   const filteredQuestions = getFilteredQuestions();
   
-  // Table header styles
-  const thCls = "text-[9px] font-black uppercase tracking-[0.12em]";
-  
+  // Header cells — DataTable rhythm: `text-[10px] font-semibold uppercase
+  // tracking-wider text-subtle`, same as CM / UM / SM.
+  const thCls = "text-[10px] font-semibold uppercase tracking-wider text-subtle";
+
+  // Grid row — padding-based height replaced by fixed h-8 / h-11 so the
+  // list matches the DataTable rhythm the other admin lists share.
   const rowBase: React.CSSProperties = {
     display: "grid",
     gridTemplateColumns: "40px minmax(0,2.5fr) 120px 120px 100px 90px 80px",
-    gap: 12, 
+    gap: 12,
     alignItems: "center",
-    padding: "11px 16px",
-    borderBottom: `1px solid ${T.border}`,
-    transition: "all 0.14s",
-    borderLeft: "2.5px solid transparent",
+    padding: "0 12px",
+    transition: "background-color 0.15s",
   };
 
-  if (isLoading) {
+  // isInitialLoading: first-ever fetch for this (node, batch) — no cache yet.
+  // isLoading: a mutation flow (delete / import) explicitly asked for it.
+  // Background refetches set neither, so cached rows stay on screen.
+  if (isInitialLoading || isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-full" style={{ background: T.pageBg }}>
+      <div className="flex flex-col items-center justify-center h-full" style={{ background: T.bg }}>
         <Loader2 size={32} className="animate-spin" style={{ color: T.green }} />
         <p className="mt-3 text-sm font-medium" style={{ color: T.textMuted }}>Loading questions...</p>
       </div>
@@ -2287,11 +2277,11 @@ const loadQuestions = async () => {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center h-full" style={{ background: T.pageBg }}>
+      <div className="flex flex-col items-center justify-center h-full" style={{ background: T.bg }}>
         <AlertCircle size={32} style={{ color: "#ef4444" }} />
         <p className="mt-3 text-sm font-medium" style={{ color: "#ef4444" }}>{error}</p>
         <button
-          onClick={loadQuestions}
+          onClick={() => loadQuestions()}
           className="mt-4 flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium"
           style={{ background: T.green, color: "#fff" }}
         >
@@ -2304,7 +2294,7 @@ const loadQuestions = async () => {
   return (
     <div
       className="flex flex-col h-full"
-      style={{ fontFamily: "'Inter',-apple-system,sans-serif", background: T.pageBg }}
+      style={{ fontFamily: "'Poppins',-apple-system,sans-serif", background: T.bg }}
     >
       {/* Header */}
       <div
@@ -2334,121 +2324,112 @@ const loadQuestions = async () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Selection controls */}
-          {filteredQuestions.length > 0 && (
-            <div className="flex items-center gap-3 mr-2">
-          
-              
-              {selectedQuestions.size > 0 && (
-                <button
-                  onClick={handleBulkDelete}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold text-white"
-                  style={{ background: '#ef4444', boxShadow: '0 2px 6px rgba(239,68,68,0.3)' }}
-                  onMouseEnter={e => { e.currentTarget.style.background = '#dc2626'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = '#ef4444'; }}
-                >
-                  <Trash2 size={12} />
-                  Delete ({selectedQuestions.size})
-                </button>
-              )}
-            </div>
-          )}
-          
+        {/* ── Toolbar controls — Client Management pattern: h-8 tokened
+            pills, search + refresh + bulk delete on the left, primary
+            actions (Preview / Mock Test / Add Question) separated by a
+            slim divider. */}
+        <div className="flex items-center gap-2 flex-wrap min-w-0">
+          {/* Search */}
           <div className="relative">
-            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#bcbccc' }} />
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
             <input
               placeholder="Search questions…"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="pl-7 pr-7 h-7 w-44 text-[12px] rounded-lg outline-none transition-all"
-              style={{ background: '#fafafa', border: '1.5px solid #e4e4ed', color: '#1a1a2e' }}
-              onFocus={e => { e.currentTarget.style.borderColor = '#F27757'; e.currentTarget.style.background = '#fff'; }}
-              onBlur={e => { e.currentTarget.style.borderColor = '#e4e4ed'; e.currentTarget.style.background = '#fafafa'; }}
+              className="h-8 w-44 pl-8 pr-8 rounded-control border border-hairline-strong bg-surface text-xs text-body placeholder:text-faint focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/15 transition-colors duration-150"
             />
             {searchQuery && (
-              <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2">
-                <X size={11} style={{ color: '#bcbccc' }} />
+              <button
+                type="button"
+                aria-label="Clear search"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex size-5 items-center justify-center rounded-chip text-faint hover:bg-ink-100 hover:text-heading transition-colors duration-150"
+              >
+                <X size={12} />
               </button>
             )}
           </div>
 
           <button
-            onClick={loadQuestions}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11.5px] font-medium"
-            style={{ background: T.pageBg, color: T.textSub, border: `1px solid ${T.border}` }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = T.green; (e.currentTarget as HTMLElement).style.color = T.green; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = T.border; (e.currentTarget as HTMLElement).style.color = T.textSub; }}
+            type="button"
+            onClick={() => loadQuestions()}
+            title="Refresh"
+            className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-control border border-hairline-strong bg-surface text-xs font-medium text-body hover:bg-row-hover hover:text-heading transition-colors duration-150"
           >
-            <RefreshCw size={12} /> Refresh
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Refresh</span>
           </button>
 
+          {filteredQuestions.length > 0 && selectedQuestions.size > 0 && (
+            <button
+              type="button"
+              onClick={handleBulkDelete}
+              className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-control border border-danger-500/30 bg-danger-50 text-xs font-semibold text-danger-700 hover:bg-danger-100 transition-colors duration-150"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Delete ({selectedQuestions.size})
+            </button>
+          )}
+
+          {/* Divider before primary cluster — matches CM's Add-button treatment */}
+          <span className="hidden sm:inline-block h-5 w-px bg-hairline-strong mx-0.5" aria-hidden />
+
           <button
+            type="button"
             onClick={() => setShowPreviewModal(true)}
             disabled={questions.length === 0}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[11.5px] font-bold text-white flex-shrink-0"
-            style={{ 
-              background: '#6366f1', 
-              boxShadow: '0 3px 12px rgba(99,102,241,0.22)',
-              opacity: questions.length === 0 ? 0.5 : 1,
-              cursor: questions.length === 0 ? 'not-allowed' : 'pointer'
-            }}
+            className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-control border border-hairline-strong bg-surface text-xs font-medium text-body hover:bg-row-hover hover:text-heading transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Eye size={13} strokeWidth={2.5} />
+            <Eye className="w-3.5 h-3.5" />
             Preview ({questions.length})
           </button>
 
           <button
+            type="button"
             onClick={handleMockTest}
             disabled={questions.length === 0}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[11.5px] font-bold text-white flex-shrink-0"
-            style={{ 
-              background: '#8b5cf6', 
-              boxShadow: '0 3px 12px rgba(139,92,246,0.22)',
-              opacity: questions.length === 0 ? 0.5 : 1,
-              cursor: questions.length === 0 ? 'not-allowed' : 'pointer'
-            }}
+            className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-control border border-hairline-strong bg-surface text-xs font-medium text-body hover:bg-row-hover hover:text-heading transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <ClipboardList size={13} strokeWidth={2.5} />
+            <ClipboardList className="w-3.5 h-3.5" />
             Mock Test ({questions.length})
           </button>
 
           <button
+            type="button"
             onClick={handleAddQuestion}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[11.5px] font-bold text-white flex-shrink-0"
-            style={{ background: T.green, boxShadow: `0 3px 12px ${T.greenGlow}`, transition: "all 0.18s" }}
+            className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-control bg-brand-strong text-white shadow-sm hover:bg-brand-800 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 flex-shrink-0"
           >
-            <Plus size={13} strokeWidth={2.5} />
-            Add Question
+            <Plus size={14} strokeWidth={2.4} />
+            <span className="text-xs font-semibold">Add Question</span>
           </button>
         </div>
       </div>
 
       {/* Body */}
-      <div className="flex-1 min-h-0 overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: `${T.border} transparent` }}>
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden" style={{ scrollbarWidth: "thin", scrollbarColor: `${T.border} transparent` }}>
         {searchQuery && (
-          <div className="flex items-center gap-2 px-4 py-1.5 mx-4 mt-3 rounded-lg" style={{ background: 'rgba(242,119,87,0.05)', border: '1px solid rgba(242,119,87,0.15)' }}>
-            <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#F27757' }}>Filtering:</span>
-            <button onClick={() => setSearchQuery('')} className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full" style={{ background: 'rgba(242,119,87,0.1)', color: '#F27757' }}>
-              "{searchQuery}" <X size={9} />
+          <div className="flex items-center gap-2 px-3 sm:px-4 md:px-6 pt-3 pb-2 flex-wrap min-w-0">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-brand-strong">Filtering:</span>
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="inline-flex items-center gap-1 h-6 px-2 rounded-full border border-brand-500/30 bg-brand-wash text-2xs font-medium text-brand-strong hover:bg-brand-100 transition-colors duration-150"
+            >
+              "{searchQuery}" <X size={11} />
             </button>
-            <span className="text-[10px] ml-auto" style={{ color: '#F27757' }}>{filteredQuestions.length} result{filteredQuestions.length !== 1 ? 's' : ''}</span>
+            <span className="text-2xs ml-auto text-subtle tabular-nums">
+              {filteredQuestions.length} result{filteredQuestions.length !== 1 ? 's' : ''}
+            </span>
           </div>
         )}
 
-        <div className={`rounded-2xl mx-4 ${questions.length > 0 ? "mt-4 mb-6" : "mt-4"}`}
-          style={{ border: `1px solid ${T.border}`, background: T.bg }}>
+        {/* Flush list with a small horizontal gutter so the table has
+            breathing room instead of running edge-to-edge (which caused a
+            horizontal scroll on narrow viewports). */}
+        <div className="px-3 sm:px-4 md:px-6">
 
-          {/* Table Header - with Select All checkbox */}
-          <div
-            style={{
-              ...rowBase,
-              background: T.pageBg,
-              borderBottom: `1px solid ${T.border}`,
-              borderLeft: "2.5px solid transparent",
-              padding: "8px 16px",
-            }}
-          >
+          {/* Table Header — h-8, bg-canvas, hairline bottom border */}
+          <div style={rowBase} className="h-8 border-b border-hairline bg-canvas">
             {/* Select All Checkbox Column */}
             <div className={thCls}>
               <input
@@ -2495,12 +2476,11 @@ const loadQuestions = async () => {
               return (
                 <div
                   key={question.id}
-                  style={{
-                    ...rowBase,
-                    borderBottom: isLast ? "none" : `1px solid ${T.border}`,
-                    background: T.bg,
-                  }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = T.warm; (e.currentTarget as HTMLElement).style.borderLeftColor = T.green; }}
+                  // h-11 hairline-bounded row on tokens — same rhythm as
+                  // Client Management / We_Do assignments.
+                  className={`${isLast ? '' : 'border-b border-hairline'} bg-surface hover:bg-row-hover transition-colors duration-150`}
+                  style={{ ...rowBase, height: 44 }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderLeftColor = T.green; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.bg; (e.currentTarget as HTMLElement).style.borderLeftColor = "transparent"; }}
                 >
                   {/* Checkbox Column */}
@@ -2514,35 +2494,53 @@ const loadQuestions = async () => {
                     />
                   </div>
 
-                  {/* Question Column */}
+                  {/* Question Column — regular row-body weight (was
+                      font-bold; the CM/UM rhythm keeps the first column
+                      at the same weight as the rest of the row). */}
                   <div className="flex flex-col min-w-0">
-                    <span className="text-[12px] font-bold truncate" style={{ color: T.textMain }}>{question.title}</span>
-                    <span className="text-[9.5px] font-medium" style={{ color: T.textHint }}>{question.id.slice(-8)}</span>
+                    <span className="text-[12px] text-body truncate" title={question.title}>{question.title}</span>
+                    <span className="text-2xs text-faint">{question.id.slice(-8)}</span>
                   </div>
 
                   {/* Created Column */}
-                  <div className="text-[10.5px] font-medium" style={{ color: T.textMuted }}>
+                  <div className="text-[12px] text-body">
                     {createdDate}
                   </div>
 
-                  {/* Type Column */}
+                  {/* Type Column — one neutral chip for every type (was
+                      nine different colours: blue / purple / green /
+                      amber / grey / orange). The icon alone differentiates
+                      types; the colour bath was pure noise. */}
                   <div>
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wide" style={{ background: typeMeta.bg, color: typeMeta.color }}>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-semibold bg-ink-100 text-ink-700 ring-1 ring-inset ring-ink-500/15">
                       {typeMeta.icon}{typeMeta.label}
                     </span>
                   </div>
 
-                  {/* Difficulty Column */}
+                  {/* Difficulty Column — 3 semantic tones (was hex-code
+                      inline colours). Easy = success, Medium = warn,
+                      Hard = danger — same 3-tone meaning, tokenised. */}
                   <div>
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wide" style={{ background: `${lc}12`, color: lc }}>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-2xs font-semibold ring-1 ring-inset ${
+                      question.level === 'easy' ? 'bg-success-50 text-success-700 ring-success-500/20'
+                        : question.level === 'hard' ? 'bg-danger-50 text-danger-700 ring-danger-500/20'
+                        : 'bg-warn-50 text-warn-700 ring-warn-500/20'
+                    }`}>
                       {question.level.charAt(0).toUpperCase() + question.level.slice(1)}
                     </span>
                   </div>
 
-                  {/* Status Column */}
+                  {/* Status Column — Active vs Draft, tokenised so Active
+                      isn't a third green in the row (Difficulty already
+                      claims green when the level is Easy). Draft reads as
+                      a neutral chip. */}
                   <div>
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wide" style={{ background: T.greenLight, color: T.green }}>
-                      {question.status === "active" ? "Active" : "Draft"}
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-2xs font-semibold ring-1 ring-inset ${
+                      question.status === 'active'
+                        ? 'bg-success-50 text-success-700 ring-success-500/20'
+                        : 'bg-ink-100 text-ink-600 ring-ink-500/15'
+                    }`}>
+                      {question.status === 'active' ? 'Active' : 'Draft'}
                     </span>
                   </div>
 
@@ -2575,9 +2573,19 @@ const loadQuestions = async () => {
       </div>
 
       {/* Modals */}
-      <CreateOptionModal
+      <CreateQuestionOptionModal
         isOpen={showCreateOptionModal}
         onClose={() => setShowCreateOptionModal(false)}
+        exerciseType="MCQ"
+        breadcrumbs={(() => {
+          const out: Array<{ name: string; type: string }> = [];
+          if (hierarchyData.courseName)   out.push({ name: hierarchyData.courseName,   type: 'course' });
+          if (hierarchyData.moduleName)   out.push({ name: hierarchyData.moduleName,   type: 'module' });
+          if (hierarchyData.submoduleName) out.push({ name: hierarchyData.submoduleName, type: 'submodule' });
+          const leaf = hierarchyData.topicName || nodeName;
+          if (leaf) out.push({ name: leaf, type: 'topic' });
+          return out;
+        })()}
         onSelectFromScratch={() => {
           setShowCreateOptionModal(false);
           handleAddQuestionFromScratch();

@@ -1,4 +1,5 @@
 'use client';
+import { getToken } from "@/lib/session";
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import dynamic from 'next/dynamic';
@@ -23,6 +24,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import Script from 'next/script';
+import { API_ORIGIN } from '@/lib/apiBase'
 
 const MonacoEditor = dynamic(
   () => import('@monaco-editor/react'),
@@ -40,7 +42,7 @@ const MonacoEditor = dynamic(
 );
 
 // Piston API configuration
-const PISTON_API_URL = "https://emkc.org/api/v2/piston/execute";
+const PISTON_API_URL = process.env.NEXT_PUBLIC_PISTON_URL || "https://emkc.org/api/v2/piston/execute";
 
 // Types
 interface LogEntry {
@@ -237,7 +239,7 @@ const ProgrammingQuestion: React.FC<ProgrammingQuestionProps> = ({
   // Initialize code from question
   useEffect(() => {
     if (question) {
-      const initialCode = question.solutions?.startedCode || question.solutions?.staetedCode;
+      const initialCode = question.starterCode || question.solutions?.startedCode || question.solutions?.staetedCode;
       if (initialCode) {
         setCode(initialCode);
       } else {
@@ -417,7 +419,7 @@ solution();`
 
     try {
       const currentCode = editorInstanceRef.current ? editorInstanceRef.current.getValue() : code;
-      const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || '';
+      const token = getToken() || localStorage.getItem('token') || '';
 
       addTerminalLog('system', '📤 Submitting solution...');
 
@@ -435,7 +437,7 @@ solution();`
       formData.append('nodeType', nodeType);
       formData.append('language', selectedLanguage);
 
-      const response = await fetch('https://lms-server-ym1q.onrender.com/courses/answers/submit', {
+      const response = await fetch(`${API_ORIGIN}/courses/answers/submit`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData,
@@ -478,7 +480,7 @@ solution();`
   };
 
   const resetCode = () => {
-    const initialCode = question.solutions?.startedCode || question.solutions?.staetedCode || getInitialCode(selectedLanguage);
+    const initialCode = question.starterCode || question.solutions?.startedCode || question.solutions?.staetedCode || getInitialCode(selectedLanguage);
     setCode(initialCode);
     if (editorInstanceRef.current) editorInstanceRef.current.setValue(initialCode);
     addTerminalLog('system', 'Code reset to initial state');
