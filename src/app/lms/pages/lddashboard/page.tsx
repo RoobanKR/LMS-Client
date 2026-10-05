@@ -29,6 +29,13 @@ import ApprovalHierarchyModal from "../approvals/components/ApprovalHierarchyMod
 // Redesigned dashboard view. Owns its own data fetching and derivations
 // (src/features/ld-dashboard) — the legacy DashboardView below is superseded.
 import { LDDashboard } from "@/features/ld-dashboard";
+// Attendance view — course list + per-course Attendance / Report tabs.
+import { LDAttendance } from "@/features/ld-attendance";
+// Feedback view — form list + per-form Feedback / Report tabs. The per-form
+// responses export and the cross-form Detailed report designer it launches
+// are loaded on demand from there.
+import { LDFeedback } from "@/features/ld-feedback";
+import type { FbFormRow } from "./FeedbackReportDesignerModal";
 // Reports ▸ Overview — the L&D Overview. Owns its own data derivation
 // (src/features/ld-overview) and links OUT to the detailed reports below;
 // it deliberately replaces none of them.
@@ -38,7 +45,7 @@ import { LDDashboard } from "@/features/ld-dashboard";
 import { LDO_CSS } from "@/features/ld-overview/styles";
 import { PERIODS, type Period as LDPeriod } from "@/features/ld-overview/types";
 import { DataTable, type Column } from "@/components/data-table";
-import { useQuery, type UseQueryOptions } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type UseQueryOptions } from "@tanstack/react-query";
 import { api } from "@/app/lms/pages/clientmanagement/lib/apiClient";
 import { queryKeys } from "@/lib/queryKeys";
 import { readStoredUserData } from "@/app/lms/shared/ui/navItems";
@@ -67,13 +74,6 @@ const CourseParticipantsContent = dynamic(
   () => import("../coursestructure/course-participants/CourseParticipantsContent"),
   { ssr: false, loading: () => <Loading /> },
 );
-/* The feedback screen's own per-form report modal — detailed view, response
-   filters, column pickers and Print / Excel / PDF. On demand: it ships
-   exceljs + jspdf, which must not join this page's bundle. */
-const FeedbackFormReportModal = dynamic(
-  () => import("../coursestructure/feedback/report/FeedbackReportExportModal"),
-  { ssr: false },
-);
 /* Course-level attendance report — daily register + per-student summary +
    charts. On demand: ships ExcelJS + jspdf + jspdf-autotable + file-saver via
    its Download modal, which must not join this page's initial bundle. */
@@ -94,14 +94,6 @@ const LDOverviewPage = dynamic(
 );
 const PerformanceReportDesignerModal = dynamic(
   () => import("./PerformanceReportDesignerModal"),
-  { ssr: false },
-);
-/* Cross-form feedback designer for #fb-summary — Canva-style overlay that
-   pools responses across selected forms and lets a head pick trainers,
-   batches, rating bands and columns. Same shape as the performance
-   designer so both surfaces feel identical. Dynamic for the same reason. */
-const FeedbackReportDesignerModal = dynamic(
-  () => import("./FeedbackReportDesignerModal"),
   { ssr: false },
 );
 
@@ -3541,281 +3533,6 @@ function computeAtt(students: any[], records: any[]) {
   return { sessions, per, P, A, H, N, totalCells, avgPct, atRisk, best: best as { dk: string; ratio: number } | null };
 }
 
-// Portfolio attendance-health scan — only shown when NO single course is
-// selected. Surfaces courses that need attention (in delivery but attendance
-// not yet marked today) first, so the L&D Head can spot a gap and drill in.
-function AttPortfolio({ filter }: { filter: { course?: string; courseIds: Set<string> | null; clientOf: (id: string) => string | undefined } }) {
-  const today = new Date().toISOString().slice(0, 10);
-  const { loading, error, data } = useAttendanceOverview(today, (j) => {
-    const d = j?.data ?? j ?? {}; return (Array.isArray(d.courses) ? d.courses : Array.isArray(d) ? d : Array.isArray(j?.data) ? j.data : []) as any[];
-  });
-  // 2026-09-05: The L&D console owns Attendance at `#attendance` — clicking a
-  // course row USED to `router.push` to `/lms/pages/attendancemanagement?...`
-  // and yank the URL out from under the L&D sidebar. Per the redesign the
-  // portfolio stays inside the console at `#attendance` regardless of the
-  // row clicked; row activation now just narrows the console's scope filter
-  // to that course (URL stays put, sidebar highlight stays put). Users who
-  // need day-marking still reach `attendancemanagement` from their admin /
-  // trainer / POC shells; L&D Head reviews here.
-  const openCourse = (_id: string) => { /* stay at #attendance — no route change */ };
-  const { courseIds, clientOf, course: courseF } = filter;
-  const inClient = (id: string) => courseIds === null || courseIds.has(id);
-  const inCourse = (id: string) => !courseF || courseF === "all" || String(courseF) === id;
-  if (loading) return <Loading />;
-  if (error) return <ErrBox m={error} />;
-  const rows = (data || []).filter((c: any) => inClient(String(c._id)) && inCourse(String(c._id))).map((c: any) => {
-    const total = Array.isArray(c.batches) ? c.batches.length : 0;
-    const marked = Array.isArray(c.batches) ? c.batches.filter((b: any) => b.markedToday).length : 0;
-    const inDelivery = !!c.hasSchedule;
-    const rank = !inDelivery || total === 0 ? 3 : marked === 0 ? 0 : marked < total ? 1 : 2; // pending-first
-    return { ...c, total, marked, inDelivery, rank };
-  }).sort((a: any, b: any) => a.rank - b.rank || (n(b.totalStudents) - n(a.totalStudents)));
-  const deliv = rows.filter((r: any) => r.inDelivery && r.total > 0);
-  const fully = deliv.filter((r: any) => r.marked === r.total).length;
-  const pending = deliv.filter((r: any) => r.marked < r.total).length;
-  return (
-    <AttPortfolioTable
-      rows={rows}
-      totals={{ deliv: deliv.length, fully, pending }}
-      clientOf={clientOf}
-      onOpenCourse={openCourse}
-    />
-  );
-}
-
-/* Portfolio-view attendance table — the same design language as the services
-   modal: dot-chip status counts in the header, sticky uppercase thead,
-   compact rows with primary/secondary text, coloured dot + label status,
-   quiet "Open ›" action cell, plus a toolbar (search + status filter).
-   The list can be long (60+ courses), so the tbody scrolls under a sticky
-   thead inside the tile — no bulk selection here (portfolio is read-only). */
-function AttPortfolioTable({
-  rows, totals, clientOf, onOpenCourse,
-}: {
-  rows: any[];
-  totals: { deliv: number; fully: number; pending: number };
-  clientOf: (id: string) => string | undefined;
-  onOpenCourse: (id: string) => void;
-}) {
-  const [q, setQ] = useState("");
-  const [statusF, setStatusF] = useState("all");
-
-  const statusOf = (c: any): "marked" | "partial" | "unmarked" | "unscheduled" => {
-    if (!c.inDelivery) return "unscheduled";
-    if (!c.total) return "unscheduled";
-    if (c.marked === c.total) return "marked";
-    if (c.marked > 0) return "partial";
-    return "unmarked";
-  };
-  const STATUS_META: Record<string, { dot: string; label: string; tone: string }> = {
-    marked:      { dot: "bg-emerald-500", label: "Marked",         tone: "text-emerald-700 dark:text-emerald-300" },
-    partial:     { dot: "bg-amber-500",   label: "Partially marked", tone: "text-amber-700 dark:text-amber-300" },
-    unmarked:    { dot: "bg-red-500",     label: "Not marked",     tone: "text-red-700 dark:text-red-300" },
-    unscheduled: { dot: "bg-slate-300",   label: "Not scheduled",  tone: "text-subtle" },
-  };
-
-  const filtered = rows.filter((c) => {
-    if (statusF !== "all" && statusOf(c) !== statusF) return false;
-    if (!q.trim()) return true;
-    const t = q.trim().toLowerCase();
-    return (
-      String(c.courseName || "").toLowerCase().includes(t)
-      || String(c.courseCode || "").toLowerCase().includes(t)
-      || String(clientOf(String(c._id)) || c.clientName || "").toLowerCase().includes(t)
-    );
-  });
-  const active = q.trim() !== "" || statusF !== "all";
-  const clearAll = () => { setQ(""); setStatusF("all"); };
-
-  // Auto-fit pagination — same pattern as the Services offered modal.
-  // Measures the actual painted row height so the last row never clips, and
-  // the "Auto (N)" dropdown pins a manual value if the user wants to override.
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const [autoFit, setAutoFit] = useState(true);
-  const tableWrapRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => { setPage(1); }, [q, statusF, pageSize]);
-  useEffect(() => {
-    if (!autoFit) return;
-    const el = tableWrapRef.current;
-    if (!el) return;
-    const FALLBACK_ROW_H = 56;
-    const recompute = () => {
-      const thead = el.querySelector<HTMLElement>("thead");
-      const firstRow = el.querySelector<HTMLElement>("tbody tr");
-      const theadH = thead ? thead.getBoundingClientRect().height : 40;
-      const rowH = firstRow ? firstRow.getBoundingClientRect().height : FALLBACK_ROW_H;
-      const budget = Math.max(0, el.clientHeight - theadH);
-      const rows2 = Math.max(1, Math.min(100, Math.round(budget / Math.max(1, rowH))));
-      setPageSize((prev) => (prev === rows2 ? prev : rows2));
-    };
-    recompute();
-    const ro = new ResizeObserver(recompute);
-    ro.observe(el);
-    const raf = requestAnimationFrame(recompute);
-    return () => { ro.disconnect(); cancelAnimationFrame(raf); };
-  }, [autoFit, filtered.length]);
-  const setPageSizeManual = (v: number) => { setAutoFit(false); setPageSize(v); };
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const currentPage = Math.min(page, totalPages);
-  const pageStart = (currentPage - 1) * pageSize;
-  const pageEnd = pageStart + pageSize;
-  const paged = filtered.slice(pageStart, pageEnd);
-  const rangeFrom = filtered.length === 0 ? 0 : pageStart + 1;
-  const rangeTo = Math.min(pageEnd, filtered.length);
-
-  return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3">
-      {/* Toolbar — wide search on the left, Status pinned to the far right. */}
-      <div className="flex flex-nowrap items-center gap-2">
-        <div className="relative min-w-0 flex-1">
-          <Search size={15} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-faint" aria-hidden />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search courses, codes, clients..."
-            aria-label="Search courses"
-            className="h-9 w-full rounded-md border border-hairline bg-surface pr-8 pl-8 text-xs text-heading outline-none transition-colors placeholder:text-faint hover:border-hairline-strong focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15"
-          />
-          {q && (
-            <button type="button" onClick={() => setQ("")} aria-label="Clear search" className="absolute top-1/2 right-2 -translate-y-1/2 rounded p-0.5 text-faint transition-colors hover:bg-row-hover hover:text-body">
-              <X size={13} />
-            </button>
-          )}
-        </div>
-        {active && (
-          <button type="button" onClick={clearAll} className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-xs font-semibold text-brand-700 transition-colors hover:text-brand-strong disabled:cursor-not-allowed disabled:text-faint disabled:hover:text-faint dark:text-brand-400">
-            <RefreshCw size={12} /> Clear filters
-          </button>
-        )}
-        <FloatingPicker
-          label="Status"
-          minWidth="min-w-[160px]"
-          value={statusF}
-          onChange={setStatusF}
-          options={[
-            { value: "all",         label: "All statuses" },
-            { value: "unmarked",    label: "Not marked" },
-            { value: "partial",     label: "Partially marked" },
-            { value: "marked",      label: "Marked" },
-            { value: "unscheduled", label: "Not scheduled" },
-          ]}
-        />
-      </div>
-
-      {/* Table tile */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-tile border border-hairline bg-surface">
-        {/* Table — auto-fit paginated; scroll only kicks in if the tbody
-            can't be trimmed further (very small viewport). */}
-        <div ref={tableWrapRef} className="min-h-0 flex-1 overflow-hidden">
-          {rows.length === 0 ? (
-            <p className="px-4 py-8 text-center text-sm text-subtle">No courses in this view — nothing matches the current Client filter.</p>
-          ) : filtered.length === 0 ? (
-            <p className="px-4 py-8 text-center text-sm text-subtle">
-              No courses match the current filters. <button type="button" onClick={clearAll} className="font-semibold text-brand-700 hover:underline dark:text-brand-400">Clear filters</button>
-            </p>
-          ) : (
-            <table className="w-full border-collapse">
-              <thead className="sticky top-0 z-10 bg-surface-sunken/60">
-                <tr className="border-b border-hairline">
-                  <th className="w-64 px-3 py-1.5 text-left text-2xs font-semibold uppercase tracking-wider text-subtle">Client</th>
-                  <th className="px-3 py-1.5 text-left text-2xs font-semibold uppercase tracking-wider text-subtle">Course</th>
-                  <th className="w-24 px-3 py-1.5 text-right text-2xs font-semibold uppercase tracking-wider text-subtle">Enrolled</th>
-                  <th className="w-32 px-3 py-1.5 text-left text-2xs font-semibold uppercase tracking-wider text-subtle">Start date</th>
-                  <th className="w-32 px-3 py-1.5 text-left text-2xs font-semibold uppercase tracking-wider text-subtle">End date</th>
-                  <th className="w-28 px-3 py-1.5 text-right text-2xs font-semibold uppercase tracking-wider text-subtle">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paged.map((c: any) => {
-                  const cid = String(c._id);
-                  const startD = c.inDelivery ? (c.trainingStart || "—") : "—";
-                  const endD   = c.inDelivery ? (c.trainingEnd   || "—") : "—";
-                  return (
-                    <tr
-                      key={cid}
-                      className="border-b border-hairline transition-colors last:border-0 hover:bg-row-hover"
-                    >
-                      <td className="px-3 py-2 align-middle">
-                        <span className="truncate text-sm text-body">{clientOf(cid) || c.clientName || <span className="text-xs text-faint">—</span>}</span>
-                      </td>
-                      <td className="px-3 py-2 align-middle">
-                        <div className="min-w-0 truncate text-sm font-semibold text-heading">{c.courseName || "Course"}</div>
-                        {c.courseCode && <div className="mt-0.5 truncate text-2xs tabular-nums text-subtle">{c.courseCode}</div>}
-                      </td>
-                      <td className="px-3 py-2 text-right align-middle text-sm tabular-nums text-body">{n(c.totalStudents)}</td>
-                      <td className="px-3 py-2 align-middle">
-                        <span className={`truncate text-xs tabular-nums ${c.inDelivery ? "text-body" : "text-faint"}`}>{startD}</span>
-                      </td>
-                      <td className="px-3 py-2 align-middle">
-                        <span className={`truncate text-xs tabular-nums ${c.inDelivery ? "text-body" : "text-faint"}`}>{endD}</span>
-                      </td>
-                      <td className="px-3 py-2 text-right align-middle">
-                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 dark:text-brand-400">
-                          View
-                          <ChevronRight size={13} aria-hidden />
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
-
-        {/* Pagination footer — matches the Services offered modal footer. */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-hairline bg-surface-sunken/30 px-4 py-1.5">
-          <span className="text-xs tabular-nums text-subtle">
-            {filtered.length === 0
-              ? "No courses to show"
-              : <>Showing <b className="font-semibold text-heading">{rangeFrom}</b> to <b className="font-semibold text-heading">{rangeTo}</b> of <b className="font-semibold text-heading">{filtered.length}</b> courses</>}
-          </span>
-          <div className="flex items-center gap-3">
-            <FloatingPicker
-              size="sm"
-              minWidth="min-w-[128px]"
-              value={autoFit ? "auto" : String(pageSize)}
-              onChange={(v) => { if (v === "auto") { setAutoFit(true); } else { setPageSizeManual(Number(v)); } }}
-              options={[
-                { value: "auto", label: `Auto (${pageSize})` },
-                ...[10, 25, 50, 100].map((n2) => ({ value: String(n2), label: `${n2} per page` })),
-              ]}
-            />
-            {totalPages > 1 && (
-              <div className="flex items-center gap-1">
-                <button type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={currentPage <= 1} aria-label="Previous page" className="inline-flex h-8 w-8 items-center justify-center rounded-control border border-hairline-strong text-subtle transition-colors hover:bg-row-hover disabled:cursor-not-allowed disabled:opacity-40">
-                  <ChevronLeft size={14} />
-                </button>
-                {Array.from({ length: totalPages }, (_, idx) => idx + 1).slice(0, 5).map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => setPage(p)}
-                    aria-current={currentPage === p ? "page" : undefined}
-                    className={`inline-flex h-8 min-w-8 items-center justify-center rounded-control px-2 text-xs font-semibold tabular-nums transition-colors ${
-                      currentPage === p
-                        ? "bg-brand-100 text-brand-700 dark:bg-brand-500/15 dark:text-brand-400"
-                        : "text-subtle hover:bg-row-hover hover:text-body"
-                    }`}
-                  >
-                    {p}
-                  </button>
-                ))}
-                <button type="button" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages} aria-label="Next page" className="inline-flex h-8 w-8 items-center justify-center rounded-control border border-hairline-strong text-subtle transition-colors hover:bg-row-hover disabled:cursor-not-allowed disabled:opacity-40">
-                  <ChevronRight size={14} />
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-    </div>
-  );
-}
-
 // ── date + status helpers ──
 const addDayKey = (dk: string, nd: number): string => {
   const [y, m, d] = dk.split("-").map(Number);
@@ -4198,14 +3915,18 @@ function AttAnalyticsTab({ att, s }: { att: { students: any[]; records: any[] };
 }
 
 function AttendanceView({ filter }: { filter: ViewFilter }) {
-  // The portfolio table is the whole Attendance page in the LD Console. The
-  // outer Client/Course filters narrow its rows; clicking `View` on a row
-  // navigates to the standalone Attendance Management route (which owns the
-  // Management / Report / Analytics tab strip for that course).
+  // Course list → a course's Attendance / Report page, laid out like Client
+  // Management (src/features/ld-attendance). Read-only: trainers mark
+  // attendance in Attendance Management. The list carries its own client
+  // filter, seeded from the console's scope.
+  // The shell runs this view in fit mode (LDLayout), so this column is handed
+  // the panel's full height and each table runs to the bottom edge.
   return (
-    <div className="ldc-attfill">
-      <Head eyebrow="" title="Attendance" right={<ScopeFilters f={filter} />} />
-      <AttPortfolio filter={filter} />
+    <div className="flex min-h-0 flex-1 flex-col">
+      <LDAttendance
+        scope={{ client: filter.client, course: filter.course, onCourse: filter.onCourse }}
+        header={<Head eyebrow="" title="Attendance" sub="Every scheduled course, its training period and today's attendance at a glance." />}
+      />
     </div>
   );
 }
@@ -5907,42 +5628,32 @@ function DeliveryReport({ f }: { f: ViewFilter }) {
   );
 }
 
-/* ═════════ 4 · Feedback Report ═════════ */
+/* ═════════ 4 · Feedback ═════════ */
 function FeedbackReport({ f }: { f: ViewFilter }) {
-  // The route is a launcher for the per-form report modal — the modal is the
-  // whole experience (detailed responses, filters, column pickers, PDF/Excel).
-  // Aggregate KPIs/charts/comments were dropped: they duplicated what the
-  // modal already covers per-form and forced two mental models on one page.
+  // Form list → a form's Feedback / Report page, laid out like Client
+  // Management (src/features/ld-feedback). The reports inside are the course
+  // Feedback screen's own — Report Analysis, and the Feedback Report with its
+  // Master Data · Feedback · Consolidated Report Excel — and the cross-form
+  // Detailed report designer opens from the list exactly as before.
   const fb = useAllFeedback((j) => (Array.isArray(j?.getAllFeedback) ? j.getAllFeedback : []));
   const cs = useCourseStructures();
-  // The raw doc of the form opened in the per-form report modal (null = shut).
-  const [openDoc, setOpenDoc] = useState<any | null>(null);
-  // Detailed Report designer — Canva-style overlay pooling responses across
-  // every form in scope. Opened by the green Detailed report button.
-  const [designerOpen, setDesignerOpen] = useState(false);
-  // Header-level filters — declared HERE (before the loading / error early
-  // returns) so hook order stays stable when data flips from loading to
-  // loaded. Previously they lived below the early returns, so React saw a
-  // different hook count between the two render passes and threw
-  // "change in the order of Hooks" for this component.
-  const [status, setStatus] = useState<"all" | "open" | "closed">("all");
-  const [trainer, setTrainer] = useState<string>("all");
+  const queryClient = useQueryClient();
 
-  // Forms roll-up, memoised. Returns [] while data is loading or errored so
-  // the two useMemo hooks below can also run unconditionally without needing
-  // the data to be present.
+  // One row per form — the row the Detailed report designer takes.
   const forms = useMemo(() => {
-    if (fb.loading || cs.loading || fb.error || cs.error) return [] as any[];
+    if (fb.loading || cs.loading || fb.error || cs.error) return undefined;
     const courseById = new Map((cs.data || []).map((c: any) => [String(c._id), c]));
     const isStudentU = (u: any) => { const rn = roleName(u?.user?.role).toLowerCase(); return !rn.includes("trainer") && !rn.includes("faculty"); };
     // /getAll/feedback is not institution-scoped server-side — keep only forms
-    // whose course exists in THIS institution's own course list.
+    // whose course exists in THIS institution's own course list. The console's
+    // client / course pick seeds the list's own filters instead of trimming
+    // rows here, so clearing those filters really widens the list.
     const docs = (fb.data || []).filter((d: any) => {
       const cid = String(d.courseId || "");
-      return courseById.has(cid) && inScope(f, cid);
+      return courseById.has(cid);
     });
     const norm5 = (v: number, maxR: number) => (maxR && maxR !== 5 ? (v / maxR) * 5 : v);
-    return docs.map((d: any) => {
+    return docs.map((d: any): FbFormRow => {
       const cid = String(d.courseId || "");
       const course: any = courseById.get(cid);
       const maxR = n(d.ratingScale?.maxRating) || 5;
@@ -5976,126 +5687,20 @@ function FeedbackReport({ f }: { f: ViewFilter }) {
     });
   }, [fb.data, fb.loading, fb.error, cs.data, cs.loading, cs.error, f]);
 
-  const trainerOptions = useMemo(
-    () => [
-      { value: "all", label: "All trainers" },
-      ...Array.from(new Set(forms.map((x: any) => x.trainer))).sort().map((t) => ({
-        value: t as string,
-        label: t as string,
-      })),
-    ],
-    [forms],
-  );
-  const shownForms = useMemo(
-    () =>
-      forms.filter((r: any) => {
-        if (status !== "all" && (status === "open") !== !!r.active) return false;
-        if (trainer !== "all" && r.trainer !== trainer) return false;
-        return true;
-      }),
-    [forms, status, trainer],
-  );
-
-  // Sub-line intentionally blank on this report — the page's action buttons
-  // and the row-level Open action already document the entry points; the
-  // longer paragraph just added noise between the title and the filter row.
-  const sub = "";
-  if (fb.loading || cs.loading) return <ReportShell title="Feedback Report" sub={sub} f={f}><Loading /></ReportShell>;
-  if (fb.error) return <ReportShell title="Feedback Report" sub={sub} f={f}><ErrBox m={fb.error} /></ReportShell>;
-  // The course list is what scopes foreign institutions out — without it the
-  // report can't be trusted, so its failure is a hard stop, not a fallback.
-  if (cs.error) return <ReportShell title="Feedback Report" sub={sub} f={f}><ErrBox m={cs.error} /></ReportShell>;
-
-  const scopeStr = scopeLabel(f, f.courseOpts.find((c) => c.id === f.course)?.name) || "All clients · all courses";
-
-  const extraFilters = (
-    <>
-      <FloatingPicker
-        label="Status"
-        minWidth="min-w-[160px]"
-        value={status}
-        options={[
-          { value: "all", label: "All statuses" },
-          { value: "open", label: "Open" },
-          { value: "closed", label: "Closed" },
-        ]}
-        onChange={(v) => setStatus(v as "all" | "open" | "closed")}
-      />
-      <FloatingPicker
-        label="Trainer"
-        minWidth="min-w-[200px]"
-        value={trainer}
-        options={trainerOptions}
-        onChange={setTrainer}
-        searchable={trainerOptions.length > 8}
-      />
-    </>
-  );
-
-  const actions = (
-    <button
-      className="ldc-btn green" type="button"
-      title="Open the Report Designer overlay — pool forms, filter, download"
-      onClick={() => setDesignerOpen(true)}
-    >
-      <SlidersHorizontal size={13} style={ICO} />Detailed report
-    </button>
-  );
-
   return (
-    <ReportShell title="Feedback Report" sub={sub} f={f} actions={actions} extraFilters={extraFilters}>
-      <RTable
-        title="Feedback forms"
-        rows={shownForms}
-        init="avg"
-        searchKeys={["title", "course", "client", "trainer", "batch"]}
-        unit="forms"
-        cols={[
-          { k: "title", h: "Form", render: (r: any) => <b>{r.title}</b> },
-          { k: "course", h: "Course" },
-          { k: "client", h: "Client" },
-          { k: "batch", h: "Batch" },
-          { k: "trainer", h: "Trainer" },
-          { k: "responses", h: "Responses", r: true, render: (r: any) => (r.denom ? `${r.responses}/${r.denom}` : String(r.responses)) },
-          { k: "rate", h: "Rate", r: true, sv: (r: any) => r.rate ?? -1, render: (r: any) => (r.rate === null ? "—" : pct(r.rate)) },
-          { k: "avg", h: "Avg rating", r: true, sv: (r: any) => r.avg ?? -1, render: (r: any) => (r.avg === null ? "—" : <StatusChip tone={r.avg >= 4 ? "success" : r.avg < 3 ? "danger" : "warning"}>{r.avg}/5</StatusChip>) },
-          { k: "window", h: "Window", sv: (r: any) => r.startT },
-          {
-            // Per-form detailed report: the feedback screen's own export modal
-            // (student responses, filters, column pickers, Print/Excel/PDF).
-            // The report's Print button snapshots via printReportHtml (LDC_CSS
-            // there hides .ldc-btn), so this button doesn't reach paper on
-            // that path — the browser's own Ctrl+P would show it, which is
-            // fine (no printable use of the L&D console via Ctrl+P today).
-            k: "open", h: "", sv: () => 0,
-            render: (r: any) => (
-              <button
-                type="button"
-                className="ldr-viewlink"
-                title="Open the detailed report — responses, column pickers, PDF / Excel"
-                onClick={() => setOpenDoc(r.raw)}
-              >
-                View
-              </button>
-            ),
-          },
-        ]}
+    <div className="flex min-h-0 flex-1 flex-col">
+      <LDFeedback
+        forms={forms}
+        loading={fb.loading || cs.loading}
+        error={Boolean(fb.error || cs.error)}
+        onRetry={() => {
+          void queryClient.invalidateQueries({ queryKey: queryKeys.feedback.list() });
+          void queryClient.invalidateQueries({ queryKey: courseStructureApi.getAll().queryKey });
+        }}
+        scope={{ client: f.client, course: f.course }}
+        header={<Head eyebrow="" title="Feedback" sub="Every feedback form — its responses, ratings and reports." />}
       />
-      {/* Portal-rendered; keyed by form so filters/column picks reset per doc. */}
-      <FeedbackFormReportModal key={openDoc ? String(openDoc._id) : "shut"} open={!!openDoc} onClose={() => setOpenDoc(null)} feedback={openDoc} />
-      {/* Cross-form designer — opened by the Detailed report button above.
-          Reuses the same per-form modal for the row-level Open action so the
-          two surfaces stay in lockstep. */}
-      {designerOpen ? (
-        <FeedbackReportDesignerModal
-          open={designerOpen}
-          onClose={() => setDesignerOpen(false)}
-          forms={forms}
-          scopeLabel={scopeStr}
-          onOpenForm={(raw) => setOpenDoc(raw)}
-        />
-      ) : null}
-    </ReportShell>
+    </div>
   );
 }
 

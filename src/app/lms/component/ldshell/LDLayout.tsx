@@ -295,6 +295,8 @@ const FIT_VIEWS = new Set<LDView>([
   // the other list views use. CSS below (.ldx-content.fit .ldr-shell /
   // .ldc-list / .ldc-scroll) chains flex:1 down to the scroll region.
   "fb-summary",
+  // Old #rep-feedback bookmarks render the same Feedback view.
+  "rep-feedback",
   // The hosted course screens manage their own internal scrolling.
   "course-structure", "course-calendar", "course-enrollment",
 ]);
@@ -483,7 +485,10 @@ export default function LDLayout({ active, children, apprBadge }: { active: LDVi
             No corner bell (removed 2026-10-03): notifications are the rail's
             Notification item with its unread badge, as in the admin shell.
             Do not restore on merge. */}
-        <div className={`ldx-content${active === "dashboard" ? " dashboard-spacing" : ""}${FIT_VIEWS.has(active) ? " fit" : ""}${HOST_VIEWS.has(active) ? " bleed" : ""}${ADMIN_HOST_VIEWS.has(active) ? " admin-host" : ""}`}>
+        {/* Attendance fits only on the console itself: the Attendance
+            Management routes hosted in this shell also pass "attendance"
+            (to light the rail item) and keep their own document scroll. */}
+        <div className={`ldx-content${active === "dashboard" ? " dashboard-spacing" : ""}${FIT_VIEWS.has(active) || (active === "attendance" && onLdc) ? " fit" : ""}${HOST_VIEWS.has(active) ? " bleed" : ""}${ADMIN_HOST_VIEWS.has(active) ? " admin-host" : ""}`}>
           <div className="ldx-content-scroll-flow">
             {children}
           </div>
