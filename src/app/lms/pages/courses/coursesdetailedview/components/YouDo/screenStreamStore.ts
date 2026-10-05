@@ -49,3 +49,39 @@ export function isScreenCaptureInProgress(): boolean {
 export function clearScreenCaptureInProgress(): void {
   captureInProgress = false;
 }
+
+/**
+ * Prompt for the screen and publish it, so the test player that opens next
+ * reuses this stream instead of prompting again. Called from the instructions
+ * page's Start click, so the student shares BEFORE the compiler renders. The
+ * constraints mirror the code editor's proctoring capture. Resolves null when
+ * the student cancels the prompt.
+ */
+export async function captureSharedScreen(withAudio: boolean): Promise<MediaStream | null> {
+  const existing = getSharedScreenStream();
+  if (existing) return existing;
+  if (typeof navigator === "undefined" || !navigator.mediaDevices?.getDisplayMedia) return null;
+
+  markScreenCaptureStarting();
+  try {
+    const stream = await navigator.mediaDevices.getDisplayMedia({
+      video: {
+        mediaSource: "screen",
+        width: { ideal: 1920, max: 1920 },
+        height: { ideal: 1080, max: 1080 },
+        frameRate: { ideal: 15, max: 30 },
+      } as any,
+      audio: withAudio
+        ? { echoCancellation: true, noiseSuppression: true, sampleRate: 44100, channelCount: 2 }
+        : false,
+    });
+    setSharedScreenStream(stream);
+    stream.getVideoTracks().forEach((t) =>
+      t.addEventListener("ended", () => { if (current === stream) setSharedScreenStream(null); }),
+    );
+    return stream;
+  } catch {
+    clearScreenCaptureInProgress();
+    return null;
+  }
+}

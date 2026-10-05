@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 import { useExamLiveEmitter } from '../useExamLiveEmitter';
 import ScreenShareGuard from './ScreenShareGuard';
 import TestMessageBell from './TestMessageBell';
-import { setSharedScreenStream, markScreenCaptureStarting, clearScreenCaptureInProgress } from './screenStreamStore';
+import { setSharedScreenStream, getSharedScreenStream, markScreenCaptureStarting, clearScreenCaptureInProgress } from './screenStreamStore';
 
 // Then, inside your CodeEditor component, add the router hook:
 
@@ -903,6 +903,10 @@ export default function CodeEditor({
     const [isSaving, setIsSaving] = useState(false);
     const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
     const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
+    // Screen share comes BEFORE the compiler: in a recorded You Do test the
+    // editor stays hidden until the first capture settles (shared or declined).
+    // Already settled when the instructions page captured the screen on Start.
+    const [screenShareSettled, setScreenShareSettled] = useState(() => !!getSharedScreenStream());
     const [isInFullscreenMode, setIsInFullscreenMode] = useState(false);
     const [micEnabled, setMicEnabled] = useState(true);
     const [pyodideReady, setPyodideReady] = useState(false);
@@ -957,6 +961,7 @@ export default function CodeEditor({
     const [showDetailsModal, setShowDetailsModal] = useState(false);
     const [showOverviewModal, setShowOverviewModal] = useState(false);
     const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+    const [isSubmittingTest, setIsSubmittingTest] = useState(false);
     const submittedScoresRef = useRef<Record<string, number>>({});
     const timeUpHandledRef = useRef(false);
     // --- Available Languages ---
@@ -1904,11 +1909,13 @@ function solve() {
         try {
             addTerminalLog('system', '🎥 Starting screen recording...');
 
-            // First request screen recording permission
+            // Reuse the screen the instructions page captured on Start, so the
+            // picker never opens over the editor. Otherwise request it now.
             // Flag the open prompt so the Live Screen broadcaster reuses THIS
             // capture instead of opening a second screen-share prompt.
-            markScreenCaptureStarting();
-            const displayStream = await navigator.mediaDevices.getDisplayMedia({
+            const preShared = getSharedScreenStream();
+            if (!preShared) markScreenCaptureStarting();
+            const displayStream = preShared || await navigator.mediaDevices.getDisplayMedia({
                 video: {
                     mediaSource: 'screen',
                     width: { ideal: 1920, max: 1920 },
@@ -1922,6 +1929,7 @@ function solve() {
                     channelCount: 2
                 } : false
             }).catch((e: any) => { clearScreenCaptureInProgress(); throw e; });
+            setScreenShareSettled(true);
 
             setScreenStream(displayStream);
             // Share this capture with the Live Screen broadcaster (single prompt).
@@ -2212,6 +2220,8 @@ function solve() {
             });
 
         } catch (error) {
+            // Declined — show the editor; ScreenShareGuard asks to re-share.
+            setScreenShareSettled(true);
             console.error('Screen recording error:', error);
             addTerminalLog('error', `❌ Failed to start recording: ${error}`);
             showToast({
@@ -2442,6 +2452,7 @@ function solve() {
                     message: 'Assessment cannot start without fullscreen. Please enable it manually.',
                     duration: 5000
                 });
+                setScreenShareSettled(true); // recording never starts — don't leave the editor hidden
                 return; // Don't proceed if fullscreen fails AND was required
             }
         }
@@ -3305,6 +3316,9 @@ else:
     const doSubmitTest = async () => {
         if (isTestSubmittingRef.current) return;
         isTestSubmittingRef.current = true;
+        // Cover the editor right away — grading the last answer can take a few
+        // seconds and the closed dialog otherwise left the test looking stuck.
+        setIsSubmittingTest(true);
         try {
             if (currentQuestion) {
                 const liveQuestion = exercise?.questions?.[currentProblemIndex];
@@ -3346,18 +3360,17 @@ else:
 
             try { sessionStorage.setItem('lms_submit_toast', 'Test submitted successfully!'); } catch {}
 
-            showToast({ type: 'success', title: 'Test Submitted', message: 'Your test has been submitted successfully.', duration: 3000 });
-
-            setTimeout(() => {
-                if (isAssessmentMode && hasStarted) {
-                    if (isRecording) stopScreenRecording();
-                    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-                }
-                if (onCloseExercise) onCloseExercise();
-                else if (onBack) onBack();
-            }, 1500);
+            // Close straight away — the course page shows the success toast
+            // (lms_submit_toast above), so the old 1.5s hold only added delay.
+            if (isAssessmentMode && hasStarted) {
+                if (isRecording) stopScreenRecording();
+                if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+            }
+            if (onCloseExercise) onCloseExercise();
+            else if (onBack) onBack();
         } catch (error: any) {
             isTestSubmittingRef.current = false;
+            setIsSubmittingTest(false);
             showToast({ type: 'error', title: 'Submission Failed', message: error.message || 'Could not submit test.', duration: 4000 });
         }
     };
@@ -4189,6 +4202,36 @@ else:
         </div>
     ) : null;
 
+    const submittingTestOverlay = isSubmittingTest ? (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,23,42,0.55)', backdropFilter: 'blur(2px)', fontFamily: FONT }}>
+            <div style={{ background: '#fff', borderRadius: 12, padding: '24px 28px', maxWidth: 380, width: '90%', boxShadow: '0 20px 50px rgba(0,0,0,0.15)', textAlign: 'center' }}>
+                <Loader2 size={28} className="animate-spin" style={{ color: '#10b981', margin: '0 auto 12px' }} />
+                <h3 style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', margin: 0 }}>Submitting your test…</h3>
+                <p style={{ fontSize: 13, color: '#475569', marginTop: 6, lineHeight: 1.5 }}>
+                    Evaluating your last answer. Please don't close this tab.
+                </p>
+            </div>
+        </div>
+    ) : null;
+
+    // Shown instead of the editor while the browser's screen picker is open.
+    const awaitingScreenShare = !embedded
+        && (category || '').replace(/_/g, ' ').toLowerCase().trim() === 'you do'
+        && !!securitySettings.screenRecordingEnabled
+        && (skipSecurityModal || hasAgreedToSecurity)
+        && !screenShareSettled;
+    const screenShareGate = awaitingScreenShare ? (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 99995, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0f172a', fontFamily: FONT, padding: 16 }}>
+            <div style={{ background: '#fff', borderRadius: 14, padding: '26px 28px', maxWidth: 420, width: '100%', textAlign: 'center' }}>
+                <Monitor size={30} style={{ color: '#f97316', margin: '0 auto 12px' }} />
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', margin: 0 }}>Share your screen to begin</h3>
+                <p style={{ fontSize: 13, color: '#475569', marginTop: 8, lineHeight: 1.55 }}>
+                    Choose <strong>Entire Screen</strong> in the browser prompt. The test opens as soon as sharing starts.
+                </p>
+            </div>
+        </div>
+    ) : null;
+
     // --- Render ---
     if (isTerminated || isLocked) {
         return (
@@ -4228,6 +4271,8 @@ else:
                 strip flashed at the top on every submit, which was pure noise. */}
             {!embedded && <ConnectionStatusBanner netStatus={attemptSession.netStatus} queueCount={attemptSession.queueCount} offlineOnly />}
             {submitConfirmDialog}
+            {submittingTestOverlay}
+            {screenShareGate}
             {/* Live Screen Monitoring — standalone code editor (parent owns it in section mode).
                 Only active when proctoring screen recording is ON: live monitoring shares the
                 same getDisplayMedia stream, so if recording is OFF we must NOT prompt for it. */}

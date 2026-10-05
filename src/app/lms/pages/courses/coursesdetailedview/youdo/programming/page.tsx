@@ -84,6 +84,12 @@ const ProgrammingPageContent = () => {
     load();
   }, [exerciseId, urlCourseId, urlCourseName, hierarchyParam]);
 
+  // Warm the page Submit Test returns to, so closing the test isn't held up
+  // waiting for the course page to load.
+  useEffect(() => {
+    if (courseId) router.prefetch(`/lms/pages/courses/coursesdetailedview/${courseId}?refresh=true`);
+  }, [courseId, router]);
+
   const handleBack = () => {
     localStorage.removeItem('currentProgrammingExercise');
     if (courseId) {

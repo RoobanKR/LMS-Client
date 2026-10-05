@@ -83,6 +83,38 @@ const ASSESSMENT_SUBCATEGORY_KEYS = new Set(["assessment", "assessments", "asses
 const isFinalAssessment = (ex: any) =>
   String(ex?.exerciseInformation?.testType || '').toLowerCase() === 'final'
 
+// Calls `cb` for every You Do assessment in the course with the id of the node
+// it is stored on. Buckets are keyed by the tab label as typed ("Assesment",
+// "assessments", ...), so match by normalized key, not literal access.
+const forEachCourseAssessment = (modules: any[] | undefined, cb: (ex: any, ownerNodeId: string) => void) => {
+  const walk = (node: any) => {
+    if (!node) return
+    const yd = node?.pedagogy?.You_Do
+    if (yd && typeof yd === 'object' && !Array.isArray(yd)) {
+      const ownerNodeId = node?._id ? String(node._id) : ''
+      for (const key of Object.keys(yd)) {
+        if (!ASSESSMENT_SUBCATEGORY_KEYS.has(normalizeKey(key))) continue
+        const arr = (yd as any)[key]
+        if (Array.isArray(arr)) arr.forEach((ex: any) => cb(ex, ownerNodeId))
+      }
+    }
+    ;(node.subModules || []).forEach(walk)
+    ;(node.topics || []).forEach(walk)
+    ;(node.subTopics || []).forEach(walk)
+  }
+  ;(modules || []).forEach(walk)
+}
+
+// The nodes a student sees an assessment on: the ones the teacher ticked under
+// "Covered topics" (`exercise.selectedTopics`), or — for assessments saved
+// without covered topics — just the node it was created on.
+const assessmentNodeIds = (ex: any, ownerNodeId: string): string[] => {
+  const covered = (Array.isArray(ex?.selectedTopics) ? ex.selectedTopics : [])
+    .map((t: any) => String(typeof t === 'string' ? t : t?.id ?? ''))
+    .filter(Boolean)
+  return covered.length ? covered : (ownerNodeId ? [ownerNodeId] : [])
+}
+
 // ── Course Structure accordion helpers (image 3 design) ──────────────────────
 // Per-module folder accent, cycled by index to mirror the reference's varied colors.
 const MODULE_PALETTE = [
@@ -498,6 +530,24 @@ useEffect(() => {
     if (!pedagogyViewData) return {}
     return buildHoursMap([pedagogyViewData], courseId)
   }, [pedagogyViewData, courseId])
+
+  // node id → number of You Do assessments shown on that node (by Covered
+  // topics), so the Overview "You Do" count matches the You Do → Assessment list.
+  const assessmentCountByNode = useMemo(() => {
+    const counts = new Map<string, number>()
+    const seen = new Set<string>()
+    forEachCourseAssessment(courseData?.modules, (ex, ownerNodeId) => {
+      const id = ex?._id ? String(ex._id) : ''
+      if (!id) return
+      for (const nodeId of assessmentNodeIds(ex, ownerNodeId)) {
+        const key = `${id}|${nodeId}`
+        if (seen.has(key)) continue
+        seen.add(key)
+        counts.set(nodeId, (counts.get(nodeId) || 0) + 1)
+      }
+    })
+    return counts
+  }, [courseData])
 
   // Fetch pedagogy view data through the cache so repeat visits are instant.
   useEffect(() => {
@@ -1344,43 +1394,25 @@ const getExercisesForActivity = (): any[] => {
 
     const tKey = normalizeKey(selectedActivity)
 
-    // ── You Do → Assessment: shared common list across the whole course ──
-    // By design, the student should see every assessment in the course
-    // without having to drill into each hierarchy node looking for assigned
-    // work. So when the student lands on any hierarchy node and opens
-    // You Do → Assessment, we walk the entire course tree and aggregate
-    // every node's pedagogy.You_Do.assessments (incl. the legacy spelling
-    // variants) into one de-duplicated list. All other subcategories keep
-    // the existing per-node behaviour below.
-    const ASSESSMENT_KEYS = new Set(["assessment", "assessments", "assesment", "assesments"])
-    if (tk === "You_Do" && ASSESSMENT_KEYS.has(tKey)) {
+    // ── You Do → Assessment: scoped by the assessment's "Covered topics" ──
+    // An assessment can be stored on one node but cover several (the teacher
+    // ticks modules/topics/subtopics in the Covered topics step, saved as
+    // `exercise.selectedTopics`). So when the student opens You Do →
+    // Assessment we walk the entire course tree and keep only the assessments
+    // whose covered topics include the node the student is on (see
+    // assessmentNodeIds). All other subcategories keep the existing per-node
+    // behaviour below.
+    if (tk === "You_Do" && ASSESSMENT_SUBCATEGORY_KEYS.has(tKey)) {
+      const currentNodeId = selectedItem?.id ? String(selectedItem.id) : ''
       const collected: any[] = []
       const seen = new Set<string>()
-      const walk = (node: any) => {
-        if (!node) return
-        const yd = node?.pedagogy?.You_Do
-        if (yd && typeof yd === 'object' && !Array.isArray(yd)) {
-          // Buckets are stored under the tab label as typed ("Assesment",
-          // "assessments", ...) — match by normalized key, not literal access.
-          for (const key of Object.keys(yd)) {
-            if (!ASSESSMENT_KEYS.has(normalizeKey(key))) continue
-            const arr = (yd as any)[key]
-            if (Array.isArray(arr)) {
-              for (const ex of arr) {
-                const id = ex?._id ? String(ex._id) : ''
-                if (id && !seen.has(id)) {
-                  seen.add(id)
-                  collected.push(ex)
-                }
-              }
-            }
-          }
-        }
-        ;(node.subModules || []).forEach(walk)
-        ;(node.topics || []).forEach(walk)
-        ;(node.subTopics || []).forEach(walk)
-      }
-      ;(courseData?.modules || []).forEach(walk)
+      forEachCourseAssessment(courseData?.modules, (ex, ownerNodeId) => {
+        const id = ex?._id ? String(ex._id) : ''
+        if (!id || seen.has(id)) return
+        if (currentNodeId && !assessmentNodeIds(ex, ownerNodeId).includes(currentNodeId)) return
+        seen.add(id)
+        collected.push(ex)
+      })
       return collected
     }
 
@@ -1689,13 +1721,19 @@ const getExercisesForActivity = (): any[] => {
     return n
   }
 
-  const countPedExercises = (pedagogy: any, method: "I_Do" | "We_Do" | "You_Do"): number => {
-    if (!pedagogy?.[method]) return 0
+  // With `nodeId`, You Do assessments are counted by Covered topics
+  // (assessmentCountByNode) instead of by the node they're stored on, so the
+  // Overview count matches what the You Do → Assessment tab lists.
+  const countPedExercises = (pedagogy: any, method: "I_Do" | "We_Do" | "You_Do", nodeId?: string): number => {
+    const scopeAssessments = method === "You_Do" && !!nodeId
+    const coveredAssessments = scopeAssessments ? (assessmentCountByNode.get(String(nodeId)) || 0) : 0
+    if (!pedagogy?.[method]) return coveredAssessments
     const cat = pedagogy[method]
-    if (Array.isArray(cat)) return cat.length
+    if (Array.isArray(cat)) return cat.length + coveredAssessments
     if (typeof cat === 'object') {
-      let exerciseCount = 0
-      Object.values(cat).forEach((act: any) => {
+      let exerciseCount = coveredAssessments
+      Object.entries(cat).forEach(([key, act]: [string, any]) => {
+        if (scopeAssessments && ASSESSMENT_SUBCATEGORY_KEYS.has(normalizeKey(key))) return
         if (act) {
           // The real shape: a subcategory IS the exercise array —
           // `pedagogy.We_Do.assignment = [ex, ex, …]`, and likewise
@@ -1851,6 +1889,26 @@ const getExercisesForActivity = (): any[] => {
     const selectedNode = findNodeById(selectedItem.id)
     if (!selectedNode) return null
 
+    // Only the hierarchy levels this node actually uses get a column — a topic
+    // with no sub-topics should not show a "Sub-topic" column full of dashes.
+    const nameCols = ((): string[] => {
+      const hasSubtopics = (topics: any[]) => topics.some((t: any) => t.subTopics?.length)
+      if (selectedItem.type === 'module') {
+        const subs = selectedNode.module.subModules || []
+        const topics = subs.length ? subs.flatMap((sm: any) => sm.topics || []) : (selectedNode.module.topics || [])
+        return [
+          'module',
+          ...(subs.length ? ['submodule'] : []),
+          ...(topics.length ? ['topic'] : []),
+          ...(hasSubtopics(topics) ? ['subtopic'] : []),
+        ]
+      }
+      if (selectedItem.type === 'submodule') return ['topic', ...(hasSubtopics(selectedNode.submodule.topics || []) ? ['subtopic'] : [])]
+      if (selectedItem.type === 'topic') return ['topic', ...(hasSubtopics([selectedNode.topic]) ? ['subtopic'] : [])]
+      return ['subtopic']
+    })()
+    const showCol = (key: string) => nameCols.includes(key)
+
     const goToNode = (id: string, title: string, type: SelectedItemType, hierarchy: string[], pedagogy?: any) => () =>
       handleItemSelect(id, title, type, hierarchy, pedagogy)
 
@@ -1897,7 +1955,7 @@ const getExercisesForActivity = (): any[] => {
                         <SubCell title={subtopic.title} />
                         <IDoCell val={countPedResources(subtopic.pedagogy, "I_Do")} />
                         <WeDoCell val={countPedExercises(subtopic.pedagogy, "We_Do")} />
-                        <YouDoCell val={countPedExercises(subtopic.pedagogy, "You_Do")} />
+                        <YouDoCell val={countPedExercises(subtopic.pedagogy, "You_Do", subtopic._id)} />
                       </Row>
                     )
                   })
@@ -1910,10 +1968,10 @@ const getExercisesForActivity = (): any[] => {
                       {isFirstRowOfModule && <LeadCell icon={detailTypeIcon('module')} title={module.title} hrs={hoursMap[module._id]} rowSpan={moduleTotalRows} />}
                       {isFirstRowOfSubmodule && <PlainCell title={submodule.title} hrs={hoursMap[submodule._id]} rowSpan={submoduleTotalRows} />}
                       <PlainCell title={topic.title} dashedRight />
-                      <DashCell />
+                      {showCol('subtopic') && <DashCell />}
                       <IDoCell val={countPedResources(topic.pedagogy, "I_Do")} />
                       <WeDoCell val={countPedExercises(topic.pedagogy, "We_Do")} />
-                      <YouDoCell val={countPedExercises(topic.pedagogy, "You_Do")} />
+                      <YouDoCell val={countPedExercises(topic.pedagogy, "You_Do", topic._id)} />
                     </Row>
                   )
                 }
@@ -1924,11 +1982,11 @@ const getExercisesForActivity = (): any[] => {
                 <Row key={`${module._id}-${submodule._id}`} onNavigate={goToNode(submodule._id, submodule.title, 'submodule', [module._id, submodule._id], submodule.pedagogy)}>
                   {currentRowIndex === 0 && <LeadCell icon={detailTypeIcon('module')} title={module.title} hrs={hoursMap[module._id]} rowSpan={moduleTotalRows} />}
                   <PlainCell title={submodule.title} />
-                  <DashCell />
-                  <DashCell />
+                  {showCol('topic') && <DashCell />}
+                  {showCol('subtopic') && <DashCell />}
                   <IDoCell val={countPedResources(submodule.pedagogy, "I_Do")} />
                   <WeDoCell val={countPedExercises(submodule.pedagogy, "We_Do")} />
-                  <YouDoCell val={countPedExercises(submodule.pedagogy, "You_Do")} />
+                  <YouDoCell val={countPedExercises(submodule.pedagogy, "You_Do", submodule._id)} />
                 </Row>
               )
             }
@@ -1944,12 +2002,11 @@ const getExercisesForActivity = (): any[] => {
                 rows.push(
                   <Row key={`${module._id}-${topic._id}-${subtopic._id || stIdx}`} onNavigate={goToNode(subtopic._id, subtopic.title, 'subtopic', [module._id, topic._id, subtopic._id], subtopic.pedagogy)}>
                     {currentRowIndex === 0 && <LeadCell icon={detailTypeIcon('module')} title={module.title} hrs={hoursMap[module._id]} rowSpan={moduleTotalRows} />}
-                    <DashCell />
-                    {isFirstRowOfTopic && <PlainCell title={topic.title} rowSpan={topicRowSpan} dashedRight />}
+                    {isFirstRowOfTopic &&<PlainCell title={topic.title} rowSpan={topicRowSpan} dashedRight />}
                     <SubCell title={subtopic.title} />
                     <IDoCell val={countPedResources(subtopic.pedagogy, "I_Do")} />
                     <WeDoCell val={countPedExercises(subtopic.pedagogy, "We_Do")} />
-                    <YouDoCell val={countPedExercises(subtopic.pedagogy, "You_Do")} />
+                    <YouDoCell val={countPedExercises(subtopic.pedagogy, "You_Do", subtopic._id)} />
                   </Row>
                 )
               })
@@ -1958,12 +2015,11 @@ const getExercisesForActivity = (): any[] => {
               rows.push(
                 <Row key={`${module._id}-${topic._id}`} onNavigate={goToNode(topic._id, topic.title, 'topic', [module._id, topic._id], topic.pedagogy)}>
                   {currentRowIndex === 0 && <LeadCell icon={detailTypeIcon('module')} title={module.title} hrs={hoursMap[module._id]} rowSpan={moduleTotalRows} />}
-                  <DashCell />
                   <PlainCell title={topic.title} dashedRight />
-                  <DashCell />
+                  {showCol('subtopic') && <DashCell />}
                   <IDoCell val={countPedResources(topic.pedagogy, "I_Do")} />
                   <WeDoCell val={countPedExercises(topic.pedagogy, "We_Do")} />
-                  <YouDoCell val={countPedExercises(topic.pedagogy, "You_Do")} />
+                  <YouDoCell val={countPedExercises(topic.pedagogy, "You_Do", topic._id)} />
                 </Row>
               )
             }
@@ -1986,7 +2042,7 @@ const getExercisesForActivity = (): any[] => {
                     <SubCell title={subtopic.title} />
                     <IDoCell val={countPedResources(subtopic.pedagogy, "I_Do")} />
                     <WeDoCell val={countPedExercises(subtopic.pedagogy, "We_Do")} />
-                    <YouDoCell val={countPedExercises(subtopic.pedagogy, "You_Do")} />
+                    <YouDoCell val={countPedExercises(subtopic.pedagogy, "You_Do", subtopic._id)} />
                   </Row>
                 )
               })
@@ -1995,10 +2051,10 @@ const getExercisesForActivity = (): any[] => {
               rows.push(
                 <Row key={`${submodule._id}-${topic._id}`} onNavigate={goToNode(topic._id, topic.title, 'topic', [module._id, submodule._id, topic._id], topic.pedagogy)}>
                   <LeadCell icon={detailTypeIcon('topic')} title={topic.title} hrs={hoursMap[topic._id]} />
-                  <DashCell />
+                  {showCol('subtopic') && <DashCell />}
                   <IDoCell val={countPedResources(topic.pedagogy, "I_Do")} />
                   <WeDoCell val={countPedExercises(topic.pedagogy, "We_Do")} />
-                  <YouDoCell val={countPedExercises(topic.pedagogy, "You_Do")} />
+                  <YouDoCell val={countPedExercises(topic.pedagogy, "You_Do", topic._id)} />
                 </Row>
               )
             }
@@ -2013,14 +2069,15 @@ const getExercisesForActivity = (): any[] => {
         const hierBase = submodule ? [module._id, submodule._id, topic._id] : [module._id, topic._id]
 
         if (subtopics.length) {
-          subtopics.forEach((subtopic: any) => {
+          subtopics.forEach((subtopic: any, stIdx: number) => {
             rowIndex++
             rows.push(
               <Row key={`${topic._id}-${subtopic._id}`} onNavigate={goToNode(subtopic._id, subtopic.title, 'subtopic', [...hierBase, subtopic._id], subtopic.pedagogy)}>
-                <LeadCell icon={detailTypeIcon('subtopic')} title={subtopic.title} />
+                {stIdx === 0 && <LeadCell icon={detailTypeIcon('topic')} title={topic.title} hrs={hoursMap[topic._id]} rowSpan={subtopics.length} />}
+                <SubCell title={subtopic.title} />
                 <IDoCell val={countPedResources(subtopic.pedagogy, "I_Do")} />
                 <WeDoCell val={countPedExercises(subtopic.pedagogy, "We_Do")} />
-                <YouDoCell val={countPedExercises(subtopic.pedagogy, "You_Do")} />
+                <YouDoCell val={countPedExercises(subtopic.pedagogy, "You_Do", subtopic._id)} />
               </Row>
             )
           })
@@ -2028,10 +2085,10 @@ const getExercisesForActivity = (): any[] => {
           // Show just the topic itself — already the selected node, nothing to drill into
           rows.push(
             <Row key={topic._id}>
-              <DashCell />
+              <LeadCell icon={detailTypeIcon('topic')} title={topic.title} hrs={hoursMap[topic._id]} />
               <IDoCell val={countPedResources(topic.pedagogy, "I_Do")} />
               <WeDoCell val={countPedExercises(topic.pedagogy, "We_Do")} />
-              <YouDoCell val={countPedExercises(topic.pedagogy, "You_Do")} />
+              <YouDoCell val={countPedExercises(topic.pedagogy, "You_Do", topic._id)} />
             </Row>
           )
         }
@@ -2040,9 +2097,10 @@ const getExercisesForActivity = (): any[] => {
         const subtopic = selectedNode.subtopic
         rows.push(
           <Row key={subtopic._id}>
+            <LeadCell icon={detailTypeIcon('subtopic')} title={subtopic.title} hrs={hoursMap[subtopic._id]} />
             <IDoCell val={countPedResources(subtopic.pedagogy, "I_Do")} />
             <WeDoCell val={countPedExercises(subtopic.pedagogy, "We_Do")} />
-            <YouDoCell val={countPedExercises(subtopic.pedagogy, "You_Do")} />
+            <YouDoCell val={countPedExercises(subtopic.pedagogy, "You_Do", subtopic._id)} />
           </Row>
         )
       }
@@ -2075,20 +2133,18 @@ const getExercisesForActivity = (): any[] => {
       </span>
     )
 
-    // Render table headers based on selection type
+    const NAME_COL_HEAD: Record<string, { icon: any; label: string }> = {
+      module: { icon: Folder, label: 'Module' },
+      submodule: { icon: Layers, label: 'Submodule' },
+      topic: { icon: Layers, label: 'Topic' },
+      subtopic: { icon: Link2, label: 'Sub-topic' },
+    }
+
+    // Render table headers for the hierarchy levels in use
     const renderTableHeaders = () => {
-      const cols: React.ReactElement[] = []
-      if (selectedItem.type === 'module') {
-        cols.push(<Th key="mod"><ThIconLabel icon={Folder} color="#64748B" label="Module" /></Th>)
-        cols.push(<Th key="sub"><ThIconLabel icon={Layers} color="#64748B" label="Submodule" /></Th>)
-        cols.push(<Th key="top"><ThIconLabel icon={Layers} color="#64748B" label="Topic" /></Th>)
-        cols.push(<Th key="sut"><ThIconLabel icon={Link2} color="#64748B" label="Sub-topic" /></Th>)
-      } else if (selectedItem.type === 'submodule') {
-        cols.push(<Th key="top"><ThIconLabel icon={Layers} color="#64748B" label="Topic" /></Th>)
-        cols.push(<Th key="sut"><ThIconLabel icon={Link2} color="#64748B" label="Sub-topic" /></Th>)
-      } else if (selectedItem.type === 'topic') {
-        cols.push(<Th key="sut"><ThIconLabel icon={Link2} color="#64748B" label="Sub-topic" /></Th>)
-      }
+      const cols: React.ReactElement[] = nameCols.map((key) => (
+        <Th key={key}><ThIconLabel icon={NAME_COL_HEAD[key].icon} color="#64748B" label={NAME_COL_HEAD[key].label} /></Th>
+      ))
       cols.push(<Th key="ido" center><ThIconLabel icon={BookMarked} color={DETAIL_UI.green} label="I Do" suffix="(Resources)" /></Th>)
       cols.push(<Th key="wedo" center><ThIconLabel icon={Pencil} color="#C77800" label="We Do" suffix="(Exercises)" /></Th>)
       cols.push(<Th key="ydo" center><ThIconLabel icon={Target} color="#DC4545" label="You Do" /></Th>)
@@ -2102,18 +2158,20 @@ const getExercisesForActivity = (): any[] => {
     // learner had to scroll sideways to see whether a topic had any content.
     // `table-fixed` + these widths pin the name columns and let the titles
     // truncate instead, so every pedagogy column stays on screen.
+    // The leading column and Topic get a larger share (icon/hours badge, long titles).
     const renderColGroup = () => {
-      const t = selectedItem.type
-      const nameCols =
-        t === 'module'    ? ['19%', '12%', '23%', '12%'] :
-        t === 'submodule' ? ['34%', '22%'] :
-        t === 'topic'     ? ['44%'] : []
-      const pedagogyCols = t === 'module' ? ['11%', '11%', '10%']
-        : t === 'submodule' ? ['15%', '15%', '12%']
-        : ['20%', '20%', '14%']
+      const pedagogyByCount: Record<number, number[]> = { 4: [11, 11, 10], 3: [13, 13, 11], 2: [15, 15, 12], 1: [20, 20, 14] }
+      const pedagogy = pedagogyByCount[nameCols.length] || pedagogyByCount[1]
+      const nameShare = 98 - pedagogy.reduce((a, b) => a + b, 0)
+      const weights = nameCols.map((key, i) => (i === 0 || key === 'topic' ? 3 : 2))
+      const weightSum = weights.reduce((a, b) => a + b, 0)
+      const widths = [
+        ...weights.map((w) => `${Math.round((nameShare * w / weightSum) * 10) / 10}%`),
+        ...pedagogy.map((p) => `${p}%`),
+      ]
       return (
         <colgroup>
-          {[...nameCols, ...pedagogyCols].map((w, i) => <col key={i} style={{ width: w }} />)}
+          {widths.map((w, i) => <col key={i} style={{ width: w }} />)}
           <col style={{ width: 40 }} />
         </colgroup>
       )
@@ -2829,7 +2887,7 @@ const getExercisesForActivity = (): any[] => {
                     {selectedItem.type === 'subtopic' &&
                       countPedResources(selectedItem.pedagogy, "I_Do") === 0 &&
                       countPedExercises(selectedItem.pedagogy, "We_Do") === 0 &&
-                      countPedExercises(selectedItem.pedagogy, "You_Do") === 0 && (
+                      countPedExercises(selectedItem.pedagogy, "You_Do", selectedItem.id) === 0 && (
                         <div className="text-center rounded-2xl mt-4" style={{ padding: '20px 16px', background: '#FAFBFD', border: '1px solid #EEF1F6' }}>
                           <Hash size={20} className="mx-auto mb-2 block" style={{ color: '#CBD5E1' }} />
                           <p className="m-0 mb-1 font-semibold" style={{ fontSize: 13, color: DETAIL_UI.navy }}>No resources configured</p>

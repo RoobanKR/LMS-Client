@@ -591,6 +591,8 @@ interface CreateTestModalProps {
   nodeType: string;
   editingTest?: TestRecord | null;
   isLoading?: boolean;
+  // Pop the AI Question Generator open as soon as the editor opens.
+  autoOpenAIGenerator?: boolean;
 }
 
 // ─── DESIGN TOKENS ────────────────────────────────────────────────────────────
@@ -961,6 +963,7 @@ const CreateTestModal: React.FC<CreateTestModalProps> = ({
   nodeType,
   editingTest,
   isLoading: isLoadingProp = false,
+  autoOpenAIGenerator = false,
 }) => {
   injectFonts();
 
@@ -3039,6 +3042,7 @@ if (block.type === 'paragraph') {
             buttonClassName="lms-btn lms-btn-orange mr-2"
             buttonText={<span className="flex items-center gap-1.5"><Sparkles className="h-3.5 w-3.5" />Generate AI</span>}
             defaultTopic={defaultTopic}
+            autoOpen={autoOpenAIGenerator}
           />
           <button onClick={handleCloseClick} className="p-2 rounded-lg transition-colors cursor-pointer bg-red-100 hover:bg-red-200">
             <X className="h-4 w-4 text-red-600" />

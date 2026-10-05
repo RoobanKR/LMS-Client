@@ -27,6 +27,9 @@ import { useYouDoExercises } from "@/app/lms/pages/courses/hooks/useYouDoExercis
 // Unified with We_Do — see QuestionsTest.tsx for context.
 import AddQuestionForm from "@/app/lms/pages/courses/components/questionforms/AddQuestionForm";
 import QuestionsTest from "./QuestionsTest";
+import {
+  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 // Brand palette. Keys are named `blue*` for historical reasons — this file
@@ -71,9 +74,12 @@ interface AssessmentRecord {
    *    active    → the window is open right now ("In Progress")
    *    ended     → the window has closed ("Completed")
    *    draft     → never scheduled, so it holds no lifecycle position
-   *  Drives the Status badge AND the toolbar's status filter, so the two can
-   *  never disagree about what a row is. */
+   *  No longer what the Status column shows — see `setup`. */
   status: "active" | "scheduled" | "draft" | "ended";
+  /** Authoring completeness (Complete / Incomplete), the We Do rule. Drives
+   *  the Status badge AND the toolbar's status filter, so the two can never
+   *  disagree about what a row is. */
+  setup: AssessmentSetup;
   startDate: string;
   endDate?: string;
   createdAt?: string;
@@ -116,25 +122,14 @@ const TEST_TYPE_META: Record<string, { label: string; color: string; bg: string 
   practice: { label: "Practice", color: "#10b981", bg: "rgba(16,185,129,0.09)" },
 };
 
-// Labels match the toolbar's status filter one-for-one, so picking "Completed"
-// can never surface rows whose badge reads something else. Colours, shape and
-// sizing are unchanged; only the wording moved onto the shared vocabulary.
-const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
-  active: { label: "In Progress", color: "#059669", bg: "rgba(5,150,105,0.09)" },
-  scheduled: { label: "Scheduled", color: "#3b82f6", bg: "rgba(59,130,246,0.09)" },
-  draft: { label: "Draft", color: "#f59e0b", bg: "rgba(245,158,11,0.09)" },
-  ended: { label: "Completed", color: T.textMuted, bg: T.pageBg },
-};
-
-// Toolbar status menu — order and wording follow the reference: All Status,
-// then the three lifecycle states. Values are `AssessmentRecord["status"]`
-// keys; "" means no filter.
-type StatusFilterValue = "" | "active" | "scheduled" | "ended";
+// Toolbar status menu — same choices and wording as We Do › Assignments'
+// status filter. Values select on `AssessmentRecord["setup"].isComplete`;
+// "" means no filter.
+type StatusFilterValue = "" | "complete" | "incomplete";
 const STATUS_FILTER_OPTIONS: { value: StatusFilterValue; label: string }[] = [
   { value: "", label: "All Status" },
-  { value: "active", label: "In Progress" },
-  { value: "scheduled", label: "Scheduled" },
-  { value: "ended", label: "Completed" },
+  { value: "complete", label: "Completed" },
+  { value: "incomplete", label: "Incomplete" },
 ];
 
 const SCORING_META: Record<string, { label: string; icon: React.ReactNode; color: string; bg: string }> = {
@@ -160,6 +155,164 @@ const getEntityType = (nodeType: string): EntityType => {
     case 'subtopic': return 'subtopics';
     default: return 'topics';
   }
+};
+
+// ─── List Status: Complete / Incomplete ───────────────────────────────────────
+// The Status column and its toolbar filter use the SAME two-part rule as
+// We Do › Assignments (ProblemSolving.tsx `isExerciseComplete` +
+// `getExerciseStatus`):
+//   1. settings  — the wizard was saved through, not just its first step;
+//   2. questions — every question the configuration asks for has been added.
+// So an assessment whose details are saved but whose questions are still
+// missing reads Incomplete, and flips to Complete only once the last question
+// lands. Kept separate from `isAssessmentComplete` below, which the server
+// mirrors for approvals and which also gates Manage Questions.
+interface AssessmentSetup {
+  settingsComplete: boolean;
+  questionsComplete: boolean;
+  isComplete: boolean;
+  curQ: number;
+  maxQ: number;
+}
+
+// The You Do counterparts of the steps We Do requires (titles from
+// CreateAssessmentModal's `getSteps`). Finish saves every title; "Save
+// progress" saves only the steps touched, so a details-only save fails here.
+const requiredSetupSteps = (ex: any): string[] => {
+  const steps = [
+    'Exercise Details',
+    ex.isSectionBased ? 'Section Details' : 'Question Configuration',
+    'Schedule',
+    'Notifications',
+  ];
+  if (ex.isGraded !== false) steps.push('Grade Settings');
+  return steps;
+};
+
+// Questions a general / level-based / selection-level config asks for.
+const configuredQuestionCount = (cfg: any): number => {
+  if (!cfg) return 0;
+  if (cfg.questionConfigType === 'general') return cfg.generalQuestionCount ?? 0;
+  const lc = cfg.levelBasedCounts ?? cfg.selectionLevelCounts ?? {};
+  return (lc.easy ?? 0) + (lc.medium ?? 0) + (lc.hard ?? 0);
+};
+
+const isMcqQuestion = (q: any) => q?.questionType === 'mcq';
+const isProgQuestion = (q: any) =>
+  q?.questionType === 'programming' || q?.questionType === 'database' || q?.questionType === 'others';
+
+const getAssessmentSetup = (ex: any): AssessmentSetup => {
+  if (!ex) return { settingsComplete: false, questionsComplete: false, isComplete: false, curQ: 0, maxQ: 0 };
+
+  const info = ex.exerciseInformation || {};
+  const saved: string[] = Array.isArray(ex.stepsSaved) ? ex.stepsSaved : [];
+  const settingsComplete =
+    !!ex.exerciseType
+    && !!info.exerciseName?.trim()
+    && !!ex.availabilityPeriod?.startDate
+    // Non-graded assessments legitimately carry 0 marks.
+    && (ex.isGraded === false || (info.totalMarks ?? 0) > 0 || (info.totalMarksMCQ ?? 0) > 0)
+    // Records saved before `stepsSaved` existed carry none — judge those on
+    // the persisted fields above rather than calling every legacy one Incomplete.
+    && (saved.length === 0 || requiredSetupSteps(ex).every(step => saved.includes(step)));
+
+  const questions: any[] = Array.isArray(ex.questions) ? ex.questions : [];
+  let curQ = 0, maxQ = 0;
+
+  if (ex.isSectionBased) {
+    // Each section must meet its own target, so a surplus in one section can't
+    // cover a shortfall in another — count added questions only up to the target.
+    const sectionConfigs: Record<string, any> = ex.sectionConfigs || {};
+    for (const key of Object.keys(sectionConfigs)) {
+      const cfg = sectionConfigs[key] || {};
+      const sectionId = cfg.id || key;
+      const type: string = cfg.exerciseType || 'MCQ';
+      const inSection = questions.filter(q => q?.sectionId === sectionId);
+      if (type === 'MCQ' || type === 'Combined') {
+        const limit: number = cfg.mcqConfig?.generalQuestionCount || 0;
+        maxQ += limit;
+        curQ += Math.min(inSection.filter(isMcqQuestion).length, limit);
+      }
+      if (type === 'Programming' || type === 'Combined') {
+        const limit = configuredQuestionCount(cfg.programmingConfig);
+        maxQ += limit;
+        curQ += Math.min(inSection.filter(isProgQuestion).length, limit);
+      }
+    }
+  } else {
+    const qc = ex.questionConfiguration || {};
+    const mcqMax: number = qc.mcqQuestionConfiguration?.totalMcqQuestions ?? 0;
+    const mcqCur = questions.filter(isMcqQuestion).length;
+    const progCur = questions.filter(isProgQuestion).length;
+    if (ex.exerciseType === 'MCQ') {
+      maxQ = mcqMax; curQ = mcqCur;
+    } else if (ex.exerciseType === 'Programming') {
+      maxQ = configuredQuestionCount(qc.programmingQuestionConfiguration); curQ = progCur;
+    } else if (ex.exerciseType === 'Combined') {
+      maxQ = mcqMax + configuredQuestionCount(qc.programmingQuestionConfiguration);
+      curQ = mcqCur + progCur;
+    } else if (ex.exerciseType === 'Other') {
+      maxQ = configuredQuestionCount(qc.othersQuestionConfiguration); curQ = progCur;
+    }
+  }
+
+  // An assessment with no questions at all has nothing for a student to
+  // attempt, whatever the configured count says.
+  const questionsComplete = questions.length > 0 && curQ >= maxQ;
+  return { settingsComplete, questionsComplete, isComplete: settingsComplete && questionsComplete, curQ, maxQ };
+};
+
+// Status badge — same look and tooltip as We Do's `ScoreProgress`.
+const SetupStatusBadge: React.FC<{ setup: AssessmentSetup }> = ({ setup }) => {
+  const { settingsComplete, questionsComplete, isComplete, curQ, maxQ } = setup;
+  const style = isComplete
+    ? { bg: 'rgba(34, 197, 94, 0.08)', text: '#16a34a', border: 'rgba(34, 197, 94, 0.2)', dot: '#22c55e', label: 'Complete', Icon: CheckCircle }
+    : { bg: 'rgba(242, 119, 87, 0.08)', text: '#e0623f', border: 'rgba(242, 119, 87, 0.2)', dot: '#F27757', label: 'Incomplete', Icon: AlertTriangle };
+
+  const message = !settingsComplete
+    ? 'Assessment settings are incomplete'
+    : !questionsComplete
+      ? (maxQ > 0 ? `${curQ} of ${maxQ} questions added` : 'No questions added yet')
+      : 'Assessment is fully configured';
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5,
+            padding: '3px 8px', borderRadius: 6,
+            fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap', cursor: 'default',
+            background: style.bg, color: style.text, border: `1px solid ${style.border}`,
+          }}>
+            <style.Icon size={12} strokeWidth={2.5} style={{ color: style.dot, flexShrink: 0 }} />
+            <span>{style.label}</span>
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" className="text-xs bg-white text-gray-900 border border-gray-200 shadow-lg">
+          <div className="p-1.5">
+            <p className="text-[11px] font-semibold mb-1.5" style={{ color: T.textMain }}>{message}</p>
+            {!settingsComplete ? (
+              <p className="text-[10px]" style={{ color: T.textMuted }}>Complete all settings first</p>
+            ) : !questionsComplete && maxQ > 0 ? (
+              <div>
+                <div className="h-1.5 rounded-full overflow-hidden w-36" style={{ background: '#f0f0f5' }}>
+                  <div className="h-full rounded-full" style={{ width: `${Math.min(100, (curQ / maxQ) * 100)}%`, background: '#F27757' }} />
+                </div>
+                <p className="text-[10px] mt-1" style={{ color: T.textMuted }}>
+                  {Math.round((curQ / maxQ) * 100)}% complete
+                </p>
+              </div>
+            ) : !questionsComplete ? (
+              <p className="text-[10px]" style={{ color: T.textMuted }}>Add questions from Manage Questions</p>
+            ) : (
+              <p className="text-[10px]" style={{ color: '#16a34a' }}>All requirements met ✓</p>
+            )}
+          </div>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
 };
 
 // Moved out of the component body so the `assessments` useMemo can reference
@@ -237,6 +390,7 @@ const transformExerciseToAssessment = (ex: any): AssessmentRecord => {
     name: info.exerciseName || "Untitled Assessment",
     testType, totalMarks: info.totalMarks || 0, questions, scoring,
     level: info.exerciseLevel || "beginner", status,
+    setup: getAssessmentSetup(src),
     startDate: startDate ? new Date(startDate).toLocaleDateString() : "",
     endDate: endDate ? new Date(endDate).toLocaleDateString() : "",
     createdAt: src.createdAt, subcategory: src.subcategory,
@@ -949,23 +1103,20 @@ export default function Assessment({
     });
   }, [assessments, searchQuery, activeTestTab, isStudentView]);
 
-  // Per-status counts for the menu — "In Progress (10)".
+  // Per-status counts for the menu — "Incomplete (10)".
   const statusCounts = useMemo(() => {
-    const c = { all: baseFiltered.length, active: 0, scheduled: 0, ended: 0 };
-    for (const a of baseFiltered) {
-      if (a.status === 'active' || a.status === 'scheduled' || a.status === 'ended') c[a.status]++;
-    }
-    return c;
+    const complete = baseFiltered.filter(a => a.setup.isComplete).length;
+    return { all: baseFiltered.length, complete, incomplete: baseFiltered.length - complete };
   }, [baseFiltered]);
   const activeStatusOption =
     STATUS_FILTER_OPTIONS.find(o => o.value === filterStatus) ?? STATUS_FILTER_OPTIONS[0];
 
-  // Status filter — matches the row's OWN lifecycle status, so what the menu
-  // says and what the Status column shows are the same thing. Never-scheduled
-  // ("Draft") rows hold no lifecycle position and so appear under All Status
-  // only.
+  // Status filter — matches the row's OWN Status badge (`setup.isComplete`),
+  // so what the menu says and what the Status column shows are the same thing.
   const filtered = useMemo(
-    () => (filterStatus ? baseFiltered.filter(asm => asm.status === filterStatus) : baseFiltered),
+    () => (filterStatus
+      ? baseFiltered.filter(asm => asm.setup.isComplete === (filterStatus === 'complete'))
+      : baseFiltered),
     [baseFiltered, filterStatus],
   );
 
@@ -1384,8 +1535,8 @@ export default function Assessment({
           </div>
 
           {/* Status menu — as in the reference: a text trigger reading
-              "<status> (<count>)" with a chevron, opening the four statuses
-              with their counts. Picking one filters the list at once (see
+              "<status> (<count>)" with a chevron, opening the statuses with
+              their counts. Picking one filters the list at once (see
               `filtered`) and the trigger keeps showing the choice. */}
           <div className="relative flex-shrink-0" ref={statusMenuRef}>
             <button
@@ -1644,43 +1795,13 @@ export default function Assessment({
                       </span>
                     </div>
 
-                    {/* Status — the assessment's LIFECYCLE (In Progress /
-                        Scheduled / Completed / Draft), which is what the
-                        toolbar's status filter selects on. This cell used to
-                        show authoring completeness ("Complete"/"Incomplete")
-                        while `STATUS_META` sat unused; with the filter now
-                        offering lifecycle states the two had to speak the same
-                        language, or picking "Completed" would have hidden rows
-                        whose badge read "Complete".
-
-                        The authoring signal isn't lost: an assessment that is
-                        still missing required setup keeps its warning icon
-                        beside the badge, with the reason on the tooltip. */}
-                    <div className="flex items-center gap-1 min-w-0">
-                      {(() => {
-                        const sm = STATUS_META[asm.status] ?? STATUS_META.draft;
-                        return (
-                          <span style={{
-                            display: 'inline-flex', alignItems: 'center', gap: 5,
-                            padding: '3px 8px', borderRadius: 6,
-                            fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap',
-                            background: sm.bg, color: sm.color,
-                            border: `1px solid ${sm.color}33`,
-                          }}>
-                            <span style={{ width: 6, height: 6, borderRadius: 999, background: sm.color, flexShrink: 0 }} />
-                            {sm.label}
-                          </span>
-                        );
-                      })()}
-                      {!complete && (
-                        <span
-                          className="inline-flex flex-shrink-0"
-                          title="Setup incomplete — this assessment is still missing required configuration."
-                          aria-label="Setup incomplete"
-                        >
-                          <AlertTriangle size={12} strokeWidth={2.5} style={{ color: '#F27757' }} />
-                        </span>
-                      )}
+                    {/* Status — authoring completeness, the We Do rule:
+                        Complete once every setting is saved AND every
+                        configured question is added; saving only the
+                        details leaves it Incomplete. The toolbar's status
+                        filter selects on the same `setup.isComplete`. */}
+                    <div className="flex items-center min-w-0">
+                      <SetupStatusBadge setup={asm.setup} />
                     </div>
 
                     {/* Review — promoted out of the kebab into its own column.

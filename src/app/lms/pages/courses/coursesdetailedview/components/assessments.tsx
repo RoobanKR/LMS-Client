@@ -2147,7 +2147,7 @@ export default function Assessments({
                     { label: 'Due Date', cls: 'w-[150px] pl-0 pr-2', key: 'end' as const },
                     { label: 'Level', cls: 'w-[110px] pl-0 pr-2', key: 'level' as const },
                     // Left-aligned and widened to 110px: at 85px the
-                    // "In Progress" pill overflowed its cell and ran into the
+                    // status pill overflowed its cell and ran into the
                     // neighbouring Level chip.
                     { label: 'Status', cls: 'w-[110px] pl-0 pr-2', key: 'status' as const },
                     // Widened to 200px so the full-size (h-9 / 128px) Start
@@ -2281,38 +2281,30 @@ export default function Assessments({
                         </span>
                       </td>
 
-                      {/* Status — same seven-state model as the We_Do
-                          assignment list so `Missed` (expired without a
-                          submission) reads consistently across both
-                          screens. Icon + label carry the signal so
-                          state is never colour-only:
+                      {/* Status — icon + label carry the signal so state is
+                          never colour-only:
                             • Upcoming        → Clock          (slate)
                             • Active          → Zap            (green)
-                            • In Progress     → Zap            (orange)
                             • Submitted       → CheckCircle    (green)
                             • Missed          → AlertCircle    (red)
-                            • Closed          → Lock           (gray)  */}
+                            • Closed          → Lock           (gray)
+                          An open assessment stays Active until the student
+                          SUBMITS — opening or starting it doesn't change the
+                          badge. That is also how the Active / Submitted
+                          chips above count it, so the two always agree. */}
                       <td className="pl-0 pr-2 h-11 align-middle whitespace-nowrap">
                         {(() => {
-                          type Kind = 'upcoming' | 'active' | 'in-progress' | 'submitted' | 'missed' | 'closed'
+                          type Kind = 'upcoming' | 'active' | 'submitted' | 'missed' | 'closed'
                           let kind: Kind
                           if (isCompleted) kind = 'submitted'
                           else if (availability.status === 'upcoming') kind = 'upcoming'
                           else if (availability.status === 'expired') kind = 'missed'
-                          else if (availability.canStart) {
-                            // No cheap per-question in-progress marker on
-                            // the assessments list; treat the "already-
-                            // attempted but not completed" case as In
-                            // Progress, everything else as Active.
-                            const attempted = hasExerciseBeenAttempted(exercise, studentAnswers, method, subcategory)
-                            kind = attempted ? 'in-progress' : 'active'
-                          }
+                          else if (availability.canStart) kind = 'active'
                           else kind = 'closed'
 
                           const META: Record<Kind, { label: string; Icon: any; bg: string; fg: string }> = {
                             upcoming:      { label: 'Upcoming',    Icon: Clock,        bg: '#EEF2F7', fg: '#475569' },
                             active:        { label: 'Active',      Icon: Zap,          bg: '#ECFDF3', fg: '#15803D' },
-                            'in-progress': { label: 'In Progress', Icon: Zap,          bg: '#FFF4EC', fg: '#C2410C' },
                             submitted:     { label: 'Submitted',   Icon: CheckCircle,  bg: '#ECFDF3', fg: '#15803D' },
                             missed:        { label: 'Missed',      Icon: AlertCircle,  bg: '#FEF2F2', fg: '#B91C1C' },
                             closed:        { label: 'Closed',      Icon: Lock,         bg: '#F1F5F9', fg: '#64748B' },

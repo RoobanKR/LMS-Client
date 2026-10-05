@@ -182,6 +182,9 @@ interface GenerateMCQAIQuestionProps {
 
   numberOfDuplicates?: number;
   onRegenerationComplete?: (questions: GeneratedQuestion[]) => void;
+  // Open the generator modal as soon as this mounts (e.g. when the teacher
+  // picked "Generate with AI" in the Add Question options).
+  autoOpen?: boolean;
   // REMOVED all exercise-based limits
   // No maxSelectableCount, no scoringType, no marksPerQuestion, no remainingMarks
 }
@@ -314,6 +317,7 @@ const TestYourSkillsGenerateMCQAIQuestion: React.FC<GenerateMCQAIQuestionProps> 
   numberOfDuplicates = 0,
   onRegenerationComplete,
     defaultTopic = '', // ← ADD THIS LINE
+  autoOpen = false,
 
 }) => {
   injectFonts();
@@ -368,6 +372,16 @@ const TestYourSkillsGenerateMCQAIQuestion: React.FC<GenerateMCQAIQuestionProps> 
       difficulty: 'medium',
     });
   };
+
+  // Auto-open once on mount when requested — same as clicking the trigger button.
+  const didAutoOpenRef = useRef(false);
+  useEffect(() => {
+    if (!autoOpen || didAutoOpenRef.current) return;
+    didAutoOpenRef.current = true;
+    resetModalToInitial();
+    setShowModal(true);
+  }, [autoOpen]);
+
 // This useEffect should already be there (around line 369):
 useEffect(() => {
   if (defaultTopic && !topicInput) {

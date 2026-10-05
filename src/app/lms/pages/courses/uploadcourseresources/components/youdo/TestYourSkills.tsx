@@ -1578,6 +1578,8 @@ export default function TestYourSkills({
   // while React Query refreshes in the background when the data is stale.
   const [showModal, setShowModal] = useState(false);
   const [showCreateOptionModal, setShowCreateOptionModal] = useState(false);
+  // "Generate with AI" opens the question editor with the AI generator already up.
+  const [openAIGeneratorOnModal, setOpenAIGeneratorOnModal] = useState(false);
   const [showMockTestModal, setShowMockTestModal] = useState(false);
   const [showDocumentModal, setShowDocumentModal] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<QuestionRecord | null>(null);
@@ -2588,6 +2590,12 @@ const loadQuestions = async (_opts: { silent?: boolean } = {}) => {
         })()}
         onSelectFromScratch={() => {
           setShowCreateOptionModal(false);
+          setOpenAIGeneratorOnModal(false);
+          handleAddQuestionFromScratch();
+        }}
+        onSelectGenerateAI={() => {
+          setShowCreateOptionModal(false);
+          setOpenAIGeneratorOnModal(true);
           handleAddQuestionFromScratch();
         }}
         onSelectFromBank={() => {
@@ -2611,6 +2619,7 @@ const loadQuestions = async (_opts: { silent?: boolean } = {}) => {
             setShowModal(false); 
             setEditingQuestion(null); 
             setEditingQuestionData(null);
+            setOpenAIGeneratorOnModal(false);
           }}
           defaultTopic={hierarchyData.topicName || nodeName}
           nodeId={nodeId}
@@ -2631,9 +2640,11 @@ const loadQuestions = async (_opts: { silent?: boolean } = {}) => {
               setShowModal(false);
               setEditingQuestion(null);
               setEditingQuestionData(null);
+              setOpenAIGeneratorOnModal(false);
             }
           }}
           initialQuestions={editingQuestionData || []}
+          autoOpenAIGenerator={openAIGeneratorOnModal}
           testName=""
           testDescription=""
           editingTest={null}

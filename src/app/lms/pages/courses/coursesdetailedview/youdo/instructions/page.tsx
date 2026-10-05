@@ -24,6 +24,7 @@ import {
   normalizeSecurityConfig,
   type AssessmentSecurityConfig,
 } from "@/app/lms/pages/courses/coursesdetailedview/components/YouDo/useAssessmentSecurity";
+import { captureSharedScreen } from "@/app/lms/pages/courses/coursesdetailedview/components/YouDo/screenStreamStore";
 import {
   Home, ChevronRight, ArrowLeft, CalendarDays, Clock, ClipboardList, Award,
   RotateCcw, Trophy, Code2, Gauge, ListChecks, SlidersHorizontal, Play,
@@ -639,6 +640,7 @@ function InstructionsContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
   const [acknowledged, setAcknowledged] = useState(false);
   const [wide, setWide] = useState(true);
 
@@ -813,6 +815,8 @@ function InstructionsContent() {
   const handleStartTest = useCallback(async () => {
     if (!exercise || starting) return;
     setStarting(true);
+    setStartError(null);
+    const { key, path } = resolveRoute(exercise);
 
     // Fullscreen needs a real user gesture — request it inside the click so it
     // survives Next's client-side navigation and the test page stays locked.
@@ -823,11 +827,24 @@ function InstructionsContent() {
       } catch { /* denied / unsupported */ }
     }
 
+    // Screen sharing comes BEFORE the compiler: prompt here, inside the click,
+    // and the code editor reuses this stream (screenStreamStore) instead of
+    // popping the picker over an already-rendered editor. Programming only —
+    // the other players still capture on their own.
+    if (path === "programming" && security.screenRecordingEnabled) {
+      const stream = await captureSharedScreen(!!security.cameraMicEnabled);
+      if (!stream) {
+        if (typeof document !== "undefined" && document.fullscreenElement) document.exitFullscreen().catch(() => {});
+        setStartError("Screen sharing is required for this assessment. Click Start again and choose “Entire Screen”.");
+        setStarting(false);
+        return;
+      }
+    }
+
     const qs = Array.isArray(exercise.questions) ? exercise.questions : [];
     const courseId = context?.courseId || exercise?.courseId || "";
     const courseName = context?.courseName || exercise?.courseName || "Course";
     const hierarchy: string[] = Array.isArray(context?.hierarchy) ? context.hierarchy.filter(Boolean) : [];
-    const { key, path } = resolveRoute(exercise);
 
     const stored = {
       ...exercise, questions: qs, courseId, courseName,
@@ -848,7 +865,7 @@ function InstructionsContent() {
       securityAck: "1",
     });
     router.push(`/lms/pages/courses/coursesdetailedview/youdo/${path}?${params.toString()}`);
-  }, [exercise, starting, context, exerciseId, info.exerciseName, router]);
+  }, [exercise, starting, context, exerciseId, info.exerciseName, router, security]);
 
   // ── load / error ──────────────────────────────────────────────────────────
   if (loading && !exercise) {
@@ -1290,6 +1307,12 @@ function InstructionsContent() {
                   ? <><Loader2 size={17} className="animate-spin" /> Starting…</>
                   : <><Play size={16} /> Start assessment</>}
               </button>
+
+              {startError ? (
+                <div style={{ fontSize: 12, textAlign: "center", marginTop: 9, lineHeight: 1.4, color: C.orange }}>
+                  {startError}
+                </div>
+              ) : null}
 
               {availability?.message ? (
                 <div style={{

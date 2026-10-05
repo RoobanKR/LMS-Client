@@ -255,7 +255,8 @@ interface Exercise {
     totalMarksMCQ?: number;
     totalMarksProgramming?: number;
     totalMarks?: number;
-    // The You Do assessment form saves the Skill Set here, not in programmingSettings
+    // The You Do assessment form saves the module + Skill Set here, not in programmingSettings
+    selectedModule?: string;
     selectedLanguages?: string[];
   };
   programmingSettings: {
@@ -666,9 +667,25 @@ const isQuestionMCQ = (q: ExerciseQuestion | null): boolean => {
   return (q.questionType?.toLowerCase() === 'mcq') || (!q.title && !!q.mcqQuestionTitle);
 };
 
+// The exercise's module. Course exercises save it in `programmingSettings`;
+// the You Do assessment form saves it (and the Skill Set) in
+// `exerciseInformation` instead, leaving programmingSettings.selectedModule "".
+const getExerciseModule = (exercise?: Exercise | null): string =>
+  (exercise?.programmingSettings?.selectedModule ||
+    exercise?.exerciseInformation?.selectedModule ||
+    '').toLowerCase().trim();
+
+const getExerciseLanguages = (exercise?: Exercise | null): string[] =>
+  [
+    ...(exercise?.programmingSettings?.selectedLanguages || []),
+    ...(exercise?.exerciseInformation?.selectedLanguages || []),
+  ].map((l) => String(l).toLowerCase().trim()).filter(Boolean);
+
+const FRONTEND_LANGS = new Set(['html', 'css', 'javascript', 'typescript', 'react', 'vue', 'angular']);
+
 // Returns true ONLY when this is a real frontend (HTML/CSS/JS) submission.
 // Multi-file Core Programming (Python, etc.) ALSO has a `files` array, so we
-// must inspect the exercise's selectedModule + the actual file languages.
+// must inspect the exercise's module + the actual file languages.
 const isFrontendQuestion = (
   question: ExerciseQuestion,
   submission?: SubmissionQuestion | null,
@@ -676,13 +693,13 @@ const isFrontendQuestion = (
 ): boolean => {
   if (!question) return false;
 
-  const selectedModule = (exercise?.programmingSettings?.selectedModule || '').toLowerCase();
-  // Hard exclusion: Core Programming is NEVER frontend, even if it has files[].
-  if (selectedModule === 'core programming' || selectedModule === 'database') return false;
+  const selectedModule = getExerciseModule(exercise);
+  // Any explicit non-frontend module (Core Programming / coreProgram /
+  // Database) is NEVER frontend, even if it has files[].
+  if (selectedModule && selectedModule !== 'frontend') return false;
 
   if (submission && submission.files && submission.files.length > 0) {
     // Verify at least one file is a frontend language before classifying as frontend.
-    const FRONTEND_LANGS = new Set(['html', 'css', 'javascript', 'typescript']);
     const FRONTEND_EXTS = new Set(['html', 'htm', 'css', 'js', 'jsx', 'ts', 'tsx']);
     const hasFrontendFile = submission.files.some((f: any) => {
       const lang = String(f.language || '').toLowerCase();
@@ -695,23 +712,24 @@ const isFrontendQuestion = (
     return false;
   }
 
-  // No submission yet — fall back to question metadata heuristics
+  // A `codeAnswer`-only submission comes from the standard code editor — the
+  // frontend compiler always submits files[] — so it is a code review.
+  if (typeof submission?.codeAnswer === 'string' && submission.codeAnswer.trim()) return false;
+
   if (selectedModule === 'frontend') return true;
 
-  const title = (question.title || '').toLowerCase();
-  const description = (getQuestionDescription(question) || '').toLowerCase();
-  const frontendKeywords = ['html', 'css', 'javascript', 'frontend', 'web', 'react', 'vue', 'angular', 'ui', 'interface', 'website', 'page'];
-  const hasFrontendKeyword = frontendKeywords.some(keyword =>
-    title.includes(keyword) || description.includes(keyword)
-  );
+  // A Skill Set with no frontend language (e.g. Java + Python) rules it out —
+  // the keyword guess below must not override what the author configured.
+  const languages = getExerciseLanguages(exercise);
+  if (languages.length > 0 && !languages.some((l) => FRONTEND_LANGS.has(l))) return false;
 
-  if (question.solutions?.language) {
-    const lang = question.solutions.language.toLowerCase();
-    const frontendLangs = ['html', 'css', 'javascript', 'typescript', 'react', 'vue', 'angular'];
-    if (frontendLangs.includes(lang)) return true;
-  }
+  if (question.solutions?.language && FRONTEND_LANGS.has(question.solutions.language.toLowerCase())) return true;
 
-  return hasFrontendKeyword;
+  // Last resort: whole-word keyword match. A plain substring test flagged
+  // "Analyze Test Suite Results" as frontend ('ui' inside 'suite'), and
+  // 'interface' / 'page' are everyday words in Java and DSA problems.
+  const text = `${question.title || ''} ${getQuestionDescription(question) || ''}`.toLowerCase();
+  return /\b(html|css|javascript|frontend|web|react|vue|angular|ui|website|webpage|web page)\b/.test(text);
 };
 
 // Monaco language id → a filename extension, matching the inline ternaries
@@ -1532,7 +1550,9 @@ const isNonGraded = !!(
     estimatedTime: ex.exerciseInformation?.estimatedTime || ex.totalDuration || 60,
     totalMarksMCQ: ex.exerciseInformation?.totalMarksMCQ || 0,
     totalMarksProgramming: ex.exerciseInformation?.totalMarksProgramming || 0,
-    totalMarks: ex.exerciseInformation?.totalMarks || 0
+    totalMarks: ex.exerciseInformation?.totalMarks || 0,
+    selectedModule: ex.exerciseInformation?.selectedModule || '',
+    selectedLanguages: ex.exerciseInformation?.selectedLanguages || [],
   },
   programmingSettings: ex.programmingSettings || {
     selectedModule: 'Core Programming',
