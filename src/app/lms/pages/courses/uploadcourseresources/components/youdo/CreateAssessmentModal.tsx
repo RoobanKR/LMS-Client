@@ -1431,9 +1431,14 @@ const buildFullPayload = useCallback((overrideSectionConfigs?: Record<string, an
     // nothing to evaluate), and pinning here rather than in the hidden control
     // means the value can't drift out of a step-scoped save either. The step
     // payload reads this same object, so both paths agree.
-    evaluationMethod: formData.isGraded === false
-      ? { ...formData.evaluationMethod, method: 'manual' as const }
-      : formData.evaluationMethod,
+    // The live interactive compiler is a Mock-test option (a Final test's
+    // editor has no live terminal), so it never stays on for a Final.
+    evaluationMethod: (() => {
+      const em = formData.isGraded === false
+        ? { ...formData.evaluationMethod, method: 'manual' as const }
+        : formData.evaluationMethod;
+      return formData.testType === 'final' && em?.liveInteraction ? { ...em, liveInteraction: false } : em;
+    })(),
 
     availabilityPeriod: {
       startDate: startDT,

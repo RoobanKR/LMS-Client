@@ -7,6 +7,7 @@ import { SectionLabel, ODropdown, ONumberInput, OToggle } from './UIComponents';
 import { MarksMeter, MarksIssue } from './MarksMeter';
 import {
   EvaluationMethodConfig,
+  LiveInteractionOption,
   DEFAULT_EVALUATION_METHOD,
   type EvaluationMethod,
 } from '@/app/lms/pages/courses/coursesdetailedview/components/EvaluationMethodConfig';
@@ -30,6 +31,22 @@ export const ProgrammingConfiguration: React.FC<BaseConfigProps> = ({
   const totalToUse = isCombined ? formData.totalMarksProgramming : formData.totalMarks;
   const isMatch = isApproximatelyEqual(programmingAllocatedMarks || 0, totalToUse);
   const graded = formData.isGraded !== false;
+  // Live interactive compiler — Mock tests only. A Mock programming test
+  // opens in the multi-file editor, which reads the same flag as Exercise
+  // Settings (evaluationMethod.liveInteraction) to show its Run button and
+  // live terminal. Final tests keep their own editor, which has no live
+  // terminal; Combined / Frontend / Database open other players.
+  const offerLiveCompiler = formData.testType !== 'final'
+    && formData.exerciseType === 'Programming'
+    && formData.selectedModule !== 'Frontend'
+    && formData.selectedModule !== 'Database';
+  const liveCompilerOption = offerLiveCompiler && (
+    <LiveInteractionOption
+      value={formData.evaluationMethod || DEFAULT_EVALUATION_METHOD}
+      onChange={next => setFormData(prev => ({ ...prev, evaluationMethod: next }))}
+      D={designTokens}
+    />
+  );
   // A graded assessment splits its marks across the questions configured
   // here, so nothing can be configured until there are marks to split: the
   // strategy picker stays locked (and the fields under it hidden) until the
@@ -364,6 +381,14 @@ export const ProgrammingConfiguration: React.FC<BaseConfigProps> = ({
             allowedMethods={YOUDO_ALLOWED_METHODS}
             graded
           />
+          {liveCompilerOption}
+        </div>
+        )}
+        {/* Non-graded: no evaluation to pick, but a Mock test's students still
+            run code — the live compiler option keeps its own row. */}
+        {formData.isGraded === false && liveCompilerOption && (
+        <div className="pt-1 border-t" style={{ borderColor: designTokens.border }}>
+          {liveCompilerOption}
         </div>
         )}
 
