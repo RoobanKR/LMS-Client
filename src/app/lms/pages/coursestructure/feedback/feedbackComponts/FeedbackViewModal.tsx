@@ -173,7 +173,7 @@ export const FeedbackViewModal: React.FC<FeedbackViewModalProps> = ({
     if (style === 'star') {
       return (
         <div className="mt-2.5">
-          <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-1">
             {values.map((val) => {
               const active = typeof selected === 'number' && selected >= val;
               return (
@@ -386,11 +386,11 @@ export const FeedbackViewModal: React.FC<FeedbackViewModalProps> = ({
       }}
     >
       <div
-        className="bg-white rounded-xl w-full max-w-7xl h-[92vh] max-h-[92vh] flex flex-col shadow-2xl border border-gray-200 overflow-hidden"
+        className="bg-white rounded-xl w-full max-w-7xl h-[92dvh] max-h-[92dvh] flex flex-col shadow-2xl border border-gray-200 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex-shrink-0 px-5 pt-4 pb-3 border-b border-gray-100">
+        <div className="flex-shrink-0 px-3 sm:px-5 pt-4 pb-3 border-b border-gray-100">
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
@@ -437,7 +437,7 @@ export const FeedbackViewModal: React.FC<FeedbackViewModalProps> = ({
             </div>
 
             {mode === 'step' && (
-              <div className="flex items-center gap-1 mt-2">
+              <div className="flex flex-wrap items-center gap-1 mt-2">
                 {questions.map((q, i) => {
                   const done =
                     answers[q.questionText]?.answer !== undefined &&
@@ -465,7 +465,7 @@ export const FeedbackViewModal: React.FC<FeedbackViewModalProps> = ({
         </div>
 
         {/* Body */}
-        <div className={`flex-1 overflow-y-auto px-6 py-2 bg-white ${thinScroll}`}>
+        <div className={`flex-1 overflow-y-auto px-3 sm:px-6 py-2 bg-white ${thinScroll}`}>
           {groups.map((group, gIdx) => (
             <div
               key={(group.category ?? '__ungrouped__') + '-' + gIdx}
@@ -498,7 +498,7 @@ export const FeedbackViewModal: React.FC<FeedbackViewModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex-shrink-0 px-5 py-2.5 border-t border-gray-100 bg-gray-50 flex items-center justify-between gap-3">
+        <div className="flex-shrink-0 px-3 sm:px-5 py-2.5 border-t border-gray-100 bg-gray-50 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
           <div className="flex items-center gap-1.5 min-w-0">
             <span
               className={`w-1.5 h-1.5 rounded-full flex-shrink-0 transition-colors ${
@@ -512,7 +512,7 @@ export const FeedbackViewModal: React.FC<FeedbackViewModalProps> = ({
             </span>
           </div>
 
-          <div className="flex items-center gap-1.5 flex-shrink-0">
+          <div className="flex flex-wrap items-center gap-1.5 flex-shrink-0">
             <button
               onClick={() => {
                 setMode(mode === 'overview' ? 'step' : 'overview');

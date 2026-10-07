@@ -86,7 +86,10 @@ export default function FilterBar({
                         key={f.key}
                         value={f.value}
                         onChange={(e) => f.onChange(e.target.value)}
-                        className={`${CHIP_SELECT} ${
+                        // flex-1 on phones: selects share each wrapped row
+                        // instead of a long option label pushing one past
+                        // the card edge. sm+ keeps the content-sized chips.
+                        className={`${CHIP_SELECT} flex-1 sm:flex-initial ${
                             f.value
                                 ? 'border-brand-500/40 bg-brand-wash text-brand-strong hover:bg-brand-wash-hover'
                                 : 'border-hairline-strong bg-surface text-body hover:bg-row-hover'

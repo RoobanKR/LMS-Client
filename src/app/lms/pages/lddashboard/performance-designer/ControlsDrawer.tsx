@@ -84,7 +84,7 @@ export function ControlsDrawer(p: ControlsDrawerProps) {
     useEffect(() => { onScroll(); }, [onScroll]);
 
     return (
-        <aside className="flex w-[400px] min-w-0 flex-shrink-0 flex-col border-r border-hairline bg-surface-sunken/40" aria-label="Report configuration">
+        <aside className="absolute inset-y-0 left-[54px] z-20 flex w-[min(400px,calc(100%-54px))] min-w-0 flex-shrink-0 flex-col border-r border-hairline bg-surface shadow-xl lg:static lg:z-auto lg:w-[400px] lg:bg-surface-sunken/40 lg:shadow-none" aria-label="Report configuration">
             <div ref={p.bodyRef} onScroll={onScroll} className="min-h-0 flex-1 divide-y divide-hairline overflow-y-auto px-5 py-2">
                 <ScopeControl clientName={p.clientName} courseName={p.courseName} />
                 <LearnerSelector options={p.studentOpts} sel={p.studentSel} onChange={p.onStudentSel} />

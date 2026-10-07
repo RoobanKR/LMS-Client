@@ -256,13 +256,13 @@ function TrainerHeadlineStats({ user }: { user: UserData }) {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.08 + i * 0.05 }}
-            className="flex items-center gap-3 rounded-xl border border-gray-100 bg-white/70 p-3 backdrop-blur-sm transition-shadow hover:shadow-[0_4px_14px_-8px_rgba(16,24,40,0.18)] dark:bg-gray-900/60 dark:border-gray-800"
+            className="flex min-w-0 items-center gap-2 sm:gap-3 rounded-xl border border-gray-100 bg-white/70 p-2.5 sm:p-3 backdrop-blur-sm transition-shadow hover:shadow-[0_4px_14px_-8px_rgba(16,24,40,0.18)] dark:bg-gray-900/60 dark:border-gray-800"
           >
             <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full" style={{ background: `${s.accent}1F` }}>
               <Icon className="h-4 w-4" style={{ color: s.accent }} />
             </span>
             <div className="min-w-0">
-              <p className="text-lg font-black leading-none text-gray-900 dark:text-white">{s.value}</p>
+              <p className="text-base sm:text-lg font-black leading-none text-gray-900 dark:text-white">{s.value}</p>
               <p className="mt-0.5 text-xs font-bold truncate" style={{ color: s.accent }}>{s.label}</p>
               <p className="text-[10px] text-gray-400 truncate">{s.sub}</p>
             </div>
@@ -695,7 +695,7 @@ export default function ProfilePage() {
 
   const content = (
     <div className="min-h-screen bg-[#F5F6FA] dark:bg-gray-950">
-      <div className="mx-auto max-w-[1320px] px-3 sm:px-4 lg:px-6 py-3 sm:py-4 space-y-3">
+      <div className="mx-auto max-w-[1320px] px-1.5 sm:px-4 lg:px-6 py-1.5 sm:py-4 space-y-3">
 
         {/* ── Breadcrumb + page actions ───────────────────────────────────── */}
         <div className="flex items-center justify-between gap-3">
@@ -802,9 +802,9 @@ export default function ProfilePage() {
               />
             </div>
 
-            <div className="min-w-0 flex-1 pt-0.5">
+            <div className="w-full sm:w-auto min-w-0 flex-1 pt-0.5">
               <div className="flex items-center justify-center sm:justify-start gap-2">
-                <h1 className="text-lg sm:text-xl font-black tracking-tight text-gray-900 dark:text-white truncate">
+                <h1 className="min-w-0 text-lg sm:text-xl font-black tracking-tight text-gray-900 dark:text-white truncate">
                   {userData.firstName} {userData.lastName}
                 </h1>
                 {userData.status?.toLowerCase() === 'active' && (
@@ -830,9 +830,9 @@ export default function ProfilePage() {
               </div>
 
               <div className="mt-2 flex flex-wrap items-center justify-center sm:justify-start gap-x-3 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
-                <span className="inline-flex items-center gap-1.5 min-w-0">
+                <span className="inline-flex items-center gap-1.5 min-w-0 max-w-full">
                   <Mail className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
-                  <span className="truncate">{userData.email}</span>
+                  <span className="min-w-0 truncate">{userData.email}</span>
                 </span>
                 {userData.phone && (
                   <>
@@ -862,13 +862,13 @@ export default function ProfilePage() {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.08 + i * 0.05 }}
-                    className="flex items-center gap-3 rounded-xl border border-gray-100 bg-white/70 p-3 backdrop-blur-sm transition-shadow hover:shadow-[0_4px_14px_-8px_rgba(16,24,40,0.18)] dark:bg-gray-900/60 dark:border-gray-800"
+                    className="flex min-w-0 items-center gap-2 sm:gap-3 rounded-xl border border-gray-100 bg-white/70 p-2.5 sm:p-3 backdrop-blur-sm transition-shadow hover:shadow-[0_4px_14px_-8px_rgba(16,24,40,0.18)] dark:bg-gray-900/60 dark:border-gray-800"
                   >
                     <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full" style={{ background: `${s.accent}1F` }}>
                       <Icon className="h-4 w-4" style={{ color: s.accent }} />
                     </span>
                     <div className="min-w-0">
-                      <p className="text-lg font-black leading-none text-gray-900 dark:text-white">{s.value}</p>
+                      <p className="text-base sm:text-lg font-black leading-none text-gray-900 dark:text-white">{s.value}</p>
                       <p className="mt-0.5 text-xs font-bold truncate" style={{ color: s.accent }}>{s.label}</p>
                       <p className="text-[10px] text-gray-400 truncate">{s.sub}</p>
                     </div>
@@ -1036,7 +1036,7 @@ export default function ProfilePage() {
                               transition={{ delay: i * 0.06 }}
                               className="rounded-xl border border-gray-100 bg-gray-50/70 p-3 dark:border-gray-800 dark:bg-gray-800/40">
                               <div className="mb-1 flex items-start justify-between gap-2">
-                                <p className="text-sm font-bold text-gray-900 dark:text-white">{course.courseId?.name || `Course ${i + 1}`}</p>
+                                <p className="min-w-0 break-words text-sm font-bold text-gray-900 dark:text-white">{course.courseId?.name || `Course ${i + 1}`}</p>
                                 <span className="flex-shrink-0 rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-bold text-orange-600 dark:bg-orange-950/40 dark:text-orange-300">
                                   {asgns.length} tasks
                                 </span>
@@ -1074,7 +1074,7 @@ export default function ProfilePage() {
                               : 'border-gray-100 bg-gray-50/70 hover:border-orange-200 dark:border-gray-800 dark:bg-gray-800/40'
                           )}>
                           <div className="mb-2 flex items-start justify-between gap-2">
-                            <h4 className="flex items-center gap-1.5 text-sm font-bold text-gray-900 dark:text-white">
+                            <h4 className="flex min-w-0 items-center gap-1.5 break-words text-sm font-bold text-gray-900 dark:text-white">
                               {note.isPinned && <Star className="h-3 w-3 fill-amber-500 text-amber-500" />}
                               {note.title}
                             </h4>
@@ -1134,10 +1134,10 @@ export default function ProfilePage() {
                             <div className="flex items-start justify-between gap-3">
                               <div className="flex-1 min-w-0">
                                 <div className="mb-0.5 flex items-center gap-1.5">
-                                  <h5 className="text-xs font-bold text-gray-900 dark:text-white">{n.title}</h5>
-                                  {!n.isRead && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-orange-500" />}
+                                  <h5 className="min-w-0 break-words text-xs font-bold text-gray-900 dark:text-white">{n.title}</h5>
+                                  {!n.isRead && <span className="h-1.5 w-1.5 flex-shrink-0 animate-pulse rounded-full bg-orange-500" />}
                                 </div>
-                                <p className="text-xs text-gray-500 dark:text-gray-400">{n.message}</p>
+                                <p className="break-words text-xs text-gray-500 dark:text-gray-400">{n.message}</p>
                               </div>
                               <span className={cn('flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold',
                                 n.type === 'success' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
@@ -1349,11 +1349,11 @@ export default function ProfilePage() {
                             <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                               transition={{ delay: i * 0.06 }}
                               className="overflow-hidden rounded-xl border border-gray-100 dark:border-gray-800">
-                              <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50/70 px-4 py-3 dark:border-gray-800 dark:bg-gray-800/40">
-                                <h5 className="text-sm font-bold text-gray-900 dark:text-white">{course.courseId?.name || `Course ${i + 1}`}</h5>
+                              <div className="flex flex-col items-start gap-0.5 border-b border-gray-100 bg-gray-50/70 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-0 sm:px-4 dark:border-gray-800 dark:bg-gray-800/40">
+                                <h5 className="min-w-0 max-w-full break-words text-sm font-bold text-gray-900 dark:text-white">{course.courseId?.name || `Course ${i + 1}`}</h5>
                                 <span className="text-[11px] text-gray-400">Updated {fmt(course.updatedAt)}</span>
                               </div>
-                              <div className="grid grid-cols-4 gap-3 px-4 py-3">
+                              <div className="grid grid-cols-2 gap-3 px-3 py-3 sm:grid-cols-4 sm:px-4">
                                 {[
                                   { label: 'Tasks', value: asgns.length, color: '#F97316' },
                                   { label: 'Questions', value: totalQ, color: '#F59E0B' },
@@ -1505,7 +1505,7 @@ function Panel({
         <span className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md" style={{ background: `${color}1F` }}>
           <Icon className="h-3.5 w-3.5" style={{ color }} />
         </span>
-        <h3 className="text-sm font-black text-gray-900 dark:text-white whitespace-nowrap">{title}</h3>
+        <h3 className="min-w-0 truncate text-sm font-black text-gray-900 dark:text-white whitespace-nowrap">{title}</h3>
         <span className="h-px flex-1" style={{ background: `linear-gradient(90deg, ${color}45, transparent)` }} />
         {action}
       </div>
@@ -1605,8 +1605,8 @@ function StageRow({
       transition={{ delay: idx * 0.06 }}
       className="overflow-hidden rounded-xl border border-gray-100 dark:border-gray-800"
     >
-      <div className="flex items-center justify-between gap-3 border-b border-gray-100 bg-gray-50/70 px-4 py-3 dark:border-gray-800 dark:bg-gray-800/40">
-        <h5 className="min-w-0 truncate text-sm font-bold text-gray-900 dark:text-white">{title}</h5>
+      <div className="flex flex-col items-start gap-1.5 border-b border-gray-100 bg-gray-50/70 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-4 dark:border-gray-800 dark:bg-gray-800/40">
+        <h5 className="min-w-0 max-w-full truncate text-sm font-bold text-gray-900 dark:text-white">{title}</h5>
         {hasContent ? (
           <div className="flex flex-shrink-0 items-center gap-2">
             <span className="h-1.5 w-20 overflow-hidden rounded-full bg-gray-200/70 dark:bg-gray-700/60">
@@ -1626,7 +1626,7 @@ function StageRow({
         )}
       </div>
       {hasContent && (
-        <div className="grid grid-cols-2 gap-3 px-4 py-3 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 px-3 py-3 sm:grid-cols-4 sm:px-4">
           {cells.map((c, ci) => (
             <div key={ci}>
               <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">{c.label}</p>

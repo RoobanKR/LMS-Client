@@ -147,7 +147,7 @@ export const thCls =
   'px-2.5 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 whitespace-nowrap';
 // Question-column header — exact question text, wrapped (no uppercase).
 export const qThCls =
-  'px-3 py-2 text-center text-[10px] font-semibold text-gray-600 dark:text-gray-300 whitespace-normal leading-[1.35] min-w-[190px] max-w-[230px] align-middle';
+  'px-3 py-2 text-center text-[10px] font-semibold text-gray-600 dark:text-gray-300 whitespace-normal leading-[1.35] min-w-[150px] sm:min-w-[190px] max-w-[230px] align-middle';
 export const tdCls = 'px-2.5 py-1.5 text-[11.5px] text-gray-700 dark:text-gray-300 align-top';
 export const numCls = `${tdCls} text-center tabular-nums`;
 
@@ -203,7 +203,7 @@ export const MasterDataTable: React.FC<{ wb: Workbook }> = ({ wb }) => {
                     {v ?? '—'}
                   </td>
                 ))}
-                <td className={`${tdCls} min-w-[260px] max-w-[420px]`}>{row.comments || '—'}</td>
+                <td className={`${tdCls} min-w-[200px] sm:min-w-[260px] max-w-[420px]`}>{row.comments || '—'}</td>
               </tr>
             ))
           )}
@@ -258,7 +258,7 @@ export const FeedbackSheet: React.FC<{ feedback: Feedback; wb: Workbook }> = ({
                     {v ?? '—'}
                   </td>
                 ))}
-                <td className={`${tdCls} min-w-[260px] max-w-[420px]`}>{row.comments || '—'}</td>
+                <td className={`${tdCls} min-w-[200px] sm:min-w-[260px] max-w-[420px]`}>{row.comments || '—'}</td>
               </tr>
             ))}
           </tbody>

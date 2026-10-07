@@ -763,8 +763,8 @@ const FrontendMockBody: React.FC<FrontendMockBodyProps> = ({
         .mock-s::-webkit-scrollbar-thumb { background:#d1d5db; border-radius:99px; }
       `}</style>
       {renderTypedTopChrome('Frontend')}
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
-        <div style={{ width: '28%', minWidth: 300, flexShrink: 0, background: '#fff', borderRight: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column' as const, overflow: 'hidden' }}>
+      <div className="flex-col md:flex-row" style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
+        <div className="w-full max-h-[40dvh] md:max-h-none md:w-[28%] md:min-w-[300px]" style={{ flexShrink: 0, background: '#fff', borderRight: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column' as const, overflow: 'hidden' }}>
           <div style={{ padding: '8px 12px', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '0.05em' }}>PROBLEM</span>
             {allQuestions.length > 1 && (
@@ -1576,7 +1576,7 @@ const ExerciseMockPreviewModal: React.FC<ExerciseMockPreviewModalProps> = ({
           </div>
 
           {/* Right sidebar */}
-          <div style={{flexShrink:0,width:270,minHeight:0,borderLeft:`1px solid ${T.border}`,background:T.bg,overflowY:'auto',padding:'16px 14px 20px 14px'}} className="mock-s">
+          <div style={{flexShrink:0,width:270,minHeight:0,borderLeft:`1px solid ${T.border}`,background:T.bg,overflowY:'auto',padding:'16px 14px 20px 14px'}} className="mock-s hidden md:block">
             <p style={{fontSize:10,fontWeight:700,color:T.textMuted,marginBottom:10,textTransform:'uppercase' as const,letterSpacing:'0.05em',fontFamily:MCQ_FONT}}>{allQuestions.length} Questions</p>
             <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:5,marginBottom:12}}>
               {allQuestions.map((_: any, i: number) => {
@@ -1780,10 +1780,10 @@ const ExerciseMockPreviewModal: React.FC<ExerciseMockPreviewModalProps> = ({
         </div>
 
         {/* ── BODY: PROBLEM | activity bar | EXPLORER | EDITOR + TERMINAL ── */}
-        <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
+        <div className="flex-col md:flex-row" style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
 
           {/* PROBLEM panel */}
-          <div style={{ width: '28%', minWidth: 280, flexShrink: 0, background: T2.bg, borderRight: `1px solid ${T2.border}`, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div className="w-full max-h-[40dvh] md:max-h-none md:w-[28%] md:min-w-[280px]" style={{ flexShrink: 0, background: T2.bg, borderRight: `1px solid ${T2.border}`, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             {/* Problem header — matches multi-file-code-editor.tsx exactly */}
             <div style={{ flexShrink: 0, padding: '8px 12px', borderBottom: `1px solid ${T2.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, background: T2.bg }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1931,7 +1931,7 @@ const ExerciseMockPreviewModal: React.FC<ExerciseMockPreviewModalProps> = ({
           </div>
 
           {/* Explorer panel */}
-          <div style={{ flexShrink: 0, width: 200, background: T2.bg, borderRight: `1px solid ${T2.border}`, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div className="hidden md:flex" style={{ flexShrink: 0, width: 200, background: T2.bg, borderRight: `1px solid ${T2.border}`, flexDirection: 'column', overflow: 'hidden' }}>
             <div style={{ flexShrink: 0, height: 36, padding: '0 12px', borderBottom: `1px solid ${T2.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 10.5, fontWeight: 700, color: T2.textSub, letterSpacing: '0.04em' }}>
                 {progSidebarTab === 'files' ? 'EXPLORER' : 'SEARCH'}
@@ -2173,7 +2173,7 @@ const ExerciseMockPreviewModal: React.FC<ExerciseMockPreviewModalProps> = ({
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {langSelector}
-          <span style={{ padding: '4px 10px', borderRadius: 99, background: '#eef2ff', color: '#4338ca', fontSize: 11, fontWeight: 600 }}>{typeLabel}</span>
+          <span className="hidden sm:inline" style={{ padding: '4px 10px', borderRadius: 99, background: '#eef2ff', color: '#4338ca', fontSize: 11, fontWeight: 600 }}>{typeLabel}</span>
           <button onClick={onClose} title="Close"
             style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid #e5e7eb', background: '#f8f8f8', color: '#6b7280', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <X size={13}/>
@@ -2283,8 +2283,8 @@ const ExerciseMockPreviewModal: React.FC<ExerciseMockPreviewModalProps> = ({
           .mock-s::-webkit-scrollbar-thumb { background:#d1d5db; border-radius:99px; }
         `}</style>
         {renderTypedTopChrome('SQL')}
-        <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
-          <div style={{ width: '32%', minWidth: 300, flexShrink: 0, background: '#fff', borderRight: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column' as const, overflow: 'hidden' }}>
+        <div className="flex-col md:flex-row" style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
+          <div className="w-full max-h-[40dvh] md:max-h-none md:w-[32%] md:min-w-[300px]" style={{ flexShrink: 0, background: '#fff', borderRight: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column' as const, overflow: 'hidden' }}>
             <div style={{ padding: '8px 12px', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 11, fontWeight: 700, color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '0.05em' }}>PROBLEM</span>
               {allQuestions.length > 1 && (
@@ -2392,8 +2392,8 @@ const ExerciseMockPreviewModal: React.FC<ExerciseMockPreviewModalProps> = ({
           .mock-s::-webkit-scrollbar-thumb { background:#d1d5db; border-radius:99px; }
         `}</style>
         {renderTypedTopChrome(othersType === 'notion' ? 'Notion' : 'File Upload')}
-        <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
-          <div style={{ width: '38%', minWidth: 320, flexShrink: 0, background: '#fff', borderRight: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column' as const, overflow: 'hidden' }}>
+        <div className="flex-col md:flex-row" style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
+          <div className="w-full max-h-[40dvh] md:max-h-none md:w-[38%] md:min-w-[320px]" style={{ flexShrink: 0, background: '#fff', borderRight: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column' as const, overflow: 'hidden' }}>
             <div style={{ padding: '8px 12px', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 11, fontWeight: 700, color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '0.05em' }}>PROBLEM</span>
               {allQuestions.length > 1 && (
@@ -2982,9 +2982,9 @@ const ExerciseMockPreviewModal: React.FC<ExerciseMockPreviewModalProps> = ({
       </div>
 
       {/* ── BODY: Left (42%) + Right (58%) ── */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+      <div className="flex-col md:flex-row" style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
         {/* Left Panel - Problem description (42%) */}
-        <div style={{ width: '42%', flexShrink: 0, borderRight: '1px solid #e5e5e5', background: '#ffffff' }}>
+        <div className="w-full max-h-[40dvh] overflow-y-auto md:max-h-none md:overflow-visible md:w-[42%]" style={{ flexShrink: 0, borderRight: '1px solid #e5e5e5', background: '#ffffff' }}>
           {renderLeftPanel()}
         </div>
 
@@ -4555,9 +4555,9 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
           horizontal scroll on narrow viewports. Header and body live in
           separate scroll contexts so the header stays pinned. */}
       <div style={{ position: 'relative', flex: '1 1 0', minHeight: '200px', display: 'flex', flexDirection: 'column' }}
-           className="px-3 sm:px-4 md:px-6 overflow-x-hidden">
+           className="px-3 sm:px-4 md:px-6 overflow-x-auto lg:overflow-x-hidden">
         {loadingExercises ? (
-          <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          <div className="flex flex-col flex-1 min-h-0 overflow-hidden min-w-[760px] lg:min-w-0">
             <div className="flex-shrink-0 bg-canvas border-b border-hairline">
               <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
                 <colgroup>
@@ -4637,7 +4637,7 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
                 border. Kept in a separate <table> so `sticky top: 0` on the
                 body's own thead isn't needed — the body scrolls inside its
                 own div and the header stays pinned above it. */}
-            <div className="flex-shrink-0 bg-canvas border-b border-hairline">
+            <div className="flex-shrink-0 bg-canvas border-b border-hairline min-w-[760px] lg:min-w-0">
               <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
                 <colgroup>
                   <col style={{ width: '4%' }} />
@@ -4674,7 +4674,7 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
 
             {/* ── Scrollable tbody — DataTable metrics: h-11, text-[12px],
                 text-body, hairline dividers, hover:bg-row-hover. */}
-            <div ref={tableBodyRef} className="ps-table-scroll flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+            <div ref={tableBodyRef} className="ps-table-scroll flex-1 min-h-0 overflow-y-auto overflow-x-hidden min-w-[760px] lg:min-w-0">
               <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
                 <colgroup>
                   <col style={{ width: '4%' }} />
@@ -5125,7 +5125,7 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
         const a = getApprovalInfo(rejectionViewer);
         return (
           <div className="fixed inset-0 flex items-center justify-center z-[1000]" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}>
-            <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden" style={{ boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
+            <div className="bg-white rounded-2xl w-full max-w-md mx-4 overflow-hidden" style={{ boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
               <div className="flex items-center justify-between p-4" style={{ borderBottom: '1px solid #e4e4ed' }}>
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: 'rgba(239,68,68,0.1)' }}>

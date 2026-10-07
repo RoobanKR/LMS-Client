@@ -144,7 +144,7 @@ export default function AttendanceReportTable({
                                 </div>
                             ) : (
                                 <div className="overflow-x-auto">
-                                    <table className="w-full text-[12.5px]">
+                                    <table className="w-full min-w-[720px] lg:min-w-0 text-[12.5px]">
                                         <thead className="bg-gray-50 border-b border-gray-200">
                                             <tr>
                                                 <th className="w-10 px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-gray-500">#</th>

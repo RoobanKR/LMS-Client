@@ -164,8 +164,9 @@ export default function ReportsPage() {
         ) : total === 0 ? (
           <div className="px-4 py-12 text-center text-sm text-muted-foreground">No institutions match.</div>
         ) : (
+          <>
           <div className="overflow-x-auto">
-            <Table>
+            <Table className="min-w-[880px] lg:min-w-0">
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <TableHead className={tableHeadClass}><SortLabel label="Institution" sortKey="name" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></TableHead>
@@ -201,22 +202,25 @@ export default function ReportsPage() {
                 ))}
               </TableBody>
             </Table>
-            <PaginationBar
-              rangeStart={rangeStart} rangeEnd={rangeEnd} total={total}
-              page={page} totalPages={totalPages} onPageChange={setPage}
-              pageSize={pageSize} onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
-            />
           </div>
+          {/* Outside the scroller so the pager stays in view while the
+              wide table is swiped sideways on small screens. */}
+          <PaginationBar
+            rangeStart={rangeStart} rangeEnd={rangeEnd} total={total}
+            page={page} totalPages={totalPages} onPageChange={setPage}
+            pageSize={pageSize} onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+          />
+          </>
         )}
       </Panel>
 
       {/* Recent logins */}
       <Panel>
-        <div className="flex items-center gap-2 border-b border-border px-5 py-3.5 text-sm font-semibold text-foreground">
+        <div className="flex items-center gap-2 border-b border-border px-4 py-3.5 text-sm font-semibold text-foreground sm:px-5">
           <LogIn className="h-4 w-4 text-primary" /> Recent Logins
         </div>
         <div className="overflow-x-auto">
-          <Table>
+          <Table className="min-w-[640px] lg:min-w-0">
             <TableHeader>
               <TableRow className="hover:bg-transparent">
                 <TableHead className={tableHeadClass}>User</TableHead>

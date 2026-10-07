@@ -955,7 +955,7 @@ const ProgCodeBlockMCQ: React.FC<{
 
   return (
     <div
-      className="relative my-2 group/code"
+      className="relative my-2 group/code max-lg:!max-w-full"
       style={{
         borderRadius: 8,
         border: `1.5px solid ${isDark ? '#3a3a3a' : '#e2e2e2'}`,
@@ -2262,7 +2262,7 @@ const PreviewModal: React.FC<{
       {sidebarTab === 'details' && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
           onClick={e => { if (e.target === e.currentTarget) setSidebarTab(null); }}>
-          <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 360, maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 360, maxWidth: 'calc(100vw - 32px)', maxHeight: '80dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div style={{ padding: '13px 16px', borderBottom: '1.5px solid var(--lms-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--lms-bg-surface)', flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                 <FileText size={14} style={{ color: 'var(--lms-text-sec)' }} />
@@ -2331,7 +2331,7 @@ const PreviewModal: React.FC<{
         return (
           <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
             onClick={e => { if (e.target === e.currentTarget) setSidebarTab(null); }}>
-            <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 400, maxHeight: '86vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 400, maxWidth: 'calc(100vw - 32px)', maxHeight: '86dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
               <div style={{ padding: '13px 16px', borderBottom: '1.5px solid var(--lms-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--lms-info-bg)', flexShrink: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                   <BarChart3 size={14} style={{ color: 'var(--lms-info)' }} />
@@ -2450,18 +2450,18 @@ const PreviewModal: React.FC<{
       })()}
 
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,26,46,0.5)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 150, padding: 12 }}>
-          <div style={{ width: '96vw', maxWidth: 1400, height: '96vh', display: 'flex', flexDirection: 'column', background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', border: '1.5px solid var(--lms-border)', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
+          <div style={{ width: '96vw', maxWidth: 1400, height: '96dvh', display: 'flex', flexDirection: 'column', background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', border: '1.5px solid var(--lms-border)', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
 
             {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 20px', borderBottom: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', flexShrink: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
+            <div className="max-sm:!px-3 max-sm:!flex-wrap max-sm:gap-2" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 20px', borderBottom: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', flexShrink: 0 }}>
+              <div className="max-sm:flex-wrap max-sm:!gap-2" style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
                 <div style={{ width: 34, height: 34, borderRadius: 9, background: 'var(--lms-violet)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <Eye size={16} style={{ color: 'white' }} />
                 </div>
                 <div style={{ width: 1, height: 20, background: 'var(--lms-border)', flexShrink: 0 }} />
                 <QuestionFormBreadcrumb hierarchyData={hierarchyData} tabType={tabType} subcategory={subcategory} subcategoryLabel={subcategoryLabel} exerciseName={exerciseName} actionLabel="Preview" questionLabel={questionLabel} />
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 16 }}>
+              <div className="max-sm:!ml-0 max-sm:flex-wrap" style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 16 }}>
                 {/* Question count pill */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 20, background: 'var(--lms-bg-surface)', border: '1.5px solid var(--lms-border)' }}>
                   <Hash size={11} style={{ color: 'var(--lms-text-hint)' }} />
@@ -2520,9 +2520,9 @@ const PreviewModal: React.FC<{
               )}
             </div>
 
-            <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+            <div className="max-lg:!flex-col max-lg:!overflow-y-auto" style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
               {/* Questions list */}
-              <div className="lms-sidebar-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div className="lms-sidebar-scroll max-lg:!flex-none max-lg:!overflow-visible max-sm:!px-3" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {filteredSavedQuestions.length === 0 ? (
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--lms-text-hint)', gap: 12, paddingTop: 60 }}>
                     <Eye size={40} style={{ opacity: 0.15 }} />
@@ -2667,7 +2667,7 @@ const PreviewModal: React.FC<{
                                       </span>
                                       {tc.isHidden && <span style={{ fontFamily: 'var(--lms-font)', fontSize: 10, padding: '1px 7px', borderRadius: 20, background: 'var(--lms-bg-surface2)', color: 'var(--lms-text-muted)' }}>Hidden</span>}
                                     </div>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
+                                    <div className="max-sm:!grid-cols-1" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
                                       <div style={{ padding: '8px 12px', borderRight: '1px solid var(--lms-border)' }}>
                                         <span style={{ fontFamily: 'var(--lms-font)', fontSize: 9.5, fontWeight: 700, color: 'var(--lms-text-hint)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 4 }}>Input</span>
                                         <code style={{ fontFamily: 'ui-monospace, monospace', fontSize: 11, color: 'var(--lms-text-main)', wordBreak: 'break-all', whiteSpace: 'pre-wrap' }}>{tc.input || <span style={{ color: 'var(--lms-text-hint)', fontStyle: 'italic' }}>empty</span>}</code>
@@ -2705,7 +2705,7 @@ const PreviewModal: React.FC<{
               </div>
 
               {/* Right Sidebar */}
-              <div style={{ width: 280, flexShrink: 0, borderLeft: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+              <div className="max-lg:!w-full max-lg:!h-auto max-lg:!overflow-visible max-lg:!border-l-0 max-lg:border-t-[1.5px] max-lg:border-[color:var(--lms-border)]" style={{ width: 280, flexShrink: 0, borderLeft: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
                 {/* Two action buttons */}
                 <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: 8, borderBottom: '1.5px solid var(--lms-border)', flexShrink: 0, background: 'var(--lms-bg-surface)' }}>
                   <button
@@ -4439,8 +4439,8 @@ const handleBankSelectedQuestions = useCallback((selected: any[]) => {
       <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', background: 'var(--lms-bg-white)', overflow: 'hidden' }}>
 
         {/* ── HEADER ── */}
-        <div style={{ background: 'var(--lms-bg-white)', borderBottom: '1.5px solid var(--lms-border)', padding: '10px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
+        <div className="max-lg:!flex-wrap max-lg:gap-y-2 max-sm:!px-3" style={{ background: 'var(--lms-bg-white)', borderBottom: '1.5px solid var(--lms-border)', padding: '10px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+          <div className="max-sm:flex-wrap max-sm:!gap-2" style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
             {/* Logo mark */}
             <div className="lms-header-logo-mark">
               <GraduationCap size={16} style={{ color: 'white' }} />
@@ -4456,7 +4456,7 @@ const handleBankSelectedQuestions = useCallback((selected: any[]) => {
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexShrink: 0, marginLeft: 12 }}>
+          <div className="max-lg:!gap-3 max-lg:flex-wrap max-lg:justify-end max-sm:!ml-0 max-sm:w-full" style={{ display: 'flex', alignItems: 'center', gap: 24, flexShrink: 0, marginLeft: 12 }}>
 
 
             {/* Preview */}
@@ -4580,7 +4580,7 @@ const handleBankSelectedQuestions = useCallback((selected: any[]) => {
                 </div>
             {/* Edit Exercise */}
             {onEditExercise && (
-              <button onClick={handleEditExerciseClick} className="lms-btn lms-btn-ghost-orange" style={{ marginRight: 24 }}>
+              <button onClick={handleEditExerciseClick} className="lms-btn lms-btn-ghost-orange max-lg:!mr-0" style={{ marginRight: 24 }}>
                 <Settings size={12} /> Edit Exercise
               </button>
             )}
@@ -4593,7 +4593,7 @@ const handleBankSelectedQuestions = useCallback((selected: any[]) => {
 
         {/* ── DIFFICULTY SELECT BAR ── */}
         {!isGeneral && getConfiguredDiffs().length > 0 && (
-          <div style={{ background: 'var(--lms-bg-surface)', borderBottom: '1.5px solid var(--lms-border)', padding: '10px 20px', display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0 }}>
+          <div className="max-md:flex-wrap max-md:!gap-2 max-sm:!px-3" style={{ background: 'var(--lms-bg-surface)', borderBottom: '1.5px solid var(--lms-border)', padding: '10px 20px', display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0 }}>
             <span style={{ fontFamily: 'var(--lms-font)', fontSize: 12, fontWeight: 700, color: 'var(--lms-text-sec)', flexShrink: 0 }}>Switch Difficulty:</span>
             <div style={{ position: 'relative', minWidth: 160 }}>
               <select
@@ -4653,10 +4653,10 @@ const handleBankSelectedQuestions = useCallback((selected: any[]) => {
         )}
 
         {/* ── BODY ── */}
-        <div style={{ display: 'flex', flex: '1 1 0', minHeight: 0, overflow: 'hidden' }}>
+        <div className="max-lg:!flex-col max-lg:!overflow-y-auto" style={{ display: 'flex', flex: '1 1 0', minHeight: 0, overflow: 'hidden' }}>
 
           {/* ── MAIN FORM ── */}
-          <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto', padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 20, background: 'var(--lms-bg-white)' }}>
+          <div className="lms-sidebar-scroll max-lg:!flex-none max-lg:!overflow-visible max-sm:!px-3" style={{ flex: 1, overflowY: 'auto', padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 20, background: 'var(--lms-bg-white)' }}>
 
             {/* Sticky Toolbar */}
             <div style={{
@@ -4992,7 +4992,7 @@ const handleBankSelectedQuestions = useCallback((selected: any[]) => {
           </div>
 
           {/* ── RIGHT SIDEBAR ── */}
-          <div style={{ width: 280, flexShrink: 0, borderLeft: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+          <div className="max-lg:!w-full max-lg:!h-auto max-lg:!overflow-visible max-lg:!border-l-0 max-lg:border-t-[1.5px] max-lg:border-[color:var(--lms-border)]" style={{ width: 280, flexShrink: 0, borderLeft: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
             {/* Two action buttons */}
             <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: 8, borderBottom: '1.5px solid var(--lms-border)', flexShrink: 0, background: 'var(--lms-bg-surface)' }}>
               <button
@@ -5204,10 +5204,10 @@ const handleBankSelectedQuestions = useCallback((selected: any[]) => {
         {/* ── FOOTER ── */}
         {/* ── FOOTER ── */}
         {/* ── FOOTER ── */}
-        <div style={{ background: 'var(--lms-bg-white)', borderTop: '1.5px solid var(--lms-border)', padding: '12px 20px', display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+        <div className="max-lg:!flex max-lg:flex-wrap max-lg:justify-center max-sm:!px-3" style={{ background: 'var(--lms-bg-white)', borderTop: '1.5px solid var(--lms-border)', padding: '12px 20px', display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: 12, flexShrink: 0 }}>
 
           {/* Left: saving indicator */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div className="max-lg:empty:!hidden" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {isSaving && (
               <>
                 <Loader2 size={13} style={{ color: 'var(--lms-orange)' }} className="animate-spin" />
@@ -5220,7 +5220,7 @@ const handleBankSelectedQuestions = useCallback((selected: any[]) => {
           </div>
 
           {/* Center: all action buttons */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div className="max-lg:flex-wrap max-lg:justify-center" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {/* Close / Cancel */}
             {/* <button onClick={handleCloseRequest} disabled={isSaving}
               className="lms-cancel-btn"
@@ -5306,7 +5306,7 @@ const handleBankSelectedQuestions = useCallback((selected: any[]) => {
           </div>
 
           {/* Right: Mock + Close */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
+          <div className="max-lg:flex-wrap max-lg:!justify-center" style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
             <button
               type="button"
               onClick={() => setShowMockModal(true)}
@@ -5614,7 +5614,7 @@ const handleBankSelectedQuestions = useCallback((selected: any[]) => {
       {sidebarTab === 'details' && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
           onClick={e => { if (e.target === e.currentTarget) setSidebarTab(null); }}>
-          <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 360, maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 360, maxWidth: 'calc(100vw - 32px)', maxHeight: '80dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div style={{ padding: '13px 16px', borderBottom: '1.5px solid var(--lms-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--lms-bg-surface)', flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                 <FileText size={14} style={{ color: 'var(--lms-text-sec)' }} />
@@ -5688,7 +5688,7 @@ const handleBankSelectedQuestions = useCallback((selected: any[]) => {
         return (
           <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
             onClick={e => { if (e.target === e.currentTarget) setSidebarTab(null); }}>
-            <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 420, maxHeight: '88vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 420, maxWidth: 'calc(100vw - 32px)', maxHeight: '88dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
               <div style={{ padding: '13px 16px', borderBottom: '1.5px solid var(--lms-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--lms-info-bg)', flexShrink: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                   <BarChart3 size={14} style={{ color: 'var(--lms-info)' }} />
@@ -5828,7 +5828,7 @@ const handleBankSelectedQuestions = useCallback((selected: any[]) => {
       {sidebarTab === 'section' && sectionData && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
           onClick={e => { if (e.target === e.currentTarget) setSidebarTab(null); }}>
-          <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 420, maxHeight: '86vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 420, maxWidth: 'calc(100vw - 32px)', maxHeight: '86dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div style={{ padding: '13px 16px', borderBottom: '1.5px solid var(--lms-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--lms-violet-bg)', flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                 <Layers size={14} style={{ color: 'var(--lms-violet)' }} />

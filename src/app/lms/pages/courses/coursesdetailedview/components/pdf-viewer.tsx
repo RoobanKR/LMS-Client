@@ -146,6 +146,19 @@ const GLOBAL_STYLES = `
     background: white;
   }
   .pdf-page-input:focus { border-color: #F97316; box-shadow: 0 0 0 3px rgba(249,115,22,0.12); }
+
+  /* Responsive: below lg the AI / Notes side panels float over the PDF
+     instead of squeezing it into a sliver; desktop keeps the 3-panel split. */
+  @media (max-width: 1023px) {
+    .pdf-panels-row { position: relative; }
+    .pdf-panels-row > .pdf-viewer-resize-handle { display: none !important; }
+    .pdf-panels-row > .pdf-side-panel { position: absolute !important; inset: 10px; z-index: 40; flex: none !important; }
+  }
+  @media (max-width: 640px) {
+    .pdf-topbar .pdf-toolbar-btn { font-size: 0 !important; gap: 0 !important; padding: 8px 9px !important; }
+    .pdf-topbar .pdf-crumbs > button, .pdf-topbar .pdf-crumbs > svg { display: none; }
+    .pdf-topbar .pdf-crumbs > span { flex-shrink: 1 !important; min-width: 0; }
+  }
 `
 
 // ─── MCQ OVERLAY ──────────────────────────────────────────────────────────────
@@ -932,12 +945,12 @@ export default function PDFViewer({
       >
         {/* ── TOP TOOLBAR ──────────────────────────────────────────────────── */}
        {!isFullscreen && (
-  <div style={{
+  <div className="pdf-topbar" style={{
     display:"flex", alignItems:"center",
     padding:"10px 12px 0 12px", gap:8, flexShrink:0,
   }}>
     {/* ── Breadcrumbs */}
-    <div style={{
+    <div className="pdf-crumbs" style={{
       display:"flex", alignItems:"center", gap:4,
       flex:1, minWidth:0, overflow:"hidden",
     }}>
@@ -1029,6 +1042,7 @@ export default function PDFViewer({
         {/* ── THREE-PANEL ROW ───────────────────────────────────────────────── */}
         <div
           ref={panelsRowRef}
+          className="pdf-panels-row"
           style={{
             flex:1, display:"flex",
             padding: GAP, gap:0,
@@ -1039,7 +1053,7 @@ export default function PDFViewer({
           {/* ─── LEFT: AI Panel ─────────────────────────────────────────── */}
           {aiOpen && showAIButton && (
             <>
-              <div className="panel-card" style={{ flex: aiFlexActual, transition:"flex 0.05s" }}>
+              <div className="panel-card pdf-side-panel" style={{ flex: aiFlexActual, transition:"flex 0.05s" }}>
                 <PanelHeader bgClass="panel-header-purple" onClose={handleAIToggle}>
                   <div style={{ display:"flex",alignItems:"center",gap:10,flex:1 }}>
                     <div style={{ display:"flex",alignItems:"center",gap:7 }}>
@@ -1338,7 +1352,7 @@ export default function PDFViewer({
                 style={{ margin:`0 ${GAP/2}px` }}
               />
 
-              <div className="panel-card" style={{ flex: notesFlexActual, transition:"flex 0.05s" }}>
+              <div className="panel-card pdf-side-panel" style={{ flex: notesFlexActual, transition:"flex 0.05s" }}>
                 <PanelHeader
                   bgClass="panel-header-blue"
                   onClose={() => { setNotesOpen(false); onNotesStateChange?.(false) }}
@@ -1391,7 +1405,7 @@ export default function PDFViewer({
         {/* ── Navigation Confirmation Dialog */}
         {showNavConfirm && (
           <div style={{ position:"fixed",inset:0,zIndex:4000,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.45)",backdropFilter:"blur(6px)" }}>
-            <div style={{ background:"white",borderRadius:18,padding:"32px",width:380,boxShadow:"0 24px 64px rgba(0,0,0,0.2)",border:"1px solid rgba(0,0,0,0.06)",animation:"slideUp 0.2s ease-out" }}>
+            <div style={{ background:"white",borderRadius:18,padding:"32px",width:380,maxWidth:"calc(100vw - 32px)",boxShadow:"0 24px 64px rgba(0,0,0,0.2)",border:"1px solid rgba(0,0,0,0.06)",animation:"slideUp 0.2s ease-out" }}>
               <div style={{ width:48,height:48,borderRadius:14,background:"#FEF3C7",display:"flex",alignItems:"center",justifyContent:"center",marginBottom:16 }}>
                 <span style={{ fontSize:22 }}>⚠️</span>
               </div>

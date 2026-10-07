@@ -1289,13 +1289,13 @@ export default function CourseReportPage() {
                                         Nothing matches this combination. Try a wider scope.
                                     </p>
                                 ) : (
-                                    <div className="flex flex-1 min-h-0 flex-col overflow-hidden rounded-xl border border-[#ece3d8] bg-surface shadow-xs">
+                                    <div className="flex flex-1 min-h-[360px] lg:min-h-0 flex-col overflow-hidden rounded-xl border border-[#ece3d8] bg-surface shadow-xs">
                                         {/* One scroll container — the table body.
                                             Sticky thead needs a per-cell background
                                             because border-collapse disables sticky
                                             on <thead> in most engines. */}
                                         <div className="min-h-0 flex-1 overflow-auto">
-                                            <table className="w-full table-fixed border-collapse text-xs">
+                                            <table className="w-full min-w-[720px] lg:min-w-0 table-fixed border-collapse text-xs">
                                                 {/* Service Model comes BEFORE Course
                                                     Name so the table reads Service Model
                                                     → Course Name → Providing Year. Widths
@@ -1369,7 +1369,7 @@ export default function CourseReportPage() {
                                                     {[10, 20, 50].map((n) => <option key={n} value={n}>{n}</option>)}
                                                 </select>
                                             </label>
-                                            <div className="flex items-center gap-3">
+                                            <div className="flex flex-wrap items-center gap-3">
                                                 <span className="text-xs tabular-nums text-subtle">
                                                     {pageStart + 1}–{Math.min(pageStart + pageSize, clientCount)} of {clientCount} client{clientCount === 1 ? '' : 's'}
                                                 </span>

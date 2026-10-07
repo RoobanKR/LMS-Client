@@ -911,13 +911,13 @@ useEffect(() => {
       />
 
       {/* Top Activity Bar */}
-      <div className="flex items-center justify-between px-3 py-2 border-b" style={{
+      <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b sm:flex-nowrap" style={{
         backgroundColor: colors.activityBar,
         borderColor: colors.border
       }}>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-3">
-            <div className="text-sm font-medium" style={{ color: colors.text }}>{title || questionTitle || "Frontend Submission"}</div>
+        <div className="flex min-w-0 items-center gap-4">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 sm:flex-nowrap">
+            <div className="min-w-0 text-sm font-medium max-sm:truncate" style={{ color: colors.text }}>{title || questionTitle || "Frontend Submission"}</div>
             <div className="text-xs px-2 py-0.5 rounded" style={{
               backgroundColor: theme === 'light' ? '#e5e5e5' : '#2d2d2d',
               color: colors.textSecondary
@@ -927,14 +927,14 @@ useEffect(() => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
           <div className="relative">
             <input
               type="text"
               placeholder="Search files..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="px-3 py-1 text-sm rounded w-64 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-3 py-1 text-sm rounded w-36 sm:w-64 focus:outline-none focus:ring-2 focus:ring-blue-500"
               style={{
                 backgroundColor: theme === 'light' ? '#f5f5f5' : '#2d2d2d',
                 color: colors.text,
@@ -943,7 +943,7 @@ useEffect(() => {
             />
             <Search size={14} className="absolute right-2 top-1.5" style={{ color: colors.textSecondary }} />
           </div>
-          
+
           <button
             onClick={() => setIsModalOpen(true)}
             className="p-1.5 hover:bg-[#d5d5d5] dark:hover:bg-[#2d2d2d] rounded transition-colors"
@@ -1421,7 +1421,7 @@ useEffect(() => {
           <div className="relative bg-white dark:bg-gray-900 w-full h-full flex flex-col">
             {/* Modal Header */}
             <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-gray-700">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Student Submission - Full View</h2>
+              <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">Student Submission - Full View</h2>
               <button
                 onClick={() => setIsModalOpen(false)}
                 className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
@@ -1433,13 +1433,13 @@ useEffect(() => {
             {/* Modal Body - Recreating the main view without outer layout */}
             <div className="flex-1 flex flex-col overflow-hidden">
               {/* Modal Top Bar */}
-              <div className="flex items-center justify-between px-3 py-2 border-b" style={{
+              <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b sm:flex-nowrap" style={{
                 backgroundColor: colors.activityBar,
                 borderColor: colors.border
               }}>
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-3">
-                    <div className="text-sm font-medium" style={{ color: colors.text }}>{title || questionTitle || "Frontend Submission"}</div>
+                <div className="flex min-w-0 items-center gap-4">
+                  <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 sm:flex-nowrap">
+                    <div className="min-w-0 text-sm font-medium max-sm:truncate" style={{ color: colors.text }}>{title || questionTitle || "Frontend Submission"}</div>
                     <div className="text-xs px-2 py-0.5 rounded" style={{
                       backgroundColor: theme === 'light' ? '#e5e5e5' : '#2d2d2d',
                       color: colors.textSecondary
@@ -1449,14 +1449,14 @@ useEffect(() => {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
                   <div className="relative">
                     <input
                       type="text"
                       placeholder="Search files..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="px-3 py-1 text-sm rounded w-64 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="px-3 py-1 text-sm rounded w-36 sm:w-64 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       style={{
                         backgroundColor: theme === 'light' ? '#f5f5f5' : '#2d2d2d',
                         color: colors.text,
@@ -1515,7 +1515,7 @@ useEffect(() => {
               {/* Modal Main Content */}
               <div className="flex-1 flex overflow-hidden">
                 {/* Explorer Sidebar */}
-                <div className="w-64 flex-shrink-0 border-r overflow-y-auto" style={{
+                <div className="w-36 sm:w-64 flex-shrink-0 border-r overflow-y-auto" style={{
                   backgroundColor: colors.sidebar,
                   borderColor: colors.border
                 }}>

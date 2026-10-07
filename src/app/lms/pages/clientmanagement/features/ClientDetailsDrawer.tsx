@@ -15,7 +15,7 @@ import { PERMISSION_IDS } from '@/app/lms/pages/usermanagement/components/permis
 
 function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
     return (
-        <div className="grid grid-cols-[130px_1fr] gap-3 px-4 py-2.5 border-b border-hairline last:border-0">
+        <div className="grid grid-cols-[96px_1fr] gap-3 px-3 py-2.5 sm:grid-cols-[130px_1fr] sm:px-4 border-b border-hairline last:border-0">
             <span className="text-xs text-subtle pt-px">{label}</span>
             <span className="text-sm text-body min-w-0 break-words">{value}</span>
         </div>
@@ -25,7 +25,7 @@ function DetailRow({ label, value }: { label: string; value: React.ReactNode }) 
 function UsageTile({ label, value }: { label: string; value: React.ReactNode }) {
     return (
         <div className="rounded-tile border border-hairline bg-surface px-3 py-2.5 shadow-xs">
-            <p className="text-lg font-semibold text-heading tabular-nums leading-none">{value}</p>
+            <p className="text-base font-semibold text-heading tabular-nums leading-none break-words sm:text-lg">{value}</p>
             <p className="text-2xs text-subtle mt-1">{label}</p>
         </div>
     )
@@ -123,7 +123,7 @@ export default function ClientDetailsDrawer({
 
                     {/* Usage summary */}
                     <section>
-                        <div className="grid grid-cols-3 gap-3">
+                        <div className="grid grid-cols-3 gap-2 sm:gap-3">
                             <UsageTile label="Contacts" value={namedContacts} />
                             <UsageTile label="Modules" value={modules.length} />
                             <UsageTile label="Type" value={shown.type?.length ? shown.type.map((t) => TYPE_LABEL[t]).join(', ') : '—'} />
@@ -210,7 +210,7 @@ export default function ClientDetailsDrawer({
                                                 {c.isPrimary && <StatusPill tone="success" dot>Primary</StatusPill>}
                                             </div>
                                             <div className="mt-1 flex items-center gap-3 flex-wrap text-xs text-subtle">
-                                                <span className="inline-flex items-center gap-1.5 min-w-0"><Mail size={12} className="text-faint flex-shrink-0" /><span className="truncate">{c.email || '—'}</span></span>
+                                                <span className="inline-flex max-w-full items-center gap-1.5 min-w-0"><Mail size={12} className="text-faint flex-shrink-0" /><span className="truncate">{c.email || '—'}</span></span>
                                                 <span className="inline-flex items-center gap-1.5"><Phone size={12} className="text-faint flex-shrink-0" />{c.phoneNumber || '—'}</span>
                                             </div>
                                         </div>

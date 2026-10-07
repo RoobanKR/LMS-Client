@@ -213,7 +213,7 @@ export default function WeeklyOffModal({ open, year, holidays, onClose, onMark, 
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 min-[400px]:grid-cols-2 gap-3">
                     <div>
                         <FieldLabel>From</FieldLabel>
                         <input type="date" value={from} min={yearStart} max={yearEnd} onChange={e => setFrom(e.target.value)} className={`${INPUT_CLS} ${rangeOk ? '' : INPUT_INVALID_CLS}`} />

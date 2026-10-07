@@ -228,6 +228,11 @@ export default function LMSPage() {
   const [expandedSubModules, setExpandedSubModules] = useState<Set<string>>(new Set())
   const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set())
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  // Below lg the course tree is an overlay drawer — start it closed there so
+  // phones/tablets land on the content. Desktop keeps it open.
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches) setSidebarOpen(false)
+  }, [])
   const [showNotesPanel, setShowNotesPanel] = useState(false)
   const [showAIPanel, setShowAIPanel] = useState(false)
   const [showAIChat, setShowAIChat] = useState(false)
@@ -2202,7 +2207,7 @@ const getExercisesForActivity = (): any[] => {
 
     return (
       <div className="rounded-2xl overflow-x-auto bg-white" style={{ border: '1px solid #EEF1F6', boxShadow: '0 8px 24px rgba(30,45,80,0.05)' }}>
-        <table className="w-full table-fixed border-collapse" style={{ minWidth: 520 }}>
+        <table className="w-full table-fixed border-collapse" style={{ minWidth: nameCols.length >= 3 ? 640 : 520 }}>
           {renderColGroup()}
           <thead>
             {renderTableHeaders()}
@@ -2304,7 +2309,7 @@ const getExercisesForActivity = (): any[] => {
 
   return (
     <div
-      className="bg-[#F5F6F8] overflow-clip h-screen flex flex-col"
+      className="bg-[#F5F6F8] overflow-clip h-screen h-dvh flex flex-col"
       style={{ fontFamily: FONT_PRIMARY, WebkitFontSmoothing: 'antialiased' }}
     >
       <style>{`
@@ -2367,7 +2372,7 @@ const getExercisesForActivity = (): any[] => {
 
       {/* Mobile sidebar */}
       <div
-        className={`mobile-sidebar fixed inset-y-0 left-0 w-[280px] z-50 flex flex-col bg-white border-r border-[#eef0f3] shadow-[4px_0_24px_rgba(0,0,0,0.10)] transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
+        className={`mobile-sidebar fixed inset-y-0 left-0 w-[280px] max-w-[85vw] z-50 flex flex-col bg-white border-r border-[#eef0f3] shadow-[4px_0_24px_rgba(0,0,0,0.10)] transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
       >
         {/* Course sidebar — image3 look, hierarchy only */}
         <CourseSidebar
@@ -2510,7 +2515,7 @@ const getExercisesForActivity = (): any[] => {
           <div className="flex-1 flex overflow-clip min-h-0">
 
             {/* Main content column - full white solid background */}
-            <div className="flex-1 flex flex-col overflow-clip min-h-0 bg-white">
+            <div className="flex-1 min-w-0 flex flex-col overflow-clip min-h-0 bg-white">
               {/* Secondary tab rows only — the main pedagogy tabs live in the
                   TopBar's left slot (single header row). */}
               {!isHeaderCollapsed && (
@@ -2542,10 +2547,10 @@ const getExercisesForActivity = (): any[] => {
 
               {/* ── COURSE-LEVEL OVERVIEW ── */}
               {!selectedItem && (
-                <div className="sb-scroll flex-1 overflow-y-auto px-6 py-6 animate-[fadeIn_.4s_ease_both]">
+                <div className="sb-scroll flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 sm:px-6 sm:py-6 animate-[fadeIn_.4s_ease_both]">
                   {/* Course Header */}
                   <div className="mb-6">
-                    <div className="flex items-start justify-between gap-4 mb-2">
+                    <div className="flex flex-wrap sm:flex-nowrap items-start justify-between gap-3 sm:gap-4 mb-2">
                       {/* Same compact scale as the item-detail header below
                           (30px pills, 36px buttons, 12–12.5px text) so moving
                           between the two views does not resize the chrome. */}
@@ -2573,7 +2578,7 @@ const getExercisesForActivity = (): any[] => {
                         })()}
                       </div>
                       {/* Bookmark + Continue Learning */}
-                      <div className="flex items-center gap-2 flex-shrink-0">
+                      <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
                         <button
                           onClick={() => setCourseBookmarked(v => !v)}
                           className="inline-flex items-center gap-1.5 rounded-xl font-semibold cursor-pointer transition-colors"
@@ -2595,7 +2600,7 @@ const getExercisesForActivity = (): any[] => {
                         </button>
                       </div>
                     </div>
-                    <h2 className="m-0 font-bold leading-tight" style={{ color: DETAIL_UI.navy, fontSize: 21 }}>{courseData?.courseName}</h2>
+                    <h2 className="m-0 font-bold leading-tight break-words max-sm:!text-lg" style={{ color: DETAIL_UI.navy, fontSize: 21 }}>{courseData?.courseName}</h2>
                     <p className="mt-1 mb-0" style={{ color: DETAIL_UI.slate, fontSize: 12.5 }}>Complete learning path with structured modules and interactive content</p>
                   </div>
 
@@ -2610,9 +2615,9 @@ const getExercisesForActivity = (): any[] => {
                       (m.subModules?.reduce((b: number, sm: any) => b + (sm.topics?.reduce((c: number, t: any) => c + (t.subTopics?.length || 0), 0) || 0), 0) || 0), 0) || 0
 
                     return (
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                        <div className="flex items-center gap-4 p-4 rounded-2xl bg-white border border-gray-100 shadow-sm">
-                          <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#FFEDD5' }}>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-4 mb-6">
+                        <div className="flex items-center gap-2.5 sm:gap-4 p-3 sm:p-4 min-w-0 rounded-2xl bg-white border border-gray-100 shadow-sm">
+                          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#FFEDD5' }}>
                             <Layers size={22} style={{ color: '#F97316' }} />
                           </div>
                           <div>
@@ -2622,8 +2627,8 @@ const getExercisesForActivity = (): any[] => {
                           </div>
                         </div>
                         {subModCount > 0 && (
-                          <div className="flex items-center gap-4 p-4 rounded-2xl bg-white border border-gray-100 shadow-sm">
-                            <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#EDE9FE' }}>
+                          <div className="flex items-center gap-2.5 sm:gap-4 p-3 sm:p-4 min-w-0 rounded-2xl bg-white border border-gray-100 shadow-sm">
+                            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#EDE9FE' }}>
                               <Folder size={22} style={{ color: '#8B5CF6' }} />
                             </div>
                             <div>
@@ -2633,8 +2638,8 @@ const getExercisesForActivity = (): any[] => {
                             </div>
                           </div>
                         )}
-                        <div className="flex items-center gap-4 p-4 rounded-2xl bg-white border border-gray-100 shadow-sm">
-                          <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#FFEDD5' }}>
+                        <div className="flex items-center gap-2.5 sm:gap-4 p-3 sm:p-4 min-w-0 rounded-2xl bg-white border border-gray-100 shadow-sm">
+                          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#FFEDD5' }}>
                             <BookOpen size={22} style={{ color: '#FB923C' }} />
                           </div>
                           <div>
@@ -2644,8 +2649,8 @@ const getExercisesForActivity = (): any[] => {
                           </div>
                         </div>
                         {subTopicCount > 0 && (
-                          <div className="flex items-center gap-4 p-4 rounded-2xl bg-white border border-gray-100 shadow-sm">
-                            <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#D1FAE5' }}>
+                          <div className="flex items-center gap-2.5 sm:gap-4 p-3 sm:p-4 min-w-0 rounded-2xl bg-white border border-gray-100 shadow-sm">
+                            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#D1FAE5' }}>
                               <Hash size={22} style={{ color: '#10B981' }} />
                             </div>
                             <div>
@@ -2694,14 +2699,14 @@ const getExercisesForActivity = (): any[] => {
                       <h3 className="m-0 font-bold" style={{ color: DETAIL_UI.navy, fontSize: 16 }}>Course Structure</h3>
                       <p className="mt-0.5 mb-0" style={{ color: DETAIL_UI.slate, fontSize: 12.5 }}>Click any row to explore content and resources</p>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <div className="relative">
+                    <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+                      <div className="relative flex-1 min-w-0 sm:flex-none">
                         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <input
                           value={structureSearch}
                           onChange={(e) => setStructureSearch(e.target.value)}
                           placeholder="Search in course content..."
-                          className="h-11 w-72 pl-10 pr-4 rounded-xl text-base bg-gray-50 border border-gray-200 outline-none focus:border-orange-500 text-gray-700"
+                          className="h-11 w-full sm:w-72 pl-10 pr-4 rounded-xl text-base bg-gray-50 border border-gray-200 outline-none focus:border-orange-500 text-gray-700"
                         />
                       </div>
                       {(() => {
@@ -2709,7 +2714,7 @@ const getExercisesForActivity = (): any[] => {
                         return (
                           <button
                             onClick={() => (allExpanded ? collapseAll() : expandAll())}
-                            className="h-11 px-5 rounded-xl text-base font-semibold whitespace-nowrap transition-colors"
+                            className="h-11 px-3 sm:px-5 flex-shrink-0 rounded-xl text-sm sm:text-base font-semibold whitespace-nowrap transition-colors"
                             style={{ background: '#fff', border: '1.5px solid #F97316', color: '#F97316' }}
                             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#FFF7ED' }}
                             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#fff' }}
@@ -2741,50 +2746,50 @@ const getExercisesForActivity = (): any[] => {
                           return (
                             <div key={module._id} className="rounded-2xl border border-gray-200 bg-white overflow-hidden shadow-sm">
                               <div
-                                className="flex items-center gap-4 px-4 py-3.5 cursor-pointer hover:bg-gray-50 transition-colors"
+                                className="flex items-center gap-2 sm:gap-4 px-3 sm:px-4 py-3 sm:py-3.5 cursor-pointer hover:bg-gray-50 transition-colors"
                                 onClick={() => handleItemSelect(module._id, module.title, 'module', [module._id], (module as any).pedagogy)}
                               >
-                                <GripVertical className="w-4 h-4 text-gray-300 flex-shrink-0" />
+                                <GripVertical className="w-4 h-4 text-gray-300 flex-shrink-0 hidden sm:block" />
                                 <button
                                   onClick={(e) => { e.stopPropagation(); toggleModule(module._id) }}
-                                  className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+                                  className="w-8 h-8 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center flex-shrink-0"
                                   style={{ background: '#FFF7ED', color: '#F97316' }}
                                 >
                                   <ChevronRight className="w-4 h-4" style={{ transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform .2s' }} />
                                 </button>
-                                <Folder className="w-6 h-6 flex-shrink-0" style={{ color: c.icon, fill: c.icon }} />
-                                <span className="font-bold text-[16.5px] text-gray-800 truncate">{idx + 1}. {module.title}</span>
+                                <Folder className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" style={{ color: c.icon, fill: c.icon }} />
+                                <span className="font-bold text-[14.5px] sm:text-[16.5px] text-gray-800 truncate min-w-0">{idx + 1}. {module.title}</span>
                                 {info.n > 0 && (
-                                  <span className="text-[12.5px] font-bold px-2.5 py-1 rounded-full flex-shrink-0" style={{ background: '#FFEDD5', color: '#F97316' }}>
+                                  <span className="hidden sm:inline text-[12.5px] font-bold px-2.5 py-1 rounded-full flex-shrink-0" style={{ background: '#FFEDD5', color: '#F97316' }}>
                                     {info.n} {info.label}
                                   </span>
                                 )}
                                 <div className="flex-1" />
                                 {dur && (
-                                  <span className="flex items-center gap-1.5 text-[14.5px] text-gray-500 flex-shrink-0">
+                                  <span className="hidden md:flex items-center gap-1.5 text-[14.5px] text-gray-500 flex-shrink-0">
                                     <Clock className="w-4 h-4 text-gray-400" />{dur}
                                   </span>
                                 )}
                                 {level && (
-                                  <span className="flex items-center gap-1.5 text-[14.5px] text-gray-500 flex-shrink-0 w-28">
+                                  <span className="hidden lg:flex items-center gap-1.5 text-[14.5px] text-gray-500 flex-shrink-0 w-28">
                                     <User className="w-4 h-4 text-gray-400" />{level}
                                   </span>
                                 )}
-                                <span className="text-[14.5px] font-bold flex-shrink-0 w-32 text-right" style={{ color: pct > 0 ? '#059669' : '#9ca3af' }}>
-                                  {pct}% Completed
+                                <span className="text-[12.5px] sm:text-[14.5px] font-bold flex-shrink-0 sm:w-32 text-right whitespace-nowrap" style={{ color: pct > 0 ? '#059669' : '#9ca3af' }}>
+                                  {pct}%<span className="hidden sm:inline"> Completed</span>
                                 </span>
                                 <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }} />
                               </div>
                               {isOpen && children.length > 0 && (
-                                <div className="border-t border-gray-100 bg-gray-50/50 px-4 py-2">
+                                <div className="border-t border-gray-100 bg-gray-50/50 px-2 sm:px-4 py-2">
                                   {children.map((ch: any) => (
                                     <div
                                       key={ch._id}
                                       onClick={() => handleItemSelect(ch._id, ch.title, childType, [module._id, ch._id], (ch as any).pedagogy)}
-                                      className="flex items-center gap-3 pl-11 pr-3 py-2.5 rounded-lg cursor-pointer hover:bg-white transition-colors"
+                                      className="flex items-center gap-3 pl-5 sm:pl-11 pr-3 py-2.5 rounded-lg cursor-pointer hover:bg-white transition-colors"
                                     >
                                       <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: c.icon }} />
-                                      <span className="text-[14.5px] text-gray-600 truncate">{ch.title}</span>
+                                      <span className="text-[14.5px] text-gray-600 truncate min-w-0">{ch.title}</span>
                                     </div>
                                   ))}
                                 </div>
@@ -2811,7 +2816,7 @@ const getExercisesForActivity = (): any[] => {
                 const hierarchyHeading = `${typeLabel} Hierarchy`
 
                 return (
-                  <div className="sb-scroll flex-1 min-w-0 overflow-y-auto overflow-x-hidden px-6 py-6 animate-[fadeIn_.3s_ease_both]">
+                  <div className="sb-scroll flex-1 min-w-0 overflow-y-auto overflow-x-hidden px-3 py-4 sm:px-6 sm:py-6 animate-[fadeIn_.3s_ease_both]">
 
                     {/* Top nav row: back + type/duration pills … Course Overview CTA */}
                     <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
@@ -2857,12 +2862,12 @@ const getExercisesForActivity = (): any[] => {
 
                     {/* Identity: hero icon + title/subtitle … Active status badge */}
                     <div className="flex items-start justify-between gap-4 mb-5 flex-wrap">
-                      <div className="flex items-start gap-3 min-w-0">
+                      <div className="flex items-start gap-3 min-w-0 max-w-full">
                         <div className="rounded-2xl flex items-center justify-center flex-shrink-0" style={{ width: 48, height: 48, background: DETAIL_UI.peach }}>
                           <BookOpen size={22} strokeWidth={1.8} style={{ color: DETAIL_UI.orange }} />
                         </div>
                         <div className="min-w-0">
-                          <h1 className="m-0 font-bold leading-tight truncate" style={{ color: DETAIL_UI.navy, fontSize: 21 }}>{selectedItem.title}</h1>
+                          <h1 className="m-0 font-bold leading-tight truncate max-sm:!text-lg max-sm:!whitespace-normal max-sm:break-words" style={{ color: DETAIL_UI.navy, fontSize: 21 }}>{selectedItem.title}</h1>
                           <p className="mt-1 mb-0" style={{ color: DETAIL_UI.slate, fontSize: 12.5 }}>Detailed overview with hierarchy and resources</p>
                         </div>
                       </div>
@@ -2923,7 +2928,7 @@ const getExercisesForActivity = (): any[] => {
 
               {/* ── ITEM SELECTED — I Do / We Do / You Do tab content ── */}
               {selectedItem && activeTab !== "Overview" && (
-                <div className="flex-1 overflow-clip min-h-0 flex flex-col p-3.5 gap-3">
+                <div className="flex-1 min-w-0 overflow-clip min-h-0 flex flex-col p-2 sm:p-3.5 gap-3">
                   {currentFolder && (() => {
                     // If the root folder of this path belongs to a group, inject a group crumb
                     const rootGroupId   = folderPath[0]?.groupId
@@ -3005,9 +3010,9 @@ const getExercisesForActivity = (): any[] => {
       if (testSkillExercise) {
         // Show a special card for Test Your Skills
         return (
-          <div className="flex-1 flex items-center justify-center min-h-[400px]">
+          <div className="flex-1 flex items-center justify-center min-h-[320px] sm:min-h-[400px]">
             <div 
-              className="max-w-md w-full p-8 text-center rounded-2xl border-2 border-orange-200 bg-gradient-to-br from-orange-50 to-white cursor-pointer hover:shadow-xl transition-all duration-300"
+              className="max-w-md w-full p-5 sm:p-8 text-center rounded-2xl border-2 border-orange-200 bg-gradient-to-br from-orange-50 to-white cursor-pointer hover:shadow-xl transition-all duration-300"
               onClick={() => handleOpenTestYourSkills(testSkillExercise.testData)}
             >
               <div className="w-20 h-20 rounded-full bg-orange-100 flex items-center justify-center mx-auto mb-4">
@@ -3243,7 +3248,7 @@ const getExercisesForActivity = (): any[] => {
 
               {/* Ask AI side panel */}
               {showAIChat && (
-                <div className="w-[380px] flex-shrink-0 flex flex-col overflow-clip border-l border-gray-200 animate-[fadeIn_.22s_ease_both]">
+                <div className="w-[380px] flex-shrink-0 flex flex-col overflow-clip border-l border-gray-200 animate-[fadeIn_.22s_ease_both] max-lg:fixed max-lg:inset-0 max-lg:z-[60] max-lg:w-full max-lg:bg-white max-lg:border-l-0">
                   <InlineAIChat
                     onClose={() => setShowAIChat(false)}
                     context={{ topicTitle: selectedItem?.title, fileName: activeViewer.resource?.title }}
@@ -3253,7 +3258,7 @@ const getExercisesForActivity = (): any[] => {
 
               {/* Summary side panel */}
               {showSummary && (
-                <div className="w-[380px] flex-shrink-0 flex flex-col overflow-clip border-l border-gray-200 animate-[fadeIn_.22s_ease_both]">
+                <div className="w-[380px] flex-shrink-0 flex flex-col overflow-clip border-l border-gray-200 animate-[fadeIn_.22s_ease_both] max-lg:fixed max-lg:inset-0 max-lg:z-[60] max-lg:w-full max-lg:bg-white max-lg:border-l-0">
                   <InlineSummaryChat
                     onClose={() => setShowSummary(false)}
                     context={{ topicTitle: selectedItem?.title, fileName: activeViewer.resource?.title, hierarchy: currentHierarchy }}

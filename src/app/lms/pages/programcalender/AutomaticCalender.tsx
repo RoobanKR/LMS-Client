@@ -177,15 +177,15 @@ const AutoCalendarSetup: React.FC<AutoCalendarSetupProps> = ({ course, onBack, o
 
   if (currentStep === 'generated') {
     return (
-      <div className="max-w-2xl mx-auto text-center py-16">
+      <div className="max-w-2xl mx-auto text-center py-10 sm:py-16">
         <div className="mb-6">
           <CheckCircle className="w-16 h-16 text-green-600 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Calendar Generated Successfully!</h2>
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Calendar Generated Successfully!</h2>
           <p className="text-gray-600">Your program calendar has been created and saved.</p>
         </div>
         
         <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-          <div className="grid grid-cols-2 gap-4 text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 text-sm">
             <div>
               <span className="font-medium text-green-800">Total Sessions:</span>
               <span className="ml-2 text-green-700">{generatedSessions.length}</span>
@@ -249,7 +249,7 @@ const AutoCalendarSetup: React.FC<AutoCalendarSetupProps> = ({ course, onBack, o
         <div className="grid lg:grid-cols-3 gap-6">
           {/* Settings Panel */}
           <div className="lg:col-span-1">
-            <div className="bg-white border border-gray-200 rounded-lg p-6 sticky top-24">
+            <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-6 lg:sticky lg:top-24">
               <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                 <Settings className="w-5 h-5" />
                 Generation Settings
@@ -384,7 +384,7 @@ const AutoCalendarSetup: React.FC<AutoCalendarSetupProps> = ({ course, onBack, o
 
           {/* Excluded Dates and Preview */}
           <div className="lg:col-span-2">
-            <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
+            <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-6 mb-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Excluded Dates</h3>
               <p className="text-sm text-gray-600 mb-4">
                 Add dates to exclude from the automatic scheduling (holidays, unavailable days, etc.)
@@ -394,7 +394,7 @@ const AutoCalendarSetup: React.FC<AutoCalendarSetupProps> = ({ course, onBack, o
                 <input
                   type="date"
                   id="exclude-date"
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   min={autoSettings.startDate}
                 />
                 {canAdd && (
@@ -439,7 +439,7 @@ const AutoCalendarSetup: React.FC<AutoCalendarSetupProps> = ({ course, onBack, o
             </div>
 
             {/* Calendar Preview Summary */}
-            <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Calendar Preview</h3>
               
               {autoSettings.startDate ? (
@@ -508,8 +508,8 @@ const AutoCalendarSetup: React.FC<AutoCalendarSetupProps> = ({ course, onBack, o
 
       {currentStep === 'preview' && (
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xl font-semibold text-gray-900">Generated Calendar Preview</h3>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-lg sm:text-xl font-semibold text-gray-900">Generated Calendar Preview</h3>
             <button
               onClick={() => setCurrentStep('settings')}
               className="text-blue-600 hover:text-blue-700 text-sm font-medium"
@@ -521,12 +521,12 @@ const AutoCalendarSetup: React.FC<AutoCalendarSetupProps> = ({ course, onBack, o
           <div className="grid gap-4">
             {generatedSessions.map((session, index) => (
               <div key={session.id} className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-medium text-gray-900">{session.sessionTitle}</h4>
-                  <span className="text-sm text-gray-500">{session.dayName}</span>
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <h4 className="min-w-0 break-words font-medium text-gray-900">{session.sessionTitle}</h4>
+                  <span className="shrink-0 text-sm text-gray-500">{session.dayName}</span>
                 </div>
-                
-                <div className="grid md:grid-cols-4 gap-4 text-sm text-gray-600">
+
+                <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4 text-sm text-gray-600">
                   <div className="flex items-center gap-1">
                     <Calendar className="w-4 h-4" />
                     {new Date(session.date).toLocaleDateString()}
@@ -549,24 +549,24 @@ const AutoCalendarSetup: React.FC<AutoCalendarSetupProps> = ({ course, onBack, o
           </div>
 
           {/* Action Buttons */}
-          <div className="flex gap-4 pt-6">
+          <div className="flex flex-wrap gap-3 sm:gap-4 pt-6">
             {canAdd && (
               <button
                 onClick={handleSaveCalendar}
-                className="flex-1 bg-green-600 text-white py-3 px-6 rounded-md hover:bg-green-700 transition-colors font-medium"
+                className="w-full sm:w-auto sm:flex-1 bg-green-600 text-white py-3 px-6 rounded-md hover:bg-green-700 transition-colors font-medium"
               >
                 Save Generated Calendar
               </button>
             )}
             <button
               onClick={() => setCurrentStep('settings')}
-              className="px-6 py-3 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
+              className="flex-1 sm:flex-initial px-4 sm:px-6 py-3 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
             >
               Modify Settings
             </button>
             <button
               onClick={onClose}
-              className="px-6 py-3 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
+              className="flex-1 sm:flex-initial px-4 sm:px-6 py-3 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
             >
               Cancel
             </button>

@@ -88,7 +88,7 @@ export default function AgendaView({
                                         tabIndex={0}
                                         onClick={() => onPreview(h)}
                                         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPreview(h) } }}
-                                        className={`group flex cursor-pointer items-center gap-3 border-b border-l-[3px] border-hairline px-4 py-3 transition-colors duration-150 last:border-b-0 hover:bg-row-hover ${meta.bar}`}
+                                        className={`group flex cursor-pointer items-center gap-2 sm:gap-3 border-b border-l-[3px] border-hairline px-3 sm:px-4 py-3 transition-colors duration-150 last:border-b-0 hover:bg-row-hover ${meta.bar}`}
                                     >
                                         <div className="w-11 shrink-0 text-center">
                                             <div className="text-lg font-semibold leading-none text-heading tabular-nums">{d.getDate()}</div>
@@ -101,10 +101,10 @@ export default function AgendaView({
                                                     <span className={`h-1.5 w-1.5 rounded-full ${meta.dot}`} />{meta.label}
                                                 </span>
                                                 {h.duration !== 'full' && <span className="inline-flex h-[20px] items-center rounded-chip bg-ink-100 px-1.5 text-2xs font-medium text-ink-600">{h.duration === 'first-half' ? 'First half' : 'Second half'}</span>}
-                                                {h.note && <span className="max-w-[240px] truncate text-2xs text-subtle">{h.note}</span>}
+                                                {h.note && <span className="max-w-full sm:max-w-[240px] truncate text-2xs text-subtle">{h.note}</span>}
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100" onClick={(e) => e.stopPropagation()}>
+                                        <div className="flex shrink-0 items-center gap-1 opacity-100 transition-opacity duration-150 lg:opacity-0 lg:group-hover:opacity-100" onClick={(e) => e.stopPropagation()}>
                                             <button type="button" onClick={() => onEdit(h.date)} title="Edit" aria-label="Edit holiday" className={ICON_BTN}><Pencil size={14} /></button>
                                             <button type="button" onClick={() => onRemove(h.id)} title="Remove" aria-label="Remove holiday" className={`${ICON_BTN} hover:border-danger-500/30 hover:bg-danger-50 hover:text-danger-700`}><Trash2 size={14} /></button>
                                         </div>

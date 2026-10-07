@@ -783,24 +783,24 @@ export default function ZipViewer({ fileUrl, fileName, onClose }: ZipViewerProps
   }, [fileBlobUrl]);
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-6xl h-[90dvh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-orange-100 rounded-lg">
+        <div className="flex items-center justify-between max-sm:gap-2 p-4 sm:p-6 border-b border-gray-200">
+          <div className="flex items-center gap-3 max-sm:min-w-0">
+            <div className="p-2 bg-orange-100 rounded-lg max-sm:flex-shrink-0">
               <Archive className="w-6 h-6 text-orange-600" />
             </div>
-            <div>
-              <h2 className="text-xl font-bold text-gray-900">{fileName}</h2>
+            <div className="max-sm:min-w-0">
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900 max-sm:truncate">{fileName}</h2>
               <p className="text-sm text-gray-500">ZIP Archive Contents</p>
             </div>
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 max-sm:flex-shrink-0">
             <button
               onClick={downloadAll}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors max-sm:text-sm"
             >
               <Download size={16} />
               Download All
@@ -847,9 +847,9 @@ export default function ZipViewer({ fileUrl, fileName, onClose }: ZipViewerProps
             </div>
           </div>
         ) : (
-          <div className="flex-1 flex overflow-hidden">
+          <div className="flex-1 flex overflow-hidden max-md:flex-col">
             {/* File Tree Sidebar */}
-            <div className="w-1/3 border-r border-gray-200 flex flex-col">
+            <div className="w-1/3 border-r border-gray-200 flex flex-col max-md:w-full max-md:max-h-[40%] max-md:border-r-0 max-md:border-b">
               <div className="p-4 border-b border-gray-200">
                 <h3 className="font-semibold text-gray-900">Files</h3>
                 <p className="text-sm text-gray-500 mt-1">
@@ -870,7 +870,7 @@ export default function ZipViewer({ fileUrl, fileName, onClose }: ZipViewerProps
             </div>
 
             {/* File Preview */}
-            <div className="flex-1 flex flex-col p-4">
+            <div className="flex-1 flex flex-col p-4 max-lg:min-w-0 max-md:min-h-0">
               <div className="mb-4">
                 <h3 className="font-semibold text-gray-900">
                   {currentFile ? `Preview: ${currentFile.name}` : 'File Preview'}

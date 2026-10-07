@@ -211,12 +211,12 @@ export default function AttendanceManagementLayout({ children }: { children: Rea
                 <div className="w-full flex-1 flex flex-col overflow-hidden">
                     {/* Header (persistent) — single row: back + tabs on the
                         left, day-nav / download controls flush on the right. */}
-                    <div className="bg-surface border-b border-hairline w-full px-6 flex-shrink-0">
-                        <div className="flex items-center justify-between gap-4 h-12">
-                            <div className="flex items-center gap-4 h-full min-w-0">
+                    <div className="bg-surface border-b border-hairline w-full px-3 sm:px-4 lg:px-6 flex-shrink-0">
+                        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-2 lg:py-0 lg:flex-nowrap lg:h-12">
+                            <div className="flex items-center gap-2 sm:gap-4 h-full min-w-0 max-w-full">
                                 <button
                                     onClick={backToPicker}
-                                    className="h-7 w-7 rounded-control text-subtle hover:bg-row-hover hover:text-heading flex items-center justify-center transition-colors shrink-0"
+                                    className="h-8 w-8 lg:h-7 lg:w-7 rounded-control text-subtle hover:bg-row-hover hover:text-heading flex items-center justify-center transition-colors shrink-0"
                                     title="Back"
                                 >
                                     <ArrowLeft className="h-4 w-4" />
@@ -239,7 +239,7 @@ export default function AttendanceManagementLayout({ children }: { children: Rea
                                 / Reset day / Download / Remarks flush right.
                                 Analytics tab is intentionally gone from the UI
                                 (the route still exists for deep links). */}
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex flex-wrap items-center gap-1.5 lg:flex-nowrap">
                                     {/* Day nav — only on the marking page. The
                                         report has its own Date / Date Range
                                         filter, so this shell-level picker would

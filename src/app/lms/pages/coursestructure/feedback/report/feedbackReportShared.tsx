@@ -345,7 +345,7 @@ export const ConsolidatedReportTable: React.FC<{
                   {consolidated.map((row) => (
                     <tr key={row.sno} className="border-t border-gray-100 dark:border-gray-800 hover:bg-gray-50/60 dark:hover:bg-gray-800/40">
                       <td className={`${numCls} align-middle`}>{row.sno}</td>
-                      <td className={`${tdCls} min-w-[280px] align-middle`}>{row.parameter}</td>
+                      <td className={`${tdCls} min-w-[180px] sm:min-w-[280px] align-middle`}>{row.parameter}</td>
                       {row.counts.map((c, gi) => (
                         <td key={gi} className={`${numCls} align-middle`}>
                           {c}

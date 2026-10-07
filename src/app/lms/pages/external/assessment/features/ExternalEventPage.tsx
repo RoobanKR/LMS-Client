@@ -40,7 +40,7 @@ export default function ExternalEventPage() {
           </header>
 
           <div className="flex-1 min-h-0 flex items-center justify-center">
-            <div className="flex flex-col items-center text-center max-w-sm py-16">
+            <div className="flex flex-col items-center text-center max-w-sm px-2 py-10 sm:px-0 sm:py-16">
               <span className="relative flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-wash text-brand-strong">
                 <CalendarDays className="h-7 w-7" />
                 <Sparkles className="absolute -right-1 -top-1 h-4 w-4 text-brand-strong" />

@@ -23,9 +23,9 @@ export function PageHeader({
 }) {
   return (
     // Title sized like the L&D console's page headers (17px/700).
-    <div className="sa-fade-in mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <h1 className="text-[17px] font-bold tracking-[-0.02em] text-[#111827]">{title}</h1>
-      {actions && <div className="flex items-center gap-2">{actions}</div>}
+    <div className="sa-fade-in mb-4 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-center sm:justify-between">
+      <h1 className="min-w-0 break-words text-[17px] font-bold tracking-[-0.02em] text-[#111827]">{title}</h1>
+      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>
   );
 }
@@ -248,8 +248,8 @@ export function Panel({
   return (
     <div className={cn('sa-elevate-1 sa-fade-in overflow-hidden rounded-xl border border-border bg-card', className)}>
       {title && (
-        <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
-          <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3.5 sm:px-5">
+          <h3 className="min-w-0 text-sm font-semibold text-foreground">{title}</h3>
           {actions}
         </div>
       )}
@@ -377,7 +377,7 @@ export function RowIdentity({ initial, primary, secondary }: { initial: string; 
 // hiding them outright.
 export function RowActions({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={cn('flex justify-end gap-0.5 [&_button]:h-7 [&_button]:w-7', className)}>
+    <div className={cn('flex justify-end gap-0.5 [&_button]:h-8 [&_button]:w-8 lg:[&_button]:h-7 lg:[&_button]:w-7', className)}>
       {children}
     </div>
   );
@@ -475,9 +475,9 @@ export function PaginationBar({
         <span className="font-medium text-foreground">{total}</span> entries
       </p>
 
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {totalPages > 1 && (
-          <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-1">
             <Button variant="outline" size="icon" className="h-8 w-8" disabled={page <= 1} onClick={() => onPageChange(page - 1)} aria-label="Previous page">
               <ChevronLeft className="h-4 w-4" />
             </Button>

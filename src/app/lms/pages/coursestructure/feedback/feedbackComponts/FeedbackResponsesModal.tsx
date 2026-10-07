@@ -204,12 +204,12 @@ export const FeedbackResponsesModal: React.FC<FeedbackResponsesModalProps> = ({
       onClick={closeAndReset}
     >
       <div
-        className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-800 w-full max-w-5xl h-[92vh] max-h-[92vh] flex flex-col overflow-hidden"
+        className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-800 w-full max-w-5xl h-[92dvh] max-h-[92dvh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* ── Header (changes between views) ── */}
         {view === 'list' ? (
-          <div className="flex-shrink-0 flex items-center justify-between px-5 py-3 border-b border-gray-200 dark:border-gray-800">
+          <div className="flex-shrink-0 flex items-center justify-between gap-2 px-3 sm:px-5 py-3 border-b border-gray-200 dark:border-gray-800">
             <div className="min-w-0">
               <h2 className="text-[14px] font-semibold text-gray-900 dark:text-white tracking-tight">
                 Student Responses
@@ -228,7 +228,7 @@ export const FeedbackResponsesModal: React.FC<FeedbackResponsesModalProps> = ({
           </div>
         ) : (
           selectedStudent && (
-            <div className="flex-shrink-0 flex items-center justify-between px-5 py-3 border-b border-gray-200 dark:border-gray-800">
+            <div className="flex-shrink-0 flex items-center justify-between gap-2 px-3 sm:px-5 py-3 border-b border-gray-200 dark:border-gray-800">
               <div className="flex items-center gap-2 min-w-0">
                 <button
                   onClick={() => {
@@ -300,7 +300,7 @@ export const FeedbackResponsesModal: React.FC<FeedbackResponsesModalProps> = ({
         )}
 
         {/* ── Footer ── */}
-        <div className="flex-shrink-0 px-5 py-2.5 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/60 flex items-center justify-between gap-3">
+        <div className="flex-shrink-0 px-3 sm:px-5 py-2.5 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/60 flex items-center justify-between gap-3">
           <span className="text-[11px] text-gray-500 dark:text-gray-400 truncate">
             {view === 'list'
               ? `Showing ${filteredStudents.length} of ${totalResponses} response${
@@ -372,8 +372,8 @@ const ListBody: React.FC<ListBodyProps> = ({
   return (
     <div className="flex-1 min-h-0 flex flex-col bg-white dark:bg-gray-900">
       {/* Stat strip + Export */}
-      <div className="flex-shrink-0 flex items-center justify-between gap-3 px-5 py-2.5 border-b border-gray-100 dark:border-gray-800">
-        <div className="flex items-center gap-4 text-[11px] text-gray-500 dark:text-gray-400">
+      <div className="flex-shrink-0 flex flex-wrap items-center justify-between gap-3 px-3 sm:px-5 py-2.5 border-b border-gray-100 dark:border-gray-800">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-gray-500 dark:text-gray-400">
           <span>
             Total <span className="font-semibold text-gray-900 dark:text-gray-100">{totalResponses}</span>
           </span>
@@ -402,7 +402,7 @@ const ListBody: React.FC<ListBodyProps> = ({
       </div>
 
       {/* Toolbar: search + sort */}
-      <div className="flex-shrink-0 flex flex-col md:flex-row md:items-center gap-2 px-5 py-2.5 border-b border-gray-100 dark:border-gray-800">
+      <div className="flex-shrink-0 flex flex-col md:flex-row md:items-center gap-2 px-3 sm:px-5 py-2.5 border-b border-gray-100 dark:border-gray-800">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
           <input
@@ -435,7 +435,7 @@ const ListBody: React.FC<ListBodyProps> = ({
       </div>
 
       {/* Table */}
-      <div className={`flex-1 min-h-0 overflow-auto px-5 py-3 ${thinScroll}`}>
+      <div className={`flex-1 min-h-0 overflow-auto px-3 sm:px-5 py-3 ${thinScroll}`}>
         {totalResponses === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center px-6">
             <Users className="h-10 w-10 text-gray-300 dark:text-gray-600 mb-3" />
@@ -458,7 +458,7 @@ const ListBody: React.FC<ListBodyProps> = ({
           </div>
         ) : (
           <div className="overflow-x-auto border border-gray-200 dark:border-gray-800 rounded-md">
-            <table className="w-full border-collapse">
+            <table className="w-full min-w-[640px] lg:min-w-0 border-collapse">
               <thead className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-800">
                 <tr>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border-r border-gray-200 dark:border-gray-800 w-10">
@@ -617,7 +617,7 @@ const DetailBody: React.FC<DetailBodyProps> = ({
   return (
     <div className="flex-1 min-h-0 flex flex-col bg-white dark:bg-gray-900">
       {/* Quick stats strip */}
-      <div className="flex-shrink-0 flex items-center gap-4 px-5 py-2.5 border-b border-gray-100 dark:border-gray-800 text-[11px] text-gray-500 dark:text-gray-400">
+      <div className="flex-shrink-0 flex flex-wrap items-center gap-x-4 gap-y-1 px-3 sm:px-5 py-2.5 border-b border-gray-100 dark:border-gray-800 text-[11px] text-gray-500 dark:text-gray-400">
         <span className="inline-flex items-center gap-1">
           <Calendar className="h-3 w-3" />
           {student.submittedAt
@@ -647,7 +647,7 @@ const DetailBody: React.FC<DetailBodyProps> = ({
       </div>
 
       {/* Answers */}
-      <div className={`flex-1 min-h-0 overflow-y-auto px-5 py-4 ${thinScroll}`}>
+      <div className={`flex-1 min-h-0 overflow-y-auto px-3 sm:px-5 py-4 ${thinScroll}`}>
         {groupedAnswers.length === 0 ? (
           <div className="text-[12px] text-gray-400 text-center py-8">No answers recorded</div>
         ) : (
@@ -675,7 +675,7 @@ const DetailBody: React.FC<DetailBodyProps> = ({
                         {String(i + 1).padStart(2, '0')}
                       </span>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1.5">
+                        <div className="flex flex-wrap items-center gap-2 mb-1.5">
                           <p className="text-[13px] font-medium text-gray-900 dark:text-white">
                             {a.questionText}
                           </p>

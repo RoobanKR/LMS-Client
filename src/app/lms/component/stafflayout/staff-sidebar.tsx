@@ -30,7 +30,6 @@ import {
 } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useAccountMenu } from "../../pages/courses/coursesdetailedview/components/useAccountMenu"
-import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -186,12 +185,17 @@ function StaffThemeRow() {
 interface StaffSidebarProps {
   isCollapsed: boolean
   setIsCollapsed: (collapsed: boolean) => void
+  /** Below lg the shell hosts this rail in an off-canvas drawer; this closes it. */
+  onMobileClose?: () => void
 }
 
-export function StaffSidebar({ isCollapsed, setIsCollapsed }: StaffSidebarProps) {
+export function StaffSidebar({ isCollapsed: desktopCollapsed, setIsCollapsed, onMobileClose }: StaffSidebarProps) {
   const router = useRouter()
   const pathname = usePathname()
   const [isMobile, setIsMobile] = useState(false)
+  // Below lg the rail lives in the shell's drawer and always renders expanded;
+  // the desktop collapse state only applies at lg and up.
+  const isCollapsed = isMobile ? false : desktopCollapsed
   const [sidebarItems, setSidebarItems] = useState<SidebarItem[]>([])
   const [loading, setLoading] = useState(true)
   const [currentUser, setCurrentUser] = useState<UserData | null>(null)
@@ -207,7 +211,7 @@ export function StaffSidebar({ isCollapsed, setIsCollapsed }: StaffSidebarProps)
   const { isDummyStudent, originalRoleInfo, isActualStudent, switchToStudent, switchBackToOriginal } = useAccountMenu()
 
   useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 768)
+    const checkMobile = () => setIsMobile(window.innerWidth < 1024)
     checkMobile()
     window.addEventListener("resize", checkMobile)
     return () => window.removeEventListener("resize", checkMobile)
@@ -369,7 +373,7 @@ export function StaffSidebar({ isCollapsed, setIsCollapsed }: StaffSidebarProps)
   }
 
   const handleItemClick = (item: SidebarItem) => {
-    if (isMobile) setIsCollapsed(true)
+    if (isMobile) onMobileClose?.()
     router.push(item.href)
   }
 
@@ -421,7 +425,8 @@ export function StaffSidebar({ isCollapsed, setIsCollapsed }: StaffSidebarProps)
           // Flat on the gray canvas (floating-workspace shell): no surface, no
           // right border. The mobile overlay keeps a solid surface.
           "relative z-40 h-full flex flex-col overflow-hidden",
-          isMobile && !isCollapsed ? "fixed top-0 left-0 shadow-xl bg-surface" : "bg-transparent"
+          // Below lg the shell's drawer supplies position, surface and shadow.
+          "bg-transparent"
         )}
       >
         {/* Brand card — a raised white block on the gray rail. It also hosts
@@ -444,18 +449,29 @@ export function StaffSidebar({ isCollapsed, setIsCollapsed }: StaffSidebarProps)
                 </p>
               </div>
             )}
-            <button
-              type="button"
-              aria-label={isCollapsed ? "Expand navigation" : "Collapse navigation"}
-              aria-expanded={!isCollapsed}
-              onClick={() => setIsCollapsed(!isCollapsed)}
-              className="flex-shrink-0 inline-flex h-6 w-6 items-center justify-center rounded-control text-faint hover:bg-row-hover hover:text-body transition-colors"
-            >
-              <ChevronDown className={cn(
-                "w-4 h-4 transition-transform duration-150",
-                isCollapsed ? "-rotate-90" : "rotate-90"
-              )} />
-            </button>
+            {isMobile ? (
+              <button
+                type="button"
+                aria-label="Close navigation"
+                onClick={() => onMobileClose?.()}
+                className="flex-shrink-0 inline-flex h-9 w-9 items-center justify-center rounded-control text-subtle hover:bg-row-hover hover:text-body transition-colors"
+              >
+                <X className="w-[18px] h-[18px]" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                aria-label={isCollapsed ? "Expand navigation" : "Collapse navigation"}
+                aria-expanded={!isCollapsed}
+                onClick={() => setIsCollapsed(!isCollapsed)}
+                className="flex-shrink-0 inline-flex h-6 w-6 items-center justify-center rounded-control text-faint hover:bg-row-hover hover:text-body transition-colors"
+              >
+                <ChevronDown className={cn(
+                  "w-4 h-4 transition-transform duration-150",
+                  isCollapsed ? "-rotate-90" : "rotate-90"
+                )} />
+              </button>
+            )}
           </div>
         </div>
 
@@ -729,23 +745,8 @@ export function StaffSidebar({ isCollapsed, setIsCollapsed }: StaffSidebarProps)
         </div>
       </motion.div>
 
-      {isMobile && !isCollapsed && (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="fixed top-4 right-4 w-10 h-10 rounded-full bg-surface shadow-lg hover:bg-row-hover z-overlay border border-hairline-strong"
-          onClick={() => setIsCollapsed(true)}
-        >
-          <X className="h-5 w-5" />
-        </Button>
-      )}
-
-      {isMobile && !isCollapsed && (
-        <div
-          className="fixed inset-0 bg-black/50 z-30 md:hidden"
-          onClick={() => setIsCollapsed(true)}
-        />
-      )}
+      {/* The mobile backdrop lives in the shell (staff-layout.tsx): below lg
+          this rail is an off-canvas drawer with its own X in the brand card. */}
     </TooltipPrimitive.Provider>
   )
 }

@@ -145,8 +145,8 @@ export function MappingTable({
   // swap the row keys, so each new page cascades in from the top.
 
   return (
-    <div className="flex-1 min-h-0 overflow-hidden">
-      <table className="w-full table-fixed border-collapse">
+    <div className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden lg:overflow-hidden">
+      <table className="w-full min-w-[720px] lg:min-w-0 table-fixed border-collapse">
         <thead className="sticky top-0 z-sticky">
           <tr>
             {/* Widths sum to 100% under table-fixed. Business Model and

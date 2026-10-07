@@ -170,7 +170,7 @@ const QuestionModal: React.FC<QuestionModalProps> = ({
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-gray-900 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-800 w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden"
+        className="bg-white dark:bg-gray-900 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-800 w-full max-w-xl max-h-[90dvh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -576,7 +576,7 @@ function ManageQuestionsContent() {
       className={`${poppins.className} h-full flex flex-col bg-white dark:bg-gray-950 overflow-hidden`}
     >
       {/* Breadcrumb */}
-      <div className="px-4 pt-2">
+      <div className="px-3 sm:px-4 pt-2">
         <Breadcrumb>
           <BreadcrumbList className="text-[11px]">
             <BreadcrumbItem>
@@ -634,7 +634,7 @@ function ManageQuestionsContent() {
       </div>
 
       {/* Title row */}
-      <div className="px-4 pt-1.5 pb-2 flex items-center justify-between gap-3 border-b border-gray-100 dark:border-gray-800">
+      <div className="px-4 pt-1.5 pb-2 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 dark:border-gray-800">
         <div className="flex items-center gap-2 min-w-0">
           <button
             onClick={backToList}
@@ -686,7 +686,7 @@ function ManageQuestionsContent() {
       </div>
 
       {/* Body */}
-      <div className="flex-1 min-h-0 overflow-auto px-4 py-4">
+      <div className="flex-1 min-h-0 overflow-auto px-3 sm:px-4 py-4">
         {!feedbackId ? (
           <div className="max-w-md mx-auto mt-16 text-center">
             <AlertCircle className="h-6 w-6 text-amber-600 dark:text-amber-400 mx-auto mb-2" />
@@ -713,7 +713,7 @@ function ManageQuestionsContent() {
                 <span className="text-gray-400 normal-case">({questions.length})</span>
               </h3>
               <div className="overflow-x-auto border border-gray-200 dark:border-gray-800 rounded-md">
-                <table className="w-full border-collapse">
+                <table className="w-full min-w-[680px] lg:min-w-0 border-collapse">
                   <thead className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-800">
                     <tr>
                       <th className="px-3 py-2 text-left text-[11px] font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border-r border-gray-200 dark:border-gray-800 w-10">
@@ -848,7 +848,7 @@ function ManageQuestionsContent() {
           one Save persists them all. */}
       {builderOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-800 w-[96vw] max-w-6xl h-[92vh] flex flex-col overflow-hidden">
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-800 w-[96vw] max-w-6xl h-[92dvh] flex flex-col overflow-hidden">
             {/* Header */}
             <div className="flex-shrink-0 flex items-center justify-between px-5 py-3 border-b border-gray-200 dark:border-gray-800">
               <div>
@@ -880,14 +880,14 @@ function ManageQuestionsContent() {
             </div>
 
             {/* Body — numbered question blocks with breathing room */}
-            <div className="flex-1 overflow-y-auto px-5 py-4">
+            <div className="flex-1 overflow-y-auto px-3 sm:px-5 py-4">
               <div className="space-y-5 max-w-4xl mx-auto">
                 {drafts.map((draft, i) => (
                   <div
                     key={i}
-                    className="rounded-md border border-gray-200 dark:border-gray-800 p-4 bg-gray-50/40 dark:bg-gray-900/40"
+                    className="rounded-md border border-gray-200 dark:border-gray-800 p-3 sm:p-4 bg-gray-50/40 dark:bg-gray-900/40"
                   >
-                    <div className="flex items-center justify-between mb-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                       <span className="inline-flex items-center gap-2 text-[12px] font-semibold text-gray-700 dark:text-gray-200">
                         <span className="h-6 w-6 inline-flex items-center justify-center rounded-full bg-indigo-600 text-white text-[11px]">
                           {i + 1}

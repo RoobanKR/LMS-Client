@@ -769,7 +769,7 @@ const NotionSettingsPanel: React.FC<{
         </button>
       </div>
 
-      <div className="p-4 grid grid-cols-2 gap-2">
+      <div className="p-3 sm:p-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
         {NOTION_FEATURES.map(f => {
           const active = settings[f.key];
           return (
@@ -895,7 +895,7 @@ const FileUploadSettingsPanel: React.FC<{
                 style={{ background: 'var(--lms-danger-bg)', color: 'var(--lms-danger)', border: '1px solid var(--lms-danger-bdr)', fontFamily: 'var(--lms-font)', cursor: 'pointer' }}>None</button>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {SUPPORTED_FILE_TYPES.map(ft => {
               const active = settings.allowedTypes.includes(ft.key);
               return (
@@ -1774,7 +1774,7 @@ const OthersPreviewModal: React.FC<{
       {sidebarTab === 'details' && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
           onClick={e => { if (e.target === e.currentTarget) setSidebarTab(null); }}>
-          <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 360, maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 360, maxWidth: 'calc(100vw - 32px)', maxHeight: '80dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div style={{ padding: '13px 16px', borderBottom: '1.5px solid var(--lms-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--lms-bg-surface)', flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                 <FileText size={14} style={{ color: 'var(--lms-text-sec)' }} />
@@ -1841,7 +1841,7 @@ const OthersPreviewModal: React.FC<{
       {sidebarTab === 'overview' && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
           onClick={e => { if (e.target === e.currentTarget) setSidebarTab(null); }}>
-          <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 400, maxHeight: '86vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 400, maxWidth: 'calc(100vw - 32px)', maxHeight: '86dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div style={{ padding: '13px 16px', borderBottom: '1.5px solid var(--lms-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--lms-info-bg)', flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                 <BarChart3 size={14} style={{ color: 'var(--lms-info)' }} />
@@ -1942,7 +1942,7 @@ const OthersPreviewModal: React.FC<{
       {sidebarTab === 'section' && sectionData && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
           onClick={e => { if (e.target === e.currentTarget) setSidebarTab(null); }}>
-          <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 420, maxHeight: '86vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 420, maxWidth: 'calc(100vw - 32px)', maxHeight: '86dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div style={{ padding: '13px 16px', borderBottom: '1.5px solid var(--lms-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--lms-violet-bg)', flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                 <Layers size={14} style={{ color: 'var(--lms-violet)' }} />
@@ -2041,7 +2041,7 @@ const OthersPreviewModal: React.FC<{
           style={{
             width: '96vw',
             maxWidth: 1300,
-            height: '92vh',
+            height: '92dvh',
             background: 'var(--lms-bg-white)',
             borderRadius: 'var(--lms-radius-lg)',
             boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
@@ -2050,10 +2050,10 @@ const OthersPreviewModal: React.FC<{
         >
           {/* Header */}
           <div
-            className="flex items-center justify-between px-5 py-3 flex-shrink-0"
+            className="flex items-center justify-between px-3 sm:px-5 py-3 flex-shrink-0"
             style={{ borderBottom: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)' }}
           >
-            <div className="flex items-center gap-3 min-w-0 flex-1">
+            <div className="flex items-center gap-3 min-w-0 flex-1 max-sm:flex-wrap max-sm:gap-2">
               <div
                 className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
                 style={{ background: 'var(--lms-violet)', boxShadow: '0 2px 8px rgba(124,58,237,0.3)' }}
@@ -2098,7 +2098,7 @@ const OthersPreviewModal: React.FC<{
               )}
             </div>
 
-            <div className="flex items-center gap-2.5 flex-shrink-0 ml-4">
+            <div className="flex items-center gap-2.5 flex-shrink-0 ml-2 sm:ml-4">
               <button
                 onClick={onClose}
                 className="p-2 rounded-lg transition-colors"
@@ -2110,9 +2110,9 @@ const OthersPreviewModal: React.FC<{
           </div>
 
           {/* Body */}
-          <div className="flex flex-1 min-h-0" style={{ overflow: 'hidden' }}>
+          <div className="flex flex-1 min-h-0 max-lg:flex-col max-lg:!overflow-y-auto" style={{ overflow: 'hidden' }}>
             {/* Left - Questions List */}
-            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3" style={{ scrollbarWidth: 'thin' }}>
+            <div className="flex-1 overflow-y-auto px-3 sm:px-6 py-4 space-y-3 max-lg:flex-none max-lg:!overflow-visible" style={{ scrollbarWidth: 'thin' }}>
               {filteredBlocks.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full py-20"
                   style={{ color: 'var(--lms-text-hint)' }}>
@@ -2280,7 +2280,7 @@ const OthersPreviewModal: React.FC<{
             </div>
 
             {/* Right Panel */}
-            <div className="w-72 flex-shrink-0 flex flex-col lms-sidebar-scroll"
+            <div className="w-72 flex-shrink-0 flex flex-col lms-sidebar-scroll max-lg:w-full max-lg:!overflow-visible max-lg:!border-l-0 max-lg:border-t-[1.5px] max-lg:border-[color:var(--lms-border)]"
               style={{ borderLeft: '1.5px solid var(--lms-border)', overflow: 'hidden', minWidth: 0, background: 'var(--lms-bg-subtle)' }}>
 
               {/* Action buttons */}
@@ -2427,7 +2427,7 @@ const OthersPreviewModal: React.FC<{
 
           {/* Footer */}
           <div
-            className="flex-shrink-0 px-5 py-3 flex items-center justify-between"
+            className="flex-shrink-0 px-3 sm:px-5 py-3 flex flex-wrap gap-2 items-center justify-between"
             style={{ borderTop: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)' }}
           >
             <span className="text-xs flex items-center gap-1.5"
@@ -3421,7 +3421,7 @@ const OthersAddQuestionForm: React.FC<OthersAddQuestionFormProps> = ({
       })()}
 
       {/* ── HEADER ── */}
-      <div className="flex items-center justify-between px-4 py-2.5 flex-shrink-0"
+      <div className="flex flex-wrap gap-y-2 items-center justify-between px-3 sm:px-4 py-2.5 flex-shrink-0"
         style={{ background: 'var(--lms-bg-white)', borderBottom: '1.5px solid var(--lms-border)' }}>
         <div className="flex items-center gap-3 min-w-0 flex-1">
           <div className="lms-header-logo-mark">
@@ -3436,7 +3436,7 @@ const OthersAddQuestionForm: React.FC<OthersAddQuestionFormProps> = ({
             />
           </div>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+        <div className="flex flex-wrap items-center gap-2 gap-y-2 flex-shrink-0 ml-3 max-lg:shrink max-lg:min-w-0 max-sm:ml-0 max-sm:w-full max-sm:justify-end">
           {loadingExercise && (
             <span className="flex items-center gap-1.5 text-[11px] font-semibold px-2 py-1 rounded-lg mr-2"
               style={{ color: 'var(--lms-orange)', background: 'var(--lms-orange-50)', border: '1.5px solid var(--lms-orange-100)', fontFamily: 'var(--lms-font)' }}>
@@ -3467,17 +3467,17 @@ const OthersAddQuestionForm: React.FC<OthersAddQuestionFormProps> = ({
       </div>
 
       {/* ── BODY ── */}
-      <div className="flex flex-1 min-h-0" style={{ overflow: 'hidden' }}>
+      <div className="flex flex-1 min-h-0 max-lg:flex-col max-lg:!overflow-y-auto" style={{ overflow: 'hidden' }}>
 
         {/* ── EDITOR ── */}
-        <div className="flex-1 flex flex-col min-w-0" style={{ background: 'var(--lms-bg-white)', overflow: 'hidden' }}>
+        <div className="flex-1 flex flex-col min-w-0 max-lg:flex-none max-lg:h-[78dvh] max-lg:min-h-[420px]" style={{ background: 'var(--lms-bg-white)', overflow: 'hidden' }}>
           <div ref={mainScrollRef} className="flex-1 overflow-y-auto overflow-x-hidden"
             style={{ scrollbarWidth: 'thin', overscrollBehavior: 'contain', background: 'var(--lms-bg-white)' }}>
             {currentBlock ? (
               <div className="flex flex-col min-h-full">
 
                 {/* ── STICKY TOOLBAR ── */}
-                <div className="px-5 pt-3 pb-2 flex-shrink-0 sticky top-0 z-50"
+                <div className="px-3 sm:px-5 pt-3 pb-2 flex-shrink-0 sticky top-0 z-50"
                   style={{ background: 'var(--lms-bg-white)', borderBottom: '1px solid var(--lms-border)' }}>
                   <div className="flex items-center gap-3 flex-wrap">
 
@@ -4015,13 +4015,13 @@ const OthersAddQuestionForm: React.FC<OthersAddQuestionFormProps> = ({
           </div>
 
           {/* ── BOTTOM NAV ── */}
-          <div className="flex-shrink-0 py-3"
+          <div className="flex-shrink-0 py-3 max-sm:!px-3 max-lg:!px-4"
             style={{ borderTop: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', paddingLeft: 32, paddingRight: 32 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: 8 }}>
+            <div className="max-lg:!flex max-lg:flex-wrap max-lg:justify-center" style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: 8 }}>
 
-              <div />
+              <div className="max-lg:hidden" />
 
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+              <div className="max-lg:flex-wrap" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                 <button onClick={handlePrev} disabled={currentIndex === 0} className="lms-nav-btn flex-shrink-0">
                   <ChevronLeft className="h-3.5 w-3.5" />Prev
                 </button>
@@ -4083,7 +4083,7 @@ const OthersAddQuestionForm: React.FC<OthersAddQuestionFormProps> = ({
                 )}
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+              <div className="max-lg:flex-wrap max-lg:!justify-center" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
 
                 {currentBlock && (() => {
                   const isSaved = savedQuestionIds.has(currentBlock.id) && !currentBlock.isDirty;
@@ -4153,7 +4153,7 @@ const OthersAddQuestionForm: React.FC<OthersAddQuestionFormProps> = ({
         </div>
 
         {/* ── RIGHT PANEL ── */}
-        <div style={{ width: 280, flexShrink: 0, borderLeft: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+        <div className="max-lg:!w-full max-lg:!h-auto max-lg:!overflow-visible max-lg:!border-l-0 max-lg:border-t-[1.5px] max-lg:border-[color:var(--lms-border)]" style={{ width: 280, flexShrink: 0, borderLeft: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
           {/* Two action buttons */}
           <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: 8, borderBottom: '1.5px solid var(--lms-border)', flexShrink: 0, background: 'var(--lms-bg-surface)' }}>
             <button
@@ -4420,7 +4420,7 @@ const OthersAddQuestionForm: React.FC<OthersAddQuestionFormProps> = ({
       {mainSidebarTab === 'details' && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
           onClick={e => { if (e.target === e.currentTarget) setMainSidebarTab(null); }}>
-          <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 360, maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 360, maxWidth: 'calc(100vw - 32px)', maxHeight: '80dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div style={{ padding: '13px 16px', borderBottom: '1.5px solid var(--lms-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--lms-bg-surface)', flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                 <FileText size={14} style={{ color: 'var(--lms-text-sec)' }} />
@@ -4493,7 +4493,7 @@ const OthersAddQuestionForm: React.FC<OthersAddQuestionFormProps> = ({
         return (
           <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
             onClick={e => { if (e.target === e.currentTarget) setMainSidebarTab(null); }}>
-            <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 420, maxHeight: '88vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 420, maxWidth: 'calc(100vw - 32px)', maxHeight: '88dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
               <div style={{ padding: '13px 16px', borderBottom: '1.5px solid var(--lms-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--lms-info-bg)', flexShrink: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                   <BarChart3 size={14} style={{ color: 'var(--lms-info)' }} />
@@ -4616,7 +4616,7 @@ const OthersAddQuestionForm: React.FC<OthersAddQuestionFormProps> = ({
       {mainSidebarTab === 'section' && sectionData && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
           onClick={e => { if (e.target === e.currentTarget) setMainSidebarTab(null); }}>
-          <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 420, maxHeight: '86vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 420, maxWidth: 'calc(100vw - 32px)', maxHeight: '86dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div style={{ padding: '13px 16px', borderBottom: '1.5px solid var(--lms-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--lms-violet-bg)', flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                 <Layers size={14} style={{ color: 'var(--lms-violet)' }} />

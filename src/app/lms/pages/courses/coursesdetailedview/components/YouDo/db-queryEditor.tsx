@@ -1581,15 +1581,15 @@ const DatabaseNavigator = ({
 
     if (!isVisible) {
         return (
-            <div className={`h-full flex flex-col items-center justify-start border-r ${theme === 'dark' ? 'border-gray-700 bg-gray-900' : 'border-gray-300 bg-white'}`}>
+            <div className={`h-full flex flex-col items-center justify-start border-r max-lg:flex-row max-lg:gap-2 max-lg:border-r-0 ${theme === 'dark' ? 'border-gray-700 bg-gray-900' : 'border-gray-300 bg-white'}`}>
                 <button
                     onClick={onToggleVisibility}
-                    className={`p-3 m-2 rounded hover:scale-110 transition-all ${theme === 'dark' ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'}`}
+                    className={`p-3 m-2 rounded hover:scale-110 transition-all max-lg:p-2 max-lg:my-0.5 ${theme === 'dark' ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'}`}
                     title="Show Navigator"
                 >
                     <Sidebar className="w-5 h-5" />
                 </button>
-                <div className="mt-4 transform -rotate-90 whitespace-nowrap text-xs font-medium">
+                <div className="mt-4 transform -rotate-90 whitespace-nowrap text-xs font-medium max-lg:mt-0 max-lg:rotate-0">
                     Database Nav
                 </div>
             </div>
@@ -1621,7 +1621,7 @@ const DatabaseNavigator = ({
                         </button>
                         <button
                             onClick={onToggleVisibility}
-                            className={`p-1.5 rounded hover:scale-110 transition-all ${theme === 'dark'
+                            className={`p-1.5 rounded hover:scale-110 transition-all max-lg:p-2 ${theme === 'dark'
                                 ? 'hover:bg-gray-700 text-gray-400'
                                 : 'hover:bg-gray-200 text-gray-600'
                                 }`}
@@ -1777,7 +1777,7 @@ const QueryTabManager = ({
                     >
                         <button
                             onClick={() => onTabClick(tab.id)}
-                            className="flex items-center gap-1.5 px-3 py-2 text-sm min-w-[120px] max-w-[200px] hover:scale-[1.02] transition-all"
+                            className="flex items-center gap-1.5 px-3 py-2 text-sm min-w-[120px] max-w-[200px] max-sm:min-w-[96px] max-sm:max-w-[160px] hover:scale-[1.02] transition-all"
                         >
                             {tab.isDirty && <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></div>}
                             {renamingTab === tab.id ? (
@@ -1805,7 +1805,7 @@ const QueryTabManager = ({
                         </button>
                         <button
                             onClick={() => onCloseTab(tab.id)}
-                            className={`p-1 rounded mr-1 hover:scale-110 transition-all ${theme === 'dark'
+                            className={`p-1 rounded mr-1 hover:scale-110 transition-all max-sm:p-1.5 ${theme === 'dark'
                                 ? 'hover:bg-gray-700 text-gray-400'
                                 : 'hover:bg-gray-300 text-gray-600'
                                 }`}
@@ -1872,8 +1872,8 @@ const EnhancedResultViewer = ({
 
     return (
         <div className={`h-full flex flex-col ${theme === 'dark' ? 'bg-gray-900' : 'bg-white'}`}>
-            <div className={`flex items-center justify-between p-3 border-b ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-gray-50'}`}>
-                <div className="flex items-center gap-4">
+            <div className={`flex items-center justify-between p-3 border-b max-sm:flex-wrap max-sm:gap-2 max-sm:p-2 ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-gray-50'}`}>
+                <div className="flex items-center gap-4 max-sm:gap-2">
                     <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
                         Results
                     </span>
@@ -1938,7 +1938,7 @@ const EnhancedResultViewer = ({
                 </div>
             </div>
 
-            <div className="flex-1 overflow-auto p-4">
+            <div className="flex-1 overflow-auto p-4 max-sm:p-2">
                 {viewMode === 'table' && result.resultSet && result.columns ? (
                     <div className="overflow-x-auto">
                         <table className={`min-w-full divide-y ${theme === 'dark' ? 'divide-gray-700' : 'divide-gray-200'}`}>
@@ -2318,13 +2318,13 @@ const QuestionPanel = ({
                     />
                     <button
                         onClick={onClose}
-                        className="absolute -top-10 -right-10 w-8 h-8 rounded-full bg-white/30 hover:bg-white/50 text-white flex items-center justify-center transition-all backdrop-blur-sm"
+                        className="absolute -top-10 -right-10 w-8 h-8 rounded-full bg-white/30 hover:bg-white/50 text-white flex items-center justify-center transition-all backdrop-blur-sm max-sm:top-2 max-sm:right-2 max-sm:w-9 max-sm:h-9 max-sm:bg-black/50"
                     >
                         <X className="w-5 h-5" />
                     </button>
                     <button
                         onClick={() => window.open(image.url, '_blank')}
-                        className="absolute -bottom-12 left-1/2 transform -translate-x-1/2 px-4 py-2 rounded-lg bg-white/30 hover:bg-white/40 text-white text-sm transition-all whitespace-nowrap backdrop-blur-sm"
+                        className="absolute -bottom-12 left-1/2 transform -translate-x-1/2 px-4 py-2 rounded-lg bg-white/30 hover:bg-white/40 text-white text-sm transition-all whitespace-nowrap backdrop-blur-sm max-sm:bottom-2 max-sm:bg-black/50"
                     >
                         Open in New Tab
                     </button>
@@ -2335,15 +2335,15 @@ const QuestionPanel = ({
 
     if (isCollapsed) {
         return (
-            <div className={`h-full flex flex-col items-center justify-center border-r ${theme === 'dark' ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-300'}`}>
+            <div className={`h-full flex flex-col items-center justify-center border-r max-lg:flex-row max-lg:justify-start max-lg:gap-2 max-lg:px-2 max-lg:border-r-0 ${theme === 'dark' ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-300'}`}>
                 <button
                     onClick={onToggleCollapse}
-                    className={`p-3 rounded hover:scale-110 transition-all ${theme === 'dark' ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'}`}
+                    className={`p-3 rounded hover:scale-110 transition-all max-lg:p-2 ${theme === 'dark' ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'}`}
                     title="Expand Question Panel"
                 >
                     <PanelRight className="w-5 h-5" />
                 </button>
-                <div className="mt-4 transform -rotate-90 whitespace-nowrap text-xs font-medium">
+                <div className="mt-4 transform -rotate-90 whitespace-nowrap text-xs font-medium max-lg:mt-0 max-lg:rotate-0">
                     Q{currentQuestionIndex + 1}/{totalQuestions}
                 </div>
             </div>
@@ -2352,8 +2352,8 @@ const QuestionPanel = ({
 
     return (
         <div className={`h-full flex flex-col ${theme === 'dark' ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-300'} border-r`}>
-            <div className={`p-4 border-b ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'}`}>
-                <div className="flex items-center justify-between mb-2">
+            <div className={`p-4 border-b max-sm:p-3 ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'}`}>
+                <div className="flex items-center justify-between mb-2 max-sm:flex-wrap max-sm:gap-2">
                     <div className="flex items-center gap-2">
                        
                         <h3 className={`text-sm font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
@@ -2410,8 +2410,8 @@ const QuestionPanel = ({
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6">
-                <h4 className={`text-lg font-semibold mb-4 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+            <div className="flex-1 overflow-y-auto p-6 max-sm:p-4">
+                <h4 className={`text-lg font-semibold mb-4 max-sm:text-base max-sm:mb-3 break-words ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
                     {question.title}
                 </h4>
 
@@ -2576,6 +2576,11 @@ export default function DBQueryEditorPage({
     const [showNavigator, setShowNavigator] = useState(true)
     const [isQuestionCollapsed, setIsQuestionCollapsed] = useState(false)
     const [layout, setLayout] = useState<'horizontal' | 'vertical'>('horizontal')
+    // Phones / tablets (< lg): the database navigator is an overlay drawer
+    // there, so start it collapsed. Desktop keeps it open as before.
+    useEffect(() => {
+        if (typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches) setShowNavigator(false)
+    }, [])
     const [toasts, setToasts] = useState<ToastNotification[]>([])
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(initialQuestionIndex)
     const [isSubmitting, setIsSubmitting] = useState(false)
@@ -3483,7 +3488,7 @@ export default function DBQueryEditorPage({
     if (showSecurityModal) return (
         <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <ToastContainer position="top-right" />
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-7">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-7 max-sm:p-5 max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center gap-3 mb-5">
               <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
                 <ShieldCheck className="w-5 h-5 text-blue-600" />
@@ -3496,7 +3501,7 @@ export default function DBQueryEditorPage({
             {secItems.length > 0 ? (
               <div className="bg-gray-50 rounded-xl p-4 mb-5">
                 <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Active Restrictions</div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 max-sm:grid-cols-1 gap-2">
                   {secItems.map((it, i) => (
                     <div key={i} className="flex items-center gap-2 text-sm text-gray-700 font-medium">
                       <span className="text-indigo-500">{it.icon}</span>{it.label}
@@ -3536,7 +3541,7 @@ export default function DBQueryEditorPage({
     return (
         <div
             ref={containerRef}
-            className={`w-full h-screen flex flex-col transition-colors duration-200 ${currentTheme === 'dark'
+            className={`w-full h-screen max-lg:h-[100dvh] flex flex-col transition-colors duration-200 ${currentTheme === 'dark'
                 ? 'bg-gray-900 text-white dark-theme'
                 : 'bg-white text-gray-900 light-theme'
                 }`}
@@ -3573,14 +3578,14 @@ export default function DBQueryEditorPage({
             {/* Proctor → student messaging is now a header bell (see Top Navigation Bar). */}
 
             {/* Top Navigation Bar */}
-            <div className={`flex items-center justify-between px-3 py-2 border-b transition-colors ${currentTheme === 'dark'
+            <div className={`flex items-center justify-between px-3 py-2 border-b transition-colors max-lg:flex-wrap max-lg:gap-2 ${currentTheme === 'dark'
                 ? 'border-gray-700 bg-gray-800'
                 : 'border-gray-300 bg-gray-100'
                 }`}>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 max-sm:flex-wrap max-sm:min-w-0">
                     <button
                         onClick={onBack}
-                        className={`p-1.5 rounded hover:scale-110 transition-all ${currentTheme === 'dark'
+                        className={`p-1.5 rounded hover:scale-110 transition-all max-sm:p-2 ${currentTheme === 'dark'
                             ? 'hover:bg-gray-700 text-gray-400'
                             : 'hover:bg-gray-200 text-gray-600'
                             }`}
@@ -3592,7 +3597,7 @@ export default function DBQueryEditorPage({
                     <div className="flex items-center gap-1">
                         <button
                             onClick={() => setShowHistory(!showHistory)}
-                            className={`p-1.5 rounded hover:scale-110 transition-all ${currentTheme === 'dark'
+                            className={`p-1.5 rounded hover:scale-110 transition-all max-sm:p-2 ${currentTheme === 'dark'
                                 ? 'hover:bg-gray-700 text-gray-400'
                                 : 'hover:bg-gray-200 text-gray-600'
                                 }`}
@@ -3602,7 +3607,7 @@ export default function DBQueryEditorPage({
                         </button>
                         <button
                             onClick={() => setLayout(layout === 'horizontal' ? 'vertical' : 'horizontal')}
-                            className={`p-1.5 rounded hover:scale-110 transition-all ${currentTheme === 'dark'
+                            className={`p-1.5 rounded hover:scale-110 transition-all max-lg:hidden ${currentTheme === 'dark'
                                 ? 'hover:bg-gray-700 text-gray-400'
                                 : 'hover:bg-gray-200 text-gray-600'
                                 }`}
@@ -3616,7 +3621,7 @@ export default function DBQueryEditorPage({
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2 ml-4">
+                    <div className="flex items-center gap-2 ml-4 max-sm:ml-0 max-sm:min-w-0">
                         <span className={`text-xs ${currentTheme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Database:</span>
                         <select
                             value={currentDatabase?.name || ''}
@@ -3633,7 +3638,7 @@ export default function DBQueryEditorPage({
                                     })
                                 }
                             }}
-                            className={`text-xs border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all ${currentTheme === 'dark'
+                            className={`text-xs border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all max-sm:max-w-[45vw] max-sm:py-1.5 ${currentTheme === 'dark'
                                 ? 'border-gray-600 bg-gray-700 text-gray-300 focus:border-blue-500'
                                 : 'border-gray-300 bg-white text-gray-900 focus:border-blue-500'
                                 }`}
@@ -3647,7 +3652,7 @@ export default function DBQueryEditorPage({
                     </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 max-lg:flex-wrap max-lg:ml-auto max-sm:ml-0">
                     {/* Proctor message notification (ephemeral, test-only) — standalone only */}
                     {!embedded && (
                         <TestMessageBell assessmentId={exerciseData?._id ? String(exerciseData._id) : ""} />
@@ -3719,10 +3724,11 @@ export default function DBQueryEditorPage({
                 </div>
             </div>
 
-            {/* Main Content Area */}
-            <div className="flex-1 flex overflow-hidden">
+            {/* Main Content Area — phones: one scroll column (question →
+                navigator bar → editor → results); lg+: unchanged split. */}
+            <div className="flex-1 flex overflow-hidden max-lg:relative max-lg:flex-col max-lg:overflow-y-auto">
                 {/* Question Panel - Wider */}
-                <div className={`${isQuestionCollapsed ? 'w-12' : 'w-[35%] min-w-[400px]'} border-r flex-shrink-0 transition-all duration-300`}>
+                <div className={`${isQuestionCollapsed ? 'w-12 max-lg:h-11' : 'w-[35%] lg:min-w-[400px] max-lg:h-[45dvh]'} border-r flex-shrink-0 transition-all duration-300 max-lg:w-full max-lg:border-r-0 max-lg:border-b`}>
                     <QuestionPanel
                         question={currentQuestion}
                         currentQuestionIndex={currentQuestionIndex}
@@ -3744,7 +3750,7 @@ export default function DBQueryEditorPage({
                 </div>
 
                 {/* Navigator - Always render, component handles visibility internally */}
-                <div className={`${showNavigator ? 'w-64' : 'w-12'} border-r flex-shrink-0 transition-all duration-300`}>
+                <div className={`${showNavigator ? 'w-64 max-lg:fixed max-lg:inset-y-0 max-lg:left-0 max-lg:z-50 max-lg:w-[min(16rem,85vw)] max-lg:shadow-2xl max-md:inset-0 max-md:w-full' : 'w-12 max-lg:w-full max-lg:h-11 max-lg:border-r-0 max-lg:border-b'} border-r flex-shrink-0 transition-all duration-300`}>
                     <DatabaseNavigator
                         databases={databases}
                         currentDatabase={currentDatabase}
@@ -3777,8 +3783,8 @@ export default function DBQueryEditorPage({
                 </div>
 
                 {/* Editor and Results Area */}
-                <div className={`flex-1 flex ${layout === 'horizontal' ? 'flex-col' : 'flex-row'}`}>
-                    <div className={`${layout === 'horizontal' ? 'h-1/2' : 'w-1/2'} flex flex-col`}>
+                <div className={`flex-1 flex ${layout === 'horizontal' ? 'flex-col' : 'flex-row'} max-lg:min-w-0 max-lg:flex-col max-lg:flex-none max-lg:h-[85dvh] max-lg:min-h-[480px]`}>
+                    <div className={`${layout === 'horizontal' ? 'h-1/2' : 'w-1/2'} flex flex-col max-lg:min-w-0 max-lg:w-full max-lg:h-1/2`}>
                         <QueryTabManager
                             tabs={queryTabs}
                             activeTab={activeTab}
@@ -3826,7 +3832,7 @@ export default function DBQueryEditorPage({
                         </div>
                     </div>
 
-                    <div className={`${layout === 'horizontal' ? 'h-1/2 border-t' : 'w-1/2 border-l'} transition-colors ${currentTheme === 'dark' ? 'border-gray-700' : 'border-gray-300'
+                    <div className={`${layout === 'horizontal' ? 'h-1/2 border-t' : 'w-1/2 border-l'} transition-colors max-lg:min-w-0 max-lg:w-full max-lg:h-1/2 max-lg:border-l-0 max-lg:border-t ${currentTheme === 'dark' ? 'border-gray-700' : 'border-gray-300'
                         }`}>
                         <EnhancedResultViewer
                             result={queryResults[activeTab]}
@@ -3837,7 +3843,7 @@ export default function DBQueryEditorPage({
 
                 {/* History Panel */}
                 {showHistory && (
-                    <div className="w-80 border-l flex-shrink-0 transition-colors">
+                    <div className="w-80 border-l flex-shrink-0 transition-colors max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-40 max-lg:h-[60dvh] max-lg:w-full max-lg:shadow-2xl max-lg:border-l-0 max-lg:border-t">
                         <QueryHistoryPanel
                             history={queryHistory}
                             onSelectQuery={(query) => {
@@ -3854,21 +3860,21 @@ export default function DBQueryEditorPage({
             </div>
 
             {/* Status Bar */}
-            <div className={`px-3 py-1.5 border-t text-xs flex items-center justify-between transition-colors ${currentTheme === 'dark'
+            <div className={`px-3 py-1.5 border-t text-xs flex items-center justify-between transition-colors max-lg:flex-wrap max-lg:gap-x-4 max-lg:gap-y-1 ${currentTheme === 'dark'
                 ? 'border-gray-700 bg-gray-800 text-gray-400'
                 : 'border-gray-300 bg-gray-100 text-gray-600'
                 }`}>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-4 max-lg:flex-wrap max-lg:gap-x-3 max-lg:gap-y-1 max-lg:min-w-0">
                     <span>{isRunning ? 'Executing...' : isSubmitting ? 'Submitting...' : 'Ready'}</span>
                     {currentDatabase && (
-                        <span>Database: {currentDatabase.name} ({currentDatabase.tables.length} tables)</span>
+                        <span className="max-sm:hidden">Database: {currentDatabase.name} ({currentDatabase.tables.length} tables)</span>
                     )}
-                    <span>Tab: {queryTabs.find(t => t.id === activeTab)?.name}</span>
+                    <span className="max-sm:hidden">Tab: {queryTabs.find(t => t.id === activeTab)?.name}</span>
                     <span>Question: {currentQuestionIndex + 1}/{questions.length}</span>
                 </div>
-                <div className="flex items-center gap-4">
-                    <span>Query History: {queryHistory.length} items</span>
-                    <span>Total Tabs: {queryTabs.length}</span>
+                <div className="flex items-center gap-4 max-lg:flex-wrap max-lg:gap-x-3 max-lg:gap-y-1">
+                    <span className="max-md:hidden">Query History: {queryHistory.length} items</span>
+                    <span className="max-md:hidden">Total Tabs: {queryTabs.length}</span>
                     <span>
                         Attempts: {Math.max(
                             previousAttempts,
@@ -3882,7 +3888,7 @@ export default function DBQueryEditorPage({
             </div>
 
             {/* Toast Notifications */}
-            <div className="fixed top-4 right-4 z-50 flex flex-col gap-2">
+            <div className="fixed top-4 right-4 max-sm:left-4 z-50 flex flex-col gap-2">
                 {toasts.map((toast) => (
                     <div
                         key={toast.id}

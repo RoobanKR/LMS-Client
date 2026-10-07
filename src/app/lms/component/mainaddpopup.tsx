@@ -111,7 +111,7 @@ const generateId = () => {
                         />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label htmlFor="duration" className="text-sm font-medium text-slate-700">
                                 Duration
@@ -155,7 +155,7 @@ const generateId = () => {
                         </Select>
                     </div>
 
-                    <div className="flex justify-end gap-3 pt-4 border-t">
+                    <div className="flex flex-wrap justify-end gap-3 pt-4 border-t">
                         <Button
                             type="button"
                             variant="outline"

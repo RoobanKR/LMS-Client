@@ -456,7 +456,7 @@ export default function FilteredTable({
   const showBulkRemoveConfirmation = () => {
     toast.custom(
       (t) => (
-        <div className="w-[356px] rounded-lg bg-white p-4 shadow-lg">
+        <div className="w-[356px] max-w-[calc(100vw-2rem)] rounded-lg bg-white p-4 shadow-lg">
           <div className="space-y-2">
             <h3 className="text-lg font-semibold text-gray-900">Remove Selected Participants</h3>
             <p className="text-sm text-gray-600">
@@ -1154,7 +1154,7 @@ export default function FilteredTable({
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className={`flex items-center justify-between px-2 border-t ${fillHeight ? 'shrink-0 bg-white py-1' : 'py-2'}`}>
+        <div className={`flex flex-wrap items-center justify-between gap-2 px-2 border-t ${fillHeight ? 'shrink-0 bg-white py-1' : 'py-2'}`}>
           <div className="text-[11px] text-gray-600">
             Showing <span className="font-medium">{startIndex + 1}</span>-
             <span className="font-medium">{Math.min(endIndex, totalUsers)}</span>

@@ -689,7 +689,7 @@ export default function VideoPlayer({
         style={{ height: '60px', zIndex: 60 }}
       >
         {/* Left section */}
-        <div className="flex items-center gap-3 truncate">
+        <div className="flex items-center gap-2 sm:gap-3 truncate min-w-0">
           <button
             onClick={handleClose}
             className="flex items-center justify-center w-8 h-8 rounded-lg bg-white border border-gray-300 shadow-sm hover:bg-gray-50 hover:text-gray-700 transition-all cursor-pointer flex-shrink-0"
@@ -780,19 +780,19 @@ export default function VideoPlayer({
           {/* Menu Button */}
           <button
             onClick={handleMenuClick}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg font-medium bg-white text-gray-700 hover:bg-gray-50 transition-all cursor-pointer border border-gray-300 shadow-sm"
+            className="flex items-center gap-2 px-2.5 sm:px-3 py-2 rounded-lg font-medium bg-white text-gray-700 hover:bg-gray-50 transition-all cursor-pointer border border-gray-300 shadow-sm"
           >
             <Menu className="w-4 h-4" />
-            <span className="text-sm">Menu</span>
+            <span className="hidden sm:inline text-sm">Menu</span>
           </button>
         </div>
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex bg-white" style={{ height: 'calc(100vh - 60px)' }}>
+      <div className="flex-1 flex max-lg:flex-col max-lg:!h-auto min-h-0 bg-white" style={{ height: 'calc(100vh - 60px)' }}>
         {/* Video Player Area */}
         <div
-          className="flex items-center justify-center bg-black transition-all duration-200 relative"
+          className={`flex items-center justify-center bg-black transition-all duration-200 relative max-lg:!w-full ${notesOpen && notesEnabled ? 'max-lg:h-[42%] max-lg:flex-none' : 'max-lg:flex-1 max-lg:min-h-0'}`}
           style={{
             width: notesOpen ? `${splitPosition}%` : '100%',
             overflow: 'hidden',
@@ -920,8 +920,8 @@ export default function VideoPlayer({
                   </div>
 
                   {/* Control Buttons */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
+                  <div className="flex flex-wrap items-center justify-between gap-y-1">
+                    <div className="flex items-center gap-1 sm:gap-4">
                       <button
                         onClick={handlePlayPause}
                         className="text-white hover:bg-white/20 p-2 rounded transition-colors"
@@ -958,16 +958,16 @@ export default function VideoPlayer({
                           step="0.1"
                           value={volume}
                           onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
-                          className="w-20 accent-white"
+                          className="hidden sm:block w-20 accent-white"
                         />
                       </div>
 
-                      <div className="text-white text-sm font-mono">
+                      <div className="text-white text-xs sm:text-sm font-mono whitespace-nowrap">
                         {formatTime(currentTime)} / {formatTime(duration)}
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-1 sm:gap-4 ml-auto">
                       {/* Resolution Selector */}
                       {showResolutionSelector && (
                         <div className="relative">
@@ -1015,7 +1015,7 @@ export default function VideoPlayer({
                         <option value={2}>2x</option>
                       </select>
 
-                      <button className="text-white hover:bg-white/20 p-2 rounded transition-colors">
+                      <button className="hidden sm:inline-block text-white hover:bg-white/20 p-2 rounded transition-colors">
                         <Settings className="w-5 h-5" />
                       </button>
 
@@ -1046,7 +1046,7 @@ export default function VideoPlayer({
         {/* Resize Handle */}
         {notesOpen && notesEnabled && (
           <div
-            className="w-2 bg-gray-300 hover:bg-orange-600 active:bg-orange-700 cursor-col-resize transition-colors duration-200 flex items-center justify-center relative"
+            className="w-2 bg-gray-300 hover:bg-orange-600 active:bg-orange-700 cursor-col-resize transition-colors duration-200 max-lg:hidden flex items-center justify-center relative"
             onMouseDown={handleResizeStart}
             style={{ zIndex: 40 }}
           >
@@ -1061,7 +1061,7 @@ export default function VideoPlayer({
         {/* Notes Panel */}
         {notesOpen && notesEnabled && (
           <div
-            className="bg-white transition-all duration-200 overflow-hidden"
+            className="bg-white transition-all duration-200 overflow-hidden max-lg:!w-full max-lg:flex-1 max-lg:min-h-0 max-lg:border-t max-lg:border-gray-200"
             style={{ width: `${100 - splitPosition}%` }}
           >
             <NotesPanel
@@ -1085,7 +1085,7 @@ export default function VideoPlayer({
       {/* Sidebar Menu */}
       {sidebarOpen && (
         <div
-          className="fixed top-0 right-0 h-full w-80 bg-white/95 backdrop-blur-lg shadow-2xl z-50 p-6 border-l border-gray-200"
+          className="fixed top-0 right-0 h-full w-80 max-w-[85vw] overflow-y-auto bg-white/95 backdrop-blur-lg shadow-2xl z-50 p-6 border-l border-gray-200"
           style={{ marginTop: '60px', height: 'calc(100vh - 60px)' }}
         >
           <button

@@ -194,6 +194,11 @@ export default function PerformanceReportDesignerModal({
 }: Props) {
     // ── Selection state ────────────────────────────────────────────────────
     const [collapsed, setCollapsed] = useState(false);
+    // Below lg the controls drawer overlays the canvas — start folded on
+    // phones/tablets so the report preview is visible first.
+    useEffect(() => {
+        if (typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches) setCollapsed(true);
+    }, []);
     const [downloadOpen, setDownloadOpen] = useState(false);
     const [busy, setBusy] = useState<"" | "xlsx" | "pdf">("");
     const [views, setViews] = useState<Set<ViewKey>>(new Set(DEFAULT_VIEWS));
@@ -1689,7 +1694,7 @@ export default function PerformanceReportDesignerModal({
                 onClick={onClose}
             >
                 <div
-                    className="relative flex h-[96vh] w-[97vw] max-w-[1760px] flex-col overflow-hidden rounded-[18px] border border-hairline bg-surface shadow-sm"
+                    className="relative flex h-[96dvh] w-[97vw] max-w-[1760px] flex-col overflow-hidden rounded-[18px] border border-hairline bg-surface shadow-sm"
                     onClick={(e) => e.stopPropagation()}
                 >
                     {children}
@@ -1808,7 +1813,7 @@ export default function PerformanceReportDesignerModal({
         <OuterWrap>
             {headerNode}
 
-            <div className="flex min-h-0 flex-1">
+            <div className="relative flex min-h-0 flex-1">
                 {showRail ? (
                     <DesignerRail
                         active={activeSection}

@@ -167,9 +167,10 @@ const MCQCreateContent = forwardRef<CreateContentHandle, object>((_props, ref) =
        hasOtherOption, marks]);
 
   return (
-    <div className="flex min-h-0 flex-1">
-      {/* ── Content column (~68%) — own scroll ── */}
-      <div className="min-w-0 flex-1 space-y-4 overflow-y-auto p-5">
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto md:flex-row md:overflow-visible">
+      {/* ── Content column (~68%) — own scroll (stacked above the rail,
+          sharing one scroll, below md) ── */}
+      <div className="min-w-0 flex-1 space-y-4 p-4 sm:p-5 md:overflow-y-auto">
         {/* Labelled "Question Title" so it matches the server's error copy
             ("MCQ question title text is required") — the field is the same
             RichTextLite, but the label made it look like something else. */}
@@ -284,10 +285,10 @@ const MCQCreateContent = forwardRef<CreateContentHandle, object>((_props, ref) =
               {pairs.map((p, i) => (
                 <div key={p.id} className="flex items-center gap-2">
                   <span className="w-5 text-center font-mono text-[11px] font-bold text-subtle">{i + 1}</span>
-                  <input className={`${inputCls} h-8`} value={p.left} placeholder="Left item"
+                  <input className={`${inputCls} h-8 min-w-0`} value={p.left} placeholder="Left item"
                     onChange={e => setPairs(x => x.map(y => y.id === p.id ? { ...y, left: e.target.value } : y))} />
                   <span className="text-faint">→</span>
-                  <input className={`${inputCls} h-8`} value={p.right} placeholder="Matches with"
+                  <input className={`${inputCls} h-8 min-w-0`} value={p.right} placeholder="Matches with"
                     onChange={e => setPairs(x => x.map(y => y.id === p.id ? { ...y, right: e.target.value } : y))} />
                   <button type="button" disabled={pairs.length <= 2}
                     onClick={() => setPairs(x => x.filter(y => y.id !== p.id))}
@@ -316,7 +317,7 @@ const MCQCreateContent = forwardRef<CreateContentHandle, object>((_props, ref) =
                 <div key={it.id} className="flex items-center gap-2">
                   <GripVertical size={13} className="shrink-0 text-faint" />
                   <span className="w-5 text-center font-mono text-[11px] font-bold text-subtle">{i + 1}</span>
-                  <input className={`${inputCls} h-8`} value={it.text} placeholder={`Item ${i + 1}`}
+                  <input className={`${inputCls} h-8 min-w-0`} value={it.text} placeholder={`Item ${i + 1}`}
                     onChange={e => setOrderItems(x => x.map(y => y.id === it.id ? { ...y, text: e.target.value } : y))} />
                   <button type="button" disabled={orderItems.length <= 2}
                     onClick={() => setOrderItems(x => x.filter(y => y.id !== it.id))}
@@ -370,7 +371,7 @@ const MCQCreateContent = forwardRef<CreateContentHandle, object>((_props, ref) =
       </div>
 
       {/* ── Configuration rail (~32%) — own scroll ── */}
-      <div className="w-[31%] min-w-[300px] shrink-0 space-y-5 overflow-y-auto border-l border-[#E8EAF2] p-5">
+      <div className="w-full shrink-0 space-y-5 border-t border-[#E8EAF2] p-4 sm:p-5 md:w-[31%] md:min-w-[300px] md:overflow-y-auto md:border-l md:border-t-0">
         <div>
           <Label required>Question Type</Label>
           <select className={inputCls} value={mcqType} onChange={e => setMcqType(e.target.value as McqType)}>

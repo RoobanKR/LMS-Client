@@ -48,8 +48,8 @@ export function GradeDistribution({
             {slices.length === 0 ? (
                 <CanvasEmpty>Nothing to grade in the current selection.</CanvasEmpty>
             ) : (
-                <div className="grid grid-cols-[150px_1fr] items-center gap-3">
-                    <div className="relative h-[150px] w-[150px]">
+                <div className="grid grid-cols-1 items-center gap-3 sm:grid-cols-[150px_1fr]">
+                    <div className="relative mx-auto h-[150px] w-[150px] sm:mx-0">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                                 <Pie

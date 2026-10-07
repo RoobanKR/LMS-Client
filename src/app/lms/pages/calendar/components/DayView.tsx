@@ -31,9 +31,9 @@ export default function DayView({
 
     return (
         <div className="h-full overflow-y-auto bg-surface custom-scrollbar">
-            <div className="max-w-2xl mx-auto px-6 py-8">
+            <div className="max-w-2xl mx-auto px-4 py-5 sm:px-6 sm:py-8">
                 {/* Date header */}
-                <div className="flex items-center gap-4 mb-7">
+                <div className="flex items-center gap-4 mb-5 sm:mb-7">
                     <div className={`flex flex-col items-center justify-center h-16 w-16 rounded-tile shrink-0 ${isToday ? 'bg-brand-strong text-white' : 'bg-canvas border border-hairline text-heading'}`}>
                         <span className={`text-2xs font-semibold uppercase ${isToday ? 'text-white/80' : 'text-faint'}`}>{weekday.slice(0, 3)}</span>
                         <span className="text-2xl font-bold leading-none">{focusedDate.getDate()}</span>
@@ -63,7 +63,7 @@ export default function DayView({
                         </div>
 
                         <div className="p-5">
-                            <h3 className="text-2xl font-semibold text-heading tracking-[-0.01em]">{holiday.name}</h3>
+                            <h3 className="text-xl sm:text-2xl font-semibold text-heading tracking-[-0.01em] break-words">{holiday.name}</h3>
 
                             <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <Row icon={<Tag size={14} />} label="Category" value={meta.label} />
@@ -79,7 +79,7 @@ export default function DayView({
                                 </div>
                             )}
 
-                            <div className="mt-5 flex items-center gap-2">
+                            <div className="mt-5 flex flex-wrap items-center gap-2">
                                 <button
                                     type="button"
                                     onClick={() => onEdit(holiday.date)}

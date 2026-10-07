@@ -48,7 +48,7 @@ export function TabCardHeader({
                     {subtitle ? <p className="mt-0.5 text-xs text-subtle">{subtitle}</p> : null}
                 </div>
             </div>
-            {actions ? <div className="flex items-center gap-2 flex-shrink-0 [&>button]:h-8 [&>button]:px-3 [&>button]:text-xs">{actions}</div> : null}
+            {actions ? <div className="flex flex-wrap items-center gap-2 flex-shrink-0 max-sm:shrink max-sm:min-w-0 [&>button]:h-8 [&>button]:px-3 [&>button]:text-xs">{actions}</div> : null}
         </div>
     )
 }
@@ -126,7 +126,7 @@ export function RowIconButton({
             aria-label={label}
             disabled={disabled}
             onClick={onClick}
-            className={`inline-flex h-7 w-7 items-center justify-center rounded-chip transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 disabled:cursor-not-allowed disabled:opacity-40 ${
+            className={`inline-flex h-8 w-8 lg:h-7 lg:w-7 items-center justify-center rounded-chip transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 disabled:cursor-not-allowed disabled:opacity-40 ${
                 danger
                     ? 'text-subtle hover:bg-danger-50 hover:text-danger-700'
                     : 'text-subtle hover:bg-ink-100 hover:text-heading'

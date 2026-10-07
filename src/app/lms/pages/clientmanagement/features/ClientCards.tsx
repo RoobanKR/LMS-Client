@@ -205,7 +205,7 @@ function ClientCard({
                             {primary.isPrimary && <span className="text-2xs text-success-700 font-medium flex-shrink-0">Primary</span>}
                         </p>
                         <div className="mt-1 flex items-center gap-3 flex-wrap text-xs text-subtle">
-                            <span className="inline-flex items-center gap-1.5 min-w-0"><Mail size={12} className="text-faint flex-shrink-0" /><span className="truncate">{primary.email || '—'}</span></span>
+                            <span className="inline-flex max-w-full items-center gap-1.5 min-w-0"><Mail size={12} className="text-faint flex-shrink-0" /><span className="truncate">{primary.email || '—'}</span></span>
                             <span className="inline-flex items-center gap-1.5"><Phone size={12} className="text-faint flex-shrink-0" />{primary.phoneNumber || '—'}</span>
                         </div>
                     </>

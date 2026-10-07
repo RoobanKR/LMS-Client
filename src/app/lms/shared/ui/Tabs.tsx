@@ -57,7 +57,11 @@ export function TabsList({ className, children, ...props }: TabsListProps) {
   return (
     <TabsListContext.Provider value={layoutId}>
       <TabsPrimitive.List
-        className={cn("flex items-center border-b border-hairline", className)}
+        // Below lg a long tab row scrolls sideways (scrollbar hidden) instead
+        // of squashing or overflowing the page; lg+ is the plain flex row.
+        // pb-px: the clipped Y axis would otherwise cut the active
+        // indicator (-bottom-px) to 1px.
+        className={cn("flex items-center border-b border-hairline max-lg:overflow-x-auto max-lg:overflow-y-hidden max-lg:pb-px max-lg:[scrollbar-width:none] max-lg:[&::-webkit-scrollbar]:hidden", className)}
         {...props}
       >
         {children}
@@ -85,7 +89,7 @@ export function TabsTrigger({
     <TabsPrimitive.Trigger
       value={value}
       className={cn(
-        "relative mr-5 h-10 px-1 text-sm font-medium text-subtle transition-colors hover:text-body focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/15 data-[state=active]:text-heading disabled:pointer-events-none disabled:opacity-50",
+        "relative mr-5 h-10 px-1 max-lg:shrink-0 max-lg:whitespace-nowrap text-sm font-medium text-subtle transition-colors hover:text-body focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/15 data-[state=active]:text-heading disabled:pointer-events-none disabled:opacity-50",
         className
       )}
       {...props}

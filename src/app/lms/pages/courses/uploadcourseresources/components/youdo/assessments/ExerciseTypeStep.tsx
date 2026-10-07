@@ -84,7 +84,7 @@ export const ExerciseTypeStep: React.FC<ExerciseTypeStepProps> = ({
           Select Exercise Type
         </h3>
       </div>
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {types.map((t) => {
           const sel = formData.exerciseType === t.value;
           return (

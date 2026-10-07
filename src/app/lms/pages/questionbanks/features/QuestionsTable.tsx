@@ -83,7 +83,7 @@ function RowActions({ q, onPreview, onEdit, onDelete, onToggleStatus, canView, c
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button type="button" aria-label="Question actions" className="inline-flex size-7 items-center justify-center rounded-chip text-subtle transition-colors duration-150 hover:bg-ink-100 hover:text-heading focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 data-[state=open]:bg-ink-100 data-[state=open]:text-heading">
+        <button type="button" aria-label="Question actions" className="inline-flex size-8 lg:size-7 items-center justify-center rounded-chip text-subtle transition-colors duration-150 hover:bg-ink-100 hover:text-heading focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 data-[state=open]:bg-ink-100 data-[state=open]:text-heading">
           <MoreVertical size={14} />
         </button>
       </DropdownMenuTrigger>
@@ -154,8 +154,8 @@ export default function QuestionsTable({
 
           overflow-x stays clipped: table-layout is fixed at 100 % width, so
           there is nothing to scroll sideways to. */}
-      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
-        <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto lg:overflow-x-hidden">
+        <table className="w-full min-w-[680px] border-collapse lg:min-w-0" style={{ tableLayout: 'fixed' }}>
           <thead className="sticky top-0 z-sticky">
             <tr>
               <th className={`${HEAD_CELL} ${COL.check}`}>

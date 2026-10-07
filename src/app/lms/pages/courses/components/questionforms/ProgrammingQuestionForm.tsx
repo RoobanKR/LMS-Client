@@ -2958,7 +2958,7 @@ const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean
       {validationToast.length > 0 && (
         <div style={{
           position: 'fixed', top: 20, right: 24, zIndex: 9999,
-          minWidth: 260, maxWidth: 340,
+          minWidth: 'min(260px, calc(100vw - 48px))', maxWidth: 'min(340px, calc(100vw - 48px))',
           display: 'flex', alignItems: 'flex-start', gap: 10,
           background: '#fff',
           border: '1.5px solid var(--lms-danger-bdr)',
@@ -3022,7 +3022,7 @@ const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean
 
         {/* ── HEADER ── */}
       <div className={authorStyles.header} style={{ background: 'var(--lms-bg-white)', borderBottom: '1.5px solid var(--lms-border)', padding: '10px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-  <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
+  <div className="max-sm:flex-wrap max-sm:!gap-2" style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
     {/* Logo mark + graduation-cap icon removed 2026-08-30 per user request —
         the breadcrumb now owns the entire left side of the header. */}
 
@@ -3681,7 +3681,7 @@ const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean
               <label className="prog-label" style={{ margin: 0 }}>
                 Sample Input &amp; Output <span style={{ fontWeight: 400, color: 'var(--lms-text-hint)', textTransform: 'none', letterSpacing: 0, fontSize: 11 }}>(Optional · shown to students, not used for evaluation)</span>
               </label>
-              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 10 }}>
+              <div className="max-sm:!grid-cols-1" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 10 }}>
                 {([
                   { key: 'in', label: 'Sample Input', value: sampleInputText, set: setSampleInputText, ph: 'e.g.\n5\n1 2 3 4 5' },
                   { key: 'out', label: 'Sample Output', value: sampleOutputText, set: setSampleOutputText, ph: 'e.g.\n15' },
@@ -3934,14 +3934,14 @@ const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean
                 {tcs.map((tc, i) => {
                   const rowStyle: React.CSSProperties = { border: '1.5px solid var(--lms-border)', borderRadius: 'var(--lms-radius-md)', padding: 12, background: i === 0 ? 'var(--lms-bg-white)' : 'var(--lms-bg-surface)', transition: 'all 0.15s' };
                   const headerRow = (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <div className="max-sm:flex-wrap max-sm:gap-2" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: i === 0 ? 'var(--lms-orange-100)' : 'var(--lms-bg-surface2)', color: i === 0 ? '#c85a30' : 'var(--lms-text-sec)' }}>
                           Test Case {i + 1}{i === 0 ? ' · Sample' : ''}
                         </span>
                         {tc.isHidden && <span style={{ fontFamily: 'var(--lms-font)', fontSize: 10, padding: '2px 8px', borderRadius: 20, background: 'var(--lms-bg-surface2)', color: 'var(--lms-text-muted)' }}>Hidden</span>}
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div className="max-sm:flex-wrap" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                         {i > 0 && (
                           <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'var(--lms-font)', fontSize: 11, color: 'var(--lms-text-sec)', cursor: 'pointer', userSelect: 'none' }}>
                             <input type="checkbox" checked={tc.isSample} onChange={e => updTC(tc.id, 'isSample', e.target.checked)} disabled={isFormDisabled} style={{ width: 12, height: 12, accentColor: 'var(--lms-orange)' }} />Sample
@@ -3973,7 +3973,7 @@ const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean
                             </div>
                           )}
                           {functionContract.params.map(p => (
-                            <div key={p.id} style={{ display: 'grid', gridTemplateColumns: '170px 1fr', gap: 8, alignItems: 'center' }}>
+                            <div key={p.id} className="max-sm:!grid-cols-1 max-sm:!gap-1" style={{ display: 'grid', gridTemplateColumns: '170px 1fr', gap: 8, alignItems: 'center' }}>
                               <div>
                                 <div style={{ fontWeight: 700, fontSize: 12, color: '#0F172A' }}>{p.name}</div>
                                 <div style={{ fontFamily: 'ui-monospace,monospace', fontSize: 11, color: '#64748B' }}>{p.type}</div>
@@ -3991,7 +3991,7 @@ const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean
                               />
                             </div>
                           ))}
-                          <div style={{ display: 'grid', gridTemplateColumns: '170px 1fr', gap: 8, alignItems: 'center' }}>
+                          <div className="max-sm:!grid-cols-1 max-sm:!gap-1" style={{ display: 'grid', gridTemplateColumns: '170px 1fr', gap: 8, alignItems: 'center' }}>
                             <div>
                               <div style={{ fontWeight: 700, fontSize: 12, color: '#0F172A' }}>Expected Return</div>
                               <div style={{ fontFamily: 'ui-monospace,monospace', fontSize: 11, color: '#64748B' }}>{functionContract.returnType}</div>
@@ -4019,7 +4019,7 @@ const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean
                   return (
                     <div key={tc.id} style={rowStyle} className="group">
                       {headerRow}
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                      <div className="max-sm:!grid-cols-1" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                         <div>
                           <label className="prog-label" style={{ margin: 0, marginBottom: 4, display: 'block' }}>Input (Click Enter to give multiple inputs)</label>
                           <TA value={tc.input} onChange={v => updTC(tc.id, 'input', v)} placeholder="stdin…" rows={3} mono disabled={isFormDisabled} />
@@ -4172,7 +4172,7 @@ const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean
             <div
               style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
               onClick={e => { if (e.target === e.currentTarget) setShowDetailsModal(false); }}>
-              <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 360, maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 360, maxWidth: 'calc(100vw - 32px)', maxHeight: '80dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
                 {/* Header */}
                 <div style={{ padding: '13px 16px', borderBottom: '1.5px solid var(--lms-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--lms-bg-surface)', flexShrink: 0 }}>
@@ -4251,7 +4251,7 @@ const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean
               <div
                 style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
                 onClick={e => { if (e.target === e.currentTarget) setShowOverviewModal(false); }}>
-                <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 400, maxHeight: '86vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 400, maxWidth: 'calc(100vw - 32px)', maxHeight: '86dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
                   {/* Header */}
                   <div style={{ padding: '13px 16px', borderBottom: '1.5px solid var(--lms-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--lms-info-bg)', flexShrink: 0 }}>
@@ -4476,7 +4476,7 @@ const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean
           {showSectionModal && sectionData && (
             <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
               onClick={e => { if (e.target === e.currentTarget) setShowSectionModal(false); }}>
-              <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 420, maxHeight: '86vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 420, maxWidth: 'calc(100vw - 32px)', maxHeight: '86dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                 <div style={{ padding: '13px 16px', borderBottom: '1.5px solid var(--lms-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--lms-violet-bg)', flexShrink: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                     <Layers size={14} style={{ color: 'var(--lms-violet)' }} />

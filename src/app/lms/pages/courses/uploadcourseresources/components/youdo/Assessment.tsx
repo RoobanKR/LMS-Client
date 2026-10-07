@@ -421,7 +421,7 @@ const DeleteConfirmModal: React.FC<{
 
   return (
     <div className="fixed inset-0 flex items-center justify-center z-[1000]" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}>
-      <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden" style={{ boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
+      <div className="bg-white rounded-2xl w-full max-w-md mx-4 overflow-hidden" style={{ boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
         <div className="flex items-center justify-between p-4 border-b" style={{ borderColor: T.border }}>
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: T.redLight }}>
@@ -536,6 +536,7 @@ const PortalDropMenu: React.FC<{
         boxShadow: "0 8px 32px rgba(26,26,46,0.14)",
         padding: 4,
         width: 288,
+        maxWidth: "calc(100vw - 16px)",
         animation: "asmFadeIn 0.12s cubic-bezier(0.16,1,0.3,1) both",
       }}
     >
@@ -2090,7 +2091,7 @@ export default function Assessment({
       {/* Rejection message viewer — shown when the trainer clicks "See rejection". */}
       {rejectionViewer && (
         <div className="fixed inset-0 flex items-center justify-center z-[1000]" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}>
-          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden" style={{ boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
+          <div className="bg-white rounded-2xl w-full max-w-md mx-4 overflow-hidden" style={{ boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
             <div className="flex items-center justify-between p-4 border-b" style={{ borderColor: T.border }}>
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: T.redLight }}>

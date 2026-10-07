@@ -30,7 +30,7 @@ export default function QuestionHeader({
   const Expand = expanded ? Minimize2 : Maximize2;
 
   return (
-    <div className="flex min-h-[36px] flex-none items-center gap-3">
+    <div className="flex min-h-[36px] flex-none flex-wrap items-center gap-3 gap-y-2 sm:flex-nowrap">
       <Diamond className="h-[16px] w-[16px] shrink-0 text-[#53658C]" strokeWidth={1.8} />
 
       <h1

@@ -33,7 +33,7 @@ export default function WeekView({
 
     return (
         <div className="h-full flex flex-col bg-surface">
-            <div className="grid grid-cols-7 flex-1 min-h-0">
+            <div className="grid grid-cols-1 md:grid-cols-7 flex-1 min-h-0 overflow-y-auto md:overflow-visible">
                 {days.map((d, i) => {
                     const iso = isoDate(d)
                     const holiday = holidayMap.get(iso)
@@ -43,12 +43,12 @@ export default function WeekView({
                         <div
                             key={iso}
                             onClick={() => { if (!holiday) onDateClick(iso) }}
-                            className={`group flex flex-col min-h-0 cursor-pointer transition-colors duration-150 ${i > 0 ? 'border-l border-hairline' : ''} ${
+                            className={`group flex flex-row md:flex-col min-h-0 cursor-pointer transition-colors duration-150 ${i > 0 ? 'border-t md:border-t-0 md:border-l border-hairline' : ''} ${
                                 isToday ? 'bg-brand-wash/40' : isWeekend ? 'bg-canvas/40 hover:bg-row-hover' : 'hover:bg-row-hover'
                             }`}
                         >
                             {/* Column header */}
-                            <div className={`shrink-0 flex flex-col items-center gap-1 px-2 py-3 border-b border-hairline ${isToday ? 'bg-brand-wash/60' : ''}`}>
+                            <div className={`shrink-0 flex flex-col items-center justify-center md:justify-start gap-1 px-2 py-3 w-16 md:w-auto border-r md:border-r-0 md:border-b border-hairline ${isToday ? 'bg-brand-wash/60' : ''}`}>
                                 <span className={`text-2xs font-semibold uppercase tracking-wider ${isToday ? 'text-brand-strong' : isWeekend ? 'text-danger-500/70' : 'text-faint'}`}>{WD[i]}</span>
                                 <span className={`inline-flex h-8 min-w-8 items-center justify-center rounded-full text-sm font-bold transition-colors
                                     ${isToday ? 'bg-brand-strong text-white' : isWeekend ? 'text-danger-500' : 'text-heading'}`}>
@@ -57,11 +57,11 @@ export default function WeekView({
                             </div>
 
                             {/* Column body */}
-                            <div className="flex-1 min-h-0 overflow-y-auto p-2 custom-scrollbar">
+                            <div className="flex-1 min-w-0 min-h-0 overflow-y-auto p-2 custom-scrollbar">
                                 {holiday ? (
                                     <EventBlock holiday={holiday} size="md" onOpen={onEventOpen} />
                                 ) : (
-                                    <div className="h-full min-h-[100px] rounded-tile border border-dashed border-hairline flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                                    <div className="h-full min-h-[48px] md:min-h-[100px] rounded-tile border border-dashed border-hairline flex items-center justify-center opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity duration-150">
                                         <span className="inline-flex items-center gap-1 text-2xs font-semibold text-brand-strong">
                                             <Plus size={12} strokeWidth={2.6} /> Add
                                         </span>

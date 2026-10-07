@@ -63,11 +63,16 @@ function DialogContent({
           dialog's own max-w and everything spills out the right edge — clipped
           away entirely when the dialog sets overflow-hidden. Pinning the single
           column to a 0 minimum keeps the track at the dialog's width and lets
-          truncation do its job. */}
+          truncation do its job.
+          Below lg (phones/tablets only — desktop is untouched): the width
+          keeps a 1rem gutter each side even when a caller's own max-w-* has
+          replaced the base cap, and the dialog is capped to the visible
+          (dynamic) viewport height with its own scroll, so a tall form never
+          runs under the browser chrome with no way to reach its buttons. */}
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          "bg-surface data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-modal grid grid-cols-[minmax(0,1fr)] w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-xl border border-hairline p-6 shadow-xl duration-200",
+          "bg-surface data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-modal grid grid-cols-[minmax(0,1fr)] w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-xl border border-hairline p-6 shadow-xl duration-200 max-lg:w-[calc(100%-2rem)] max-lg:max-h-[calc(100dvh-2rem)] max-lg:overflow-y-auto",
           className
         )}
         {...props}

@@ -218,12 +218,12 @@ export function ClientServicesTable({
         <div
             className={
                 fillHeight
-                    ? 'flex-1 min-h-[220px] overflow-x-hidden overflow-y-auto'
-                    : 'min-h-[220px] overflow-x-hidden overflow-y-auto'
+                    ? 'flex-1 min-h-[220px] overflow-x-auto overflow-y-auto lg:overflow-x-hidden'
+                    : 'min-h-[220px] overflow-x-auto overflow-y-auto lg:overflow-x-hidden'
             }
             style={fillHeight ? undefined : { maxHeight }}
         >
-            <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
+            <table className="w-full min-w-[720px] border-collapse lg:min-w-0" style={{ tableLayout: 'fixed' }}>
                 <thead className="sticky top-0 z-10">
                     <tr>
                         {COLS.map((c) => (

@@ -146,13 +146,13 @@ export default function CodeWorkspace({
                     row so the trainer sees the file name and the two actions
                     on a single horizontal line. */}
                 <div className="flex h-[34px] flex-none items-stretch justify-between border-b border-[#E7EEF8] bg-[#F8FAFE] pr-2">
-                  <span className="relative flex items-center gap-1.5 border-r border-[#E7EEF8] bg-white px-3 text-[12.5px] font-medium text-[#0B1437]">
+                  <span className="relative flex min-w-0 items-center gap-1.5 border-r border-[#E7EEF8] bg-white px-2 text-[12.5px] font-medium text-[#0B1437] sm:px-3">
                     <span
                       className="absolute inset-x-0 top-0 h-[2px] bg-[#0667F9]"
                       aria-hidden
                     />
                     <LanguageMark language={activeFile.language} size={14} />
-                    <span className="max-w-[240px] truncate" title={activeFile.path}>
+                    <span className="min-w-0 max-w-[240px] truncate" title={activeFile.path}>
                       {activeFile.name}
                     </span>
                   </span>
@@ -160,12 +160,12 @@ export default function CodeWorkspace({
                   {/* Right-aligned action pair — same green Play + outlined
                       Reset the toolbar carried, just moved inline. Handlers,
                       disabled state, and running spinner are unchanged. */}
-                  <div className="flex items-center gap-2 self-center">
+                  <div className="flex shrink-0 items-center gap-1.5 self-center pl-1.5 sm:gap-2 sm:pl-0">
                     <button
                       type="button"
                       onClick={onRun}
                       disabled={running || !activeFile?.content.trim()}
-                      className="flex h-[26px] items-center gap-1.5 rounded-[6px] bg-[#09B96D] px-3 text-[12px] font-semibold text-white transition-colors hover:bg-[#059A5A] disabled:cursor-not-allowed disabled:bg-[#9CE0C3]"
+                      className="flex h-[26px] items-center gap-1.5 rounded-[6px] bg-[#09B96D] px-2 sm:px-3 text-[12px] font-semibold text-white transition-colors hover:bg-[#059A5A] disabled:cursor-not-allowed disabled:bg-[#9CE0C3]"
                     >
                       {running ? (
                         <Loader2 className="h-[13px] w-[13px] animate-spin" />
@@ -180,7 +180,7 @@ export default function CodeWorkspace({
                         onClick={onSubmit}
                         disabled={submitting || !activeFile?.content.trim()}
                         title="Run every test case and show the Test Result"
-                        className="flex h-[26px] items-center gap-1.5 rounded-[6px] bg-[#F97316] px-3 text-[12px] font-semibold text-white transition-colors hover:bg-[#EA580C] disabled:cursor-not-allowed disabled:bg-[#FBC59B]"
+                        className="flex h-[26px] items-center gap-1.5 rounded-[6px] bg-[#F97316] px-2 sm:px-3 text-[12px] font-semibold text-white transition-colors hover:bg-[#EA580C] disabled:cursor-not-allowed disabled:bg-[#FBC59B]"
                       >
                         {submitting ? (
                           <Loader2 className="h-[13px] w-[13px] animate-spin" />
@@ -193,7 +193,7 @@ export default function CodeWorkspace({
                     <button
                       type="button"
                       onClick={onReset}
-                      className="flex h-[26px] items-center gap-1.5 rounded-[6px] border border-[#E5E7EB] bg-white px-2.5 text-[12px] font-medium text-[#39496B] transition-colors hover:border-[#B9CDEA] hover:bg-[#F7FAFF]"
+                      className="flex h-[26px] items-center gap-1.5 rounded-[6px] border border-[#E5E7EB] bg-white px-2 sm:px-2.5 text-[12px] font-medium text-[#39496B] transition-colors hover:border-[#B9CDEA] hover:bg-[#F7FAFF]"
                     >
                       <RotateCcw className="h-[13px] w-[13px]" />
                       Reset

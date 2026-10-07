@@ -721,7 +721,7 @@ const CodeBlock: React.FC<{
   const textColor = isDark ? '#d4d4d4' : '#1a1a2e';
 
   return (
-    <div className="relative my-2 group/code" style={{
+    <div className="relative my-2 group/code max-lg:!max-w-full" style={{
       borderRadius: 8, border: `1.5px solid ${isDark ? '#3a3a3a' : '#e2e2e2'}`,
       background: bg, overflow: 'visible', display: 'inline-block',
       width: liveWidth ? `${liveWidth}px` : 'fit-content', minWidth: 200,
@@ -1058,7 +1058,7 @@ const PreviewModal: React.FC<{
       {sidebarTab === 'details' && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
           onClick={e => { if (e.target === e.currentTarget) setSidebarTab(null); }}>
-          <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 360, maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 360, maxWidth: 'calc(100vw - 32px)', maxHeight: '80dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div style={{ padding: '13px 16px', borderBottom: '1.5px solid var(--lms-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--lms-bg-surface)', flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><FileText size={14} style={{ color: 'var(--lms-text-sec)' }} /><span style={{ fontFamily: 'var(--lms-font)', fontSize: 13, fontWeight: 700, color: 'var(--lms-text-main)' }}>Exercise Details</span></div>
               <button type="button" onClick={() => setSidebarTab(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--lms-text-muted)', display: 'flex', padding: 4, borderRadius: 6 }}><X size={15} /></button>
@@ -1098,7 +1098,7 @@ const PreviewModal: React.FC<{
       {sidebarTab === 'overview' && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
           onClick={e => { if (e.target === e.currentTarget) setSidebarTab(null); }}>
-          <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 400, maxHeight: '86vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 400, maxWidth: 'calc(100vw - 32px)', maxHeight: '86dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div style={{ padding: '13px 16px', borderBottom: '1.5px solid var(--lms-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--lms-info-bg)', flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><BarChart3 size={14} style={{ color: 'var(--lms-info)' }} /><span style={{ fontFamily: 'var(--lms-font)', fontSize: 13, fontWeight: 700, color: 'var(--lms-text-main)' }}>Exercise Overview</span></div>
               <button type="button" onClick={() => setSidebarTab(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--lms-text-muted)', display: 'flex', padding: 4, borderRadius: 6 }}><X size={15} /></button>
@@ -1130,16 +1130,16 @@ const PreviewModal: React.FC<{
 
       {/* Main Preview Modal */}
       <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,26,46,0.5)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 150, padding: 12 }}>
-        <div style={{ width: '96vw', maxWidth: 1400, height: '96vh', display: 'flex', flexDirection: 'column', background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', border: '1.5px solid var(--lms-border)', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
+        <div style={{ width: '96vw', maxWidth: 1400, height: '96dvh', display: 'flex', flexDirection: 'column', background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', border: '1.5px solid var(--lms-border)', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
 
           {/* Header */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 20px', borderBottom: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', flexShrink: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
+          <div className="max-sm:!px-3 max-sm:!flex-wrap max-sm:gap-2" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 20px', borderBottom: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', flexShrink: 0 }}>
+            <div className="max-sm:flex-wrap max-sm:!gap-2" style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
               <div style={{ width: 34, height: 34, borderRadius: 9, background: 'var(--lms-violet)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Eye size={16} style={{ color: 'white' }} /></div>
               <div style={{ width: 1, height: 20, background: 'var(--lms-border)', flexShrink: 0 }} />
               <Breadcrumb hierarchyData={hierarchyData} tabType={tabType} subcategory={subcategory} subcategoryLabel={subcategoryLabel} exerciseName={exerciseName} actionLabel="Preview" questionLabel={questionLabel} />
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 16 }}>
+            <div className="max-sm:!ml-0 max-sm:flex-wrap" style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 16 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 20, background: 'var(--lms-bg-surface)', border: '1.5px solid var(--lms-border)' }}>
                 <Hash size={11} style={{ color: 'var(--lms-text-hint)' }} />
                 <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, fontWeight: 700, color: 'var(--lms-text-main)' }}>
@@ -1176,10 +1176,10 @@ const PreviewModal: React.FC<{
             {filterDiff !== 'all' && (<span style={{ ...DS[filterDiff]?.pill, fontSize: 10, fontWeight: 700, padding: '1px 8px', borderRadius: 20, textTransform: 'capitalize', marginLeft: 4 }}>Filtered: {filterDiff}</span>)}
           </div>
 
-          <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          <div className="max-lg:!flex-col max-lg:!overflow-y-auto" style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
 
             {/* Questions list */}
-            <div className="lms-sidebar-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div className="lms-sidebar-scroll max-lg:!flex-none max-lg:!overflow-visible max-sm:!px-3" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
               {filteredSavedQuestions.length === 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--lms-text-hint)', gap: 12, paddingTop: 60 }}>
                   <Eye size={40} style={{ opacity: 0.15 }} />
@@ -1285,7 +1285,7 @@ const PreviewModal: React.FC<{
             </div>
 
             {/* Right Sidebar - same as programming form */}
-            <div style={{ width: 280, flexShrink: 0, borderLeft: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+            <div className="max-lg:!w-full max-lg:!h-auto max-lg:!overflow-visible max-lg:!border-l-0 max-lg:border-t-[1.5px] max-lg:border-[color:var(--lms-border)]" style={{ width: 280, flexShrink: 0, borderLeft: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
 
               {/* Two action buttons */}
               <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: 8, borderBottom: '1.5px solid var(--lms-border)', flexShrink: 0, background: 'var(--lms-bg-surface)' }}>
@@ -1559,9 +1559,9 @@ const SqlMockModal: React.FC<{
       <div style={{ flexShrink: 0, height: 44, borderBottom: '1px solid #e5e5e5', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', background: '#ffffff' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ width: 26, height: 26, borderRadius: 6, background: 'var(--lms-orange)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Database size={13} style={{ color: 'white' }} /></div>
-          <span style={{ fontSize: 12, fontWeight: 700, color: '#333', fontFamily: 'var(--lms-font)' }}>SQL Mock Preview</span>
+          <span className="max-sm:hidden" style={{ fontSize: 12, fontWeight: 700, color: '#333', fontFamily: 'var(--lms-font)' }}>SQL Mock Preview</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <div className="max-md:flex-1 max-md:min-w-0 max-md:overflow-x-auto max-md:mx-2" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           {questions.map((_, i) => {
             const isActive = i === idx;
             return (
@@ -1579,10 +1579,10 @@ const SqlMockModal: React.FC<{
       </div>
 
       {/* Body */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+      <div className="max-md:!flex-col max-md:!overflow-y-auto" style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         {/* Left: Problem Panel */}
-        <div style={{ width: '42%', flexShrink: 0, borderRight: '1px solid #e5e5e5', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#ffffff' }}>
-          <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto', padding: '24px 20px' }}>
+        <div className="max-md:!w-full max-md:!overflow-visible max-md:!border-r-0 max-md:border-b max-md:border-[#e5e5e5]" style={{ width: '42%', flexShrink: 0, borderRight: '1px solid #e5e5e5', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#ffffff' }}>
+          <div className="lms-sidebar-scroll max-md:!overflow-visible max-sm:!px-4 max-sm:!py-4" style={{ flex: 1, overflowY: 'auto', padding: '24px 20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
               <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, fontWeight: 600, color: '#999' }}>{idx + 1} / {questions.length}</span>
               <span style={{ ...ds.pill, fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, textTransform: 'capitalize' }}>{q?.difficulty}</span>
@@ -1611,7 +1611,7 @@ const SqlMockModal: React.FC<{
         </div>
 
         {/* Right: SQL Editor + Console */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#fefefe' }}>
+        <div className="max-md:!flex-none max-md:h-[85dvh] max-md:min-h-[480px]" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#fefefe' }}>
           <div style={{ padding: '10px 14px', borderBottom: '1px solid #e5e5e5', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#ffffff' }}>
             <span style={{ fontFamily: 'ui-monospace,monospace', fontSize: 11, color: '#999' }}>query.sql</span>
             <button className="dbq-run-btn" onClick={runQuery} disabled={sqlOutput.type === 'running'}>
@@ -2630,7 +2630,7 @@ const remainingMarksIncludingUnsaved = useMemo((): number => {
       {validationToast.length > 0 && (
         <div style={{
           position: 'fixed', top: 20, right: 24, zIndex: 9999,
-          minWidth: 260, maxWidth: 340, display: 'flex', alignItems: 'flex-start', gap: 10,
+          minWidth: 'min(260px, calc(100vw - 48px))', maxWidth: 'min(340px, calc(100vw - 48px))', display: 'flex', alignItems: 'flex-start', gap: 10,
           background: '#fff', border: '1.5px solid var(--lms-danger-bdr)',
           borderLeft: '4px solid var(--lms-danger)', borderRadius: 'var(--lms-radius-md)',
           padding: '12px 14px', boxShadow: '0 8px 24px rgba(0,0,0,0.13)',
@@ -2648,8 +2648,8 @@ const remainingMarksIncludingUnsaved = useMemo((): number => {
       <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', background: 'var(--lms-bg-white)', overflow: 'hidden' }}>
 
         {/* HEADER */}
-        <div style={{ background: 'var(--lms-bg-white)', borderBottom: '1.5px solid var(--lms-border)', padding: '10px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
+        <div className="max-lg:!flex-wrap max-lg:gap-y-2 max-sm:!px-3" style={{ background: 'var(--lms-bg-white)', borderBottom: '1.5px solid var(--lms-border)', padding: '10px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+          <div className="max-sm:flex-wrap max-sm:!gap-2" style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
             <div className="lms-header-logo-mark"><GraduationCap size={16} style={{ color: 'white' }} /></div>
             <div style={{ width: 1, height: 20, background: 'var(--lms-border)', flexShrink: 0 }} />
             <span className="lms-badge" style={{ background: 'var(--lms-info-bg)', color: 'var(--lms-info)', borderColor: 'var(--lms-info-bdr)', fontSize: 10, padding: '3px 8px', flexShrink: 0 }}><Database size={9} /> Database</span>
@@ -2658,7 +2658,7 @@ const remainingMarksIncludingUnsaved = useMemo((): number => {
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexShrink: 0, marginLeft: 12 }}>
+          <div className="max-lg:!gap-3 max-lg:flex-wrap max-lg:justify-end max-sm:!ml-0 max-sm:w-full" style={{ display: 'flex', alignItems: 'center', gap: 24, flexShrink: 0, marginLeft: 12 }}>
             {/* ── Add Question via — Build from Scratch · Question Bank · Generate AI · Upload via Document ── */}
             {!isEditing && (
               <div ref={addDropdownRef} className="relative" onClick={e => e.stopPropagation()}>
@@ -2756,7 +2756,7 @@ const remainingMarksIncludingUnsaved = useMemo((): number => {
 
         {/* DIFFICULTY SELECT BAR */}
         {!isGeneral && getConfiguredDiffs().length > 0 && (
-          <div style={{ background: 'var(--lms-bg-surface)', borderBottom: '1.5px solid var(--lms-border)', padding: '10px 20px', display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0 }}>
+          <div className="max-md:flex-wrap max-md:!gap-2 max-sm:!px-3" style={{ background: 'var(--lms-bg-surface)', borderBottom: '1.5px solid var(--lms-border)', padding: '10px 20px', display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0 }}>
             <span style={{ fontFamily: 'var(--lms-font)', fontSize: 12, fontWeight: 700, color: 'var(--lms-text-sec)', flexShrink: 0 }}>Switch Difficulty:</span>
             <div style={{ position: 'relative', minWidth: 160 }}>
               <select
@@ -2833,10 +2833,10 @@ const remainingMarksIncludingUnsaved = useMemo((): number => {
         )}
 
         {/* BODY */}
-        <div ref={formScrollRef} style={{ display: 'flex', flex: '1 1 0', minHeight: 0, overflow: 'hidden' }}>
+        <div ref={formScrollRef} className="max-lg:!flex-col max-lg:!overflow-y-auto" style={{ display: 'flex', flex: '1 1 0', minHeight: 0, overflow: 'hidden' }}>
 
           {/* MAIN FORM */}
-          <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto', padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 20, background: 'var(--lms-bg-white)' }}>
+          <div className="lms-sidebar-scroll max-lg:!flex-none max-lg:!overflow-visible max-sm:!px-3" style={{ flex: 1, overflowY: 'auto', padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 20, background: 'var(--lms-bg-white)' }}>
 
             {/* Sticky Toolbar */}
             <div ref={stickyToolbarRef} style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--lms-bg-white)', paddingTop: 8, paddingBottom: 8, marginTop: -8 }}>
@@ -3020,7 +3020,7 @@ const remainingMarksIncludingUnsaved = useMemo((): number => {
           </div>
 
    {/* RIGHT SIDEBAR - Exactly matching ProgrammingQuestionForm */}
-<div style={{ width: 280, flexShrink: 0, borderLeft: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+<div className="max-lg:!w-full max-lg:!h-auto max-lg:!overflow-visible max-lg:!border-l-0 max-lg:border-t-[1.5px] max-lg:border-[color:var(--lms-border)]" style={{ width: 280, flexShrink: 0, borderLeft: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
   <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto', padding: '14px 14px' }}>
 
     {/* For Level Based - Current Difficulty Section */}
@@ -3154,16 +3154,16 @@ const remainingMarksIncludingUnsaved = useMemo((): number => {
         </div>
 
         {/* FOOTER */}
-        <div style={{ background: 'var(--lms-bg-white)', borderTop: '1.5px solid var(--lms-border)', padding: '12px 20px', display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+        <div className="max-lg:!flex max-lg:flex-wrap max-lg:justify-center max-sm:!px-3" style={{ background: 'var(--lms-bg-white)', borderTop: '1.5px solid var(--lms-border)', padding: '12px 20px', display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: 12, flexShrink: 0 }}>
 
           {/* Left: saving indicator */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div className="max-lg:empty:!hidden" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {isSaving && (<><Loader2 size={13} style={{ color: 'var(--lms-orange)' }} className="animate-spin" /><span style={{ fontFamily: 'var(--lms-font)', fontSize: 12, color: 'var(--lms-orange)' }}>{saveMessage || 'Saving…'}</span><div style={{ width: 80, height: 4, background: 'var(--lms-bg-surface2)', borderRadius: 2, overflow: 'hidden', marginLeft: 4 }}><div style={{ height: '100%', background: 'var(--lms-orange)', borderRadius: 2, transition: 'width 0.3s', width: `${saveProgress}%` }} /></div></>)}
             {saveOk && !isSaving && (<div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 8, background: 'var(--lms-success-bg)', border: '1.5px solid var(--lms-success-bdr)' }}><Check size={13} style={{ color: 'var(--lms-success)' }} /><span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--lms-success)', fontFamily: 'var(--lms-font)' }}>Saved!</span></div>)}
           </div>
 
           {/* Center: action buttons */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div className="max-lg:flex-wrap max-lg:justify-center" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {currentIndex > 0 && (<button onClick={handlePrevious} disabled={isSaving} className="lms-nav-btn"><ChevronLeft size={13} /> Previous</button>)}
             {currentIndex < dbQuestions.length - 1 && (<button onClick={handleNext} disabled={isSaving} className="lms-nav-btn">Next <ChevronRight size={13} /></button>)}
             <button onClick={handleSave} disabled={isSaving} className="lms-btn lms-btn-slate">{isSaving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}Save</button>
@@ -3180,7 +3180,7 @@ const remainingMarksIncludingUnsaved = useMemo((): number => {
           </div>
 
           {/* Right: Mock + Close */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
+          <div className="max-lg:flex-wrap max-lg:!justify-center" style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
             <button type="button" onClick={() => setShowMockModal(true)} disabled={!isMockEnabled} style={{
               display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 14px', borderRadius: 'var(--lms-radius-md)',
               fontFamily: 'var(--lms-font)', fontSize: 12, fontWeight: 600, cursor: isMockEnabled ? 'pointer' : 'not-allowed',
@@ -3197,7 +3197,7 @@ const remainingMarksIncludingUnsaved = useMemo((): number => {
       {showDetailsModal && exerciseData && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
           onClick={e => { if (e.target === e.currentTarget) setShowDetailsModal(false); }}>
-          <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 360, maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 360, maxWidth: 'calc(100vw - 32px)', maxHeight: '80dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div style={{ padding: '13px 16px', borderBottom: '1.5px solid var(--lms-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--lms-bg-surface)', flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><FileText size={14} style={{ color: 'var(--lms-text-sec)' }} /><span style={{ fontFamily: 'var(--lms-font)', fontSize: 13, fontWeight: 700, color: 'var(--lms-text-main)' }}>Exercise Details</span></div>
               <button type="button" onClick={() => setShowDetailsModal(false)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--lms-text-muted)', display: 'flex', padding: 4, borderRadius: 6 }}><X size={15} /></button>
@@ -3219,7 +3219,7 @@ const remainingMarksIncludingUnsaved = useMemo((): number => {
       {showOverviewModal && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
           onClick={e => { if (e.target === e.currentTarget) setShowOverviewModal(false); }}>
-          <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 400, maxHeight: '86vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 400, maxWidth: 'calc(100vw - 32px)', maxHeight: '86dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div style={{ padding: '13px 16px', borderBottom: '1.5px solid var(--lms-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--lms-info-bg)', flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><BarChart3 size={14} style={{ color: 'var(--lms-info)' }} /><span style={{ fontFamily: 'var(--lms-font)', fontSize: 13, fontWeight: 700, color: 'var(--lms-text-main)' }}>Exercise Overview</span></div>
               <button type="button" onClick={() => setShowOverviewModal(false)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--lms-text-muted)', display: 'flex', padding: 4, borderRadius: 6 }}><X size={15} /></button>
@@ -3279,7 +3279,7 @@ const remainingMarksIncludingUnsaved = useMemo((): number => {
       {showSectionModal && sectionData && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,30,0.45)', backdropFilter: 'blur(2px)' }}
           onClick={e => { if (e.target === e.currentTarget) setShowSectionModal(false); }}>
-          <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 420, maxHeight: '86vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 56px rgba(0,0,0,0.20)', width: 420, maxWidth: 'calc(100vw - 32px)', maxHeight: '86dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div style={{ padding: '13px 16px', borderBottom: '1.5px solid var(--lms-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--lms-violet-bg)', flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><Layers size={14} style={{ color: 'var(--lms-violet)' }} /><span style={{ fontFamily: 'var(--lms-font)', fontSize: 13, fontWeight: 700, color: 'var(--lms-text-main)' }}>Section Details</span></div>
               <button type="button" onClick={() => setShowSectionModal(false)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--lms-text-muted)', display: 'flex', padding: 4, borderRadius: 6 }}><X size={15} /></button>

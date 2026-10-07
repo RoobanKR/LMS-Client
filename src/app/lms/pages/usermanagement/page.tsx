@@ -107,7 +107,7 @@ const SEARCH_FIELD_OPTIONS: { value: SearchField; label: string; placeholder: st
 ];
 
 const BULK_BTN_BASE =
-  "h-7 px-2.5 rounded-full text-xs font-medium disabled:opacity-40 disabled:hover:bg-transparent " +
+  "h-8 sm:h-7 px-2.5 rounded-full text-xs font-medium disabled:opacity-40 disabled:hover:bg-transparent " +
   "disabled:cursor-not-allowed transition-colors duration-150";
 const BULK_BAR_BTN = `${BULK_BTN_BASE} text-white/90 hover:bg-white/10 hover:text-white`;
 const BULK_BAR_BTN_DANGER = `${BULK_BTN_BASE} text-danger-500 hover:bg-danger-500/15`;
@@ -1040,7 +1040,7 @@ export default function UserManagementPage() {
   ];
 
   const pageContent = (
-    <div className="min-h-full h-full flex flex-col">
+    <div className="min-h-full lg:h-full flex flex-col">
       <Toaster position="top-right" richColors closeButton />
       {/* Top-level tabs — same primitives Course Structure / Business
           Management use (`Tabs` / `TabsList` / `TabsTrigger`), so Users /
@@ -1053,7 +1053,7 @@ export default function UserManagementPage() {
         activationMode="manual"
         className="flex h-full min-h-0 min-w-0 flex-col"
       >
-        <div className="no-print shrink-0 flex items-center justify-between gap-3 flex-wrap px-4 sm:px-6 md:px-8 pt-14 md:pt-3">
+        <div className="no-print shrink-0 flex items-center justify-between gap-3 flex-wrap px-4 sm:px-6 md:px-8 pt-3">
           <TabsList aria-label="User management sections" className="gap-1 overflow-x-auto overflow-y-hidden">
             <TabsTrigger
               value="users"
@@ -1514,7 +1514,7 @@ export default function UserManagementPage() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
-            className="pointer-events-none fixed inset-0 z-dropdown flex items-end justify-center p-6"
+            className="pointer-events-none fixed inset-0 z-dropdown flex items-end justify-center p-3 sm:p-6"
           >
             <motion.div
               drag
@@ -1525,13 +1525,13 @@ export default function UserManagementPage() {
               animate={{ scale: 1 }}
               exit={{ scale: 0.96 }}
               transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
-              className="pointer-events-auto flex cursor-move touch-none select-none items-center gap-3 rounded-full bg-ink-900 py-2 pl-4 pr-2 text-white shadow-xl active:cursor-grabbing"
+              className="pointer-events-auto flex max-w-full flex-wrap sm:flex-nowrap cursor-move touch-none select-none items-center justify-center gap-x-3 gap-y-1 rounded-2xl sm:rounded-full bg-ink-900 py-2 pl-4 pr-2 text-white shadow-xl active:cursor-grabbing"
             >
               <span className="text-xs font-semibold whitespace-nowrap tabular-nums">
                 {visibleSelectedIds.length} selected
               </span>
-              <span className="h-4 w-px bg-white/20" />
-              <span className="flex items-center gap-1.5">{renderBulkActions()}</span>
+              <span className="hidden sm:block h-4 w-px bg-white/20" />
+              <span className="flex flex-wrap sm:flex-nowrap items-center justify-center gap-1.5">{renderBulkActions()}</span>
               <button
                 type="button"
                 aria-label="Clear selection"

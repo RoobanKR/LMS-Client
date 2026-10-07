@@ -48,7 +48,7 @@ interface MetricBlockProps {
 
 function MetricBlock({ value, label, icon }: MetricBlockProps) {
   return (
-    <div className="flex min-w-[100px] items-center gap-2 px-3 first:pl-0">
+    <div className="flex w-1/2 items-center gap-2 pr-3 sm:w-auto sm:min-w-[100px] sm:px-3 sm:first:pl-0">
       <div className="flex h-6 w-6 shrink-0 items-center justify-center">{icon}</div>
       <div className="min-w-0">
         <div className="text-[15px] font-bold leading-none tabular-nums text-slate-950">
@@ -512,7 +512,7 @@ export default function AssessmentReportHeader({
 }: AssessmentReportHeaderProps) {
   return (
     <section
-      className="relative h-[158px] overflow-hidden rounded-xl border border-indigo-100 bg-[#f2f1ff]"
+      className="relative min-h-[158px] overflow-hidden rounded-xl border border-indigo-100 bg-[#f2f1ff] lg:h-[158px]"
     >
       <img
         src={imageUrl}
@@ -526,12 +526,12 @@ export default function AssessmentReportHeader({
       <div className="pointer-events-none absolute left-[34%] top-[-18%] h-[190%] w-[26%] rounded-full bg-white/72 blur-[52px]" />
       <div className="pointer-events-none absolute inset-y-0 left-[42%] w-[16%] bg-gradient-to-r from-white/55 to-transparent blur-xl" />
 
-      <div className="relative z-10 flex h-full flex-col justify-between px-5 py-5 lg:w-[61%]">
+      <div className="relative z-10 flex h-full flex-col justify-between gap-4 px-4 py-4 sm:px-5 sm:py-5 lg:w-[61%]">
         <div className="min-w-0">
           <div className="flex items-center  min-w-0">
           <h1
             title={title}
-              className="max-w-full truncate text-[25px] font-bold leading-tight text-slate-950"
+              className="max-w-full truncate text-xl font-bold leading-tight text-slate-950 sm:text-[25px]"
           >
             {title}
           </h1>
@@ -544,7 +544,7 @@ export default function AssessmentReportHeader({
           {/* <p className="mt-1 text-[13px] text-slate-600">Live assessment dashboard</p> */}
         </div>
 
-        <div className="flex max-w-[620px] items-center divide-x divide-indigo-200/80">
+        <div className="flex max-w-[620px] flex-wrap items-center gap-y-3 divide-indigo-200/80 sm:flex-nowrap sm:divide-x">
           <MetricBlock
             value={counts.total}
             label="Total Students"

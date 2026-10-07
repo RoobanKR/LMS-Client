@@ -3216,7 +3216,7 @@ Format with clear headings, bullet points, and proper spacing for easy reading.`
                                                                                         e.stopPropagation();
                                                                                         setSelectedTopics(prev => prev.filter(id => id !== moduleNode.item._id));
                                                                                     }}
-                                                                                    className="w-5 h-5 flex items-center justify-center text-blue-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors opacity-0 group-hover:opacity-100"
+                                                                                    className="w-5 h-5 flex items-center justify-center text-blue-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
                                                                                     title="Remove module"
                                                                                 >
                                                                                     <X className="w-2.5 h-2.5" />
@@ -3259,7 +3259,7 @@ Format with clear headings, bullet points, and proper spacing for easy reading.`
                                                                                                     e.stopPropagation();
                                                                                                     setSelectedTopics(prev => prev.filter(id => id !== childNode.item._id));
                                                                                                 }}
-                                                                                                className="w-4 h-4 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors opacity-0 group-hover/child:opacity-100"
+                                                                                                className="w-4 h-4 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors opacity-100 lg:opacity-0 lg:group-hover/child:opacity-100"
                                                                                                 title={`Remove ${childNode.type}`}
                                                                                             >
                                                                                                 <X className="w-2 h-2" />
@@ -3290,7 +3290,7 @@ Format with clear headings, bullet points, and proper spacing for easy reading.`
                                                                                                                     e.stopPropagation();
                                                                                                                     setSelectedTopics(prev => prev.filter(id => id !== subTopicNode.item._id));
                                                                                                                 }}
-                                                                                                                className="w-3.5 h-3.5 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors opacity-0 group-hover/subtopic:opacity-100"
+                                                                                                                className="w-3.5 h-3.5 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors opacity-100 lg:opacity-0 lg:group-hover/subtopic:opacity-100"
                                                                                                                 title="Remove sub-topic"
                                                                                                             >
                                                                                                                 <X className="w-1.5 h-1.5" />

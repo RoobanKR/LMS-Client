@@ -81,7 +81,7 @@ export default function PermissionsPage() {
       </div>
 
       {institutionId && roleId && (
-        <Panel className="p-5">
+        <Panel className="p-4 sm:p-5">
           {isLoading ? (
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {Array.from({ length: 9 }).map((_, i) => <Skeleton key={i} className="h-14 rounded-lg" />)}
@@ -89,8 +89,8 @@ export default function PermissionsPage() {
           ) : (
             <>
               {permData && (
-                <div className="mb-4 flex items-center gap-2 rounded-lg border border-border bg-muted/50 px-4 py-2.5 text-sm text-muted-foreground">
-                  <Users className="h-4 w-4" />
+                <div className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-border bg-muted/50 px-3 py-2.5 text-sm text-muted-foreground sm:px-4">
+                  <Users className="h-4 w-4 shrink-0" />
                   Saving applies to <span className="font-semibold text-foreground">{permData.affectedUserCount}</span> existing user(s) with this role.
                 </div>
               )}
@@ -99,23 +99,23 @@ export default function PermissionsPage() {
                 {draft.map((mod) => (
                   <div
                     key={mod.permissionKey}
-                    className={`flex items-center justify-between rounded-lg border px-3.5 py-3 transition-colors ${
+                    className={`flex items-center justify-between gap-3 rounded-lg border px-3.5 py-3 transition-colors ${
                       mod.isActive ? 'border-primary/30 bg-primary/5' : 'border-border bg-card'
                     }`}
                   >
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className={`flex h-7 w-7 items-center justify-center rounded-md ${mod.isActive ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground'}`}>
+                    <div className="flex min-w-0 items-center gap-2 text-sm">
+                      <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${mod.isActive ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground'}`}>
                         <KeyRound className="h-3.5 w-3.5" />
                       </span>
-                      <span className="font-medium text-foreground">{mod.permissionName}</span>
-                      {mod.locked && <Lock className="h-3 w-3 text-muted-foreground" />}
+                      <span className="min-w-0 break-words font-medium text-foreground">{mod.permissionName}</span>
+                      {mod.locked && <Lock className="h-3 w-3 shrink-0 text-muted-foreground" />}
                     </div>
-                    <Switch checked={mod.isActive} disabled={mod.locked} onCheckedChange={() => toggleModule(mod.permissionKey)} />
+                    <Switch className="shrink-0" checked={mod.isActive} disabled={mod.locked} onCheckedChange={() => toggleModule(mod.permissionKey)} />
                   </div>
                 ))}
               </div>
 
-              <div className="mt-5 flex items-center gap-3">
+              <div className="mt-5 flex flex-wrap items-center gap-3">
                 <Button onClick={handleSave} disabled={saveMutation.isPending}>
                   {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                   {saveMutation.isPending ? 'Saving...' : 'Save Permissions'}

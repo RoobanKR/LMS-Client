@@ -257,6 +257,11 @@ export default function MultiFileCodeEditor({
   // VS Code-like Activity Bar: which side view is open. `null` collapses the
   // side panel entirely (only the icon rail stays visible).
   const [sideView, setSideView] = useState<"explorer" | "search" | null>("explorer")
+  // Phones / tablets (< lg): the explorer is an overlay drawer there, so start
+  // it collapsed (one tap on the activity bar opens it). Desktop keeps it open.
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches) setSideView(null)
+  }, [])
   const [isFull, setIsFull] = useState(false)
   const [showQDrawer, setShowQDrawer] = useState(false)
 
@@ -2340,7 +2345,7 @@ export default function MultiFileCodeEditor({
         const total = questions.length || 1
         const cur   = Math.min(currentQuestionIndex + 1, total)
         return (
-          <div style={{
+          <div className="max-lg:flex-wrap max-lg:gap-y-2 max-sm:px-3!" style={{
             flexShrink: 0,
             background: "#FFFFFF",
             borderBottom: "1px solid #E4E7EC",
@@ -2354,8 +2359,8 @@ export default function MultiFileCodeEditor({
                 Paginator moved to the LEFT end of the toolbar per the
                 user; sits right after the sidebar toggle so the reading
                 flow is "sidebar / current question / actions". */}
-            <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-              <span aria-hidden="true" style={{
+            <div className="max-sm:flex-wrap max-sm:gap-y-2" style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+              <span aria-hidden="true" className="max-sm:hidden!" style={{
                 width: 36, height: 36, borderRadius: 8, flexShrink: 0,
                 display: "inline-flex", alignItems: "center", justifyContent: "center",
                 background: "#0F9D94", color: "#fff",
@@ -2387,6 +2392,7 @@ export default function MultiFileCodeEditor({
                   onClick={() => setCurrentQuestionIndex(i => Math.max(0, i - 1))}
                   disabled={currentQuestionIndex <= 0}
                   aria-label="Previous question"
+                  className="max-sm:min-w-0! max-sm:px-2.5!"
                   style={{
                     display: "inline-flex", alignItems: "center", gap: 5,
                     minWidth: 100, height: 32, padding: "0 16px", borderRadius: 8,
@@ -2412,6 +2418,7 @@ export default function MultiFileCodeEditor({
                   onClick={() => setCurrentQuestionIndex(i => Math.min(total - 1, i + 1))}
                   disabled={currentQuestionIndex >= total - 1}
                   aria-label="Next question"
+                  className="max-sm:min-w-0! max-sm:px-2.5!"
                   style={{
                     display: "inline-flex", alignItems: "center", gap: 5,
                     minWidth: 100, height: 32, padding: "0 16px", borderRadius: 8,
@@ -2431,7 +2438,7 @@ export default function MultiFileCodeEditor({
             {exam?.headerSlot}
 
             {/* Right — primary actions moved up from the editor toolbar. */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8, justifySelf: "end" }}>
+            <div className="max-lg:flex-wrap max-lg:ml-auto" style={{ display: "flex", alignItems: "center", gap: 8, justifySelf: "end" }}>
               {/* All right-cluster actions matched to the paginator
                   rhythm — h-32, 12px labels, tight padding. Labels
                   simplified per user: "Submit answer" → "Submit" and
@@ -2568,12 +2575,12 @@ export default function MultiFileCodeEditor({
       })()}
 
       {/* MAIN BODY */}
-      <div className="flex flex-1 min-h-0 overflow-hidden">
+      <div className="flex flex-1 min-h-0 overflow-hidden max-lg:relative max-md:flex-col">
         {/* LEFT NAV RAIL — thin column that hosts Problem toggle + the
             utility chips (Score, Exercise info) moved out of the header.
             First in the flex row so it always sits flush-left. */}
         {exercise && !isFull && (
-          <div style={{
+          <div className="max-md:w-full! max-md:flex-row! max-md:py-0! max-md:border-r-0! max-md:border-b max-md:border-[#E4E7EC] max-md:justify-around" style={{
             width: 72, background: "#F7F9FB",
             borderRight: "1px solid #E4E7EC",
             display: "flex", flexDirection: "column", alignItems: "stretch",
@@ -2585,6 +2592,7 @@ export default function MultiFileCodeEditor({
               aria-label="Notes"
               aria-pressed={showNotesPanel}
               title="Notes — private scratchpad for this question"
+              className="max-md:flex-1 max-md:py-1.5!"
               style={{
                 display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
                 padding: "10px 4px", border: "none", background: "transparent", cursor: "pointer",
@@ -2600,6 +2608,7 @@ export default function MultiFileCodeEditor({
               onClick={() => setShowOverviewModal(true)}
               aria-label={(exData?.isGraded !== false) ? "Score" : "Questions"}
               title={(exData?.isGraded !== false) ? "Score" : "Questions"}
+              className="max-md:flex-1 max-md:py-1.5!"
               style={{
                 display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
                 padding: "10px 4px", border: "none", background: "transparent", cursor: "pointer",
@@ -2617,6 +2626,7 @@ export default function MultiFileCodeEditor({
               onClick={() => setShowDetailsModal(true)}
               aria-label="Exercise info"
               title="Exercise info"
+              className="max-md:flex-1 max-md:py-1.5!"
               style={{
                 display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
                 padding: "10px 4px", border: "none", background: "transparent", cursor: "pointer",
@@ -2639,7 +2649,7 @@ export default function MultiFileCodeEditor({
             competes with the code editor for attention. */}
         {showNotesPanel && !isFull && (
           <div
-            className="flex-shrink-0 flex flex-col border-r"
+            className="flex-shrink-0 flex flex-col border-r max-lg:absolute max-lg:inset-y-0 max-lg:left-[72px] max-lg:z-30 max-lg:shadow-2xl max-lg:w-[min(20rem,85vw)]! max-md:left-0 max-md:w-full!"
             style={{ width: 320, background: "#FFFDF7", borderColor: "#E4E7EC" }}
           >
             <div style={{
@@ -2657,6 +2667,7 @@ export default function MultiFileCodeEditor({
                 onClick={() => setShowNotesPanel(false)}
                 aria-label="Close notes"
                 title="Close"
+                className="max-lg:w-9! max-lg:h-9!"
                 style={{
                   display: "inline-flex", alignItems: "center", justifyContent: "center",
                   width: 24, height: 24, borderRadius: 6, border: "none",
@@ -2692,7 +2703,7 @@ export default function MultiFileCodeEditor({
 
         {/* Problems sidebar */}
         {showSidebar && !isFull && (
-          <div className="w-80 border-r overflow-hidden flex flex-col flex-shrink-0" style={{ borderColor: "#e5e7eb", background: "#fff" }}>
+          <div className="w-80 border-r overflow-hidden flex flex-col flex-shrink-0 max-lg:absolute max-lg:inset-y-0 max-lg:left-0 max-lg:z-30 max-lg:w-[min(20rem,85vw)] max-lg:shadow-2xl" style={{ borderColor: "#e5e7eb", background: "#fff" }}>
             <div className="p-3 border-b" style={{ borderColor: "#e5e7eb" }}>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-semibold text-gray-900">Problems ({getFilteredAndSortedQuestions().length}/{questions.length})</h3>
@@ -2739,7 +2750,7 @@ export default function MultiFileCodeEditor({
           if (!(_lq?.isLinkQuestion && _lq?.questionLink)) return null
           const linkUrl: string = _lq.questionLink
           return (
-            <div className="flex-1 flex flex-col items-center justify-center gap-3 p-8 text-center" style={{ background: "#f9fafb" }}>
+            <div className="flex-1 flex flex-col items-center justify-center gap-3 p-8 max-sm:p-5 text-center" style={{ background: "#f9fafb" }}>
               <div className="text-md font-bold text-gray-800">This question opens on {hostOf(linkUrl)}</div>
               <p className="text-xs text-gray-500 max-w-md">
                 Open the problem in a new tab, solve it there, then come back and press <b>Submit answer</b>.
@@ -2768,30 +2779,33 @@ export default function MultiFileCodeEditor({
             </div>
           )
         })()}
-        {!((currentQuestion as any)?.isLinkQuestion && (currentQuestion as any)?.questionLink) && (<>
+        {!((currentQuestion as any)?.isLinkQuestion && (currentQuestion as any)?.questionLink) && (
+        // Phones/tablets: one scroll column (question → workspace); lg+: `contents`
+        // removes this wrapper so the desktop split is untouched.
+        <div className="max-lg:flex max-lg:flex-col max-lg:flex-1 max-lg:min-h-0 max-lg:min-w-0 max-lg:overflow-y-auto lg:contents">
         {/* Question panel */}
         {!isFull && (
           <>
-            <div className="flex flex-col flex-shrink-0 overflow-hidden border-r" style={{ width: questionWidth, background: "#fff", borderColor: "#D9E1EA" }}>
+            <div className="flex flex-col flex-shrink-0 overflow-hidden border-r max-lg:w-full! max-lg:max-h-[40dvh] max-lg:border-r-0 max-lg:border-b" style={{ width: questionWidth, background: "#fff", borderColor: "#D9E1EA" }}>
               {/* Problem details — hamburger + "Question N of M" removed
                   from this row: they already sit in the global header's
                   paginator group, so repeating them here was pure noise.
                   Question content sits flush with the panel edge now. */}
               <div className="flex-1 overflow-y-auto p-4 text-xs leading-relaxed text-gray-800">{questionContent}</div>
             </div>
-            <div onMouseDown={(e) => { resizing.current = { kind: "question", startX: e.clientX, startWidth: questionWidth } }} className="w-1 cursor-col-resize hover:bg-orange-400 flex-shrink-0" style={{ background: "#e5e7eb" }} />
+            <div onMouseDown={(e) => { resizing.current = { kind: "question", startX: e.clientX, startWidth: questionWidth } }} className="w-1 cursor-col-resize hover:bg-orange-400 flex-shrink-0 max-lg:hidden" style={{ background: "#e5e7eb" }} />
           </>
         )}
 
         {/* EDITOR AREA */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden" style={{ background: "#fff" }}>
+        <div className={`flex-1 flex flex-col min-w-0 overflow-hidden ${isFull ? "" : "max-lg:flex-none max-lg:h-[85dvh] max-lg:min-h-[460px]"}`} style={{ background: "#fff" }}>
           {/* Toolbar — active-file crumb + Saved status on the left, then
               language + Visualize (outlined violet) + Run (green) + Submit
               answer (orange primary) on the right. "Submit answer" submits
               only the currently selected question; the whole-exercise
               "Finish exercise" lives in the global header. */}
-          <div className="flex items-center justify-between flex-shrink-0" style={{ background: "#fff", borderBottom: "1px solid #D9E1EA", minHeight: 44, padding: "0 12px" }}>
-            <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center justify-between flex-shrink-0 max-sm:flex-wrap max-sm:gap-2 max-sm:py-1.5!" style={{ background: "#fff", borderBottom: "1px solid #D9E1EA", minHeight: 44, padding: "0 12px" }}>
+            <div className="flex items-center gap-3 min-w-0 max-sm:gap-2">
               {isFull && (
                 <button
                   onClick={() => setShowQDrawer((v) => !v)}
@@ -2802,7 +2816,7 @@ export default function MultiFileCodeEditor({
                 </button>
               )}
               {activeTabFile && (
-                <span title={activeTabFile.path} style={{
+                <span title={activeTabFile.path} className="max-sm:max-w-[45vw]!" style={{
                   display: "inline-flex", alignItems: "center", gap: 6,
                   fontFamily: "ui-monospace, monospace", fontSize: 12.5, fontWeight: 600, color: "#172033",
                   padding: "4px 10px", background: "#F3F6FA", borderRadius: 6, border: "1px solid #E4E7EC",
@@ -2824,7 +2838,7 @@ export default function MultiFileCodeEditor({
                 Saved
               </span>
             </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="flex items-center gap-2 flex-shrink-0 max-sm:ml-auto max-sm:flex-wrap">
               {/* Language picker stays on the editor toolbar because it's
                   scoped to the active file. Run / Visualize / Submit
                   answer moved to the global header (single-toolbar rule);
@@ -2896,7 +2910,7 @@ export default function MultiFileCodeEditor({
           <div className="flex-1 flex min-h-0 relative">
             {/* Full-screen question drawer */}
             {isFull && showQDrawer && (
-              <div className="absolute top-0 left-0 bottom-0 z-20 flex flex-col bg-white shadow-2xl" style={{ width: Math.min(questionWidth, 460), borderRight: "1px solid #e5e7eb" }}>
+              <div className="absolute top-0 left-0 bottom-0 z-20 flex flex-col bg-white shadow-2xl max-sm:w-[90vw]!" style={{ width: Math.min(questionWidth, 460), borderRight: "1px solid #e5e7eb" }}>
                 <div className="px-3 py-2 border-b flex items-center justify-between gap-2" style={{ borderColor: "#e5e7eb" }}>
                   <div className="flex items-center gap-2 min-w-0"><button onClick={() => setShowQDrawer(false)} className="flex items-center justify-center w-6 h-6 rounded hover:bg-gray-100 text-gray-700"><X className="w-4 h-4" /></button><span className="text-xs font-semibold uppercase tracking-wide text-gray-600">Problem</span></div>
                   {questionNav}
@@ -2940,7 +2954,7 @@ export default function MultiFileCodeEditor({
             {/* Side panel — explorer / search / collapsed */}
             {sideView !== null && (
               <>
-                <div className="flex-shrink-0 border-r overflow-hidden" style={{ width: treeWidth, borderColor: "#e5e7eb", background: "#fafafa" }}>
+                <div className="flex-shrink-0 border-r overflow-hidden max-lg:absolute max-lg:inset-y-0 max-lg:left-[44px] max-lg:z-20 max-lg:shadow-xl max-lg:w-[min(260px,75vw)]!" style={{ width: treeWidth, borderColor: "#e5e7eb", background: "#fafafa" }}>
                   {sideView === "explorer" ? (
                     <FileTree
                       files={files} folders={folders} activeFileId={activeFileId} busy={!ready}
@@ -2962,7 +2976,7 @@ export default function MultiFileCodeEditor({
                   aria-orientation="vertical"
                   aria-label="Resize explorer"
                   onMouseDown={(e) => { resizing.current = { kind: "tree", startX: e.clientX, startWidth: treeWidth } }}
-                  className="flex-shrink-0 flex items-center justify-center"
+                  className="flex-shrink-0 flex items-center justify-center max-lg:hidden"
                   style={{
                     width: 6, cursor: "col-resize",
                     background: "#F3F6FA", borderLeft: "1px solid #D9E1EA", borderRight: "1px solid #D9E1EA",
@@ -3008,7 +3022,7 @@ export default function MultiFileCodeEditor({
                     aria-orientation="horizontal"
                     aria-label="Resize bottom panel"
                     onMouseDown={(e) => { resizing.current = { kind: "bottom", startY: e.clientY, startHeight: bottomPanelHeight } }}
-                    className="flex-shrink-0 flex items-center justify-center"
+                    className="flex-shrink-0 flex items-center justify-center max-lg:hidden"
                     style={{
                       height: 6, cursor: "row-resize",
                       background: "#F3F6FA", borderTop: "1px solid #D9E1EA", borderBottom: "1px solid #D9E1EA",
@@ -3025,7 +3039,7 @@ export default function MultiFileCodeEditor({
                       <ArrowUpDown size={11} />
                     </span>
                   </div>
-                  <div className="flex-shrink-0 flex flex-col" style={{ height: bottomPanelHeight, borderColor: "#D9E1EA", background: "#fff" }}>
+                  <div className="flex-shrink-0 flex flex-col max-lg:max-h-[40dvh] max-lg:border-t" style={{ height: bottomPanelHeight, borderColor: "#D9E1EA", background: "#fff" }}>
                   <BottomPanel
                     activeTab={bottomTab}
                     onTabChange={setBottomTab}
@@ -3058,7 +3072,7 @@ export default function MultiFileCodeEditor({
             </div>
           </div>
         </div>
-        </>)}{/* end non-link question panel + editor */}
+        </div>)}{/* end non-link question panel + editor */}
       </div>
 
       {/* MODALS */}
@@ -3108,6 +3122,7 @@ export default function MultiFileCodeEditor({
               role="dialog"
               aria-modal="true"
               aria-labelledby="finish-modal-title"
+              className="max-lg:max-h-[calc(100dvh-40px)] max-lg:overflow-y-auto!"
               style={{
                 background: "#fff", borderRadius: 14, width: "100%", maxWidth: 600,
                 boxShadow: "0 24px 60px rgba(15,23,42,0.24)", border: "1px solid #E4E7EC",
@@ -3143,7 +3158,7 @@ export default function MultiFileCodeEditor({
               </div>
 
               {/* Status cards */}
-              <div style={{ padding: "10px 20px 0", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+              <div className="max-sm:grid-cols-1!" style={{ padding: "10px 20px 0", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
                 <StatusCard tone="ok"   Icon={Check}          label="Completed"     value={completed} />
                 <StatusCard tone="warn" Icon={AlertTriangle}  label="Incomplete"    value={incomplete} />
                 <StatusCard tone="mute" Icon={MinusCircle}    label="Not attempted" value={notAttempted} />
@@ -3209,7 +3224,7 @@ export default function MultiFileCodeEditor({
               </div>
 
               {/* Footer */}
-              <div style={{
+              <div className="max-sm:flex-wrap" style={{
                 marginTop: 12, padding: "10px 16px 14px", borderTop: "1px solid #E4E7EC",
                 display: "flex", justifyContent: "flex-end", gap: 8,
               }}>
@@ -3249,7 +3264,7 @@ export default function MultiFileCodeEditor({
 
       {pendingNavLevel !== null && (
         <div style={{ position: "fixed", inset: 0, zIndex: 99999, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ background: "#fff", borderRadius: 12, padding: "28px 32px", width: 360, boxShadow: "0 20px 60px rgba(0,0,0,0.35)", border: "1px solid #e5e7eb" }}>
+          <div style={{ background: "#fff", borderRadius: 12, padding: "28px 32px", width: 360, maxWidth: "calc(100vw - 32px)", maxHeight: "90dvh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.35)", border: "1px solid #e5e7eb" }}>
             <p style={{ fontSize: 16, fontWeight: 700, color: "#111827", marginBottom: 8 }}>Leave Exercise?</p>
             <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 24, lineHeight: 1.6 }}>Your progress is auto-saved as a draft, but you may want to submit first.</p>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -3271,7 +3286,7 @@ export default function MultiFileCodeEditor({
           onClick={(e) => { if (e.target === e.currentTarget) closeVisualizer() }}
           style={{ position: "fixed", inset: 0, zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, background: "rgba(15,23,42,0.55)", backdropFilter: "blur(3px)" }}
         >
-          <div style={{ width: "min(1280px, 97vw)", height: "min(860px, 94vh)", background: "#fff", borderRadius: 12, overflow: "hidden", boxShadow: "0 24px 60px rgba(0,0,0,0.3)", display: "flex", flexDirection: "column" }}>
+          <div style={{ width: "min(1280px, 97vw)", height: "min(860px, 94dvh)", background: "#fff", borderRadius: 12, overflow: "hidden", boxShadow: "0 24px 60px rgba(0,0,0,0.3)", display: "flex", flexDirection: "column" }}>
             {vizLoading && vizSteps.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full gap-3">
                 <Loader2 className="w-7 h-7 animate-spin" style={{ color: "#4338ca" }} />

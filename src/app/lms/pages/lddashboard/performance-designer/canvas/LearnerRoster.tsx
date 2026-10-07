@@ -54,7 +54,7 @@ export function LearnerRoster({
             ) : (
                 <>
                     <div className="overflow-x-auto">
-                        <table className="w-full border-collapse">
+                        <table className="w-full min-w-[560px] border-collapse lg:min-w-0">
                             <thead>
                                 <tr>
                                     <th className={`${TH} w-9 text-left`}>#</th>

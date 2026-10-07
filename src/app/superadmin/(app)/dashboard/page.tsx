@@ -271,7 +271,7 @@ function BottomStat({
   icon: Icon, label, value, sub, accent,
 }: { icon: React.ElementType; label: string; value: React.ReactNode; sub?: string; accent: string }) {
   return (
-    <div className="flex items-center gap-3 px-5 py-4">
+    <div className="flex min-w-0 items-center gap-2.5 px-3 py-3 sm:gap-3 sm:px-4 sm:py-4 lg:px-5">
       <div className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-lg', accent)}>
         <Icon className="h-5 w-5" />
       </div>

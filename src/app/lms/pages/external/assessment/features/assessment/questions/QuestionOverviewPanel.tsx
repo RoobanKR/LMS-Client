@@ -55,7 +55,7 @@ export default function QuestionOverviewPanel({
 
   return (
     <aside
-      className="w-72 shrink-0 border-l overflow-y-auto"
+      className="w-full shrink-0 border-t lg:w-72 lg:border-t-0 lg:border-l lg:overflow-y-auto"
       style={{ borderColor: D.border, background: '#fff' }}
     >
       <div className="p-3 space-y-2">

@@ -491,6 +491,8 @@ const SmartCliffLogin = () => {
           inset: 0;
           width: calc(100vw * var(--ui-scale-inv, 1));
           height: calc(100vh * var(--ui-scale-inv, 1));
+          /* Visible viewport on tablet/phone browsers (identical to vh on desktop) */
+          height: calc(100dvh * var(--ui-scale-inv, 1));
           overflow: hidden;
           font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
           color: var(--text-main);
@@ -749,6 +751,8 @@ const SmartCliffLogin = () => {
           display: flex;
           align-items: center;
           justify-content: space-between;
+          flex-wrap: wrap;
+          gap: 8px;
         }
 
         .sc-remember {
@@ -964,14 +968,17 @@ const SmartCliffLogin = () => {
         @media (max-width: 900px) {
           .sc-page {
             position: relative;      /* allow natural height */
+            width: 100%;             /* 100vw would add a scrollbar-width horizontal scroll */
             height: auto;
             min-height: calc(100vh * var(--ui-scale-inv, 1));
+            min-height: calc(100dvh * var(--ui-scale-inv, 1));
             overflow-y: auto;        /* page-level scroll only on small screens */
           }
 
           .sc-split {
             flex-direction: column;
             height: auto;
+            min-height: inherit;     /* fill the screen so the footer sits at the bottom */
             overflow: visible;
           }
 
@@ -1001,6 +1008,7 @@ const SmartCliffLogin = () => {
 
           .sc-footer {
             padding: 14px 40px;
+            margin-top: auto;
           }
         }
 
@@ -1014,6 +1022,16 @@ const SmartCliffLogin = () => {
 
           .sc-right__inner { padding: 24px 24px; }
           .sc-footer        { padding: 12px 24px; }
+
+          /* 16px inputs stop iOS Safari from zooming the page on focus */
+          .sc-field input[type="email"],
+          .sc-field input[type="password"],
+          .sc-field input[type="text"] { font-size: 16px; height: 46px; }
+
+          /* Bigger tap target for the eye toggle — icon stays in the same spot */
+          .sc-pw-toggle { right: 4px; padding: 8px; }
+          .sc-submit    { height: 48px; }
+          .sc-google    { height: 46px; }
         }
 
         @media (max-width: 480px) {
@@ -1055,6 +1073,14 @@ const SmartCliffLogin = () => {
           .sc-logo          { margin-bottom: clamp(8px, 1.2vh, 14px); }
           .sc-subtitle      { margin-bottom: clamp(8px, 1.2vh, 14px); }
           .sc-form          { gap: clamp(7px, 1.1vh, 12px); }
+        }
+
+        /* ── Very short landscape (phones/tablets turned sideways, ~360-500px
+           tall): the form no longer fits, so let the right panel scroll
+           instead of clipping the Sign In button and footer.            */
+        @media (max-height: 500px) and (min-width: 901px) {
+          .sc-right        { overflow-y: auto; }
+          .sc-right__inner { flex: 1 0 auto; overflow: visible; }
         }
       `}</style>
     </>

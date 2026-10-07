@@ -25,7 +25,7 @@ import type React from "react"
 import { useEffect, useState } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { Poppins } from "next/font/google"
-import { ArrowLeft, Menu } from "lucide-react"
+import { ArrowLeft, BookOpen, Menu } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { StaffSidebar } from "./staff-sidebar"
 import { useSyncPermissions } from "@/hooks/useSyncPermissions"
@@ -122,7 +122,7 @@ function PanelStrip({
     // bit further from the panel edge; the right side keeps pr-3 so the
     // notification bell stays where it was.
     <div className={cn(
-      "flex flex-shrink-0 pl-6 pr-3",
+      "flex flex-shrink-0 pl-3 sm:pl-6 pr-3",
       isLogsPage
         ? "flex-col gap-1.5 pt-2 pb-2"
         : "h-12 items-center gap-1.5"
@@ -132,13 +132,14 @@ function PanelStrip({
           workspace). Without it the wrapper sizes to its content and the
           bell sits next to the burger instead of the right corner. */}
       <div className="flex w-full items-center gap-1.5">
-        {/* Burger stays on mobile so the sidebar overlay can still be
-            reopened; hidden on md+ where the sidebar rail is visible and the
+        {/* Burger stays below lg so the off-canvas sidebar drawer can be
+            opened; hidden on lg+ where the sidebar rail is visible and the
             button is just noise next to the "Logs" heading. */}
         <button
           onClick={onBurger}
-          className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg text-body transition-colors duration-150 hover:bg-row-hover md:hidden"
+          className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg text-body transition-colors duration-150 hover:bg-row-hover lg:hidden"
           title="Toggle sidebar"
+          aria-label="Open navigation"
         >
           <Menu className="h-[18px] w-[18px]" />
         </button>
@@ -201,6 +202,9 @@ function PanelStrip({
 export function StaffLayout({ children, fullBleed = false, sidebar, onMenuToggle, breadcrumb, hideCornerBell = false, noBuiltInPadding = false }: StaffLayoutProps) {
   // Expanded by default on desktop; collapsed on mobile (admin shell behavior).
   const [isCollapsed, setIsCollapsed] = useState(false)
+  // Below lg the rail (trainer menu or page-supplied override) is an
+  // off-canvas drawer, closed by default. Desktop keeps isCollapsed as before.
+  const [mobileOpen, setMobileOpen] = useState(false)
   const pathname = usePathname()
 
   // Re-fetch this session's permissions on every staff-shell mount so a
@@ -213,12 +217,28 @@ export function StaffLayout({ children, fullBleed = false, sidebar, onMenuToggle
     }
   }, [])
 
-  // On mobile the sidebar is an overlay — close it after navigating.
+  // Below lg the sidebar is a drawer — close it after navigating.
   useEffect(() => {
-    if (typeof window !== "undefined" && window.innerWidth < 768) {
-      setIsCollapsed(true)
-    }
+    setMobileOpen(false)
   }, [pathname])
+
+  // …and on Escape, or when the viewport grows back to the desktop rail.
+  useEffect(() => {
+    if (!mobileOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileOpen(false)
+    }
+    const mq = window.matchMedia("(min-width: 1024px)")
+    const onMq = () => {
+      if (mq.matches) setMobileOpen(false)
+    }
+    document.addEventListener("keydown", onKey)
+    mq.addEventListener?.("change", onMq)
+    return () => {
+      document.removeEventListener("keydown", onKey)
+      mq.removeEventListener?.("change", onMq)
+    }
+  }, [mobileOpen])
 
   const isLogsPage = pathname === "/lms/pages/logs"
   const isReportPage = pathname === "/lms/pages/logs/report"
@@ -227,36 +247,73 @@ export function StaffLayout({ children, fullBleed = false, sidebar, onMenuToggle
 
   return (
     <div
-      className={`${poppins.variable} h-screen flex bg-surface-sunken`}
+      className={`${poppins.variable} h-dvh flex bg-surface-sunken`}
       style={{ fontFamily: "var(--font-poppins), 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}
     >
-      {/* Full-height sidebar — the trainer menu, or a page-supplied override */}
-      <aside className="flex-shrink-0 h-full">
-        {sidebar ?? <StaffSidebar isCollapsed={isCollapsed} setIsCollapsed={setIsCollapsed} />}
+      {/* Below lg: dimmed backdrop behind the off-canvas drawer. */}
+      {mobileOpen && (
+        <div
+          aria-hidden="true"
+          onClick={() => setMobileOpen(false)}
+          className="fixed inset-0 z-[1090] bg-black/40 lg:hidden"
+        />
+      )}
+
+      {/* Full-height sidebar — the trainer menu, or a page-supplied override.
+          Below lg it becomes an off-canvas drawer (fixed, slides in). It
+          slides via `left`, not a transform: a transform would become the
+          containing block for page-owned `position: fixed` overlays inside an
+          override rail (e.g. the course syllabus drawer) and clip them to
+          the rail's width. */}
+      <aside
+        className={cn(
+          "flex-shrink-0 h-full",
+          "max-lg:fixed max-lg:inset-y-0 max-lg:z-overlay max-lg:h-auto max-lg:max-w-[calc(100vw-3rem)] max-lg:overflow-hidden max-lg:bg-surface-sunken max-lg:shadow-xl max-lg:transition-[left,visibility] max-lg:duration-200",
+          mobileOpen ? "max-lg:left-0" : "max-lg:invisible max-lg:-left-full"
+        )}
+      >
+        {sidebar ?? (
+          <StaffSidebar
+            isCollapsed={isCollapsed}
+            setIsCollapsed={setIsCollapsed}
+            onMobileClose={() => setMobileOpen(false)}
+          />
+        )}
       </aside>
 
-      {/* Floating white workspace on the gray canvas */}
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden p-3.5 pl-0 max-md:p-2.5 max-md:pl-2.5">
+      {/* Floating white workspace on the gray canvas. Below lg the rail is
+          off-canvas, so the gutter wraps all four sides. */}
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden p-3.5 pl-0 max-lg:pl-3.5 max-md:p-2.5 max-md:pl-2.5">
         <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[18px] border border-hairline bg-surface shadow-xs">
 
           {hasStrip ? (
             <PanelStrip
-              onBurger={() => (onMenuToggle ? onMenuToggle() : setIsCollapsed(!isCollapsed))}
+              onBurger={() => setMobileOpen(true)}
               breadcrumb={breadcrumb}
               isLogsPage={isLogsPage}
               isReportPage={isReportPage}
             />
           ) : (
             <>
-              {/* Mobile only: reopens the sidebar overlay. */}
-              <button
-                type="button"
-                onClick={() => setIsCollapsed(false)}
-                aria-label="Open navigation"
-                className="absolute top-3 left-4 z-40 inline-flex h-9 w-9 items-center justify-center rounded-full border border-hairline bg-surface text-body shadow-xs md:hidden"
-              >
-                <Menu className="h-[18px] w-[18px]" strokeWidth={2} />
-              </button>
+              {/* Below lg: compact top bar — drawer hamburger, brand, and the
+                  notification bell (the in-content corner bells below are
+                  lg-only so it never doubles up). */}
+              <div className="flex h-12 flex-shrink-0 items-center gap-2.5 border-b border-hairline px-3 lg:hidden">
+                <button
+                  type="button"
+                  onClick={() => setMobileOpen(true)}
+                  aria-label="Open navigation"
+                  aria-expanded={mobileOpen}
+                  className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border border-hairline bg-surface text-body shadow-xs"
+                >
+                  <Menu className="h-[18px] w-[18px]" strokeWidth={2} />
+                </button>
+                <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-tile bg-gradient-to-b from-brand-400 to-brand-600 shadow-sm">
+                  <BookOpen className="h-4 w-4 text-white" />
+                </div>
+                <span className="min-w-0 flex-1 truncate text-sm font-bold tracking-[-0.01em] text-heading">SmartCliff</span>
+                {!hideCornerBell && <NotificationBell />}
+              </div>
               {/* Notifications sit inside the panel's top-right corner.
                   z-40: must beat in-page chrome like the uploadcourseresources
                   tab bar, which stacks at z-30 with a solid background.
@@ -265,7 +322,7 @@ export function StaffLayout({ children, fullBleed = false, sidebar, onMenuToggle
                   bell inside the scroll flow so it scrolls up with content
                   instead of hovering over it. */}
               {!hideCornerBell && fullBleed && (
-                <div className="absolute top-3 right-4 z-40">
+                <div className="absolute top-3 right-4 z-40 max-lg:hidden">
                   <NotificationBell />
                 </div>
               )}
@@ -285,7 +342,7 @@ export function StaffLayout({ children, fullBleed = false, sidebar, onMenuToggle
               {noBuiltInPadding ? (
                 !hideCornerBell ? (
                   <div className="relative h-full">
-                    <div className="absolute top-3 right-4 z-40">
+                    <div className="absolute top-3 right-4 z-40 max-lg:hidden">
                       <NotificationBell />
                     </div>
                     {children}
@@ -294,10 +351,10 @@ export function StaffLayout({ children, fullBleed = false, sidebar, onMenuToggle
                   children
                 )
               ) : (
-                <div className="p-4 md:px-6 md:py-5">
+                <div className="p-3 sm:p-4 md:px-6 md:py-5">
                   {!hideCornerBell ? (
                     <div className="relative min-h-full">
-                      <div className="absolute -top-1 right-0 z-40">
+                      <div className="absolute -top-1 right-0 z-40 max-lg:hidden">
                         <NotificationBell />
                       </div>
                       {children}

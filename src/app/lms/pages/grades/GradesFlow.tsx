@@ -1899,7 +1899,7 @@ export default function GradesFlow({
             Course Setup / User Management. Mirrors those pages' cluster
             layout so the eye lands on the same controls in the same places. */}
         <div className="mt-1.5 flex items-center gap-2 flex-wrap min-w-0">
-          <div className="relative flex-1 min-w-[220px] max-w-md">
+          <div className="relative w-full sm:w-auto sm:flex-1 sm:min-w-[220px] sm:max-w-md">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-faint pointer-events-none" />
             <input
               type="text"
@@ -2176,8 +2176,8 @@ export default function GradesFlow({
               strictly better than clipping the last row under the pager.
               Horizontal stays hidden — table-layout:fixed + the per-column
               widths in <colgroup> below keep content from pushing sideways. */}
-          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
-            <table className="w-full text-left text-sm" style={{ tableLayout: "fixed" }}>
+          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto lg:overflow-x-hidden">
+            <table className="w-full min-w-[760px] lg:min-w-0 text-left text-sm" style={{ tableLayout: "fixed" }}>
               {/* Column widths per tab. Sum to 100% so the table fits its
                   container exactly with no horizontal overflow. Cells that
                   hold long text (Name, Email) use `truncate` + `title` for
@@ -2345,7 +2345,7 @@ export default function GradesFlow({
               text is. Was `justify-between` before, which pinned the
               pager to the right corner. */}
           {!loading && totalFiltered > 0 && (
-            <div className="shrink-0 grid grid-cols-[1fr_auto_1fr] items-center gap-3 border-t border-hairline px-1 py-2">
+            <div className="shrink-0 grid grid-cols-1 justify-items-center sm:justify-items-stretch sm:grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-3 border-t border-hairline px-1 py-2">
               <p className="text-2xs text-subtle tabular-nums truncate">
                 Showing <span className="font-semibold text-body">{rangeStart}-{rangeEnd}</span> of {totalFiltered} {activeTab}
                 {(searchTerm || hasActiveFilters) && " (filtered)"}
@@ -2364,7 +2364,7 @@ export default function GradesFlow({
                   />
                 )}
               </div>
-              <div />
+              <div className="hidden sm:block" />
             </div>
           )}
         </div>
@@ -2384,7 +2384,7 @@ export default function GradesFlow({
           <motion.div
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
             transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
-            className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 rounded-2xl border border-hairline-strong bg-surface px-3 py-2 shadow-xl"
+            className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 flex flex-wrap sm:flex-nowrap items-center justify-center gap-2 w-max max-w-[calc(100vw-1.5rem)] rounded-2xl border border-hairline-strong bg-surface px-3 py-2 shadow-xl"
           >
             <span className="inline-flex items-center gap-2 pl-1 text-sm font-medium text-heading">
               <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-brand-strong px-1.5 text-2xs font-bold text-white tabular-nums">{selectedIds.length}</span>

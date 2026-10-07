@@ -81,8 +81,8 @@ export default function QuestionDetailDrawer({
     optionsPerRow: number
   ) => (
     <div
-      className="grid gap-2"
-      style={{ gridTemplateColumns: `repeat(${optionsPerRow}, minmax(0, 1fr))` }}
+      className="grid grid-cols-1 gap-2 sm:[grid-template-columns:var(--qb-opt-cols)]"
+      style={{ '--qb-opt-cols': `repeat(${optionsPerRow}, minmax(0, 1fr))` } as React.CSSProperties}
     >
       {options.map((opt, optIdx) => {
         const isCorrect = correctAnswers.includes(opt.text);
@@ -174,11 +174,11 @@ export default function QuestionDetailDrawer({
           <span className="flex size-6 shrink-0 items-center justify-center rounded-chip bg-brand-wash text-2xs font-semibold text-brand-strong">
             {idx + 1}
           </span>
-          <div className="flex-1 rounded-tile border border-hairline bg-surface px-2.5 py-1.5 text-body">
+          <div className="min-w-0 flex-1 break-words rounded-tile border border-hairline bg-surface px-2.5 py-1.5 text-body">
             {pair.left || '—'}
           </div>
           <Equal size={14} className="shrink-0 text-faint" aria-hidden="true" />
-          <div className="flex-1 rounded-tile border border-success-500/30 bg-success-50 px-2.5 py-1.5 text-success-700">
+          <div className="min-w-0 flex-1 break-words rounded-tile border border-success-500/30 bg-success-50 px-2.5 py-1.5 text-success-700">
             {pair.right || '—'}
           </div>
         </div>
@@ -557,7 +557,7 @@ export default function QuestionDetailDrawer({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.18, ease: easeStandard }}
-            className="fixed inset-0 z-popover flex items-center justify-center bg-ink-900/80 p-6"
+            className="fixed inset-0 z-popover flex items-center justify-center bg-ink-900/80 p-4 sm:p-6"
             onClick={() => setPreviewImage(null)}
           >
             <motion.div

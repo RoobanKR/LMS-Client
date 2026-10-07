@@ -258,9 +258,9 @@ const SectionItemComponent: React.FC<{
 }> = ({ section, index, onUpdate, onRemove, canRemove, showDuration }) => {
   return (
     <div className="flex gap-2 items-start p-3 rounded-lg border" style={{ borderColor: D.border, background: D.bgLight }}>
-      <div className="flex-1 space-y-2">
+      <div className="flex-1 min-w-0 space-y-2">
         <div className="flex gap-2">
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <SectionLabel required info="Section name/title">
               Section {index + 1} Name
             </SectionLabel>
@@ -648,11 +648,11 @@ export const ExerciseDetailsStep = forwardRef<ExerciseDetailsStepRef, ExerciseDe
   };
 
   return (
-    <div className="px-10 pt-4 pb-6">
+    <div className="px-4 sm:px-6 lg:px-10 pt-4 pb-6">
       <div className="space-y-6">
         {/* ── Section 1: Basic Information ── */}
         <div style={{ padding: 0 }}>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <SectionLabel info="Auto-generated unique identifier for this exercise">
               Exercise ID
@@ -815,7 +815,7 @@ export const ExerciseDetailsStep = forwardRef<ExerciseDetailsStepRef, ExerciseDe
 
         {/* Total Marks - Show below Section Based toggle when section-based is enabled */}
         {isSectionBased && (
-          <div className="grid grid-cols-[140px_1fr] items-start gap-3 mt-3">
+          <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr] items-start gap-1 sm:gap-3 mt-3">
             <div className="flex items-center gap-1 pt-2 min-w-0">
               <span
                 className="text-xs font-semibold truncate"
@@ -861,7 +861,7 @@ export const ExerciseDetailsStep = forwardRef<ExerciseDetailsStepRef, ExerciseDe
 
         {/* Total Duration - Show below Section Based Duration toggle when enabled */}
         {isSectionBased && isSectionBasedDuration && (
-          <div className="grid grid-cols-[140px_1fr] items-start gap-3 mt-3">
+          <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr] items-start gap-1 sm:gap-3 mt-3">
             <div className="flex items-center gap-1 pt-2 min-w-0">
               <span
                 className="text-xs font-semibold truncate"
@@ -909,7 +909,7 @@ export const ExerciseDetailsStep = forwardRef<ExerciseDetailsStepRef, ExerciseDe
         {/* Exercise Type Section - Disabled when section-based is enabled */}
         {!isSectionBased && (
           <>
-            <div className="grid grid-cols-2 gap-4 items-start">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
               <div>
                 <div className="flex items-center gap-1 mb-1.5">
                   <span className="text-xs font-semibold" style={{ color: D.textSub }}>Exercise Type</span>
@@ -1147,7 +1147,7 @@ export const ExerciseDetailsStep = forwardRef<ExerciseDetailsStepRef, ExerciseDe
         {/* Section-Based Content */}
         {isSectionBased && (
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <Layers size={14} style={{ color: D.orange }} />
                 <span className="text-xs font-semibold" style={{ color: D.textMain }}>

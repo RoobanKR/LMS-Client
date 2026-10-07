@@ -73,12 +73,14 @@ export default function DraggableZoomControls({
     return (
         <div
             ref={dragRef}
-            className={`fixed ${elevated ? "z-[60]" : "z-50"} bg-white rounded-lg shadow-lg border p-1 flex items-center gap-1 select-none ${isDragging ? "cursor-grabbing" : "cursor-grab"
+            className={`fixed ${elevated ? "z-[60]" : "z-50"} left-[min(var(--zoom-x),calc(100vw_-_150px))] lg:left-[var(--zoom-x)] bg-white rounded-lg shadow-lg border p-1 flex items-center gap-1 select-none ${isDragging ? "cursor-grabbing" : "cursor-grab"
                 }`}
             style={{
-                left: `${position.x}px`,
+                // Below lg the default spot (x 1000) is clamped on screen for
+                // phones/tablets; from lg up left is position.x exactly as before.
+                '--zoom-x': `${position.x}px`,
                 top: `${position.y}px`,
-            }}
+            } as React.CSSProperties}
             onMouseDown={handleMouseDown}
         >
             <div className="flex items-center gap-1 px-1">

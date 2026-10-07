@@ -893,7 +893,7 @@ const DiffPopup = () => {
         </div>
 
         {/* One card per configured level */}
-        <div className="p-3.5 space-y-2 max-h-[52vh] overflow-y-auto">
+        <div className="p-3.5 space-y-2 max-h-[52dvh] overflow-y-auto">
           {opts.length === 0 && (
             <div className="text-center py-8 px-4">
               <p className="text-sm font-semibold text-gray-500">No difficulty levels configured</p>
@@ -1045,8 +1045,8 @@ const DiffPopup = () => {
     const progOk = qCounts?.programming?.anyCanAdd ?? true;
 
     return (
-      <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+      <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-3 sm:p-4">
+        <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90dvh] overflow-y-auto">
           <div className="flex items-center justify-between p-4 border-b">
             <h2 className="text-base font-semibold text-gray-900">Add Question</h2>
             <button onClick={() => onClose()} className="p-1 hover:bg-gray-100 rounded-lg">

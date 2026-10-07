@@ -208,7 +208,7 @@ export function renderMainContent(deps: PedagogyMainViewDeps) {
         return true
     }
     return (
-            <div className={embedded ? "bg-gray-50 px-2 py-2" : "bg-gray-50 min-h-screen px-4 sm:px-6 py-4"}>
+            <div className={embedded ? "bg-gray-50 px-2 py-2" : "bg-gray-50 min-h-screen px-3 sm:px-6 py-4"}>
                 <div className="space-y-2">
                     {/* Success Message */}
                     {showSuccessMessage && (
@@ -647,7 +647,7 @@ export function renderMainContent(deps: PedagogyMainViewDeps) {
                                                         }}
                                                         disabled={shouldDisableControls}
                                                     >
-                                                        <SelectTrigger className="w-full h-6 sm:h-7 text-[9px] sm:text-xs">
+                                                        <SelectTrigger className="w-full h-6 sm:h-7 text-[11px] sm:text-xs">
                                                             <SelectValue placeholder="Select module" />
                                                         </SelectTrigger>
                                                         <SelectContent>
@@ -723,7 +723,7 @@ export function renderMainContent(deps: PedagogyMainViewDeps) {
                                         {/* Teaching Elements dropdown - Right side on larger screens, new line on smaller */}
                                         <div className="flex items-center gap-1 sm:gap-2 w-full sm:w-auto sm:ml-auto min-w-0 mt-1 sm:mt-0">
 
-                                            <Label htmlFor="pedagogy-type" className={`text-[9px] sm:text-xs font-medium whitespace-nowrap flex-shrink-0  ${shouldDisableControls ? "opacity-50 cursor-not-allowed" : ""}`}>
+                                            <Label htmlFor="pedagogy-type" className={`text-[11px] sm:text-xs font-medium whitespace-nowrap flex-shrink-0  ${shouldDisableControls ? "opacity-50 cursor-not-allowed" : ""}`}>
                                                 <span className="hidden md:inline">Teaching Elements:</span>
                                                 <span className="md:hidden">Elements:</span>
                                             </Label>
@@ -732,7 +732,7 @@ export function renderMainContent(deps: PedagogyMainViewDeps) {
                                                 onValueChange={() => { }}
                                                 disabled={shouldDisableControls}
                                             >
-                                                <SelectTrigger className="w-full sm:w-[160px] md:w-[200px] h-6 sm:h-7 text-[9px] sm:text-xs min-w-0" disabled={shouldDisableControls}>
+                                                <SelectTrigger className="w-full sm:w-[160px] md:w-[200px] h-6 sm:h-7 text-[11px] sm:text-xs min-w-0" disabled={shouldDisableControls}>
                                                     <SelectValue placeholder={
                                                         selectedPedagogyTypes.length === 0
                                                             ? "Select elements"
@@ -800,7 +800,7 @@ export function renderMainContent(deps: PedagogyMainViewDeps) {
 
                                         <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
                                             <button
-                                                className={`flex  items-center gap-1 text-[9px] sm:text-[10px] h-6 sm:h-7 px-1 sm:px-2 whitespace-nowrap
+                                                className={`flex  items-center gap-1 text-[10px] h-7 px-1 sm:px-2 whitespace-nowrap
  ${selectedCourse && !shouldDisableControls
                                                         ? "bg-gradient-to-r from-orange-400 via-orange-500 to-orange-600 cursor-pointer text-white hover:brightness-110 hover:text-white shadow"
                                                         : "bg-gray-200 text-gray-400 cursor-not-allowed"
@@ -818,7 +818,7 @@ export function renderMainContent(deps: PedagogyMainViewDeps) {
 
                                         </div>
                                         <button
-                                            className={`flex items-center gap-1 text-[9px] sm:text-[10px] h-6 sm:h-7 px-2 sm:px-3 whitespace-nowrap
+                                            className={`flex items-center gap-1 text-[10px] h-7 px-2 sm:px-3 whitespace-nowrap
             ${selectedCourse && !shouldDisableControls
                                                     ? "bg-gradient-to-r from-[#FB8C3C] to-[#F0701F] cursor-pointer text-white hover:from-[#F0701F] hover:to-[#C2540F] shadow-md"
                                                     : "bg-gray-100 text-gray-400 cursor-not-allowed"
@@ -835,7 +835,7 @@ export function renderMainContent(deps: PedagogyMainViewDeps) {
 
                                         <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
                                             <button
-                                                className={`flex  items-center gap-1 text-[9px] sm:text-[10px] h-6 sm:h-7 px-2 sm:px-3 whitespace-nowrap
+                                                className={`flex  items-center gap-1 text-[10px] h-7 px-2 sm:px-3 whitespace-nowrap
     ${selected && !shouldDisableControls
                                                         ? "bg-gradient-to-r from-[#FB8C3C] to-[#F0701F] cursor-pointer text-white hover:from-[#F0701F] hover:to-[#C2540F] shadow-md"
                                                         : "bg-gray-100 text-gray-400 cursor-not-allowed"
@@ -854,7 +854,7 @@ export function renderMainContent(deps: PedagogyMainViewDeps) {
                                         {/* Full View - the table alone, fullscreen, still editable */}
                                         <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
                                             <button
-                                                className={`flex items-center gap-1 text-[9px] sm:text-[10px] h-6 sm:h-7 px-2 sm:px-3 whitespace-nowrap
+                                                className={`flex items-center gap-1 text-[10px] h-7 px-2 sm:px-3 whitespace-nowrap
     ${selectedCourse && !shouldDisableControls
                                                         ? "bg-gradient-to-r from-[#FB8C3C] to-[#F0701F] cursor-pointer text-white hover:from-[#F0701F] hover:to-[#C2540F] shadow-md"
                                                         : "bg-gray-100 text-gray-400 cursor-not-allowed"

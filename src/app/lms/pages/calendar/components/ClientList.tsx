@@ -294,7 +294,7 @@ export default function ClientList({
                 Search + status filter on the left, Institute-wide calendar
                 as the primary right-aligned action. */}
             <div className="mt-3 flex items-center gap-2 flex-wrap min-w-0">
-                <div className="relative flex-1 min-w-[220px] max-w-md">
+                <div className="relative w-full sm:w-auto sm:flex-1 sm:min-w-[220px] sm:max-w-md">
                     <Search
                         size={14}
                         className="absolute left-2.5 top-1/2 -translate-y-1/2 text-faint pointer-events-none"
@@ -342,7 +342,7 @@ export default function ClientList({
                             type="button"
                             onClick={() => onManage({ clientId: null, clientName: 'Institute-wide' })}
                             whileTap={{ scale: 0.98 }}
-                            className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-control bg-brand-strong text-white shadow-sm hover:bg-brand-800 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 flex-shrink-0"
+                            className="ml-auto sm:ml-0 inline-flex items-center gap-1.5 h-8 px-3.5 rounded-control bg-brand-strong text-white shadow-sm hover:bg-brand-800 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 flex-shrink-0"
                         >
                             <CalendarDays size={14} strokeWidth={2.4} />
                             <span className="text-xs font-semibold hidden sm:inline">Institute-wide calendar</span>

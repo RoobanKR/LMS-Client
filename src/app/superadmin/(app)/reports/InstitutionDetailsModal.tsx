@@ -77,12 +77,12 @@ export default function InstitutionDetailsModal({ institutionId, onClose }: { in
           <div className="space-y-5">
             {/* Header */}
             <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 p-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 text-base font-semibold text-primary">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-base font-semibold text-primary">
                 {data.institution.inst_name.charAt(0).toUpperCase()}
               </div>
               <div className="min-w-0 flex-1">
                 <div className="truncate font-semibold text-foreground">{data.institution.inst_name}</div>
-                <div className="text-xs text-muted-foreground">
+                <div className="break-words text-xs text-muted-foreground">
                   {data.institution.inst_id} · Owner: {data.institution.inst_owner || '—'} · {data.institution.phone || '—'}
                 </div>
               </div>
@@ -90,7 +90,7 @@ export default function InstitutionDetailsModal({ institutionId, onClose }: { in
             </div>
 
             {/* Count tiles */}
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-3">
+            <div className="grid grid-cols-2 gap-2 min-[420px]:grid-cols-3">
               {countTiles.map((t) => (
                 <div key={t.label} className="rounded-lg border border-border p-2.5">
                   <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><t.icon className="h-3.5 w-3.5" /> {t.label}</div>
@@ -122,9 +122,9 @@ export default function InstitutionDetailsModal({ institutionId, onClose }: { in
               ) : (
                 <div className="max-h-40 space-y-1 overflow-y-auto">
                   {data.courses.map((co) => (
-                    <div key={co._id} className="flex items-center justify-between rounded-md border border-border px-2.5 py-1.5 text-xs">
-                      <span className="font-medium text-foreground">{co.name}</span>
-                      <span className="text-muted-foreground">{[co.clientName, co.serviceType].filter(Boolean).join(' · ') || '—'}</span>
+                    <div key={co._id} className="flex items-center justify-between gap-2 rounded-md border border-border px-2.5 py-1.5 text-xs">
+                      <span className="min-w-0 break-words font-medium text-foreground">{co.name}</span>
+                      <span className="min-w-0 text-right text-muted-foreground">{[co.clientName, co.serviceType].filter(Boolean).join(' · ') || '—'}</span>
                     </div>
                   ))}
                 </div>
@@ -171,7 +171,7 @@ export default function InstitutionDetailsModal({ institutionId, onClose }: { in
                       </div>
                     )}
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div>
                       <div className="mb-1 text-[11px] font-medium text-muted-foreground">We Do</div>
                       <div className="flex flex-wrap gap-1.5">

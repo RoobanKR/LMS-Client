@@ -115,12 +115,12 @@ export default function CodeToolbar({
         )}
       </div>
 
-        <span className="shrink-0 rounded-[5px] bg-[#EEF2F8] px-2 py-[3px] text-[10.5px] font-semibold text-[#66789C]">
+        <span className="hidden shrink-0 rounded-[5px] bg-[#EEF2F8] px-2 py-[3px] text-[10.5px] font-semibold text-[#66789C] sm:inline">
           {fileCount > 1 ? "Multi-file project" : "Single file"}
         </span>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex shrink-0 items-center gap-2">
         <button
           type="button"
           onClick={onRun}

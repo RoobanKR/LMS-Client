@@ -796,12 +796,12 @@ export default function CodeCompiler() {
   }
 
   return (
-    <div className={`h-screen flex flex-col overflow-hidden ${isDarkMode ? 'dark' : ''}`}>
+    <div className={`h-screen max-lg:h-auto max-lg:min-h-[100dvh] flex flex-col overflow-hidden ${isDarkMode ? 'dark' : ''}`}>
       {/* Header - Fixed */}
       <div className="border-b bg-gradient-to-r from-emerald-600 via-blue-600 to-purple-600 text-white shadow-lg flex-shrink-0">
-        <div className="flex items-center justify-between p-4">
-          <div className="flex items-center gap-4">
-            <h1 className="text-xl font-bold flex items-center gap-2">
+        <div className="flex items-center justify-between p-4 max-xl:flex-wrap max-xl:gap-3 max-lg:flex-col max-lg:items-stretch max-sm:p-3">
+          <div className="flex items-center gap-4 max-sm:flex-wrap max-sm:gap-2 min-w-0">
+            <h1 className="text-xl font-bold flex items-center gap-2 max-sm:text-lg">
               <Code className="w-6 h-6" />
               Universal Code Compiler
             </h1>
@@ -820,9 +820,9 @@ export default function CodeCompiler() {
             </Select>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Button 
-              onClick={executeCode} 
+          <div className="flex items-center gap-2 max-xl:flex-wrap">
+            <Button
+              onClick={executeCode}
               disabled={isRunning} 
               className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white border-none"
             >
@@ -913,14 +913,14 @@ export default function CodeCompiler() {
       </div>
 
       {/* Main Content - Flexible */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden max-lg:flex-none max-lg:flex-col">
         {/* Editor Side - Scrollable */}
-        <div className="flex-1 flex flex-col min-w-0">
-          <div ref={editorRef} className="flex-1 border-r overflow-auto" />
+        <div className="flex-1 flex flex-col min-w-0 max-lg:flex-none max-lg:h-[60dvh] max-lg:min-h-[320px]">
+          <div ref={editorRef} className="flex-1 border-r overflow-auto min-h-0" />
         </div>
 
         {/* Side Panel - Scrollable */}
-        <div className="w-96 flex flex-col border-l min-w-0">
+        <div className="w-96 flex flex-col border-l min-w-0 max-lg:w-full max-lg:h-[50dvh] max-lg:min-h-[300px] max-lg:border-l-0 max-lg:border-t">
           {/* Tabs - Fixed */}
           <div className="flex border-b bg-muted/30 flex-shrink-0">
             <button
@@ -1015,7 +1015,7 @@ export default function CodeCompiler() {
                         onChange={(e) => setCurrentInput(e.target.value)}
                         onKeyPress={handleInputKeyPress}
                         placeholder="Type your input here and press Enter..."
-                        className="flex-1 font-mono text-sm"
+                        className="flex-1 min-w-0 font-mono text-sm"
                       />
                       <Button 
                         onClick={handleInputSubmit}
@@ -1045,7 +1045,7 @@ export default function CodeCompiler() {
                         className="text-sm p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md flex items-start gap-2"
                       >
                         <span className="w-2 h-2 bg-red-500 rounded-full mt-2 flex-shrink-0"></span>
-                        <span>{problem}</span>
+                        <span className="min-w-0 break-words">{problem}</span>
                       </div>
                     ))}
                   </div>
@@ -1057,8 +1057,8 @@ export default function CodeCompiler() {
       </div>
 
       {/* Status Bar - Fixed */}
-      <div className="border-t bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 px-4 py-2 text-xs flex items-center justify-between flex-shrink-0">
-        <div className="flex items-center gap-6">
+      <div className="border-t bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 px-4 py-2 text-xs flex items-center justify-between flex-shrink-0 max-lg:flex-wrap max-lg:gap-y-1 max-sm:px-3">
+        <div className="flex items-center gap-6 max-lg:flex-wrap max-lg:gap-x-4 max-lg:gap-y-1">
           <span className="flex items-center gap-2">
             <span className="font-medium">Language:</span>
             <span className="text-blue-600 dark:text-blue-400">{LANGUAGES[selectedLanguage].name}</span>

@@ -144,7 +144,7 @@ export default function TemplateDialog({
                             ))}
                         </div>
                     ) : (
-                        <div className="overflow-hidden rounded-lg border border-gray-200">
+                        <div className="overflow-x-auto lg:overflow-hidden rounded-lg border border-gray-200">
                             <table className="w-full text-xs">
                                 <thead className="bg-[#FFE4D0] text-[#9A3F0A]">
                                     <tr>

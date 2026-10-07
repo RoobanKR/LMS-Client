@@ -34,6 +34,19 @@ const GLOBAL_STYLES = `
     box-shadow: 0 1px 2px rgba(220,38,38,0.08), 0 0 0 1px rgba(220,38,38,0.1);
   }
   .iv-toolbar-btn.danger:hover { background: #FEE2E2; }
+
+  /* Responsive: below lg the Notes panel floats over the image instead of
+     squeezing it; on phones the toolbar wraps under the breadcrumb. */
+  @media (max-width: 1023px) {
+    .iv-content { position: relative; }
+    .iv-content > .iv-side-panel { position: absolute !important; inset: 10px; z-index: 40; width: auto !important; margin-left: 0 !important; }
+  }
+  @media (max-width: 640px) {
+    .iv-topbar { flex-wrap: wrap; row-gap: 6px !important; }
+    .iv-topbar > .iv-crumbs { flex-basis: 100% !important; }
+    .iv-topbar > .iv-actions { margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }
+    .iv-topbar .iv-toolbar-btn { font-size: 0 !important; gap: 0 !important; padding: 8px 9px !important; }
+  }
 `
 
 interface ImageViewerProps {
@@ -204,12 +217,12 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
         }}
       >
         {/* ── TOP TOOLBAR (now visible on light background) ────────────────── */}
-        <div style={{
+        <div className="iv-topbar" style={{
           display: "flex", alignItems: "center",
           padding: "10px 12px 0 12px", gap: 8, flexShrink: 0,
         }}>
           {/* Breadcrumbs */}
-          <div style={{
+          <div className="iv-crumbs" style={{
             display: "flex", alignItems: "center", gap: 4,
             flex: 1, minWidth: 0, overflow: "hidden",
           }}>
@@ -264,7 +277,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
           </div>
 
           {/* ── Right actions ──────────────────────────────────────────────── */}
-          <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+          <div className="iv-actions" style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
             {/* Zoom controls */}
             <button onClick={handleZoomOut} className="iv-toolbar-btn icon-only" title="Zoom Out">
               <ZoomOut size={14} />
@@ -321,7 +334,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
         </div>
 
         {/* ── CONTENT AREA ───────────────────────────────────────────────── */}
-        <div style={{ flex: 1, display: "flex", padding: "10px 10px 10px 10px", minHeight: 0 }}>
+        <div className="iv-content" style={{ flex: 1, display: "flex", padding: "10px 10px 10px 10px", minHeight: 0 }}>
           {/* Image content card */}
           <div style={{
             flex: 1, borderRadius: 14, overflow: "hidden",
@@ -408,7 +421,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
 
           {/* ── Notes Panel ────────────────────────────────────────────────── */}
           {notesOpen && showNotesButton && (
-            <div style={{
+            <div className="iv-side-panel" style={{
               width: 340, flexShrink: 0, marginLeft: 10,
               background: "white", borderRadius: 14, overflow: "hidden",
               boxShadow: "0 2px 16px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.05)",
@@ -511,7 +524,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
             background: "rgba(0,0,0,0.45)", backdropFilter: "blur(6px)",
           }}>
             <div style={{
-              background: "white", borderRadius: 18, padding: "32px", width: 380,
+              background: "white", borderRadius: 18, padding: "32px", width: 380, maxWidth: "calc(100vw - 32px)",
               boxShadow: "0 24px 64px rgba(0,0,0,0.2)", border: "1px solid rgba(0,0,0,0.06)",
               animation: "slideUp 0.2s ease-out",
             }}>

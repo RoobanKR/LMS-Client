@@ -136,7 +136,11 @@ function DropdownShell({
   }, [open, onClose]);
 
   return (
-    <div ref={rootRef} className="relative flex-shrink-0" style={{ width }}>
+    <div
+      ref={rootRef}
+      className="relative flex-shrink-0 w-[calc(50%-0.5rem)] sm:w-[var(--dd-w)]"
+      style={{ ["--dd-w" as string]: `${width}px` } as React.CSSProperties}
+    >
       <button
         type="button"
         onClick={onToggle}
@@ -799,7 +803,7 @@ export default function ReportGenerateModal(props: ReportGenerateModalProps) {
 
   const modal = (
     <div
-      className="fixed inset-0 z-[1500] flex items-center justify-center p-4"
+      className="fixed inset-0 z-[1500] flex items-center justify-center p-2 sm:p-4"
       style={{ background: "rgba(15,23,42,0.55)" }}
       role="dialog"
       aria-modal="true"
@@ -816,13 +820,13 @@ export default function ReportGenerateModal(props: ReportGenerateModalProps) {
           // viewports the shell parks at 82vh; on smaller screens min/max
           // keep it in a readable range. Body area uses flex:1 to absorb any
           // remaining space as neutral white ground.
-          height: "82vh",
-          minHeight: "min(720px, 90vh)",
+          height: "82dvh",
+          minHeight: "min(720px, 90dvh)",
           maxHeight: 860,
         }}
       >
         {/* ── Sticky header — compact orange-accented title strip. */}
-        <div className="flex-shrink-0 border-b border-gray-100 px-5 py-2.5 flex items-center gap-2.5">
+        <div className="flex-shrink-0 border-b border-gray-100 px-3 sm:px-5 py-2.5 flex items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-md bg-orange-50 text-orange-600 flex-shrink-0">
             <FileBarChart2 size={16} />
           </div>
@@ -900,11 +904,11 @@ export default function ReportGenerateModal(props: ReportGenerateModalProps) {
         {/* Flex-wrap layout with min-widths per field: on any desktop width
             wide enough for one row all six fit inline; on narrower widths the
             trailing fields wrap to the next line rather than overlapping. */}
-        <div className="flex-shrink-0 border-b border-gray-100 px-5 pt-4 pb-3">
+        <div className="flex-shrink-0 border-b border-gray-100 px-3 sm:px-5 pt-4 pb-3">
           <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
             {/* Search — first field in the row: a trainer looking for one learner
                 types a name before reaching for any dropdown. */}
-            <div className="relative flex-1 min-w-[220px] max-w-[280px]">
+            <div className="relative w-full sm:w-auto sm:flex-1 sm:min-w-[220px] sm:max-w-[280px]">
               <span
                 className={`pointer-events-none absolute -top-[7px] left-2 z-10 bg-white px-1 text-[10px] font-semibold tracking-wide whitespace-nowrap transition-colors ${searchQuery ? "text-orange-600" : "text-gray-500"
                   }`}
@@ -1129,7 +1133,7 @@ export default function ReportGenerateModal(props: ReportGenerateModalProps) {
           </div>
 
           {/* Select-all + count + clear filters — compact strip. */}
-          <div className="mt-2 flex items-center justify-between gap-3">
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
@@ -1158,8 +1162,8 @@ export default function ReportGenerateModal(props: ReportGenerateModalProps) {
         </div>
 
         {/* ── Body — single scroll area that owns most of the modal height. */}
-        <div className="flex-1 min-h-0 overflow-y-auto px-5 py-3">
-          <div className="border border-gray-200 rounded-md overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-5 py-3">
+          <div className="border border-gray-200 rounded-md overflow-x-auto">
             <table className="w-full text-[12.5px] border-separate border-spacing-0">
               <thead>
                 <tr className="bg-gray-50">
@@ -1344,7 +1348,7 @@ export default function ReportGenerateModal(props: ReportGenerateModalProps) {
           {/* Questions to include (Detailed View only) — compact chip picker. */}
           {detailedView && exerciseQuestions.length > 0 && (
             <div className="mt-3 rounded-md border border-gray-200 bg-white px-3 py-2.5">
-              <div className="flex items-center justify-between gap-3 mb-2">
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 mb-2">
                 <div className="text-[12.5px] font-semibold text-gray-800">
                   Questions to Include
                   <span className="ml-2 text-[11px] font-normal text-gray-500">
@@ -1396,7 +1400,7 @@ export default function ReportGenerateModal(props: ReportGenerateModalProps) {
 
         {/* ── Sticky footer — just the applied-filters summary. Export moved
             to the header Export split button; close is the header X. */}
-        <div className="flex-shrink-0 border-t border-gray-100 bg-white px-5 py-2 flex items-center justify-start">
+        <div className="flex-shrink-0 border-t border-gray-100 bg-white px-3 sm:px-5 py-2 flex items-center justify-start">
           <div className="text-[12px] text-gray-500 truncate">
             {summaryPieces.join("  ·  ")}
           </div>

@@ -54,7 +54,7 @@ export function SectionFrame({
             ref={(el) => registerRef(id, el)}
             aria-label={title}
         >
-            <header className="flex items-center gap-3 px-4 pt-3 pb-2">
+            <header className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 pt-3 pb-2 lg:flex-nowrap">
                 <h3 className="text-[13px] font-bold text-heading">{title}</h3>
                 {aside ? <div className="ml-auto flex min-w-0 items-center gap-2 text-[10.5px] text-subtle">{aside}</div> : null}
             </header>

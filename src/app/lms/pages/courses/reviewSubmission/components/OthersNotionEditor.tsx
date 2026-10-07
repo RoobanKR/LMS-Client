@@ -603,7 +603,7 @@ const PagesSidebar: React.FC<{
   const commitRename = () => { if (editingId && editingName.trim()) onRenamePage(editingId, editingName.trim()); setEditingId(null); };
 
   return (
-    <div className={`flex flex-col w-48 flex-shrink-0 border-r h-full ${isDark ? 'bg-gray-900/80 border-gray-800' : 'bg-gray-50 border-gray-100'}`}>
+    <div className={`flex flex-col w-36 sm:w-48 flex-shrink-0 border-r h-full ${isDark ? 'bg-gray-900/80 border-gray-800' : 'bg-gray-50 border-gray-100'}`}>
       <div className={`flex items-center justify-between px-3 py-2.5 border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
         <div className="flex items-center gap-2">
           <Layers size={12} className={isDark ? 'text-indigo-400' : 'text-indigo-500'} />
@@ -641,7 +641,7 @@ const PagesSidebar: React.FC<{
               <span className="flex-1 text-xs font-medium truncate">{page.title || 'Untitled'}</span>
             )}
             <span className={`flex-shrink-0 text-2xs px-1 py-0.5 rounded-full font-mono ${isDark ? 'bg-gray-800 text-gray-600' : 'bg-gray-100 text-gray-400'}`}>{idx + 1}</span>
-            <div className={`absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover/page:opacity-100 transition-opacity ${isDark ? 'bg-gray-900' : 'bg-white'} rounded-md shadow-sm`}>
+            <div className={`absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-100 lg:opacity-0 lg:group-hover/page:opacity-100 transition-opacity ${isDark ? 'bg-gray-900' : 'bg-white'} rounded-md shadow-sm`}>
               <button onClick={e => { e.stopPropagation(); startRename(page); }} className={`p-0.5 rounded ${isDark ? 'hover:bg-gray-700 text-gray-500' : 'hover:bg-gray-100 text-gray-400'}`}><PenLine size={9} /></button>
               {pages.length > 1 && <button onClick={e => { e.stopPropagation(); onDeletePage(page.id); }} className="p-0.5 rounded text-red-400 hover:bg-red-50"><Trash2 size={9} /></button>}
             </div>
@@ -669,8 +669,8 @@ export const NotionPreviewRenderer: React.FC<{
       if (!block.content && !['divider', 'table', 'image', 'callout', 'snippet'].includes(block.type)) return null;
       const s = buildInlineStyle(block.metadata);
       switch (block.type) {
-        case 'heading1': return <h1 key={i} className="text-3xl font-bold tracking-tight mt-6 mb-3" style={s} dangerouslySetInnerHTML={{ __html: block.content }} />;
-        case 'heading2': return <h2 key={i} className="text-2xl font-semibold mt-5 mb-2" style={s} dangerouslySetInnerHTML={{ __html: block.content }} />;
+        case 'heading1': return <h1 key={i} className="text-2xl sm:text-3xl font-bold tracking-tight mt-6 mb-3" style={s} dangerouslySetInnerHTML={{ __html: block.content }} />;
+        case 'heading2': return <h2 key={i} className="text-xl sm:text-2xl font-semibold mt-5 mb-2" style={s} dangerouslySetInnerHTML={{ __html: block.content }} />;
         case 'heading3': return <h3 key={i} className="text-xl font-medium mt-4 mb-2" style={s} dangerouslySetInnerHTML={{ __html: block.content }} />;
         case 'text': return <p key={i} className="text-base leading-relaxed mb-3" style={s} dangerouslySetInnerHTML={{ __html: block.content }} />;
         case 'bulleted_list': return <ul key={i} className="list-disc pl-6 mb-2" style={s}><li dangerouslySetInnerHTML={{ __html: block.content }} /></ul>;
@@ -761,14 +761,14 @@ export const NotionPagesViewer: React.FC<{
           }}
         >
           {/* Page header strip */}
-          <div className={`px-6 py-3 border-b flex items-center gap-3 ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-gray-50 border-gray-100'}`}>
-            <div className={`w-6 h-6 rounded-md flex items-center justify-center text-2xs font-black ${isDark ? 'bg-indigo-900 text-indigo-300' : 'bg-indigo-100 text-indigo-600'}`}>{pageIdx + 1}</div>
-            <span className={`text-sm font-semibold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{page.title || `Page ${pageIdx + 1}`}</span>
-            <span className={`ml-auto text-2xs ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>{page.blocks.filter(b => b.content.trim()).length} blocks</span>
+          <div className={`px-4 sm:px-6 py-3 border-b flex items-center gap-3 ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-gray-50 border-gray-100'}`}>
+            <div className={`w-6 h-6 shrink-0 rounded-md flex items-center justify-center text-2xs font-black ${isDark ? 'bg-indigo-900 text-indigo-300' : 'bg-indigo-100 text-indigo-600'}`}>{pageIdx + 1}</div>
+            <span className={`min-w-0 truncate text-sm font-semibold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{page.title || `Page ${pageIdx + 1}`}</span>
+            <span className={`ml-auto shrink-0 text-2xs ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>{page.blocks.filter(b => b.content.trim()).length} blocks</span>
           </div>
 
           {/* Page content */}
-          <div className={`px-8 py-6 ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+          <div className={`px-4 sm:px-8 py-6 break-words overflow-x-auto ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
             <NotionPreviewRenderer blocks={page.blocks} isDark={isDark} />
           </div>
         </div>
@@ -941,7 +941,7 @@ const OthersNotionEditor: React.FC<OthersNotionEditorProps> = ({
           style={{ scrollbarWidth: 'thin' }}
         >
           {!isPreview ? (
-            <div className="w-full min-h-full max-w-3xl mx-auto px-14 py-10">
+            <div className="w-full min-h-full max-w-3xl mx-auto px-4 py-6 sm:px-8 lg:px-14 lg:py-10">
               {/* Page title */}
               <input
                 type="text"
@@ -949,11 +949,11 @@ const OthersNotionEditor: React.FC<OthersNotionEditorProps> = ({
                 onChange={e => !disabled && setTitle(e.target.value)}
                 disabled={disabled}
                 placeholder="Page title…"
-                className={`w-full text-3xl font-bold bg-transparent border-none outline-none mb-6 tracking-tight ${isDark ? 'text-gray-100 placeholder-gray-700' : 'text-gray-900 placeholder-gray-300'}`}
+                className={`w-full text-2xl sm:text-3xl font-bold bg-transparent border-none outline-none mb-6 tracking-tight ${isDark ? 'text-gray-100 placeholder-gray-700' : 'text-gray-900 placeholder-gray-300'}`}
               />
 
               {/* Blocks */}
-              <div className="w-full space-y-0.5 pl-14">
+              <div className="w-full space-y-0.5 pl-2 sm:pl-14">
                 {blocks.map((block, index) => (
                   <BlockComp
                     key={`${activePageId}-${block._uid ?? index}`}
@@ -992,8 +992,8 @@ const OthersNotionEditor: React.FC<OthersNotionEditorProps> = ({
             </div>
           ) : (
             /* ── Preview Mode ── */
-            <div className="w-full min-h-full max-w-3xl mx-auto px-14 py-10">
-              <h1 className={`text-3xl font-bold mb-6 tracking-tight ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>{title}</h1>
+            <div className="w-full min-h-full max-w-3xl mx-auto px-4 py-6 sm:px-8 lg:px-14 lg:py-10">
+              <h1 className={`text-2xl sm:text-3xl font-bold mb-6 tracking-tight break-words ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>{title}</h1>
               <div className={isDark ? 'text-gray-200' : 'text-gray-800'}>
                 <NotionPreviewRenderer blocks={blocks} isDark={isDark} />
               </div>

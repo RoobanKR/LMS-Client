@@ -899,7 +899,7 @@ useEffect(() => {
         <p style={{ fontFamily: 'var(--lms-font)', fontSize: 11.5, color: 'var(--lms-text-sec)', lineHeight: 1.55 }}>{question.description}</p>
 
         {(question.type === 'multiple-choice' || question.type === 'multiple-select' || question.type === 'dropdown') && question.options && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+          <div className="max-sm:!grid-cols-1" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
             {question.options.map(opt => (
               <div key={opt.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderRadius: 8, background: opt.isCorrect ? 'var(--lms-success-bg)' : 'var(--lms-bg-surface)', border: `1.5px solid ${opt.isCorrect ? 'var(--lms-success-bdr)' : 'var(--lms-border)'}` }}>
                 {question.type === 'multiple-select' ? (
@@ -1120,7 +1120,7 @@ useEffect(() => {
     const typeMeta = qType ? TYPE_CONFIG[qType] : null;
 
     return (
-      <div className="ai-sidebar-scroll"
+      <div className={`ai-sidebar-scroll${showRightSidebar ? ' max-md:!w-full max-md:!overflow-visible max-md:!border-l-0 max-md:border-t-[1.5px] max-md:border-[color:var(--lms-border)]' : ''}`}
         style={{ flexShrink: 0, overflowY: 'auto', borderLeft: '1.5px solid var(--lms-border)', background: 'var(--lms-bg-white)', transition: 'width 0.2s', width: showRightSidebar ? 256 : 0, overflow: showRightSidebar ? 'auto' : 'hidden' }}>
         {showRightSidebar && (
           <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -1300,10 +1300,10 @@ useEffect(() => {
       {/* ── MODAL ── */}
       {showModal && (
         <div className="lms-modal-backdrop-ai">
-          <div ref={modalRef} style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', width: '100%', maxWidth: 960, border: '1.5px solid var(--lms-border)', maxHeight: '92vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <div ref={modalRef} style={{ background: 'var(--lms-bg-white)', borderRadius: 'var(--lms-radius-lg)', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', width: '100%', maxWidth: 960, border: '1.5px solid var(--lms-border)', maxHeight: '92dvh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
 
             {/* ── HEADER ── */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 20px', background: 'var(--lms-bg-white)', borderBottom: '1.5px solid var(--lms-border)', flexShrink: 0 }}>
+            <div className="max-sm:!px-3" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 20px', background: 'var(--lms-bg-white)', borderBottom: '1.5px solid var(--lms-border)', flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
                 <div style={{ width: 34, height: 34, borderRadius: 9, background: 'var(--lms-orange)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 3px 10px var(--lms-orange-glow)' }}>
                   <Sparkles size={16} style={{ color: 'white' }} />
@@ -1311,9 +1311,9 @@ useEffect(() => {
                 <div style={{ width: 1, height: 20, background: 'var(--lms-border)', flexShrink: 0 }} />
                 <div style={{ minWidth: 0, flex: 1 }}><AIBreadcrumb breadcrumbs={breadcrumbs} exerciseName={exerciseName} /></div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 12 }}>
+              <div className="max-sm:!gap-1 max-sm:!ml-2" style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 12 }}>
                 {apiError && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--lms-danger-bg)', border: '1.5px solid var(--lms-danger-bdr)', borderRadius: 'var(--lms-radius-md)', padding: '6px 12px', maxWidth: 260 }}>
+                  <div className="max-md:!max-w-[130px] max-sm:!px-2" style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--lms-danger-bg)', border: '1.5px solid var(--lms-danger-bdr)', borderRadius: 'var(--lms-radius-md)', padding: '6px 12px', maxWidth: 260 }}>
                     <AlertCircle size={12} style={{ color: 'var(--lms-danger)', flexShrink: 0 }} />
                     <p style={{ fontFamily: 'var(--lms-font)', fontSize: 11, color: 'var(--lms-danger)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{apiError.message}</p>
                   </div>
@@ -1359,12 +1359,12 @@ useEffect(() => {
             )}
 
             {/* ── BODY ── */}
-            <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }} onClick={() => showTypeDropdown && setShowTypeDropdown(false)}>
-              <div style={{ flex: 1, overflowY: 'auto', background: 'var(--lms-bg-white)' }}>
+            <div className="max-md:!flex-col max-md:!overflow-y-auto" style={{ display: 'flex', flex: 1, overflow: 'hidden' }} onClick={() => showTypeDropdown && setShowTypeDropdown(false)}>
+              <div className="max-md:!flex-none max-md:!overflow-visible" style={{ flex: 1, overflowY: 'auto', background: 'var(--lms-bg-white)' }}>
 
                 {generatedQuestions.length === 0 ? (
                   /* Empty state / generate prompt */
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100%', padding: 32 }}>
+                  <div className="max-sm:!p-4" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100%', padding: 32 }}>
                     <div style={{ width: '100%', maxWidth: 460, display: 'flex', flexDirection: 'column', gap: 16 }}>
 
                       {/* API error banner */}

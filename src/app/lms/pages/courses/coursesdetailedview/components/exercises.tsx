@@ -827,6 +827,7 @@ function StartExercisePopup({
       role="dialog"
       aria-modal="true"
       aria-labelledby="sap-title"
+      className="sap-overlay"
       style={{
         position: 'fixed', inset: 0, zIndex: 99999,
         display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
@@ -1079,11 +1080,13 @@ function StartExercisePopup({
         /* Stack the two cards below 900px */
         @media (max-width: 900px) {
           .sap-grid { grid-template-columns: 1fr !important; }
+          .sap-body { overflow-y: auto !important; flex: 1 1 auto; }
         }
 
         /* Mobile — nearly full-screen, stacked stat rows, full-width footer */
         @media (max-width: 640px) {
-          .sap-shell { max-width: 100% !important; max-height: 100vh !important; border-radius: 0 !important; }
+          .sap-overlay { padding: 0 !important; }
+          .sap-shell { max-width: 100% !important; max-height: 100dvh !important; height: 100dvh; border-radius: 0 !important; }
           .sap-header { padding: 12px !important; gap: 10px !important; }
           .sap-body { padding: 12px !important; }
           .sap-card { padding: 14px !important; gap: 12px !important; }
@@ -1631,7 +1634,7 @@ const handleStartClick = (exercise: Exercise, e: React.MouseEvent) => {
     {
       key: 'id',
       label: 'ID',
-      className: 'w-[8%] px-3 text-left align-middle text-[13px] text-subtle',
+      className: 'hidden md:table-cell w-[8%] px-3 text-left align-middle text-[13px] text-subtle',
       skeletonWidth: '40px',
       render: (ex) => (
         <span className="font-mono truncate block" title={ex.exerciseInformation.exerciseId}>
@@ -1662,7 +1665,7 @@ const handleStartClick = (exercise: Exercise, e: React.MouseEvent) => {
       key: 'start',
       label: 'Available From',
       sortKey: 'start',
-      className: 'w-[17%] px-3 text-left align-middle text-[13px] text-body',
+      className: 'hidden md:table-cell w-[17%] px-3 text-left align-middle text-[13px] text-body',
       skeletonWidth: '75%',
       render: (ex) => (
         <span className="flex items-center gap-1 whitespace-nowrap"
@@ -1724,7 +1727,7 @@ const handleStartClick = (exercise: Exercise, e: React.MouseEvent) => {
       key: 'level',
       label: 'Level',
       sortKey: 'level',
-      className: 'w-[11%] px-3 text-left align-middle text-[13px] text-body whitespace-nowrap',
+      className: 'hidden md:table-cell w-[11%] px-3 text-left align-middle text-[13px] text-body whitespace-nowrap',
       render: (ex) => {
         // Quiet neutral outlined badge — the difficulty tint used to
         // paint the row green (Beginner) five times in a row, which was
@@ -1764,13 +1767,13 @@ const handleStartClick = (exercise: Exercise, e: React.MouseEvent) => {
       label: 'Action',
       // Fixed width, centred content, uniform button footprint so every
       // row's action lands in the same visual slot.
-      className: 'w-[13%] pl-6 pr-6 text-center align-middle text-[13px] text-body whitespace-nowrap',
+      className: 'w-[13%] px-2 lg:pl-6 lg:pr-6 text-center align-middle text-[13px] text-body whitespace-nowrap',
       render: (ex) => {
         const s = resolveAssignmentState(ex, studentAnswers, method, subcategory)
 
         // Shared button classes so Start / Continue / View Submission /
         // View Feedback all render at identical dimensions (h-9, 128 px).
-        const btnBase = 'inline-flex items-center justify-center gap-1.5 h-9 w-[128px] text-[13px] font-semibold rounded-control transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30'
+        const btnBase = 'inline-flex items-center justify-center gap-1.5 h-9 w-full max-w-[128px] lg:w-[128px] lg:max-w-none text-[13px] font-semibold rounded-control transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30'
         const primary: React.CSSProperties = { background: '#F97316', color: '#FFFFFF', border: 'none', cursor: 'pointer' }
         const secondary: React.CSSProperties = { background: '#FFFFFF', color: '#F97316', border: '1px solid #F97316', cursor: 'pointer' }
 
@@ -1873,7 +1876,7 @@ const handleStartClick = (exercise: Exercise, e: React.MouseEvent) => {
       `}</style>
       {/* Toast notification */}
    {toast && (
-  <div style={{
+  <div className="max-sm:!left-4 max-sm:!right-4 max-sm:!top-4 max-sm:!whitespace-normal" style={{
     position: 'fixed', top: 24, right: 24,          // ← top-right
     // remove: bottom: 24, left: '50%', transform: 'translateX(-50%)'
     zIndex: 999999, padding: '12px 20px', borderRadius: 12,
@@ -1949,8 +1952,8 @@ const handleStartClick = (exercise: Exercise, e: React.MouseEvent) => {
              Search left · status segmented control middle · Filter right.
              Status filtering lives ONLY in the segmented control; the
              Filter popover carries Level + Due Date. ── */}
-        <div className="flex-none flex items-center gap-3 pt-2 pb-2 min-w-0">
-          <div className="relative flex-1 min-w-[240px]">
+        <div className="flex-none flex flex-wrap items-center gap-2 sm:gap-3 pt-2 pb-2 min-w-0">
+          <div className="relative flex-1 min-w-0 sm:min-w-[240px]">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-faint pointer-events-none" />
             <input
               type="text"
@@ -1977,7 +1980,7 @@ const handleStartClick = (exercise: Exercise, e: React.MouseEvent) => {
               text + orange-tinted badge. */}
           <div
             role="tablist" aria-label="Filter by status"
-            className="inline-flex items-stretch h-9 rounded-control border border-hairline-strong bg-surface overflow-hidden shrink-0"
+            className="order-last basis-full lg:order-none lg:basis-auto inline-flex items-stretch h-9 max-w-full rounded-control border border-hairline-strong bg-surface overflow-x-auto lg:overflow-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden shrink-0"
           >
             {([
               { key: 'all' as FilterChip,       label: 'All',       count: statusCounts.all },
@@ -1992,7 +1995,7 @@ const handleStartClick = (exercise: Exercise, e: React.MouseEvent) => {
                   key={c.key}
                   type="button" role="tab" aria-selected={selected}
                   onClick={() => setChip(c.key)}
-                  className={`inline-flex items-center gap-1.5 px-3 text-[12.5px] font-semibold transition-colors duration-150 ${
+                  className={`inline-flex flex-1 lg:flex-none shrink-0 whitespace-nowrap items-center justify-center gap-1.5 px-2.5 sm:px-3 text-[12.5px] font-semibold transition-colors duration-150 ${
                     selected ? 'text-brand-strong' : 'text-subtle hover:text-heading'
                   } ${i > 0 ? 'border-l border-hairline' : ''}`}
                   style={selected ? { background: '#FFF4EC' } : undefined}
@@ -2042,7 +2045,7 @@ const handleStartClick = (exercise: Exercise, e: React.MouseEvent) => {
               <div
                 className="absolute top-full right-0 mt-2 z-40 bg-surface rounded-xl border border-hairline-strong"
                 style={{
-                  width: 360,
+                  width: 'min(360px, calc(100vw - 24px))',
                   boxShadow: '0 14px 36px rgba(15,23,42,0.10), 0 2px 6px rgba(15,23,42,0.06)',
                 }}
               >

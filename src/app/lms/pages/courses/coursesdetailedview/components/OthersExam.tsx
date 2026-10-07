@@ -153,6 +153,19 @@ const STYLES = `
   .oe-upload-zone:hover, .oe-upload-zone.drag { border-color: #f97316; background: #fff7ed; }
   .oe-file-row { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 8px; background: #f0fdf4; border: 1px solid #bbf7d0; }
   .oe-att-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 20px; background: #fff7ed; border: 1px solid #fed7aa; font-size: 11.5px; font-weight: 600; color: #f97316; text-decoration: none; max-width: 220px; }
+  /* Responsive: below lg the question / answer split stacks vertically. */
+  @media (max-width: 1023px) {
+    .oe-body { flex-direction: column !important; }
+    .oe-body > .oe-question { width: auto !important; flex-shrink: 1 !important; max-height: 45%; padding: 20px 16px !important; border-bottom: 1px solid #f0f0f0; }
+    .oe-body > .oe-resizer { display: none !important; }
+    .oe-body > .oe-answer { min-height: 0; }
+  }
+  @media (max-width: 640px) {
+    .oe-topbar { padding: 0 12px !important; gap: 8px !important; }
+    .oe-topbar .oe-progress, .oe-topbar .oe-divider { display: none !important; }
+    .oe-bottombar { padding: 10px 12px !important; }
+    .oe-nav-btn, .oe-submit-btn { padding: 9px 14px; }
+  }
 `;
 
 function injectStyles() {
@@ -991,8 +1004,8 @@ const OthersExam: React.FC<OthersExamProps> = ({
 
       {/* ── FIXED TOP BAR ── */}
 {/* ── FIXED TOP BAR ── */}
-<div style={{ 
-  flexShrink: 0, 
+<div className="oe-topbar" style={{
+  flexShrink: 0,
   borderBottom: '1px solid #f0f0f0', 
   background: '#fff', 
   padding: '0 24px', 
@@ -1050,7 +1063,7 @@ const OthersExam: React.FC<OthersExamProps> = ({
     />
   </div>
 
-  <div style={{ width: 1, height: 18, background: '#e5e7eb', flexShrink: 0 }} />
+  <div className="oe-divider" style={{ width: 1, height: 18, background: '#e5e7eb', flexShrink: 0 }} />
 
   {/* Right side - Timer and Progress */}
   <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
@@ -1097,10 +1110,10 @@ const OthersExam: React.FC<OthersExamProps> = ({
       </div>
     )}
 
-    <div style={{ width: 1, height: 18, background: '#e5e7eb' }} />
+    <div className="oe-divider" style={{ width: 1, height: 18, background: '#e5e7eb' }} />
 
     {/* Progress indicators */}
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+    <div className="oe-progress" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
         <span style={{ fontSize: 13, fontWeight: 700, color: '#6b7280' }}>{questions.length}</span>
         <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 500 }}>Total</span>
@@ -1117,10 +1130,10 @@ const OthersExam: React.FC<OthersExamProps> = ({
   </div>
 </div>
       {/* ── BODY — resizable split panel ────────────────────────────────────── */}
-      <div ref={containerRef} style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+      <div ref={containerRef} className="oe-body" style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
         {/* LEFT — question panel */}
-        <div className="oe-scroll" style={{ width: `${leftPct}%`, flexShrink: 0, overflowY: 'auto', padding: '32px 28px' }}>
+        <div className="oe-scroll oe-question" style={{ width: `${leftPct}%`, flexShrink: 0, overflowY: 'auto', padding: '32px 28px' }}>
 
           {/* Question number + badges */}
           <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
@@ -1270,7 +1283,7 @@ const OthersExam: React.FC<OthersExamProps> = ({
         </div>
 
         {/* RIGHT — Answer panel */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#fafafa' }}>
+        <div className="oe-answer" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#fafafa' }}>
 
           {/* "Your Answer" label strip */}
           <div style={{ flexShrink: 0, padding: '12px 20px', borderBottom: '1px solid #f0f0f0', background: '#fff' }}>
@@ -1306,7 +1319,7 @@ const OthersExam: React.FC<OthersExamProps> = ({
       </div>
 
       {/* ── FIXED BOTTOM NAV ── */}
-      <div style={{
+      <div className="oe-bottombar" style={{
         flexShrink: 0, borderTop: '1px solid #f0f0f0', background: '#fff',
         padding: '12px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
       }}>

@@ -226,7 +226,7 @@ const FullDetailsOverlay: React.FC<FullDetailsOverlayProps> = ({
           onClick={onClose}
         >
           <motion.div
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col"
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] max-h-[90dvh] overflow-hidden flex flex-col"
             variants={overlayVariants}
             initial="hidden"
             animate="visible"
@@ -234,14 +234,14 @@ const FullDetailsOverlay: React.FC<FullDetailsOverlayProps> = ({
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-white">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-white rounded-xl shadow-sm border border-gray-200">
+            <div className="flex items-center justify-between gap-3 p-4 sm:p-6 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-white">
+              <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+                <div className="hidden sm:block p-3 bg-white rounded-xl shadow-sm border border-gray-200">
                   <Building2 className="w-6 h-6 text-indigo-600" />
                 </div>
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900">{institution.inst_name}</h2>
-                  <div className="flex items-center gap-2 mt-1">
+                <div className="min-w-0">
+                  <h2 className="text-lg sm:text-xl font-bold text-gray-900 break-words">{institution.inst_name}</h2>
+                  <div className="flex flex-wrap items-center gap-2 mt-1">
                     <div className="flex items-center gap-1 px-2 py-0.5 bg-gray-100 rounded-full">
                       <Hash className="w-3 h-3 text-gray-600" />
                       <span className="text-xs font-mono font-semibold text-gray-700">
@@ -256,15 +256,15 @@ const FullDetailsOverlay: React.FC<FullDetailsOverlayProps> = ({
                 variant="ghost"
                 size="icon"
                 onClick={onClose}
-                className="h-9 w-9 rounded-full hover:bg-gray-100"
+                className="h-9 w-9 shrink-0 rounded-full hover:bg-gray-100"
               >
                 <X className="h-5 w-5" />
               </Button>
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto p-6">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                 {/* Left Column */}
                 <div className="space-y-6">
                   <motion.div 
@@ -458,15 +458,15 @@ const FullDetailsOverlay: React.FC<FullDetailsOverlayProps> = ({
             </div>
 
             {/* Footer */}
-            <div className="border-t border-gray-200 p-6 bg-gray-50">
-              <div className="flex items-center justify-between">
+            <div className="border-t border-gray-200 p-4 sm:p-6 bg-gray-50">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2 text-sm text-gray-600">
                   <span className="font-medium">Institution ID:</span>
                   <code className="bg-gray-200 px-2 py-1 rounded text-xs font-mono">
                     {institution.inst_id}
                   </code>
                 </div>
-                <div className="flex gap-3">
+                <div className="flex flex-wrap gap-3">
                   <Button
                     variant="outline"
                     onClick={onClose}
@@ -828,10 +828,10 @@ export default function InstitutionManagementPage() {
         {/* Full width container */}
         <div className="w-full px-0">
           {/* Compact Header Section */}
-          <div className="bg-white border-b border-gray-200 w-full px-6 py-4">
+          <div className="bg-white border-b border-gray-200 w-full px-4 sm:px-6 py-4">
             <div className="flex flex-col gap-4 w-full">
               {/* Top Row - Title and Actions */}
-              <div className="flex items-center justify-between w-full">
+              <div className="flex flex-wrap items-center justify-between gap-3 w-full">
                 <div className="flex flex-col gap-1">
                   <Breadcrumb className="flex-shrink-0">
                     <BreadcrumbList>
@@ -900,9 +900,9 @@ export default function InstitutionManagementPage() {
                 </div>
                 
                 {/* Statistics and Filter Toggle */}
-                <div className="flex items-center gap-3 flex-shrink-0">
+                <div className="flex flex-wrap items-center gap-3 flex-shrink-0">
                   {/* Statistics */}
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     {[
                       { 
                         title: "Total", 
@@ -1026,7 +1026,7 @@ export default function InstitutionManagementPage() {
           </div>
 
           {/* Main Content Area */}
-          <div className="w-full px-6 pt-6">
+          <div className="w-full px-4 sm:px-6 pt-4 sm:pt-6">
             <div className="w-full">
               {/* Table Section */}
               <div className="bg-white overflow-hidden w-full">
@@ -1103,7 +1103,7 @@ export default function InstitutionManagementPage() {
                   </DialogHeader>
 
                   <div className="space-y-3 py-3">
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 min-[400px]:grid-cols-2 gap-3">
                       <div className="space-y-2">
                         <div className="bg-gray-50 rounded p-2 border border-gray-200">
                           <label className="block text-xs font-semibold text-gray-500 mb-1">

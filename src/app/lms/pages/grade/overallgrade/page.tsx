@@ -696,7 +696,7 @@ export default function DetailedGradePage() {
 
     return (
       <div className="mb-4">
-        <nav className="flex items-center gap-1 text-sm" aria-label="Breadcrumb">
+        <nav className="flex items-center gap-1 text-sm overflow-x-auto pb-1 lg:pb-0 lg:overflow-visible" aria-label="Breadcrumb">
           {breadcrumbItems.map((item, index) => (
             <React.Fragment key={index}>
               {/* Breadcrumb Item */}
@@ -742,7 +742,7 @@ export default function DetailedGradePage() {
   )
 
   return (
-    <div className={`flex flex-col h-screen w-full bg-[#FDFBF7] overflow-hidden ${inter.variable} ${montserrat.variable} font-sans`}>
+    <div className={`flex flex-col min-h-[100dvh] lg:min-h-0 lg:h-screen w-full bg-[#FDFBF7] lg:overflow-hidden ${inter.variable} ${montserrat.variable} font-sans`}>
       <Toaster 
         position="top-right"
         toastOptions={{
@@ -762,12 +762,12 @@ export default function DetailedGradePage() {
       </div>
       
       {/* Main Area - Grid with 3 columns */}
-      <main className={`flex-1 p-4 md:p-6 pt-0 grid gap-4 h-full overflow-hidden ${
+      <main className={`flex-1 p-4 md:p-6 pt-0 grid gap-4 lg:h-full lg:overflow-hidden ${
         showStatsPanel ? 'grid-cols-1 lg:grid-cols-3' : 'grid-cols-1 lg:grid-cols-2'
       }`}>
         
         {/* LEFT COLUMN: Exercise List - Ultra Compact */}
-        <div className="flex flex-col h-full min-h-0 min-w-0 bg-white rounded-lg border border-slate-200 shadow-sm p-3">
+        <div className="flex flex-col h-full max-h-[55dvh] lg:max-h-none min-h-0 min-w-0 bg-white rounded-lg border border-slate-200 shadow-sm p-3">
           {/* Header */}
           <div className="mb-3 flex-shrink-0">
             <div className="flex justify-between items-center mb-2">
@@ -777,14 +777,14 @@ export default function DetailedGradePage() {
               <div className="flex items-center gap-1">
                 <button 
                   onClick={() => setShowStatsPanel(!showStatsPanel)}
-                  className={`p-1 rounded ${showStatsPanel ? 'bg-orange-100 text-orange-600' : 'text-slate-400 hover:text-orange-500'}`}
+                  className={`p-2 lg:p-1 rounded ${showStatsPanel ? 'bg-orange-100 text-orange-600' : 'text-slate-400 hover:text-orange-500'}`}
                   title="Toggle Statistics Panel"
                 >
                   <BarChart className="w-3.5 h-3.5" />
                 </button>
                 <button 
                   onClick={() => setShowFilters(!showFilters)}
-                  className={`p-1 rounded ${showFilters ? 'bg-orange-100 text-orange-600' : 'text-slate-400 hover:text-orange-500'}`}
+                  className={`p-2 lg:p-1 rounded ${showFilters ? 'bg-orange-100 text-orange-600' : 'text-slate-400 hover:text-orange-500'}`}
                   title="Toggle Filters"
                 >
                   <Filter className="w-3.5 h-3.5" />
@@ -792,7 +792,7 @@ export default function DetailedGradePage() {
                 <button 
                   onClick={() => fetchCourseExercises(true)} 
                   disabled={refreshing}
-                  className="p-1 rounded text-slate-400 hover:text-orange-500 disabled:opacity-50"
+                  className="p-2 lg:p-1 rounded text-slate-400 hover:text-orange-500 disabled:opacity-50"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
                 </button>
@@ -954,11 +954,11 @@ export default function DetailedGradePage() {
         </div>
 
         {/* MIDDLE COLUMN: Question List */}
-        <div className="bg-white rounded-xl shadow-sm p-4 flex flex-col h-full min-h-0 border border-slate-100">
+        <div className="bg-white rounded-xl shadow-sm p-3 sm:p-4 flex flex-col h-full min-h-[60dvh] lg:min-h-0 min-w-0 border border-slate-100">
           {selectedExercise ? (
             <>
               {/* Compact Header */}
-              <div className="flex justify-between items-start mb-4 flex-shrink-0">
+              <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-start gap-3 sm:gap-0 mb-4 flex-shrink-0">
                 <div className="pr-2 flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 mb-1">
                     <span className="px-1.5 py-0.5 rounded text-2xs font-bold uppercase tracking-wider bg-slate-100 text-slate-500">
@@ -973,7 +973,7 @@ export default function DetailedGradePage() {
                   <h2 className="text-base font-bold text-slate-900 font-heading leading-tight mb-1.5 truncate">
                     {selectedExercise.exerciseName || "Unnamed Exercise"}
                   </h2>
-                  <div className="flex items-center gap-3 text-xs text-slate-500">
+                  <div className="flex flex-wrap lg:flex-nowrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
                     <div className="flex items-center gap-1">
                       <Trophy className="w-3 h-3 text-orange-500" />
                       <span>Accuracy: <b className="text-slate-700">{selectedExercise.statistics?.accuracy?.toFixed(0) || 0}%</b></span>
@@ -994,9 +994,9 @@ export default function DetailedGradePage() {
               </div>
 
               {/* Table Area */}
-              <div className="flex-1 overflow-y-auto custom-scrollbar -mx-4 px-4 min-h-0">
+              <div className="flex-1 overflow-auto custom-scrollbar -mx-3 px-3 sm:-mx-4 sm:px-4 min-h-0">
                 {selectedExercise.questions && selectedExercise.questions.length > 0 ? (
-                  <table className="w-full text-left border-collapse">
+                  <table className="w-full min-w-[440px] sm:min-w-0 text-left border-collapse">
                     <thead className="sticky top-0 bg-white z-10">
                       <tr className="text-2xs font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">
                         <th className="py-2 pr-3 w-10">#</th>

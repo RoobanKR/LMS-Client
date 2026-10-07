@@ -991,11 +991,26 @@ const MCQ = ({ exercise:propExercise, courseId='', courseName='Course', nodeId='
         .btn-next:hover{background:${T.orangeDark}!important;}
         .btn-flag:hover{border-color:${T.amber}!important;color:${T.amber}!important;background:${T.amberLight}!important;}
         .submit-ok:hover{filter:brightness(1.06);}
+        @media (max-width:1023px){
+          .mcq-body{flex-direction:column!important;}
+          .mcq-qpanel{width:auto!important;border-left:none!important;border-top:1px solid ${T.border};max-height:40%;}
+        }
+        @media (max-width:640px){
+          .mcq-topbar-row{padding:0 12px!important;gap:8px!important;}
+          .mcq-top-right{gap:6px!important;}
+          .mcq-stat,.mcq-stat-div{display:none!important;}
+          .mcq-qmeta{padding:0 12px!important;}
+          .mcq-qmeta-chips{overflow-x:auto;min-width:0;scrollbar-width:none;}
+          .mcq-content{padding:16px 14px!important;}
+          .mcq-opts{grid-template-columns:1fr!important;}
+          .mcq-bottombar{padding:0 12px!important;gap:8px!important;}
+          .mcq-bottombar .btn-prev,.mcq-bottombar .btn-next{padding:10px 14px!important;}
+        }
       `}</style>
 
       <ToastContainer position="top-right" />
       {showSubmitDialog&&<SubmitDialog unansweredCount={unansweredCount} flaggedCount={flaggedQuestions.size} unansweredIndices={unansweredIndices} flaggedIndices={flaggedIndices} requiredUnansweredIndices={requiredUnansweredIndices} onConfirm={submitQuiz} onCancel={()=>setShowSubmitDialog(false)} onNavigateToQuestion={handleJumpToQuestion} />}
-      
+
       <ExerciseInfoModals
         exercise={exerciseData}
         showDetailsModal={showDetailsModal}
@@ -1012,8 +1027,8 @@ const MCQ = ({ exercise:propExercise, courseId='', courseName='Course', nodeId='
 
       {/* ═══ TOP BAR (fixed height) ═══ */}
       <div style={{ flexShrink:0,height:TOP_BAR_H,background:T.bg,borderBottom:`1px solid ${T.border}`,display:'flex',flexDirection:'column',zIndex:50 }}>
-        <div style={{ flex:1,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 24px',gap:12 }}>
-          
+        <div className="mcq-topbar-row" style={{ flex:1,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 24px',gap:12 }}>
+
           {/* Left — back + logo + breadcrumb */}
           <div style={{ display:'flex',alignItems:'center',gap:0,minWidth:0,flex:1 }}>
             <nav style={{ display:'flex',alignItems:'center',gap:0,minWidth:0,overflow:'hidden' }}>
@@ -1027,14 +1042,14 @@ const MCQ = ({ exercise:propExercise, courseId='', courseName='Course', nodeId='
           </div>
 
           {/* Right — buttons + timer + stats */}
-          <div style={{ display:'flex',alignItems:'center',gap:10,flexShrink:0 }}>
+          <div className="mcq-top-right" style={{ display:'flex',alignItems:'center',gap:10,flexShrink:0 }}>
             <ExerciseInfoButtons
               onDetailsClick={() => setShowDetailsModal(true)}
               onOverviewClick={() => setShowOverviewModal(true)}
               isGraded={exerciseData?.isGraded !== false}
             />
 
-            <div style={{ width:1,height:18,background:T.border }} />
+            <div className="mcq-stat-div" style={{ width:1,height:18,background:T.border }} />
 
             {/* Stats — Total / Done / Left / Flagged */}
             {[
@@ -1043,7 +1058,7 @@ const MCQ = ({ exercise:propExercise, courseId='', courseName='Course', nodeId='
               {v:unansweredCount,     label:'Left',   col:T.textMuted},
               {v:flaggedQuestions.size,label:'Flagged',col:T.amber}
             ].map(({v,label,col})=>(
-              <div key={label} style={{ display:'flex',alignItems:'center',gap:3 }}>
+              <div key={label} className="mcq-stat" style={{ display:'flex',alignItems:'center',gap:3 }}>
                 <span style={{ fontSize:14,fontWeight:800,color:col }}>{v}</span>
                 <span style={{ fontSize:10,color:T.textHint,fontWeight:600 }}>{label}</span>
               </div>
@@ -1058,14 +1073,14 @@ const MCQ = ({ exercise:propExercise, courseId='', courseName='Course', nodeId='
       </div>
 
       {/* ═══ BODY ═══ */}
-      <div style={{ flex:1,minHeight:0,overflow:'hidden',display:'flex' }}>
+      <div className="mcq-body" style={{ flex:1,minHeight:0,overflow:'hidden',display:'flex' }}>
 
         {/* Left: Question column */}
         <div style={{ flex:1,minWidth:0,minHeight:0,display:'flex',flexDirection:'column',overflow:'hidden' }}>
 
           {/* ── Sticky Q-meta row ── */}
-          <div style={{ flexShrink:0,height:Q_META_H,background:T.bg,borderBottom:`1px solid ${T.border}`,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 28px',gap:10,zIndex:20 }}>
-            <div style={{ display:'flex',alignItems:'center',gap:10 }}>
+          <div className="mcq-qmeta" style={{ flexShrink:0,height:Q_META_H,background:T.bg,borderBottom:`1px solid ${T.border}`,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 28px',gap:10,zIndex:20 }}>
+            <div className="mcq-qmeta-chips" style={{ display:'flex',alignItems:'center',gap:10 }}>
               <div style={{ display:'flex',alignItems:'baseline',gap:2 }}>
                 <span style={{ fontSize:10,color:T.textHint,fontWeight:700,letterSpacing:'0.05em' }}>Q</span>
                 <span style={{ fontSize:26,fontWeight:900,color:T.orange,lineHeight:1,letterSpacing:'-0.03em',margin:'0 2px' }}>{currentQuestionIndex+1}</span>
@@ -1102,7 +1117,7 @@ const MCQ = ({ exercise:propExercise, courseId='', courseName='Course', nodeId='
           </div>
 
           {/* ── Scrollable question content ── */}
-          <div ref={scrollRef} className="mcq-fade mcq-s" key={currentQuestionIndex}
+          <div ref={scrollRef} className="mcq-fade mcq-s mcq-content" key={currentQuestionIndex}
             style={{ flex:1,minHeight:0,overflowY:'auto',padding:'24px 28px' }}>
             {/* Use the enhanced ContentBlockRenderer for the question title */}
             <div style={{ marginBottom:8 }}><ContentBlockRenderer title={cq.mcqQuestionTitle} /></div>
@@ -1125,7 +1140,7 @@ const MCQ = ({ exercise:propExercise, courseId='', courseName='Course', nodeId='
             {cq.mcqQuestionType==='matching'&&cq.matchingPairs&&<MatchingWidget pairs={cq.matchingPairs} answers={matchingAnswers} onChange={handleMatchingChange} disabled={quizCompleted} />}
             {cq.mcqQuestionType==='ordering'&&cq.orderingItems&&<OrderingWidget items={cq.orderingItems} answers={orderingAnswers} onChange={handleOrderingChange} disabled={quizCompleted} />}
             {(cq.mcqQuestionType==='multiple_choice'||cq.mcqQuestionType==='multiple_select')&&(
-              <div style={{ display:'grid',gridTemplateColumns:getGridCols(),gap:10 }}>
+              <div className="mcq-opts" style={{ display:'grid',gridTemplateColumns:getGridCols(),gap:10 }}>
                 {cq.mcqQuestionOptions?.map((option,idx)=>(
                   cq.mcqQuestionType==='multiple_select'
                     ?<CheckboxOption key={option._id} option={option} checked={selectedCheckboxOptions.has(option._id)} onChange={()=>handleOptionSelect(option._id)} index={idx} disabled={quizCompleted} />
@@ -1138,7 +1153,7 @@ const MCQ = ({ exercise:propExercise, courseId='', courseName='Course', nodeId='
         </div>
 
         {/* Right: Compact question panel */}
-        <div style={{ flexShrink:0,width:270,minHeight:0,borderLeft:`1px solid ${T.border}`,background:T.bg,overflowY:'auto',padding:'16px 14px 20px 14px' }} className="mcq-s">
+        <div style={{ flexShrink:0,width:270,minHeight:0,borderLeft:`1px solid ${T.border}`,background:T.bg,overflowY:'auto',padding:'16px 14px 20px 14px' }} className="mcq-s mcq-qpanel">
           <QuestionPanel
             questions={filteredQuestions} currentIndex={currentQuestionIndex}
             answers={answers} flaggedQuestions={flaggedForSidebar} onJump={handleJumpToQuestion}
@@ -1151,7 +1166,7 @@ const MCQ = ({ exercise:propExercise, courseId='', courseName='Course', nodeId='
       </div>
 
       {/* ═══ BOTTOM NAV BAR ═══ */}
-      <div style={{ flexShrink:0,height:BOTTOM_BAR_H,background:T.bg,borderTop:`1px solid ${T.border}`,display:'flex',alignItems:'center',padding:'0 28px',gap:16,zIndex:50 }}>
+      <div className="mcq-bottombar" style={{ flexShrink:0,height:BOTTOM_BAR_H,background:T.bg,borderTop:`1px solid ${T.border}`,display:'flex',alignItems:'center',padding:'0 28px',gap:16,zIndex:50 }}>
         <button onClick={handlePrev} disabled={currentQuestionIndex===0} className="btn-prev"
           style={{ display:'flex',alignItems:'center',gap:7,padding:'10px 20px',borderRadius:10,border:`1.5px solid ${T.border}`,background:'transparent',color:currentQuestionIndex===0?T.textHint:T.textSub,fontSize:13,fontWeight:600,cursor:currentQuestionIndex===0?'not-allowed':'pointer',fontFamily:'inherit',transition:'all 0.13s',flexShrink:0 }}>
           <ChevronLeft size={15} /> Previous

@@ -81,7 +81,7 @@ const RatingInput: React.FC<RatingInputProps> = ({ question, selectedAnswer, onA
   if (style === 'star') {
     return (
       <div className="mt-2.5">
-        <div className="flex items-center gap-1">
+        <div className="flex flex-wrap items-center gap-1">
           {values.map((val) => {
             const active = typeof selectedAnswer === 'number' && selectedAnswer >= val;
             return (
@@ -329,11 +329,11 @@ export const FeedbackStudentModal: React.FC<FeedbackStudentModalProps> = ({
   // Modal floats over the page; page variant is a plain white full page —
   // no card, no backdrop.
   const wrapperCls = isPage
-    ? 'min-h-screen bg-white flex items-stretch justify-center'
+    ? 'min-h-[100dvh] bg-white flex items-stretch justify-center'
     : 'fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-5';
   const cardCls = isPage
-    ? 'bg-white w-full max-w-7xl h-screen flex flex-col overflow-hidden'
-    : 'bg-white rounded-xl w-full max-w-7xl h-[92vh] max-h-[92vh] flex flex-col shadow-2xl border border-gray-200 overflow-hidden';
+    ? 'bg-white w-full max-w-7xl h-[100dvh] flex flex-col overflow-hidden'
+    : 'bg-white rounded-xl w-full max-w-7xl h-[92dvh] max-h-[92dvh] flex flex-col shadow-2xl border border-gray-200 overflow-hidden';
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<Record<string, AnswerData>>({});
   const [overallReason, setOverall] = useState('');
@@ -490,7 +490,7 @@ export const FeedbackStudentModal: React.FC<FeedbackStudentModalProps> = ({
     <div className={`${poppins.className} ${wrapperCls}`}>
       <div className={cardCls}>
         {/* ── Header ── */}
-        <div className="flex-shrink-0 px-5 pt-4 pb-3 border-b border-gray-100">
+        <div className="flex-shrink-0 px-4 sm:px-5 pt-4 pb-3 border-b border-gray-100">
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
@@ -562,7 +562,7 @@ export const FeedbackStudentModal: React.FC<FeedbackStudentModalProps> = ({
         </div>
 
         {/* ── Body ── */}
-        <div className={`flex-1 overflow-y-auto px-6 py-2 bg-white ${thinScroll}`}>
+        <div className={`flex-1 overflow-y-auto px-3 sm:px-6 py-2 bg-white ${thinScroll}`}>
           {groupedVisible.map((group, gIdx) => (
             <div
               key={(group.category ?? '__ungrouped__') + '-' + gIdx}
@@ -601,7 +601,7 @@ export const FeedbackStudentModal: React.FC<FeedbackStudentModalProps> = ({
         </div>
 
         {/* ── Footer — buttons centered, status pinned left ── */}
-        <div className="relative flex-shrink-0 px-5 py-2.5 border-t border-gray-100 bg-gray-50 flex items-center justify-center gap-3">
+        <div className="relative flex-shrink-0 px-3 sm:px-5 py-2.5 border-t border-gray-100 bg-gray-50 flex flex-wrap items-center justify-center gap-3">
           {/* Status */}
           <div className="absolute left-5 hidden sm:flex items-center gap-1.5 min-w-0 max-w-[38%]">
             <span

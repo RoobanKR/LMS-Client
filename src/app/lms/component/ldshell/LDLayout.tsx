@@ -382,11 +382,54 @@ export default function LDLayout({ active, children, apprBadge }: { active: LDVi
     return next;
   });
 
+  // Below lg (1024px) the rail is an off-canvas drawer opened from the panel's
+  // top bar. The desktop collapse ("rail") only applies at lg and up, so a
+  // collapsed desktop rail never leaks into the drawer.
+  const [navOpen, setNavOpen] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(true);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const sync = () => {
+      setIsDesktop(mq.matches);
+      if (mq.matches) setNavOpen(false);
+    };
+    sync();
+    mq.addEventListener?.("change", sync);
+    return () => mq.removeEventListener?.("change", sync);
+  }, []);
+  useEffect(() => {
+    setNavOpen(false);
+  }, [pathname]);
+  useEffect(() => {
+    if (!navOpen) return;
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key === "Escape") setNavOpen(false);
+    };
+    const onHash = () => setNavOpen(false);
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("hashchange", onHash);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("hashchange", onHash);
+    };
+  }, [navOpen]);
+  const railOn = railCollapsed && isDesktop;
+
   return (
-    <div className={`ldx${railCollapsed ? " rail" : ""}`}>
+    <div className={`ldx${railOn ? " rail" : ""}${navOpen ? " nav-open" : ""}`}>
       <style>{LDX_CSS}</style>
- 
-      <aside className="ldx-side" aria-label="L&D navigation">
+
+      {/* Below lg: dimmed backdrop behind the off-canvas rail. */}
+      {navOpen ? <div className="ldx-scrim" aria-hidden onClick={() => setNavOpen(false)} /> : null}
+
+      <aside
+        className="ldx-side"
+        aria-label="L&D navigation"
+        onClick={(e) => {
+          // Drawer: any link tap (hash view or page) closes it.
+          if ((e.target as HTMLElement).closest("a")) setNavOpen(false);
+        }}
+      >
         {/* Brand card — the reference layout opens on a raised company block.
             Product identity plus the rail-collapse toggle; who is signed in
             lives in the footer card. */}
@@ -405,6 +448,17 @@ export default function LDLayout({ active, children, apprBadge }: { active: LDVi
           >
             <svg viewBox="0 0 24 24" fill="none" strokeWidth={2.5} aria-hidden>
               {railCollapsed ? <path d="M9 6l6 6-6 6" /> : <path d="M15 6l-6 6 6 6" />}
+            </svg>
+          </button>
+          {/* Drawer close — shown below lg only (CSS). */}
+          <button
+            type="button"
+            className="ldx-brand-x"
+            aria-label="Close navigation"
+            onClick={() => setNavOpen(false)}
+          >
+            <svg viewBox="0 0 24 24" fill="none" strokeWidth={2.5} aria-hidden>
+              <path d="M18 6 6 18M6 6l12 12" />
             </svg>
           </button>
         </div>
@@ -477,6 +531,25 @@ export default function LDLayout({ active, children, apprBadge }: { active: LDVi
             open straight on their own header, and the account/logout menu sits
             at the bottom of the rail like the reference. */}
         <div className="ldx-panel">
+        {/* Below lg: compact top bar with the drawer's hamburger (CSS-gated). */}
+        <div className="ldx-mbar">
+          <button
+            type="button"
+            className="ldx-burger"
+            aria-label="Open navigation"
+            aria-expanded={navOpen}
+            onClick={() => setNavOpen(true)}
+          >
+            <svg viewBox="0 0 24 24" fill="none" strokeWidth={2} aria-hidden>
+              <path d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+          <span className="ldx-brand-logo ldx-mbar-logo" aria-hidden>S</span>
+          <span className="ldx-mbar-meta">
+            <b>SmartCliff</b>
+            <small>L&amp;D Console</small>
+          </span>
+        </div>
         {/* List views own their scrolling: the shell hands them the leftover
             height and stops scrolling itself, so each view's header stays put
             while only its table body moves. Analytical views (dashboard,
@@ -698,6 +771,21 @@ export const LDX_CSS = `
 .ldx-brand-tgl svg{width:14px; height:14px; stroke:currentColor; fill:none; stroke-linecap:round; stroke-linejoin:round;}
 .ldx-brand-tgl:hover{background:#E9EBF0; color:var(--ink2);}
 .ldx-brand-tgl:focus-visible{outline:2px solid var(--accent); outline-offset:1px;}
+/* Drawer-only chrome (below lg): close X in the brand card, the panel's top
+   bar with the hamburger, and the backdrop. Hidden on desktop. */
+.ldx-brand-x{display:none; flex:0 0 auto; margin-left:auto; place-items:center; width:34px; height:34px; border:none; border-radius:9px; background:none; color:var(--muted); cursor:pointer;}
+.ldx-brand-x svg{width:16px; height:16px; stroke:currentColor; fill:none; stroke-linecap:round; stroke-linejoin:round;}
+.ldx-brand-x:hover{background:#E9EBF0; color:var(--ink2);}
+.ldx-mbar{display:none;}
+.ldx-scrim{display:none;}
+.ldx-burger{flex:0 0 auto; display:inline-grid; place-items:center; width:36px; height:36px; border:1px solid var(--border); border-radius:99px; background:var(--surface); color:var(--ink2); cursor:pointer; box-shadow:var(--shadow-xs);}
+.ldx-burger svg{width:18px; height:18px; stroke:currentColor; fill:none; stroke-linecap:round;}
+.ldx-burger:hover{background:#ECEEF2;}
+.ldx-burger:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+.ldx-mbar-logo{width:28px; height:28px; border-radius:8px; font-size:13px;}
+.ldx-mbar-meta{min-width:0; line-height:1.2;}
+.ldx-mbar-meta b{display:block; font-size:13px; font-weight:700; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.ldx-mbar-meta small{display:block; font-size:10.5px; color:var(--muted); white-space:nowrap;}
 .ldx-nav{display:flex; align-items:center; gap:11px; padding:8px 10px; border-radius:10px; border:1px solid transparent; color:var(--ink2); text-decoration:none; font-size:13px; font-weight:500; transition:background .14s, color .14s;}
 .ldx-nav:hover{background:#ECEEF2; color:var(--ink);}
 /* Active item = white raised pill (reference pattern), accent for the label. */
@@ -738,7 +826,7 @@ export const LDX_CSS = `
 .ldx-searchbtn kbd{flex:0 0 auto; font:inherit; font-size:10.5px; font-weight:600; color:var(--muted); background:var(--page); border:1px solid var(--border); border-radius:7px; padding:1px 7px; line-height:16px;}
 /* Anchored LEFT: the trigger sits on the rail, so the panel opens rightward
    over the workspace instead of running off the screen edge. */
-.ldx-searchpop{position:absolute; top:calc(100% + 8px); left:0; z-index:40; width:330px; background:var(--surface); border:1px solid var(--border); border-radius:14px; box-shadow:0 4px 10px -4px rgba(16,24,40,.10),0 24px 44px -20px rgba(16,24,40,.22); overflow:hidden; animation:ldselin .13s ease;}
+.ldx-searchpop{position:absolute; top:calc(100% + 8px); left:0; z-index:40; width:min(330px, calc(100vw - 24px)); background:var(--surface); border:1px solid var(--border); border-radius:14px; box-shadow:0 4px 10px -4px rgba(16,24,40,.10),0 24px 44px -20px rgba(16,24,40,.22); overflow:hidden; animation:ldselin .13s ease;}
 .ldx-searchfield{display:flex; align-items:center; gap:8px; padding:10px 12px; border-bottom:1px solid var(--grid);}
 .ldx-searchfield svg{width:15px; height:15px; stroke:var(--muted); fill:none; flex:0 0 auto; stroke-linecap:round;}
 .ldx-searchfield input{flex:1; min-width:0; border:none; outline:none; background:none; font:inherit; font-size:13px; color:var(--ink);}
@@ -789,7 +877,7 @@ export const LDX_CSS = `
 .ldsel-chev{width:14px; height:14px; stroke:var(--muted); flex:0 0 auto; transition:transform .16s;}
 .ldsel-btn.set .ldsel-chev{stroke:var(--accent-ink);}
 .ldsel-btn.open .ldsel-chev{transform:rotate(180deg); stroke:var(--accent);}
-.ldsel-pop{position:absolute; top:calc(100% + 6px); left:0; z-index:30; min-width:238px; max-width:330px; background:var(--surface); border:1px solid var(--border); border-radius:14px; box-shadow:0 4px 10px -4px rgba(16,24,40,.10),0 24px 44px -20px rgba(16,24,40,.22); overflow:hidden; animation:ldselin .13s ease;}
+.ldsel-pop{position:absolute; top:calc(100% + 6px); left:0; z-index:30; min-width:min(238px, calc(100vw - 24px)); max-width:min(330px, calc(100vw - 24px)); background:var(--surface); border:1px solid var(--border); border-radius:14px; box-shadow:0 4px 10px -4px rgba(16,24,40,.10),0 24px 44px -20px rgba(16,24,40,.22); overflow:hidden; animation:ldselin .13s ease;}
 @keyframes ldselin{from{opacity:0; transform:translateY(-4px);} to{opacity:1; transform:none;}}
 .ldsel-srch{display:flex; align-items:center; gap:7px; padding:9px 11px; border-bottom:1px solid var(--grid);}
 .ldsel-srch svg{width:14px; height:14px; stroke:var(--muted); flex:0 0 auto;}
@@ -870,23 +958,42 @@ export const LDX_CSS = `
 .dark .ldx-nav:hover,.dark .ldx-sub:hover,.dark .ldx-iconbtn:hover,.dark .ldx-burger:hover{background:#1C1E23;}
 .dark .ldx-nav.on{box-shadow:0 1px 2px rgba(0,0,0,.40);}
 .dark .ldx-searchbtn{background:#1D1F25;}
-.dark .ldx-brand-tgl:hover{background:#1C1E23;}
+.dark .ldx-brand-tgl:hover,.dark .ldx-brand-x:hover{background:#1C1E23;}
 .dark .ldx-content{scrollbar-color:#3A3E46 transparent;}
 .dark .ldx-content::-webkit-scrollbar-thumb{background:#3A3E46; background-clip:padding-box;}
 .dark .ldx-content::-webkit-scrollbar-thumb:hover{background:#4A4F58; background-clip:padding-box;}
 .dark .ldsel-btn{background:#1D1F25;}
 .dark .ldsel-btn:hover,.dark .ldsel-btn.open,.dark .ldsel-btn.set.open{background:#232529;}
 
+/* Below lg the rail leaves the flow and becomes an off-canvas drawer, opened
+   by the hamburger in the panel's top bar (.ldx-mbar). */
+@media (max-width:1023px){
+  .ldx-side{position:fixed; top:0; left:0; bottom:0; z-index:1100; flex:none; align-self:auto; height:auto; width:min(280px, calc(100vw - 48px)); background:var(--page); box-shadow:0 10px 40px rgba(16,24,40,.22); overscroll-behavior:contain; transform:translateX(-100%); visibility:hidden; transition:transform .22s ease, visibility .22s;}
+  .ldx.nav-open .ldx-side{transform:none; visibility:visible;}
+  .ldx-scrim{display:block; position:fixed; inset:0; z-index:1090; background:rgba(15,23,42,.4);}
+  .ldx-brand-tgl{display:none;}
+  .ldx-brand-x{display:inline-grid;}
+  /* The gutter wraps all four sides — no rail beside the panel any more. */
+  .ldx-main{padding:14px;}
+  .ldx-mbar{display:flex; align-items:center; gap:10px; flex:0 0 auto; height:52px; padding:0 12px; border-bottom:1px solid var(--grid); background:var(--surface); border-radius:18px 18px 0 0;}
+}
 @media (max-width:820px){
   .ldx{flex-direction:column;}
-  .ldx-side{flex:none; position:static; height:auto; border-bottom:1px solid var(--border);}
   /* Below the tablet break the shell returns to normal document scrolling —
      a fixed viewport column is unusable next to a mobile keyboard. The gutter
-     wraps all four sides here since the rail sits above, not beside. */
+     wraps all four sides here since the rail is an off-canvas drawer. */
   .ldx-main{height:auto; overflow:visible; padding:10px;}
   .ldx-panel{overflow:visible;}
   .ldx-content, .ldx-content.fit{overflow:visible; display:block;}
+  /* Document scroll: keep the hamburger bar reachable while scrolling. */
+  .ldx-mbar{position:sticky; top:0; z-index:30;}
 }
+@media (max-width:640px){
+  .ldx-content{padding:14px 12px 24px;}
+  .ldx-content.bleed{padding:0;}
+  .ldx-content.dashboard-spacing{padding-left:12px; padding-right:12px;}
+}
+@media print{ .ldx-mbar, .ldx-scrim{display:none !important;} }
 `;
  
  

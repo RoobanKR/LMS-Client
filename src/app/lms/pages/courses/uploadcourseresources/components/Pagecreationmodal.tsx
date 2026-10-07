@@ -870,7 +870,7 @@ const InlineBlockMenu: React.FC<{
   return (
     <div
       ref={ref}
-      className={`fixed z-[200] w-72 rounded-2xl shadow-2xl border overflow-hidden ${isDark ? "bg-gray-900 border-gray-700" : "bg-white border-gray-200"
+      className={`fixed z-[200] w-72 max-w-[calc(100vw-16px)] rounded-2xl shadow-2xl border overflow-hidden ${isDark ? "bg-gray-900 border-gray-700" : "bg-white border-gray-200"
         }`}
       style={{ top, left }}
     >
@@ -1048,7 +1048,7 @@ const VideoEmbed: React.FC<{ block: PageBlock; onChange: (b: PageBlock) => void;
     <div>
       <div className="relative group aspect-video">
         <iframe src={block.content} className="w-full h-full rounded-xl" allowFullScreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" />
-        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100">
+        <div className="absolute top-2 right-2 opacity-100 lg:opacity-0 lg:group-hover:opacity-100">
           <button onClick={() => onChange({ ...block, content: "" })} className="p-2 bg-red-500/80 hover:bg-red-600 rounded-lg text-white"><Trash2 size={16} /></button>
         </div>
       </div>
@@ -1936,7 +1936,7 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
       onClick={onSelect}
     >
       {(showGripMenu || showStylePanel) && <div className="fixed inset-0 z-30" onMouseDown={() => { setShowGripMenu(false); setShowStylePanel(false) }} />}
-      <div className="absolute -left-14 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover/block:opacity-100 transition-opacity z-40">
+      <div className="absolute -left-14 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-100 lg:opacity-0 lg:group-hover/block:opacity-100 transition-opacity z-40">
         <button ref={plusRef} onClick={e => { e.stopPropagation(); const rect = plusRef.current!.getBoundingClientRect(); onOpenMenu(rect) }} className={`p-1.5 rounded-lg transition-colors ${isDark ? "hover:bg-gray-700 text-gray-500 hover:text-gray-300" : "hover:bg-gray-100 text-gray-400 hover:text-gray-700"}`} title="Add block"><Plus size={14} /></button>
         <button ref={gripRef} onClick={e => { e.stopPropagation(); setShowStylePanel(false); setShowGripMenu(v => !v) }} className={`p-1.5 rounded-lg transition-colors cursor-grab ${isDark ? "hover:bg-gray-700 text-gray-500 hover:text-gray-300" : "hover:bg-gray-100 text-gray-400 hover:text-gray-700"}`} title="Options"><GripVertical size={14} /></button>
       </div>
@@ -1972,7 +1972,7 @@ const PagesSidebar: React.FC<PagesSidebarProps> = ({ pages, activePageId, onSele
   const startRename = (page: PageData) => { setEditingId(page.id); setEditingName(page.title); setTimeout(() => inputRef.current?.focus(), 50) }
   const commitRename = () => { if (editingId && editingName.trim()) onRenamePage(editingId, editingName.trim()); setEditingId(null) }
   return (
-    <div className={`flex flex-col w-52 flex-shrink-0 border-r h-full ${isDark ? "bg-gray-900/80 border-gray-800" : "bg-gray-50/80 border-gray-100"}`}>
+    <div className={`flex flex-col w-full md:w-52 flex-shrink-0 border-b md:border-b-0 md:border-r max-h-40 md:max-h-none md:h-full ${isDark ? "bg-gray-900/80 border-gray-800" : "bg-gray-50/80 border-gray-100"}`}>
       <div className={`flex items-center justify-between px-4 py-3 border-b ${isDark ? "border-gray-800" : "border-gray-100"}`}>
         <div className="flex items-center gap-2">
           <Layers size={13} className={isDark ? "text-indigo-400" : "text-indigo-500"} />
@@ -1991,14 +1991,14 @@ const PagesSidebar: React.FC<PagesSidebarProps> = ({ pages, activePageId, onSele
               <span className="flex-1 text-xs font-medium truncate">{page.title || "Untitled"}</span>
             )}
             <span className={`flex-shrink-0 text-[9px] px-1 py-0.5 rounded-full font-mono ${isDark ? "bg-gray-800 text-gray-600" : "bg-gray-100 text-gray-400"}`}>{idx + 1}</span>
-            <div className={`absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover/page:opacity-100 transition-opacity ${isDark ? "bg-gray-900" : "bg-white"} rounded-md shadow-sm`}>
+            <div className={`absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-100 lg:opacity-0 lg:group-hover/page:opacity-100 transition-opacity ${isDark ? "bg-gray-900" : "bg-white"} rounded-md shadow-sm`}>
               <button onClick={e => { e.stopPropagation(); startRename(page) }} className={`p-1 rounded-md ${isDark ? "hover:bg-gray-700 text-gray-500" : "hover:bg-gray-100 text-gray-400"}`} title="Rename"><PenLine size={10} /></button>
               {pages.length > 1 && <button onClick={e => { e.stopPropagation(); onDeletePage(page.id) }} className="p-1 rounded-md text-red-400 hover:bg-red-50" title="Delete"><Trash2 size={10} /></button>}
             </div>
           </div>
         ))}
       </div>
-      <div className={`px-3 py-3 border-t ${isDark ? "border-gray-800" : "border-gray-100"}`}>
+      <div className={`hidden md:block px-3 py-3 border-t ${isDark ? "border-gray-800" : "border-gray-100"}`}>
         <button onClick={onCreatePage} className={`w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed text-xs font-medium transition-all ${isDark ? "border-gray-700 text-gray-600 hover:border-indigo-700 hover:text-indigo-400" : "border-gray-200 text-gray-400 hover:border-indigo-300 hover:text-indigo-500"}`}>
           <Plus size={12} />New Page
         </button>
@@ -2484,7 +2484,7 @@ export const PageCreationModal: React.FC<PageCreationModalProps> = ({
       setIsSubmitting(false);
     }
   };
-  const modalSize = isFullScreen ? "w-screen h-screen m-0 rounded-none" : "w-full h-full m-3 rounded-2xl"
+  const modalSize = isFullScreen ? "w-screen h-[100dvh] m-0 rounded-none" : "w-full h-full m-0 sm:m-3 rounded-none sm:rounded-2xl"
 
   const SaveStatusBadge = () => {
     if (saveStatus === "idle") return null
@@ -2507,8 +2507,8 @@ export const PageCreationModal: React.FC<PageCreationModalProps> = ({
       <div className={`relative flex flex-col ${modalSize} overflow-hidden shadow-2xl border border-white/10`} style={{ background: isDark ? "#0f1117" : "#ffffff" }} onClick={e => e.stopPropagation()}>
 
      {/* ── Top Bar ── */}
-<div className={`flex-shrink-0 flex items-center justify-between px-5 py-3 border-b ${isDark ? "border-gray-800 bg-gray-900/60" : "border-gray-100 bg-white/80"} backdrop-blur-sm`}>
-  <div className="flex items-center gap-1.5 flex-wrap">
+<div className={`flex-shrink-0 flex flex-wrap lg:flex-nowrap items-center justify-between gap-2 px-3 sm:px-5 py-3 border-b ${isDark ? "border-gray-800 bg-gray-900/60" : "border-gray-100 bg-white/80"} backdrop-blur-sm`}>
+  <div className="flex items-center gap-1.5 flex-wrap min-w-0">
     <button onClick={() => setIsFullScreen(v => !v)} className={`p-2 rounded-lg transition-colors ${isDark ? "hover:bg-gray-800 text-gray-400" : "hover:bg-gray-100 text-gray-500"}`}>{isFullScreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</button>
 
     <div className={`w-px h-5 ${isDark ? "bg-gray-700" : "bg-gray-200"} mx-0.5`} />
@@ -2519,7 +2519,7 @@ export const PageCreationModal: React.FC<PageCreationModalProps> = ({
 
     <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl ${isDark ? "bg-gray-800" : "bg-gray-50"}`}>
       <FileText size={14} className={isDark ? "text-gray-500" : "text-gray-400"} />
-      <input type="text" value={title} onChange={e => setTitle(e.target.value)} className={`text-sm font-semibold bg-transparent border-none outline-none w-52 ${isDark ? "text-gray-100 placeholder-gray-600" : "text-gray-900 placeholder-gray-400"}`} placeholder="Untitled page…" />
+      <input type="text" value={title} onChange={e => setTitle(e.target.value)} className={`text-sm font-semibold bg-transparent border-none outline-none w-28 sm:w-52 ${isDark ? "text-gray-100 placeholder-gray-600" : "text-gray-900 placeholder-gray-400"}`} placeholder="Untitled page…" />
     </div>
 
     {pages.length > 1 && (
@@ -2529,7 +2529,7 @@ export const PageCreationModal: React.FC<PageCreationModalProps> = ({
     )}
 
     {hierarchyInfo && (
-      <div className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs ${isDark ? "bg-gray-800 text-gray-500" : "bg-gray-100 text-gray-500"}`}>
+      <div className={`hidden md:flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs ${isDark ? "bg-gray-800 text-gray-500" : "bg-gray-100 text-gray-500"}`}>
         <span className="truncate max-w-[260px]">
           {[hierarchyInfo.courseName, hierarchyInfo.moduleName, hierarchyInfo.topicName].filter(Boolean).join(" › ")}
           {hierarchyInfo.tabType && <span className={`ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold ${isDark ? "bg-indigo-900 text-indigo-300" : "bg-indigo-100 text-indigo-600"}`}>{hierarchyInfo.tabType}</span>}
@@ -2563,7 +2563,7 @@ export const PageCreationModal: React.FC<PageCreationModalProps> = ({
         )}
 
         {/* ── Body: Sidebar + Editor ── */}
-        <div className="flex flex-1 overflow-hidden">
+        <div className="flex flex-col md:flex-row flex-1 min-h-0 overflow-hidden">
           <PagesSidebar
             pages={pages} activePageId={activePageId}
             onSelectPage={id => { setActivePageId(id); setSelectedIndex(-1) }}
@@ -2575,12 +2575,12 @@ export const PageCreationModal: React.FC<PageCreationModalProps> = ({
           <div className={`flex-1 overflow-y-auto ${isDark ? "bg-gray-900" : "bg-white"}`}>
             {!isPreview ? (
               // ── EDIT MODE ────────────────────────────────────────────────────
-              <div className={`w-full min-h-full max-w-3xl ${isFullScreen ? "px-20 py-16" : "px-16 py-12"}`}>
+              <div className={`w-full min-h-full max-w-3xl ${isFullScreen ? "px-3 py-6 sm:px-10 sm:py-10 lg:px-20 lg:py-16" : "px-3 py-6 sm:px-8 sm:py-8 lg:px-16 lg:py-12"}`}>
                 <input
                   type="text"
                   value={title}
                   onChange={e => setTitle(e.target.value)}
-                  className={`w-full text-4xl font-bold bg-transparent border-none outline-none mb-8 tracking-tight ${isDark ? "text-gray-100 placeholder-gray-700" : "text-gray-900 placeholder-gray-300"}`}
+                  className={`w-full text-2xl sm:text-3xl lg:text-4xl font-bold bg-transparent border-none outline-none mb-5 sm:mb-8 tracking-tight ${isDark ? "text-gray-100 placeholder-gray-700" : "text-gray-900 placeholder-gray-300"}`}
                   placeholder="Untitled"
                 />
                 <div className="w-full space-y-0.5 pl-14">
@@ -2612,15 +2612,15 @@ export const PageCreationModal: React.FC<PageCreationModalProps> = ({
                       className={`w-full flex items-center gap-3 py-3 px-4 rounded-xl border-2 border-dashed text-sm transition-all ${isDark ? "border-gray-800 text-gray-700 hover:border-indigo-700 hover:text-indigo-400" : "border-gray-100 text-gray-300 hover:border-indigo-200 hover:text-indigo-400"}`}
                     >
                       <Plus size={15} /><span>Click to add a block — or hover and click <kbd className={`text-xs px-1.5 py-0.5 rounded mx-1 ${isDark ? "bg-gray-800 text-gray-500" : "bg-gray-100 text-gray-500"}`}>+</kbd></span>
-                      <span className="ml-auto flex items-center gap-1"><kbd className={`text-xs px-1.5 py-0.5 rounded ${isDark ? "bg-gray-800 text-gray-500" : "bg-gray-100 text-gray-400"}`}>/</kbd><span className={`text-xs ${isDark ? "text-gray-600" : "text-gray-400"}`}>for commands</span></span>
+                      <span className="ml-auto hidden sm:flex items-center gap-1"><kbd className={`text-xs px-1.5 py-0.5 rounded ${isDark ? "bg-gray-800 text-gray-500" : "bg-gray-100 text-gray-400"}`}>/</kbd><span className={`text-xs ${isDark ? "text-gray-600" : "text-gray-400"}`}>for commands</span></span>
                     </button>
                   </div>
                 </div>
               </div>
             ) : (
               // ── PREVIEW MODE — uses dedicated PreviewRenderer ────────────────
-              <div className={`w-full min-h-full max-w-3xl ${isFullScreen ? "px-20 py-16" : "px-16 py-12"}`}>
-                <h1 className={`text-4xl font-bold mb-8 tracking-tight ${isDark ? "text-gray-100" : "text-gray-900"}`}>{title}</h1>
+              <div className={`w-full min-h-full max-w-3xl ${isFullScreen ? "px-3 py-6 sm:px-10 sm:py-10 lg:px-20 lg:py-16" : "px-3 py-6 sm:px-8 sm:py-8 lg:px-16 lg:py-12"}`}>
+                <h1 className={`text-2xl sm:text-3xl lg:text-4xl font-bold mb-5 sm:mb-8 tracking-tight ${isDark ? "text-gray-100" : "text-gray-900"}`}>{title}</h1>
                 <div className={isDark ? "text-gray-200" : "text-gray-800"}>
                   <PreviewRenderer
                     blocks={blocks}
@@ -2638,13 +2638,13 @@ export const PageCreationModal: React.FC<PageCreationModalProps> = ({
 
         {/* ── Status Bar ── */}
         <div className={`flex-shrink-0 flex items-center justify-between px-5 py-1.5 border-t text-[11px] ${isDark ? "border-gray-800 bg-gray-900/60 text-gray-600" : "border-gray-100 bg-gray-50/80 text-gray-400"}`}>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 min-w-0">
             <span>{blocks.length} block{blocks.length !== 1 ? "s" : ""}</span>
             <span>{wordCount} word{wordCount !== 1 ? "s" : ""}</span>
             <span className={`flex items-center gap-1 ${isDark ? "text-indigo-500" : "text-indigo-400"}`}><Layers size={10} />Page {pages.findIndex(p => p.id === activePageId) + 1} of {pages.length}</span>
             {hierarchyInfo?.courseId && <span className={`px-1.5 py-0.5 rounded font-mono text-[10px] ${isDark ? "bg-gray-800 text-gray-600" : "bg-gray-100 text-gray-400"}`}>ID: {hierarchyInfo.topicId || hierarchyInfo.moduleId || hierarchyInfo.courseId}</span>}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="hidden md:flex items-center gap-3">
             <span>{isPreview ? "👁 Preview" : "✏️ Editing"}</span>
             <span className="flex items-center gap-1">
               <kbd className={`px-1.5 py-0.5 rounded text-[10px] ${isDark ? "bg-gray-800" : "bg-gray-200"}`}>Ctrl+Z</kbd>

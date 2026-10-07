@@ -58,7 +58,7 @@ function DropdownMenuContent({ children, className = "", align = "start" }: { ch
     return (
         <div
             role="menu"
-            className={`absolute top-full z-[60] mt-1 overflow-y-auto rounded-lg border border-slate-200 bg-white p-1 shadow-lg ${align === "end" ? "right-0" : "left-0"} ${className}`}
+            className={`absolute top-full z-[60] mt-1 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-lg border border-slate-200 bg-white p-1 shadow-lg ${align === "end" ? "right-0" : "left-0"} ${className}`}
         >
             {children}
         </div>

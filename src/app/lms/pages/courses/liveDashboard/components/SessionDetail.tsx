@@ -467,7 +467,7 @@ export default function SessionDetail() {
     // assessment summary; the search+filter row and the table header are the
     // two sticky layers.
     <div className="min-h-full bg-[#f6f8ff]">
-      <div className="flex items-center gap-2.5 px-6 py-2.5">
+      <div className="flex items-center gap-2.5 px-3 py-2.5 sm:px-6">
         <button
           type="button"
           onClick={goBack}
@@ -477,14 +477,14 @@ export default function SessionDetail() {
         </button>
         <nav aria-label="Breadcrumb" className="flex items-center text-[12px] text-gray-500 min-w-0 flex-1">
           {/* Type context only — the header card's h1 below carries the name. */}
-          <span className="text-gray-500 whitespace-nowrap">{breadcrumbLabel}</span>
+          <span className="text-gray-500 whitespace-nowrap truncate">{breadcrumbLabel}</span>
         </nav>
         {/* Share + kebab removed — trainer feedback: the header should not
             carry extra actions; the assessment header + report modal cover
             everything they need. */}
       </div>
 
-      <div className="px-5 pt-2 pb-6 flex flex-col gap-3">
+      <div className="px-3 sm:px-5 pt-2 pb-6 flex flex-col gap-3">
         {reviewNeeded > 0 && (
           <div className="flex items-center gap-2 px-3 py-2 rounded-md border border-amber-200 bg-amber-50 text-amber-800 text-[12.5px]">
             <AlertTriangle size={14} className="flex-shrink-0" />
@@ -541,15 +541,15 @@ export default function SessionDetail() {
                     {total} learners
                   </span>
                 </div>
-                <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
-                  <div className="relative min-w-0">
+                <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-2 sm:w-auto">
+                  <div className="relative w-full min-w-0 sm:w-auto">
                     <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
                       type="search"
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
                       placeholder="Search name, email, or register no."
-                      className="h-8 w-[min(250px,24vw)] min-w-[160px] rounded-md border border-indigo-100 bg-white pl-8 pr-2.5 text-[11px] text-slate-800 outline-none placeholder:text-slate-400 focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
+                      className="h-8 w-full sm:w-[min(250px,24vw)] sm:min-w-[160px] rounded-md border border-indigo-100 bg-white pl-8 pr-2.5 text-[11px] text-slate-800 outline-none placeholder:text-slate-400 focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
                     />
                   </div>
                   <StatusSelect

@@ -888,6 +888,26 @@ export default function Lab({ onSave, initialQuestions = [] }: LabProps) {
           font-size: 0.8rem;
           color: hsl(var(--muted-foreground));
         }
+
+        /* Below lg: stack the question list above the editor instead of a
+           fixed 320px sidebar split; lg+ keeps the original layout. */
+        @media (max-width: 1023.98px) {
+          .lab-split {
+            flex-direction: column;
+            height: auto !important;
+          }
+          .questions-sidebar {
+            width: 100%;
+            max-height: 40vh;
+            border-right: 0;
+            border-bottom: 1px solid hsl(var(--border));
+          }
+          .question-preview { padding: 1rem; }
+          .lab-header { padding: 0.875rem 1rem; }
+        }
+        @media (max-width: 639.98px) {
+          .grid-2 { grid-template-columns: 1fr; }
+        }
       `}</style>
 
       <div className="lab-container">
@@ -902,7 +922,7 @@ export default function Lab({ onSave, initialQuestions = [] }: LabProps) {
           </div>
         </div>
 
-        <div className="flex" style={{ height: 'calc(100vh - 200px)' }}>
+        <div className="lab-split flex" style={{ height: 'calc(100vh - 200px)' }}>
           {/* Questions Sidebar */}
           <div className="questions-sidebar">
             <div className="p-3 border-b border-border">
@@ -1067,9 +1087,9 @@ function QuestionEditor({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="text-lg font-semibold">Edit Question</h3>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button type="button" onClick={onCancel} className="btn btn-outline">
             Cancel
           </button>
@@ -1080,7 +1100,7 @@ function QuestionEditor({
       </div>
 
       <div className="space-y-6">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="form-group">
             <label className="form-label">Question Title *</label>
             <input
@@ -1118,7 +1138,7 @@ function QuestionEditor({
           />
         </div>
 
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="form-group">
             <label className="form-label">Difficulty</label>
             <select
@@ -1382,10 +1402,10 @@ function QuestionViewer({
 }: QuestionViewerProps) {
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-semibold">{question.title}</h3>
-          <div className="flex items-center gap-2 mt-1">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="break-words text-lg font-semibold">{question.title}</h3>
+          <div className="flex flex-wrap items-center gap-2 mt-1">
             <span className={`difficulty-badge difficulty-${question.difficulty}`}>
               {question.difficulty}
             </span>

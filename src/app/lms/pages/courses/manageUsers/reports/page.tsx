@@ -309,7 +309,7 @@ function ManageUsersReportsInner() {
   ];
 
   return (
-    <div className="h-screen flex flex-col bg-white">
+    <div className="min-h-[100dvh] lg:h-screen lg:min-h-0 flex flex-col bg-white">
       {/* Custom scrollbar (matches old dashboard) */}
       <style jsx global>{`
         .lmsd-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
@@ -321,11 +321,11 @@ function ManageUsersReportsInner() {
       `}</style>
 
       {/* Breadcrumb bar */}
-      <div className="flex items-center gap-2.5 px-5 py-3 border-b border-gray-100 flex-shrink-0">
+      <div className="flex items-center gap-2.5 px-3 sm:px-5 py-3 border-b border-gray-100 flex-shrink-0">
         <button
           type="button"
           onClick={goBackToManageUsers}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium text-white bg-red-600 hover:bg-red-700 transition-colors"
+          className="flex flex-shrink-0 items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium text-white bg-red-600 hover:bg-red-700 transition-colors"
         >
           <ArrowLeft size={15} /> Back
         </button>
@@ -348,7 +348,7 @@ function ManageUsersReportsInner() {
                   }`}
                 >
                   {c.Icon && <c.Icon size={13} strokeWidth={2} className="flex-shrink-0" />}
-                  <span className={!isLast ? "truncate max-w-[200px]" : "whitespace-nowrap"}>{c.label}</span>
+                  <span className={!isLast ? "truncate max-w-[90px] sm:max-w-[200px]" : "whitespace-nowrap"}>{c.label}</span>
                 </button>
               </React.Fragment>
             );
@@ -357,7 +357,7 @@ function ManageUsersReportsInner() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 min-h-0 flex flex-col p-5 gap-4">
+      <div className="flex-1 min-h-0 flex flex-col p-3 sm:p-5 gap-4">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 flex-shrink-0">
           <div className="min-w-0">
@@ -380,7 +380,7 @@ function ManageUsersReportsInner() {
             <span><span className="text-gray-500">Submitted:</span> <span className="font-semibold text-green-600">{stats.submitted}</span></span>
           </div>
 
-          <div className="flex items-center gap-3 flex-shrink-0">
+          <div className="flex flex-wrap items-center gap-3 flex-shrink-0">
             <button
               type="button"
               onClick={() => setExportModalOpen(true)}
@@ -420,14 +420,14 @@ function ManageUsersReportsInner() {
 
         {/* Filters */}
         <div className="flex items-center gap-3 flex-wrap flex-shrink-0">
-          <div className="relative">
+          <div className="relative w-full sm:w-auto">
             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
               onChange={e => handleSearchChange(e.target.value)}
               placeholder="Search name or email…"
-              className="border border-gray-200 rounded-lg pl-7 pr-2.5 py-1.5 text-[13px] text-gray-700 outline-none focus:border-indigo-400 w-[220px]"
+              className="border border-gray-200 rounded-lg pl-7 pr-2.5 py-1.5 text-[13px] text-gray-700 outline-none focus:border-indigo-400 w-full sm:w-[220px]"
             />
           </div>
 
@@ -540,14 +540,14 @@ function ManageUsersReportsInner() {
               })()}
 
               {/* Pagination */}
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-5 py-3.5 border-t border-gray-100 flex-shrink-0">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-3 sm:px-5 py-3.5 border-t border-gray-100 flex-shrink-0">
                 <span className="text-[13px] text-gray-500">
                   {filteredStudents.length === 0
                     ? "No students"
                     : `Showing ${startIdx + 1} to ${Math.min(startIdx + rowsPerPage, filteredStudents.length)} of ${filteredStudents.length} ${statusFilter === "all" ? "students" : "matched"}`}
                 </span>
 
-                <div className="flex items-center gap-4">
+                <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
                   <div className="flex items-center gap-2 text-[13px] text-gray-500">
                     <span>Rows per page:</span>
                     <select

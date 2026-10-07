@@ -215,7 +215,7 @@ export default function CourseParticipantsContent(
     // batch-tab strip, then the roster table — no spinner-only load.
     return (
       <Shell embedded={embedded}>
-        <div className="h-full min-h-0 overflow-y-auto px-6 py-5 md:px-8">
+        <div className="h-full min-h-0 overflow-y-auto px-3 py-5 sm:px-6 md:px-8">
           <Skeleton className="h-3.5 w-72" />
           <div className="mt-4 rounded-xl border border-hairline bg-surface p-5 shadow-xs">
             <div className="flex items-center justify-between gap-4">
@@ -299,7 +299,7 @@ export default function CourseParticipantsContent(
 
         {/* Course identity card: who this roster belongs to, plus the two page
             actions. Elevated on the sunken canvas per the console card anatomy. */}
-        <div className={`px-6 md:px-8 pt-4${embedded ? "" : " pr-16 md:pr-16"}`}>
+        <div className={`px-3 sm:px-6 md:px-8 pt-4${embedded ? "" : " sm:pr-16 md:pr-16"}`}>
           <div className="rounded-xl border border-hairline bg-surface shadow-xs px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
             <div className="min-w-0 flex items-center gap-3">
               {/* Back to this course's hierarchy — same destination as the
@@ -334,7 +334,7 @@ export default function CourseParticipantsContent(
                     everything a subtitle would repeat. */}
               </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
               <button
                 type="button"
                 className="inline-flex items-center gap-1.5 h-8 px-3 rounded-control border border-hairline-strong bg-surface text-xs font-semibold text-body hover:bg-row-hover transition-colors"
@@ -367,7 +367,7 @@ export default function CourseParticipantsContent(
             (2 → 50/50, n → 1/n), and a brand-gradient thumb that SLIDES to the
             chosen batch. Too many batches scrolls the track sideways rather
             than shrinking segments below readability. */}
-        <div className="px-6 md:px-8 pt-3 pb-4 flex-1 min-h-0 flex flex-col">
+        <div className="px-3 sm:px-6 md:px-8 pt-3 pb-4 flex-1 min-h-0 flex flex-col">
           <div className="bg-surface rounded-xl border border-hairline shadow-xs p-3 sm:p-4 flex-1 min-h-0 flex flex-col">
             {/* Named so the pills need no decoding: "BATCH  [b1][b2]". The
                 pills are content-sized — a switch between short names has no
@@ -401,7 +401,7 @@ export default function CourseParticipantsContent(
                 <span className="inline-flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-wide text-faint flex-shrink-0">
                   <UsersRound size={13} className="text-brand-500" /> Section
                 </span>
-                <div className="inline-flex items-center gap-1 rounded-control bg-surface-sunken p-1 overflow-x-auto max-w-full">
+                <div className="inline-flex min-w-0 items-center gap-1 rounded-control bg-surface-sunken p-1 overflow-x-auto max-w-full">
                   {sectionNames.map((name) => {
                     const active = name === activeSection
                     const first = batches.find((b) => String(b.section || '').trim() === name)
@@ -435,7 +435,7 @@ export default function CourseParticipantsContent(
                 <span className="inline-flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-wide text-faint flex-shrink-0">
                   <Layers size={13} className="text-brand-500" /> Batches
                 </span>
-                <div className="inline-flex items-center gap-1 rounded-control bg-surface-sunken p-1 overflow-x-auto max-w-full">
+                <div className="inline-flex min-w-0 items-center gap-1 rounded-control bg-surface-sunken p-1 overflow-x-auto max-w-full">
                   {sectionGroups.map((b) => {
                     const active = b._id === batchId
                     return (

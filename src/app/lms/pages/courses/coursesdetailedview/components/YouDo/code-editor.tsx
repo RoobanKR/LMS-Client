@@ -502,8 +502,8 @@ const SecurityAgreementModal = ({
         : 'bg-white text-gray-900 border-gray-300';
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-            <div className={`w-full max-w-lg rounded-xl shadow-2xl border p-6 ${themeClasses}`}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm max-sm:p-4">
+            <div className={`w-full max-w-lg max-h-[90dvh] overflow-y-auto rounded-xl shadow-2xl border p-6 max-sm:p-4 ${themeClasses}`}>
                 <div className="flex items-center gap-3 mb-4">
                     <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
                         <ShieldCheck className="w-6 h-6 text-orange-600 dark:text-orange-400" />
@@ -645,8 +645,8 @@ const ExitConfirmationModal = ({
         : 'bg-white text-gray-900 border-gray-300';
 
     return (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm">
-            <div className={`w-full max-w-md rounded-xl shadow-2xl border p-6 ${themeClasses}`}>
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm max-sm:p-4">
+            <div className={`w-full max-w-md max-h-[90dvh] overflow-y-auto rounded-xl shadow-2xl border p-6 max-sm:p-4 ${themeClasses}`}>
                 <div className="flex items-center gap-3 mb-4">
                     <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
                         <AlertTriangle className="w-6 h-6 text-red-600 dark:text-red-400" />
@@ -730,7 +730,7 @@ const InteractiveTerminal = ({
 
     return (
         <div className={`fixed z-[100] flex flex-col shadow-2xl rounded-lg overflow-hidden border transition-all duration-300 ease-in-out font-sans animate-in slide-in-from-bottom-10 ${themeClasses}`}
-            style={isMaximized ? { top: '20px', left: '20px', right: '20px', bottom: '20px', width: 'auto', height: 'auto' } : { bottom: '20px', right: '20px', width: '600px', height: '400px' }}>
+            style={isMaximized ? { top: '20px', left: '20px', right: '20px', bottom: '20px', width: 'auto', height: 'auto' } : { bottom: '20px', right: '20px', width: '600px', height: '400px', maxWidth: 'calc(100vw - 40px)', maxHeight: 'calc(100dvh - 40px)' }}>
 
             <div className={`flex items-center justify-between px-4 py-2 border-b ${theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-gray-100 border-gray-300'}`}>
                 <div className="flex items-center gap-2.5">
@@ -4331,7 +4331,7 @@ else:
         <div
             ref={editorRef}
             className={`${theme === 'dark' ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'} flex flex-col w-full ${isFullscreen ? '' : 'relative h-full min-h-0 flex-1'}`}
-            style={{ fontFamily: FONT, ...(isFullscreen ? { position: 'fixed', inset: 0, width: 'calc(100vw * var(--ui-scale-inv, 1))', height: 'calc(100vh * var(--ui-scale-inv, 1))', zIndex: 2147483647, overflow: 'hidden' } : {}) }}
+            style={{ fontFamily: FONT, ...(isFullscreen ? { position: 'fixed', inset: 0, width: 'calc(100vw * var(--ui-scale-inv, 1))', height: 'calc(100dvh * var(--ui-scale-inv, 1))', zIndex: 2147483647, overflow: 'hidden' } : {}) }}
         >
             {/* Recovery banner — hidden in embedded mode. Offline-only: the sync
                 strip flashed at the top on every submit, which was pure noise. */}
@@ -4484,7 +4484,7 @@ else:
                     {/* Back confirmation dialog */}
                     {showBackConfirm && (
                         <div style={{ position: 'fixed', inset: 0, zIndex: 99999, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <div style={{ background: theme === 'dark' ? '#1f2937' : '#fff', borderRadius: 12, padding: '28px 32px', width: 360, boxShadow: '0 20px 60px rgba(0,0,0,0.3)', border: `1px solid ${theme === 'dark' ? '#374151' : '#e5e7eb'}` }}>
+                            <div style={{ background: theme === 'dark' ? '#1f2937' : '#fff', borderRadius: 12, padding: '28px 32px', width: 360, maxWidth: 'calc(100vw - 32px)', maxHeight: '90dvh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', border: `1px solid ${theme === 'dark' ? '#374151' : '#e5e7eb'}` }}>
                                 <p style={{ fontFamily: FONT, fontSize: 16, fontWeight: 700, color: theme === 'dark' ? '#f9fafb' : '#111827', marginBottom: 8 }}>Leave Exercise?</p>
                                 <p style={{ fontFamily: FONT, fontSize: 13, color: theme === 'dark' ? '#9ca3af' : '#6b7280', marginBottom: 24, lineHeight: 1.6 }}>
                                     Your code is saved, but unsaved progress may be lost. Where would you like to go?
@@ -4512,7 +4512,7 @@ else:
                     {/* Breadcrumb leave-confirm dialog */}
                     {pendingNavLevel !== null && (
                         <div style={{ position: 'fixed', inset: 0, zIndex: 99999, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <div style={{ background: theme === 'dark' ? '#1f2937' : '#fff', borderRadius: 12, padding: '28px 32px', width: 360, boxShadow: '0 20px 60px rgba(0,0,0,0.35)', border: `1px solid ${theme === 'dark' ? '#374151' : '#e5e7eb'}` }}>
+                            <div style={{ background: theme === 'dark' ? '#1f2937' : '#fff', borderRadius: 12, padding: '28px 32px', width: 360, maxWidth: 'calc(100vw - 32px)', maxHeight: '90dvh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.35)', border: `1px solid ${theme === 'dark' ? '#374151' : '#e5e7eb'}` }}>
                                 <p style={{ fontFamily: FONT, fontSize: 16, fontWeight: 700, color: theme === 'dark' ? '#f9fafb' : '#111827', marginBottom: 8 }}>Leave Exercise?</p>
                                 <p style={{ fontFamily: FONT, fontSize: 13, color: theme === 'dark' ? '#9ca3af' : '#6b7280', marginBottom: 24, lineHeight: 1.6 }}>
                                     Your progress may not be saved if you leave now.
@@ -4547,6 +4547,7 @@ else:
                 those two chips live on the left nav rail now, so the editor
                 starts a full row higher with no dead space on top. */}
             <div
+                className="max-lg:flex-wrap max-lg:gap-y-2 max-sm:px-3!"
                 style={{
                     flexShrink: 0,
                     position: 'relative',
@@ -4560,8 +4561,8 @@ else:
                     borderBottom: `1px solid ${theme === 'dark' ? '#374151' : '#E4E7EC'}`,
                 }}
             >
-                <div className="flex items-center" style={{ gap: 10, minWidth: 0 }}>
-                    <span aria-hidden="true" style={{
+                <div className="flex items-center max-sm:flex-wrap max-sm:gap-y-2" style={{ gap: 10, minWidth: 0 }}>
+                    <span aria-hidden="true" className="max-sm:hidden!" style={{
                         width: 36, height: 36, borderRadius: 8, flexShrink: 0,
                         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                         background: '#0F9D94', color: '#fff',
@@ -4597,6 +4598,7 @@ else:
                                     disabled={prevDisabled}
                                     aria-label="Previous question"
                                     title="Previous Problem"
+                                    className="max-sm:min-w-0! max-sm:px-2.5!"
                                     style={{
                                         display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5,
                                         minWidth: 100, height: 32, padding: '0 16px', borderRadius: 8,
@@ -4629,6 +4631,7 @@ else:
                                     disabled={nextDisabled}
                                     aria-label="Next question"
                                     title={nextLabel === 'Next' ? 'Next Problem' : nextLabel}
+                                    className="max-sm:min-w-0! max-sm:px-2.5!"
                                     style={{
                                         display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5,
                                         minWidth: 100, height: 32, padding: '0 16px', borderRadius: 8,
@@ -4754,7 +4757,7 @@ else:
                         <div className="flex items-center gap-2">
                             {/* Camera preview - only show if camera is enabled AND we have a stream */}
                             {securitySettings.cameraMicEnabled && cameraStream && (
-                                <div className="fixed bottom-4 left-4 z-40 w-48 h-36 bg-black rounded-lg border-2 border-red-500 shadow-2xl overflow-hidden">
+                                <div className="fixed bottom-4 left-4 z-40 w-48 h-36 max-sm:w-32 max-sm:h-24 bg-black rounded-lg border-2 border-red-500 shadow-2xl overflow-hidden">
                                     <video
                                         ref={videoRef}
                                         autoPlay
@@ -4809,7 +4812,7 @@ else:
                     const isWarning = exerciseTimeLeft < 300 && !isDanger;
                     const tcol = isDanger ? '#ef4444' : isWarning ? '#f59e0b' : '#F27757';
                     return (
-                        <div style={{
+                        <div className="max-lg:static! max-lg:transform-none! max-lg:order-last" style={{
                             position: 'absolute', left: '50%', transform: 'translateX(-50%)',
                             minWidth: 132, pointerEvents: 'none',
                         }}>
@@ -4829,7 +4832,7 @@ else:
                     );
                 })()}
 
-                <div className="flex items-center gap-2" style={{ justifyContent: 'flex-end' }}>
+                <div className="flex items-center gap-2 max-lg:flex-wrap max-lg:ml-auto" style={{ justifyContent: 'flex-end' }}>
 
                     {/* {isAssessmentMode && hasStarted && tabSwitchCount > 0 && (
                         <div className="flex items-center gap-1 px-2 py-1 bg-yellow-900/50 rounded text-xs">
@@ -5065,19 +5068,19 @@ else:
 
                     <button
                         onClick={toggleFullscreen}
-                        className={`w-7 h-7 flex items-center justify-center border rounded ${theme === 'dark' ? 'border-gray-600 bg-gray-800 hover:bg-gray-700 text-gray-300' : 'border-gray-300 bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+                        className={`w-7 h-7 max-sm:w-8 max-sm:h-8 flex items-center justify-center border rounded ${theme === 'dark' ? 'border-gray-600 bg-gray-800 hover:bg-gray-700 text-gray-300' : 'border-gray-300 bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
                     >
                         {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
                     </button>
                 </div>
             </div>
 
-            <div className="flex flex-1 overflow-hidden relative">
+            <div className="flex flex-1 overflow-hidden relative max-md:flex-col">
                 {/* LEFT NAV RAIL — thin column carrying the two utility chips
                     that used to occupy the top strip (Score overview + Exercise
                     info), exactly as the multi-file workspace does it. */}
                 {exercise && (
-                    <div style={{
+                    <div className={`max-md:w-full! max-md:flex-row! max-md:py-0! max-md:border-r-0! max-md:border-b ${theme === 'dark' ? 'max-md:border-[#374151]' : 'max-md:border-[#E4E7EC]'} max-md:justify-around`} style={{
                         width: 72, flexShrink: 0,
                         background: theme === 'dark' ? '#0f172a' : '#F7F9FB',
                         borderRight: `1px solid ${theme === 'dark' ? '#374151' : '#E4E7EC'}`,
@@ -5090,6 +5093,7 @@ else:
                             aria-label="Notes"
                             aria-pressed={showNotesPanel}
                             title="Notes — private scratchpad for this question"
+                            className="max-md:flex-1 max-md:py-1.5!"
                             style={{
                                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
                                 padding: '10px 4px', border: 'none', background: 'transparent', cursor: 'pointer',
@@ -5105,6 +5109,7 @@ else:
                             onClick={() => setShowOverviewModal(true)}
                             aria-label={(exData as any)?.isGraded !== false ? 'Score' : 'Questions'}
                             title={(exData as any)?.isGraded !== false ? 'Score Overview' : 'Question Overview'}
+                            className="max-md:flex-1 max-md:py-1.5!"
                             style={{
                                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
                                 padding: '10px 4px', border: 'none', background: 'transparent', cursor: 'pointer',
@@ -5122,6 +5127,7 @@ else:
                             onClick={() => setShowDetailsModal(true)}
                             aria-label="Exercise info"
                             title="Exercise info"
+                            className="max-md:flex-1 max-md:py-1.5!"
                             style={{
                                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
                                 padding: '10px 4px', border: 'none', background: 'transparent', cursor: 'pointer',
@@ -5143,7 +5149,7 @@ else:
                     never competes with the code editor for attention. */}
                 {showNotesPanel && (
                     <div
-                        className="flex-shrink-0 flex flex-col border-r"
+                        className="flex-shrink-0 flex flex-col border-r max-lg:absolute max-lg:inset-y-0 max-lg:left-[72px] max-lg:z-30 max-lg:shadow-2xl max-lg:w-[min(20rem,85vw)]! max-md:left-0 max-md:w-full!"
                         style={{
                             width: 320,
                             background: theme === 'dark' ? '#1c1917' : '#FFFDF7',
@@ -5167,6 +5173,7 @@ else:
                                 onClick={() => setShowNotesPanel(false)}
                                 aria-label="Close notes"
                                 title="Close"
+                                className="max-lg:w-9! max-lg:h-9!"
                                 style={{
                                     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                                     width: 24, height: 24, borderRadius: 6, border: 'none',
@@ -5201,7 +5208,7 @@ else:
                 )}
 
                 {showSidebar && (
-                    <div className={`w-80 border-r overflow-hidden flex flex-col ${theme === 'dark' ? 'border-gray-700 bg-gray-900' : 'border-gray-300 bg-white'}`}>
+                    <div className={`w-80 border-r overflow-hidden flex flex-col max-lg:absolute max-lg:inset-y-0 max-lg:left-0 max-lg:z-30 max-lg:w-[min(20rem,85vw)] max-lg:shadow-2xl ${theme === 'dark' ? 'border-gray-700 bg-gray-900' : 'border-gray-300 bg-white'}`}>
                         <div className={`p-3 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-300'}`}>
                             <div className="flex items-center justify-between mb-3">
                                 <h3 className={`text-sm font-semibold ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
@@ -5354,8 +5361,8 @@ else:
                     const attemptsMaxed = !!(exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1));
                     const alreadySubmitted = solvedQuestions.has(currentProblemIndex);
                     return (
-                        <div className="flex-1 h-full flex flex-col min-w-0">
-                            <div className={`flex items-center gap-2 px-4 py-2 border-b flex-shrink-0 ${theme === 'dark' ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'}`}>
+                        <div className="flex-1 h-full flex flex-col min-w-0 max-md:h-auto max-md:min-h-0 max-md:overflow-y-auto">
+                            <div className={`flex items-center gap-2 px-4 py-2 border-b flex-shrink-0 max-sm:flex-wrap max-sm:px-3 ${theme === 'dark' ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'}`}>
                                 <span style={{
                                     fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 99,
                                     background: theme === 'dark' ? '#7C2D12' : '#FFEDD5',
@@ -5364,10 +5371,10 @@ else:
                                 }}>
                                     Q {currentProblemIndex + 1} / {problems.length}
                                 </span>
-                                <span className={`text-sm font-semibold truncate ${theme === 'dark' ? 'text-gray-200' : 'text-gray-800'}`} style={{ fontFamily: FONT }} title={linkUrl}>
+                                <span className={`text-sm font-semibold truncate max-sm:min-w-0 max-sm:flex-1 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-800'}`} style={{ fontFamily: FONT }} title={linkUrl}>
                                     {liveQ.title && liveQ.title !== linkUrl ? liveQ.title : 'Linked question'}
                                 </span>
-                                <div className="flex-1" />
+                                <div className="flex-1 max-sm:basis-full max-sm:h-0" />
                                 <button
                                     onClick={() => window.open(linkUrl, '_blank', 'noopener,noreferrer')}
                                     className={`flex items-center gap-1.5 px-3 h-[30px] rounded-md text-xs font-semibold border transition-colors ${theme === 'dark' ? 'border-gray-600 text-gray-200 hover:bg-gray-800' : 'border-gray-300 text-gray-700 hover:bg-gray-100'}`}
@@ -5412,7 +5419,7 @@ else:
                             {/* No iframe — link questions always open on the
                                 external site (most judges refuse embedding
                                 anyway); the card is the whole workspace. */}
-                            <div className={`flex-1 flex flex-col items-center justify-center gap-3 p-8 text-center ${theme === 'dark' ? 'bg-gray-950' : 'bg-gray-50'}`}>
+                            <div className={`flex-1 flex flex-col items-center justify-center gap-3 p-8 max-sm:p-5 text-center ${theme === 'dark' ? 'bg-gray-950' : 'bg-gray-50'}`}>
                                 <div className={`text-md font-bold ${theme === 'dark' ? 'text-gray-100' : 'text-gray-800'}`} style={{ fontFamily: FONT }}>
                                     This question opens on {hostOf(linkUrl)}
                                 </div>
@@ -5435,12 +5442,15 @@ else:
                         </div>
                     );
                 })()}
-                {(() => { const lq: any = exercise?.questions?.[currentProblemIndex] ?? currentQuestion; return !(lq?.isLinkQuestion && lq?.questionLink); })() && (<>
-                <div style={{ width: `${leftPanelWidth}%` }} className="h-full flex flex-col border-r border-gray-300 dark:border-gray-700 overflow-hidden">
+                {(() => { const lq: any = exercise?.questions?.[currentProblemIndex] ?? currentQuestion; return !(lq?.isLinkQuestion && lq?.questionLink); })() && (
+                // Phones/tablets: one scroll column (question → editor → bottom panel);
+                // lg+: `contents` removes this wrapper so the desktop split is untouched.
+                <div className="max-lg:flex max-lg:flex-col max-lg:flex-1 max-lg:min-h-0 max-lg:min-w-0 max-lg:overflow-y-auto lg:contents">
+                <div style={{ width: `${leftPanelWidth}%` }} className="h-full flex flex-col border-r border-gray-300 dark:border-gray-700 overflow-hidden max-lg:w-full! max-lg:h-auto max-lg:max-h-[45dvh] max-lg:flex-none max-lg:border-r-0 max-lg:border-b">
                     <div className="flex-1 overflow-y-auto custom-scrollbar">
-                        <div className={`p-5 space-y-6 ${theme === 'dark' ? 'bg-gray-900' : 'bg-white'}`}>
+                        <div className={`p-5 max-sm:p-4 space-y-6 ${theme === 'dark' ? 'bg-gray-900' : 'bg-white'}`}>
                             <div>
-                                <h1 style={{ fontFamily: FONT }} className={`text-xl font-semibold mb-1.5 ${theme === 'dark' ? 'text-white' : 'text-gray-700'}`}>
+                                <h1 style={{ fontFamily: FONT }} className={`text-lg sm:text-xl font-semibold mb-1.5 break-words ${theme === 'dark' ? 'text-white' : 'text-gray-700'}`}>
                                     {currentProblemIndex + 1}. {problem?.title || "Problem"}
                                 </h1>
                                 <div className="flex items-center gap-2 flex-wrap">
@@ -5587,11 +5597,11 @@ else:
                     bar over the question text. The panel's own `border-r` already
                     provides the divider at the correct edge. */}
 
-                <div className="flex flex-col flex-1 min-w-0 h-full" style={{ width: `${100 - leftPanelWidth}%` }}>
+                <div className="flex flex-col flex-1 min-w-0 h-full max-lg:w-full! max-lg:h-auto max-lg:flex-none" style={{ width: `${100 - leftPanelWidth}%` }}>
 
                     {/* ── Editor (top, resizable) ── */}
-                    <div className="flex flex-col" style={{ height: `${rightPanelSplit}%`, minHeight: 0 }}>
-                        <div className={`flex items-center justify-between p-2 border-b ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-gray-50'}`}>
+                    <div className="flex flex-col max-lg:h-[60dvh]! max-lg:min-h-[320px]! max-lg:flex-none" style={{ height: `${rightPanelSplit}%`, minHeight: 0 }}>
+                        <div className={`flex items-center justify-between max-md:gap-2 p-2 border-b ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-gray-50'}`}>
                             <div className="flex items-center gap-1.5">
                                 <Code className={`w-4 h-4 ${theme === 'dark' ? 'text-orange-400' : 'text-orange-500'}`} />
                                 <span className={`text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>Code</span>
@@ -5634,7 +5644,7 @@ else:
 
                     {/* ── Drag handle ── */}
                     <div
-                        className={`h-2 flex items-center justify-center cursor-row-resize flex-shrink-0 transition-colors ${theme === 'dark' ? 'hover:bg-orange-900/40 bg-gray-800' : 'hover:bg-orange-100 bg-gray-100'}`}
+                        className={`h-2 flex items-center justify-center cursor-row-resize flex-shrink-0 transition-colors max-lg:hidden ${theme === 'dark' ? 'hover:bg-orange-900/40 bg-gray-800' : 'hover:bg-orange-100 bg-gray-100'}`}
                         onMouseDown={(e) => { setIsHorizontalResizing(true); e.preventDefault(); }}
                     >
                         <div className={`w-12 h-1 rounded-full ${theme === 'dark' ? 'bg-gray-600' : 'bg-gray-300'}`} />
@@ -5647,7 +5657,7 @@ else:
                         Copy result, per-case chips, the selected case's Input /
                         Expected / Your output, and the AI breakdown); Manual
                         gets a plain Terminal — stdin box, Run output, Clear. */}
-                    <div className="flex flex-col flex-1 min-h-0" style={{ height: `${100 - rightPanelSplit}%` }}>
+                    <div className="flex flex-col flex-1 min-h-0 max-lg:h-[50dvh]! max-lg:min-h-[280px]! max-lg:flex-none" style={{ height: `${100 - rightPanelSplit}%` }}>
                         <BottomPanel
                             mode={isManualEval ? 'terminal' : 'test-result'}
                             activeTab={isManualEval ? 'terminal' : 'test-result'}
@@ -5671,7 +5681,7 @@ else:
                     </div>
 
                 </div>
-                </>)}{/* end non-link question+editor split */}
+                </div>)}{/* end non-link question+editor split */}
                 {/* ── Exercise Info Right Panel ── */}
                 {/* {showExerciseInfo && exercise && (
                     <div style={{
@@ -5872,7 +5882,7 @@ else:
             </div>
 
             {/* Toast Notifications */}
-            <div className="fixed top-4 right-4 z-50 flex flex-col gap-2">
+            <div className="fixed top-4 right-4 max-sm:left-4 z-50 flex flex-col gap-2">
                 {toasts.map((toast) => (
                     <div
                         key={toast.id}

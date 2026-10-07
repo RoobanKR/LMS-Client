@@ -46,8 +46,8 @@ const DATE_OPTIONS: Option[] = [{ value: '7', label: 'Last 7 days' }, { value: '
 
 function Field({ label, value, onChange, allLabel, options }: { label: string; value: string; onChange: (v: string) => void; allLabel: string; options: Option[] }) {
   return (
-    <div>
-      <span className="mb-1.5 block text-2xs font-semibold uppercase tracking-wider text-subtle">{label}</span>
+    <div className="min-w-0">
+      <span className="mb-1.5 block truncate text-2xs font-semibold uppercase tracking-wider text-subtle">{label}</span>
       <select value={value} onChange={(e) => onChange(e.target.value)} className={SELECT_CLS}>
         <option value="">{allLabel}</option>
         {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -77,8 +77,8 @@ export default function QuestionFilterPanel({ open, onClose, current, categoryOp
           transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
           className="overflow-hidden"
         >
-          <div className="mt-3 rounded-xl border border-hairline bg-surface p-4 shadow-xs sm:p-5">
-            <div className="mb-4 flex items-center justify-between gap-3">
+          <div className="mt-3 rounded-xl border border-hairline bg-surface p-3 shadow-xs sm:p-5">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2 sm:mb-4 sm:gap-3">
               <h3 className="text-sm font-semibold text-heading">Filters</h3>
               <div className="flex items-center gap-2">
                 <button
@@ -99,7 +99,7 @@ export default function QuestionFilterPanel({ open, onClose, current, categoryOp
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
               <Field label="Question Type" value={draft.type} onChange={set('type')} allLabel="All types" options={TYPE_OPTIONS} />
               <Field label="Category" value={draft.category} onChange={set('category')} allLabel="All categories" options={categoryOptions} />
               <Field label="Difficulty" value={draft.difficulty} onChange={set('difficulty')} allLabel="All difficulties" options={DIFFICULTY_OPTIONS} />

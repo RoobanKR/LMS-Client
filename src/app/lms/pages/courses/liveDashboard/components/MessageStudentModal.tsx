@@ -60,7 +60,7 @@ export default function MessageStudentModal({ student, onClose, onSend }: Props)
       onMouseDown={(e) => { if (e.target === e.currentTarget && !sending) onClose(); }}
     >
       <div
-        className={`w-full max-w-md rounded-2xl bg-white shadow-2xl border border-gray-100 transition-all duration-150 ${show ? "scale-100 translate-y-0 opacity-100" : "scale-95 translate-y-2 opacity-0"}`}
+        className={`w-full max-w-md max-h-[90dvh] overflow-y-auto rounded-2xl bg-white shadow-2xl border border-gray-100 transition-all duration-150 ${show ? "scale-100 translate-y-0 opacity-100" : "scale-95 translate-y-2 opacity-0"}`}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">

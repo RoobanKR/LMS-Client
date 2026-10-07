@@ -61,7 +61,7 @@ const tabConfig = {
 // Shared page heading — eyebrow, title and one-line description.
 function PageHeading() {
     return (
-        <div className="flex flex-shrink-0 items-center gap-3 pl-12 md:pl-0">
+        <div className="flex flex-shrink-0 items-center gap-3">
             <div className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-brand-500/15 bg-brand-wash md:flex">
                 <Settings2 className="h-5 w-5 text-brand-strong" />
             </div>
@@ -71,7 +71,7 @@ function PageHeading() {
                 <ChevronRight size={12} className="text-line-muted" />
                 <span className="uppercase tracking-wider font-medium text-subtle">Settings</span>
             </nav>
-            <h1 className="mt-0.5 text-xl font-semibold text-heading tracking-[-0.02em]">
+            <h1 className="mt-0.5 text-lg sm:text-xl font-semibold text-heading tracking-[-0.02em]">
                 Dynamic Field Settings
             </h1>
             <p className="mt-0.5 text-xs text-subtle">
@@ -121,7 +121,7 @@ export default function Page() {
                     <PageHeading />
 
                     {/* Tab-bar ghost */}
-                    <div className="mt-5 flex items-center gap-6 border-b border-hairline pb-3 flex-shrink-0">
+                    <div className="mt-5 flex items-center gap-6 overflow-hidden border-b border-hairline pb-3 flex-shrink-0">
                         {Object.keys(tabConfig).map((key) => (
                             <Skeleton key={key} className="h-4 w-24" />
                         ))}

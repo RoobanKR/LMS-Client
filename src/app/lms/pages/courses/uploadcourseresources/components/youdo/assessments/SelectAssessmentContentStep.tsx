@@ -199,7 +199,7 @@ const SelectAssessmentContentStep: React.FC<Props> = ({
       {/* ── Covered topics ────────────────────────────────────────────────── */}
       <SectionHeading
         right={
-          <div className="relative" style={{ width: 240 }}>
+          <div className="relative w-full sm:w-[240px]">
             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: D.textMuted }} />
             <input
               value={search}
@@ -217,7 +217,7 @@ const SelectAssessmentContentStep: React.FC<Props> = ({
         </span>
       </SectionHeading>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Tree */}
         <div className="rounded-xl p-2 overflow-y-auto ca-dark-scroll" style={{ border: `1px solid ${D.border2}`, minHeight: 280, maxHeight: 360, background: "#fff" }}>
           {tree.length === 0 ? (

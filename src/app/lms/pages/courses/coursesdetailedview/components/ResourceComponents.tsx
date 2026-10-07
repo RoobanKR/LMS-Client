@@ -154,7 +154,7 @@ export const ResourceItem = ({
       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = rowBg }}
     >
       {/* Name */}
-      <div style={{ width: '36%', minWidth: 0, display: 'flex', alignItems: 'center', paddingRight: 12, paddingLeft: indent, position: 'relative' }}>
+      <div className="max-md:!w-auto max-md:flex-1" style={{ width: '36%', minWidth: 0, display: 'flex', alignItems: 'center', paddingRight: 12, paddingLeft: indent, position: 'relative' }}>
         {groupChild && indent > 0 && (
           <>
             <div style={{ position: 'absolute', left: indent - 18, top: 0, height: isLast ? '50%' : '100%', width: 1.5, background: '#cbd5e1' }} />
@@ -187,12 +187,12 @@ export const ResourceItem = ({
       </div>
 
       {/* Updated */}
-      <div style={{ width: '16%', minWidth: 132, paddingRight: 12 }}>
+      <div className="max-md:!hidden" style={{ width: '16%', minWidth: 132, paddingRight: 12 }}>
         <span style={{ fontSize: '12.5px', color: '#475569', fontWeight: 400, letterSpacing: '-0.004em', whiteSpace: 'nowrap' }}>{updated}</span>
       </div>
 
       {/* Category */}
-      <div style={{ width: '24%', minWidth: 100, paddingLeft: 48, paddingRight: 12 }}>
+      <div className="max-md:!hidden" style={{ width: '24%', minWidth: 100, paddingLeft: 48, paddingRight: 12 }}>
         <span style={{
           fontSize: '12.5px', fontWeight: 400,
           textTransform: 'capitalize' as const, letterSpacing: '-0.004em',
@@ -206,7 +206,7 @@ export const ResourceItem = ({
       </div>
 
       {/* Actions */}
-      <div style={{ width: '16%', minWidth: 130, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', position: 'relative' }}>
+      <div className="max-md:!w-14 max-md:!min-w-0" style={{ width: '16%', minWidth: 130, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', position: 'relative' }}>
         {showAction && (
           <>
             <button
@@ -356,7 +356,7 @@ export const ResourceGroupRow = ({
         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#ffffff' }}
       >
         {/* Name */}
-        <div style={{ width: '36%', minWidth: 0, display: 'flex', alignItems: 'center', paddingRight: 12, paddingLeft: nameIndent, gap: 8 }}>
+        <div className="max-md:!w-auto max-md:flex-1" style={{ width: '36%', minWidth: 0, display: 'flex', alignItems: 'center', paddingRight: 12, paddingLeft: nameIndent, gap: 8 }}>
           {expanded
             ? <ChevronDown size={14} style={{ color: '#F97316', flexShrink: 0 }} strokeWidth={2.5} />
             : <ChevronRight size={14} style={{ color: '#F97316', flexShrink: 0 }} strokeWidth={2.5} />}
@@ -380,13 +380,13 @@ export const ResourceGroupRow = ({
           </span> */}
         </div>
         {/* Updated */}
-        <div style={{ width: '16%', minWidth: 132, paddingRight: 12 }}>
+        <div className="max-md:!hidden" style={{ width: '16%', minWidth: 132, paddingRight: 12 }}>
           <span style={{ fontSize: '12.5px', color: '#475569', fontWeight: 400, letterSpacing: '-0.004em', whiteSpace: 'nowrap' }}>
             {latest ? fmtDate(new Date(latest).toISOString()) : '—'}
           </span>
         </div>
         {/* Category */}
-        <div style={{ width: '24%', minWidth: 100, paddingLeft: 48, paddingRight: 12 }}>
+        <div className="max-md:!hidden" style={{ width: '24%', minWidth: 100, paddingLeft: 48, paddingRight: 12 }}>
           <span style={{
             fontSize: '12.5px', fontWeight: 400,
             textTransform: 'capitalize' as const, letterSpacing: '-0.004em',
@@ -400,7 +400,7 @@ export const ResourceGroupRow = ({
           </span>
         </div>
         {/* Actions (empty for group row) */}
-        <div style={{ width: '16%', minWidth: 130 }} />{/* keep aligned with Actions header */}
+        <div className="max-md:!w-14 max-md:!min-w-0" style={{ width: '16%', minWidth: 130 }} />{/* keep aligned with Actions header */}
       </div>
 
       {expanded && items.map((r, i) => {
@@ -453,11 +453,11 @@ export const ResourceTableHeader = () => (
       fontFamily: "'Poppins','Poppins',-apple-system,BlinkMacSystemFont,sans-serif",
     }}
   >
-    <div style={{ width: '36%', minWidth: 0, fontSize: '12.5px', fontWeight: 500, color: '#0F172A', paddingRight: 12, letterSpacing: '0.04em' }}>Name</div>
-    <div style={{ width: '16%', minWidth: 132, fontSize: '12.5px', fontWeight: 500, color: '#0F172A', paddingRight: 12, letterSpacing: '0.04em' }}>Date Modified</div>
-    <div style={{ width: '24%', minWidth: 100, fontSize: '12.5px', fontWeight: 500, color: '#0F172A', paddingLeft: 48, paddingRight: 12, letterSpacing: '0.04em' }}>Type</div>
+    <div className="max-md:!w-auto max-md:flex-1" style={{ width: '36%', minWidth: 0, fontSize: '12.5px', fontWeight: 500, color: '#0F172A', paddingRight: 12, letterSpacing: '0.04em' }}>Name</div>
+    <div className="max-md:!hidden" style={{ width: '16%', minWidth: 132, fontSize: '12.5px', fontWeight: 500, color: '#0F172A', paddingRight: 12, letterSpacing: '0.04em' }}>Date Modified</div>
+    <div className="max-md:!hidden" style={{ width: '24%', minWidth: 100, fontSize: '12.5px', fontWeight: 500, color: '#0F172A', paddingLeft: 48, paddingRight: 12, letterSpacing: '0.04em' }}>Type</div>
     <div style={{ width: '8%', minWidth: 64, fontSize: '12.5px', fontWeight: 500, color: '#0F172A', paddingRight: 12, letterSpacing: '0.04em' }}>Size</div>
-    <div style={{ width: '16%', minWidth: 130, fontSize: '12.5px', fontWeight: 500, color: '#0F172A', textAlign: 'right' as const, letterSpacing: '0.04em' }}>Actions</div>
+    <div className="max-md:!w-14 max-md:!min-w-0" style={{ width: '16%', minWidth: 130, fontSize: '12.5px', fontWeight: 500, color: '#0F172A', textAlign: 'right' as const, letterSpacing: '0.04em' }}>Actions</div>
   </div>
 )
 

@@ -38,7 +38,7 @@ type Props = {
 
 export default function ProgramCalendarToolbar(props: Props) {
     const phases = props.phases || []
-    return <div className="flex items-center gap-3 overflow-x-auto rounded-xl border border-hairline bg-surface px-3 py-2 text-xs [scrollbar-width:thin]">
+    return <div className="flex flex-wrap items-center gap-3 overflow-x-auto rounded-xl border border-hairline bg-surface px-3 py-2 text-xs [scrollbar-width:thin] lg:flex-nowrap">
         {phases.length > 0 && <div className="flex shrink-0 items-center gap-2 border-r border-hairline pr-3">
             <Layers className="size-4 text-subtle" />
             <label htmlFor="program-calendar-phase" className="whitespace-nowrap font-medium text-heading">Phase</label>
@@ -51,7 +51,7 @@ export default function ProgramCalendarToolbar(props: Props) {
                 </SelectContent>
             </Select>
         </div>}
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex max-w-full shrink-0 flex-wrap items-center gap-2 lg:max-w-none lg:flex-nowrap">
             <CalendarDays className="size-4 text-subtle" />
             <label htmlFor="program-calendar-start" className="whitespace-nowrap font-medium text-heading">Program start date</label>
             <input id="program-calendar-start" type="date" value={props.startDate} disabled={!props.editable}
@@ -61,7 +61,7 @@ export default function ProgramCalendarToolbar(props: Props) {
                 ? <Button size="sm" className="text-xs" disabled={!props.canSave || props.saving} onClick={props.onSave}>{props.saving ? 'Saving…' : 'Save'}</Button>
                 : props.startDate && <span className="inline-flex items-center gap-1 text-success-700"><Check className="size-3" />Saved</span>)}
         </div>
-        {props.endDate && <div className="flex shrink-0 items-center gap-2 whitespace-nowrap text-subtle">
+        {props.endDate && <div className="flex max-w-full shrink-0 flex-wrap items-center gap-2 whitespace-nowrap text-subtle lg:max-w-none lg:flex-nowrap">
             <span>Ends <span className="font-medium text-heading">{props.endDate}</span></span>
             <span aria-hidden="true">·</span>
             <button type="button" onClick={props.onWorkingDays} title="See every working day" className="rounded px-0.5 font-semibold text-info-700 underline decoration-info-700/30 underline-offset-4 hover:decoration-info-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/20">{props.workingDays} working {props.workingDays === 1 ? 'day' : 'days'}</button>
@@ -72,8 +72,8 @@ export default function ProgramCalendarToolbar(props: Props) {
             admin can still edit, so their "admin correction only" note lives
             on the date input's tooltip instead of taking toolbar space. */}
         {props.restriction && !props.editable && <span title={props.restriction} className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md bg-canvas px-2 py-1.5 text-[11px] text-subtle"><LockKeyhole className="size-3" />Start date locked</span>}
-        {props.holidayWarning && <span className="shrink-0 text-[11px] text-warn-700">{props.holidayWarning}</span>}
-        <span aria-hidden="true" className="ml-auto h-5 w-px shrink-0 bg-hairline" />
+        {props.holidayWarning && <span className="max-w-full shrink-0 text-[11px] text-warn-700 lg:max-w-none">{props.holidayWarning}</span>}
+        <span aria-hidden="true" className="ml-auto hidden h-5 w-px shrink-0 bg-hairline lg:block" />
         <Select value={props.mode} onValueChange={value => props.onModeChange(value as CalendarReportView)}>
             <SelectTrigger aria-label="Calendar view" className="h-8 w-44 shrink-0 text-xs font-medium">
                 <SelectValue />
@@ -84,7 +84,7 @@ export default function ProgramCalendarToolbar(props: Props) {
                 <SelectItem value="comparison">Planned vs Actual</SelectItem>
             </SelectContent>
         </Select>
-        {props.mode !== 'planned' && props.batches.length > 0 && <div role="group" aria-label="Calendar batch" className="flex shrink-0 items-center gap-1 border-l border-hairline pl-3">
+        {props.mode !== 'planned' && props.batches.length > 0 && <div role="group" aria-label="Calendar batch" className="flex max-w-full shrink-0 items-center gap-1 overflow-x-auto border-l border-hairline pl-3 lg:max-w-none lg:overflow-visible">
             {props.batches.map(batch => <button key={batch.value} type="button" aria-pressed={props.batch === batch.value} onClick={() => props.onBatchChange(batch.value)}
                 className={`h-8 whitespace-nowrap rounded-control border px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/20 ${props.batch === batch.value ? 'border-brand-500/25 bg-brand-wash text-brand-strong' : 'border-transparent text-subtle hover:bg-canvas hover:text-heading'}`}>{batch.label}</button>)}
         </div>}

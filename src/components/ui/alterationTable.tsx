@@ -150,7 +150,9 @@ export const UserTable = ({
             : "overflow-hidden bg-white dark:bg-gray-800"
         }
       >
-        <Table className={fixedLayout ? "w-full table-fixed" : "min-w-full"}>
+        {/* Fixed layout gets a 640px floor below lg so its %-columns stay
+            readable on phones/tablets (the container scrolls sideways). */}
+        <Table className={fixedLayout ? "w-full table-fixed min-w-[640px] lg:min-w-0" : "min-w-full"}>
           <TableHeader className={fillHeight ? "sticky top-0 z-10 bg-white dark:bg-gray-800 shadow-sm" : ""}>
             <TableRow className="border-b border-gray-300 dark:border-gray-700">
               {columns.map((column) => (
@@ -240,7 +242,7 @@ export const UserTable = ({
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-7 w-7 p-0 opacity-70 hover:opacity-100 transition-opacity font-sans text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+                              className="h-8 w-8 lg:h-7 lg:w-7 p-0 opacity-70 hover:opacity-100 transition-opacity font-sans text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
                             >
                               <MoreHorizontal className="h-3.5 w-3.5" />
                             </Button>
@@ -307,22 +309,23 @@ export const UserTable = ({
 
       {/* Pagination */}
       {pagination && pagination.totalItems > 0 && (
-        <div data-pagination-bar className="flex-shrink-0 flex items-center justify-between px-4 py-2 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 font-sans">
+        <div data-pagination-bar className="flex-shrink-0 flex flex-wrap items-center justify-between gap-2 px-3 sm:px-4 py-2 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 font-sans">
           <div className="text-sm font-normal text-gray-600 dark:text-gray-400">
             Showing <span className="font-semibold text-gray-900 dark:text-gray-100">{((pagination.currentPage - 1) * pagination.itemsPerPage) + 1}</span> to{" "}
             <span className="font-semibold text-gray-900 dark:text-gray-100">{Math.min(pagination.currentPage * pagination.itemsPerPage, pagination.totalItems)}</span> of{" "}
             <span className="font-semibold text-gray-900 dark:text-gray-100">{pagination.totalItems}</span> {pagination.itemLabel || "Course Structures"}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
             <Button
               variant="outline"
               size="sm"
               onClick={() => handlePageChange(pagination.currentPage - 1)}
               disabled={pagination.currentPage === 1 || isLoading}
+              aria-label="Previous page"
               className="flex items-center gap-2 cursor-pointer text-sm font-medium px-3 py-2 h-9 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800"
             >
               <ChevronLeft className="h-4 w-4" />
-              Previous
+              <span className="hidden sm:inline">Previous</span>
             </Button>
 
             <div className="flex items-center gap-1">
@@ -334,9 +337,10 @@ export const UserTable = ({
               size="sm"
               onClick={() => handlePageChange(pagination.currentPage + 1)}
               disabled={pagination.currentPage === pagination.totalPages || isLoading}
+              aria-label="Next page"
               className="flex items-center gap-2 cursor-pointer text-sm font-medium px-3 py-2 h-9 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800"
             >
-              Next
+              <span className="hidden sm:inline">Next</span>
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>

@@ -299,6 +299,10 @@ const MODAL_CSS = `
   @media (max-width: 1100px) {
     .ps-root { grid-template-columns: minmax(0, 1fr); }
     .ps-pane-preview { border-left: 0 !important; border-top: 1px solid ${O.line}; }
+    /* Stacked: one scroll for form + preview instead of two half-height
+       panes that each scroll on their own (cramped on tablets/phones). */
+    .ps-root { overflow-y: auto; align-content: start; }
+    .ps-root > .ps-pane-form, .ps-root > .ps-pane-preview { min-height: auto; overflow: visible; }
   }
 
   .ps-pane-form {
@@ -651,6 +655,14 @@ const MODAL_CSS = `
   @media (max-width: 720px) {
     .ps-grid-2, .ps-grid-3, .ps-grid-4 { grid-template-columns: minmax(0, 1fr); }
     .ps-span-2 { grid-column: auto; }
+    /* Phones: tighter gutters, and the action bar wraps instead of
+       pushing Save off the dialog's right edge. */
+    .ps-pane-form, .ps-pane-preview { padding: 12px 12px 18px; }
+    .ps-pane-preview .ps-paper-well { padding: 10px; }
+    [role="dialog"] .ps-actions { flex-wrap: wrap; gap: 8px; }
+    [role="dialog"] .ps-actions-right { flex-wrap: wrap; margin-left: auto; gap: 8px; }
+    [role="dialog"]:has(.ps-root) > div:last-child { padding: 10px 12px !important; }
+    [role="dialog"]:has(.ps-root) { border-radius: 14px !important; height: 96dvh !important; max-height: 96dvh !important; }
   }
 
   /* ── Preview pane ── */
@@ -1264,8 +1276,8 @@ export default function PrintSettingTab() {
           }
         />
 
-        <div className="flex flex-wrap items-center gap-2.5 border-b border-hairline px-5 py-3">
-          <div className="ps-search flex min-w-0 max-w-md flex-1 items-center gap-2 px-3">
+        <div className="flex flex-wrap items-center gap-2.5 border-b border-hairline px-4 sm:px-5 py-3">
+          <div className="ps-search flex min-w-0 max-w-md flex-1 basis-full sm:basis-0 items-center gap-2 px-3">
             <Search aria-hidden className="size-4 shrink-0" />
             <input
               value={query}

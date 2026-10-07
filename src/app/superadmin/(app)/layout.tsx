@@ -19,7 +19,7 @@ export default function SuperAdminAppLayout({ children }: { children: React.Reac
       {/* Explicit L&D-shell values (not sa-theme tokens): the shell must look
           identical to the other consoles' rails; only the PAGES keep the
           indigo sa-theme. */}
-      <div className="flex h-screen overflow-hidden bg-[#F5F6F8] text-foreground">
+      <div className="flex h-dvh overflow-hidden bg-[#F5F6F8] text-foreground">
         <SuperAdminSidebar />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col p-3.5 pl-0 max-lg:p-2.5 max-lg:pl-2.5">
           <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[18px] border border-[#E4E7EC] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)]">
@@ -27,7 +27,7 @@ export default function SuperAdminAppLayout({ children }: { children: React.Reac
             <CommandPalette />
             {/* No layout-injected heading: each page renders its own single
                 PageHeader (title only) — two headings was one too many. */}
-            <main className="sc-panel-scroll min-h-0 flex-1 overflow-y-auto p-6">
+            <main className="sc-panel-scroll min-h-0 flex-1 overflow-y-auto p-3 sm:p-4 md:p-6">
               {children}
             </main>
           </div>

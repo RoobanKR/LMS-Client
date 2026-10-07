@@ -282,8 +282,8 @@ const SectionTitle: React.FC<{
   hint?: string;
   action?: React.ReactNode;
 }> = ({ icon, title, hint, action }) => (
-  <div className="mb-4 flex items-start justify-between gap-3">
-    <div className="flex items-start gap-2.5">
+  <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+    <div className="flex min-w-0 items-start gap-2.5">
       <span className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-violet-100 text-violet-600 dark:bg-violet-900/40 dark:text-violet-300">
         {icon}
       </span>
@@ -723,46 +723,48 @@ const ProgrammingWorkspace: React.FC<ProgrammingWorkspaceProps> = ({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex flex-col bg-slate-50 dark:bg-gray-950"
+      className="fixed inset-0 z-50 flex h-[100dvh] flex-col bg-slate-50 dark:bg-gray-950"
     >
       {/* ── Header ── */}
-      <header className="flex flex-shrink-0 items-center justify-between gap-4 border-b border-gray-200 bg-white px-5 py-3 dark:border-gray-800 dark:bg-gray-900">
+      <header className="flex flex-shrink-0 items-center justify-between gap-2 border-b border-gray-200 bg-white px-3 py-3 dark:border-gray-800 dark:bg-gray-900 sm:gap-4 sm:px-5">
         <div className="flex min-w-0 items-center gap-3">
-          <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-orange-50 text-orange-500 dark:bg-orange-900/30">
+          <span className="hidden h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-orange-50 text-orange-500 dark:bg-orange-900/30 sm:flex">
             <Terminal className="h-4 w-4" />
           </span>
           <div className="min-w-0">
-            <h2 className="truncate text-lg font-bold leading-tight text-gray-900 dark:text-gray-100">
+            <h2 className="truncate text-base font-bold leading-tight text-gray-900 dark:text-gray-100 sm:text-lg">
               {isEditing ? 'Edit Programming Question' : 'Add Programming Question'}
             </h2>
-            <p className="truncate text-xs text-gray-500 dark:text-gray-400">
+            <p className="hidden truncate text-xs text-gray-500 dark:text-gray-400 sm:block">
               Create high-quality programming questions for students
             </p>
           </div>
         </div>
 
-        <div className="flex flex-shrink-0 items-center gap-2">
+        <div className="flex flex-shrink-0 items-center gap-1.5 sm:gap-2">
           <button
             type="button"
             onClick={() => setPreviewFor(drafts[0]?.localId ?? null)}
-            className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+            title="Preview"
+            className="flex h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 sm:h-auto sm:px-3.5"
           >
-            <Eye className="h-4 w-4" /> Preview
+            <Eye className="h-4 w-4" /> <span className="hidden sm:inline">Preview</span>
           </button>
           {!isEditing && (
             <button
               type="button"
               onClick={() => persist(false)}
-              className="flex items-center gap-2 rounded-lg border border-violet-300 bg-violet-50 px-3.5 py-2 text-sm font-semibold text-violet-700 transition-colors hover:bg-violet-100 dark:border-violet-700 dark:bg-violet-900/30 dark:text-violet-300"
+              title="Save as Draft"
+              className="flex h-9 items-center gap-2 rounded-lg border border-violet-300 bg-violet-50 px-2.5 py-2 text-sm font-semibold text-violet-700 transition-colors hover:bg-violet-100 dark:border-violet-700 dark:bg-violet-900/30 dark:text-violet-300 sm:h-auto sm:px-3.5"
             >
-              <Save className="h-4 w-4" /> Save as Draft
+              <Save className="h-4 w-4" /> <span className="hidden sm:inline">Save as Draft</span>
             </button>
           )}
           <button
             type="button"
             onClick={requestClose}
             title="Close"
-            className="rounded-lg border border-gray-200 p-2 text-gray-500 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400"
+            className="rounded-lg border border-gray-200 p-2.5 text-gray-500 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 sm:p-2"
           >
             <X className="h-4 w-4" />
           </button>
@@ -770,10 +772,44 @@ const ProgrammingWorkspace: React.FC<ProgrammingWorkspaceProps> = ({
       </header>
 
       {notice && (
-        <div className="flex flex-shrink-0 items-center gap-2 border-b border-violet-100 bg-violet-50 px-5 py-2 text-xs font-medium text-violet-800 dark:border-violet-900 dark:bg-violet-900/20 dark:text-violet-200">
-          <AlertCircle className="h-3.5 w-3.5" /> {notice}
+        <div className="flex flex-shrink-0 items-center gap-2 border-b border-violet-100 bg-violet-50 px-3 py-2 text-xs font-medium text-violet-800 dark:border-violet-900 dark:bg-violet-900/20 dark:text-violet-200 sm:px-5">
+          <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" /> {notice}
         </div>
       )}
+
+      {/* Step strip — below lg the step rail is hidden, so the same steps
+          scroll horizontally here instead. */}
+      <nav className="flex flex-shrink-0 gap-1.5 overflow-x-auto border-b border-gray-200 bg-white px-3 py-2 [scrollbar-width:none] dark:border-gray-800 dark:bg-gray-900 sm:px-5 lg:hidden">
+        {STEPS.map((s) => {
+          const activeStep = s.n === step;
+          const done = s.n < step;
+          return (
+            <button
+              key={s.n}
+              type="button"
+              onClick={() => setStep(s.n)}
+              className={`flex flex-shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+                activeStep
+                  ? 'bg-violet-50 text-violet-700 dark:bg-violet-900/25 dark:text-violet-300'
+                  : 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800'
+              }`}
+            >
+              <span
+                className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${
+                  activeStep
+                    ? 'bg-violet-600 text-white'
+                    : done
+                      ? 'bg-emerald-500 text-white'
+                      : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
+                }`}
+              >
+                {done ? <Check className="h-3 w-3" /> : s.n}
+              </span>
+              <span className="whitespace-nowrap">{s.label}</span>
+            </button>
+          );
+        })}
+      </nav>
 
       {/* ── Body ── */}
       <div className="flex min-h-0 flex-1">
@@ -847,7 +883,7 @@ const ProgrammingWorkspace: React.FC<ProgrammingWorkspaceProps> = ({
         </aside>
 
         {/* Main */}
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto px-3 py-4 sm:px-5 sm:py-5">
           {step === 5 ? (
             <ReviewStep
               drafts={drafts}
@@ -862,7 +898,7 @@ const ProgrammingWorkspace: React.FC<ProgrammingWorkspaceProps> = ({
           ) : (
             <>
               {/* Basic Information */}
-              <section className="mb-5 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900">
+              <section className="mb-5 rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900 sm:p-5">
                 <SectionTitle
                   icon={<ClipboardList className="h-4 w-4" />}
                   title="Basic Information"
@@ -918,7 +954,7 @@ const ProgrammingWorkspace: React.FC<ProgrammingWorkspaceProps> = ({
               </section>
 
               {/* Questions */}
-              <section className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900">
+              <section className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900 sm:p-5">
                 <SectionTitle
                   icon={<Terminal className="h-4 w-4" />}
                   title="Questions"
@@ -947,7 +983,7 @@ const ProgrammingWorkspace: React.FC<ProgrammingWorkspaceProps> = ({
                         className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700"
                       >
                         {/* Card header */}
-                        <div className="flex items-center gap-2 border-b border-gray-100 bg-gray-50/70 px-3 py-2.5 dark:border-gray-700 dark:bg-gray-800/60">
+                        <div className="flex flex-wrap items-center gap-2 border-b border-gray-100 bg-gray-50/70 px-3 py-2.5 dark:border-gray-700 dark:bg-gray-800/60">
                           {!isEditing && (
                             <span className="flex flex-col">
                               <button
@@ -1015,7 +1051,7 @@ const ProgrammingWorkspace: React.FC<ProgrammingWorkspaceProps> = ({
                         </div>
 
                         {open && (
-                          <div className="space-y-4 p-4">
+                          <div className="space-y-4 p-3 sm:p-4">
                             {/* Type sits first and on its own row — it decides
                                 which fields appear further down, and the three
                                 options need the full width to stay readable. */}
@@ -1282,9 +1318,9 @@ const ProgrammingWorkspace: React.FC<ProgrammingWorkspaceProps> = ({
       </div>
 
       {/* ── Footer ── */}
-      <footer className="flex flex-shrink-0 items-center justify-between gap-4 border-t border-gray-200 bg-white px-5 py-3 dark:border-gray-800 dark:bg-gray-900">
+      <footer className="flex flex-shrink-0 items-center justify-between gap-2 border-t border-gray-200 bg-white px-3 py-3 dark:border-gray-800 dark:bg-gray-900 sm:gap-4 sm:px-5">
         <div className="flex min-w-0 items-center gap-2.5">
-          <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-gray-900 text-xs font-bold text-white dark:bg-gray-700">
+          <span className="hidden h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-gray-900 text-xs font-bold text-white dark:bg-gray-700 sm:flex">
             {drafts.length}
           </span>
           <div className="min-w-0">
@@ -1297,11 +1333,11 @@ const ProgrammingWorkspace: React.FC<ProgrammingWorkspaceProps> = ({
           </div>
         </div>
 
-        <div className="flex flex-shrink-0 items-center gap-2.5">
+        <div className="flex flex-shrink-0 items-center gap-2 sm:gap-2.5">
           <button
             type="button"
             onClick={requestClose}
-            className="rounded-lg border border-gray-200 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+            className="rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 sm:px-5"
           >
             Cancel
           </button>
@@ -1309,7 +1345,7 @@ const ProgrammingWorkspace: React.FC<ProgrammingWorkspaceProps> = ({
             type="button"
             onClick={() => (step < 5 ? setStep(step + 1) : publish())}
             disabled={publishing}
-            className="flex items-center gap-2 rounded-lg bg-violet-600 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-violet-700 disabled:opacity-50"
+            className="flex items-center gap-2 whitespace-nowrap rounded-lg bg-violet-600 px-3.5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-violet-700 disabled:opacity-50 sm:px-6"
           >
             {publishing ? (
               <>
@@ -1369,7 +1405,7 @@ const ProgrammingWorkspace: React.FC<ProgrammingWorkspaceProps> = ({
                 ? 'You have unsaved changes to this question. Save them now, or discard them and close.'
                 : 'You have unsaved changes. Save them as a draft now, or discard the draft and close.'}
             </p>
-            <div className="mt-4 flex items-center justify-end gap-2">
+            <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setConfirmClose(false)}
@@ -1424,7 +1460,7 @@ const ReviewStep: React.FC<{
   questionCategory: string;
   onJump: (localId: string) => void;
 }> = ({ drafts, counts, outcomes, questionCategory, onJump }) => (
-  <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900">
+  <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900 sm:p-5">
     <SectionTitle
       icon={<CheckCircle2 className="h-4 w-4" />}
       title="Review & Publish"
@@ -1500,28 +1536,28 @@ const ModalShell: React.FC<{
   footer?: React.ReactNode;
   wide?: boolean;
 }> = ({ title, hint, onClose, children, footer, wide }) => (
-  <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 p-4">
+  <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 p-3 sm:p-4">
     <div
-      className={`flex max-h-[85vh] w-full flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-900 ${
+      className={`flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-900 sm:max-h-[85vh] ${
         wide ? 'max-w-4xl' : 'max-w-2xl'
       }`}
     >
-      <div className="flex flex-shrink-0 items-start justify-between gap-3 border-b border-gray-200 px-5 py-3.5 dark:border-gray-800">
+      <div className="flex flex-shrink-0 items-start justify-between gap-3 border-b border-gray-200 px-4 py-3.5 dark:border-gray-800 sm:px-5">
         <div className="min-w-0">
-          <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">{title}</h3>
+          <h3 className="break-words text-base font-bold text-gray-900 dark:text-gray-100">{title}</h3>
           {hint && <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{hint}</p>}
         </div>
         <button
           type="button"
           onClick={onClose}
-          className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
+          className="flex-shrink-0 rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 sm:p-1.5"
         >
           <X className="h-4 w-4" />
         </button>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-5">{children}</div>
+      <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">{children}</div>
       {footer && (
-        <div className="flex flex-shrink-0 items-center justify-end gap-2 border-t border-gray-200 px-5 py-3 dark:border-gray-800">
+        <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-2 border-t border-gray-200 px-4 py-3 dark:border-gray-800 sm:px-5">
           {footer}
         </div>
       )}

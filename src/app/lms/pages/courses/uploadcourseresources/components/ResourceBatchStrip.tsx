@@ -405,7 +405,9 @@ export const BatchScopeBar: React.FC<ResourceBatchStripProps & { courseId: strin
   // select exists (native title tooltips are slow and plain).
   const info = (
     <span
-      className="relative inline-flex items-center"
+      // Below sm the tooltip anchors to the whole picker row (the wrapping
+      // div is `relative`), so its 264px card stays on-screen on phones.
+      className="sm:relative inline-flex items-center"
       onMouseEnter={() => setInfoOpen(true)}
       onMouseLeave={() => setInfoOpen(false)}
     >
@@ -419,9 +421,10 @@ export const BatchScopeBar: React.FC<ResourceBatchStripProps & { courseId: strin
       {infoOpen && (
         <span
           role="tooltip"
+          className="right-0 sm:right-[-10px]"
           style={{
-            position: "absolute", top: "calc(100% + 8px)", right: -10, zIndex: 60,
-            width: 264, background: "#fff",
+            position: "absolute", top: "calc(100% + 8px)", zIndex: 60,
+            width: 264, maxWidth: "calc(100vw - 24px)", background: "#fff",
             border: `1px solid ${T.border}`, borderRadius: 10,
             boxShadow: "0 12px 32px rgba(0,0,0,0.12)",
             padding: "10px 12px", fontSize: 11, lineHeight: 1.55,
@@ -455,7 +458,7 @@ export const BatchScopeBar: React.FC<ResourceBatchStripProps & { courseId: strin
   // I Do / We Do / You Do the course config marks batch-wise).
   const label = (
     <span
-      className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10.5px] font-bold whitespace-nowrap"
+      className="hidden sm:inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10.5px] font-bold whitespace-nowrap"
       style={
         tabIsBatchWise
           ? { background: T.orangeLight, color: T.orangeDark, border: `1px solid ${T.orange}35` }
@@ -473,11 +476,11 @@ export const BatchScopeBar: React.FC<ResourceBatchStripProps & { courseId: strin
   // ⓘ say so rather than leaving a blank corner.
   if (!tabIsBatchWise) {
     return (
-      <div className="flex items-center gap-2">
+      <div className="relative flex items-center gap-2">
         {info}
         {label}
         <span
-          className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold whitespace-nowrap"
+          className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold whitespace-nowrap max-w-[150px] sm:max-w-[220px]"
           aria-disabled="true"
           title={`${tabLabel} is common — every batch sees the same resources, so there is no batch to select`}
           style={{
@@ -486,7 +489,6 @@ export const BatchScopeBar: React.FC<ResourceBatchStripProps & { courseId: strin
             borderRadius: 8,
             color: T.textMuted,
             padding: "5px 10px",
-            maxWidth: 220,
             cursor: "not-allowed",
           }}
         >
@@ -501,7 +503,7 @@ export const BatchScopeBar: React.FC<ResourceBatchStripProps & { courseId: strin
   // Students / read-only staff: name the batch, no picker.
   if (!staffPicker) {
     return (
-      <div className="flex items-center gap-2">
+      <div className="relative flex items-center gap-2">
         {info}
         {label}
         <span
@@ -521,21 +523,20 @@ export const BatchScopeBar: React.FC<ResourceBatchStripProps & { courseId: strin
           teacher explicitly picks (select or popup), it shows the
           "Select batch" placeholder rather than silently displaying the
           server-default batch as if it had been chosen. */}
-      <div className="flex items-center gap-2">
+      <div className="relative flex items-center gap-2">
         {info}
         {label}
         <div ref={ddRef} className="relative">
           <button
             type="button"
             onClick={() => setDdOpen((o) => !o)}
-            className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold cursor-pointer"
+            className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold cursor-pointer max-w-[150px] sm:max-w-[220px]"
             style={{
               background: T.bg,
               border: `1.5px solid ${ddOpen ? T.orange : T.border}`,
               borderRadius: 8,
               color: confirmed && effectiveId ? T.textMain : T.textMuted,
               padding: "5px 10px",
-              maxWidth: 220,
               transition: "border-color 0.15s",
             }}
             aria-haspopup="listbox"

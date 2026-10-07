@@ -96,9 +96,9 @@ function ToggleRow({
 }: { icon: LucideIcon; iconClass: string; title: string; description: string; checked: boolean; onChange: (v: boolean) => void }) {
   return (
     <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
-      <div className="flex items-center gap-2">
-        <span className={cn('flex h-7 w-7 items-center justify-center rounded-md', iconClass)}><Icon className="h-3.5 w-3.5" /></span>
-        <div>
+      <div className="flex min-w-0 items-center gap-2">
+        <span className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-md', iconClass)}><Icon className="h-3.5 w-3.5" /></span>
+        <div className="min-w-0">
           <div className="text-[13px] font-medium text-foreground">{title}</div>
           <div className="text-[11px] text-muted-foreground">{description}</div>
         </div>

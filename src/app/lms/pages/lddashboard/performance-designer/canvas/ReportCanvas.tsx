@@ -95,7 +95,7 @@ export function ReportCanvas(p: ReportCanvasProps) {
 
     return (
         <div className="flex min-w-0 flex-1 flex-col bg-surface">
-            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+            <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 sm:px-5 sm:py-4">
                 {/* Report header — title plus a single compact scope line.
                     Skipped when the host draws its own title block (e.g.
                     the standalone Reports page passes `showTitleBlock=false`

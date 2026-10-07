@@ -48,7 +48,7 @@ export function renderMainEditDialog(deps: PedagogyDialogsDeps) {
                         }
                     }}
                 >
-                    <DialogContent className={` sm:max-w-[97vw] max-w-[95vw] h-[97vh] ${(!isLastHierarchy()) ? 'w-[40vw]' : ''}  p-0  overflow-hidden bg-white border border-slate-200/60 shadow-xl rounded-xl`} onInteractOutside={(e) => e.preventDefault()}>
+                    <DialogContent className={` sm:max-w-[97vw] max-w-[95vw] h-[97dvh] ${(!isLastHierarchy()) ? 'w-full lg:w-[40vw]' : ''}  p-0  overflow-hidden bg-white border border-slate-200/60 shadow-xl rounded-xl`} onInteractOutside={(e) => e.preventDefault()}>
                         <motion.div
                             initial="hidden"
                             animate="visible"
@@ -57,7 +57,7 @@ export function renderMainEditDialog(deps: PedagogyDialogsDeps) {
                             className="relative"
                         >
                             {/* Compact Header */}
-                            <div className="px-6 py-2 bg-gradient-to-br from-[#FB8C3C] via-[#F0701F] to-[#C2540F] relative overflow-hidden">
+                            <div className="px-4 sm:px-6 py-2 bg-gradient-to-br from-[#FB8C3C] via-[#F0701F] to-[#C2540F] relative overflow-hidden">
                                 <DialogHeader className="relative">
                                     <div className="flex items-center gap-3">
                                         <div className="w-8 h-8 rounded-lg bg-white/20 backdrop-blur-sm flex items-center justify-center flex-shrink-0">
@@ -121,8 +121,8 @@ export function renderMainEditDialog(deps: PedagogyDialogsDeps) {
                                 </DialogHeader>
                             </div>
                             {!editMode && isLastHierarchy() && shouldShowPedagogyLevelToggle(dialogType, editMode) && (
-                                <div className={`px-6 py-1 bg-slate-50 border-b border-slate-200 ${disableAddonlyMode ? "opacity-50" : ""}`}>
-                                    <div className="flex justify-end items-center gap-6">
+                                <div className={`px-4 sm:px-6 py-1 bg-slate-50 border-b border-slate-200 ${disableAddonlyMode ? "opacity-50" : ""}`}>
+                                    <div className="flex flex-wrap justify-end items-center gap-x-6 gap-y-1">
                                         {/* Preview Link */}
                                         <button
                                             type="button"
@@ -202,7 +202,7 @@ export function renderMainEditDialog(deps: PedagogyDialogsDeps) {
                                         else if (dialogType === 'topic') handleTopicSubmit(e);
                                         else if (dialogType === 'subtopic') handleSubTopicSubmit(e);
                                     }}
-                                    className={`grid gap-6 ${(!isLastHierarchy()) ? 'grid-cols-1' : (addOnlyPedagogyLevel ? 'grid-cols-2' : 'grid-cols-1 md:grid-cols-3')}`}
+                                    className={`grid gap-6 ${(!isLastHierarchy()) ? 'grid-cols-1' : (addOnlyPedagogyLevel ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1 md:grid-cols-3')}`}
                                 >
                                     {/* Column 1: Basic Information - Always visible */}
                                     {!addOnlyPedagogyLevel && (

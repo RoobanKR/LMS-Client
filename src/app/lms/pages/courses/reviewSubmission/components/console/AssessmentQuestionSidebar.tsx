@@ -68,8 +68,8 @@ export default function AssessmentQuestionSidebar({
   // navigation while the editor takes the reclaimed width.
   if (collapsed) {
     return (
-      <aside className="flex w-[52px] flex-none flex-col border-r border-[#E5E7EB] bg-white">
-        <div className="flex h-[46px] flex-none items-center justify-center border-b border-[#EDF2F9]">
+      <aside className="flex w-full flex-none flex-row border-b border-[#E5E7EB] bg-white lg:w-[52px] lg:flex-col lg:border-b-0 lg:border-r">
+        <div className="flex h-[46px] flex-none items-center justify-center border-r border-[#EDF2F9] px-2 lg:border-b lg:border-r-0 lg:px-0">
           <button
             type="button"
             onClick={onToggleCollapsed}
@@ -81,7 +81,7 @@ export default function AssessmentQuestionSidebar({
             <PanelLeftOpen className="h-[16px] w-[16px]" />
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto py-1.5 custom-scrollbar">
+        <div className="flex min-h-0 min-w-0 flex-1 items-center gap-1 overflow-x-auto overflow-y-hidden px-1.5 py-1.5 custom-scrollbar lg:block lg:overflow-y-auto lg:px-0">
           {questions.map((q) => {
             const active = q.id === selectedId;
             return (
@@ -92,7 +92,7 @@ export default function AssessmentQuestionSidebar({
                 title={`${q.number}. ${q.title}`}
                 aria-current={active ? "true" : undefined}
                 className={cn(
-                  "mx-auto mb-1 flex h-8 w-8 items-center justify-center rounded-[6px] text-[11px] font-bold tabular-nums transition-colors",
+                  "flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] text-[11px] font-bold tabular-nums transition-colors lg:mx-auto lg:mb-1",
                   active
                     ? "bg-[#0667F9] text-white"
                     : "text-[#53658C] hover:bg-[#F1F6FE] hover:text-[#0667F9]",
@@ -108,7 +108,7 @@ export default function AssessmentQuestionSidebar({
   }
 
   return (
-    <aside className="flex w-[262px] flex-none flex-col border-r border-[#E5E7EB] bg-white">
+    <aside className="flex max-h-[60dvh] w-full flex-none flex-col border-b border-[#E5E7EB] bg-white lg:max-h-none lg:w-[262px] lg:border-b-0 lg:border-r">
       <div className="flex-none px-4 pb-3.5 pt-3">
         <div className="flex items-center justify-between gap-2">
           <h2 className="min-w-0 truncate text-[14px] font-bold tracking-[-0.01em] text-[#0B1437]">
@@ -120,7 +120,7 @@ export default function AssessmentQuestionSidebar({
             title="Collapse question list"
             aria-label="Collapse question list"
             aria-expanded
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[6px] text-[#8090AF] transition-colors hover:bg-[#F1F6FE] hover:text-[#0667F9]"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] text-[#8090AF] transition-colors hover:bg-[#F1F6FE] hover:text-[#0667F9] lg:h-6 lg:w-6"
           >
             <PanelLeftClose className="h-[15px] w-[15px]" />
           </button>

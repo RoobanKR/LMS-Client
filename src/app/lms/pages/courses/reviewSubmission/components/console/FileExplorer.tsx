@@ -167,7 +167,7 @@ export default function FileExplorer({
     });
 
   return (
-    <div className="flex w-[220px] shrink-0 flex-col overflow-hidden border-r border-[#E7EEF8] bg-[#FBFCFE]">
+    <div className="flex w-[128px] shrink-0 flex-col overflow-hidden border-r border-[#E7EEF8] bg-[#FBFCFE] sm:w-[220px]">
       <div className="flex h-[30px] flex-none items-center border-b border-[#E7EEF8] px-3">
         <span className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-[#8090AF]">
           Explorer

@@ -107,7 +107,7 @@ export default function SuperAdminsPage() {
         actions={<Button onClick={openCreate}><Plus className="h-4 w-4" /> Add Super Admin</Button>}
       />
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {isLoading ? (
           Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-[88px] rounded-xl" />)
         ) : (
@@ -140,7 +140,7 @@ export default function SuperAdminsPage() {
           <EmptyState icon={ShieldCheck} title="No matches" description="No super admins match the current filters." />
         ) : (
           <>
-            <Table>
+            <Table className="min-w-[640px] lg:min-w-0">
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <TableHead className={tableHeadClass}><SortLabel label="Name" sortKey="name" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></TableHead>

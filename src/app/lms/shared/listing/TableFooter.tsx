@@ -13,7 +13,7 @@ function pageWindow(current: number, total: number): (number | '…')[] {
 }
 
 const PAGER_STEP =
-    'inline-flex items-center gap-1.5 h-8 px-3 rounded-control border border-hairline-strong bg-surface ' +
+    'inline-flex items-center gap-1.5 h-8 px-2.5 sm:px-3 rounded-control border border-hairline-strong bg-surface ' +
     'text-sm font-medium text-subtle hover:border-line-hover hover:text-heading disabled:opacity-40 ' +
     'disabled:hover:border-hairline-strong disabled:cursor-not-allowed transition-colors duration-150'
 
@@ -65,7 +65,7 @@ export default function TableFooter({
 
             {/* Right: pager — only when there's more than one page. */}
             {showPager && (
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
             <button
                 type="button"
                 onClick={() => onPage(currentPage - 1)}
@@ -74,7 +74,8 @@ export default function TableFooter({
                 className={PAGER_STEP}
             >
                 <ChevronLeft size={13} />
-                <span>Previous</span>
+                {/* Icon-only on phones so the full 7-slot window fits one row. */}
+                <span className="hidden sm:inline">Previous</span>
             </button>
 
             {pages.map((p, i) => (
@@ -111,7 +112,7 @@ export default function TableFooter({
                 aria-label="Next page"
                 className={PAGER_STEP}
             >
-                <span>Next</span>
+                <span className="hidden sm:inline">Next</span>
                 <ChevronRight size={13} />
             </button>
             </div>

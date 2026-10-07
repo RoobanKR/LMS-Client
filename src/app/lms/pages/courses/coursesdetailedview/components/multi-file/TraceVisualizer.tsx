@@ -218,9 +218,9 @@ export default function TraceVisualizer(props: TraceVisualizerProps) {
       </div>
 
       {/* TWO COLUMNS (left = code + controls + input, right = output + frames + objects) */}
-      <div className="flex-1 min-h-0 flex">
+      <div className="flex-1 min-h-0 flex max-md:flex-col max-md:overflow-y-auto">
         {/* ── LEFT COLUMN ── */}
-        <div className="flex flex-col min-h-0 border-r" style={{ width: "52%", borderColor: "#e5e7eb" }}>
+        <div className="flex flex-col min-h-0 w-full md:w-[52%] md:border-r max-md:border-b max-md:flex-none max-md:h-[65dvh] max-md:min-h-[360px]" style={{ borderColor: "#e5e7eb" }}>
           <div className="text-center py-1.5 flex-shrink-0">
             <div className="text-sm text-gray-700">{languageLabel}</div>
           </div>
@@ -260,7 +260,7 @@ export default function TraceVisualizer(props: TraceVisualizerProps) {
 
           {/* Step buttons — Next/Last stay disabled at the frontier (e.g. while
               the program is waiting for input). First/Prev let you step back. */}
-          <div className="flex items-center justify-center gap-2 py-2 flex-shrink-0">
+          <div className="flex flex-wrap items-center justify-center gap-2 px-2 py-2 flex-shrink-0">
             <button style={clampedIdx === 0 ? stepBtnDisabled : stepBtn} disabled={clampedIdx === 0} onClick={() => go(0)}>&lt;&lt; First</button>
             <button style={clampedIdx === 0 ? stepBtnDisabled : stepBtn} disabled={clampedIdx === 0} onClick={() => go(clampedIdx - 1)}>&lt; Prev</button>
             <button
@@ -290,15 +290,15 @@ export default function TraceVisualizer(props: TraceVisualizerProps) {
           {awaitingInput && atFrontier && (
             <div className="flex-shrink-0 mx-3 mb-3 rounded" style={{ border: "2px solid #f472b6", padding: "10px 12px" }}>
               <div className="text-center text-sm font-bold mb-2" style={{ color: "#be185d" }}>Enter user input:</div>
-              <div className="flex items-center justify-center gap-2">
-                <span className="text-sm" style={{ fontFamily: "ui-monospace, monospace", color: "#0f172a" }}>{inputPrompt?.trim() ? inputPrompt : "input:"}</span>
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <span className="text-sm break-all" style={{ fontFamily: "ui-monospace, monospace", color: "#0f172a" }}>{inputPrompt?.trim() ? inputPrompt : "input:"}</span>
                 <input
                   ref={inputRef}
                   value={liveValue}
                   onChange={(e) => setLiveValue(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submitInput() } }}
-                  className="rounded px-2 py-1 text-sm outline-none"
-                  style={{ border: "1px solid #9ca3af", fontFamily: "ui-monospace, monospace", width: 180 }}
+                  className="rounded px-2 py-1 text-sm outline-none w-full min-w-0"
+                  style={{ border: "1px solid #9ca3af", fontFamily: "ui-monospace, monospace", maxWidth: 180 }}
                   autoFocus
                 />
                 <button onClick={submitInput} className="px-3 py-1 rounded text-sm font-semibold" style={{ background: "#e5e7eb", border: "1px solid #c7c7c7", color: "#374151" }}>Submit</button>
@@ -316,7 +316,7 @@ export default function TraceVisualizer(props: TraceVisualizerProps) {
         </div>
 
         {/* ── RIGHT COLUMN ── */}
-        <div className="flex flex-col min-h-0 flex-1">
+        <div className="flex flex-col min-h-0 flex-1 max-md:flex-none max-md:min-h-[320px]">
           {/* Print output (resizable) */}
           <div className="flex-shrink-0 px-3 pt-2">
             <div className="text-2xs text-gray-500 mb-1">Print output <span className="text-gray-400">(drag lower right corner to resize)</span></div>
@@ -335,7 +335,7 @@ export default function TraceVisualizer(props: TraceVisualizerProps) {
           )}
 
           {/* Frames | Objects with SVG connector arrows overlaid */}
-          <div ref={refLayerRef} className="flex-1 min-h-0 grid pt-2 relative" style={{ gridTemplateColumns: "1fr 1fr" }}>
+          <div ref={refLayerRef} className="flex-1 min-h-0 grid grid-cols-1 sm:grid-cols-[1fr_1fr] max-sm:gap-3 pt-2 relative">
             <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", overflow: "visible", zIndex: 5 }}>
               <defs>
                 <marker id="ptArrow" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse">

@@ -236,14 +236,14 @@ export const CategorySelect: React.FC<CategorySelectProps> = ({
                         </span>
                       )}
                     </span>
-                    <span className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span className="flex items-center gap-0.5 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           beginEdit(cat);
                         }}
-                        className="p-0.5 text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded"
+                        className="p-1.5 lg:p-0.5 text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded"
                         title="Rename category"
                       >
                         <Pencil className="h-3 w-3" />
@@ -263,7 +263,7 @@ export const CategorySelect: React.FC<CategorySelectProps> = ({
                             onDeleteCategory(cat);
                           }
                         }}
-                        className="p-0.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded"
+                        className="p-1.5 lg:p-0.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded"
                         title="Delete category"
                       >
                         <Trash2 className="h-3 w-3" />

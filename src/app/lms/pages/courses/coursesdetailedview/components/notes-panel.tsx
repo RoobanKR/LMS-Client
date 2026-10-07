@@ -1666,7 +1666,7 @@ const renderTiptapToolbar = () => {
   const panelContent = (
     <div className="flex-1 flex min-h-0">
       {showNotesSidebar && (
-        <div className="flex flex-col border-r border-gray-300 w-64 bg-gray-50 notes-sidebar sidebar-slide">
+        <div className="flex flex-col border-r border-gray-300 w-64 max-sm:w-1/2 max-sm:min-w-0 bg-gray-50 notes-sidebar sidebar-slide">
           {/* Sidebar Header */}
           <div className="p-4 border-b border-gray-300">
             <div className="flex items-center justify-between mb-3">
@@ -1821,7 +1821,7 @@ const renderTiptapToolbar = () => {
                             className={`note-checkbox w-3.5 h-3.5 rounded border flex items-center justify-center transition-all flex-shrink-0
                               ${selectedNotes.includes(note._id)
                                 ? 'bg-[#FB923C] border-[#FB923C] opacity-100'
-                                : 'border-gray-300 bg-white hover:border-[#FB923C] opacity-0 group-hover:opacity-100'
+                                : 'border-gray-300 bg-white hover:border-[#FB923C] opacity-100 lg:opacity-0 lg:group-hover:opacity-100'
                               }
                               ${currentNote?._id === note._id && selectedNotes.includes(note._id)
                                 ? 'bg-white border-white'
@@ -2149,7 +2149,7 @@ const renderTiptapToolbar = () => {
     return (
       <div
         ref={panelRef}
-        className={`fixed bg-white shadow-lg border border-gray-300 flex flex-col z-50 ${isDragging ? 'cursor-grabbing select-none' : 'cursor-default'
+        className={`fixed bg-white shadow-lg border border-gray-300 flex flex-col z-50 max-sm:!left-0 max-sm:!top-0 max-sm:!w-full max-sm:!h-[100dvh] max-sm:border-0 ${isDragging ? 'cursor-grabbing select-none' : 'cursor-default'
           }`}
         style={{
           left: `${position.x}px`,
@@ -2160,7 +2160,7 @@ const renderTiptapToolbar = () => {
       >
         <div className="flex-1 flex min-h-0">
           {showNotesSidebar && (
-            <div className="flex flex-col border-r border-gray-300 w-64 bg-gray-50 notes-sidebar sidebar-slide">
+            <div className="flex flex-col border-r border-gray-300 w-64 max-sm:w-1/2 max-sm:min-w-0 bg-gray-50 notes-sidebar sidebar-slide">
               <div
                 className="p-4 border-b border-gray-300 cursor-move"
                 onMouseDown={handleMouseDown}
@@ -2305,7 +2305,7 @@ const renderTiptapToolbar = () => {
                                 className={`note-checkbox w-3.5 h-3.5 rounded border flex items-center justify-center transition-all flex-shrink-0 no-drag
                                 ${selectedNotes.includes(note._id)
                                     ? 'bg-[#FB923C] border-[#FB923C] opacity-100'
-                                    : 'border-gray-300 bg-white hover:border-[#FB923C] opacity-0 group-hover:opacity-100'
+                                    : 'border-gray-300 bg-white hover:border-[#FB923C] opacity-100 lg:opacity-0 lg:group-hover:opacity-100'
                                   }
                                 ${currentNote?._id === note._id && selectedNotes.includes(note._id)
                                     ? 'bg-white border-white'

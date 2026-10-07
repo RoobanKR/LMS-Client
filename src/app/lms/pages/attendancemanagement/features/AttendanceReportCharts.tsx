@@ -31,7 +31,7 @@ export default function AttendanceReportCharts({ totals, trend, filteredStudents
     return (
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
                             <ChartCard title="Attendance Percentage">
-                                <div className="flex items-center gap-4">
+                                <div className="flex flex-col sm:flex-row items-center gap-4">
                                     <div className="relative w-[160px] h-[160px]">
                                         <ResponsiveContainer>
                                             <PieChart>
@@ -62,7 +62,7 @@ export default function AttendanceReportCharts({ totals, trend, filteredStudents
                                             <div className="text-[10.5px] text-gray-500">Average</div>
                                         </div>
                                     </div>
-                                    <div className="flex-1 space-y-1.5 text-[11.5px]">
+                                    <div className="w-full sm:w-auto sm:flex-1 space-y-1.5 text-[11.5px]">
                                         <LegendRow color="bg-emerald-500" label="Present" value={`${totals.pPct.toFixed(2)}% (${totals.P})`} />
                                         <LegendRow color="bg-red-500" label="Absent" value={`${totals.aPct.toFixed(2)}% (${totals.A})`} />
                                         <LegendRow color="bg-amber-500" label="Half-day" value={`${totals.hPct.toFixed(2)}% (${totals.H})`} />

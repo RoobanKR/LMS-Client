@@ -166,7 +166,7 @@ function GenerateReportContent() {
       className={`${poppins.className} h-full flex flex-col bg-white dark:bg-gray-950 overflow-hidden`}
     >
       {/* Breadcrumb */}
-      <div className="px-4 pt-2 flex-shrink-0">
+      <div className="px-3 sm:px-4 pt-2 flex-shrink-0">
         <Breadcrumb>
           <BreadcrumbList className="text-[11px]">
             <BreadcrumbItem>
@@ -220,7 +220,7 @@ function GenerateReportContent() {
       </div>
 
       {/* Title row */}
-      <div className="px-4 pt-1.5 pb-2 flex items-center justify-between gap-3 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
+      <div className="px-4 pt-1.5 pb-2 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
         <div className="min-w-0">
           <h1 className="text-[15px] font-semibold text-gray-900 dark:text-white tracking-tight leading-tight truncate">
             {activeFeedback?.feedbackTitle
@@ -248,7 +248,7 @@ function GenerateReportContent() {
             )}
           </p>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
           <button
             onClick={() => router.back()}
             className="inline-flex items-center gap-1.5 h-8 px-3.5 text-[12px] font-semibold border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
@@ -284,7 +284,7 @@ function GenerateReportContent() {
             {printMenuOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setPrintMenuOpen(false)} />
-                <div className="absolute right-0 top-full mt-1 z-50 w-64 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg py-1">
+                <div className="absolute left-0 sm:left-auto sm:right-0 top-full mt-1 z-50 w-64 max-w-[calc(100vw-2rem)] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg py-1">
                   {FORM_SHEETS.map((sheet) => (
                     <button
                       key={sheet.kind}
@@ -344,7 +344,7 @@ function GenerateReportContent() {
       <ReportFilterBar rf={rf} />
 
       {/* Body */}
-      <div className="flex-1 min-h-0 overflow-auto px-4 py-4 bg-gray-50/40 dark:bg-gray-950">
+      <div className="flex-1 min-h-0 overflow-auto px-3 sm:px-4 py-4 bg-gray-50/40 dark:bg-gray-950">
         {isLoading ? (
           <div className="flex items-center justify-center h-40">
             <div className="animate-spin rounded-full h-6 w-6 border-2 border-indigo-600 border-t-transparent" />

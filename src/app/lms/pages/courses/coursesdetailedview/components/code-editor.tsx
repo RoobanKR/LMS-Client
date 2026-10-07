@@ -444,8 +444,8 @@ const SecurityAgreementModal = ({
         : 'bg-white text-gray-900 border-gray-300';
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-            <div className={`w-full max-w-lg rounded-xl shadow-2xl border p-6 ${themeClasses}`}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm max-sm:p-4">
+            <div className={`w-full max-w-lg max-h-[90dvh] overflow-y-auto rounded-xl shadow-2xl border p-6 max-sm:p-4 ${themeClasses}`}>
                 <div className="flex items-center gap-3 mb-4">
                     <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
                         <ShieldCheck className="w-6 h-6 text-orange-600 dark:text-orange-400" />
@@ -594,8 +594,8 @@ const ExitConfirmationModal = ({
         : 'bg-white text-gray-900 border-gray-300';
 
     return (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm">
-            <div className={`w-full max-w-md rounded-xl shadow-2xl border p-6 ${themeClasses}`}>
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm max-sm:p-4">
+            <div className={`w-full max-w-md max-h-[90dvh] overflow-y-auto rounded-xl shadow-2xl border p-6 max-sm:p-4 ${themeClasses}`}>
                 <div className="flex items-center gap-3 mb-4">
                     <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
                         <AlertTriangle className="w-6 h-6 text-red-600 dark:text-red-400" />
@@ -679,7 +679,7 @@ const InteractiveTerminal = ({
 
     return (
         <div className={`fixed z-[100] flex flex-col shadow-2xl rounded-lg overflow-hidden border transition-all duration-300 ease-in-out font-sans animate-in slide-in-from-bottom-10 ${themeClasses}`}
-            style={isMaximized ? { top: '20px', left: '20px', right: '20px', bottom: '20px', width: 'auto', height: 'auto' } : { bottom: '20px', right: '20px', width: '600px', height: '400px' }}>
+            style={isMaximized ? { top: '20px', left: '20px', right: '20px', bottom: '20px', width: 'auto', height: 'auto' } : { bottom: '20px', right: '20px', width: '600px', height: '400px', maxWidth: 'calc(100vw - 40px)', maxHeight: 'calc(100dvh - 40px)' }}>
 
             <div className={`flex items-center justify-between px-4 py-2 border-b ${theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-gray-100 border-gray-300'}`}>
                 <div className="flex items-center gap-2.5">
@@ -3593,7 +3593,7 @@ function solve() {
         <div
             ref={editorRef}
             className={`${theme === 'dark' ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'} border-gray-300 flex flex-col border ${isFullscreen ? 'rounded-none' : 'rounded-lg relative h-full min-h-0 flex-1'}`}
-            style={{ fontFamily: FONT, ...(isFullscreen ? { position: 'fixed', inset: 0, width: 'calc(100vw * var(--ui-scale-inv, 1))', height: 'calc(100vh * var(--ui-scale-inv, 1))', zIndex: 2147483647, overflow: 'hidden' } : {}) }}
+            style={{ fontFamily: FONT, ...(isFullscreen ? { position: 'fixed', inset: 0, width: 'calc(100vw * var(--ui-scale-inv, 1))', height: 'calc(100dvh * var(--ui-scale-inv, 1))', zIndex: 2147483647, overflow: 'hidden' } : {}) }}
         >
             {/* Security Agreement Modal */}
             <SecurityAgreementModal
@@ -3716,7 +3716,7 @@ function solve() {
             {exercise && (
                 <div style={{ flexShrink: 0, borderBottom: `1px solid ${theme === 'dark' ? '#374151' : '#e5e7eb'}` }}>
                     {/* Row 1 — Back + Breadcrumb */}
-                    <div style={{
+                    <div className="max-sm:flex-wrap max-sm:gap-y-1.5" style={{
                         display: 'flex', alignItems: 'center',
                         padding: '6px 12px',
                         borderBottom: `1px solid ${theme === 'dark' ? '#1f2937' : '#f0f0f0'}`,
@@ -3744,15 +3744,15 @@ function solve() {
                         <div style={{ width: 1, height: 16, background: theme === 'dark' ? '#374151' : '#e5e7eb', flexShrink: 0 }} />
 
                         {/* Breadcrumb segments */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', flex: 1, minWidth: 0 }}>
-                            <button onClick={() => setPendingNavLevel('course')} style={{ fontFamily: FONT, fontSize: 12.5, fontWeight: 500, color: theme === 'dark' ? '#FDBA74' : '#F97316', background: 'none', border: 'none', cursor: 'pointer', padding: 0, whiteSpace: 'nowrap' }}>
+                        <div className="max-sm:order-last max-sm:basis-full!" style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', flex: 1, minWidth: 0 }}>
+                            <button className="max-sm:max-w-[70vw] max-sm:truncate" onClick={() => setPendingNavLevel('course')} style={{ fontFamily: FONT, fontSize: 12.5, fontWeight: 500, color: theme === 'dark' ? '#FDBA74' : '#F97316', background: 'none', border: 'none', cursor: 'pointer', padding: 0, whiteSpace: 'nowrap' }}>
                                 {courseName || 'Course'}
                             </button>
 
                             {(hierarchy || []).map((seg, i) => (
                                 <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                     <ChevronRight style={{ width: 12, height: 12, color: theme === 'dark' ? '#4b5563' : '#c0c4cc', flexShrink: 0 }} />
-                                    <button onClick={() => setPendingNavLevel('hierarchy')} style={{ fontFamily: FONT, fontSize: 12.5, fontWeight: 500, color: theme === 'dark' ? '#FDBA74' : '#F97316', background: 'none', border: 'none', cursor: 'pointer', padding: 0, whiteSpace: 'nowrap' }}>
+                                    <button className="max-sm:max-w-[70vw] max-sm:truncate" onClick={() => setPendingNavLevel('hierarchy')} style={{ fontFamily: FONT, fontSize: 12.5, fontWeight: 500, color: theme === 'dark' ? '#FDBA74' : '#F97316', background: 'none', border: 'none', cursor: 'pointer', padding: 0, whiteSpace: 'nowrap' }}>
                                         {seg}
                                     </button>
                                 </span>
@@ -3769,7 +3769,7 @@ function solve() {
 
                             <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                 <ChevronRight style={{ width: 12, height: 12, color: theme === 'dark' ? '#4b5563' : '#c0c4cc', flexShrink: 0 }} />
-                                <span style={{ fontFamily: FONT, fontSize: 12.5, fontWeight: 600, color: theme === 'dark' ? '#e5e7eb' : '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                <span className="max-sm:max-w-[70vw]" style={{ fontFamily: FONT, fontSize: 12.5, fontWeight: 600, color: theme === 'dark' ? '#e5e7eb' : '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                     {exercise?.exerciseInformation?.exerciseName || 'Exercise'}
                                 </span>
                             </span>
@@ -3801,7 +3801,7 @@ function solve() {
 
 
                         {/* Right corner of breadcrumb row — Submit Test + Close */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, marginLeft: 8 }}>
+                        <div className="max-sm:ml-auto!" style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, marginLeft: 8 }}>
                             <button
                                 onClick={async () => {
                                     // ── Attempt limit check ──
@@ -3942,7 +3942,7 @@ function solve() {
                     {/* Back confirmation dialog */}
                     {showBackConfirm && (
                         <div style={{ position: 'fixed', inset: 0, zIndex: 99999, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <div style={{ background: theme === 'dark' ? '#1f2937' : '#fff', borderRadius: 12, padding: '28px 32px', width: 360, boxShadow: '0 20px 60px rgba(0,0,0,0.3)', border: `1px solid ${theme === 'dark' ? '#374151' : '#e5e7eb'}` }}>
+                            <div style={{ background: theme === 'dark' ? '#1f2937' : '#fff', borderRadius: 12, padding: '28px 32px', width: 360, maxWidth: 'calc(100vw - 32px)', maxHeight: '90dvh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', border: `1px solid ${theme === 'dark' ? '#374151' : '#e5e7eb'}` }}>
                                 <p style={{ fontFamily: FONT, fontSize: 16, fontWeight: 700, color: theme === 'dark' ? '#f9fafb' : '#111827', marginBottom: 8 }}>Leave Exercise?</p>
                                 <p style={{ fontFamily: FONT, fontSize: 13, color: theme === 'dark' ? '#9ca3af' : '#6b7280', marginBottom: 24, lineHeight: 1.6 }}>
                                     Your code is saved, but unsaved progress may be lost. Where would you like to go?
@@ -3970,7 +3970,7 @@ function solve() {
                     {/* Breadcrumb leave-confirm dialog */}
                     {pendingNavLevel !== null && (
                         <div style={{ position: 'fixed', inset: 0, zIndex: 99999, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <div style={{ background: theme === 'dark' ? '#1f2937' : '#fff', borderRadius: 12, padding: '28px 32px', width: 360, boxShadow: '0 20px 60px rgba(0,0,0,0.35)', border: `1px solid ${theme === 'dark' ? '#374151' : '#e5e7eb'}` }}>
+                            <div style={{ background: theme === 'dark' ? '#1f2937' : '#fff', borderRadius: 12, padding: '28px 32px', width: 360, maxWidth: 'calc(100vw - 32px)', maxHeight: '90dvh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.35)', border: `1px solid ${theme === 'dark' ? '#374151' : '#e5e7eb'}` }}>
                                 <p style={{ fontFamily: FONT, fontSize: 16, fontWeight: 700, color: theme === 'dark' ? '#f9fafb' : '#111827', marginBottom: 8 }}>Leave Exercise?</p>
                                 <p style={{ fontFamily: FONT, fontSize: 13, color: theme === 'dark' ? '#9ca3af' : '#6b7280', marginBottom: 24, lineHeight: 1.6 }}>
                                     Your progress may not be saved if you leave now.
@@ -4081,11 +4081,11 @@ function solve() {
             )}
 
 
-            <div className={`flex items-center justify-between p-2.5 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-300'}`}>
-                <div className="flex items-center gap-3">
+            <div className={`flex items-center justify-between p-2.5 border-b max-lg:flex-wrap max-lg:gap-2 ${theme === 'dark' ? 'border-gray-700' : 'border-gray-300'}`}>
+                <div className="flex items-center gap-3 max-sm:flex-wrap max-sm:gap-x-2 max-sm:gap-y-2 max-lg:min-w-0">
                     <button
                         onClick={() => setShowSidebar(!showSidebar)}
-                        className={`flex items-center justify-center w-7 h-7 rounded transition-colors ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-200 text-gray-700'}`}
+                        className={`flex items-center justify-center w-7 h-7 max-sm:w-8 max-sm:h-8 rounded transition-colors ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-200 text-gray-700'}`}
                         title={showSidebar ? 'Hide problems list' : 'Show problems list'}
                     >
                         {showSidebar ? <ChevronLeft className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
@@ -4122,7 +4122,7 @@ function solve() {
                                 <button
                                     onClick={skipCurrentQuestion}
                                     disabled={currentProblemIndex === problems.length - 1}
-                                    className={`w-7 h-7 flex items-center justify-center border rounded transition-colors ${theme === 'dark'
+                                    className={`w-7 h-7 max-sm:w-8 max-sm:h-8 flex items-center justify-center border rounded transition-colors ${theme === 'dark'
                                         ? 'border-amber-500 bg-amber-900/50 hover:bg-amber-800 text-amber-200'
                                         : 'border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-700'
                                         }`}
@@ -4221,7 +4221,7 @@ function solve() {
                         <div className="flex items-center gap-2">
                             {/* Camera preview - only show if camera is enabled AND we have a stream */}
                             {securitySettings.cameraMicEnabled && cameraStream && (
-                                <div className="fixed bottom-4 left-4 z-40 w-48 h-36 bg-black rounded-lg border-2 border-red-500 shadow-2xl overflow-hidden">
+                                <div className="fixed bottom-4 left-4 z-40 w-48 h-36 max-sm:w-32 max-sm:h-24 bg-black rounded-lg border-2 border-red-500 shadow-2xl overflow-hidden">
                                     <video
                                         ref={videoRef}
                                         autoPlay
@@ -4266,7 +4266,7 @@ function solve() {
                     )}
                 </div>
 
-                <div className="flex items-center gap-2" style={{ justifyContent: 'flex-end' }}>
+                <div className="flex items-center gap-2 max-lg:flex-wrap max-lg:ml-auto" style={{ justifyContent: 'flex-end' }}>
                     {/* {isAssessmentMode && hasStarted && tabSwitchCount > 0 && (
                         <div className="flex items-center gap-1 px-2 py-1 bg-yellow-900/50 rounded text-xs">
                             <AlertTriangle className="w-3 h-3" />
@@ -4375,7 +4375,7 @@ function solve() {
 
                     <button
                         onClick={toggleFullscreen}
-                        className={`w-7 h-7 flex items-center justify-center border rounded ${theme === 'dark' ? 'border-gray-600 bg-gray-800 hover:bg-gray-700 text-gray-300' : 'border-gray-300 bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+                        className={`w-7 h-7 max-sm:w-8 max-sm:h-8 flex items-center justify-center border rounded ${theme === 'dark' ? 'border-gray-600 bg-gray-800 hover:bg-gray-700 text-gray-300' : 'border-gray-300 bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
                     >
                         {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
                     </button>
@@ -4384,7 +4384,7 @@ function solve() {
 
             <div className="flex flex-1 overflow-hidden relative">
                 {showSidebar && (
-                    <div className={`w-80 border-r overflow-hidden flex flex-col ${theme === 'dark' ? 'border-gray-700 bg-gray-900' : 'border-gray-300 bg-white'}`}>
+                    <div className={`w-80 border-r overflow-hidden flex flex-col max-lg:absolute max-lg:inset-y-0 max-lg:left-0 max-lg:z-30 max-lg:w-[min(20rem,85vw)] max-lg:shadow-2xl ${theme === 'dark' ? 'border-gray-700 bg-gray-900' : 'border-gray-300 bg-white'}`}>
                         <div className={`p-3 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-300'}`}>
                             <div className="flex items-center justify-between mb-3">
                                 <h3 className={`text-sm font-semibold ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
@@ -4538,7 +4538,7 @@ function solve() {
                     const alreadySubmitted = solvedQuestions.has(currentProblemIndex);
                     return (
                         <div className="flex-1 h-full flex flex-col min-w-0">
-                            <div className={`flex items-center gap-2 px-4 py-2 border-b flex-shrink-0 ${theme === 'dark' ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'}`}>
+                            <div className={`flex items-center gap-2 px-4 py-2 border-b flex-shrink-0 max-sm:flex-wrap max-sm:px-3 ${theme === 'dark' ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'}`}>
                                 <span style={{
                                     fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 99,
                                     background: theme === 'dark' ? '#7C2D12' : '#FFEDD5',
@@ -4547,10 +4547,10 @@ function solve() {
                                 }}>
                                     Q {currentProblemIndex + 1} / {problems.length}
                                 </span>
-                                <span className={`text-sm font-semibold truncate ${theme === 'dark' ? 'text-gray-200' : 'text-gray-800'}`} style={{ fontFamily: FONT }} title={linkUrl}>
+                                <span className={`text-sm font-semibold truncate max-sm:min-w-0 max-sm:flex-1 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-800'}`} style={{ fontFamily: FONT }} title={linkUrl}>
                                     {liveQ.title && liveQ.title !== linkUrl ? liveQ.title : 'Linked question'}
                                 </span>
-                                <div className="flex-1" />
+                                <div className="flex-1 max-sm:basis-full max-sm:h-0" />
                                 <button
                                     onClick={() => window.open(linkUrl, '_blank', 'noopener,noreferrer')}
                                     className={`flex items-center gap-1.5 px-3 h-[30px] rounded-md text-xs font-semibold border transition-colors ${theme === 'dark' ? 'border-gray-600 text-gray-200 hover:bg-gray-800' : 'border-gray-300 text-gray-700 hover:bg-gray-100'}`}
@@ -4595,7 +4595,7 @@ function solve() {
                             {/* No iframe — link questions always open on the
                                 external site (most judges refuse embedding
                                 anyway); the card is the whole workspace. */}
-                            <div className={`flex-1 flex flex-col items-center justify-center gap-3 p-8 text-center ${theme === 'dark' ? 'bg-gray-950' : 'bg-gray-50'}`}>
+                            <div className={`flex-1 flex flex-col items-center justify-center gap-3 p-8 max-sm:p-5 text-center ${theme === 'dark' ? 'bg-gray-950' : 'bg-gray-50'}`}>
                                 <div className={`text-md font-bold ${theme === 'dark' ? 'text-gray-100' : 'text-gray-800'}`} style={{ fontFamily: FONT }}>
                                     This question opens on {hostOf(linkUrl)}
                                 </div>
@@ -4618,10 +4618,13 @@ function solve() {
                         </div>
                     );
                 })()}
-                {(() => { const lq: any = exercise?.questions?.[currentProblemIndex] ?? currentQuestion; return !(lq?.isLinkQuestion && lq?.questionLink); })() && (<>
-                <div style={{ width: `${leftPanelWidth}%` }} className="h-full flex flex-col border-r border-gray-300 dark:border-gray-700 overflow-hidden">
+                {(() => { const lq: any = exercise?.questions?.[currentProblemIndex] ?? currentQuestion; return !(lq?.isLinkQuestion && lq?.questionLink); })() && (
+                // Phones/tablets: one scroll column (question → editor → console);
+                // lg+: `contents` removes this wrapper so the desktop split is untouched.
+                <div className="max-lg:flex max-lg:flex-col max-lg:flex-1 max-lg:min-w-0 max-lg:overflow-y-auto lg:contents">
+                <div style={{ width: `${leftPanelWidth}%` }} className="h-full flex flex-col border-r border-gray-300 dark:border-gray-700 overflow-hidden max-lg:w-full! max-lg:h-auto max-lg:max-h-[45dvh] max-lg:flex-none max-lg:border-r-0 max-lg:border-b">
                     <div className="flex-1 overflow-y-auto custom-scrollbar">
-                        <div className={`p-5 space-y-6 ${theme === 'dark' ? 'bg-gray-900' : 'bg-white'}`}>
+                        <div className={`p-5 max-sm:p-4 space-y-6 ${theme === 'dark' ? 'bg-gray-900' : 'bg-white'}`}>
                             <div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
                                     <span style={{
@@ -4645,7 +4648,7 @@ function solve() {
                                         {formatLanguageName(selectedLanguage)}
                                     </span>
                                 </div>
-                                <h1 style={{ fontFamily: FONT }} className={`text-xl font-semibold mb-1.5 ${theme === 'dark' ? 'text-white' : 'text-gray-700'}`}>{problem?.title || "Problem"}</h1>
+                                <h1 style={{ fontFamily: FONT }} className={`text-lg sm:text-xl font-semibold mb-1.5 break-words ${theme === 'dark' ? 'text-white' : 'text-gray-700'}`}>{problem?.title || "Problem"}</h1>
                                 <div className="flex items-center gap-2 flex-wrap">
                                     {/* Difficulty badge */}
                                     <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${problem?.difficulty === "Easy" ? (theme === 'dark' ? 'bg-green-900/30 text-green-300' : 'bg-green-100 text-green-800') : problem?.difficulty === "Medium" ? (theme === 'dark' ? 'bg-yellow-900/30 text-yellow-300' : 'bg-yellow-100 text-yellow-800') : (theme === 'dark' ? 'bg-red-900/30 text-red-300' : 'bg-red-100 text-red-800')}`}>
@@ -4774,7 +4777,7 @@ function solve() {
 
                 {!showSidebar && (
                     <div
-                        className="absolute top-0 bottom-0 z-10 hover:cursor-col-resize"
+                        className="absolute top-0 bottom-0 z-10 hover:cursor-col-resize max-lg:hidden"
                         style={{ left: `calc(${leftPanelWidth}% - 2px)`, width: '4px' }}
                         onMouseDown={(e) => { setIsResizing(true); e.preventDefault(); }}
                     >
@@ -4782,11 +4785,11 @@ function solve() {
                     </div>
                 )}
 
-                <div className="flex flex-col flex-1 min-w-0 h-full" style={{ width: `${100 - leftPanelWidth}%` }}>
+                <div className="flex flex-col flex-1 min-w-0 h-full max-lg:w-full! max-lg:h-auto max-lg:flex-none" style={{ width: `${100 - leftPanelWidth}%` }}>
 
                     {/* ── Editor (top, resizable) ── */}
-                    <div className="flex flex-col" style={{ height: `${rightPanelSplit}%`, minHeight: 0 }}>
-                        <div className={`flex items-center justify-between p-2 border-b ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-gray-50'}`}>
+                    <div className="flex flex-col max-lg:h-[60dvh]! max-lg:min-h-[320px]! max-lg:flex-none" style={{ height: `${rightPanelSplit}%`, minHeight: 0 }}>
+                        <div className={`flex items-center justify-between max-md:gap-2 p-2 border-b ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-gray-50'}`}>
                             <div className="flex items-center gap-1.5">
                                 <Code className={`w-4 h-4 ${theme === 'dark' ? 'text-orange-400' : 'text-orange-500'}`} />
                                 <span className={`text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>Code</span>
@@ -4817,16 +4820,16 @@ function solve() {
 
                     {/* ── Drag handle ── */}
                     <div
-                        className={`h-2 flex items-center justify-center cursor-row-resize flex-shrink-0 transition-colors ${theme === 'dark' ? 'hover:bg-orange-900/40 bg-gray-800' : 'hover:bg-orange-100 bg-gray-100'}`}
+                        className={`h-2 flex items-center justify-center cursor-row-resize flex-shrink-0 transition-colors max-lg:hidden ${theme === 'dark' ? 'hover:bg-orange-900/40 bg-gray-800' : 'hover:bg-orange-100 bg-gray-100'}`}
                         onMouseDown={(e) => { setIsHorizontalResizing(true); e.preventDefault(); }}
                     >
                         <div className={`w-12 h-1 rounded-full ${theme === 'dark' ? 'bg-gray-600' : 'bg-gray-300'}`} />
                     </div>
 
                     {/* ── Console / Output (bottom, resizable) ── */}
-                    <div className="flex flex-col flex-1 min-h-0" style={{ height: `${100 - rightPanelSplit}%` }}>
+                    <div className="flex flex-col flex-1 min-h-0 max-lg:h-[50dvh]! max-lg:min-h-[280px]! max-lg:flex-none" style={{ height: `${100 - rightPanelSplit}%` }}>
                         {/* Tab bar */}
-                        <div className={`flex items-center justify-between gap-0 border-b flex-shrink-0 ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-gray-50'}`}>
+                        <div className={`flex items-center justify-between gap-0 border-b flex-shrink-0 max-sm:flex-wrap ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-gray-50'}`}>
                             {/* Left side - Tabs. Console (Run output) is always
                                 available; Test Result only exists when the
                                 exercise is actually evaluated — a Manual
@@ -4864,7 +4867,7 @@ function solve() {
                             </div>
 
                             {/* Right side - Buttons */}
-                            <div className="flex items-center gap-2 mr-2">
+                            <div className="flex items-center gap-2 mr-2 max-sm:flex-wrap max-sm:ml-auto max-sm:py-1.5">
                                 {/* Run Testcase — evaluates the current code and
                                     paints Test Result WITHOUT marking the
                                     question submitted. Same pair the multi-file
@@ -5023,7 +5026,7 @@ function solve() {
                     </div>
 
                 </div>
-                </>)}{/* end non-link question+editor split */}
+                </div>)}{/* end non-link question+editor split */}
                 {/* ── Exercise Info Right Panel ── */}
                 {/* {showExerciseInfo && exercise && (
                     <div style={{
@@ -5224,7 +5227,7 @@ function solve() {
             </div>
 
             {/* Toast Notifications */}
-            <div className="fixed top-4 right-4 z-50 flex flex-col gap-2">
+            <div className="fixed top-4 right-4 max-sm:left-4 z-50 flex flex-col gap-2">
                 {toasts.map((toast) => (
                     <div
                         key={toast.id}

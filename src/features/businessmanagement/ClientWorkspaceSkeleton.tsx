@@ -6,9 +6,9 @@ import { useSidebar } from '@/app/lms/component/dashboard-context';
 export default function ClientWorkspaceSkeleton({ showTabs = true }: { showTabs?: boolean }) {
     const { hasSidebar } = useSidebar();
     return (
-        <div role="status" aria-label="Loading page content" aria-busy="true" className={hasSidebar ? 'flex h-full min-h-0' : 'flex h-screen gap-3 bg-canvas p-3'}>
+        <div role="status" aria-label="Loading page content" aria-busy="true" className={hasSidebar ? 'flex h-full min-h-0' : 'flex h-[100dvh] gap-3 bg-canvas p-3 lg:h-screen'}>
             <span className="sr-only">Loading page content…</span>
-            {!hasSidebar && <aside aria-hidden="true" className="hidden w-[244px] shrink-0 space-y-4 p-3 md:block">
+            {!hasSidebar && <aside aria-hidden="true" className="hidden w-[244px] shrink-0 space-y-4 p-3 lg:block">
                 <div className="h-12 rounded-xl bg-ink-100 animate-pulse" />
                 {Array.from({ length: 8 }, (_, i) => <div key={i} className="h-8 rounded-control bg-ink-100 animate-pulse" />)}
             </aside>}

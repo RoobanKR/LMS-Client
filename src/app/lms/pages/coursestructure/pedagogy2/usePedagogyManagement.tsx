@@ -3857,7 +3857,7 @@ export function usePedagogyManagement(
                     <div className="flex-1 overflow-auto thin-scrollbar p-4 space-y-3">
 
                         {/* Course Info */}
-                        <div className="grid grid-cols-3 gap-3 text-xs">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                             <div className="bg-gray-50 p-2 rounded-md">
                                 <span className="font-medium text-gray-700">Course Name:</span>
                                 <p className="text-gray-900">{previewCourse.courseName}</p>
@@ -3889,7 +3889,7 @@ export function usePedagogyManagement(
                         </div>
 
                         {/* Statistics */}
-                        <div className="grid grid-cols-4 gap-2 text-[11px]">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
                             {[
                                 {
                                     label: "Modules",

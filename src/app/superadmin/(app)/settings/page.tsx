@@ -77,7 +77,7 @@ export default function SettingsPage() {
           <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-foreground">
             <ShieldCheck className="h-4 w-4 text-primary" /> Security
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label>Session Timeout (min)</Label>
               <Input type="number" min={5} value={form.sessionTimeoutMinutes} onChange={(e) => setField('sessionTimeoutMinutes', Number(e.target.value))} />
@@ -93,12 +93,12 @@ export default function SettingsPage() {
           <div className="mb-4 text-sm font-semibold text-foreground">Platform Toggles</div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {TOGGLES.map(({ key, label, hint }) => (
-              <div key={key} className="flex items-center justify-between rounded-lg border border-border px-3.5 py-3">
-                <div>
+              <div key={key} className="flex items-center justify-between gap-3 rounded-lg border border-border px-3.5 py-3">
+                <div className="min-w-0">
                   <div className="text-sm font-medium text-foreground">{label}</div>
                   <div className="text-xs text-muted-foreground">{hint}</div>
                 </div>
-                <Switch checked={form[key] as boolean} onCheckedChange={(v) => setField(key, v as never)} />
+                <Switch className="shrink-0" checked={form[key] as boolean} onCheckedChange={(v) => setField(key, v as never)} />
               </div>
             ))}
           </div>

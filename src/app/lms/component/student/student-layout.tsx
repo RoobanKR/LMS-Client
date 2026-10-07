@@ -46,7 +46,9 @@ interface StudentLayoutProps {
 }
 
 export function StudentLayout({ children }: StudentLayoutProps) {
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  // Starts closed: `isOpen` only drives the phone drawer (the desktop rail
+  // ignores it), and the resize effect below opens it at >= 768px.
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const pathname = usePathname()
   const queryClient = useQueryClient()
 
@@ -116,7 +118,7 @@ export function StudentLayout({ children }: StudentLayoutProps) {
     // dashboard-shell so the whole page is a fixed-height frame with content
     // scrolling INSIDE the workspace panel, not the outer div.
     <div
-      className={`${poppins.variable} flex h-screen bg-[#F5F6F8] dark:bg-[#0E0F12]`}
+      className={`${poppins.variable} flex h-screen max-xl:h-dvh bg-[#F5F6F8] dark:bg-[#0E0F12]`}
       style={{ fontFamily: "var(--font-poppins), 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}
     >
 
@@ -139,23 +141,27 @@ export function StudentLayout({ children }: StudentLayoutProps) {
         />
       </aside>
 
-      <main className="flex h-screen min-w-0 flex-1 flex-col overflow-hidden p-3.5 pl-0 max-md:p-2.5">
+      <main className="flex h-screen max-xl:h-dvh min-w-0 flex-1 flex-col overflow-hidden p-3.5 pl-0 max-md:p-2.5">
         {/* White workspace card — the gray gutter around it is the canvas
             showing through, flowing from the sidebar. */}
         <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[18px] border border-[#E4E7EC] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] dark:border-[#2A2D34] dark:bg-[#17181C]">
 
-          {/* Mobile only: reopens the sidebar drawer (the old navbar's burger). */}
-          <button
-            type="button"
-            onClick={() => setSidebarOpen(true)}
-            aria-label="Open navigation"
-            className="absolute top-3 left-4 z-30 inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#E4E7EC] bg-white text-gray-600 shadow-sm md:hidden dark:border-[#2A2D34] dark:bg-[#17181C] dark:text-gray-300"
-          >
-            <Menu className="h-[18px] w-[18px]" strokeWidth={2} />
-          </button>
+          {/* Mobile only: a slim top bar that reopens the sidebar drawer (the
+              old navbar's burger). It sits in flow, above the scroll area, so
+              it never covers the page's own heading on phones. */}
+          <div className="flex h-12 flex-shrink-0 items-center border-b border-[#E4E7EC] px-3 md:hidden dark:border-[#2A2D34]">
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(true)}
+              aria-label="Open navigation"
+              className="z-30 inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#E4E7EC] bg-white text-gray-600 shadow-sm dark:border-[#2A2D34] dark:bg-[#17181C] dark:text-gray-300"
+            >
+              <Menu className="h-[18px] w-[18px]" strokeWidth={2} />
+            </button>
+          </div>
 
           <div className={cn(
-            "min-h-0 flex-1 overflow-y-auto p-4 md:p-6",
+            "min-h-0 flex-1 overflow-y-auto p-3 sm:p-4 md:p-6",
             "sc-panel-scroll",
             "animate-in fade-in slide-in-from-bottom-2 duration-400"
           )}>

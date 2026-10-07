@@ -327,7 +327,7 @@ export default function StudentProgressOverview() {
   );
 
   return (
-    <div style={T({ background: "#F7F6FB", minHeight: "calc(100vh * var(--ui-scale-inv, 1))", padding: "28px 30px" })}>
+    <div className="px-3 py-4 sm:px-[30px] sm:py-[28px]" style={T({ background: "#F7F6FB", minHeight: "calc(100vh * var(--ui-scale-inv, 1))" })}>
       <style>{`
         html, body { scrollbar-color: #4B5563 #1F2937; scrollbar-width: thin; }
         html::-webkit-scrollbar, body::-webkit-scrollbar { width: 12px; height: 12px; }
@@ -339,7 +339,7 @@ export default function StudentProgressOverview() {
       `}</style>
 
       {/* ── TOP BAR ───────────────────────────────────────────────── */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 22 }}>
+      <div className="mb-[22px] flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-0">
         <div>
           <h1 style={T({ margin: 0, fontSize: 20, fontWeight: 700, color: "#111827", display: "flex", alignItems: "center", gap: 7 })}>
             Student Progress Overview
@@ -350,7 +350,7 @@ export default function StudentProgressOverview() {
           </p>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div className="flex flex-wrap items-center gap-3">
           {/* Course selector — moved into top bar (replaces Performance Guide) */}
           <div style={{ position: "relative" }}>
             <p style={T({ margin: "0 0 4px", fontSize: 10, fontWeight: 500, color: "#9CA3AF" })}>Select Course</p>
@@ -414,7 +414,7 @@ export default function StudentProgressOverview() {
       </div>
 
       {/* ── STAT CARDS ────────────────────────────────────────────── */}
-      <div style={{ display: "flex", gap: 12, marginBottom: 22 }}>
+      <div className="mb-[22px] grid grid-cols-1 gap-3 sm:grid-cols-2 lg:flex">
         <StatCard iconBg="#EDE9FF" icon={<IcoUsers />}                       title="Total Students"     value={String(students.length)}   valueColor="#111827" sub="Enrolled in course" />
         <StatCard iconBg="#DCFCE7" icon={<IcoBook   c="#16A34A" s={20} />}   title="I Do Overall"       value={`${avg("iDo")}%`}          valueColor="#16A34A" sub="Average Score" />
         <StatCard iconBg="#DBEAFE" icon={<IcoGroup  c="#2563EB" s={20} />}   title="We Do Overall"      value={`${avg("weDo")}%`}         valueColor="#2563EB" sub="Average Score" />
@@ -431,8 +431,7 @@ export default function StudentProgressOverview() {
       }}>
 
         {/* Pedagogy tabs */}
-        <div style={{
-          display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr",
+        <div className="grid grid-cols-2 md:grid-cols-4" style={{
           borderBottom: "1px solid #F3F0FB",
         }}>
           {([
@@ -484,6 +483,9 @@ export default function StudentProgressOverview() {
           </div>
         </div>
 
+        {/* Grid "table" scrolls sideways below lg so its columns stay readable. */}
+        <div className="overflow-x-auto lg:overflow-visible">
+        <div className={`${activeTab === "All" ? "min-w-[820px]" : "min-w-[560px]"} lg:min-w-0`}>
         {/* Table header */}
         {(() => {
           const isAll = activeTab === "All";
@@ -656,9 +658,11 @@ export default function StudentProgressOverview() {
             </div>
           );
         })}
+        </div>
+        </div>
 
         {/* Pagination footer */}
-        <div style={{
+        <div className="flex-wrap gap-2.5" style={{
           display: "flex", justifyContent: "space-between", alignItems: "center",
           padding: "13px 20px", borderTop: "1px solid #F3F0FB", background: "#FAFAFA",
         }}>

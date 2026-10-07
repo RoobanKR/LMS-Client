@@ -243,12 +243,38 @@ const CSS = `
 
 @media(max-width:1080px){
  .xcl-entry{grid-template-columns:repeat(2,1fr)}
- .xcl-two{grid-template-columns:1fr}
- .xcl-side{border-left:none;border-top:1px solid var(--soft)}
+ .xcl-two{grid-template-columns:1fr;grid-template-rows:auto auto;overflow:auto}
+ .xcl-two-main{overflow:visible}
+ .xcl-side{border-left:none;border-top:1px solid var(--soft);overflow:visible}
+}
+@media(max-width:767px){
+ .xcl-scrim{padding:0}
+ .xcl-app{width:100%;height:100dvh;min-height:0;border-radius:0;border:none}
+ .xcl-bar{padding:9px 12px}
+ .xcl-crumb{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ .xcl-x{width:36px;height:36px;flex:none}
+ .xcl-choose{justify-content:flex-start;padding:22px 14px}
+ .xcl-choose-h{font-size:18px}
+ .xcl-pad,.xcl-two-main{padding:14px}
+ .xcl-cmdwrap{justify-content:flex-start;padding:20px 14px}
+ .xcl-cmdhero{height:96px}
+ .xcl-cmd-h{font-size:17px}
+ .xcl-tgrid{grid-template-columns:repeat(auto-fill,minmax(min(225px,100%),1fr))}
 }
 @media(max-width:620px){
  .xcl-entry,.xcl-g2{grid-template-columns:1fr}
  .xcl-rrow .k{width:110px}
+ .xcl-rrow{flex-wrap:wrap}
+ .xcl-rrow .v{min-width:0;flex:1 1 120px;overflow-wrap:anywhere}
+ .xcl-rhero{flex-wrap:wrap}
+ .xcl-rart{width:96px;height:64px}
+ .xcl-rart svg{width:90px;height:58px}
+ .xcl-eart{height:96px}
+ .xcl-eart svg{height:88px}
+}
+@media(max-height:600px) and (min-width:768px){
+ .xcl-scrim{padding:8px}
+ .xcl-app{height:calc(100dvh - 16px);min-height:0}
 }
 @media(prefers-reduced-motion:reduce){.xcl *{transition:none!important}}
 `
@@ -711,8 +737,8 @@ export default function CreateExerciseLauncher({
                         {phase === 'review' && spec && (
                             <div className="xcl-two">
                                 <div className="xcl-two-main">
-                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 9 }}>
-                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 9, flexWrap: 'wrap' }}>
+                                        <div style={{ flex: '1 1 180px', minWidth: 0 }}>
                                             {picked && <div className="xcl-eyebrow">Step 2 of 2</div>}
                                             <div className="xcl-h19">{picked ? 'Review & create' : 'Parsed configuration'}</div>
                                         </div>

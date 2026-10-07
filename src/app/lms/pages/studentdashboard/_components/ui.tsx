@@ -41,7 +41,7 @@ export const Card = ({
             'shadow-[0_1px_2px_rgba(16,24,40,0.04),0_12px_28px_-16px_rgba(16,24,40,0.16)]',
             'transition-shadow duration-300 hover:shadow-[0_1px_2px_rgba(16,24,40,0.05),0_18px_36px_-18px_rgba(16,24,40,0.22)]',
             'dark:bg-gray-900 dark:border-gray-800',
-            padded && 'p-5',
+            padded && 'p-4 sm:p-5',
             className,
         )}
     >

@@ -127,9 +127,9 @@ export default function ClientsPage() {
     // Fills main's content area; only the table wrapper inside the Panel
     // scrolls. The shared panel heading is gone — the page owns its ONE
     // heading row below (title left, Add action right).
-    <div className="flex h-full min-h-0 flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-[17px] font-bold tracking-[-0.02em] text-[#111827]">Clients</h1>
+    <div className="flex flex-col gap-4 sm:gap-6 lg:h-full lg:min-h-0">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="min-w-0 text-[17px] font-bold tracking-[-0.02em] text-[#111827]">Clients</h1>
         <Button onClick={() => { setForm(emptyForm); setOpen(true); }}>
           <Plus className="h-4 w-4" /> Add Client
         </Button>
@@ -179,7 +179,7 @@ export default function ClientsPage() {
             {/* The ONLY scroll region on the page — rows scroll, toolbar and
                 pagination stay pinned. */}
             <div className="min-h-0 flex-1 overflow-y-auto">
-              <Table>
+              <Table className="min-w-[760px] lg:min-w-0">
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <TableHead className={headCls}><SortLabel label="Client" sortKey="name" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></TableHead>
@@ -279,11 +279,11 @@ export default function ClientsPage() {
           {details && (
             <div className="space-y-3 text-sm">
               <div className="flex items-center gap-3 border-b border-border pb-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-sm font-semibold text-accent-foreground">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-semibold text-accent-foreground">
                   {details.inst_name.charAt(0).toUpperCase()}
                 </div>
-                <div>
-                  <div className="font-semibold text-foreground">{details.inst_name}</div>
+                <div className="min-w-0">
+                  <div className="break-words font-semibold text-foreground">{details.inst_name}</div>
                   <div className="text-xs text-muted-foreground">{details.inst_id}</div>
                 </div>
               </div>
@@ -299,7 +299,7 @@ export default function ClientsPage() {
                   <span className="text-right font-medium text-foreground">{v}</span>
                 </div>
               ))}
-              <div className="mt-2 grid grid-cols-3 gap-2">
+              <div className="mt-2 grid grid-cols-1 gap-2 min-[400px]:grid-cols-3">
                 <Button variant="outline" size="sm" onClick={() => { const d = details; setDetails(null); openClientPage('roles', d); }}>Roles</Button>
                 <Button variant="outline" size="sm" onClick={() => { const d = details; setDetails(null); openClientPage('users', d); }}>Users</Button>
                 <Button variant="outline" size="sm" onClick={() => { const d = details; setDetails(null); openClientPage('resources', d); }}>Resources</Button>

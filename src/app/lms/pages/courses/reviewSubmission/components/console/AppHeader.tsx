@@ -113,7 +113,7 @@ export default function AppHeader({
   }, [pickerOpen]);
 
   return (
-    <header className="flex h-[62px] flex-none items-center border-b border-[#E5E7EB] bg-white px-4">
+    <header className="flex h-[62px] flex-none items-center border-b border-[#E5E7EB] bg-white px-3 sm:px-4">
       {/* No product brand here — the LMS shell already carries it, and the
           space buys the breadcrumb enough room to show real titles instead of
           collapsing the middle of the trail away. */}
@@ -133,7 +133,12 @@ export default function AppHeader({
           {crumbs.map((crumb, i) => {
             const last = i === crumbs.length - 1;
             return (
-              <li key={`${crumb.label}-${i}`} className="flex min-w-0 items-center">
+              <li
+                key={`${crumb.label}-${i}`}
+                // Phones keep only the current (last) crumb; the full trail
+                // returns from sm up.
+                className={cn("min-w-0 items-center", last ? "flex" : "hidden sm:flex")}
+              >
                 <ChevronRight
                   className="mx-0.5 h-[13px] w-[13px] shrink-0 text-[#C6D2E4]"
                   aria-hidden
@@ -149,7 +154,7 @@ export default function AppHeader({
                     // rather than hiding whole levels behind one "…".
                     "truncate rounded px-1 py-0.5 text-[12px] leading-[16px] transition-colors",
                     last
-                      ? "max-w-[220px] shrink-0 font-semibold text-[#0B1437]"
+                      ? "min-w-0 max-w-[220px] sm:shrink-0 font-semibold text-[#0B1437]"
                       : "min-w-[52px] max-w-[170px] font-medium text-[#66789C]",
                     crumb.onClick && "hover:bg-[#F1F6FE] hover:text-[#0667F9]",
                   )}
@@ -162,7 +167,7 @@ export default function AppHeader({
         </ol>
       </nav>
 
-      <div className="flex shrink-0 items-center gap-2.5 pl-3">
+      <div className="flex shrink-0 items-center gap-1.5 pl-2 sm:gap-2.5 sm:pl-3">
         {/* Student identity + picker */}
         <div className="relative" ref={pickerRef}>
           <button
@@ -174,7 +179,7 @@ export default function AppHeader({
             className="flex items-center gap-2 rounded-[8px] py-0.5 pl-0.5 pr-1 transition-colors hover:bg-[#F5F9FF]"
           >
             <StudentAvatar student={student} size={32} />
-            <span className="text-left leading-none">
+            <span className="hidden text-left leading-none sm:block">
               <span className="block max-w-[130px] truncate text-[12.5px] font-bold text-[#0B1437]">
                 {student?.name || "No student"}
               </span>
@@ -188,7 +193,7 @@ export default function AppHeader({
           {pickerOpen && students.length > 0 && (
             <ul
               role="listbox"
-              className="absolute right-0 top-[calc(100%+6px)] z-[70] max-h-[320px] w-[248px] overflow-y-auto rounded-[9px] border border-[#E5E7EB] bg-white py-1 shadow-[0_10px_30px_rgba(11,20,55,0.12)]"
+              className="absolute right-0 top-[calc(100%+6px)] z-[70] max-h-[320px] w-[248px] max-w-[calc(100vw-24px)] overflow-y-auto rounded-[9px] border border-[#E5E7EB] bg-white py-1 shadow-[0_10px_30px_rgba(11,20,55,0.12)]"
             >
               {students.map((s) => (
                 <li key={s.id}>

@@ -3056,7 +3056,7 @@ function MapServiceWizard({
                             Pinning the row to the space available makes each
                             side scroll inside it instead. */}
                         <div className={`${es.workspace} min-h-0`} style={{ gridTemplateRows: 'minmax(0, 1fr)' }}>
-                        <div ref={bodyRef} className={`es-acc-scroll ${es.editorPane} min-h-0 h-full [scrollbar-gutter:stable]`}>
+                        <div ref={bodyRef} className={`es-acc-scroll ${es.editorPane} min-h-0 lg:h-full [scrollbar-gutter:stable]`}>
                             <form id="service-mapping-form" onSubmit={(event) => { event.preventDefault(); if (!isSaving) void handleSave() }}>
                                 <div className={es.accordionToolbar}>
                                     <span>Choose a service, then configure its layout</span>
@@ -3447,7 +3447,7 @@ function MapServiceWizard({
                                 </MappingFormSection>
                             </form>
                         </div>
-                        <div className="flex min-h-0 flex-col border-l border-[#dce3eb] bg-[#f6f8fb]">
+                        <div className="flex min-h-0 flex-col border-l border-[#dce3eb] bg-[#f6f8fb] max-lg:flex-none max-lg:border-l-0 max-lg:border-t">
                         <LiveMappingPreview
                             clientName={headerClientName || ''}
                             businessModel={businessModelDisplayName(businessModel) || ''}
@@ -3501,7 +3501,7 @@ function MapServiceWizard({
                     <p className="mt-1.5 text-xs leading-relaxed text-subtle">
                         You have unsaved changes to this mapping. Save them now, or discard the draft and close.
                     </p>
-                    <div className="mt-4 flex items-center justify-end gap-2">
+                    <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
                         <button
                             type="button"
                             onClick={() => setConfirmClose(false)}
@@ -3870,7 +3870,7 @@ function ClientMappingsModal({
                     initial="hidden"
                     animate="visible"
                     exit="exit"
-                    className="fixed inset-0 bg-ink-900/40 backdrop-blur-[2px] flex items-center justify-center z-50 p-4"
+                    className="fixed inset-0 bg-ink-900/40 backdrop-blur-[2px] flex items-center justify-center z-50 p-2 sm:p-4"
                     onClick={(e) => { if (e.target === e.currentTarget) blink() }}
                 >
                     <motion.div
@@ -3885,11 +3885,11 @@ function ClientMappingsModal({
                         // 1120px cap — a bare `sm:w-[1120px]` jump would
                         // overflow every tablet/small-laptop between 640px
                         // and ~1150px wide.
-                        className="bg-surface rounded-tile border border-hairline-strong shadow-xl flex flex-col gap-0 overflow-hidden w-[96vw] max-w-[1120px] h-[86vh] max-h-[820px]"
+                        className="bg-surface rounded-tile border border-hairline-strong shadow-xl flex flex-col gap-0 overflow-hidden w-[96vw] max-w-[1120px] h-[92dvh] max-h-[820px] sm:h-[86vh]"
                     >
                         {/* ── Header: avatar + title + inline counts + red X ── */}
-                        <div className="relative flex-shrink-0 border-b border-hairline px-6 py-3">
-                            <div className="flex items-center gap-3 pr-12">
+                        <div className="relative flex-shrink-0 border-b border-hairline px-4 py-3 sm:px-6">
+                            <div className="flex items-center gap-3 pr-10 sm:pr-12">
                                 <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-brand-100 text-[11px] font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-400">
                                     {clientInitials(row.client.clientCompany || '')}
                                 </span>
@@ -3923,11 +3923,11 @@ function ClientMappingsModal({
 
                         {/* Content column — fills the fixed frame; the table
                             container inside claims the remaining vertical space. */}
-                        <div className="flex min-h-0 flex-1 flex-col px-6 pt-3 pb-3">
+                        <div className="flex min-h-0 flex-1 flex-col px-3 pt-3 pb-3 sm:px-6">
 
                             {/* Toolbar — search + three filters + clear */}
-                            <div className="mb-3 flex flex-shrink-0 flex-nowrap items-center gap-2">
-                                <div className="relative min-w-0 flex-1">
+                            <div className="mb-3 flex flex-shrink-0 flex-wrap items-center gap-2 lg:flex-nowrap">
+                                <div className="relative min-w-0 flex-1 basis-full md:basis-0">
                                     <Search size={15} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-faint" aria-hidden />
                                     <input
                                         value={q}
@@ -4025,7 +4025,7 @@ function ClientMappingsModal({
                             {/* Table area — fixed frame, sticky header, no scroll:
                                 pagination controls the visible row set. */}
                             <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-tile border border-hairline bg-surface">
-                                <div className="min-h-0 flex-1 overflow-y-auto">
+                                <div className="min-h-0 flex-1 overflow-x-auto overflow-y-auto">
                                     {row.mappings.length === 0 ? (
                                         <p className="px-4 py-6 text-center text-sm text-subtle">No services mapped for this client yet.</p>
                                     ) : shownMappings.length === 0 ? (
@@ -4034,7 +4034,7 @@ function ClientMappingsModal({
                                             <button type="button" className="text-brand-700 font-semibold hover:underline" onClick={clearAllFilters}>Clear all</button>
                                         </p>
                                     ) : (
-                                        <table className="w-full border-collapse">
+                                        <table className="w-full min-w-[600px] border-collapse lg:min-w-0">
                                             <thead className="sticky top-0 z-10 bg-surface-sunken/60">
                                                 <tr className="border-b border-hairline">
                                                     <th className="px-3 py-1.5 text-left text-2xs font-semibold uppercase tracking-wider text-subtle">Service model</th>
@@ -4153,13 +4153,13 @@ function ClientMappingsModal({
                         {/* Pagination footer — matches the L&D overlay's shape:
                             range on the left, page-size picker + page buttons on
                             the right. Buttons hidden when everything fits on one page. */}
-                        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-hairline bg-surface-sunken/30 px-5 py-3">
+                        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-hairline bg-surface-sunken/30 px-3 py-3 sm:px-5">
                             <span className="text-xs tabular-nums text-subtle">
                                 {shownMappings.length === 0
                                     ? 'No services to show'
                                     : <>Showing <b className="font-semibold text-heading">{rangeFrom}</b> to <b className="font-semibold text-heading">{rangeTo}</b> of <b className="font-semibold text-heading">{shownMappings.length}</b> service{shownMappings.length !== 1 ? 's' : ''}</>}
                             </span>
-                            <div className="flex items-center gap-3">
+                            <div className="flex flex-wrap items-center gap-3">
                                 <select
                                     value={String(pageSize)}
                                     onChange={(e) => setPageSize(Number(e.target.value))}
@@ -5815,8 +5815,8 @@ function ServiceMappingView({ embedded = false }: { embedded?: boolean }) {
 
                     {/* Filter row — all filters stay visible beside Search, like
                         the client selector used by the mapping wizard. */}
-                    <div className="no-print mt-3 flex shrink-0 items-center gap-2 overflow-x-auto pb-1 min-w-0">
-                        <div className="relative min-w-[220px] flex-1">
+                    <div className="no-print mt-3 flex shrink-0 flex-wrap items-center gap-2 overflow-x-auto pb-1 min-w-0 lg:flex-nowrap">
+                        <div className="relative min-w-0 flex-1 basis-full sm:min-w-[220px] sm:basis-0">
                             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-faint pointer-events-none" />
                             <input
                                 type="text"
@@ -5834,7 +5834,7 @@ function ServiceMappingView({ embedded = false }: { embedded?: boolean }) {
                             service models, years or clients as you like, and
                             the listing refetches once per visit rather than
                             once per tick. */}
-                        <div className="w-44 shrink-0">
+                        <div className="min-w-[140px] flex-1 shrink-0 sm:w-44 sm:flex-none">
                             <MappingListFilter
                                 label="Business model"
                                 options={availableBusinessModels.map((value) => ({ value, label: businessModelDisplayName(value) }))}
@@ -5846,7 +5846,7 @@ function ServiceMappingView({ embedded = false }: { embedded?: boolean }) {
                                 placeholder="All business models"
                             />
                         </div>
-                        <div className="w-44 shrink-0">
+                        <div className="min-w-[140px] flex-1 shrink-0 sm:w-44 sm:flex-none">
                             <MappingListFilter
                                 label="Service model"
                                 options={availableServiceModels.map((value) => ({ value, label: b2bCatalogueModels.has(value) ? value.trim().toUpperCase() : value }))}
@@ -5868,7 +5868,7 @@ function ServiceMappingView({ embedded = false }: { embedded?: boolean }) {
                                 }}
                             />
                         </div>
-                        <div className="w-44 shrink-0">
+                        <div className="min-w-[140px] flex-1 shrink-0 sm:w-44 sm:flex-none">
                             <MappingClientYearFilter
                                 clients={clientOptionsForFilters.map(([value, label]) => ({ value, label }))}
                                 value={clientFilter}
@@ -5902,7 +5902,7 @@ function ServiceMappingView({ embedded = false }: { embedded?: boolean }) {
                         // ref feeds the auto-fit page-size effect above —
                         // measuring THIS box tells the effect how many rows
                         // fit without vertical scroll on any given viewport.
-                        <div ref={tableCardRef} aria-busy={isPageBusy} className="mt-2 flex flex-1 min-h-0 flex-col">
+                        <div ref={tableCardRef} aria-busy={isPageBusy} className="mt-2 flex flex-1 min-h-0 flex-col max-lg:min-h-[340px]">
                             <ClientServicesTable
                                 groups={currentClientGroups}
                                 isLoading={isLoadingMappings}
@@ -6089,7 +6089,7 @@ function ServiceMappingView({ embedded = false }: { embedded?: boolean }) {
                                     </p>
                                 </div>
                             </div>
-                            <div className="mt-5 flex items-center justify-end gap-2 border-t border-hairline px-5 py-3">
+                            <div className="mt-5 flex flex-wrap items-center justify-end gap-2 border-t border-hairline px-4 py-3 sm:px-5">
                                 <Button type="button" variant="outline" size="sm" className="text-xs" onClick={() => setSetupPrompt(null)}>
                                     Later
                                 </Button>
@@ -6171,10 +6171,10 @@ function ServiceMappingView({ embedded = false }: { embedded?: boolean }) {
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.97, y: 12 }}
                             transition={{ duration: 0.18, ease: 'easeOut' }}
-                            className="flex w-full max-w-lg flex-col rounded-xl border border-hairline bg-surface shadow-2xl"
+                            className="flex max-h-[90dvh] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-hairline bg-surface shadow-2xl"
                         >
-                            <header className="flex items-start justify-between gap-3 border-b border-hairline px-5 py-3.5">
-                                <div>
+                            <header className="flex shrink-0 items-start justify-between gap-3 border-b border-hairline px-4 py-3.5 sm:px-5">
+                                <div className="min-w-0">
                                     <h2 className="text-sm font-semibold text-heading tracking-[-0.01em]">
                                         {pickerMode === 'csv' ? 'Export CSV' : pickerMode === 'pdf' ? 'Export PDF' : 'Print'} — select clients
                                     </h2>
@@ -6193,8 +6193,8 @@ function ServiceMappingView({ embedded = false }: { embedded?: boolean }) {
                                 </button>
                             </header>
 
-                            <div className="flex flex-shrink-0 items-center gap-3 border-b border-hairline px-5 py-3">
-                                <div className="relative flex-1">
+                            <div className="flex flex-shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-hairline px-4 py-3 sm:flex-nowrap sm:px-5">
+                                <div className="relative min-w-0 flex-1 basis-full sm:basis-0">
                                     <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-faint" />
                                     <input
                                         type="text"
@@ -6209,7 +6209,7 @@ function ServiceMappingView({ embedded = false }: { embedded?: boolean }) {
                                 </span>
                             </div>
 
-                            <div className="flex items-center gap-3 border-b border-hairline px-5 py-2 text-2xs">
+                            <div className="flex shrink-0 items-center gap-3 border-b border-hairline px-4 py-2 text-2xs sm:px-5">
                                 <button
                                     type="button"
                                     onClick={() => setPickerSelected(new Set(pickerOptions.map(([id]) => id)))}
@@ -6228,7 +6228,7 @@ function ServiceMappingView({ embedded = false }: { embedded?: boolean }) {
                                 </button>
                             </div>
 
-                            <ul className="max-h-[45vh] overflow-y-auto px-2 py-2">
+                            <ul className="max-h-[45vh] min-h-0 overflow-y-auto px-2 py-2">
                                 {pickerOptions.length === 0 ? (
                                     <li className="px-3 py-6 text-center text-xs text-subtle">
                                         No clients match &quot;{pickerSearch}&quot;.
@@ -6257,7 +6257,7 @@ function ServiceMappingView({ embedded = false }: { embedded?: boolean }) {
                                 )}
                             </ul>
 
-                            <footer className="flex items-center justify-end gap-2 border-t border-hairline px-5 py-3">
+                            <footer className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-hairline px-4 py-3 sm:px-5">
                                 <button
                                     type="button"
                                     onClick={closePicker}

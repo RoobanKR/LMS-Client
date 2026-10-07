@@ -45,6 +45,7 @@ export const ExerciseInfoButtons: React.FC<{
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
       <button
         onClick={onDetailsClick}
+        className="max-sm:!text-[0px] max-sm:!gap-0 max-sm:!px-2.5 max-sm:!py-2"
         style={{
           display: "flex", alignItems: "center", gap: 6,
           padding: "6px 12px", borderRadius: 8,
@@ -60,6 +61,7 @@ export const ExerciseInfoButtons: React.FC<{
       </button>
       <button
         onClick={onOverviewClick}
+        className="max-sm:!text-[0px] max-sm:!gap-0 max-sm:!px-2.5 max-sm:!py-2"
         style={{
           display: "flex", alignItems: "center", gap: 6,
           padding: "6px 12px", borderRadius: 8,
@@ -84,7 +86,7 @@ const Overlay: React.FC<{ onClose: () => void; children: React.ReactNode }> = ({
 );
 
 const ModalShell: React.FC<{ width?: number; children: React.ReactNode }> = ({ width = 380, children }) => (
-  <div style={{ background: T.bg, borderRadius: 14, boxShadow: "0 20px 56px rgba(0,0,0,0.16), 0 0 0 1px #eaeaef", width, maxHeight: "82vh", display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: FONT }}>
+  <div style={{ background: T.bg, borderRadius: 14, boxShadow: "0 20px 56px rgba(0,0,0,0.16), 0 0 0 1px #eaeaef", width, maxWidth: "calc(100vw - 32px)", maxHeight: "82vh", display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: FONT }}>
     {children}
   </div>
 );
@@ -104,7 +106,7 @@ const ModalHeader: React.FC<{ icon: React.ReactNode; title: string; onClose: () 
 const Row: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "9px 0", borderBottom: `1px solid ${T.borderLight}` }}>
     <span style={{ fontSize: 12, fontWeight: 500, color: T.textSub, fontFamily: FONT, flexShrink: 0 }}>{label}</span>
-    <span style={{ fontSize: 12, fontWeight: 600, color: T.textMain, fontFamily: FONT, textAlign: "right", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</span>
+    <span style={{ fontSize: 12, fontWeight: 600, color: T.textMain, fontFamily: FONT, textAlign: "right", maxWidth: 220, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</span>
   </div>
 );
 

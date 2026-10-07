@@ -235,20 +235,20 @@ export default function AdminFrontendCompiler({
     <div ref={editorRef} className={`${bgMain} ${textMain} w-full h-full flex flex-col transition-colors duration-300 font-sans overflow-hidden ${isFullscreen ? "fixed inset-0 z-[100]" : "relative"}`}>
 
       {/* HEADER */}
-      <div className={`flex items-center justify-between px-4 h-12 border-b shrink-0 ${headerBg} ${border} shadow-sm z-20`}>
-        <div className="flex items-center gap-4">
+      <div className={`flex items-center justify-between gap-2 px-2 sm:px-4 h-12 border-b shrink-0 ${headerBg} ${border} shadow-sm z-20`}>
+        <div className="flex items-center gap-2 sm:gap-4 min-w-0">
           {onBack && (
             <button onClick={onBack} className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-all shadow-sm active:scale-95">
               <ChevronLeft className="w-3.5 h-3.5" /> Back
             </button>
           )}
-          <div className="flex items-center gap-2">
-            <div className={`p-1.5 rounded-md ${theme === 'dark' ? 'bg-blue-900/30 text-blue-400' : 'bg-blue-50 text-blue-600'}`}>
+          <div className="flex items-center gap-2 min-w-0">
+            <div className={`p-1.5 rounded-md shrink-0 ${theme === 'dark' ? 'bg-blue-900/30 text-blue-400' : 'bg-blue-50 text-blue-600'}`}>
               <LayoutTemplate className="w-4 h-4" />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h1 className="text-xs font-bold leading-none tracking-tight">{title}</h1>
+                <h1 className="text-xs font-bold leading-none tracking-tight truncate">{title}</h1>
                 {enableBootstrap && (
                   <span className="text-[9px] bg-purple-100 text-purple-700 px-1.5 rounded font-bold border border-purple-200">BS 5.3</span>
                 )}
@@ -258,7 +258,7 @@ export default function AdminFrontendCompiler({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {!readOnly && (
             <button onClick={compileCode} className="h-7 px-3 bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-semibold rounded-md shadow flex items-center gap-2 transition-all active:scale-95">
               <Play className="w-3 h-3 fill-current" /> Run

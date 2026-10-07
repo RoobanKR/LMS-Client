@@ -430,7 +430,7 @@ function WedoInstructionsContent() {
       {/* Full-bleed: the page fills the viewport with a 2% gutter each side
           rather than sitting in a centred column, so nothing is wasted to
           empty margins on a wide screen. */}
-      <div style={{ padding: "18px 2% 40px" }}>
+      <div className="max-sm:!px-3 max-sm:!pt-3" style={{ padding: "18px 2% 40px" }}>
  
         {/* ── Breadcrumbs ──────────────────────────────────────────────── */}
         <nav aria-label="Breadcrumb" style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6, fontSize: 12.5, marginBottom: 14 }}>
@@ -456,8 +456,8 @@ function WedoInstructionsContent() {
         </nav>
  
         {/* ── Header card ──────────────────────────────────────────────── */}
-        <section style={{ ...CARD, padding: "18px 20px", marginBottom: 14 }}>
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 20, flexWrap: "wrap" }}>
+        <section className="max-sm:!px-3.5 max-sm:!py-3.5" style={{ ...CARD, padding: "18px 20px", marginBottom: 14 }}>
+          <div className="max-sm:!gap-3" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 20, flexWrap: "wrap" }}>
             <div style={{ display: "flex", alignItems: "flex-start", gap: 12, minWidth: 0 }}>
               <button
                 type="button" onClick={handleBack} aria-label="Back" title="Back"
@@ -471,7 +471,7 @@ function WedoInstructionsContent() {
               </button>
               <div style={{ minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                  <h1 style={{ fontSize: 22, fontWeight: 700, color: T.text, margin: 0, lineHeight: 1.25, wordBreak: "break-word" }}>
+                  <h1 className="max-sm:!text-lg" style={{ fontSize: 22, fontWeight: 700, color: T.text, margin: 0, lineHeight: 1.25, wordBreak: "break-word" }}>
                     {info.exerciseName || "Assignment"}
                   </h1>
                   <Chip>{isGraded ? "Graded" : "Practice"}</Chip>
@@ -523,7 +523,7 @@ function WedoInstructionsContent() {
         </section>
  
         {/* ── Body ─────────────────────────────────────────────────────── */}
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 340px", gap: 16, alignItems: "start" }}>
+        <div className="max-lg:!grid-cols-1" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 340px", gap: 16, alignItems: "start" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
  
             {/* Instructions */}
@@ -609,8 +609,8 @@ function WedoInstructionsContent() {
                   <div style={{ fontSize: 11, fontWeight: 700, color: T.muted, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 8 }}>
                     {marks.allocation === "level" ? "Mark allocation by difficulty" : "Mark allocation"}
                   </div>
-                  <div style={{ border: `1px solid ${T.border}`, borderRadius: 10, overflow: "hidden" }}>
-                    <div style={{
+                  <div className="max-sm:!overflow-x-auto" style={{ border: `1px solid ${T.border}`, borderRadius: 10, overflow: "hidden" }}>
+                    <div className="max-sm:min-w-[440px]" style={{
                       display: "grid", gridTemplateColumns: "minmax(0,1.4fr) 1fr 1fr 1fr",
                       background: T.panel, borderBottom: `1px solid ${T.border}`,
                       fontSize: 11, fontWeight: 700, color: T.muted, letterSpacing: 0.3, textTransform: "uppercase",
@@ -621,7 +621,7 @@ function WedoInstructionsContent() {
                       <div style={{ padding: "9px 13px", textAlign: "right" }}>Total</div>
                     </div>
                     {marks.rows.map((r) => (
-                      <div key={r.key} style={{
+                      <div key={r.key} className="max-sm:min-w-[440px]" style={{
                         display: "grid", gridTemplateColumns: "minmax(0,1.4fr) 1fr 1fr 1fr",
                         borderBottom: `1px solid ${T.borderSoft}`, fontSize: 13, color: T.text, alignItems: "center",
                       }}>
@@ -643,7 +643,7 @@ function WedoInstructionsContent() {
                         <div style={{ padding: "10px 13px", textAlign: "right", fontWeight: 700 }}>{r.total || "—"}</div>
                       </div>
                     ))}
-                    <div style={{
+                    <div className="max-sm:min-w-[440px]" style={{
                       display: "grid", gridTemplateColumns: "minmax(0,1.4fr) 1fr 1fr 1fr",
                       background: T.o50, fontSize: 13, fontWeight: 800, color: T.o700, alignItems: "center",
                     }}>
@@ -662,8 +662,8 @@ function WedoInstructionsContent() {
                   <div style={{ fontSize: 11, fontWeight: 700, color: T.muted, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 8 }}>
                     Marks by section
                   </div>
-                  <div style={{ border: `1px solid ${T.border}`, borderRadius: 10, overflow: "hidden" }}>
-                    <div style={{
+                  <div className="max-sm:!overflow-x-auto" style={{ border: `1px solid ${T.border}`, borderRadius: 10, overflow: "hidden" }}>
+                    <div className="max-sm:min-w-[440px]" style={{
                       display: "grid", gridTemplateColumns: "minmax(0,1.4fr) 1fr 1fr 1fr",
                       background: T.panel, borderBottom: `1px solid ${T.border}`,
                       fontSize: 11, fontWeight: 700, color: T.muted, letterSpacing: 0.3, textTransform: "uppercase",
@@ -674,7 +674,7 @@ function WedoInstructionsContent() {
                       <div style={{ padding: "9px 13px", textAlign: "right" }}>Marks</div>
                     </div>
                     {marks.sections.map((s) => (
-                      <div key={s.name} style={{
+                      <div key={s.name} className="max-sm:min-w-[440px]" style={{
                         display: "grid", gridTemplateColumns: "minmax(0,1.4fr) 1fr 1fr 1fr",
                         borderBottom: `1px solid ${T.borderSoft}`, fontSize: 13, color: T.text, alignItems: "center",
                       }}>
@@ -775,7 +775,7 @@ function WedoInstructionsContent() {
           </div>
  
           {/* ── Right rail — action panel ─────────────────────────────── */}
-          <aside style={{ position: "sticky", top: 18, display: "flex", flexDirection: "column", gap: 12 }}>
+          <aside className="max-lg:!static" style={{ position: "sticky", top: 18, display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ ...CARD, padding: "20px 20px" }}>
               <div style={{ display: "flex", alignItems: "flex-start", gap: 11, marginBottom: 14 }}>
                 <IconTile strong size={38}><CheckCircle2 size={18} /></IconTile>

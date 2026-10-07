@@ -21,7 +21,7 @@ export default function DashboardPage() {
             <div className="space-y-6">
                 {/* Header */}
                 <div className="space-y-2">
-                    <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+                    <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900">
                         Dashboard
                     </h1>
                     <p className="text-gray-600">
@@ -112,12 +112,12 @@ export default function DashboardPage() {
                                     progress: 100
                                 }
                             ].map((course, index) => (
-                                <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
-                                    <div className="space-y-1">
+                                <div key={index} className="flex items-center justify-between gap-3 p-3 sm:p-4 border rounded-lg">
+                                    <div className="min-w-0 space-y-1">
                                         <h4 className="font-medium">{course.title}</h4>
                                         <p className="text-sm text-gray-600">{course.students} students</p>
                                     </div>
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex shrink-0 items-center gap-2">
                                         <Badge variant={course.status === "active" ? "default" : "secondary"}>
                                             {course.status}
                                         </Badge>
@@ -151,11 +151,11 @@ export default function DashboardPage() {
                                     type: "Meeting"
                                 }
                             ].map((event, index) => (
-                                <div key={index} className="flex items-center gap-4 p-4 border rounded-lg">
+                                <div key={index} className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 border rounded-lg">
                                     <div className="flex-shrink-0">
                                         <Calendar className="h-8 w-8 text-blue-600" />
                                     </div>
-                                    <div className="flex-1 space-y-1">
+                                    <div className="min-w-0 flex-1 space-y-1">
                                         <h4 className="font-medium">{event.title}</h4>
                                         <div className="flex items-center gap-2 text-sm text-gray-600">
                                             <Clock className="h-3 w-3" />

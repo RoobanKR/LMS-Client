@@ -170,7 +170,7 @@ export function StructureField({
                 {tooltip && <InfoTooltip content={tooltip} />}
             </label>
             <div
-                className={cn('shrink-0', controlClass || structureControlWidth)}
+                className={cn('shrink-0 max-w-full', controlClass || structureControlWidth)}
                 data-error-anchor={error ? 'true' : undefined}
             >
                 {children}

@@ -134,25 +134,25 @@ const ProgramCalendar: React.FC = () => {
           {/* Full Screen Modal */}
           {showModal && (
             <div className="fixed inset-0 bg-white z-50 overflow-auto">
-              <div className="min-h-screen">
+              <div className="min-h-[100dvh]">
                 {/* Header */}
-                <div className="bg-white border-b border-gray-200 px-6 py-4 sticky top-0 z-10">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h1 className="text-2xl font-bold text-gray-900">
+                <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 sm:py-4 sticky top-0 z-10">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">
                         {calendarType === 'manual' ? 'Manual Calendar Set' : 
                          calendarType === 'auto' ? 'Auto Calendar Generation' : 
                          'Calendar Generation'}
                       </h1>
                       {selectedCourseData && (
-                        <p className="text-gray-600 mt-1">
+                        <p className="max-sm:text-sm text-gray-600 mt-1 break-words">
                           {selectedCourseData.courseName} ({selectedCourseData.courseCode})
                         </p>
                       )}
                     </div>
                     <button
                       onClick={handleModalClose}
-                      className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-full transition-colors"
+                      className="shrink-0 text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-full transition-colors"
                     >
                       <X className="w-6 h-6" />
                     </button>
@@ -160,7 +160,7 @@ const ProgramCalendar: React.FC = () => {
                 </div>
 
                 {/* Content */}
-                <div className="p-6">
+                <div className="p-3 sm:p-4 lg:p-6">
                   {!calendarType ? (
                     /* Calendar Type Selection */
                     <div className="max-w-4xl mx-auto">
@@ -176,7 +176,7 @@ const ProgramCalendar: React.FC = () => {
                       <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto">
                         <button
                           onClick={() => handleCalendarTypeSelect('manual')}
-                          className="group p-8 border-2 border-gray-200 rounded-xl hover:border-blue-300 hover:bg-blue-50 transition-all duration-200 text-left"
+                          className="group p-5 sm:p-8 border-2 border-gray-200 rounded-xl hover:border-blue-300 hover:bg-blue-50 transition-all duration-200 text-left"
                         >
                           <div className="flex items-center gap-4 mb-4">
                             <div className="p-3 bg-blue-100 group-hover:bg-blue-200 rounded-lg transition-colors">
@@ -194,7 +194,7 @@ const ProgramCalendar: React.FC = () => {
                         
                         <button
                           onClick={() => handleCalendarTypeSelect('auto')}
-                          className="group p-8 border-2 border-gray-200 rounded-xl hover:border-green-300 hover:bg-green-50 transition-all duration-200 text-left"
+                          className="group p-5 sm:p-8 border-2 border-gray-200 rounded-xl hover:border-green-300 hover:bg-green-50 transition-all duration-200 text-left"
                         >
                           <div className="flex items-center gap-4 mb-4">
                             <div className="p-3 bg-green-100 group-hover:bg-green-200 rounded-lg transition-colors">

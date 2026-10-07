@@ -161,9 +161,10 @@ const ProgrammingCreateContent = forwardRef<CreateContentHandle, { defaultSubTyp
          topics, tags, hints, marks]);
 
     return (
-      <div className="flex min-h-0 flex-1">
-        {/* ── Content column (~68%) — own scroll ── */}
-        <div className="min-w-0 flex-1 space-y-4 overflow-y-auto p-5">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto md:flex-row md:overflow-visible">
+        {/* ── Content column (~68%) — own scroll (stacked above the rail,
+            sharing one scroll, below md) ── */}
+        <div className="min-w-0 flex-1 space-y-4 p-4 sm:p-5 md:overflow-y-auto">
           <SectionCard title="Question Title" required>
             <input className={inputCls} maxLength={TITLE_MAX + 20} value={title}
               placeholder="Enter a clear and concise question title..."
@@ -285,7 +286,7 @@ const ProgrammingCreateContent = forwardRef<CreateContentHandle, { defaultSubTyp
                         )}
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div>
                         <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-heading">
                           Input <span className="font-normal normal-case text-subtle">(click Enter to give multiple inputs)</span>
@@ -339,7 +340,7 @@ const ProgrammingCreateContent = forwardRef<CreateContentHandle, { defaultSubTyp
         </div>
 
         {/* ── Configuration rail (~32%) — own scroll ── */}
-        <div className="w-[31%] min-w-[300px] shrink-0 overflow-y-auto border-l border-[#E8EAF2] p-5">
+        <div className="w-full shrink-0 border-t border-[#E8EAF2] p-4 sm:p-5 md:w-[31%] md:min-w-[300px] md:overflow-y-auto md:border-l md:border-t-0">
           <div className="mb-5">
             <h4 className="mb-2 text-[13px] font-semibold text-heading">Module</h4>
             <select className={controlCls} value={subType}

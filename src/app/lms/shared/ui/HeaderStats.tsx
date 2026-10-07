@@ -57,7 +57,9 @@ export function HeaderStats({
     // flex-wrap still lets individual chips wrap onto a second row on very
     // narrow viewports as a safety fallback.
     return (
-        <div className={`flex flex-shrink-0 items-center gap-2 flex-wrap mr-8 justify-end ${className}`}>
+        // max-w keeps the shrink-0 strip inside the row (minus mr-8) on
+        // phones so its own flex-wrap can actually wrap the chips.
+        <div className={`flex flex-shrink-0 items-center gap-2 flex-wrap mr-8 max-w-[calc(100%-2rem)] justify-end ${className}`}>
             {loading
                 ? Array.from({ length: skeletonCount }).map((_, i) => (
                     <span key={i} className="h-7 w-24 rounded-full bg-ink-100 animate-pulse" />

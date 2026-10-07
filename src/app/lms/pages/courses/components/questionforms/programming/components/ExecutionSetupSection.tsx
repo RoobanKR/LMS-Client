@@ -206,7 +206,7 @@ export const ExecutionSetupSection: React.FC<{
             }}>{normalizeExecLang(language)}</span>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 220px', gap: 10 }}>
+          <div className="max-sm:!grid-cols-1" style={{ display: 'grid', gridTemplateColumns: '1fr 220px', gap: 10 }}>
             <div>
               <label style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: 'var(--lms-text-main)', marginBottom: 4 }}>
                 Function Name <span style={{ color: '#DC2626' }}>*</span>
@@ -263,7 +263,7 @@ export const ExecutionSetupSection: React.FC<{
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {functionContract.params.map((p, i) => (
-                  <div key={p.id} style={{ display: 'grid', gridTemplateColumns: '1fr 180px auto auto auto', gap: 6, alignItems: 'center' }}>
+                  <div key={p.id} className="max-sm:!grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto_auto]" style={{ display: 'grid', gridTemplateColumns: '1fr 180px auto auto auto', gap: 6, alignItems: 'center' }}>
                     <input
                       className="lms-input"
                       value={p.name}

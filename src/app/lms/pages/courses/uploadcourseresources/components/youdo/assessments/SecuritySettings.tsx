@@ -111,7 +111,7 @@ const SettingRow: React.FC<{
           {icon}
         </div>
       )}
-      <div style={{ display: 'flex', alignItems: 'center', minWidth: 240, flex: 1, gap: 2 }}>
+      <div className="min-w-0 sm:min-w-[240px]" style={{ display: 'flex', alignItems: 'center', flex: 1, gap: 2 }}>
         <span style={{ fontSize: 11, fontWeight: 600, color: '#101828', fontFamily: 'inherit', lineHeight: 1.25 }}>
           {label}
         </span>
@@ -122,7 +122,7 @@ const SettingRow: React.FC<{
         <OToggle enabled={enabled} onChange={(v) => { if (!disabled) onChange(v); }} inline />
       </div>
     </div>
-    {children && <div style={{ paddingLeft: 48 }}>{children}</div>}
+    {children && <div className="pl-3 sm:pl-12">{children}</div>}
   </div>
 );
 

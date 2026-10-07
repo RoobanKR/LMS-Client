@@ -210,7 +210,7 @@ function ReportRowBase({
               </div>
             ) : (
               <div className="overflow-x-auto lmsd-scroll">
-                <table className="w-full text-[12.5px]">
+                <table className="w-full min-w-[720px] text-[12.5px] lg:min-w-0">
                   <thead>
                     <tr className="bg-white border-b border-gray-100">
                       <th className="px-3 py-2 text-left font-semibold text-gray-600">Q. No.</th>

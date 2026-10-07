@@ -941,7 +941,7 @@ const ContentEditableBlock: React.FC<{
       {arrLength > 1 && (
         <button
           onClick={() => onRemove(blockId, cbId)}
-          className="absolute top-0 right-0 p-1 rounded opacity-0 group-hover/cb:opacity-100 transition-opacity text-gray-400"
+          className="absolute top-0 right-0 p-1 rounded opacity-100 lg:opacity-0 lg:group-hover/cb:opacity-100 transition-opacity text-gray-400"
         >
           <X className="h-3 w-3" />
         </button>
@@ -1804,7 +1804,7 @@ const buildQuestionPayload = (question: QuestionBlock) => {
                     )}
                     <div className="flex-1" />
                   </div>
-                  <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover/opt:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-1 flex-shrink-0 opacity-100 lg:opacity-0 lg:group-hover/opt:opacity-100 transition-opacity">
                     {!isDropdown && (
                       <button type="button" className="cursor-pointer p-1 rounded-md transition-colors hover:bg-slate-100" title="Add image"
                         onClick={() => {
@@ -1865,7 +1865,7 @@ const renderAnswerArea = (block: QuestionBlock) => {
   if (block.type === 'true-false') {
     const isTFAnswerKeyMode = answerKeyOpenBlockId === block.id;
     return (
-      <div className="px-5 py-4 flex-shrink-0">
+      <div className="px-3 sm:px-5 py-4 flex-shrink-0">
         {isTFAnswerKeyMode ? (
           <div>
             <p style={{ fontSize: 13.5, color: 'var(--lms-text-sec)', fontFamily: 'var(--lms-font)', marginBottom: 10 }}>
@@ -1930,7 +1930,7 @@ const renderAnswerArea = (block: QuestionBlock) => {
     const isShortAnswerKeyMode = answerKeyOpenBlockId === block.id;
     
     return (
-      <div className="px-5 py-4 flex-shrink-0">
+      <div className="px-3 sm:px-5 py-4 flex-shrink-0">
         {isShortAnswerKeyMode ? (
           // Answer Key Mode
           <div>
@@ -2014,7 +2014,7 @@ const renderAnswerArea = (block: QuestionBlock) => {
     const isEssayKeyMode = answerKeyOpenBlockId === block.id;
     
     return (
-      <div className="px-5 py-4 flex-shrink-0">
+      <div className="px-3 sm:px-5 py-4 flex-shrink-0">
         {isEssayKeyMode ? (
           // Answer Key Mode - Essay can have a sample answer or rubric
           <div>
@@ -2098,7 +2098,7 @@ const renderAnswerArea = (block: QuestionBlock) => {
   // --- MATCHING (unchanged) ---
   if (block.type === 'matching') {
     return (
-      <div className="px-5 py-4 flex-shrink-0">
+      <div className="px-3 sm:px-5 py-4 flex-shrink-0">
         <p className="lms-section-label">Matching Pairs</p>
         <div className="flex items-center gap-2 mb-2 pl-7">
           <div className="flex-1 text-center text-[9px] font-bold uppercase tracking-widest" style={{ color: 'var(--lms-info)', fontFamily: 'var(--lms-font)' }}>Left Column</div>
@@ -2122,7 +2122,7 @@ const renderAnswerArea = (block: QuestionBlock) => {
                 style={{ borderBottom: '1.5px solid var(--lms-border)', color: 'var(--lms-text-main)', fontFamily: 'var(--lms-font)', background: 'transparent' }} />
               <div className="w-7 flex-shrink-0 flex items-center justify-center">
                 {(block.matchingPairs || []).length > 2 && (
-                  <button onClick={() => removeMatchingPair(block.id, pair.id)} className="p-1.5 rounded-lg transition-colors opacity-0 group-hover/pair:opacity-100">
+                  <button onClick={() => removeMatchingPair(block.id, pair.id)} className="p-1.5 rounded-lg transition-colors opacity-100 lg:opacity-0 lg:group-hover/pair:opacity-100">
                     <X className="h-3 w-3" style={{ color: 'var(--lms-text-hint)' }} />
                   </button>
                 )}
@@ -2145,7 +2145,7 @@ const renderAnswerArea = (block: QuestionBlock) => {
   // --- ORDERING (unchanged) ---
   if (block.type === 'ordering') {
     return (
-      <div className="px-5 py-4 flex-shrink-0">
+      <div className="px-3 sm:px-5 py-4 flex-shrink-0">
         <p className="lms-section-label">Correct Order (top = first)</p>
         <div className="space-y-1.5">
           {(block.orderingItems || []).map((item, idx) => (
@@ -2164,7 +2164,7 @@ const renderAnswerArea = (block: QuestionBlock) => {
                 placeholder={`Item ${idx + 1}…`} className="flex-1 min-w-0 text-sm outline-none pb-0.5 transition-colors"
                 style={{ borderBottom: '1.5px solid var(--lms-border)', color: 'var(--lms-text-main)', fontFamily: 'var(--lms-font)', background: 'transparent' }} />
               {(block.orderingItems || []).length > 2 && (
-                <button onClick={() => removeOrderingItem(block.id, item.id)} className="p-1.5 rounded-lg transition-colors opacity-0 group-hover/item:opacity-100 flex-shrink-0">
+                <button onClick={() => removeOrderingItem(block.id, item.id)} className="p-1.5 rounded-lg transition-colors opacity-100 lg:opacity-0 lg:group-hover/item:opacity-100 flex-shrink-0">
                   <X className="h-3 w-3" style={{ color: 'var(--lms-text-hint)' }} />
                 </button>
               )}
@@ -2186,7 +2186,7 @@ const renderAnswerArea = (block: QuestionBlock) => {
   // --- NUMERIC (unchanged) ---
   if (block.type === 'numeric') {
     return (
-      <div className="px-5 py-4 flex-shrink-0">
+      <div className="px-3 sm:px-5 py-4 flex-shrink-0">
         <p className="lms-section-label">Numeric Answer</p>
         <div className="flex gap-3">
           <div className="flex-1">
@@ -2221,7 +2221,7 @@ const renderAnswerArea = (block: QuestionBlock) => {
   // --- MULTIPLE CHOICE / MULTIPLE SELECT / DROPDOWN (unchanged) ---
   if (['multiple-choice', 'multiple-select', 'dropdown'].includes(block.type)) {
     return (
-      <div className="px-5 py-3 flex-shrink-0">
+      <div className="px-3 sm:px-5 py-3 flex-shrink-0">
         {errors.blocks?.[block.id]?.options && validationAttempted.has(block.id) && (
           <div className="mb-2 flex items-center gap-1 text-xs" style={{ color: 'var(--lms-danger)' }}>
             <AlertCircle className="h-3 w-3" />{errors.blocks[block.id].options}
@@ -2350,30 +2350,30 @@ const handleSubmitQuiz = () => {
 
     return (
       <div className="fixed inset-0 z-[9999] flex flex-col" style={{ background: '#f9f9fb', fontFamily: 'var(--lms-font)' }}>
-        <div className="flex-shrink-0 flex items-center justify-between px-6 py-3" style={{ borderBottom: '1.5px solid #eaeaef', background: '#fff' }}>
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-orange-500">
+        <div className="flex-shrink-0 flex items-center justify-between gap-2 px-3 sm:px-6 py-3" style={{ borderBottom: '1.5px solid #eaeaef', background: '#fff' }}>
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-orange-500 flex-shrink-0">
               <Eye className="h-4 w-4 text-white" />
             </div>
-            <div>
-              <p className="text-sm font-bold" style={{ color: '#1a1a2e' }}>Mock Test Preview</p>
-              <p className="text-[10px]" style={{ color: '#9b9bae' }}>Select an answer to check immediately</p>
+            <div className="min-w-0">
+              <p className="text-sm font-bold truncate" style={{ color: '#1a1a2e' }}>Mock Test Preview</p>
+              <p className="text-[10px] hidden sm:block" style={{ color: '#9b9bae' }}>Select an answer to check immediately</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink-0">
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-50">
-              <span className="text-xs font-semibold text-gray-500">Progress</span>
+              <span className="text-xs font-semibold text-gray-500 hidden sm:inline">Progress</span>
               <span className="text-xs font-bold text-orange-500">{answeredCount}/{mockBlocks.length}</span>
               <div className="w-12 h-1.5 rounded-full overflow-hidden bg-gray-200">
                 <div className="h-full rounded-full transition-all" style={{ width: `${progressPct}%`, background: '#F27757' }} />
               </div>
             </div>
-            <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100"><X className="h-4 w-4 text-gray-400" /></button>
+            <button onClick={onClose} className="p-2 sm:p-1.5 rounded-lg hover:bg-gray-100"><X className="h-4 w-4 text-gray-400" /></button>
           </div>
         </div>
-        <div className="flex-1 min-h-0 flex">
-          <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
-            <div className="flex-shrink-0 flex items-center justify-between px-6 py-3 border-b border-gray-100 bg-white">
+        <div className="flex-1 min-h-0 flex flex-col md:flex-row">
+          <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
+            <div className="flex-shrink-0 flex items-center justify-between px-3 sm:px-6 py-3 border-b border-gray-100 bg-white">
               <div className="flex items-center gap-3">
                 <div className="flex items-baseline gap-0.5">
                   <span className="text-xs font-bold text-gray-400">Q</span>
@@ -2392,7 +2392,7 @@ const handleSubmitQuiz = () => {
                 </button>
               )}
             </div>
-            <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-6">
+            <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 sm:px-6 py-4 sm:py-6">
               {block.questionContent && block.questionContent.length > 0 ? renderContentBlocks(block.questionContent) : (
                 <div className="text-base font-semibold leading-relaxed mb-4" style={{ color: '#1a1a2e' }} dangerouslySetInnerHTML={{ __html: block.questionText || '<p>Question</p>' }} />
               )}
@@ -2456,12 +2456,12 @@ const handleSubmitQuiz = () => {
               )}
             </div>
           </div>
-          <div className="w-72 flex-shrink-0 overflow-y-auto border-l border-gray-200 bg-white p-4">
+          <div className="w-full md:w-72 max-h-[30dvh] md:max-h-none flex-shrink-0 overflow-y-auto border-t md:border-t-0 md:border-l border-gray-200 bg-white p-4">
             <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-200">
               <div className="flex items-center gap-2"><Grid3x3 className="h-3.5 w-3.5 text-orange-500" /><span className="text-xs font-bold text-gray-700">Questions</span></div>
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-50 text-orange-500">{answeredCount}/{mockBlocks.length}</span>
             </div>
-            <div className="grid grid-cols-5 gap-2">
+            <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-5 gap-2">
               {mockBlocks.map((b, i) => {
                 const isCurrent = i === idx;
                 const isAnswered = (selected[b.id] || []).length > 0;
@@ -2481,7 +2481,7 @@ const handleSubmitQuiz = () => {
             </div>
           </div>
         </div>
-        <div className="flex-shrink-0 flex items-center justify-between px-6 py-3 border-t border-gray-200 bg-white">
+        <div className="flex-shrink-0 flex items-center justify-between px-3 sm:px-6 py-3 border-t border-gray-200 bg-white">
           <button onClick={() => { setIdx(i => Math.max(0, i - 1)); scrollRef.current?.scrollTo({ top: 0 }); }} disabled={idx === 0}
             className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all disabled:opacity-40 border border-gray-200 bg-white text-gray-600">
             <ChevronLeft className="h-3.5 w-3.5" /> Previous
@@ -2747,17 +2747,17 @@ if (block.type === 'paragraph') {
 
   return (
     <div className="fixed inset-0 z-[150] flex items-center justify-center p-3 bg-black/50 backdrop-blur-sm" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="flex flex-col overflow-hidden w-[96vw] max-w-[1500px] h-[96vh] max-h-[96vh] bg-white rounded-xl shadow-2xl border border-gray-200">
-        <div className="flex items-center justify-between px-5 py-2.5 flex-shrink-0 border-b border-gray-200 bg-white">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-violet-500 flex items-center justify-center"><Eye className="h-4 w-4 text-white" /></div>
-            <div className="h-5 w-px bg-gray-200" />
+      <div className="flex flex-col overflow-hidden w-full sm:w-[96vw] max-w-[1500px] h-[96dvh] max-h-[96dvh] bg-white rounded-xl shadow-2xl border border-gray-200">
+        <div className="flex items-center justify-between gap-2 px-3 sm:px-5 py-2.5 flex-shrink-0 border-b border-gray-200 bg-white">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-violet-500 flex items-center justify-center flex-shrink-0"><Eye className="h-4 w-4 text-white" /></div>
+            <div className="h-5 w-px bg-gray-200 flex-shrink-0" />
             <QuestionFormBreadcrumb breadcrumbs={breadcrumbs} actionLabel="Preview" questionLabel={`${blocks.length} questions (${completedCount} complete)`} />
           </div>
-          <button onClick={onClose} className="p-2 rounded-lg bg-red-50 border border-red-200"><X className="h-4 w-4 text-red-500" /></button>
+          <button onClick={onClose} className="p-2 rounded-lg bg-red-50 border border-red-200 flex-shrink-0"><X className="h-4 w-4 text-red-500" /></button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
+        <div className="flex-1 overflow-y-auto px-3 sm:px-6 py-4 space-y-3">
           {blocks.map((block, idx) => {
             const isComplete = isBlockComplete(block);
             const isExpanded = expandedDetails[block.id] || false;
@@ -2930,7 +2930,7 @@ if (block.type === 'paragraph') {
                 className="w-full p-3 font-mono text-sm outline-none resize-y"
                 style={{ background: cb.bgColor || '#1e1e1e', color: '#d4d4d4', minHeight: 100 }}
               />
-              <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover/cb:opacity-100 transition-opacity">
+              <div className="absolute top-2 right-2 flex gap-1 opacity-100 lg:opacity-0 lg:group-hover/cb:opacity-100 transition-opacity">
                 <button onClick={() => removeCB(currentBlock.id, cb.id)} className="p-1 rounded bg-white/10"><X className="h-3 w-3 text-white" /></button>
               </div>
               <div className="px-2 py-1 border-t border-gray-200 bg-gray-50 flex gap-2">
@@ -3024,15 +3024,15 @@ if (block.type === 'paragraph') {
       {imgModal && <ImageUploadModal onUpload={imgModal.onUpload} onClose={closeImgModal} />}
 
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2.5 flex-shrink-0 bg-white border-b border-gray-200">
-        <div className="flex items-center gap-3 min-w-0 flex-1">
+      <div className="flex flex-wrap items-center justify-between gap-y-2 px-3 sm:px-4 py-2.5 flex-shrink-0 bg-white border-b border-gray-200">
+        <div className="flex items-center gap-3 min-w-0 w-full sm:w-auto sm:flex-1">
           <div className="lms-header-logo-mark"><GraduationCap className="h-4 w-4 text-white" /></div>
           <div className="h-5 w-px bg-gray-200 flex-shrink-0" />
           <div className="min-w-0 flex-1">
             <QuestionFormBreadcrumb breadcrumbs={breadcrumbs} actionLabel={actionLabel} questionLabel={questionLabel} />
           </div>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+        <div className="flex items-center gap-2 flex-shrink-0 ml-auto sm:ml-3">
           <button onClick={handlePreviewClick} disabled={questionBlocks.length === 0 || !isPreviewEnabled()}
             className="lms-btn lms-btn-ghost-violet mr-2" style={(questionBlocks.length === 0 || !isPreviewEnabled()) ? { opacity: 0.45, cursor: 'not-allowed' } : {}}>
             <Eye className="h-3.5 w-3.5" />Preview ({questionBlocks.length})
@@ -3051,14 +3051,14 @@ if (block.type === 'paragraph') {
       </div>
 
       {/* Body */}
-      <div className="flex flex-1 min-h-0" style={{ overflow: 'hidden' }}>
+      <div className="flex flex-col lg:flex-row flex-1 min-h-0" style={{ overflow: 'hidden' }}>
         {/* Editor */}
-        <div className="flex-1 flex flex-col min-w-0 bg-white overflow-hidden">
+        <div className="flex-1 flex flex-col min-w-0 min-h-0 bg-white overflow-hidden">
           <div ref={mainScrollRef} className="flex-1 overflow-y-auto overflow-x-hidden" style={{ scrollbarWidth: 'thin' }}>
             {currentBlock ? (
               <div className="flex flex-col min-h-full bg-white">
                 {/* Top toolbar */}
-                <div className="px-5 pt-3 pb-2 flex-shrink-0 sticky top-0 z-50 bg-white border-b border-gray-200">
+                <div className="px-3 sm:px-5 pt-3 pb-2 flex-shrink-0 sticky top-0 z-50 bg-white border-b border-gray-200">
                   <div className="flex items-center gap-3 flex-wrap">
                     <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-black flex-shrink-0 bg-orange-500 shadow-md">
                       {currentIndex + 1}
@@ -3150,7 +3150,7 @@ if (block.type === 'paragraph') {
                 </div>
 
                 {/* Question content area */}
-                <div className="px-5 pt-3 pb-4">
+                <div className="px-3 sm:px-5 pt-3 pb-4">
                   {currentBlock.type ? (
                     <div>
                       {renderQuestionEditorContent()}
@@ -3170,7 +3170,7 @@ if (block.type === 'paragraph') {
 
                 {/* Explanation toggle */}
                 {currentBlock.type && (
-                  <div className="px-5 pt-2 pb-2 flex-shrink-0">
+                  <div className="px-3 sm:px-5 pt-2 pb-2 flex-shrink-0">
                     <label className="flex items-center gap-2 cursor-pointer group w-fit">
                       <input type="checkbox" checked={currentBlock.hasExplanation}
                         onChange={() => updateBlock(currentBlock.id, { hasExplanation: !currentBlock.hasExplanation })}
@@ -3205,10 +3205,10 @@ if (block.type === 'paragraph') {
           </div>
 
           {/* Footer navigation */}
-          <div className="flex-shrink-0 py-3 border-t border-gray-200 bg-white" style={{ paddingLeft: 20, paddingRight: 20 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: 8 }}>
-              <div />
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+          <div className="flex-shrink-0 py-3 border-t border-gray-200 bg-white px-3 sm:px-5">
+            <div className="flex flex-wrap justify-center lg:grid" style={{ gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: 8 }}>
+              <div className="hidden lg:block" />
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                 <button onClick={handlePrevQuestion} disabled={currentIndex === 0} className="lms-nav-btn">
                   <ChevronLeft className="h-3.5 w-3.5" />Prev
                 </button>
@@ -3261,8 +3261,8 @@ if (block.type === 'paragraph') {
         </div>
 
         {/* Right panel - Summary */}
-        <div className="w-80 flex-shrink-0 flex flex-col border-l border-gray-200 bg-white">
-          <div className="flex-1 overflow-y-auto p-4">
+        <div className="w-full lg:w-80 flex-shrink-0 flex flex-col lg:border-l border-gray-200 bg-white">
+          <div className="hidden lg:block flex-1 overflow-y-auto p-4">
             <div className="mb-4 pb-2 border-b border-gray-200">
               <div className="flex items-center gap-2 text-sm font-bold text-gray-700">
                 <FileText className="h-3.5 w-3.5 text-orange-500" />Test Summary

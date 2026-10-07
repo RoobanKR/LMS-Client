@@ -416,7 +416,7 @@ export const NotionResourceModal: React.FC<NotionResourceModalProps> = ({
           className="relative flex flex-col overflow-hidden"
           style={{
             width: 880, maxWidth: "calc(100vw - 32px)",
-            height: "86vh", maxHeight: "86vh",
+            height: "86dvh", maxHeight: "86dvh",
             background: T.bg, borderRadius: 22,
             border: `1.5px solid ${T.border}`,
             boxShadow: "0 24px 60px rgba(0,0,0,0.18)",
@@ -559,9 +559,8 @@ export const NotionResourceModal: React.FC<NotionResourceModalProps> = ({
 
           {/* ── Card grid ───────────────────────────────────────────────────── */}
           <div
-            className="flex-1 overflow-y-auto"
+            className="flex-1 overflow-y-auto p-3 sm:p-5"
             style={{
-              padding: "20px 20px",
               scrollbarWidth: "thin",
               scrollbarColor: `${T.border} transparent`,
             }}
@@ -583,8 +582,8 @@ export const NotionResourceModal: React.FC<NotionResourceModalProps> = ({
               <>
               {filtered.length > 0 && (
               <div
-                className="grid gap-3"
-                style={{ gridTemplateColumns: `repeat(${Math.min(filtered.length, 5)}, 1fr)` }}
+                className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:[grid-template-columns:var(--nrm-cols)]"
+                style={{ "--nrm-cols": `repeat(${Math.min(filtered.length, 5)}, 1fr)` } as React.CSSProperties}
               >
                 {filtered.map(renderCard)}
               </div>
@@ -610,8 +609,8 @@ export const NotionResourceModal: React.FC<NotionResourceModalProps> = ({
                     <div style={{ flex: 1, height: 1, background: T.border }} />
                   </div>
                   <div
-                    className="grid gap-3"
-                    style={{ gridTemplateColumns: `repeat(${Math.min(filteredStudentFeatures.length, 5)}, 1fr)` }}
+                    className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:[grid-template-columns:var(--nrm-cols)]"
+                    style={{ "--nrm-cols": `repeat(${Math.min(filteredStudentFeatures.length, 5)}, 1fr)` } as React.CSSProperties}
                   >
                     {filteredStudentFeatures.map(renderCard)}
                   </div>

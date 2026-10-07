@@ -1028,25 +1028,25 @@ export default function ExerciseAnalytics() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Enhanced Header with Full Breadcrumb */}
-      <div className="sticky top-0 z-50 border-b border-gray-200 bg-white px-4 py-3 shadow-sm">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
+      <div className="sticky top-0 z-50 border-b border-gray-200 bg-white px-3 sm:px-4 py-3 shadow-sm">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center space-x-3 min-w-0">
             <Button
               variant="ghost"
               size="sm"
               onClick={() => router.back()}
-              className="h-7 w-7 p-0 hover:bg-gray-100"
+              className="h-9 w-9 sm:h-7 sm:w-7 p-0 hover:bg-gray-100 shrink-0"
             >
               <ArrowLeft className="h-4 w-4" />
             </Button>
 
             {/* Full Breadcrumb */}
-            <div className="max-w-2xl">
+            <div className="max-w-2xl min-w-0 overflow-x-auto">
               {renderBreadcrumb()}
             </div>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 shrink-0">
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -1059,7 +1059,7 @@ export default function ExerciseAnalytics() {
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent
-                  className="w-72 p-4 bg-white border shadow-lg"
+                  className="w-72 max-w-[calc(100vw-2rem)] p-4 bg-white border shadow-lg"
                   side="bottom"
                   align="end"
                 >
@@ -1087,22 +1087,22 @@ export default function ExerciseAnalytics() {
         </div>
       </div>
 
-      <div className="p-4">
+      <div className="p-2 sm:p-4">
         {!selectedExercise ? (
           <div className="max-w-6xl mx-auto">
             <Card className="border-0 shadow-sm">
               <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <div>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="min-w-0">
                     <CardTitle className="text-base font-semibold">Exercise Analytics Dashboard</CardTitle>
                     <p className="text-sm text-gray-600">Select an exercise to view detailed participant submissions</p>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <div className="relative">
+                    <div className="relative w-full sm:w-auto">
                       <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
                       <Input
                         placeholder="Search exercises..."
-                        className="pl-9 h-8 text-sm w-48"
+                        className="pl-9 h-8 text-sm w-full sm:w-48"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                       />
@@ -1127,10 +1127,10 @@ export default function ExerciseAnalytics() {
             {viewMode === 'list' ? (
               <Card className="border shadow-sm">
                 <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <div>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="min-w-0">
                       <CardTitle className="text-base font-semibold">Participant Submissions</CardTitle>
-                      <div className="flex items-center space-x-4 mt-1">
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
                         <p className="text-sm text-gray-600">
                           {filteredParticipants.length} participants
                         </p>
@@ -1148,11 +1148,11 @@ export default function ExerciseAnalytics() {
                       </div>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <div className="relative">
+                      <div className="relative flex-1 sm:flex-none">
                         <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
                         <Input
                           placeholder="Search participants..."
-                          className="pl-9 h-8 text-sm w-48"
+                          className="pl-9 h-8 text-sm w-full sm:w-48"
                           value={search}
                           onChange={(e) => setSearch(e.target.value)}
                         />
@@ -1170,7 +1170,7 @@ export default function ExerciseAnalytics() {
                 </CardHeader>
                 <CardContent className="p-0">
                   <div className="overflow-x-auto">
-                    <Table>
+                    <Table className="min-w-[680px] lg:min-w-0">
                       <TableHeader>
                         <TableRow className="bg-gray-50 border-b">
                           <TableHead className="w-12 px-3 py-2.5 text-xs font-semibold text-gray-700 text-center">#</TableHead>
@@ -1277,7 +1277,7 @@ export default function ExerciseAnalytics() {
                 {/* Detail View Header */}
                 <Card className="border">
                   <CardContent >
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <Button
                           variant="ghost"
@@ -1424,8 +1424,8 @@ export default function ExerciseAnalytics() {
                   <div className="col-span-12 lg:col-span-6">
                     <Card className="border h-full">
                       <CardHeader className="pb-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center space-x-2 min-w-0">
                             <Code className="h-4 w-4 text-blue-600" />
                             <CardTitle className="text-sm font-semibold">
                               {selectedQuestion?.title || 'Select a question'}
@@ -1452,7 +1452,7 @@ export default function ExerciseAnalytics() {
                         </div>
                       </CardHeader>
                       <CardContent className="p-0">
-                        <div className="bg-gray-900 min-h-[400px] max-h-[500px] overflow-auto">
+                        <div className="bg-gray-900 min-h-[240px] sm:min-h-[400px] max-h-[60dvh] sm:max-h-[500px] overflow-auto">
                           {submissionQuestion?.codeAnswer ? (
                             <pre className="p-3 font-mono text-sm text-gray-100 whitespace-pre-wrap break-all">
                               {submissionQuestion.codeAnswer}
@@ -1578,7 +1578,7 @@ export default function ExerciseAnalytics() {
             <div className="space-y-4 py-2">
               <div>
                 <h3 className="text-base font-semibold text-gray-900 mb-2">{modalQuestion.title}</h3>
-                <div className="flex items-center space-x-2">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                   <span className={getDifficultyColor(modalQuestion.difficulty)}>
                     {modalQuestion.difficulty}
                   </span>

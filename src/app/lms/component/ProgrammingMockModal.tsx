@@ -153,8 +153,8 @@ const SecurityAgreementModal = ({
     : 'bg-white text-gray-900 border-gray-300';
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className={`w-full max-w-lg rounded-xl shadow-2xl border p-6 ${themeClasses}`}>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <div className={`w-full max-w-lg max-h-[90dvh] overflow-y-auto rounded-xl shadow-2xl border p-5 sm:p-6 ${themeClasses}`}>
         <div className="flex items-center gap-3 mb-4">
           <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
             <ShieldCheck className="w-6 h-6 text-blue-600 dark:text-blue-400" />
@@ -285,8 +285,8 @@ const SubmissionSuccessModal = ({
     : 'bg-white text-gray-900 border-gray-300';
 
   return (
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/70 backdrop-blur-sm">
-      <div className={`w-full max-w-md rounded-xl shadow-2xl border p-6 ${themeClasses}`}>
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+      <div className={`w-full max-w-md max-h-[90dvh] overflow-y-auto rounded-xl shadow-2xl border p-5 sm:p-6 ${themeClasses}`}>
         <div className="flex flex-col items-center text-center gap-4 mb-6">
           <div className="w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
             <CheckCircle className="w-8 h-8 text-green-600 dark:text-green-400" />
@@ -846,7 +846,8 @@ const renderDescriptionBlocks = (description: any): string => {
           backgroundColor: theme === 'dark' ? '#1e1e1e' : '#ffffff',
           borderColor: theme === 'dark' ? '#3e3e42' : '#d4d4d4',
           boxShadow: '-4px 0 15px rgba(0, 0, 0, 0.1)',
-          transition: 'width 0.3s ease-in-out'
+          transition: 'width 0.3s ease-in-out',
+          maxWidth: '100vw'
         }}
       >
         {/* Header with Collapse Toggle */}
@@ -1560,6 +1561,16 @@ const [folders, setFolders] = useState<FolderType[]>(() => {
   const [showSettings, setShowSettings] = useState(false);
   const [isUIFullscreen, setIsUIFullscreen] = useState(false);
 const [showQuestionSidebar, setShowQuestionSidebar] = useState(true);
+
+  // Phones: start with the explorer collapsed to its rail and the live preview
+  // hidden so the editor gets the screen width (the rail's expand button and
+  // the header's preview toggle bring them back).
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      setIsExplorerCollapsed(true);
+      setShowPreview(false);
+    }
+  }, []);
 
   // Recording refs
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -4096,7 +4107,7 @@ document.addEventListener('DOMContentLoaded', init${name.charAt(0).toUpperCase()
                       <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: colors.primary }} />
                     )}
                     
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -4287,7 +4298,7 @@ document.addEventListener('DOMContentLoaded', init${name.charAt(0).toUpperCase()
                 />
               )}
               
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="flex items-center gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
                 {file.isEntryPoint && (
                   <button
                     onClick={(e) => {
@@ -4453,8 +4464,8 @@ document.addEventListener('DOMContentLoaded', init${name.charAt(0).toUpperCase()
 
   if (!hasStarted && isAssessmentMode) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-white relative">
-        <div className="max-w-xl w-full bg-white p-8 rounded-xl shadow-2xl border border-gray-200 flex flex-col max-h-[90vh]">
+      <div className="w-full h-full flex items-center justify-center bg-white relative p-4">
+        <div className="max-w-xl w-full bg-white p-5 sm:p-8 rounded-xl shadow-2xl border border-gray-200 flex flex-col max-h-[90dvh]">
 
           <div className="mb-6">
             <h1 className="text-2xl font-bold mb-2 text-blue-600">{title}</h1>
@@ -4572,7 +4583,7 @@ document.addEventListener('DOMContentLoaded', init${name.charAt(0).toUpperCase()
   // ---------------------------------------------------------------------------
  
  return createPortal(
-  <div className="flex flex-col h-screen" style={{ backgroundColor: colors.background, position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 99999 }}>
+  <div className="flex flex-col h-[100dvh]" style={{ backgroundColor: colors.background, position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 99999 }}>
     
   <ToastContainer
         position="bottom-right"
@@ -4586,11 +4597,11 @@ document.addEventListener('DOMContentLoaded', init${name.charAt(0).toUpperCase()
       />
 
       {/* Top Activity Bar */}
-      <div className="flex items-center justify-between px-3 py-2 border-b" style={{
+      <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-y-2 px-3 py-2 border-b" style={{
         backgroundColor: colors.activityBar,
         borderColor: colors.border
       }}>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 min-w-0">
           <button
             onClick={onBack}
             className="p-1.5 hover:bg-[#d5d5d5] dark:hover:bg-[#2d2d2d] rounded transition-colors"
@@ -4611,7 +4622,7 @@ document.addEventListener('DOMContentLoaded', init${name.charAt(0).toUpperCase()
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap lg:flex-nowrap items-center gap-2">
           {/* Security indicators */}
           {isAssessmentMode && (
             <>
@@ -4667,7 +4678,7 @@ document.addEventListener('DOMContentLoaded', init${name.charAt(0).toUpperCase()
               placeholder="Search files (Ctrl+P)"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="px-3 py-1 text-sm rounded w-64 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-3 py-1 text-sm rounded w-40 sm:w-64 focus:outline-none focus:ring-2 focus:ring-blue-500"
               style={{
                 backgroundColor: theme === 'light' ? '#f5f5f5' : '#2d2d2d',
                 color: colors.text,
@@ -4940,7 +4951,7 @@ document.addEventListener('DOMContentLoaded', init${name.charAt(0).toUpperCase()
                           }
                         }
                       }}
-                      className="p-0.5 rounded hover:bg-[#d5d5d5] dark:hover:bg-[#3e3e42] opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="p-0.5 rounded hover:bg-[#d5d5d5] dark:hover:bg-[#3e3e42] opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity"
                       style={{ color: colors.textSecondary }}
                       title="Close Tab"
                     >

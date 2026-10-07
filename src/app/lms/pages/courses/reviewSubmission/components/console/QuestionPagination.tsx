@@ -34,7 +34,7 @@ export default function QuestionPagination({
         onClick={() => onChange(page - 1)}
         disabled={page <= 1}
         aria-label="Previous page"
-        className="flex h-[26px] w-[26px] items-center justify-center rounded-[6px] text-[#53658C] transition-colors hover:bg-[#F1F6FE] hover:text-[#0667F9] disabled:cursor-not-allowed disabled:text-[#C6D2E4] disabled:hover:bg-transparent"
+        className="flex h-8 w-8 items-center justify-center rounded-[6px] text-[#53658C] lg:h-[26px] lg:w-[26px] transition-colors hover:bg-[#F1F6FE] hover:text-[#0667F9] disabled:cursor-not-allowed disabled:text-[#C6D2E4] disabled:hover:bg-transparent"
       >
         <ChevronLeft className="h-[15px] w-[15px]" />
       </button>
@@ -45,7 +45,7 @@ export default function QuestionPagination({
           onClick={() => onChange(p)}
           aria-current={p === page ? "page" : undefined}
           className={cn(
-            "flex h-[26px] min-w-[26px] items-center justify-center rounded-[6px] px-1 text-[12px] tabular-nums transition-colors",
+            "flex h-8 min-w-8 items-center justify-center rounded-[6px] px-1 text-[12px] tabular-nums transition-colors lg:h-[26px] lg:min-w-[26px]",
             p === page
               ? "bg-[#0667F9] font-semibold text-white"
               : "font-medium text-[#53658C] hover:bg-[#F1F6FE] hover:text-[#0667F9]",
@@ -59,7 +59,7 @@ export default function QuestionPagination({
         onClick={() => onChange(page + 1)}
         disabled={page >= pageCount}
         aria-label="Next page"
-        className="flex h-[26px] w-[26px] items-center justify-center rounded-[6px] text-[#53658C] transition-colors hover:bg-[#F1F6FE] hover:text-[#0667F9] disabled:cursor-not-allowed disabled:text-[#C6D2E4] disabled:hover:bg-transparent"
+        className="flex h-8 w-8 items-center justify-center rounded-[6px] text-[#53658C] lg:h-[26px] lg:w-[26px] transition-colors hover:bg-[#F1F6FE] hover:text-[#0667F9] disabled:cursor-not-allowed disabled:text-[#C6D2E4] disabled:hover:bg-transparent"
       >
         <ChevronRight className="h-[15px] w-[15px]" />
       </button>

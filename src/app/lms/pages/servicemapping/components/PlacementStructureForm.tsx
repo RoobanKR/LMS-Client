@@ -158,7 +158,7 @@ function BatchRows({
                 />
                 {on && <span aria-hidden className="hidden h-5 w-px bg-hairline-strong sm:block" />}
                 {on && (
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                         <span className={labelCls}>Number of batches</span>
                         <StructureCountInput
                             label="Number of batches"
@@ -373,7 +373,7 @@ export default function PlacementStructureForm({
                     {phasesOn && (
                         <>
                             <span aria-hidden className="hidden h-5 w-px bg-hairline-strong sm:block" />
-                            <div className="flex items-center gap-3">
+                            <div className="flex flex-wrap items-center gap-3">
                                 <span className={labelCls}>Number of phases</span>
                                 <StructureCountInput
                                     label="Number of phases"

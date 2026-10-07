@@ -497,7 +497,7 @@ export const MainTabs: React.FC<MainTabsProps> = ({
   }
 
   return (
-    <div style={{
+    <div className="[&::-webkit-scrollbar]:hidden max-sm:!gap-1" style={{
       display: 'flex', alignItems: 'stretch', gap: 6,
       height: '100%', minWidth: 0,
       overflowX: 'auto', scrollbarWidth: 'none',
@@ -526,6 +526,7 @@ export const MainTabs: React.FC<MainTabsProps> = ({
               onClick={() => handleTabClick(tab.key, isOverview, subs)}
               title={TAB_TOOLTIP[tab.key as keyof typeof TAB_TOOLTIP] || tab.label}
               aria-label={`${tab.label} — ${TAB_TOOLTIP[tab.key as keyof typeof TAB_TOOLTIP] || ''}`.trim()}
+              className="max-sm:!px-2 max-sm:!text-[13px]"
               style={{
                 flex: '0 0 auto',
                 // Label sinks to the BOTTOM of the tall (48px) TopBar

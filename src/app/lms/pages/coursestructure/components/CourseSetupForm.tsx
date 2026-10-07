@@ -124,7 +124,7 @@ function SectionHeader({
                     className={`text-info-700 transition-transform duration-200 ${open ? 'rotate-90' : ''}`}
                 />
             </span>
-            <span className="text-xl font-normal text-ink-800 group-hover:text-info-700 transition-colors">
+            <span className="text-lg sm:text-xl font-normal text-ink-800 group-hover:text-info-700 transition-colors">
                 {title}
             </span>
             {required && <span className="text-danger-700 text-lg font-normal" title="Required">*</span>}

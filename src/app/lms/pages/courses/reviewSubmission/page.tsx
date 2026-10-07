@@ -860,7 +860,7 @@ const InteractiveTerminal = ({ isOpen, onClose, logs, isWaitingForInput, onInput
 
   return (
     <div className={`fixed z-[100] flex flex-col shadow-2xl rounded-lg overflow-hidden border border-slate-800 bg-slate-950 ${inter.className} transition-all duration-300 ease-in-out animate-in slide-in-from-bottom-6`}
-      style={isMaximized ? { top: '20px', left: '20px', right: '20px', bottom: '20px', width: 'auto', height: 'auto' } : { bottom: '32px', right: '32px', width: '500px', height: '400px' }}>
+      style={isMaximized ? { top: '20px', left: '20px', right: '20px', bottom: '20px', width: 'auto', height: 'auto' } : { bottom: '32px', right: '32px', width: 'min(500px, calc(100vw - 64px))', height: 'min(400px, calc(100dvh - 64px))' }}>
       <div className="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-slate-800 shrink-0">
         <div className="flex items-center gap-2.5">
           <Terminal className="w-4 h-4 text-emerald-500" />
@@ -1065,7 +1065,7 @@ const OthersReviewPanel = ({
   };
 
   return (
-    <div className="h-full overflow-y-auto custom-scrollbar px-6 py-5 space-y-5">
+    <div className="h-full overflow-y-auto custom-scrollbar px-3 py-4 sm:px-6 sm:py-5 space-y-5">
       {/* Question header — title only + View More button */}
       <div className="bg-orange-50 rounded-xl p-5 border border-orange-200">
         <span className={`text-[9px] font-bold text-orange-500 uppercase tracking-widest mb-2 block ${inter.className}`}>
@@ -1100,7 +1100,7 @@ const OthersReviewPanel = ({
       {/* Question Detail Modal */}
       <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
         <DialogContent className={`max-w-2xl rounded-2xl border-none shadow-2xl p-0 overflow-hidden bg-white ${inter.className}`}>
-          <DialogHeader className="px-6 pt-5 pb-4 border-b border-slate-100 bg-slate-50">
+          <DialogHeader className="px-4 sm:px-6 pt-5 pb-4 border-b border-slate-100 bg-slate-50">
             <div className="flex items-start justify-between gap-3">
               <div className="flex-1 min-w-0">
                 <span className={`text-[9px] font-bold text-orange-500 uppercase tracking-widest block mb-1 ${inter.className}`}>
@@ -1118,7 +1118,7 @@ const OthersReviewPanel = ({
           </DialogHeader>
 
           <ScrollArea className="max-h-[70vh]">
-            <div className="px-6 py-5 space-y-5">
+            <div className="px-4 sm:px-6 py-5 space-y-5">
 
               {/* Description + Images */}
               {hasDescription && (
@@ -3156,6 +3156,11 @@ builtins.input = _async_input
   const [moveToNextAfterSave, setMoveToNextAfterSave] = useState(true);
   const [workspaceExpanded, setWorkspaceExpanded] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // Below lg the question rail stacks above the workspace — start it as the
+  // compact numbered strip there so the submission is visible without scrolling.
+  useEffect(() => {
+    if (window.innerWidth < 1024) setSidebarCollapsed(true);
+  }, []);
 
   // ── Grading panel width ───────────────────────────────────────────────────
   // The right rail (Overall Marks ▸ Mark ▸ Feedback ▸ Save) used to be a hard
@@ -4089,7 +4094,7 @@ builtins.input = _async_input
 
   // --- MAIN RENDER ---
   return (
-    <div className={`h-screen flex flex-col bg-white overflow-hidden ${inter.className}`}>
+    <div className={`min-h-[100dvh] lg:h-screen lg:min-h-0 flex flex-col bg-white lg:overflow-hidden ${inter.className}`}>
       <Toaster position="top-center" richColors />
       <Script
         src="https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js"
@@ -4129,7 +4134,7 @@ builtins.input = _async_input
         canNextStudent={getCurrentStudentIndex() < getTotalStudents() - 1}
       />
 
-      <div className="flex min-h-0 flex-1 overflow-hidden bg-white">
+      <div className="flex min-h-0 flex-1 flex-col bg-white lg:flex-row lg:overflow-hidden">
         <AssessmentQuestionSidebar
           questions={consoleQuestions}
           selectedId={selectedQuestion?._id || null}
@@ -4146,13 +4151,13 @@ builtins.input = _async_input
           onToggleCollapsed={() => setSidebarCollapsed((v) => !v)}
         />
 
-        <div className="flex min-w-0 flex-1 gap-3 overflow-hidden px-4 py-3.5">
+        <div className="flex min-w-0 flex-1 flex-col gap-3 px-3 py-3.5 sm:px-4 lg:flex-row lg:overflow-hidden">
           {/* ── CENTRE: question + submission ─────────────────────────── */}
           <div
             className={
               workspaceExpanded
                 ? 'fixed inset-0 z-[60] flex min-h-0 flex-col gap-3 overflow-y-auto bg-white p-3 custom-scrollbar'
-                : 'flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto pr-0.5 custom-scrollbar'
+                : 'flex min-h-0 min-w-0 flex-col gap-3 pr-0.5 custom-scrollbar lg:flex-1 lg:overflow-y-auto'
             }
           >
             <QuestionHeader
@@ -4228,9 +4233,9 @@ builtins.input = _async_input
               </div>
             ) : isQuestionMCQ(selectedQuestion) ? (
               <>
-                  <div className="flex-none space-y-4 rounded-[10px] border border-[#DEE7F3] bg-white px-5 py-4">
+                  <div className="flex-none space-y-4 rounded-[10px] border border-[#DEE7F3] bg-white px-3 py-4 sm:px-5">
                     {/* Question header */}
-                    <div className="bg-slate-100 rounded-xl p-5 border border-slate-200">
+                    <div className="bg-slate-100 rounded-xl p-3 sm:p-5 border border-slate-200">
                       <h2 className={`text-sm font-semibold text-slate-900 leading-relaxed ${inter.className}`}>
                         <span className="font-bold text-slate-700 mr-1">{currentQuestionIndex + 1}.</span>
                         {getQuestionTitle(selectedQuestion)}
@@ -4609,7 +4614,7 @@ builtins.input = _async_input
               onMouseDown={handleGradingResizeStart}
               onDoubleClick={() => setGradingPanelWidth(RIGHT_PANEL_DEFAULT_WIDTH)}
               title="Drag to resize • double-click to reset"
-              className={`group relative -mx-1.5 flex w-3 flex-none cursor-col-resize items-center justify-center ${
+              className={`group relative -mx-1.5 hidden w-3 flex-none cursor-col-resize items-center justify-center lg:flex ${
                 isResizingGradingPanel ? 'text-[#2563EB]' : 'text-[#8090AF]'
               }`}
             >
@@ -4633,8 +4638,8 @@ builtins.input = _async_input
           {/* ── RIGHT: grading controls ───────────────────────────────── */}
           {!isNonGraded && !workspaceExpanded && (
             <div
-              style={{ width: gradingPanelWidth }}
-              className="flex min-h-0 flex-none flex-col gap-3 overflow-y-auto pr-0.5 custom-scrollbar"
+              style={{ ['--grading-panel-w' as string]: `${gradingPanelWidth}px` } as React.CSSProperties}
+              className="flex w-full min-h-0 flex-none flex-col gap-3 pr-0.5 custom-scrollbar lg:w-[var(--grading-panel-w)] lg:overflow-y-auto"
             >
               <OverallMarksCard
                 earned={overallMarks.earned}
@@ -4683,9 +4688,9 @@ builtins.input = _async_input
       <Dialog open={showQuestionModal} onOpenChange={setShowQuestionModal}>
         <DialogContent className={`max-w-3xl rounded-xl border-none shadow-2xl p-0 overflow-hidden bg-white ${inter.className}`}>
           <div className="flex flex-col h-full">
-            <DialogHeader className="p-6 pb-4 border-b border-slate-50">
+            <DialogHeader className="p-4 sm:p-6 pb-4 sm:pb-4 border-b border-slate-50">
               <div className="flex items-center justify-between">
-                <DialogTitle className={`text-lg font-bold text-slate-900 uppercase tracking-tight ${inter.className}`}>Question Profile</DialogTitle>
+                <DialogTitle className={`text-base sm:text-lg font-bold text-slate-900 uppercase tracking-tight ${inter.className}`}>Question Profile</DialogTitle>
                 <Button variant="ghost" size="sm" onClick={() => setShowQuestionModal(false)} className="rounded-full h-8 w-8 p-0"><X className="h-4 w-4" /></Button>
               </div>
             </DialogHeader>
@@ -4694,7 +4699,7 @@ builtins.input = _async_input
               const qMax = selectedExercise ? getQuestionMaxScore(selectedExercise, q) : (q.points || 0);
               const qIsMCQ = isQuestionMCQ(q);
               return (
-                <ScrollArea className="flex-1 p-6 max-h-[70vh] custom-scrollbar">
+                <ScrollArea className="flex-1 p-4 sm:p-6 max-h-[70vh] custom-scrollbar">
                   <div className="space-y-5">
                     <div className="bg-slate-950 p-5 rounded-xl border border-slate-800">
                       <div className="flex items-center gap-2 mb-3">
@@ -4752,7 +4757,7 @@ builtins.input = _async_input
                       return mPairs.length > 0 ? (
                         <div className="space-y-3">
                           {mPairs.map((p, pi) => (
-                            <div key={pi} className="grid grid-cols-2 gap-4">
+                            <div key={pi} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                               {p.input && (
                                 <div className="space-y-2">
                                   <h3 className={`text-[10px] font-bold text-slate-500 uppercase tracking-widest ${inter.className}`}>Input Pattern{mPairs.length > 1 ? ` — Test ${pi + 1}` : ''}</h3>
@@ -4898,9 +4903,9 @@ builtins.input = _async_input
             </DialogHeader>
 
             {/* ── Video area ── */}
-            <div className="relative" style={{ background: '#000', minHeight: 420 }}>
+            <div className="relative min-h-[260px] sm:min-h-[420px]" style={{ background: '#000' }}>
               {isLoadingVideo ? (
-                <div className="flex flex-col items-center justify-center h-[420px] gap-3">
+                <div className="flex flex-col items-center justify-center h-[260px] sm:h-[420px] gap-3">
                   <div className="w-12 h-12 rounded-full border-2 border-indigo-500/30 border-t-indigo-500 animate-spin" />
                   <span className="text-slate-400 text-sm font-medium">Loading recording…</span>
                 </div>
@@ -4949,7 +4954,7 @@ builtins.input = _async_input
                 </div>
 
               ) : (
-                <div className="flex flex-col items-center justify-center h-[420px] text-center px-8 gap-4">
+                <div className="flex flex-col items-center justify-center min-h-[260px] sm:h-[420px] text-center px-5 sm:px-8 py-6 sm:py-0 gap-4">
                   <div className="w-18 h-18 flex items-center justify-center rounded-2xl mb-2"
                     style={{ width: 72, height: 72, background: 'rgba(255,255,255,0.04)', border: '1.5px solid rgba(255,255,255,0.08)' }}>
                     <FileQuestion className="h-8 w-8 text-slate-600" />
@@ -4969,7 +4974,7 @@ builtins.input = _async_input
 
             {/* ── Footer ── */}
             {assessmentVideoUrl && (
-              <div className="px-5 py-3 border-t border-white/10 flex items-center justify-between gap-3"
+              <div className="px-5 py-3 border-t border-white/10 flex flex-col items-start sm:flex-row sm:items-center justify-between gap-3"
                 style={{ background: 'rgba(255,255,255,0.03)' }}>
                 <p className="text-[11px] text-slate-500 leading-relaxed">
                   This recording was captured automatically during the assessment session for proctoring purposes.

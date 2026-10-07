@@ -110,11 +110,11 @@ export function StudentDetailModal({
             onClick={onClose}
         >
             <div
-                className="relative flex h-[88vh] w-[92vw] max-w-[1200px] flex-col overflow-hidden rounded-tile border border-hairline bg-surface shadow-2xl"
+                className="relative flex h-[88dvh] w-[92vw] max-w-[1200px] flex-col overflow-hidden rounded-tile border border-hairline bg-surface shadow-2xl"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header — student identity + overall metrics. */}
-                <header className="sticky top-0 z-10 flex flex-shrink-0 items-start justify-between gap-4 border-b border-hairline bg-surface px-5 py-4 sm:px-6">
+                <header className="sticky top-0 z-10 flex flex-shrink-0 items-start justify-between gap-3 border-b border-hairline bg-surface px-4 py-4 sm:gap-4 sm:px-6">
                     <div className="min-w-0 flex-1">
                         <h2 id="student-detail-title" className="truncate text-[16px] font-bold tracking-[-0.015em] text-heading">
                             Student Performance Details
@@ -253,7 +253,7 @@ function ItemSummary({
             type="button"
             onClick={onToggle}
             aria-expanded={open}
-            className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-row-hover"
+            className="flex w-full flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-3 text-left transition-colors hover:bg-row-hover sm:flex-nowrap"
         >
             <span className="flex size-5 flex-shrink-0 items-center justify-center text-subtle">
                 {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
@@ -262,7 +262,7 @@ function ItemSummary({
                 <p className="truncate text-[12.5px] font-semibold text-heading">{title}</p>
                 {subtitle ? <p className="mt-0.5 truncate text-[10.5px] text-subtle">{subtitle}</p> : null}
             </div>
-            <div className="flex items-center gap-4 text-[11px] tabular-nums text-subtle">
+            <div className="flex w-full flex-wrap items-center gap-x-4 gap-y-1 pl-8 text-[11px] tabular-nums text-subtle sm:w-auto sm:flex-nowrap sm:pl-0">
                 <span>Completed <b className="text-body">{completed} / {totalCount}</b></span>
                 <span>Score <b className="text-body">{scored} / {total}</b></span>
                 <span
@@ -484,7 +484,7 @@ function QuestionTable({
     };
     return (
         <div className="overflow-x-auto rounded-chip border border-hairline bg-surface">
-            <table className="w-full border-collapse text-[11px]">
+            <table className="w-full min-w-[640px] border-collapse text-[11px] lg:min-w-0">
                 <thead>
                     <tr>
                         {["Q. No.", "Question", "Type", "Status", "Total", "Scored", "Submitted", ...(showTime ? ["Time"] : [])].map((h) => (

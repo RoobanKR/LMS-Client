@@ -440,7 +440,7 @@ export default function CourseAttendanceReport({ course }: { course: CourseRow }
                                 {!snapshot.rows.length ? <ReportNoMatches /> : (
                                     <div className={REPORT_TABLE_CARD}>
                                         <div className="min-h-0 flex-1 overflow-auto">
-                                            <table className="w-full table-fixed border-collapse text-xs">
+                                            <table className="w-full min-w-[640px] table-fixed border-collapse text-xs lg:min-w-0">
                                                 <colgroup>
                                                     <col style={{ width: "6%" }} />
                                                     <col style={{ width: showBatch ? "20%" : "33%" }} />

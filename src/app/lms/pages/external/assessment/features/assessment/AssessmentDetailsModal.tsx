@@ -255,7 +255,7 @@ export default function AssessmentDetailsModal({
       <motion.div
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
         transition={{ duration: 0.15 }}
-        className="fixed inset-0 z-[1000] flex items-center justify-center p-4"
+        className="fixed inset-0 z-[1000] flex items-center justify-center p-3 sm:p-4"
         style={{ background: 'rgba(30,41,59,0.55)', backdropFilter: 'blur(6px)' }}
         onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
       >
@@ -264,8 +264,8 @@ export default function AssessmentDetailsModal({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.98, y: 8 }}
           transition={{ duration: 0.18 }}
-          className="w-full max-w-3xl bg-white overflow-hidden flex flex-col"
-          style={{ maxHeight: '92vh', borderRadius: 20, boxShadow: '0 24px 64px rgba(0,0,0,0.28)' }}
+          className="w-full max-w-3xl max-h-[92dvh] bg-white overflow-hidden flex flex-col sm:max-h-[92vh]"
+          style={{ borderRadius: 20, boxShadow: '0 24px 64px rgba(0,0,0,0.28)' }}
           role="dialog"
           aria-modal="true"
           aria-label="Assessment details"
@@ -320,7 +320,7 @@ export default function AssessmentDetailsModal({
           </div>
 
           {/* ── Body ── */}
-          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5 sm:px-5">
             {/* Basic details */}
             <Section icon={<FileText size={13} />} title="Basic Details">
               <Grid>
@@ -476,14 +476,14 @@ export default function AssessmentDetailsModal({
 
           {/* ── Footer ── */}
           <div
-            className="flex items-center justify-between gap-3 px-5 py-3 shrink-0"
+            className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3 shrink-0 sm:flex-nowrap sm:px-5"
             style={{ borderTop: `1px solid ${D.border2}`, background: D.surface }}
           >
             <span className="inline-flex items-center gap-1.5 text-[11px]" style={{ color: D.textMuted }}>
               <Clock size={12} />
               {fmtDuration(a.durationMinutes)} · {p.total} question{p.total === 1 ? '' : 's'} · {p.marks.total} marks
             </span>
-            <div className="flex items-center gap-2">
+            <div className="ml-auto flex items-center gap-2">
               <button
                 type="button"
                 onClick={onClose}

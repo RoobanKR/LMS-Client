@@ -24,7 +24,7 @@ export const ProgCodeBlockMCQ: React.FC<{
 
   return (
     <div
-      className="relative my-2 group/code"
+      className="relative my-2 group/code max-lg:!max-w-full"
       style={{
         borderRadius: 8,
         border: `1.5px solid ${isDark ? '#3a3a3a' : '#e2e2e2'}`,

@@ -332,16 +332,16 @@ export function BulkPermissionModal({ isOpen, onClose, availableUsers, roles, ba
         // The backdrop cannot dismiss this: a whole permission assignment is
         // far too much work to lose to a stray click.
         onInteractOutside={(e) => e.preventDefault()}
-        className="max-w-[96vw] w-[1200px] max-h-[92vh] p-0 overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-700 shadow-2xl bg-gray-50 dark:bg-gray-950 gap-0"
+        className="max-w-[96vw] w-[1200px] max-h-[92vh] max-md:flex max-md:flex-col max-md:h-[92dvh] max-md:max-h-[92dvh] p-0 overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-700 shadow-2xl bg-gray-50 dark:bg-gray-950 gap-0"
       >
 
         {/* ── Header ─────────────────────────────────────────────────────── */}
-        <div className="flex items-center justify-between px-5 py-3.5 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 flex-shrink-0">
-          <div className="flex items-center gap-3">
+        <div className="flex flex-wrap md:flex-nowrap items-center justify-between gap-2 px-4 md:px-5 py-3.5 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 flex-shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
             <div className="w-8 h-8 rounded-lg bg-orange-600 flex items-center justify-center flex-shrink-0">
               <ShieldCheck className="w-4 h-4 text-white" />
             </div>
-            <div>
+            <div className="min-w-0">
               <DialogTitle className="text-sm font-bold text-gray-900 dark:text-gray-100 leading-none">Bulk Permission Assignment</DialogTitle>
               <DialogDescription className="text-xs text-gray-400 mt-0.5">Assign permissions to multiple users at once</DialogDescription>
             </div>
@@ -350,7 +350,7 @@ export function BulkPermissionModal({ isOpen, onClose, availableUsers, roles, ba
               button; that button now lives in this row behind a divider, so the
               chips always have their own space — and they spell the words out
               rather than abbreviating to "perms" / "fns". */}
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex flex-wrap md:flex-nowrap items-center gap-2 flex-shrink-0 max-md:shrink">
             <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border whitespace-nowrap ${selectedUsers.length > 0 ? "bg-orange-50 border-orange-200 text-orange-700 dark:bg-orange-950/40 dark:border-orange-800 dark:text-orange-300" : "bg-gray-100 border-gray-200 text-gray-400 dark:bg-gray-800 dark:border-gray-700"}`}>
               <Users className="w-3 h-3" />{selectedUsers.length} user{selectedUsers.length === 1 ? "" : "s"}
             </span>
@@ -377,10 +377,10 @@ export function BulkPermissionModal({ isOpen, onClose, availableUsers, roles, ba
         </div>
 
         {/* ── Body ───────────────────────────────────────────────────────── */}
-        <div className="flex flex-1 min-h-0 overflow-hidden" style={{ height: "calc(92vh - 108px)" }}>
+        <div className="flex flex-col md:flex-row flex-1 min-h-0 overflow-hidden md:h-[calc(92vh-108px)]">
 
           {/* ──── LEFT: User panel (narrower) ──────────────────────────── */}
-          <div className="w-[320px] flex-shrink-0 flex flex-col min-h-0 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800">
+          <div className="w-full md:w-[320px] h-[45%] md:h-auto flex-shrink-0 flex flex-col min-h-0 bg-white dark:bg-gray-900 border-b md:border-b-0 md:border-r border-gray-200 dark:border-gray-800">
 
             {/* Search row */}
             <div className="flex-shrink-0 p-3 border-b border-gray-100 dark:border-gray-800 space-y-2">
@@ -520,9 +520,9 @@ export function BulkPermissionModal({ isOpen, onClose, availableUsers, roles, ba
           <div className="flex-1 flex flex-col min-h-0">
 
             {/* Permissions toolbar */}
-            <div className="flex-shrink-0 flex items-center gap-3 px-4 py-3 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
+            <div className="flex-shrink-0 flex flex-wrap md:flex-nowrap items-center gap-2 md:gap-3 px-3 md:px-4 py-3 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
               {/* Search perms */}
-              <div className="relative flex-1 max-w-xs">
+              <div className="relative flex-1 min-w-[160px] max-w-xs">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
                 <input
                   value={permSearch} onChange={e => setPermSearch(e.target.value)}
@@ -570,7 +570,7 @@ export function BulkPermissionModal({ isOpen, onClose, availableUsers, roles, ba
         </div>
 
         {/* ── Footer ─────────────────────────────────────────────────────── */}
-        <div className="flex-shrink-0 flex items-center justify-between px-5 py-3 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800">
+        <div className="flex-shrink-0 flex flex-wrap md:flex-nowrap items-center justify-between gap-2 px-4 md:px-5 py-3 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800">
           {/* Status */}
           <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium ${isReady ? "bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/30 dark:border-emerald-800 dark:text-emerald-400" : "bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950/30 dark:border-amber-800 dark:text-amber-400"}`}>
             {isReady ? (
@@ -586,7 +586,7 @@ export function BulkPermissionModal({ isOpen, onClose, availableUsers, roles, ba
             )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="ml-auto flex flex-wrap items-center gap-2">
             <button
               onClick={() => { setSelectedUsers([]); setSelection({}) }}
               disabled={!selectedUsers.length && !selectedPermCount}

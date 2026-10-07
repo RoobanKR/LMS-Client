@@ -983,7 +983,7 @@ export default function MappingList({
                 right · vertical divider · Service Mapping (primary). Same
                 layout the other admin lists now use. */}
             <div className="no-print mt-3 flex items-center gap-2 flex-wrap min-w-0">
-                <div className="relative min-w-[220px] flex-1">
+                <div className="relative min-w-0 max-sm:basis-full sm:min-w-[220px] flex-1">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-faint pointer-events-none" />
                     <input
                         type="text"
@@ -1153,7 +1153,7 @@ export default function MappingList({
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.97, y: 12 }}
                             transition={{ duration: 0.18, ease: 'easeOut' }}
-                            className="flex w-full max-w-lg flex-col rounded-xl border border-hairline bg-surface shadow-2xl"
+                            className="flex w-full max-w-lg max-h-[90dvh] flex-col overflow-y-auto rounded-xl border border-hairline bg-surface shadow-2xl"
                         >
                             <header className="flex items-start justify-between gap-3 border-b border-hairline px-5 py-3.5">
                                 <div>

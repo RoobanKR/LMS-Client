@@ -558,13 +558,19 @@
   .compact :global(.es-matrix) { min-width: 400px; }
   .compact :global(.es-acc-body-content .qsp-row) { grid-template-columns: 1fr !important; }
 }
-@media (max-width: 760px) {
+@media (max-width: 1023.98px) {
   .workspace { display: flex; flex-direction: column; overflow-y: auto; }
-  .compact .editorPane { flex: none; overflow: visible; padding: 6px 14px 12px !important; }
+  .compact .editorPane { flex: none; overflow: visible; }
   .previewPane { overflow: visible; border-left: none; border-top: 1px solid #dce3eb; padding: 16px; }
-  .compact .header { padding: 10px 14px; }
+}
+@media (max-width: 760px) {
+  .compact .editorPane { padding: 6px 14px 12px !important; }
+  .compact .header { padding: 10px 14px; gap: 10px; }
   .compact .header h1 { font-size: 21px; }
   .compact .footer { padding: 9px 14px; }
+  .compact :global(.es-acc-title-text) { font-size: 17px; }
+  .compact :global(.es-acc-head) { min-height: 44px; }
+  .breadcrumbs span { max-width: 160px; }
 }
 
 /* Compact assignment editor: animated panels and fixed actions. */
@@ -641,7 +647,7 @@
 .readiness ul { margin:6px 0 0; padding-left:15px; }
 .readiness li + li { margin-top:4px; }
 @media (prefers-reduced-motion:reduce) { .accordionMotion, .compact :global(.es-acc-badge-chev) { transition:none; } }
-@media (max-width:760px) { .draftHint { display:none; } .compact .footer { justify-content:flex-end; } .compact .footer .primary { min-width:150px; } }
+@media (max-width:760px) { .draftHint { display:none; } .compact .footer { justify-content:flex-end; flex-wrap:wrap; } .compact .footer > * { min-width:0; } .compact .footer .primary { min-width:150px; max-width:100%; } }
 
 /* ── Unfinished-setup highlighting ────────────────────────────────────
    Any value the trainer has not supplied yet reads in the danger colour,
@@ -782,3 +788,55 @@ p.previewPlaceholder.previewMissing {
    lands on it straight away. */
 .compact :global(.es-acc-card[data-error='true']) { outline: 2px solid #f0a59c; outline-offset: 2px; border-radius: 8px; }
 .compact :global(.es-acc-card[data-error='true'] .es-acc-title-text) { color: #b42318; }
+
+/* ── Phone / narrow-pane layout ───────────────────────────────────────
+   The 48px matrix indent and the 200px label column only make sense on a
+   wide editor pane. On a narrow pane drop the indent, tighten the label
+   column and let the difficulty tables scroll sideways inside their own
+   box instead of pushing the whole editor wider than the screen. */
+@container settings-editor (max-width: 640px) {
+  .compact :global(.es-matrix-wrap) { padding-left: 0 !important; padding-right: 0 !important; }
+  .compact :global(.es-matrix-grid) { margin-left: 0 !important; margin-right: 0 !important; }
+  .compact :global(.es-matrix-wrap) ~ :global(.es-note),
+  .compact :global(.es-matrix-wrap) ~ p { margin-left: 0 !important; margin-right: 0 !important; }
+  .compact :global(.es-subfields ~ .es-matrix-wrap) :global(.es-matrix),
+  .compact :global(.es-matrix-wrap) :global(.es-matrix),
+  .compact :global(.es-matrix) { grid-template-columns: 120px repeat(3, minmax(110px, 1fr)) !important; min-width: 460px; }
+  /* The single-grid matrix has no scroll wrapper of its own: keep it at the
+     pane width and let its tracks scroll inside the grid box. */
+  .compact :global(.es-matrix-grid) { grid-template-columns: 120px repeat(3, minmax(110px, 1fr)) !important; min-width: 0; max-width: 100%; overflow-x: auto !important; }
+  .compact .dateControls { flex-wrap: wrap; }
+  .compact .dateInputs { flex-wrap: wrap; min-width: 0; }
+  .accordionToolbar { flex-wrap: wrap; }
+}
+@media (max-width: 480px) {
+  .compact .header { padding: 8px 10px; gap: 8px; }
+  .compact .backButton { height: 36px; padding: 0 12px 0 8px; }
+  .breadcrumbs span { max-width: 120px; }
+  /* Phones: keep Home › parent › current page visible instead of a long
+     sideways-scrolling trail whose current page starts off-screen. Crumbs
+     before the parent and their chevrons are hidden; the parent truncates. */
+  .breadcrumbs > span:not([aria-current]):not(:nth-last-child(3)) { display: none; }
+  .breadcrumbs > svg:not(:first-child):not(:nth-last-child(2)):not(:nth-last-child(4)) { display: none; }
+  .breadcrumbs span { flex-shrink: 1; min-width: 0; }
+  .breadcrumbs [aria-current] { flex-shrink: 0; max-width: 140px; }
+  .compact .footer { min-height: 0; padding: 8px 12px; gap: 8px; }
+  .compact .footer .primary { min-width: 0; flex: 1 1 auto; }
+  .compact :global(.es-acc-title-text) { font-size: 16px; }
+  .compact .shortInput { width: 100%; max-width: 180px; }
+  .previewPane { padding: 12px; }
+  .previewCard { padding: 14px; }
+}
+/* Tablet portrait (~768px): the two-column date row needs ~732px, so a
+   721-740px editor pane clipped the calendar button. Let the controls wrap
+   there; wider panes (desktop) are unaffected. */
+@container settings-editor (max-width: 740px) {
+  .compact .dateControls { flex-wrap: wrap; }
+  .compact .dateInputs { flex-wrap: wrap; min-width: 0; }
+}
+/* Stacked preview (below lg): long "items to review" lines and missing-value
+   pills were nowrap inline-blocks, which ran past the card edge on phones. */
+@media (max-width: 1023.98px) {
+  .previewMissing { white-space: normal; max-width: 100%; }
+  .previewIssueList li { display: block; white-space: normal; overflow-wrap: anywhere; }
+}

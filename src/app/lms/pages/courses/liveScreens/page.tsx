@@ -62,25 +62,25 @@ function LiveScreensInner() {
   }
 
   return (
-    <div className="p-5">
+    <div className="p-3 sm:p-5">
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-3 py-3 sm:px-5 sm:py-4 border-b border-gray-100">
           <div className="flex items-center gap-3 min-w-0">
             <button
               type="button"
               onClick={() => router.back()}
-              className="flex items-center gap-1 text-[13px] font-medium text-gray-500 hover:text-gray-800"
+              className="flex flex-shrink-0 items-center gap-1 text-[13px] font-medium text-gray-500 hover:text-gray-800"
             >
               <ArrowLeft size={16} /> Back
             </button>
             <div className="min-w-0">
-              <h1 className="flex items-center gap-2 text-[16px] font-bold text-gray-900">
-                <MonitorPlay size={18} className="text-indigo-600" />
-                Live Screen Sharing – All Students ({sharingCount})
+              <h1 className="flex items-center gap-2 text-[14px] font-bold text-gray-900 sm:text-[16px]">
+                <MonitorPlay size={18} className="flex-shrink-0 text-indigo-600" />
+                <span className="min-w-0">Live Screen Sharing – All Students ({sharingCount})</span>
               </h1>
               {assessmentName && (
-                <p className="text-[12px] text-gray-500 mt-0.5">
+                <p className="text-[12px] text-gray-500 mt-0.5 break-words">
                   {assessmentName} · {students.length} enrolled · {sharingCount} sharing
                 </p>
               )}
@@ -114,7 +114,7 @@ function LiveScreensInner() {
         ) : ordered.length === 0 ? (
           <div className="p-10 text-center text-[13px] text-gray-400">No students enrolled in this assessment.</div>
         ) : (
-          <div className="p-4">
+          <div className="p-3 sm:p-4">
             <div
               className={
                 view === "grid"

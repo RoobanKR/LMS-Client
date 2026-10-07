@@ -122,7 +122,7 @@ export default function CourseSectionsPage() {
         className={`${poppins.className} h-full flex flex-col bg-white overflow-hidden`}
       >
         {/* Breadcrumb */}
-        <div className="px-4 pt-2">
+        <div className="px-3 sm:px-4 pt-2">
           <Breadcrumb>
             <BreadcrumbList className="text-[11px]">
               <BreadcrumbItem>
@@ -179,8 +179,8 @@ export default function CourseSectionsPage() {
         </div>
 
         {/* Course + batch context */}
-        <div className="px-4 pt-1.5 flex items-center justify-between gap-3">
-          <div className="text-[13px] text-gray-800 min-w-0 flex items-center gap-2">
+        <div className="px-4 pt-1.5 flex flex-wrap items-center justify-between gap-3">
+          <div className="text-[13px] text-gray-800 min-w-0 flex flex-wrap items-center gap-2">
             <span>
               <span className="font-medium text-gray-500">Course Name:</span>{' '}
               <span className="font-semibold text-gray-900 truncate">{courseName}</span>
@@ -205,7 +205,7 @@ export default function CourseSectionsPage() {
         {/* Toolbar + table */}
         <div className="px-4 pt-3 flex-1 min-h-0 flex flex-col">
           <div className="border border-gray-200 rounded-lg flex-1 min-h-0 flex flex-col">
-            <div className="p-3 flex items-center justify-between gap-3">
+            <div className="p-3 flex flex-wrap items-center justify-between gap-3">
               <div className="relative w-full max-w-md">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
                 <Input
@@ -255,8 +255,8 @@ export default function CourseSectionsPage() {
               ) : (
                 <div className="space-y-3">
                   {/* Degree header */}
-                  <div className="flex items-center justify-between rounded-lg border border-blue-100 bg-blue-50/60 px-3 py-2">
-                    <div className="flex items-center gap-2 text-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-blue-100 bg-blue-50/60 px-3 py-2">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs">
                       <span className="w-6 h-6 rounded-md bg-blue-600 text-white flex items-center justify-center font-semibold">
                         {(degree || 'D').charAt(0).toUpperCase()}
                       </span>
@@ -285,8 +285,8 @@ export default function CourseSectionsPage() {
                   {/* Departments */}
                   {filteredDeptSections.map((dept) => (
                     <div key={dept.department} className="rounded-lg border border-gray-200 overflow-hidden">
-                      <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border-b border-gray-100">
-                        <div className="flex items-center gap-2 text-xs">
+                      <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-gray-50 border-b border-gray-100">
+                        <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs">
                           <span className="w-6 h-6 rounded-md bg-violet-50 border border-violet-100 text-violet-700 font-semibold flex items-center justify-center">
                             {dept.department.charAt(0).toUpperCase()}
                           </span>
@@ -312,7 +312,7 @@ export default function CourseSectionsPage() {
                       ) : (
                         <div className="divide-y divide-gray-100">
                           {dept.sections.map((sec) => (
-                            <div key={sec} className="flex items-center justify-between px-3 py-2 pl-8 hover:bg-gray-50/60">
+                            <div key={sec} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 pl-5 sm:pl-8 hover:bg-gray-50/60">
                               <div className="flex items-center gap-2 text-xs">
                                 <span className="w-5 h-5 rounded bg-emerald-50 border border-emerald-100 text-emerald-700 text-[10px] font-semibold flex items-center justify-center">
                                   {sec.charAt(0).toUpperCase()}

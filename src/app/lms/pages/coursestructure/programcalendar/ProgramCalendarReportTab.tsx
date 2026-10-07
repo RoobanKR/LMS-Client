@@ -317,7 +317,7 @@ function ScheduleTable({ blocks, comparison }: { blocks: Block[]; comparison?: b
     return (
         <div className="overflow-hidden rounded-xl border border-[#ece3d8] bg-surface shadow-xs">
             <div className="max-w-full overflow-x-auto">
-                <table className="w-full table-fixed border-collapse text-xs">
+                <table className="w-full min-w-[720px] lg:min-w-0 table-fixed border-collapse text-xs">
                     <colgroup>
                         <col style={{ width: comparison ? '4%' : '6%' }} />
                         <col style={{ width: comparison ? '14%' : '22%' }} />
@@ -762,7 +762,7 @@ export default function ProgramCalendarReportTab({
                 }
                 return (
                     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-ink-900/40 p-4" onClick={() => { if (!excelBusy) setExcelChooser(null) }}>
-                        <div role="dialog" aria-modal="true" aria-labelledby="excel-chooser-title" className="w-full max-w-md rounded-xl border border-hairline bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                        <div role="dialog" aria-modal="true" aria-labelledby="excel-chooser-title" className="w-full max-w-md max-h-[90dvh] overflow-y-auto rounded-xl border border-hairline bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-start gap-3 border-b border-hairline px-5 py-4">
                                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-success-50 text-success-700"><FileSpreadsheet size={18} /></span>
                                 <div className="min-w-0 flex-1">

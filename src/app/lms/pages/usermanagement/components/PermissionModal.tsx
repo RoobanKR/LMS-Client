@@ -185,12 +185,12 @@ export function PermissionModal({ isOpen, onClose, userId, userName, userEmail, 
       {/* The kit's own close button is suppressed and re-rendered inside the
           header below, so the red treatment lands here WITHOUT restyling the
           shared Dialog every other modal in the app uses. */}
-      <DialogContent className="max-w-5xl max-h-[90vh] p-0 overflow-hidden" showCloseButton={false}>
-        <div className="flex flex-col h-[80vh]">
+      <DialogContent className="max-w-[calc(100%-2rem)] lg:max-w-5xl max-h-[90dvh] sm:max-h-[90vh] p-0 overflow-hidden" showCloseButton={false}>
+        <div className="flex flex-col h-[85dvh] sm:h-[80vh]">
           {/* Header */}
           <DialogHeader className="p-4 border-b bg-white">
-            <div className="flex items-center justify-between">
-              <div>
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0 break-words">
                 <DialogTitle className="text-sm font-semibold text-gray-900">
                   Permissions for {userName}
                 </DialogTitle>
@@ -211,16 +211,16 @@ export function PermissionModal({ isOpen, onClose, userId, userName, userEmail, 
 
           {/* Body */}
           <div className="flex-1 overflow-y-auto">
-            <div className="p-4">
-              <div className="flex items-center gap-2 mb-3">
+            <div className="p-3 sm:p-4">
+              <div className="flex flex-wrap items-center gap-2 mb-3">
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search…"
-                  className="flex-1 px-3 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  className="flex-1 min-w-[180px] px-3 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 />
                 {!studentOnly && (
-                  <div className="flex gap-1">
+                  <div className="flex flex-wrap gap-1">
                     {tabs.map((c) => (
                       <button
                         key={c}
@@ -263,7 +263,7 @@ export function PermissionModal({ isOpen, onClose, userId, userName, userEmail, 
 
           {/* Footer */}
           <DialogFooter className="p-3 border-t bg-white">
-            <div className="flex items-center justify-between w-full">
+            <div className="flex flex-wrap items-center justify-between w-full gap-2">
               <div className="text-xs text-gray-600">
                 {selectedPageCount > 0 ? (
                   <div className="flex items-center gap-2">
@@ -278,7 +278,7 @@ export function PermissionModal({ isOpen, onClose, userId, userName, userEmail, 
                   </div>
                 )}
               </div>
-              <div className="flex gap-2">
+              <div className="ml-auto flex gap-2">
                 <Button
                   variant="outline"
                   onClick={onClose}

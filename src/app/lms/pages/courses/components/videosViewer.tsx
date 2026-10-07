@@ -704,7 +704,7 @@ const handleSave = async (e) => {
   // ── Render options ─────────────────────────────────────────────────────────
   const renderOptions = (block) => {
     const cols = block.optionsPerRow || 1;
-    const gridCls = ["grid-cols-1", "grid-cols-2", "grid-cols-3", "grid-cols-4"][cols - 1];
+    const gridCls = ["grid-cols-1", "grid-cols-1 sm:grid-cols-2", "grid-cols-1 sm:grid-cols-3", "grid-cols-2 sm:grid-cols-4"][cols - 1];
 
     return (
       <div className={`grid ${gridCls} gap-2`}>
@@ -777,7 +777,7 @@ const handleSave = async (e) => {
                   }`}
                 />
 
-                <div className="opacity-0 group-hover/opt:opacity-100 flex items-center gap-0.5 transition-opacity">
+                <div className="opacity-100 lg:opacity-0 lg:group-hover/opt:opacity-100 flex items-center gap-0.5 transition-opacity">
                   {/* Add image to option */}
                   {!opt.imageUrl && (
                     <label className="cursor-pointer p-1 hover:bg-slate-100 rounded-md transition-colors" title="Add image to option">
@@ -838,8 +838,8 @@ const handleSave = async (e) => {
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-slate-900/60 backdrop-blur-sm">
       {/* HEADER - same as before */}
-      <div className="flex items-center justify-between px-5 py-3 bg-white border-b border-slate-200 shadow-sm flex-shrink-0">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between gap-2 px-3 sm:px-5 py-3 bg-white border-b border-slate-200 shadow-sm flex-shrink-0">
+        <div className="flex items-center gap-3 min-w-0">
           <div className="w-8 h-8 rounded-lg bg-violet-600 flex items-center justify-center shadow-sm">
             <HelpCircle className="h-4 w-4 text-white"/>
           </div>
@@ -1098,12 +1098,12 @@ const handleSave = async (e) => {
       </div>
 
       {/* FOOTER */}
-      <div className="flex items-center justify-between px-5 py-3 border-t border-slate-200 bg-white flex-shrink-0">
+      <div className="flex items-center justify-between max-sm:flex-wrap max-sm:gap-2 px-3 sm:px-5 py-3 border-t border-slate-200 bg-white flex-shrink-0">
         <span className="flex items-center gap-1.5 text-xs text-slate-500">
           <div className="w-1.5 h-1.5 rounded-full bg-emerald-400"/>
           {blocks.length} question{blocks.length !== 1 ? "s" : ""} ready
         </span>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 max-sm:w-full max-sm:justify-end">
           <button onClick={onClose} className="px-4 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold transition-all">
             Cancel
           </button>
@@ -1594,7 +1594,7 @@ const openMcqForm = () => {
 
         {/* Notes panel */}
         {notesOpen && notesEnabled && (
-          <div className="absolute top-20 left-4 w-80 h-[calc(100vh-160px)] bg-gray-900/95 backdrop-blur-sm border border-gray-700 rounded-lg z-40 flex flex-col">
+          <div className="absolute top-20 left-4 w-80 max-w-[calc(100vw-2rem)] h-[calc(100dvh-160px)] bg-gray-900/95 backdrop-blur-sm border border-gray-700 rounded-lg z-40 flex flex-col">
             <div className="p-4 border-b border-gray-700 flex items-center justify-between">
               <h3 className="text-white font-semibold">Notes</h3>
               <button onClick={()=>setNotesOpen(false)} className="text-gray-400 hover:text-white p-1 rounded hover:bg-white/10"><X className="w-5 h-5"/></button>
@@ -1607,7 +1607,7 @@ const openMcqForm = () => {
 
         {/* AI panel */}
         {aiOpen && showAIButton && (
-          <div className="absolute top-20 left-4 w-80 h-[calc(100vh-160px)] bg-gray-900/95 backdrop-blur-sm border border-gray-700 rounded-lg z-40 flex flex-col">
+          <div className="absolute top-20 left-4 w-80 max-w-[calc(100vw-2rem)] h-[calc(100dvh-160px)] bg-gray-900/95 backdrop-blur-sm border border-gray-700 rounded-lg z-40 flex flex-col">
             <div className="p-4 border-b border-gray-700 flex items-center justify-between">
               <h3 className="text-white font-semibold">AI Assistant</h3>
               <button onClick={()=>setAiOpen(false)} className="text-gray-400 hover:text-white p-1 rounded hover:bg-white/10"><X className="w-5 h-5"/></button>
@@ -1620,7 +1620,7 @@ const openMcqForm = () => {
 
         {/* Saved MCQ list */}
         {showMcqList && savedMcqs.length>0 && (
-          <div className="absolute top-20 right-4 w-80 h-[calc(100vh-160px)] bg-gray-900/95 backdrop-blur-sm border border-gray-700 rounded-lg z-40 flex flex-col">
+          <div className="absolute top-20 right-4 w-80 max-w-[calc(100vw-2rem)] h-[calc(100dvh-160px)] bg-gray-900/95 backdrop-blur-sm border border-gray-700 rounded-lg z-40 flex flex-col">
             <div className="p-4 border-b border-gray-700 flex items-center justify-between">
               <h3 className="text-white font-semibold">MCQ Questions ({savedMcqs.length})</h3>
               <button onClick={()=>setShowMcqList(false)} className="text-gray-400 hover:text-white p-1 rounded hover:bg-white/10"><X className="w-5 h-5"/></button>

@@ -197,7 +197,7 @@ function UsersPageInner() {
       />
 
       {institutionId && !isLoading && users.length > 0 && (
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <MetricCard icon={UsersIcon} label="Total Users" value={users.length} caption="In this client" iconClass="bg-primary/10 text-primary" />
           <MetricCard icon={UserCheck} label="Active" value={activeUsers} caption="Enabled accounts" iconClass="bg-[var(--success-bg)] text-[var(--success-fg)]" captionClass="text-[var(--success-fg)]" />
           <MetricCard icon={UserX} label="Inactive" value={users.length - activeUsers} caption="Disabled accounts" iconClass="bg-[var(--danger-bg)] text-destructive" />
@@ -231,7 +231,7 @@ function UsersPageInner() {
             <EmptyState icon={UsersIcon} title="No matches" description="No users match the current filters." />
           ) : (
             <>
-              <Table>
+              <Table className="min-w-[720px] lg:min-w-0">
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
                     <TableHead className={tableHeadClass}><SortLabel label="Name" sortKey="name" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></TableHead>
@@ -325,7 +325,7 @@ function UsersPageInner() {
                 {roles.map((r) => <option key={r._id} value={r._id}>{r.renameRole || r.originalRole}</option>)}
               </FieldSelect>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor="firstName">First Name</Label>
                 <Input id="firstName" value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
@@ -386,7 +386,7 @@ function UsersPageInner() {
                 {roles.map((r) => <option key={r._id} value={r._id}>{r.renameRole || r.originalRole}</option>)}
               </FieldSelect>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor="efirst">First Name</Label>
                 <Input id="efirst" value={editForm.firstName} onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })} />

@@ -83,7 +83,7 @@ export default function AttendanceAnalyticsPage() {
     const loading = studentsLoading || summaryLoading;
 
     return (
-        <div className={`${poppins.className} h-full overflow-y-auto px-6 py-4 space-y-4`}>
+        <div className={`${poppins.className} h-full overflow-y-auto px-3 sm:px-4 lg:px-6 py-3 sm:py-4 space-y-4`}>
             <div className="space-y-4">
                         {/* Filters */}
                         <div className="bg-white rounded-xl border border-gray-200 px-4 py-3">
@@ -221,7 +221,7 @@ export default function AttendanceAnalyticsPage() {
                             </ChartCard>
 
                             <ChartCard title="Attendance Distribution">
-                                <div className="flex items-center gap-4">
+                                <div className="flex flex-col sm:flex-row items-center gap-4">
                                     <div className="relative w-[190px] h-[190px]">
                                         <ResponsiveContainer>
                                             <PieChart>
@@ -250,7 +250,7 @@ export default function AttendanceAnalyticsPage() {
                                             <div className="text-[10.5px] text-gray-500">Average</div>
                                         </div>
                                     </div>
-                                    <div className="flex-1 space-y-2 text-[11.5px]">
+                                    <div className="w-full sm:w-auto sm:flex-1 space-y-2 text-[11.5px]">
                                         <DistRow color="bg-emerald-500" label="Present" count={totals.P} total={totals.totalCells} />
                                         <DistRow color="bg-red-500" label="Absent" count={totals.A} total={totals.totalCells} />
                                         <DistRow color="bg-amber-500" label="Half-day" count={totals.H} total={totals.totalCells} />
@@ -296,7 +296,7 @@ export default function AttendanceAnalyticsPage() {
 
                         {/* Top performers table */}
                         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+                            <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-gray-200">
                                 <div className="flex items-center gap-2 text-[13px] font-semibold text-gray-900">
                                     <Trophy className="h-4 w-4 text-amber-500" />
                                     Top Performers
@@ -319,7 +319,7 @@ export default function AttendanceAnalyticsPage() {
                                 </div>
                             ) : (
                                 <div className="overflow-x-auto">
-                                    <table className="w-full text-[12.5px]">
+                                    <table className="w-full min-w-[640px] lg:min-w-0 text-[12.5px]">
                                         <thead className="bg-gray-50 border-b border-gray-200">
                                             <tr>
                                                 <th className="w-10 px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-gray-500">#</th>

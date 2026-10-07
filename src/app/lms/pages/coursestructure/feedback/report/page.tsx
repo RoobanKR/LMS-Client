@@ -114,7 +114,7 @@ function ReportPageContent() {
       className={`${poppins.className} h-full flex flex-col bg-white dark:bg-gray-950 overflow-hidden`}
     >
       {/* Breadcrumb */}
-      <div className="px-4 pt-2 flex-shrink-0">
+      <div className="px-3 sm:px-4 pt-2 flex-shrink-0">
         <Breadcrumb>
           <BreadcrumbList className="text-[11px]">
             <BreadcrumbItem>
@@ -169,7 +169,7 @@ function ReportPageContent() {
       </div>
 
       {/* Title row */}
-      <div className="px-4 pt-1.5 pb-2 flex items-center justify-between gap-3 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
+      <div className="px-4 pt-1.5 pb-2 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
         <div className="min-w-0">
           <h1 className="text-[15px] font-semibold text-gray-900 dark:text-white tracking-tight leading-tight truncate">
             {feedback?.feedbackTitle
@@ -203,7 +203,7 @@ function ReportPageContent() {
       </div>
 
       {/* Body */}
-      <div className="flex-1 min-h-0 overflow-auto px-4 py-4 bg-gray-50/40 dark:bg-gray-950">
+      <div className="flex-1 min-h-0 overflow-auto px-3 sm:px-4 py-4 bg-gray-50/40 dark:bg-gray-950">
         {isLoading ? (
           <div className="flex items-center justify-center h-40">
             <div className="animate-spin rounded-full h-6 w-6 border-2 border-indigo-600 border-t-transparent" />

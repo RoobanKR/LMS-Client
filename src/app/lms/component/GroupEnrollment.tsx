@@ -901,7 +901,7 @@ const handleConfirmSetLeader = () => {
     <div className="space-y-4 relative">
       {/* Header with Actions */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Badge variant="secondary" className="px-3 py-1">
             {groupsData?.groups.length || 0} Groups
           </Badge>
@@ -950,7 +950,7 @@ const handleConfirmSetLeader = () => {
 
       {/* Groups Table */}
       <div className="rounded-md border">
-        <Table>
+        <Table className="min-w-[640px] lg:min-w-0">
           <TableHeader>
             <TableRow>
               <TableHead>Group Name</TableHead>
@@ -1059,7 +1059,7 @@ const handleConfirmSetLeader = () => {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between px-4 py-3 border-t">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-4 py-3 border-t">
           <div className="text-sm text-gray-700">
             Showing <span className="font-medium">{startIndex + 1}</span> to{' '}
             <span className="font-medium">{Math.min(endIndex, filteredGroups.length)}</span>{' '}
@@ -1175,11 +1175,11 @@ const handleConfirmSetLeader = () => {
 
       {/* Group Details Modal - Shows all users in the group */}
       <Dialog open={showGroupDetailsModal} onOpenChange={setShowGroupDetailsModal}>
-        <DialogContent className="max-w-5xl max-h-[95vh] overflow-hidden flex flex-col p-0">
-          <DialogHeader className="shrink-0 p-6 pb-1 border-b">
-            <div className="flex items-center justify-between">
-              <div>
-                <DialogTitle className="flex items-center gap-2">
+        <DialogContent className="max-w-5xl max-h-[95dvh] overflow-hidden flex flex-col p-0">
+          <DialogHeader className="shrink-0 p-4 sm:p-6 pb-1 sm:pb-1 border-b">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="min-w-0">
+                <DialogTitle className="flex flex-wrap items-center gap-2">
                   {selectedGroupForDetails?.groupName}
                   {selectedGroupForDetails?.groupLeader && (
                     <Badge variant="outline" className="text-xs bg-yellow-50 text-yellow-700">
@@ -1192,7 +1192,7 @@ const handleConfirmSetLeader = () => {
                   {selectedGroupForDetails?.members.length || 0} members in this group
                 </DialogDescription>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {selectedGroupForDetails?.groupLeader && (
                   <Button
                     variant="outline"
@@ -1221,14 +1221,14 @@ const handleConfirmSetLeader = () => {
             </div>
           </DialogHeader>
           
-          <div className="flex-1 overflow-auto p-6">
+          <div className="flex-1 overflow-auto p-3 sm:p-6">
             {/* Bulk Actions Bar */}
             {selectedUsersToRemove.length > 0 && (
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-md mb-4"
+                className="flex flex-wrap items-center justify-between gap-2 p-3 bg-blue-50 border border-blue-200 rounded-md mb-4"
               >
                 <div className="flex items-center gap-2">
                   <Badge variant="secondary" className="px-3 py-1">
@@ -1255,7 +1255,7 @@ const handleConfirmSetLeader = () => {
 
             {/* Users Table */}
             <div className="rounded-md border">
-              <Table>
+              <Table className="min-w-[640px] lg:min-w-0">
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-12">
@@ -1453,8 +1453,8 @@ const handleConfirmSetLeader = () => {
           }
         }}
       >        
-        <DialogContent className="flex flex-col max-w-7xl h-[95vh] overflow-hidden p-0">
-          <DialogHeader className="shrink-0 p-6 pb-1">
+        <DialogContent className="flex flex-col max-w-7xl h-[95dvh] overflow-hidden p-0">
+          <DialogHeader className="shrink-0 p-4 sm:p-6 pb-1 sm:pb-1">
             <DialogTitle>
               Add Users to {selectedGroupForAction?.groupName}
             </DialogTitle>
@@ -1462,9 +1462,9 @@ const handleConfirmSetLeader = () => {
               Select enrolled users to add to this group. Only users not already in the group are shown.
             </DialogDescription>
           </DialogHeader>
-          
-          <div className="flex-1 min-h-0 overflow-hidden px-6">
-            <div className="h-full flex flex-col">
+
+          <div className="flex-1 min-h-0 overflow-y-auto lg:overflow-hidden px-3 sm:px-6">
+            <div className="lg:h-full flex flex-col">
               {/* Modal Search and Filter Controls */}
               <div className="mb-4">
                 <div className="flex flex-col sm:flex-row gap-3">
@@ -1714,7 +1714,7 @@ const handleConfirmSetLeader = () => {
               {/* Users Table */}
               <div className="flex-1 overflow-auto">
                 <div className="rounded-md border">
-                  <Table>
+                  <Table className="min-w-[720px] lg:min-w-0">
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-12">
@@ -1843,7 +1843,7 @@ const handleConfirmSetLeader = () => {
 
                 {/* Modal Pagination */}
                 {availableUsersData?.pagination && availableUsersData.pagination.totalPages > 1 && (
-                  <div className="flex items-center justify-between px-4 py-3 border-t">
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-4 py-3 border-t">
                     <div className="text-sm text-gray-700">
                       Showing <span className="font-medium">{(modalCurrentPage - 1) * modalUsersPerPage + 1}</span> to{' '}
                       <span className="font-medium">
@@ -1891,12 +1891,12 @@ const handleConfirmSetLeader = () => {
             </div>
           </div>
 
-          <DialogFooter className="shrink-0 border-t p-6 pt-4 bg-white">
-            <div className="flex items-center justify-between w-full">
+          <DialogFooter className="shrink-0 border-t p-3 sm:p-6 pt-3 sm:pt-4 bg-white">
+            <div className="flex flex-wrap items-center justify-between gap-2 w-full">
               <div className="text-sm text-gray-600">
                 {selectedUsersToAdd.length} user(s) selected
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 ml-auto">
                 <Button
                   variant="outline"
                   onClick={() => {

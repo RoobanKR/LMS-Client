@@ -376,7 +376,7 @@ export const ReportAnalysisBody: React.FC<{
           for the full text). Replaces the old wide-bar Parameter/Question
           chart AND the per-parameter small-multiples grid. */}
       <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-md p-4">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
           <h3 className="text-[12px] font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300">
             Feedback Overview
           </h3>

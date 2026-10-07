@@ -27,7 +27,7 @@ import { businessModelDisplayName, fmtDate, notify, orderedContacts } from './li
 // into a shared kit adds churn for no reader benefit.
 
 const Card: React.FC<React.PropsWithChildren<{ className?: string }>> = ({ children, className = '' }) => (
-    <div className={`rounded-tile border border-hairline bg-surface p-5 shadow-xs ${className}`}>
+    <div className={`min-w-0 rounded-tile border border-hairline bg-surface p-4 shadow-xs sm:p-5 ${className}`}>
         {children}
     </div>
 )
@@ -51,9 +51,9 @@ const CardHeader: React.FC<React.PropsWithChildren<{ title: string; action?: Rea
 // Two-column row inside the summary card. Label on the left, value on the
 // right; long values wrap normally.
 const SummaryRow: React.FC<{ label: string; value?: React.ReactNode }> = ({ label, value }) => (
-    <div className="grid grid-cols-[112px_1fr] items-start gap-3 py-1.5">
+    <div className="grid grid-cols-[96px_1fr] items-start gap-3 py-1.5 sm:grid-cols-[112px_1fr]">
         <span className="text-xs font-medium text-subtle">{label}</span>
-        <span className="text-sm text-heading">{value ?? <span className="text-faint">—</span>}</span>
+        <span className="min-w-0 break-words text-sm text-heading">{value ?? <span className="text-faint">—</span>}</span>
     </div>
 )
 
@@ -194,7 +194,7 @@ export default function ClientDetailsPage() {
             <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
 
                 {/* ── Breadcrumb ── */}
-                <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-xs">
+                <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 text-xs">
                     <button
                         type="button"
                         onClick={handleBackToList}
@@ -203,20 +203,20 @@ export default function ClientDetailsPage() {
                         Clients
                     </button>
                     <ChevronRight size={12} className="text-faint" aria-hidden />
-                    <span className="font-semibold text-heading truncate max-w-[280px]" title={client.clientCompany}>
+                    <span className="min-w-0 font-semibold text-heading truncate max-w-[280px]" title={client.clientCompany}>
                         {client.clientCompany}
                     </span>
                 </nav>
 
                 {/* ── Header block ── */}
                 <header className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="flex items-start gap-4 min-w-0">
+                    <div className="flex items-start gap-3 min-w-0 sm:gap-4">
                         {/* Circular avatar — uses the uploaded client logo
                             when the record has one, and falls back to the
                             initials circle otherwise. Wrapped image gets
                             `object-cover` so a non-square logo crops to the
                             circle instead of distorting. */}
-                        <div className="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand-wash text-2xl font-bold text-brand-strong">
+                        <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand-wash text-xl font-bold text-brand-strong sm:size-20 sm:text-2xl">
                             {client.clientLogo ? (
                                 <img
                                     src={client.clientLogo}
@@ -241,7 +241,7 @@ export default function ClientDetailsPage() {
                             </span>
                         </div>
                         <div className="min-w-0 flex-1">
-                            <h1 className="text-2xl font-bold text-heading truncate" title={client.clientCompany}>
+                            <h1 className="text-xl font-bold text-heading truncate sm:text-2xl" title={client.clientCompany}>
                                 {client.clientCompany}
                             </h1>
                             <div className="mt-1.5 flex items-center gap-2">
@@ -275,7 +275,7 @@ export default function ClientDetailsPage() {
                             </div>
                         </div>
                     </div>
-                    <div className="flex shrink-0 items-center gap-2">
+                    <div className="flex shrink-0 flex-wrap items-center gap-2">
                         {canEdit && (
                             <button
                                 type="button"
@@ -299,7 +299,7 @@ export default function ClientDetailsPage() {
 
                 {/* ── Tabs ── */}
                 <div className="border-b border-hairline">
-                    <nav role="tablist" aria-label="Client sections" className="flex flex-wrap items-center gap-6">
+                    <nav role="tablist" aria-label="Client sections" className="flex items-center gap-5 overflow-x-auto pb-px [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:flex-wrap sm:gap-6 sm:overflow-visible sm:pb-0">
                         {TABS.map((t) => {
                             const active = t.key === activeTab
                             return (
@@ -309,7 +309,7 @@ export default function ClientDetailsPage() {
                                     role="tab"
                                     aria-selected={active}
                                     onClick={() => setActiveTab(t.key)}
-                                    className={`relative pb-3 pt-1 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 ${
+                                    className={`relative shrink-0 whitespace-nowrap pb-3 pt-1 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 ${
                                         active ? 'text-brand-strong' : 'text-subtle hover:text-heading'
                                     }`}
                                 >
@@ -397,7 +397,7 @@ function OverviewTab({
                         {primaryContact.email && (
                             <li className="flex items-start gap-3 text-sm">
                                 <Mail size={15} className="mt-0.5 shrink-0 text-subtle" aria-hidden />
-                                <a href={`mailto:${primaryContact.email}`} className="text-heading hover:text-brand-strong hover:underline">
+                                <a href={`mailto:${primaryContact.email}`} className="min-w-0 break-all text-heading hover:text-brand-strong hover:underline">
                                     {primaryContact.email}
                                 </a>
                             </li>
@@ -426,7 +426,7 @@ function OverviewTab({
                                 {/* Address is TipTap HTML — render it as
                                       such rather than showing raw tags. */}
                                 <div
-                                    className="prose prose-sm max-w-none text-heading [&_p]:my-0.5 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
+                                    className="prose prose-sm min-w-0 max-w-none text-heading [&_p]:my-0.5 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
                                     dangerouslySetInnerHTML={{ __html: client.clientAddress }}
                                 />
                             </li>

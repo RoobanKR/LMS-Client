@@ -857,16 +857,16 @@ const QuestionsModal: React.FC<QuestionsModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className={`rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden ${
+      <div className={`rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col ${
         darkMode ? 'bg-slate-800 text-slate-100' : 'bg-white text-slate-900'
       } border ${darkMode ? 'border-slate-700' : 'border-slate-200'}`}>
         {/* Header */}
-        <div className={`flex items-center justify-between p-6 border-b ${
+        <div className={`flex shrink-0 items-center justify-between gap-3 p-4 sm:p-6 border-b ${
           darkMode ? 'border-slate-700' : 'border-slate-200'
         }`}>
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
             <List className="w-6 h-6 text-orange-500" />
-            <h2 className="text-xl font-bold">All Questions</h2>
+            <h2 className="text-lg sm:text-xl font-bold">All Questions</h2>
             <span className={`px-3 py-1 rounded-full text-sm font-medium ${
               darkMode ? 'bg-slate-700 text-slate-300' : 'bg-slate-100 text-slate-700'
             }`}>
@@ -886,7 +886,7 @@ const QuestionsModal: React.FC<QuestionsModalProps> = ({
         </div>
 
         {/* Questions List */}
-        <div className="overflow-y-auto p-6" style={{ maxHeight: 'calc(90vh - 200px)' }}>
+        <div className="min-h-0 overflow-y-auto p-4 sm:p-6" style={{ maxHeight: 'calc(90vh - 200px)' }}>
           <div className="grid gap-4">
             {questions.map((question, index) => {
               const status = getQuestionStatus(question);
@@ -972,10 +972,10 @@ const QuestionsModal: React.FC<QuestionsModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className={`px-6 py-4 border-t ${
+        <div className={`shrink-0 px-4 sm:px-6 py-4 border-t ${
           darkMode ? 'border-slate-700 bg-slate-800/80' : 'border-slate-200 bg-slate-50'
-        } flex justify-between items-center`}>
-          <div className="flex items-center gap-4 text-sm">
+        } flex flex-wrap justify-between items-center gap-3`}>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
               <span className={darkMode ? 'text-slate-300' : 'text-slate-700'}>Submitted</span>
@@ -1030,16 +1030,16 @@ const NotesModal: React.FC<NotesModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className={`rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden ${
+      <div className={`rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col ${
         darkMode ? 'bg-slate-800 text-slate-100' : 'bg-white text-slate-900'
       } border ${darkMode ? 'border-slate-700' : 'border-slate-200'}`}>
         {/* Header */}
-        <div className={`flex items-center justify-between p-6 border-b ${
+        <div className={`flex shrink-0 items-center justify-between gap-3 p-4 sm:p-6 border-b ${
           darkMode ? 'border-slate-700' : 'border-slate-200'
         }`}>
-          <div className="flex items-center gap-3">
-            <StickyNote className="w-6 h-6 text-amber-500" />
-            <div>
+          <div className="flex min-w-0 items-center gap-3">
+            <StickyNote className="w-6 h-6 shrink-0 text-amber-500" />
+            <div className="min-w-0">
               <h2 className="text-xl font-bold">Notes</h2>
               <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
                 {question.title}
@@ -1059,7 +1059,7 @@ const NotesModal: React.FC<NotesModalProps> = ({
         </div>
 
         {/* Notes Content */}
-        <div className="p-6">
+        <div className="min-h-0 overflow-y-auto p-4 sm:p-6">
           <textarea
             value={notes[question.id] || ''}
             onChange={(e) => onNoteChange(question.id, e.target.value)}
@@ -1079,7 +1079,7 @@ const NotesModal: React.FC<NotesModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className={`px-6 py-4 border-t ${
+        <div className={`shrink-0 px-4 sm:px-6 py-4 border-t ${
           darkMode ? 'border-slate-700 bg-slate-800/80' : 'border-slate-200 bg-slate-50'
         } flex justify-end gap-3`}>
           <button
@@ -1127,16 +1127,16 @@ const HintsModal: React.FC<HintsModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className={`rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden ${
+      <div className={`rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col ${
         darkMode ? 'bg-slate-800 text-slate-100' : 'bg-white text-slate-900'
       } border ${darkMode ? 'border-slate-700' : 'border-slate-200'}`}>
         {/* Header */}
-        <div className={`flex items-center justify-between p-6 border-b ${
+        <div className={`flex shrink-0 items-center justify-between gap-3 p-4 sm:p-6 border-b ${
           darkMode ? 'border-slate-700' : 'border-slate-200'
         }`}>
-          <div className="flex items-center gap-3">
-            <Lightbulb className="w-6 h-6 text-amber-500" />
-            <div>
+          <div className="flex min-w-0 items-center gap-3">
+            <Lightbulb className="w-6 h-6 shrink-0 text-amber-500" />
+            <div className="min-w-0">
               <h2 className="text-xl font-bold">Hints & Help</h2>
               <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
                 {question.title}
@@ -1156,7 +1156,7 @@ const HintsModal: React.FC<HintsModalProps> = ({
         </div>
 
         {/* Hints Content */}
-        <div className="p-6 space-y-6">
+        <div className="min-h-0 overflow-y-auto p-4 sm:p-6 space-y-6">
           {/* AI Hint */}
           {selectedElement.aiGeneration.includeHints && question.hint && (
             <div className={`p-4 rounded-xl border ${
@@ -1232,7 +1232,7 @@ const HintsModal: React.FC<HintsModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className={`px-6 py-4 border-t ${
+        <div className={`shrink-0 px-4 sm:px-6 py-4 border-t ${
           darkMode ? 'border-slate-700 bg-slate-800/80' : 'border-slate-200 bg-slate-50'
         } flex justify-end`}>
           <button
@@ -1268,7 +1268,7 @@ const ElementSelector: React.FC<ElementSelectorProps> = ({ onElementSelect, dark
         <div className="text-center mb-12">
           <div className="flex items-center justify-center gap-3 mb-4">
             <Code className="w-8 h-8 text-orange-500" />
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-orange-600 to-purple-600 bg-clip-text text-transparent">
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-orange-600 to-purple-600 bg-clip-text text-transparent">
               CodeLearning IDE
             </h1>
           </div>
@@ -1791,7 +1791,7 @@ const LearningIDE: React.FC<LearningIDEProps> = ({
   };
 
   return (
-    <div className={`h-screen flex flex-col transition-colors duration-300 ${
+    <div className={`h-dvh flex flex-col transition-colors duration-300 ${
       darkMode 
         ? 'bg-gradient-to-br from-slate-900 to-slate-800 text-slate-100' 
         : 'bg-gradient-to-br from-slate-50 to-orange-50 text-slate-900'
@@ -1799,11 +1799,11 @@ const LearningIDE: React.FC<LearningIDEProps> = ({
       
       {/* Security Warning */}
       {selectedElement.security.enabled && showSecurityWarning && (
-        <div className="fixed inset-0 bg-red-600 text-white z-50 flex items-center justify-center p-4">
-          <div className="max-w-2xl text-center">
+        <div className="fixed inset-0 bg-red-600 text-white z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="my-auto max-w-2xl text-center">
             <Shield className="w-16 h-16 mx-auto mb-4" />
-            <h2 className="text-3xl font-bold mb-4">Security Restrictions Active</h2>
-            <div className="grid grid-cols-2 gap-4 mb-6 text-left">
+            <h2 className="text-2xl sm:text-3xl font-bold mb-4">Security Restrictions Active</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 text-left">
               {selectedElement.security.screenCapture && (
                 <div className="flex items-center gap-2">
                   <Monitor className="w-5 h-5" />
@@ -1884,8 +1884,8 @@ const LearningIDE: React.FC<LearningIDEProps> = ({
         darkMode 
           ? 'bg-slate-800/80 border-slate-700 text-slate-100' 
           : 'bg-white/80 border-slate-200 text-slate-900'
-      } px-4 py-3 flex items-center justify-between`}>
-        <div className="flex items-center gap-4">
+      } px-3 sm:px-4 py-3 flex flex-wrap items-center justify-between gap-2`}>
+        <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-4">
           <button
             onClick={onBack}
             className={`p-2 rounded-lg transition-colors ${
@@ -1925,7 +1925,7 @@ const LearningIDE: React.FC<LearningIDEProps> = ({
           )}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           {/* Action Buttons */}
           <div className="flex items-center gap-2">
            
@@ -2036,15 +2036,18 @@ const LearningIDE: React.FC<LearningIDEProps> = ({
       </header>
 
       {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
+      {/* Below lg the question panel stacks above the editor and the
+          area scrolls; lg+ keeps the original 40/60 side-by-side split. */}
+      <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden">
         {/* Left Panel - Question & Navigation */}
-        <div 
-          className={`flex flex-col transition-all duration-300 backdrop-blur-sm ${
-            darkMode 
-              ? 'bg-slate-800/80 border-slate-700 text-slate-100' 
+        <div
+          className={`flex flex-col shrink-0 lg:shrink transition-all duration-300 backdrop-blur-sm ${
+            darkMode
+              ? 'bg-slate-800/80 border-slate-700 text-slate-100'
               : 'bg-white/80 border-slate-200 text-slate-900'
-          } border-r`}
-          style={{ width: sidebarCollapsed ? '0px' : '40%', minWidth: sidebarCollapsed ? '0px' : '400px' }}
+          } border-r max-lg:border-r-0 max-lg:border-b ${
+            sidebarCollapsed ? 'w-0 min-w-0' : 'w-full lg:w-[40%] lg:min-w-[400px]'
+          }`}
         >
           {!sidebarCollapsed && (
             <>
@@ -2060,11 +2063,11 @@ const LearningIDE: React.FC<LearningIDEProps> = ({
               />
 
               {/* Current Question Content */}
-              <div className="flex-1 overflow-y-auto p-6">
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6">
                 {/* Question Header */}
                 <div className="mb-6">
-                  <div className="flex items-center gap-3 mb-3">
-                    <h2 className="text-2xl font-bold">{currentQuestion.title}</h2>
+                  <div className="flex flex-wrap items-center gap-3 mb-3">
+                    <h2 className="min-w-0 break-words text-xl sm:text-2xl font-bold">{currentQuestion.title}</h2>
                     <span className={`text-sm px-2.5 py-1 rounded font-medium ${
                       darkMode ? 'bg-amber-500/20 text-amber-300' : 'bg-amber-100 text-amber-800'
                     }`}>
@@ -2300,14 +2303,14 @@ const LearningIDE: React.FC<LearningIDEProps> = ({
         </div>
 
         {/* Center Panel - Code Editor */}
-        <div className="flex-1 flex flex-col" style={{ width: sidebarCollapsed ? '100%' : '60%' }}>
+        <div className={`flex-none h-[85dvh] lg:h-auto lg:flex-1 flex flex-col ${sidebarCollapsed ? 'w-full' : 'w-full lg:w-[60%]'}`}>
           {/* Editor Header */}
           <div className={`border-b transition-colors duration-300 backdrop-blur-sm ${
-            darkMode 
-              ? 'bg-slate-800/80 border-slate-700 text-slate-100' 
+            darkMode
+              ? 'bg-slate-800/80 border-slate-700 text-slate-100'
               : 'bg-white/80 border-slate-200 text-slate-900'
-          } px-4 py-3 flex items-center justify-between`}>
-            <div className="flex items-center gap-4">
+          } px-3 sm:px-4 py-3 flex flex-wrap items-center justify-between gap-2`}>
+            <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-4">
               <button
                 onClick={toggleSidebar}
                 className={`p-2 rounded-lg transition-colors ${
@@ -2319,7 +2322,7 @@ const LearningIDE: React.FC<LearningIDEProps> = ({
               >
                 {sidebarCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
               </button>
-              <span className="font-mono text-sm font-semibold">{currentQuestion.title}</span>
+              <span className="min-w-0 truncate font-mono text-sm font-semibold">{currentQuestion.title}</span>
               <div className={`flex items-center gap-2 text-xs ${
                 darkMode ? 'text-slate-400' : 'text-slate-600'
               }`}>
@@ -2451,7 +2454,7 @@ const LearningIDE: React.FC<LearningIDEProps> = ({
           darkMode 
             ? 'bg-slate-800/80 border-slate-700 text-slate-100' 
             : 'bg-white/80 border-slate-200 text-slate-900'
-        } px-4 py-3 flex justify-between items-center`}>
+        } px-4 py-3 flex flex-wrap justify-between items-center gap-2`}>
           <div className={`text-sm ${
             darkMode ? 'text-slate-400' : 'text-slate-600'
           }`}>

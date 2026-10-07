@@ -184,7 +184,7 @@ export function Sidebarpro({ className }: SidebarProps) {
     // Check if mobile view
     useEffect(() => {
         const checkMobile = () => {
-            setIsMobile(window.innerWidth < 768);
+            setIsMobile(window.innerWidth < 1024);
         };
 
         checkMobile();
@@ -339,7 +339,7 @@ export function Sidebarpro({ className }: SidebarProps) {
             {/* Overlay for mobile when sidebar is expanded */}
             {isMobile && !isCollapsed && (
                 <div
-                    className="fixed inset-0 bg-black/30 z-30 md:hidden"
+                    className="fixed inset-0 bg-black/30 z-30 lg:hidden"
                     onClick={() => setIsCollapsed(true)}
                 />
             )}

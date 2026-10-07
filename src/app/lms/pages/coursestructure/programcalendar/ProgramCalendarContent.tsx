@@ -1800,7 +1800,7 @@ function ProgramCalendarScreen(
     // rather than a lone spinner.
     if (isCoursesLoading) return (
         <Shell embedded={embedded}>
-            <div className="min-h-screen px-6 py-5 md:px-8 space-y-4">
+            <div className="min-h-screen px-3 sm:px-6 py-5 md:px-8 space-y-4">
                 <div className="h-3.5 w-80 animate-pulse rounded-md bg-ink-100" />
                 <div className="flex gap-4 border-b border-hairline pb-2">
                     <div className="h-4 w-28 animate-pulse rounded-md bg-ink-100" />
@@ -1823,10 +1823,10 @@ function ProgramCalendarScreen(
         <Shell embedded={embedded}>
             <style>{`@keyframes savePulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.07)} }`}</style>
             <div className="min-h-screen">
-                <div className="max-w-full mx-auto rounded-2xl border border-hairline bg-surface px-4 py-4 md:px-5 space-y-4">
+                <div className="max-w-full mx-auto rounded-2xl border border-hairline bg-surface px-3 sm:px-4 py-4 md:px-5 space-y-4">
 
                     {/* ── Breadcrumb ── */}
-                    <div className="flex items-center gap-3">
+                    <div className="flex min-w-0 items-center gap-3">
                         <button onClick={() => router.back()} className="h-8 w-8 rounded-control flex items-center justify-center hover:bg-row-hover transition-colors shrink-0">
                             <ArrowLeft className="h-4 w-4 text-subtle"/>
                         </button>
@@ -1845,7 +1845,7 @@ function ProgramCalendarScreen(
 
                     {/* ── Tabs + header save button ── */}
                     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-hairline">
-                        <div className="flex gap-5">
+                        <div className="flex flex-wrap gap-x-3 sm:gap-x-5">
                             <button onClick={() => setActiveTab('session')}
                                 className={`relative px-1 py-2 text-sm font-semibold transition-colors flex items-center gap-1.5 ${activeTab==='session'?'text-heading':'text-subtle hover:text-heading'}`}>
                                 <Clock className="h-3.5 w-3.5"/> Session Details
@@ -1888,7 +1888,7 @@ function ProgramCalendarScreen(
                             {/* ── First-time walkthrough banner ── */}
                             {dataLoaded && !startDate && (
                                 <div className="bg-brand-wash border border-brand-200 rounded-2xl p-5">
-                                    <div className="flex items-start gap-3 mb-4">
+                                    <div className="flex flex-wrap items-start gap-3 mb-4">
                                         <span className="h-8 w-8 rounded-xl bg-brand-700 flex items-center justify-center shrink-0 mt-0.5">
                                             <Sparkles className="h-4 w-4 text-white"/>
                                         </span>
@@ -1936,7 +1936,7 @@ function ProgramCalendarScreen(
                                 </div>
 
                                 {/* Buttons pushed to right */}
-                                <div className="ml-auto flex items-center gap-2 shrink-0">
+                                <div className="ml-auto flex flex-wrap items-center gap-2 shrink-0">
                                     <button onClick={()=>setShowTimetableModal(true)}
                                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-50 border border-brand-100 text-brand-700 text-[12px] font-semibold hover:bg-brand-100 active:scale-95 transition-all">
                                         <CalendarDays className="h-3.5 w-3.5"/> Timetable Preview
@@ -1956,7 +1956,8 @@ function ProgramCalendarScreen(
                                         <span className="text-[10px] font-semibold text-brand-700 bg-brand-50 border border-brand-100 rounded px-1.5 py-0.5">{Math.floor(teachingMins/60)}h {teachingMins%60>0?teachingMins%60+'m':''} / day</span>
                                     </div>
                                     <CardContent className="pt-0 pb-2 px-0">
-                                        <table className="w-full text-xs border-collapse">
+                                        <div className="overflow-x-auto">
+                                        <table className="w-full min-w-[540px] lg:min-w-0 text-xs border-collapse">
                                             <thead>
                                                 <tr className="border-b border-ink-200 bg-ink-50">
                                                     <th className="px-2 py-1.5 text-center text-[10px] font-semibold text-ink-500 w-8">#</th>
@@ -2027,7 +2028,8 @@ function ProgramCalendarScreen(
                                                 </tr>
                                             </tfoot>
                                         </table>
-                                        <div className="flex gap-2 px-3 pt-3 pb-1">
+                                        </div>
+                                        <div className="flex flex-wrap gap-2 px-3 pt-3 pb-1">
                                             <button ref={tourSessionRef} onClick={()=>addSlot('session')} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-brand-700 hover:bg-brand-800 active:scale-95 text-white text-xs font-semibold shadow-sm shadow-brand-200 transition-all">
                                                 <Plus className="h-3.5 w-3.5 shrink-0"/> Add Session
                                             </button>
@@ -2492,8 +2494,8 @@ function ProgramCalendarScreen(
                                 <motion.div initial={{opacity:0}} animate={{opacity:1}} transition={{duration:0.2}} className="rounded-xl border border-ink-200 bg-white shadow-sm overflow-hidden">
 
                                     {/* ── GCal-style toolbar ── */}
-                                    <div className="flex items-center justify-between px-4 py-2.5 border-b border-ink-100 bg-white">
-                                        <div className="flex items-center gap-2">
+                                    <div className="flex flex-wrap items-center justify-between gap-2 px-3 sm:px-4 py-2.5 border-b border-ink-100 bg-white">
+                                        <div className="flex flex-wrap items-center gap-2">
                                             {/* Prev / Next */}
                                             <button
                                                 onClick={()=>{ if(schedCalSubView==='month') setSchedMonth(m=>new Date(m.getFullYear(),m.getMonth()-1,1)); else if(schedCalSubView==='week') setSchedWeekStart(w=>addDays(w,-7)); else setSchedDay(d=>addDays(d,-1)) }}
@@ -2534,14 +2536,14 @@ function ProgramCalendarScreen(
 
                                         {/* ══════════ MONTH VIEW ══════════ */}
                                         {schedCalSubView==='month' && (
-                                            <div>
+                                            <div className="overflow-x-auto">
                                                 {/* Day-of-week header */}
-                                                <div className="grid grid-cols-7 border-b border-ink-100">
+                                                <div className="grid grid-cols-7 min-w-[640px] lg:min-w-0 border-b border-ink-100">
                                                     {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>(
                                                         <div key={d} className={`py-2 text-center text-[11px] font-semibold uppercase tracking-wide ${d==='Sun'?'text-danger-500':'text-ink-400'}`}>{d}</div>
                                                     ))}
                                                 </div>
-                                                <div className="grid grid-cols-7">
+                                                <div className="grid grid-cols-7 min-w-[640px] lg:min-w-0">
                                                     {getMonthGrid(schedMonth).map((d, i) => {
                                                         if (!d) return <div key={i} className="min-h-[110px] bg-ink-50/40 border-b border-r border-ink-100"/>
                                                         const iso = isoDate(d)
@@ -2585,9 +2587,9 @@ function ProgramCalendarScreen(
 
                                         {/* ══════════ WEEK VIEW ══════════ */}
                                         {schedCalSubView==='week' && (
-                                            <div>
+                                            <div className="overflow-x-auto">
                                                 {/* Column headers */}
-                                                <div className="grid grid-cols-7 border-b border-ink-100">
+                                                <div className="grid grid-cols-7 min-w-[640px] lg:min-w-0 border-b border-ink-100">
                                                     {getWeekGrid(schedWeekStart).map((d,i)=>{
                                                         const iso = isoDate(d)
                                                         const isToday = iso===todayIso
@@ -2600,7 +2602,7 @@ function ProgramCalendarScreen(
                                                         )
                                                     })}
                                                 </div>
-                                                <div className="grid grid-cols-7">
+                                                <div className="grid grid-cols-7 min-w-[640px] lg:min-w-0">
                                                     {getWeekGrid(schedWeekStart).map((d,i)=>{
                                                         const iso = isoDate(d)
                                                         const items = scheduleByDate[iso] || []
@@ -2649,7 +2651,7 @@ function ProgramCalendarScreen(
                                             return (
                                                 <div>
                                                     {/* Day view toolbar */}
-                                                    <div className="flex items-center justify-between px-4 py-2 border-b border-ink-100 bg-ink-50/50">
+                                                    <div className="flex flex-wrap items-center justify-between gap-2 px-3 sm:px-4 py-2 border-b border-ink-100 bg-ink-50/50">
                                                         <div className="flex items-center gap-2">
                                                             <button onClick={()=>setSchedDay(d=>addDays(d,-1))} className="h-7 w-7 flex items-center justify-center rounded-full hover:bg-ink-200 text-ink-500 transition-all"><ChevronLeft className="h-3.5 w-3.5"/></button>
                                                             <span className="text-[13px] font-semibold text-ink-700">{schedDay.toLocaleDateString('en-IN',{weekday:'long',day:'2-digit',month:'long'})}</span>
@@ -2725,7 +2727,7 @@ function ProgramCalendarScreen(
                                     </AnimatePresence>
 
                                     {/* Legend */}
-                                    <div className="flex items-center gap-4 px-4 py-2 border-t border-ink-100 bg-ink-50/50">
+                                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-3 sm:px-4 py-2 border-t border-ink-100 bg-ink-50/50">
                                         {[{c:'bg-brand-500',l:'I Do'},{c:'bg-brand-500',l:'We Do'},{c:'bg-success-700',l:'Assessment'},{c:'bg-danger-500',l:'Holiday'}].map(({c,l})=>(
                                             <span key={l} className="flex items-center gap-1.5 text-[11px] text-ink-500"><span className={`h-2.5 w-2.5 rounded-full ${c}`}/>{l}</span>
                                         ))}
@@ -2983,7 +2985,7 @@ function ProgramCalendarScreen(
                         className="fixed inset-0 z-overlay bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
                         <motion.div initial={{opacity:0,scale:0.95,y:8}} animate={{opacity:1,scale:1,y:0}} exit={{opacity:0,scale:0.95,y:8}}
                             onClick={e=>e.stopPropagation()}
-                            className="w-full max-w-md rounded-2xl bg-white shadow-2xl overflow-hidden">
+                            className="w-full max-w-md max-h-[90dvh] overflow-y-auto rounded-2xl bg-white shadow-2xl">
                             {/* Header */}
                             <div className={`px-5 py-4 ${headerBg} text-white flex items-start justify-between`}>
                                 <div>
@@ -3382,8 +3384,8 @@ function ProgramCalendarScreen(
                     className="fixed inset-0 z-modal bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
                     <motion.div initial={{opacity:0,scale:0.95,y:8}} animate={{opacity:1,scale:1,y:0}} exit={{opacity:0,scale:0.95,y:8}}
                         onClick={e=>e.stopPropagation()}
-                        className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl overflow-hidden">
-                        <div className="px-5 py-4 bg-brand-700 text-white flex items-center justify-between">
+                        className="w-full max-w-2xl max-h-[90dvh] overflow-y-auto rounded-2xl bg-white shadow-2xl">
+                        <div className="px-4 sm:px-5 py-4 bg-brand-700 text-white flex items-center justify-between gap-2">
                             <div>
                                 <p className="text-[11px] font-bold uppercase tracking-wider opacity-80">Session Details</p>
                                 <p className="text-[15px] font-extrabold mt-0.5">Timetable Preview

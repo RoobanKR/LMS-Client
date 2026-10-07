@@ -130,7 +130,7 @@ export function AssessmentDetail({
                                 </div>
                             </header>
                             <div className="overflow-x-auto">
-                                <table className="w-full border-collapse">
+                                <table className="w-full min-w-[520px] border-collapse lg:min-w-0">
                                     <thead>
                                         <tr>
                                             {detailed ? <th className={`${TH} w-7`} /> : null}

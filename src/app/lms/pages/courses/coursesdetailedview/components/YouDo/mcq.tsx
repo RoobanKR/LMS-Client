@@ -176,7 +176,7 @@ const ContentBlockRenderer: React.FC<{ title: unknown }> = ({ title }) => {
             const isDark=['#1e1e1e','#282a36','#272822','#2e3440'].includes(bg);
             return (
               <div key={i} style={{ display:'inline-block', maxWidth:'100%', margin:'4px 0' }}>
-                <pre style={{ margin:0,padding:'10px 16px',fontSize:13,lineHeight:1.7,fontFamily:'Menlo,Monaco,"Courier New",monospace',color:isDark?'#d4d4d4':'#1a1a2e',background:bg,borderRadius:8,border:`1.5px solid ${isDark?'#3a3a3a':'#e2e2e2'}`,whiteSpace:'pre',display:'inline-block',width:'400px',maxWidth:'800px',overflowX:'auto',boxSizing:'border-box' as const }}>{cb.value||''}</pre>
+                <pre style={{ margin:0,padding:'10px 16px',fontSize:13,lineHeight:1.7,fontFamily:'Menlo,Monaco,"Courier New",monospace',color:isDark?'#d4d4d4':'#1a1a2e',background:bg,borderRadius:8,border:`1.5px solid ${isDark?'#3a3a3a':'#e2e2e2'}`,whiteSpace:'pre',display:'inline-block',width:'400px',maxWidth:'min(800px, 100%)',overflowX:'auto',boxSizing:'border-box' as const }}>{cb.value||''}</pre>
               </div>
             );
           }
@@ -1493,6 +1493,21 @@ const submitQuiz = async () => {
         .btn-next:hover{background:${T.orangeDark}!important;}
         .btn-flag:hover{border-color:${T.amber}!important;color:${T.amber}!important;background:${T.amberLight}!important;}
         .submit-ok:hover{filter:brightness(1.06);}
+        @media (max-width:1023px){
+          .mcq-body{flex-direction:column!important;}
+          .mcq-qpanel{width:auto!important;border-left:none!important;border-top:1px solid ${T.border};max-height:40%;}
+        }
+        @media (max-width:640px){
+          .mcq-topbar-row{padding:0 12px!important;gap:8px!important;}
+          .mcq-top-right{gap:6px!important;}
+          .mcq-brand,.mcq-brand-div,.mcq-stat,.mcq-stat-div{display:none!important;}
+          .mcq-qmeta{padding:0 12px!important;}
+          .mcq-qmeta-chips{overflow-x:auto;min-width:0;scrollbar-width:none;}
+          .mcq-content{padding:16px 14px!important;}
+          .mcq-opts{grid-template-columns:1fr!important;}
+          .mcq-bottombar{padding:0 12px!important;gap:8px!important;}
+          .mcq-bottombar .btn-prev,.mcq-bottombar .btn-next{padding:10px 14px!important;}
+        }
       `}</style>
 
       <ToastContainer position="top-right" />
@@ -1527,16 +1542,16 @@ const submitQuiz = async () => {
 
     {/* ═══ TOP BAR (fixed height) ═══ */}
 <div style={{ flexShrink:0,height:TOP_BAR_H,background:T.bg,borderBottom:`1px solid ${T.border}`,display:'flex',flexDirection:'column',zIndex:50 }}>
-  <div style={{ flex:1,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 24px',gap:12 }}>
-    
+  <div className="mcq-topbar-row" style={{ flex:1,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 24px',gap:12 }}>
+
     {/* Left — logo + breadcrumb (standalone) OR Exercise Info buttons (embedded) */}
     {!embedded ? (
     <div style={{ display:'flex',alignItems:'center',gap:0,minWidth:0,flex:1 }}>
-      <div style={{ display:'flex',alignItems:'center',gap:7,flexShrink:0,marginRight:14 }}>
+      <div className="mcq-brand" style={{ display:'flex',alignItems:'center',gap:7,flexShrink:0,marginRight:14 }}>
         <div style={{ width:28,height:28,borderRadius:8,background:`linear-gradient(135deg,${T.orange},${T.orangeDark})`,display:'flex',alignItems:'center',justifyContent:'center',boxShadow:`0 3px 10px ${T.orangeGlow}` }}><GraduationCap size={13} color="#fff" /></div>
         <span style={{ fontSize:13,fontWeight:800,color:T.textMain,letterSpacing:'-0.02em' }}>SmartCliff</span>
       </div>
-      <div style={{ width:1,height:18,background:T.border,marginRight:14,flexShrink:0 }} />
+      <div className="mcq-brand-div" style={{ width:1,height:18,background:T.border,marginRight:14,flexShrink:0 }} />
       <nav style={{ display:'flex',alignItems:'center',gap:0,minWidth:0,overflow:'hidden' }}>
         {[{label:courseName!=='Course'&&courseName?courseName:null},{label:finalCategory!=='Course'?finalCategory.replace(/_/g,' '):null},{label:finalSubcategory},{label:exerciseTitle,active:true}].filter(b=>b.label).map((b,i,arr)=>(
           <React.Fragment key={i}>
@@ -1557,7 +1572,7 @@ const submitQuiz = async () => {
     )}
 
     {/* Right — buttons + timer + stats */}
-    <div style={{ display:'flex',alignItems:'center',gap:10,flexShrink:0 }}>
+    <div className="mcq-top-right" style={{ display:'flex',alignItems:'center',gap:10,flexShrink:0 }}>
 
       {!embedded && (<>
       <ExerciseInfoButtons
@@ -1565,7 +1580,7 @@ const submitQuiz = async () => {
         onOverviewClick={() => setShowOverviewModal(true)}
         isGraded={exerciseData?.isGraded !== false}
       />
-      <div style={{ width:1,height:18,background:T.border }} />
+      <div className="mcq-stat-div" style={{ width:1,height:18,background:T.border }} />
       </>)}
 
       {/* Stats — Total / Done / Left / Flagged */}
@@ -1575,13 +1590,13 @@ const submitQuiz = async () => {
         {v:unansweredCount,     label:'Left',   col:T.textMuted},
         {v:flaggedQuestions.size,label:'Flagged',col:T.amber}
       ].map(({v,label,col})=>(
-        <div key={label} style={{ display:'flex',alignItems:'center',gap:3 }}>
+        <div key={label} className="mcq-stat" style={{ display:'flex',alignItems:'center',gap:3 }}>
           <span style={{ fontSize:14,fontWeight:800,color:col }}>{v}</span>
           <span style={{ fontSize:10,color:T.textHint,fontWeight:600 }}>{label}</span>
         </div>
       ))}
 
-      <div style={{ width:1,height:18,background:T.border }} />
+      <div className="mcq-stat-div" style={{ width:1,height:18,background:T.border }} />
 
       {/* Proctor message notification (ephemeral, test-only) */}
       <TestMessageBell assessmentId={(((exerciseData as any)?._id) || ((propExercise as any)?._id) || "")} />
@@ -1603,14 +1618,14 @@ const submitQuiz = async () => {
 </div>
 
       {/* ═══ BODY ═══ */}
-      <div style={{ flex:1,minHeight:0,overflow:'hidden',display:'flex' }}>
+      <div className="mcq-body" style={{ flex:1,minHeight:0,overflow:'hidden',display:'flex' }}>
 
         {/* Left: Question column */}
         <div style={{ flex:1,minWidth:0,minHeight:0,display:'flex',flexDirection:'column',overflow:'hidden' }}>
 
           {/* ── Sticky Q-meta row ── */}
-          <div style={{ flexShrink:0,height:Q_META_H,background:T.bg,borderBottom:`1px solid ${T.border}`,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 28px',gap:10,zIndex:20 }}>
-            <div style={{ display:'flex',alignItems:'center',gap:10 }}>
+          <div className="mcq-qmeta" style={{ flexShrink:0,height:Q_META_H,background:T.bg,borderBottom:`1px solid ${T.border}`,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 28px',gap:10,zIndex:20 }}>
+            <div className="mcq-qmeta-chips" style={{ display:'flex',alignItems:'center',gap:10 }}>
               {/* Q number */}
               <div style={{ display:'flex',alignItems:'baseline',gap:2 }}>
                 <span style={{ fontSize:10,color:T.textHint,fontWeight:700,letterSpacing:'0.05em' }}>Q</span>
@@ -1648,7 +1663,7 @@ const submitQuiz = async () => {
           </div>
 
           {/* ── Scrollable question content ── */}
-          <div ref={scrollRef} className="mcq-fade mcq-s" key={currentQuestionIndex}
+          <div ref={scrollRef} className="mcq-fade mcq-s mcq-content" key={currentQuestionIndex}
             style={{ flex:1,minHeight:0,overflowY:'auto',padding:'24px 28px' }}>
             <div style={{ marginBottom:8 }}><ContentBlockRenderer title={cq.mcqQuestionTitle} /></div>
             {cq.mcqQuestionDescription&&(
@@ -1670,7 +1685,7 @@ const submitQuiz = async () => {
             {cq.mcqQuestionType==='matching'&&cq.matchingPairs&&<MatchingWidget pairs={cq.matchingPairs} answers={matchingAnswers} onChange={handleMatchingChange} disabled={quizCompleted} />}
             {cq.mcqQuestionType==='ordering'&&cq.orderingItems&&<OrderingWidget items={cq.orderingItems} answers={orderingAnswers} onChange={handleOrderingChange} disabled={quizCompleted} />}
             {(cq.mcqQuestionType==='multiple_choice'||cq.mcqQuestionType==='multiple_select')&&(
-              <div style={{ display:'grid',gridTemplateColumns:getGridCols(),gap:10 }}>
+              <div className="mcq-opts" style={{ display:'grid',gridTemplateColumns:getGridCols(),gap:10 }}>
                 {cq.mcqQuestionOptions?.map((option,idx)=>(
                   cq.mcqQuestionType==='multiple_select'
                     ?<CheckboxOption key={option._id} option={option} checked={selectedCheckboxOptions.has(option._id)} onChange={()=>handleOptionSelect(option._id)} index={idx} disabled={quizCompleted} />
@@ -1683,7 +1698,7 @@ const submitQuiz = async () => {
         </div>
 
         {/* Right: Compact question panel */}
-        <div style={{ flexShrink:0,width:270,minHeight:0,borderLeft:`1px solid ${T.border}`,background:T.bg,overflowY:'auto',padding:'16px 14px 20px 14px' }} className="mcq-s">
+        <div style={{ flexShrink:0,width:270,minHeight:0,borderLeft:`1px solid ${T.border}`,background:T.bg,overflowY:'auto',padding:'16px 14px 20px 14px' }} className="mcq-s mcq-qpanel">
           <QuestionPanel
             questions={filteredQuestions} currentIndex={currentQuestionIndex}
             answers={answers} flaggedQuestions={flaggedForSidebar} onJump={handleJumpToQuestion}
@@ -1696,7 +1711,7 @@ const submitQuiz = async () => {
       </div>
 
       {/* ═══ BOTTOM NAV BAR — normal flex child, NOT position:fixed ═══ */}
-      <div style={{ flexShrink:0,height:BOTTOM_BAR_H,background:T.bg,borderTop:`1px solid ${T.border}`,display:'flex',alignItems:'center',padding:'0 28px',gap:16,zIndex:50 }}>
+      <div className="mcq-bottombar" style={{ flexShrink:0,height:BOTTOM_BAR_H,background:T.bg,borderTop:`1px solid ${T.border}`,display:'flex',alignItems:'center',padding:'0 28px',gap:16,zIndex:50 }}>
 
         {/* Previous */}
         <button onClick={handlePrev} disabled={currentQuestionIndex===0&&!onCrossPrev} className="btn-prev"

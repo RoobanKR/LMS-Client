@@ -963,7 +963,7 @@ export default function SectionBasedTestPage({
       {/* Proctor → student messaging is now a header bell (see COMPACT HEADER). */}
 
       {/* ── COMPACT HEADER ── */}
-      <div style={{
+      <div className="max-md:!flex-wrap max-md:!gap-y-1.5 max-sm:!px-2.5" style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: "6px 14px",
         borderBottom: "1px solid #e2e8f0",

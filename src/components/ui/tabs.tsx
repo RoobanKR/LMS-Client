@@ -26,7 +26,9 @@ function TabsList({
     <TabsPrimitive.List
       data-slot="tabs-list"
       className={cn(
-        "bg-ink-100 text-subtle inline-flex h-9 w-fit items-center justify-center rounded-tile p-[3px]",
+        // max-lg: a tab strip wider than a phone/tablet scrolls sideways
+        // (scrollbar hidden) instead of pushing the page wider. lg+ unchanged.
+        "bg-ink-100 text-subtle inline-flex h-9 w-fit items-center justify-center rounded-tile p-[3px] max-lg:max-w-full max-lg:justify-start max-lg:overflow-x-auto max-lg:overflow-y-hidden max-lg:[scrollbar-width:none] max-lg:[&::-webkit-scrollbar]:hidden",
         className
       )}
       {...props}

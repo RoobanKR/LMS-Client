@@ -128,7 +128,7 @@ function pageList(current: number, total: number): (number | '…')[] {
 const StatCard = ({ icon: Icon, iconBg, iconCol, label, value, sub }: {
   icon: React.ElementType; iconBg: string; iconCol: string; label: string; value: string; sub?: string;
 }) => (
-  <div style={{ flex: 1, minWidth: 0, background: '#fff', border: `1px solid ${T.border}`, borderRadius: 12, padding: '11px 14px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+  <div className="rpt-stat" style={{ flex: 1, minWidth: 0, background: '#fff', border: `1px solid ${T.border}`, borderRadius: 12, padding: '11px 14px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
       <div style={{ width: 36, height: 36, borderRadius: 10, background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
         <Icon size={17} style={{ color: iconCol }} />
@@ -477,6 +477,33 @@ export default function CourseLogReportPage() {
         .rpt-export-btn:hover { background: rgba(16,185,129,0.12) !important; }
         .rpt-arc { cursor: pointer; transition: opacity 0.15s; }
         .print-break { break-inside: avoid; page-break-inside: avoid; }
+        /* Responsive overrides for the inline-styled layout. Desktop
+           (>= 1024px) is untouched; every rule sits under a max-width query. */
+        @media screen and (max-width: 1023.98px) {
+          .rpt-filter-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+        }
+        @media screen and (max-width: 767.98px) {
+          .rpt-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+          .rpt-charts { grid-template-columns: minmax(0, 1fr) !important; }
+          .rpt-stat { flex: 1 1 140px !important; }
+          .rpt-pager { flex-wrap: wrap !important; }
+          .rpt-print-overlay { padding: 8px !important; }
+          .rpt-print-dialog { width: 100% !important; height: 92dvh !important; }
+          .rpt-print-body { flex-direction: column !important; }
+          .rpt-print-preview { padding: 12px !important; }
+          .rpt-print-controls { width: auto !important; max-height: 42% !important; border-left: 0 !important; border-top: 1px solid ${T.border} !important; }
+          .rpt-paper { padding: 16px !important; overflow-x: auto !important; }
+          .rpt-paper-summary { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+        }
+        @media screen and (max-width: 639.98px) {
+          .rpt-page { padding: 8px 12px !important; }
+          .rpt-banner-id { flex: 1 1 100% !important; min-width: 0 !important; }
+          .rpt-donut-row { flex-wrap: wrap !important; justify-content: center !important; }
+          .rpt-paper-perday { grid-template-columns: minmax(0, 1fr) !important; }
+        }
+        @media screen and (max-width: 399.98px) {
+          .rpt-filter-grid { grid-template-columns: minmax(0, 1fr) !important; }
+        }
         @media print {
           body * { visibility: hidden !important; }
           #print-paper, #print-paper * { visibility: visible !important; }
@@ -499,7 +526,7 @@ export default function CourseLogReportPage() {
 
         {/* ── Filter box ── */}
         <div style={{ background: '#fff', border: `1px solid ${T.border}`, borderRadius: 12, padding: '12px 14px', marginBottom: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 12 }}>
+          <div className="rpt-filter-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 12 }}>
             <FilterSelect label="Course" value={selectedCourseId || 'all'} onChange={v => setSelectedCourseId(v === 'all' ? '' : v)}
               options={courses.map(c => ({ value: c._id, label: c.courseName }))} placeholder="Select Course" />
             <FilterSelect label="Pedagogy" value={dPedagogy} onChange={v => setDPedagogy(v as any)}
@@ -517,7 +544,7 @@ export default function CourseLogReportPage() {
               </div>
             </div>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
             <button className="rpt-apply-btn" onClick={applyFilters} disabled={!selectedCourseId}
               style={{ display: 'flex', alignItems: 'center', gap: 5, height: 34, padding: '0 16px', fontSize: 12, fontWeight: 600, borderRadius: 8, cursor: !selectedCourseId ? 'not-allowed' : 'pointer', border: 'none', background: T.orange, color: '#fff', transition: 'background 0.15s', opacity: !selectedCourseId ? 0.6 : 1 }}>
               <FileText size={13} /> Generate Report
@@ -551,7 +578,7 @@ export default function CourseLogReportPage() {
           <>
             {/* ── Banner ── */}
             <div style={{ background: '#fff', border: `1px solid ${T.border}`, borderRadius: 12, padding: '12px 16px', marginBottom: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.04)', display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 11, minWidth: 200, flex: '0 0 auto' }}>
+              <div className="rpt-banner-id" style={{ display: 'flex', alignItems: 'center', gap: 11, minWidth: 200, flex: '0 0 auto' }}>
                 <div style={{ width: 42, height: 42, borderRadius: '50%', background: isSingleStudent ? 'rgba(99,102,241,0.14)' : T.orangeLight, color: isSingleStudent ? T.iDo : T.orange, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, flexShrink: 0 }}>
                   {initials(bannerName)}
                 </div>
@@ -584,12 +611,12 @@ export default function CourseLogReportPage() {
             </div>
 
             {/* ── Charts row ── */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1.15fr 1fr', gap: 10, marginBottom: 10 }}>
+            <div className="rpt-charts" style={{ display: 'grid', gridTemplateColumns: '1.15fr 1fr', gap: 10, marginBottom: 10 }}>
 
               {/* Time trend (line) */}
               <div style={{ background: '#fff', border: `1px solid ${T.border}`, borderRadius: 12, padding: '13px 15px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: T.textMain, marginBottom: 8 }}>Time Spent per Day</div>
-                <div style={{ display: 'flex', gap: 12, marginBottom: 6 }}>
+                <div style={{ display: 'flex', gap: 12, marginBottom: 6, flexWrap: 'wrap' }}>
                   {(['I_Do', 'We_Do', 'You_Do'] as const).map(p => (
                     <span key={p} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, color: T.textMuted }}>
                       <span style={{ width: 9, height: 9, borderRadius: 3, background: PEDAGOGY_COLOR[p] }} /> {PEDAGOGY_LABEL[p]}
@@ -602,7 +629,7 @@ export default function CourseLogReportPage() {
               {/* Time by pedagogy (donut, hover) */}
               <div style={{ background: '#fff', border: `1px solid ${T.border}`, borderRadius: 12, padding: '13px 15px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: T.textMain, marginBottom: 10 }}>Time by Pedagogy</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                <div className="rpt-donut-row" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                   <div style={{ position: 'relative', width: 150, height: 150, flexShrink: 0 }}>
                     <svg width={150} height={150} viewBox="0 0 150 150">
                       <circle cx={75} cy={75} r={donut.R} fill="none" stroke={T.borderLight} strokeWidth={17} />
@@ -642,7 +669,7 @@ export default function CourseLogReportPage() {
 
             {/* ── Session Details ── */}
             <div style={{ background: '#fff', border: `1px solid ${T.border}`, borderRadius: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
-              <div style={{ padding: '12px 16px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ padding: '12px 16px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
                 <span style={{ fontSize: 14, fontWeight: 700, color: T.textMain }}>Session Details</span>
                 {matchedTotal > 0 && canExport && (
                   <button className="rpt-export-btn" onClick={exportToExcel}
@@ -686,7 +713,7 @@ export default function CourseLogReportPage() {
               {/* Pagination */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, padding: '10px 16px', borderTop: `1px solid ${T.border}` }}>
                 <span style={{ fontSize: 11.5, color: T.textMuted }}>Showing {startEntry} to {endEntry} of {matchedTotal.toLocaleString()} entries</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <div className="rpt-pager" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                   <button className="rpt-ghost-btn" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
                     style={{ height: 28, padding: '0 10px', fontSize: 11.5, fontWeight: 500, borderRadius: 7, border: `1px solid ${T.border}`, background: '#fff', color: page === 1 ? T.textHint : T.textSub, cursor: page === 1 ? 'not-allowed' : 'pointer' }}>Previous</button>
                   {pageList(page, totalPages).map((p, idx) => p === '…' ? (
@@ -706,9 +733,9 @@ export default function CourseLogReportPage() {
 
       {/* ════════════════ PRINT / CUSTOM REPORT MODAL ════════════════ */}
       {showPrint && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 3000, background: 'rgba(15,23,42,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+        <div className="rpt-print-overlay" style={{ position: 'fixed', inset: 0, zIndex: 3000, background: 'rgba(15,23,42,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
           onClick={() => setShowPrint(false)}>
-          <div onClick={e => e.stopPropagation()} style={{ width: '90vw', maxWidth: 1200, height: '88vh', background: '#fff', borderRadius: 14, boxShadow: '0 20px 60px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div className="rpt-print-dialog" onClick={e => e.stopPropagation()} style={{ width: '90vw', maxWidth: 1200, height: '88vh', background: '#fff', borderRadius: 14, boxShadow: '0 20px 60px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: `1px solid ${T.border}`, flexShrink: 0 }}>
@@ -719,11 +746,11 @@ export default function CourseLogReportPage() {
             </div>
 
             {/* Body: left paper · right controls */}
-            <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+            <div className="rpt-print-body" style={{ flex: 1, minHeight: 0, display: 'flex' }}>
 
               {/* ── LEFT: paper preview ── */}
-              <div className="rpt-scroll" style={{ flex: 1, minWidth: 0, overflowY: 'auto', background: '#eef0f3', padding: '20px 24px' }}>
-                <div id="print-paper" style={{ width: 760, maxWidth: '100%', margin: '0 auto', background: '#fff', boxShadow: '0 2px 10px rgba(0,0,0,0.08)', borderRadius: 4, padding: 32, color: '#1f2937', fontSize: 12 }}>
+              <div className="rpt-scroll rpt-print-preview" style={{ flex: 1, minWidth: 0, overflowY: 'auto', background: '#eef0f3', padding: '20px 24px' }}>
+                <div id="print-paper" className="rpt-paper" style={{ width: 760, maxWidth: '100%', margin: '0 auto', background: '#fff', boxShadow: '0 2px 10px rgba(0,0,0,0.08)', borderRadius: 4, padding: 32, color: '#1f2937', fontSize: 12 }}>
 
                   {/* Report header */}
                   <div style={{ borderBottom: `2px solid ${T.orange}`, paddingBottom: 12, marginBottom: 16 }}>
@@ -747,7 +774,7 @@ export default function CourseLogReportPage() {
                       {pShowSummary && (
                         <div className="print-break" style={{ marginBottom: 18 }}>
                           <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Summary</div>
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                          <div className="rpt-paper-summary" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
                             {[
                               { l: 'Total Time', v: fmtHM(printStats.total) },
                               { l: 'Sessions', v: String(printStats.count) },
@@ -777,7 +804,7 @@ export default function CourseLogReportPage() {
                           {pPieMode === 'overall' ? (
                             <PaperDonut byPed={printStats.byPed} total={printStats.total} size={150} />
                           ) : (
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+                            <div className="rpt-paper-perday" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
                               {printPerDay.map(d => (
                                 <div key={d.key} className="print-break" style={{ border: `1px solid ${T.border}`, borderRadius: 6, padding: 10 }}>
                                   <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 4 }}>{new Date(d.key).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })} · {fmtHM(d.total)}</div>
@@ -838,7 +865,7 @@ export default function CourseLogReportPage() {
               </div>
 
               {/* ── RIGHT: customization controls ── */}
-              <div className="rpt-scroll no-print" style={{ width: 280, flexShrink: 0, borderLeft: `1px solid ${T.border}`, overflowY: 'auto', padding: 14, display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div className="rpt-scroll no-print rpt-print-controls" style={{ width: 280, flexShrink: 0, borderLeft: `1px solid ${T.border}`, overflowY: 'auto', padding: 14, display: 'flex', flexDirection: 'column', gap: 14 }}>
 
                 <div>
                   <div style={{ fontSize: 10.5, fontWeight: 700, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Report Title</div>
@@ -914,9 +941,9 @@ export default function CourseLogReportPage() {
             </div>
 
             {/* Footer */}
-            <div className="no-print" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '12px 16px', borderTop: `1px solid ${T.border}`, flexShrink: 0 }}>
+            <div className="no-print" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '12px 16px', borderTop: `1px solid ${T.border}`, flexShrink: 0, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 11.5, color: T.textMuted }}>{printSessions.length} record{printSessions.length !== 1 ? 's' : ''} in this report</span>
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginLeft: 'auto' }}>
                 <button onClick={() => window.print()} title="Use 'Save as PDF' in the dialog to download"
                   style={{ display: 'flex', alignItems: 'center', gap: 6, height: 36, padding: '0 16px', fontSize: 12.5, fontWeight: 600, borderRadius: 8, cursor: 'pointer', border: `1px solid ${T.border}`, background: '#fff', color: T.textSub }}>
                   <Download size={14} /> Download PDF

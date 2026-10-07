@@ -38,7 +38,7 @@ const ReasonsModal: React.FC<{
       onClick={onClose}
     >
       <div
-        className="w-full max-w-2xl rounded-tile border border-hairline bg-surface p-5 shadow-xl flex flex-col max-h-[85vh]"
+        className="w-full max-w-2xl rounded-tile border border-hairline bg-surface p-4 sm:p-5 shadow-xl flex flex-col max-h-[90dvh] sm:max-h-[85vh]"
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="text-[14px] font-semibold text-ink-900">Reasons required</h3>
@@ -49,9 +49,9 @@ const ReasonsModal: React.FC<{
 
         <div className="mt-3 flex-1 min-h-0 overflow-y-auto divide-y divide-ink-100 border border-ink-100 rounded-md">
           {items.map((it, i) => (
-            <div key={`${it.studentId}|${it.dateKey}`} className="flex items-start gap-3 p-3">
+            <div key={`${it.studentId}|${it.dateKey}`} className="flex flex-col sm:flex-row items-stretch sm:items-start gap-2 sm:gap-3 p-3">
               {/* Left: who / when / what */}
-              <div className="w-52 shrink-0">
+              <div className="w-full sm:w-52 shrink-0 min-w-0">
                 <div className="text-[12.5px] font-medium text-ink-900 truncate">
                   {it.name}
                 </div>
@@ -114,7 +114,7 @@ const ReasonsModal: React.FC<{
           ))}
         </div>
 
-        <div className="mt-3 flex items-center justify-between gap-2">
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
           <span className="text-[11px] text-ink-500">
             {filledCount} / {items.length} reason{items.length === 1 ? "" : "s"} filled
           </span>

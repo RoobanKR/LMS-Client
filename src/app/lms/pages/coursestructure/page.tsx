@@ -364,7 +364,7 @@ export default function CourseStructurePage() {
                     scrolling content from bleeding through; z-20 keeps it
                     below the mobile burger (z-30) and below every dialog
                     (z-popover), so overlays still cover the tabs. */}
-                <div className="no-print sticky top-0 z-20 bg-surface border-b border-hairline shrink-0 flex items-center justify-between gap-3 flex-wrap px-4 sm:px-6 md:px-8 pt-14 md:pt-2 pb-0">
+                <div className="no-print sticky top-0 z-20 bg-surface border-b border-hairline shrink-0 flex items-center justify-between gap-3 flex-wrap px-4 sm:px-6 md:px-8 pt-2 pb-0">
                     {/* Underline tabs: the active one gets the orange icon,
                         orange label and a 2px orange bar sitting on the
                         strip's bottom border; the other stays gray. */}

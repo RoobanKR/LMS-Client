@@ -41,7 +41,7 @@ export const RecentActivity = ({
                             </span>
                             <div className="min-w-0 flex-1 pt-0.5">
                                 <div className="flex items-start justify-between gap-2">
-                                    <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{e.title}</p>
+                                    <p className="min-w-0 truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{e.title}</p>
                                     <span className="shrink-0 text-2xs text-slate-400">{timeAgo(e.at)}</span>
                                 </div>
                                 <div className="mt-0.5 flex items-center gap-2">
@@ -155,7 +155,7 @@ export const SubjectMastery = ({ courses }: { courses: CourseModel[] }) => {
                         return (
                             <div key={r.name}>
                                 <div className="mb-1.5 flex items-center justify-between gap-2">
-                                    <p className="truncate text-sm font-medium text-slate-700 dark:text-slate-200">{r.name}</p>
+                                    <p className="min-w-0 truncate text-sm font-medium text-slate-700 dark:text-slate-200">{r.name}</p>
                                     <span className="shrink-0 text-xs font-bold" style={{ color: tint }}>
                                         {r.score == null ? 'Not graded' : `${r.score}%`}
                                     </span>

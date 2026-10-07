@@ -17,15 +17,15 @@ export function useClientScope() {
 
 export function BackToClients({ name }: { name?: string }) {
   return (
-    <div className="mb-4 flex items-center gap-1.5 text-sm">
+    <div className="mb-4 flex flex-wrap items-center gap-1.5 text-sm">
       <Link
         href="/superadmin/clients"
-        className="inline-flex items-center gap-1 text-muted-foreground transition-colors hover:text-foreground"
+        className="inline-flex shrink-0 items-center gap-1 text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" /> Back to Clients
       </Link>
       {name && (
-        <span className="text-muted-foreground">
+        <span className="min-w-0 break-words text-muted-foreground [overflow-wrap:anywhere]">
           / <span className="font-medium text-foreground">{name}</span>
         </span>
       )}

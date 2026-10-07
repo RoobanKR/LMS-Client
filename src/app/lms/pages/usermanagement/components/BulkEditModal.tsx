@@ -369,12 +369,11 @@ export default function BulkEditModal({ isOpen, onClose, roles, existingUsers, o
   return (
     <Dialog open={isOpen} onOpenChange={(o) => { if (!o && !busy) onClose(); }}>
       <DialogContent
-        className="!max-w-none flex flex-col gap-0 p-0 overflow-hidden rounded-2xl shadow-2xl bg-surface"
-        style={{ width: "95vw", height: "95vh" }}
+        className="!max-w-none w-[95vw] h-[95dvh] flex flex-col gap-0 p-0 overflow-hidden rounded-2xl shadow-2xl bg-surface"
         showCloseButton={false}
         onInteractOutside={(e) => e.preventDefault()}
       >
-        <DialogHeader className="px-6 pt-4 pb-3 border-b border-hairline">
+        <DialogHeader className="px-4 sm:px-6 pt-4 pb-3 border-b border-hairline">
           <div className="flex items-center justify-between gap-3">
             <DialogTitle className="text-base font-semibold text-heading text-left flex items-center gap-2">
               <span className="w-7 h-7 rounded-tile bg-brand-wash flex items-center justify-center">
@@ -394,12 +393,12 @@ export default function BulkEditModal({ isOpen, onClose, roles, existingUsers, o
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 min-h-0 overflow-hidden px-6 py-5 flex flex-col">
+        <div className="flex-1 min-h-0 overflow-hidden px-4 sm:px-6 py-4 sm:py-5 flex flex-col">
           {/* ── Stage 1 · Select users ──────────────────────────────────── */}
           {stage === "pick" && (
             <div className="flex-1 min-h-0 flex flex-col gap-3">
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                <div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="col-span-2 sm:col-span-1">
                   <Label className="mb-1.5 block text-sm font-medium text-body">Search</Label>
                   <div className="relative">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-faint pointer-events-none" />
@@ -484,8 +483,8 @@ export default function BulkEditModal({ isOpen, onClose, roles, existingUsers, o
                 </Dropdown>
               </div>
 
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2 text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                <div className="flex flex-wrap items-center gap-2 text-xs">
                   <span className="inline-flex items-center gap-1 rounded-full border border-hairline bg-surface px-2.5 py-1 text-2xs font-semibold text-heading">
                     <Users className="h-3 w-3" />
                     {selectedUserIds.size} selected
@@ -502,7 +501,7 @@ export default function BulkEditModal({ isOpen, onClose, roles, existingUsers, o
 
               <div className="flex-1 min-h-0 border border-hairline rounded-tile overflow-hidden">
                 <div className="h-full overflow-auto">
-                  <table className="w-full text-xs">
+                  <table className="w-full min-w-[680px] lg:min-w-0 text-xs">
                     <thead className="sticky top-0 z-10 bg-surface">
                       <tr className="text-2xs font-semibold uppercase tracking-wider text-subtle border-b border-hairline">
                         <th className="px-3 py-2 w-8 text-left">
@@ -649,7 +648,7 @@ export default function BulkEditModal({ isOpen, onClose, roles, existingUsers, o
 
               <div className="flex-1 min-h-0 border border-hairline rounded-tile overflow-hidden">
                 <div className="h-full overflow-auto">
-                  <table className="w-full text-xs">
+                  <table className="w-full min-w-[640px] lg:min-w-0 text-xs">
                     <thead className="sticky top-0 z-20 bg-surface">
                       <tr className="text-2xs font-semibold uppercase tracking-wider text-subtle border-b border-hairline">
                         <th className="px-3 py-2 w-8 text-left">
@@ -794,8 +793,8 @@ export default function BulkEditModal({ isOpen, onClose, roles, existingUsers, o
           })()}
         </div>
 
-        <DialogFooter className="bg-surface px-6 pb-4 pt-3 border-t border-hairline">
-          <div className="flex w-full justify-between items-center gap-3">
+        <DialogFooter className="bg-surface px-4 sm:px-6 pb-4 pt-3 border-t border-hairline">
+          <div className="flex flex-wrap w-full justify-between items-center gap-3">
             <div>
               {(stage === "target" || stage === "preview") && (
                 <Button
@@ -814,7 +813,7 @@ export default function BulkEditModal({ isOpen, onClose, roles, existingUsers, o
               )}
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="ml-auto flex flex-wrap justify-end items-center gap-2">
               <Button
                 variant="outline"
                 onClick={() => onClose()}

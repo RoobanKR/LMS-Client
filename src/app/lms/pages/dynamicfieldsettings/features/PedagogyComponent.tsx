@@ -524,7 +524,7 @@ export default function PedagogyManagementComponent() {
                         <Skeleton className="h-7 w-24 rounded-full" />
                     </div>
                     <div className="border-b border-hairline px-4 py-3">
-                        <Skeleton className="h-9 w-64 rounded-control" />
+                        <Skeleton className="h-9 w-full max-w-64 rounded-control" />
                     </div>
                     <SkeletonTable rows={3} cols={2} />
                 </TabCard>
@@ -630,9 +630,9 @@ export default function PedagogyManagementComponent() {
                 }
             >
                 {selectedActivity ? (
-                    <div className="-mx-5 -my-4">
+                    <div className="-mx-4 sm:-mx-5 -my-4">
                         {/* Mini toolbar */}
-                        <div className="flex items-center justify-between gap-3 border-b border-hairline px-5 py-3">
+                        <div className="flex items-center justify-between gap-3 border-b border-hairline px-4 sm:px-5 py-3">
                             <CountPill value={selectedActivity.elements.length} label="elements" />
                             {canAdd && (
                                 <Button size="sm" onClick={handleAddNewElement} disabled={isLoadingMutation}>
@@ -658,7 +658,7 @@ export default function PedagogyManagementComponent() {
                             />
                         ) : (
                             <div className="overflow-x-auto">
-                                <table className="w-full border-collapse" style={{ minWidth: 480 }}>
+                                <table className="w-full border-collapse" style={{ minWidth: 320 }}>
                                     <thead>
                                         <tr>
                                             <th className={`${TH_CLASS} w-16 text-center`}>S.No</th>

@@ -417,13 +417,13 @@ export default function GradePage() {
                             {/* Header with title and stats */}
                             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
                                 <div>
-                                    <h1 className="text-xl font-bold text-gray-900 dark:text-white">Selects Course for overall grade</h1>
+                                    <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">Selects Course for overall grade</h1>
                                     <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
                                         {isStudent ? 'Continue your learning journey' : 'Manage course resources'}
                                     </p>
                                 </div>
 
-                                <div className="flex items-center gap-3">
+                                <div className="flex flex-wrap items-center gap-3">
                                     <div className="flex items-center gap-1 text-xs text-gray-700 dark:text-gray-300 bg-orange-50 dark:bg-orange-900/30 px-3 py-1.5 rounded-lg border border-orange-100 dark:border-orange-800/50">
                                         <BookOpen className="w-3 h-3" />
                                         <span>{allCourses.length} {isStudent ? 'enrolled courses' : 'courses'}</span>
@@ -442,7 +442,7 @@ export default function GradePage() {
                             >
                                 {/* Search Bar */}
                                 <motion.div
-                                    className="relative flex-1 max-w-md"
+                                    className="relative w-full sm:w-auto flex-1 max-w-md"
                                     initial={{ opacity: 0, x: -30 }}
                                     animate={{ opacity: 1, x: 0 }}
                                     transition={{ delay: 0.2 }}

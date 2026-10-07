@@ -39,16 +39,16 @@ const Shimmer = ({ className = '' }: { className?: string }) => (
 );
 
 const DashboardSkeleton = () => (
-    <div className="mx-auto max-w-[1440px] space-y-6">
+    <div className="mx-auto max-w-[1440px] space-y-4 sm:space-y-6">
         <Shimmer className="h-[76px]" />
-        <div className="grid grid-cols-2 gap-6 md:grid-cols-3 xl:grid-cols-6">
+        <div className="grid grid-cols-2 gap-3 sm:gap-6 md:grid-cols-3 xl:grid-cols-6">
             {Array.from({ length: 6 }).map((_, i) => <Shimmer key={i} className="h-[152px]" />)}
         </div>
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:gap-6 xl:grid-cols-3">
             <Shimmer className="h-[420px] xl:col-span-2" />
             <Shimmer className="h-[420px]" />
         </div>
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:gap-6 xl:grid-cols-3">
             {Array.from({ length: 3 }).map((_, i) => <Shimmer key={i} className="h-[320px]" />)}
         </div>
     </div>
@@ -70,7 +70,7 @@ const Header =({ m, onGrades, onCalendar, showGrades }: { m: DashboardModel; onG
     return (
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0">
-                <h1 className="flex items-center gap-2 text-[26px] font-bold tracking-[-0.03em] text-slate-900 dark:text-white">
+                <h1 className="flex flex-wrap items-center gap-2 break-words text-xl font-bold tracking-[-0.03em] text-slate-900 sm:text-2xl lg:text-[26px] dark:text-white">
                     Welcome back, {m.student.firstName}
                     <span className="text-[22px]">👋</span>
                 </h1>
@@ -93,7 +93,7 @@ const Header =({ m, onGrades, onCalendar, showGrades }: { m: DashboardModel; onG
 
             {/* mr-12 clears the shell's corner-pinned notification bell so the
                 My Grades button never slides underneath it. */}
-            <div className="flex shrink-0 items-center gap-2.5 mr-12">
+            <div className="flex shrink-0 flex-wrap items-center gap-2.5 lg:mr-12">
                 <button
                     onClick={onCalendar}
                     className="flex h-10 items-center gap-2 rounded-[14px] border border-[#E5E7EB] bg-white px-3.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 dark:border-gray-800 dark:bg-gray-900 dark:text-slate-300 dark:hover:bg-gray-800"
@@ -198,18 +198,18 @@ export default function StudentDashboardPage() {
 
     return (
         <StudentLayout>
-            <div className="mx-auto max-w-[1440px] space-y-6">
+            <div className="mx-auto max-w-[1440px] space-y-4 sm:space-y-6">
                 <Header m={model} onGrades={goGrades} onCalendar={goCalendar} showGrades />
 
                 {/* Row 1 — KPI strip */}
                 <KpiRow m={model} />
 
                 {/* Row 2 — Learning Journey · Focus · Streak */}
-                <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-                    <div className="xl:col-span-2">
+                <div className="grid grid-cols-1 gap-4 sm:gap-6 xl:grid-cols-3">
+                    <div className="min-w-0 xl:col-span-2">
                         <LearningJourney m={model} onDetails={goCourses} />
                     </div>
-                    <div className="flex flex-col gap-6">
+                    <div className="flex min-w-0 flex-col gap-4 sm:gap-6">
                         <TodayFocus items={model.focus} onViewPlan={goCalendar} />
                         <StreakCard m={model} />
                         <MotivationCard name={model.student.firstName} />
@@ -217,32 +217,32 @@ export default function StudentDashboardPage() {
                 </div>
 
                 {/* Row 3 — Courses · Assignments · Schedule */}
-                <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-12">
-                    <div className="xl:col-span-5">
+                <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2 xl:grid-cols-12">
+                    <div className="min-w-0 xl:col-span-5">
                         <CourseProgressTable courses={model.courses} onOpen={goCourse} onViewAll={goCourses} />
                     </div>
-                    <div className="xl:col-span-3">
+                    <div className="min-w-0 xl:col-span-3">
                         <AssignmentAnalytics m={model} onViewAll={goGrades} />
                     </div>
-                    <div className="lg:col-span-2 xl:col-span-4">
+                    <div className="min-w-0 lg:col-span-2 xl:col-span-4">
                         <UpcomingSchedule deadlines={model.deadlines} onCalendar={goCalendar} />
                     </div>
                 </div>
 
                 {/* Row 4 — Performance · Attendance */}
-                <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4 sm:gap-6 xl:grid-cols-2 [&>*]:min-w-0">
                     <PerformanceTrend trend={model.trend} />
                     <AttendanceAnalytics a={model.attendance} />
                 </div>
 
                 {/* Row 5 — Activity · Insights */}
-                <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4 sm:gap-6 xl:grid-cols-2 [&>*]:min-w-0">
                     <RecentActivity events={model.activity} onViewAll={goNotifications} />
                     <LearningInsights insights={model.insights} scorePct={model.scorePct} />
                 </div>
 
                 {/* Row 6 — Mastery · Achievements */}
-                <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4 sm:gap-6 xl:grid-cols-2 [&>*]:min-w-0">
                     <SubjectMastery courses={model.courses} />
                     <Achievements achievements={model.achievements} completedCourses={model.completed} />
                 </div>

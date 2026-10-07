@@ -248,7 +248,7 @@ function SetsEditor({
                 return (
                     <div key={s.section} className="border-b border-hairline py-2">
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                            <span className="w-[150px] shrink-0 text-[13px] font-medium text-heading">
+                            <span className="w-[120px] sm:w-[150px] shrink-0 text-[13px] font-medium text-heading break-words">
                                 {sectionLabel(s.section)}
                                 <span className="block text-2xs font-normal text-faint">
                                     {s.batches.length ? s.batches.join(', ') : 'No batches'}
@@ -283,7 +283,7 @@ function SetsEditor({
                             const a = mine.find((x) => same(x.batch, b))
                             return (
                                 <div key={b} className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                                    <span className="w-[150px] shrink-0 pl-4 text-xs text-body">{b}</span>
+                                    <span className="w-[120px] sm:w-[150px] shrink-0 pl-4 text-xs text-body break-words">{b}</span>
                                     <SetSelect
                                         label={`${sectionLabel(s.section)} ${b} set`}
                                         value={a?.set || ''}

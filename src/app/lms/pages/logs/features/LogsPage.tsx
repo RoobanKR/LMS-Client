@@ -690,6 +690,26 @@ export default function LogsPage() {
         .logs-export-btn:hover { background: rgba(16,185,129,0.12) !important; }
         .logs-apply-btn:hover { background: ${T.orangeDark} !important; }
         .logs-page-btn:hover { border-color: ${T.orange} !important; color: ${T.orange} !important; }
+        /* Below lg: wide tables scroll sideways instead of crushing 8-11
+           columns into a phone's width. Desktop (>= 1024px) is untouched. */
+        @media (max-width: 1023.98px) {
+          .logs-hscroll { overflow-x: auto !important; }
+          .logs-minw { min-width: 980px !important; }
+          .logs-course-table { min-width: 900px !important; }
+        }
+        @media (max-width: 767.98px) {
+          .logs-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+          .logs-pager { flex-wrap: wrap !important; }
+        }
+        @media (max-width: 639.98px) {
+          .logs-page { padding: 8px 12px !important; }
+          .logs-search-wrap { flex: 1 1 100% !important; }
+          .logs-search-wrap input { width: 100% !important; }
+          .logs-date-field { flex: 1 1 130px !important; min-width: 0 !important; }
+        }
+        @media (max-width: 399.98px) {
+          .logs-filter-grid { grid-template-columns: minmax(0, 1fr) !important; }
+        }
       `}</style>
 
       <div className="logs-page" style={{
@@ -716,7 +736,7 @@ export default function LogsPage() {
           }}>
             {/* Filter row — inline, no card wrapper */}
             <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', padding: '0 2px' }}>
-              <div style={{ position: 'relative', flexShrink: 0 }}>
+              <div className="logs-search-wrap" style={{ position: 'relative', flexShrink: 0 }}>
                 <Search size={12} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: T.textHint, pointerEvents: 'none' }} />
                 <input
                   className="logs-input"
@@ -795,8 +815,8 @@ export default function LogsPage() {
                     the columns squeeze to fit the container — long values
                     truncate with a title tooltip instead of forcing a
                     horizontal scrollbar. */}
-                <div className="logs-scroll" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflowX: 'hidden' }}>
-                  <div style={{ borderBottom: `1px solid ${T.border}`, flexShrink: 0, position: 'sticky', top: 0, zIndex: 2 }}>
+                <div className="logs-scroll logs-hscroll" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflowX: 'hidden' }}>
+                  <div className="logs-minw" style={{ borderBottom: `1px solid ${T.border}`, flexShrink: 0, position: 'sticky', top: 0, zIndex: 2 }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
                       <thead><tr>
                         {[
@@ -817,7 +837,7 @@ export default function LogsPage() {
                       </tr></thead>
                     </table>
                   </div>
-                  <div className="logs-scroll" style={{ overflowY: 'auto', overflowX: 'hidden', flex: 1, minHeight: 0 }}>
+                  <div className="logs-scroll logs-minw" style={{ overflowY: 'auto', overflowX: 'hidden', flex: 1, minHeight: 0 }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
                       <colgroup>
                         <col style={{ width: '3%' }} /><col style={{ width: '13%' }} />
@@ -925,7 +945,7 @@ export default function LogsPage() {
               <div style={{ flexShrink: 0, background: '#fff', border: `1px solid ${T.border}`, borderRadius: 10, padding: '10px 12px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
 
                 {/* Row 1 — selects */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 9 }}>
+                <div className="logs-filter-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 9 }}>
                   <FilterSelect
                     label="Course"
                     value={selectedCourseId || 'all'}
@@ -966,7 +986,7 @@ export default function LogsPage() {
                 {/* Row 2 — dates / search / actions */}
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, flexWrap: 'wrap' }}>
                   {/* From */}
-                  <div style={{ display: 'flex', flexDirection: 'column', flex: '0 0 170px', minWidth: 140 }}>
+                  <div className="logs-date-field" style={{ display: 'flex', flexDirection: 'column', flex: '0 0 170px', minWidth: 140 }}>
                     <FieldLabel>From Date</FieldLabel>
                     <input
                       type="date" value={dFrom} onChange={e => setDFrom(e.target.value)} disabled={!selectedCourseId}
@@ -975,7 +995,7 @@ export default function LogsPage() {
                     />
                   </div>
                   {/* To */}
-                  <div style={{ display: 'flex', flexDirection: 'column', flex: '0 0 170px', minWidth: 140 }}>
+                  <div className="logs-date-field" style={{ display: 'flex', flexDirection: 'column', flex: '0 0 170px', minWidth: 140 }}>
                     <FieldLabel>To Date</FieldLabel>
                     <input
                       type="date" value={dTo} onChange={e => setDTo(e.target.value)} disabled={!selectedCourseId}
@@ -1058,7 +1078,7 @@ export default function LogsPage() {
                 ) : (
                   <>
                     <div className="logs-scroll" style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+                      <table className="logs-course-table" style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
                         <colgroup>
                           <col style={{ width: '4%' }} /><col style={{ width: '16%' }} />
                           <col style={{ width: '9%' }} /><col style={{ width: '21%' }} />
@@ -1112,7 +1132,7 @@ export default function LogsPage() {
 
                     {/* Footer / pagination */}
                     <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, padding: '10px 16px', borderTop: `1px solid ${T.border}`, background: '#fff' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div className="logs-pager" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                         <span style={{ fontSize: 11, color: T.textMuted }}>
                           Showing {startEntry} to {endEntry} of {matchedTotal.toLocaleString()} entries
                         </span>
@@ -1123,7 +1143,7 @@ export default function LogsPage() {
                           </button>
                         )}
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <div className="logs-pager" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                         <button
                           className="logs-page-btn"
                           onClick={() => setPage(p => Math.max(1, p - 1))}

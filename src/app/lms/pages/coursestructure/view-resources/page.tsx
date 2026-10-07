@@ -259,7 +259,7 @@ export default function ViewResourcesPage() {
                  lddashboard) and left a real back-stack entry.
               3. /lms/pages/coursestructure — final fallback so the button always
                  does SOMETHING; a hard-refresh into this URL has no history. */}
-        <div className="px-4 pt-2 flex items-center gap-3">
+        <div className="px-3 sm:px-4 pt-2 flex flex-wrap items-center gap-3">
           <button
             type="button"
             onClick={() => {
@@ -315,12 +315,12 @@ export default function ViewResourcesPage() {
         </div>
 
         {/* Course header */}
-        <div className="px-4 pt-1.5 flex items-center justify-between gap-3">
+        <div className="px-4 pt-1.5 flex flex-wrap items-center justify-between gap-3">
           <div className="text-[13px] text-gray-800 min-w-0">
             <span className="font-medium text-gray-500">Course Name:</span>{' '}
             <span className="font-semibold text-gray-900 truncate">{course?.courseName || '—'}</span>
           </div>
-          <div className="flex items-center gap-2 text-[11px]">
+          <div className="flex flex-wrap items-center gap-2 text-[11px]">
             <Badge className="bg-amber-50 text-amber-700 border-amber-200 h-5 px-1.5">
               {counts.pending} pending
             </Badge>
@@ -395,7 +395,7 @@ export default function ViewResourcesPage() {
 
         {/* Confirm Approve Dialog */}
         <Dialog open={!!confirm} onOpenChange={(o) => !o && setConfirm(null)}>
-          <DialogContent className={`${poppins.className} max-w-md`}>
+          <DialogContent className={`${poppins.className} max-w-[calc(100%-2rem)] sm:max-w-md`}>
             <DialogHeader>
               <DialogTitle className="text-[15px] flex items-center gap-2">
                 <ShieldCheck className="h-4 w-4 text-indigo-600" />
@@ -430,7 +430,7 @@ export default function ViewResourcesPage() {
         {/* Reject Dialog — approver types a message that becomes the query
             shown to the trainer via notification + email. */}
         <Dialog open={!!rejectTarget} onOpenChange={(o) => { if (!o) { setRejectTarget(null); setRejectMessage('') } }}>
-          <DialogContent className={`${poppins.className} max-w-md`}>
+          <DialogContent className={`${poppins.className} max-w-[calc(100%-2rem)] sm:max-w-md`}>
             <DialogHeader>
               <DialogTitle className="text-[15px] flex items-center gap-2">
                 <XCircle className="h-4 w-4 text-red-600" />
@@ -480,7 +480,7 @@ export default function ViewResourcesPage() {
 
         {/* Detail Drawer (modal) */}
         <Dialog open={!!detail} onOpenChange={(o) => !o && setDetail(null)}>
-          <DialogContent className={`${poppins.className} flex flex-col w-[calc(100vw-2rem)] max-w-3xl h-[calc(100vh-2rem)] max-h-[85vh] my-4 p-0 rounded-lg overflow-hidden`}>
+          <DialogContent className={`${poppins.className} flex flex-col w-[calc(100vw-2rem)] max-w-3xl h-[calc(100dvh-2rem)] max-h-[85dvh] my-4 p-0 rounded-lg overflow-hidden`}>
             <DialogHeader className="shrink-0 px-5 pt-4 pb-3 border-b">
               <DialogTitle className="text-[15px] font-semibold">
                 {detail?.exerciseName}
@@ -553,22 +553,22 @@ function ResourceList({
     <div className="space-y-2">
       {items.map((item) => (
         <div key={String(item.exerciseId)} className="border rounded-md p-3 bg-white hover:border-indigo-300 transition-colors">
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap">
-                <div className="text-[13px] font-semibold text-gray-900 truncate">
+                <div className="text-[13px] font-semibold text-gray-900 truncate max-w-full">
                   {item.exerciseName || 'Untitled'}
                 </div>
                 {renderStatusChip(item)}
               </div>
-              <div className="text-[11px] text-gray-500 mt-0.5">
+              <div className="text-[11px] text-gray-500 mt-0.5 break-words">
                 {item.exerciseType || '—'} · {item.entityName || item.entityType} · {item.subcategory}
                 {item.totalDuration ? ` · ${item.totalDuration} min` : ''}
                 {item.totalMarks ? ` · ${item.totalMarks} marks` : ''}
               </div>
               {renderChain(item)}
             </div>
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex flex-wrap items-center gap-1.5 shrink-0">
               <Button variant="outline" size="sm" className="h-7 px-2 text-xs gap-1.5"
                 onClick={() => onView(item)}>
                 <Eye className="h-3.5 w-3.5" /> View
@@ -1356,7 +1356,7 @@ function QuestionsTab({
         const showActions = canAct && (status === 'pending' || (isRejected && reworked))
         return (
           <div key={qid} className="border rounded-md p-3 bg-white">
-            <div className="flex items-start justify-between gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-[12px] font-semibold text-gray-900">Q{i + 1}</span>
@@ -1386,7 +1386,7 @@ function QuestionsTab({
                   <QueryThread queries={queriesArr} />
                 )}
               </div>
-              <div className="flex items-start gap-2 shrink-0">
+              <div className="flex flex-wrap items-start gap-2 shrink-0">
                 <Button
                   size="sm"
                   variant="outline"
@@ -1482,7 +1482,7 @@ function QuestionsTab({
 
       {/* Per-question Detail Dialog */}
       <Dialog open={!!viewing} onOpenChange={(o) => !o && setViewing(null)}>
-        <DialogContent className={`${poppins.className} flex flex-col w-[calc(100vw-2rem)] max-w-3xl h-[calc(100vh-2rem)] max-h-[85vh] my-4 p-0 rounded-lg overflow-hidden`}>
+        <DialogContent className={`${poppins.className} flex flex-col w-[calc(100vw-2rem)] max-w-3xl h-[calc(100dvh-2rem)] max-h-[85dvh] my-4 p-0 rounded-lg overflow-hidden`}>
           <DialogHeader className="shrink-0 px-5 pt-4 pb-3 border-b">
             <DialogTitle className="text-[15px] font-semibold">
               Question {viewingIndex >= 0 ? `Q${viewingIndex + 1}` : ''} Details
@@ -1796,7 +1796,7 @@ function QuestionDetail({ q }: { q: any }) {
                   {tc?.isSample && <span className="px-1.5 py-0 rounded text-[10px] bg-blue-50 text-blue-700 border border-blue-200">Sample</span>}
                   {tc?.isHidden && <span className="px-1.5 py-0 rounded text-[10px] bg-gray-100 text-gray-600 border">Hidden</span>}
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {has(tc?.input) && (
                     <div>
                       <div className="text-gray-500 mb-0.5">Input</div>

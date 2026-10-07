@@ -31,7 +31,7 @@ export default function EventBlock({
     const meta = typeMeta(holiday.type)
     const dur = durationLabel(holiday.duration)
 
-    const pad = size === 'sm' ? 'px-1.5 py-1' : size === 'lg' ? 'px-3 py-2.5' : 'px-2.5 py-2'
+    const pad = size === 'sm' ? 'px-1 py-0.5 sm:px-1.5 sm:py-1' : size === 'lg' ? 'px-3 py-2.5' : 'px-2.5 py-2'
     const nameCls = size === 'sm' ? 'text-2xs' : size === 'lg' ? 'text-sm' : 'text-xs'
     const showActions = (onEdit || onRemove) && size !== 'sm'
 
@@ -55,11 +55,11 @@ export default function EventBlock({
                       }
                     : undefined
             }
-            className={`group/event relative flex items-center gap-2 rounded-chip border-l-[3px] ${meta.bar} ${meta.cell} ${pad} min-w-0 ${
+            className={`group/event relative flex items-center ${size === 'sm' ? 'gap-1 sm:gap-2' : 'gap-2'} rounded-chip border-l-[3px] ${meta.bar} ${meta.cell} ${pad} min-w-0 ${
                 onOpen ? 'cursor-pointer' : ''
             } ${size === 'sm' ? '' : 'shadow-xs'}`}
         >
-            <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${meta.dot}`} aria-hidden="true" />
+            <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${meta.dot} ${size === 'sm' ? 'hidden sm:block' : ''}`} aria-hidden="true" />
             <div className="min-w-0 flex-1">
                 <p className={`${nameCls} font-semibold text-heading truncate leading-tight`}>{holiday.name}</p>
                 {size !== 'sm' ? (
@@ -75,7 +75,7 @@ export default function EventBlock({
 
             {showActions && (
                 <div
-                    className="flex items-center gap-0.5 opacity-0 group-hover/event:opacity-100 transition-opacity duration-150 shrink-0"
+                    className="flex items-center gap-0.5 opacity-100 lg:opacity-0 lg:group-hover/event:opacity-100 transition-opacity duration-150 shrink-0"
                     onClick={(e) => e.stopPropagation()}
                     onMouseDown={(e) => e.stopPropagation()}
                 >

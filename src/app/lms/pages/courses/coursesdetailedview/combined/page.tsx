@@ -228,6 +228,11 @@ const CombinedExerciseMixed = () => {
   const [timeLeft, setTimeLeft] = useState(0);
   const [totalDuration, setTotalDuration] = useState(0);
   const [showRightSidebar, setShowRightSidebar] = useState(true);
+  // Below lg the question navigator floats over the content, so start it
+  // closed there (the toolbar toggle still opens it). Desktop is unchanged.
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches) setShowRightSidebar(false);
+  }, []);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   // Holds the active code/sql/frontend question's own submit fn, registered by the child
   const questionSubmitRef = useRef<null | (() => void | Promise<void>)>(null);
@@ -742,6 +747,18 @@ const CombinedExerciseMixed = () => {
         .btn-prev:hover:not(:disabled) { border-color: ${T.orange}!important; color: ${T.orange}!important; }
         .btn-next:hover { filter: brightness(1.06); }
         .btn-skip:hover:not(:disabled) { border-color: ${T.orange}!important; color: ${T.orange}!important; }
+        @media (max-width: 1023px) {
+          .comb-body { position: relative; }
+          .comb-qpanel { position: absolute; top: 0; right: 0; bottom: 0; z-index: 40; max-width: 85vw; box-shadow: -8px 0 24px rgba(0,0,0,0.12); }
+        }
+        @media (max-width: 640px) {
+          .comb-topbar-row { padding: 0 10px !important; gap: 6px !important; }
+          .comb-crumbs { display: none !important; }
+          .comb-right { flex: 0 0 auto !important; }
+          .comb-toggle { font-size: 0 !important; gap: 0 !important; padding: 8px 10px !important; }
+          .comb-submit { padding: 8px 12px !important; font-size: 12px !important; }
+          .comb-bottombar { padding: 0 10px !important; }
+        }
       `}</style>
 
       <ToastContainer position="top-right" />
@@ -760,11 +777,11 @@ const CombinedExerciseMixed = () => {
 
       {/* ═══ TOP BAR ═══ */}
       <div style={{ flexShrink: 0, height: TOP_BAR_H, background: T.bg, borderBottom: `1px solid ${T.border}`, display: 'flex', flexDirection: 'column', zIndex: 50 }}>
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', gap: 12 }}>
+        <div className="comb-topbar-row" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', gap: 12 }}>
 
           {/* Left: breadcrumb (back button intentionally removed — students leave
               via Submit Exercise so they don't accidentally lose progress). */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 0, minWidth: 0, flex: 1 }}>
+          <div className="comb-crumbs" style={{ display: 'flex', alignItems: 'center', gap: 0, minWidth: 0, flex: 1 }}>
             <nav style={{ display: 'flex', alignItems: 'center', gap: 0, minWidth: 0, overflow: 'hidden' }}>
               {breadcrumbs.map((b, i, arr) => (
                 <React.Fragment key={i}>
@@ -816,6 +833,7 @@ const CombinedExerciseMixed = () => {
             <button
               onClick={() => setShowRightSidebar(v => !v)}
               title={showRightSidebar ? 'Hide Question Navigator' : 'Show Question Navigator'}
+              className="comb-toggle"
               style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, fontFamily: 'inherit', border: `1.5px solid ${T.border}`, background: 'transparent', color: T.textSub, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.13s' }}
             >
               {showRightSidebar
@@ -826,10 +844,11 @@ const CombinedExerciseMixed = () => {
           </div>
 
           {/* Right: stats + submit exercise */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, justifyContent: 'flex-end' }}>
+          <div className="comb-right" style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, justifyContent: 'flex-end' }}>
             {!isTestSubmitted ? (
               <button
                 onClick={() => setShowSubmitConfirm(true)}
+                className="comb-submit"
                 style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 10, border: 'none', background: T.green, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 3px 14px rgba(34,197,94,0.25)', flexShrink: 0 }}
               >
                 <CheckCircle size={14} /> Submit Exercise
@@ -845,7 +864,7 @@ const CombinedExerciseMixed = () => {
       </div>
 
       {/* ═══ BODY ═══ */}
-      <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex' }}>
+      <div className="comb-body" style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex' }}>
 
         {/* Left column */}
         <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -977,7 +996,7 @@ const CombinedExerciseMixed = () => {
             so the student can still see the clock. */}
         {showRightSidebar && (
         <div
-          className="comb-s"
+          className="comb-s comb-qpanel"
           style={{ flexShrink: 0, width: 270, minHeight: 0, borderLeft: `1px solid ${T.border}`, background: T.bg, overflowY: 'auto', padding: '16px 14px 20px 14px' }}
         >
           <CombinedQuestionPanel
@@ -995,7 +1014,7 @@ const CombinedExerciseMixed = () => {
       </div>
 
       {/* ═══ BOTTOM NAV BAR ═══ */}
-      <div style={{ flexShrink: 0, height: BOTTOM_BAR_H, background: T.bg, borderTop: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', padding: '0 20px', gap: 10, zIndex: 50 }}>
+      <div className="comb-bottombar" style={{ flexShrink: 0, height: BOTTOM_BAR_H, background: T.bg, borderTop: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', padding: '0 20px', gap: 10, zIndex: 50 }}>
 
         {/* Step dots — left/flex */}
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 4, overflow: 'hidden' }}>

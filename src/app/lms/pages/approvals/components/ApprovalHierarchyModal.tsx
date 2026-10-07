@@ -230,7 +230,7 @@ export default function ApprovalHierarchyModal({
         // backdrop, so only the header X (or Esc) can close — and both go
         // through requestClose, which confirms when there are edits pending.
         onInteractOutside={(e) => e.preventDefault()}
-        className={`${poppins.className} flex flex-col w-[calc(100vw-2rem)] max-w-3xl h-[calc(100vh-2rem)] max-h-[85vh] my-4 p-0 rounded-lg overflow-hidden`}
+        className={`${poppins.className} flex flex-col w-[calc(100vw-2rem)] max-w-3xl h-[calc(100dvh-2rem)] max-h-[85dvh] my-4 p-0 rounded-lg overflow-hidden`}
       >
         <DialogHeader className="shrink-0 px-5 pt-4 pb-3 border-b">
           <div className="flex items-start justify-between gap-3">
@@ -276,7 +276,7 @@ export default function ApprovalHierarchyModal({
           </div>
         </DialogHeader>
 
-        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-5 space-y-3">
+        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 sm:p-5 space-y-3">
           {isLoading ? (
             <div className="text-[12px] text-gray-500 py-10 text-center">Loading…</div>
           ) : availableRoles.length === 0 ? (
@@ -444,8 +444,8 @@ export default function ApprovalHierarchyModal({
         </div>
 
         <DialogFooter className="shrink-0 border-t px-5 py-3 bg-white">
-          <div className="flex items-center justify-between w-full gap-2">
-            <div className="text-[11px] text-gray-500">
+          <div className="flex flex-wrap items-center justify-between w-full gap-2">
+            <div className="min-w-0 text-[11px] text-gray-500">
               {invalid ? (
                 <span className="text-amber-700">{invalid}</span>
               ) : (

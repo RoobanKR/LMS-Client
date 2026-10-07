@@ -14,7 +14,8 @@
  */
 
 import { useEffect, useState } from "react";
-import { Menu } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { BookOpen, Menu } from "lucide-react";
 import { Sidebar } from "./sidebar";
 import { CommandPalette } from "../shared/ui/CommandPalette";
 import { useAccountMenu } from "../pages/courses/coursesdetailedview/components/useAccountMenu";
@@ -45,6 +46,10 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   // Expanded by default on desktop (matches the design); collapsed on mobile.
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  // Below lg the rail is an off-canvas drawer, closed by default. Desktop
+  // (>= lg) keeps the in-flow rail driven by isCollapsed exactly as before.
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const pathname = usePathname();
   const { handleLogout } = useAccountMenu();
 
   // Refresh permissions on navigation without remounting the sidebar.
@@ -56,8 +61,31 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Drawer closes on navigation, on Escape, and when the viewport grows back
+  // to the desktop rail.
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileOpen(false);
+    };
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const onMq = () => {
+      if (mq.matches) setMobileOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    mq.addEventListener?.("change", onMq);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      mq.removeEventListener?.("change", onMq);
+    };
+  }, [mobileOpen]);
+
   return (
-    <SidebarContext.Provider value={{ isCollapsed, setIsCollapsed, hasSidebar: true }}>
+    <SidebarContext.Provider value={{ isCollapsed, setIsCollapsed, hasSidebar: true, mobileOpen, setMobileOpen }}>
       {/* Print rules: hide the shell chrome (sidebar, notification bell,
           mobile menu button, and anything a page tagged as .no-print) so
           window.print() gives the reader just the page content. Unwrap the
@@ -87,28 +115,48 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         .print-only { display: none; }
       `}</style>
       <div
-        className={`${poppins.variable} dashboard-shell h-screen flex bg-surface-sunken`}
+        className={`${poppins.variable} dashboard-shell h-dvh flex bg-surface-sunken`}
         style={{ fontFamily: "var(--font-poppins), 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}
       >
-        {/* Full-height sidebar, flat on the gray canvas */}
-        <aside className="dashboard-aside no-print flex-shrink-0 h-full">
+        {/* Below lg: dimmed backdrop behind the off-canvas drawer. */}
+        {mobileOpen && (
+          <div
+            aria-hidden="true"
+            onClick={() => setMobileOpen(false)}
+            className="no-print fixed inset-0 z-[1090] bg-black/40 lg:hidden"
+          />
+        )}
+
+        {/* Full-height sidebar, flat on the gray canvas. Below lg it becomes
+            an off-canvas drawer (fixed, slides in from the left). */}
+        <aside
+          className={`dashboard-aside no-print flex-shrink-0 h-full max-lg:fixed max-lg:inset-y-0 max-lg:left-0 max-lg:z-overlay max-lg:h-auto max-lg:bg-surface-sunken max-lg:shadow-xl max-lg:transition-[transform,visibility] max-lg:duration-200 ${mobileOpen ? "max-lg:translate-x-0" : "max-lg:invisible max-lg:-translate-x-full"}`}
+        >
           <Sidebar />
         </aside>
 
         {/* Floating white workspace: the canvas shows through as a gutter on
-            the panel's top, right and bottom edges, flowing from the rail. */}
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden p-3.5 pl-0 max-md:p-2.5 max-md:pl-2.5">
+            the panel's top, right and bottom edges, flowing from the rail.
+            Below lg the rail is off-canvas, so the gutter wraps all sides. */}
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden p-3.5 pl-0 max-lg:pl-3.5 max-md:p-2.5 max-md:pl-2.5">
           <div className="dashboard-panel relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[18px] border border-hairline bg-surface shadow-xs">
 
-            {/* Mobile only: reopens the sidebar overlay (the old navbar burger). */}
-            <button
-              type="button"
-              onClick={() => setIsCollapsed(false)}
-              aria-label="Open navigation"
-              className="no-print absolute top-3 left-4 z-30 inline-flex h-9 w-9 items-center justify-center rounded-full border border-hairline bg-surface text-body shadow-xs md:hidden"
-            >
-              <Menu className="h-[18px] w-[18px]" strokeWidth={2} />
-            </button>
+            {/* Below lg: compact top bar with the drawer's hamburger. */}
+            <div className="no-print flex h-12 flex-shrink-0 items-center gap-2.5 border-b border-hairline px-3 lg:hidden">
+              <button
+                type="button"
+                onClick={() => setMobileOpen(true)}
+                aria-label="Open navigation"
+                aria-expanded={mobileOpen}
+                className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border border-hairline bg-surface text-body shadow-xs"
+              >
+                <Menu className="h-[18px] w-[18px]" strokeWidth={2} />
+              </button>
+              <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-tile bg-gradient-to-b from-brand-400 to-brand-600 shadow-sm">
+                <BookOpen className="h-4 w-4 text-white" />
+              </div>
+              <span className="min-w-0 truncate text-sm font-bold tracking-[-0.01em] text-heading">SmartCliff</span>
+            </div>
 
             {/* overflow-x-hidden is explicit: without it, overflow-y-auto
                 alone computes overflow-x to auto per CSS spec, and any child

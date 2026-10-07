@@ -366,7 +366,7 @@ export default function ChainsPanel() {
         <>
             {/* ── Toolbar: search + three dropdowns + Clear ── */}
             <div className="shrink-0 mb-3 flex flex-wrap items-center gap-2">
-                <div className="relative flex-1 min-w-[240px] max-w-md">
+                <div className="relative flex-1 basis-full sm:basis-0 min-w-0 sm:min-w-[240px] max-w-md">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-faint pointer-events-none" />
                     <input
                         type="text"
@@ -389,7 +389,7 @@ export default function ChainsPanel() {
                 </div>
 
                 <Select value={clientFilter} onValueChange={setClientFilter}>
-                    <SelectTrigger aria-label="Filter by client" className="h-9 min-w-[180px] rounded-md border-hairline">
+                    <SelectTrigger aria-label="Filter by client" className="h-9 flex-1 min-w-[140px] sm:flex-initial sm:min-w-[180px] rounded-md border-hairline">
                         <SelectValue placeholder="All clients" />
                     </SelectTrigger>
                     <SelectContent
@@ -405,7 +405,7 @@ export default function ChainsPanel() {
                 </Select>
 
                 <Select value={courseFilter} onValueChange={setCourseFilter}>
-                    <SelectTrigger aria-label="Filter by course" className="h-9 min-w-[180px] rounded-md border-hairline">
+                    <SelectTrigger aria-label="Filter by course" className="h-9 flex-1 min-w-[140px] sm:flex-initial sm:min-w-[180px] rounded-md border-hairline">
                         <SelectValue placeholder="All courses" />
                     </SelectTrigger>
                     <SelectContent
@@ -421,7 +421,7 @@ export default function ChainsPanel() {
                 </Select>
 
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger aria-label="Filter by approval status" className="h-9 min-w-[160px] rounded-md border-hairline">
+                    <SelectTrigger aria-label="Filter by approval status" className="h-9 flex-1 min-w-[140px] sm:flex-initial sm:min-w-[160px] rounded-md border-hairline">
                         <SelectValue placeholder="All statuses" />
                     </SelectTrigger>
                     <SelectContent

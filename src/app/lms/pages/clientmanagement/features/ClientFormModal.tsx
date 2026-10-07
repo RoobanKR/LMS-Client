@@ -456,7 +456,7 @@ function LogoPicker({
         const name = pickedMeta?.name || filenameFromUrl(value)
         const size = pickedMeta ? formatBytes(pickedMeta.size) : null
         return (
-            <div className="flex items-center gap-4 rounded-tile border border-hairline bg-canvas p-3">
+            <div className="flex items-center gap-3 rounded-tile border border-hairline bg-canvas p-3 sm:gap-4">
                 {hiddenInput}
                 <ProfileCropCircle
                     src={shownSrc}
@@ -476,7 +476,7 @@ function LogoPicker({
                     <span className="text-2xs text-subtle">
                         {size ? `${size} · ` : ''}Drag the image to reposition
                     </span>
-                    <div className="mt-1 flex items-center gap-1.5">
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
                         <button
                             type="button"
                             onClick={openPicker}

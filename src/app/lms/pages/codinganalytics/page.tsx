@@ -64,8 +64,8 @@ const Card = ({ children, className = '' }: { children: React.ReactNode; classNa
 );
 
 const CardHead = ({ title, sub, right }: { title: string; sub?: string; right?: React.ReactNode }) => (
-  <div className="flex items-start justify-between gap-3 px-5 pt-4 pb-3">
-    <div>
+  <div className="flex flex-wrap items-start justify-between gap-3 px-4 pt-4 pb-3 sm:flex-nowrap sm:px-5">
+    <div className="min-w-0">
       <h2 className="text-[13px] font-semibold text-gray-900 tracking-[-0.01em]">{title}</h2>
       {sub && <p className="text-[11px] text-gray-500 mt-0.5">{sub}</p>}
     </div>
@@ -439,7 +439,7 @@ export default function CodingAnalyticsPage() {
                     const maxT = Math.max(1, ...report!.topics!.map((t) => t.solved));
                     return report!.topics!.map((t) => (
                       <div key={t.name} className="flex items-center gap-3">
-                        <span className="w-40 shrink-0 text-[12px] font-medium text-gray-700 truncate" title={t.name}>{t.name}</span>
+                        <span className="w-28 shrink-0 text-[12px] font-medium text-gray-700 truncate sm:w-40" title={t.name}>{t.name}</span>
                         <span className="flex-1 h-2 rounded-full bg-gray-100 overflow-hidden">
                           <span className="block h-full rounded-full bg-orange-500/90" style={{ width: `${(t.solved / maxT) * 100}%` }} />
                         </span>
@@ -462,7 +462,7 @@ export default function CodingAnalyticsPage() {
                 <SectionEmpty text="No submissions yet." />
               ) : (
                 <div className="overflow-x-auto pb-2">
-                  <table className="w-full text-[12.5px]">
+                  <table className="w-full min-w-[640px] text-[12.5px] lg:min-w-0">
                     <thead>
                       <tr className="text-left text-[10.5px] uppercase tracking-[0.06em] text-gray-500">
                         <th className="font-semibold px-5 py-2">Problem</th>
@@ -536,13 +536,13 @@ export default function CodingAnalyticsPage() {
                             </span>
                             {p.difficulty && <span className={`inline-flex px-2 py-0.5 rounded-full text-[10.5px] font-semibold ${DIFF_TONE[p.difficulty] || 'bg-slate-100 text-slate-600'}`}>{p.difficulty}</span>}
                             {p.topic && <span className="hidden md:inline text-[11px] font-medium text-gray-500 truncate max-w-[110px]">{p.topic}</span>}
-                            {p.lang && <span className="text-[11px] font-medium text-gray-600">{p.lang}</span>}
+                            {p.lang && <span className="hidden sm:inline text-[11px] font-medium text-gray-600">{p.lang}</span>}
                             <span className="text-[11px] font-medium text-gray-500 whitespace-nowrap">{timeAgo(p.when)}</span>
                           </div>
                         ))}
                       </div>
                       {totalPages > 1 && (
-                        <div className="flex items-center justify-between gap-3 px-5 py-2.5 border-t border-gray-100">
+                        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 border-t border-gray-100 sm:px-5">
                           <span className="text-[11.5px] font-medium text-gray-600">
                             Showing {start + 1}–{Math.min(start + SOLVED_PER_PAGE, all.length)} of {all.length}
                           </span>

@@ -152,7 +152,7 @@ export function QuestionTable({ rows }: { rows: QuestionRow[] }) {
   const answered = (r: QuestionRow) => r.status === "evaluated" || r.status === "submitted";
   return (
     <div className="overflow-x-auto rounded-lg border border-hairline">
-      <table className="w-full border-collapse">
+      <table className="w-full min-w-[560px] border-collapse lg:min-w-0">
         <thead className="bg-canvas">
           <tr>
             <th className={`${TH} w-12 text-right`}>#</th>

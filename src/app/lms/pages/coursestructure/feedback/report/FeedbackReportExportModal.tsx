@@ -1228,11 +1228,11 @@ export default function FeedbackReportExportModal({
     >
       <div
         className="bg-white rounded-xl shadow-xl overflow-hidden flex flex-col"
-        style={{ width: "92vw", height: "92vh" }}
+        style={{ width: "92vw", height: "92dvh" }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 flex-shrink-0">
-          <div>
+        <div className="flex flex-wrap items-center justify-between gap-2 px-3 sm:px-5 py-3 border-b border-gray-200 flex-shrink-0">
+          <div className="min-w-0">
             <h2 className="text-[15px] font-bold text-gray-900">Generate Feedback Report</h2>
             <p className="text-[11px] text-gray-500">
               Customize, preview, and export feedback responses.
@@ -1264,7 +1264,7 @@ export default function FeedbackReportExportModal({
         </div>
 
         {/* Body */}
-        <div className="flex-1 min-h-0 overflow-auto p-4">
+        <div className="flex-1 min-h-0 overflow-auto p-3 sm:p-4">
           {/* Export bar */}
           <div className="border border-gray-200 rounded-lg p-3 bg-white mb-4 flex items-center justify-between gap-3 flex-wrap">
             <div className="text-[13px] font-semibold text-gray-900">Export</div>
@@ -1281,7 +1281,7 @@ export default function FeedbackReportExportModal({
                 {printMenuOpen && (
                   <>
                     <div className="fixed inset-0 z-10" onClick={() => setPrintMenuOpen(false)} />
-                    <div className="absolute right-0 top-full mt-1 z-20 w-56 bg-white border border-gray-200 rounded-md shadow-lg py-1">
+                    <div className="absolute left-0 sm:left-auto sm:right-0 top-full mt-1 z-20 w-56 bg-white border border-gray-200 rounded-md shadow-lg py-1">
                       <button
                         type="button"
                         onClick={() => openPrint(responsesPrintSpec)}
@@ -1727,7 +1727,7 @@ export default function FeedbackReportExportModal({
         >
           <div
             className="bg-white rounded-xl shadow-xl flex flex-col"
-            style={{ width: "min(680px, 92vw)", maxHeight: "88vh" }}
+            style={{ width: "min(680px, 92vw)", maxHeight: "88dvh" }}
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 flex-shrink-0">
               <div className="flex items-center gap-2">

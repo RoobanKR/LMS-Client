@@ -227,6 +227,7 @@ const ExpandModal: React.FC<{
         zIndex: 100020, display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: 24,
       }}
+      className="max-sm:!p-2"
     >
       <div
         onClick={e => e.stopPropagation()}

@@ -195,15 +195,17 @@ export default function AuditLogsPage() {
             </Button>
           ))}
           <span className="mx-1 hidden h-5 w-px bg-border sm:block" />
-          <Input
-            type="date" value={fromDraft} onChange={(e) => setFromDraft(e.target.value)}
-            aria-label="From date" className="h-9 w-[9.5rem]"
-          />
-          <span className="text-sm text-muted-foreground">–</span>
-          <Input
-            type="date" value={toDraft} onChange={(e) => setToDraft(e.target.value)}
-            aria-label="To date" className="h-9 w-[9.5rem]"
-          />
+          <div className="flex w-full items-center gap-2 sm:w-auto">
+            <Input
+              type="date" value={fromDraft} onChange={(e) => setFromDraft(e.target.value)}
+              aria-label="From date" className="h-9 min-w-0 flex-1 sm:w-[9.5rem] sm:flex-none"
+            />
+            <span className="text-sm text-muted-foreground">–</span>
+            <Input
+              type="date" value={toDraft} onChange={(e) => setToDraft(e.target.value)}
+              aria-label="To date" className="h-9 min-w-0 flex-1 sm:w-[9.5rem] sm:flex-none"
+            />
+          </div>
           <Button variant="outline" size="sm" onClick={applyRange}>
             <Filter className="h-4 w-4" /> Apply
           </Button>
@@ -224,7 +226,7 @@ export default function AuditLogsPage() {
           ) : (
             <>
               <div className="overflow-x-auto">
-                <Table>
+                <Table className="min-w-[960px] lg:min-w-0">
                   <TableHeader>
                     <TableRow className="hover:bg-transparent">
                       <TableHead className={tableHeadClass}>User</TableHead>

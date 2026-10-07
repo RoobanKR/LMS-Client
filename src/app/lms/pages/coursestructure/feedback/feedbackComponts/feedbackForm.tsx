@@ -781,11 +781,11 @@ export const FeedbackForm: React.FC<FeedbackFormProps> = ({
 
   return (
     <form onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col gap-3">
-      <div className="flex-1 min-h-0 flex">
+      <div className="flex-1 min-h-0 flex flex-col md:flex-row">
         {/* ── Step sidebar (ExerciseSettings model): fixed on the left,
             content scrolls on the right. ── */}
-        <aside className="w-44 sm:w-52 shrink-0 border-r border-gray-100 dark:border-gray-800 pr-3 py-1 flex flex-col gap-1 select-none">
-          <div className="text-[9px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 px-2 mb-1">
+        <aside className="w-full md:w-52 shrink-0 border-b md:border-b-0 md:border-r border-gray-100 dark:border-gray-800 md:pr-3 pt-1 pb-2 md:pb-1 flex flex-row md:flex-col gap-1 select-none">
+          <div className="hidden md:block text-[9px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 px-2 mb-1">
             Steps
           </div>
           {(
@@ -807,10 +807,10 @@ export const FeedbackForm: React.FC<FeedbackFormProps> = ({
             const active = step === s.id;
             const done = s.id === 1 && step === 2;
             return (
-              <div key={s.id} className="relative">
+              <div key={s.id} className="relative max-md:flex-1 max-md:min-w-0">
                 {idx > 0 && (
                   <div
-                    className={`absolute left-[18px] -top-1.5 h-2 w-px ${
+                    className={`absolute left-[18px] -top-1.5 h-2 w-px max-md:hidden ${
                       step === 2 ? 'bg-emerald-200 dark:bg-emerald-900' : 'bg-gray-200 dark:bg-gray-700'
                     }`}
                   />
@@ -865,7 +865,7 @@ export const FeedbackForm: React.FC<FeedbackFormProps> = ({
           })}
 
           {/* Progress — mirrors ExerciseSettings' sidebar footer */}
-          <div className="mt-auto pt-3 border-t border-gray-100 dark:border-gray-800 px-2">
+          <div className="hidden md:block mt-auto pt-3 border-t border-gray-100 dark:border-gray-800 px-2">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-[9px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">
                 Progress
@@ -895,7 +895,7 @@ export const FeedbackForm: React.FC<FeedbackFormProps> = ({
         </aside>
 
         {/* ── Step content — scrolls independently of the sidebar ── */}
-        <div className={`flex-1 min-w-0 overflow-y-auto pl-5 pr-2 ${scrollCls}`}>
+        <div className={`flex-1 min-w-0 min-h-0 overflow-y-auto pt-3 md:pt-0 md:pl-5 pr-2 ${scrollCls}`}>
       {step === 1 && (
       <div className="space-y-6">
       {/* Basic Information */}
@@ -1373,7 +1373,7 @@ export const FeedbackForm: React.FC<FeedbackFormProps> = ({
       {/* ── Step 2 — Questions: General tab + one tab per category ── */}
       {step === 2 && (
         <div>
-          <div className="flex items-center justify-between gap-3 mb-2">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
             <h3 className={`${sectionHeaderCls} mb-0 flex items-center gap-1.5`}>
               <ListChecks className="h-3.5 w-3.5 text-indigo-500" />
               Questions
@@ -1591,7 +1591,7 @@ export const FeedbackForm: React.FC<FeedbackFormProps> = ({
       </div>
 
       {/* ── Footer: step dots + navigation (ExerciseSettings model) ── */}
-      <div className="shrink-0 flex items-center justify-between gap-2 pt-2 border-t border-gray-100 dark:border-gray-800">
+      <div className="shrink-0 flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-gray-100 dark:border-gray-800">
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1">
             <span
@@ -1610,7 +1610,7 @@ export const FeedbackForm: React.FC<FeedbackFormProps> = ({
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={onCancel}

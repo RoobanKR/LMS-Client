@@ -74,7 +74,7 @@ export default function ProgramCalendarBatchRow(props: Props) {
                         id="pc-group"
                         value={calendarGroup.key}
                         onChange={e => onCalendarGroupChange?.(e.target.value)}
-                        className="h-8 rounded-control border border-hairline-strong bg-white px-2.5 text-[12px] font-medium text-body"
+                        className="h-8 max-w-full rounded-control border border-hairline-strong bg-white px-2.5 text-[12px] font-medium text-body lg:max-w-none"
                     >
                         {calendarGroup.targets.map(t => (
                             <option key={t.id} value={t.id}>{t.name}</option>
@@ -95,7 +95,7 @@ export default function ProgramCalendarBatchRow(props: Props) {
                 onChange={e => onBatchChange(e.target.value)}
                 disabled={programCalendarSameForAllBatches}
                 title={programCalendarSameForAllBatches ? 'Common program calendar for all batches' : undefined}
-                className={`h-8 rounded-control border border-hairline-strong bg-white px-2.5 text-[12px] font-medium text-body ${programCalendarSameForAllBatches ? 'cursor-not-allowed opacity-60' : ''}`}
+                className={`h-8 max-w-full rounded-control border border-hairline-strong bg-white px-2.5 text-[12px] font-medium text-body lg:max-w-none ${programCalendarSameForAllBatches ? 'cursor-not-allowed opacity-60' : ''}`}
             >
                 <option value="">Select a batch</option>
                 {realBatches.map(batch => (

@@ -62,7 +62,7 @@ export function InfoTooltip({ content }: { content: string }) {
       {show && (
         <span
           role="tooltip"
-          className="absolute left-1/2 bottom-full z-50 mb-1.5 w-56 -translate-x-1/2 rounded-lg px-2.5 py-1.5 text-[11px] leading-snug text-white shadow-lg"
+          className="absolute left-1/2 bottom-full z-50 mb-1.5 w-56 max-w-[70vw] -translate-x-1/2 rounded-lg px-2.5 py-1.5 text-[11px] leading-snug text-white shadow-lg"
           style={{ background: '#1e293b' }}
         >
           {content}
@@ -631,7 +631,7 @@ export function CodeConfigBlock({
         </div>
 
         {type === 'general' ? (
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <SectionLabel required info="Total number of questions of this kind.">Total Questions</SectionLabel>
               <OInput

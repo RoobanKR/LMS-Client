@@ -89,7 +89,7 @@ function SelectContent({
             transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
             style={{ originY: 0 }}
             className={cn(
-              "z-popover min-w-[8rem] overflow-y-auto cursor-pointer rounded-tile border border-hairline bg-surface text-body shadow-lg",
+              "z-popover min-w-[8rem] max-lg:max-w-[calc(100vw-1rem)] overflow-y-auto cursor-pointer rounded-tile border border-hairline bg-surface text-body shadow-lg",
               position === "popper" &&
               "data-[side=bottom]:translate-y-1 data-[side=top]:-translate-y-1",
               className

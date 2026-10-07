@@ -221,7 +221,7 @@ function Collapsible({
                     >
                         {/* ~20px per level: 4px margin + 15px indent under the
                             connector rail keeps the hierarchy compact. */}
-                        <div className="ml-1 border-l border-hairline pl-4">{children}</div>
+                        <div className="ml-1 border-l border-hairline pl-2.5 sm:pl-4">{children}</div>
                     </motion.div>
                 )}
             </AnimatePresence>
@@ -662,7 +662,7 @@ function MappingSection({
             // widths on ≥sm keep Course/Section/Batches/Status/Action lined up
             // across every row. On mobile the flex wrap stacks the fields, each
             // with its own inline label so the information stays clear.
-            <div className="flex flex-wrap items-start gap-x-3 gap-y-1.5 border-b border-hairline last:border-b-0 py-2 pl-1 pr-2 transition-colors hover:bg-row-hover sm:flex-nowrap sm:items-center">
+            <div className="flex flex-wrap items-start gap-x-3 gap-y-1.5 border-b border-hairline last:border-b-0 py-2 pl-1 pr-2 transition-colors hover:bg-row-hover lg:flex-nowrap lg:items-center">
                 {expandable ? (
                     <button
                         type="button"
@@ -685,7 +685,7 @@ function MappingSection({
                 </span>
                 {/* Course column — most space; name never truncates against
                     other columns because those have fixed widths on ≥sm. */}
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0 flex-1 max-lg:basis-[calc(100%-5rem)]">
                     <span className={`${SIZE.course} font-semibold text-heading block truncate`}>
                         {course.courseName}
                         {status?.courseCode && (
@@ -699,8 +699,8 @@ function MappingSection({
                     )}
                 </div>
                 {/* Section column */}
-                <div className="flex items-center gap-1 flex-wrap shrink-0 sm:w-[130px]">
-                    <span className="sm:hidden text-2xs text-faint font-semibold uppercase mr-0.5">Section:</span>
+                <div className="flex items-center gap-1 flex-wrap shrink-0 lg:w-[130px]">
+                    <span className="lg:hidden text-2xs text-faint font-semibold uppercase mr-0.5">Section:</span>
                     {sections && sections.length > 0 ? sections.map((section) => (
                         <span
                             key={section}
@@ -713,8 +713,8 @@ function MappingSection({
                     )}
                 </div>
                 {/* Batches column — batch names only, never combined with sections. */}
-                <div className="flex items-center gap-1 flex-wrap shrink-0 sm:w-[180px]">
-                    <span className="sm:hidden text-2xs text-faint font-semibold uppercase mr-0.5">Batches:</span>
+                <div className="flex items-center gap-1 flex-wrap shrink-0 lg:w-[180px]">
+                    <span className="lg:hidden text-2xs text-faint font-semibold uppercase mr-0.5">Batches:</span>
                     {batches && batches.length > 0 ? (
                         batches.map((b) => (
                             <span
@@ -729,13 +729,13 @@ function MappingSection({
                     )}
                 </div>
                 {/* Status column */}
-                <div className="shrink-0 sm:w-[110px] flex items-center gap-1.5">
-                    <span className="sm:hidden text-2xs text-faint font-semibold uppercase">Status:</span>
+                <div className="shrink-0 lg:w-[110px] flex items-center gap-1.5">
+                    <span className="lg:hidden text-2xs text-faint font-semibold uppercase">Status:</span>
                     <StatusPill status={status} />
                 </div>
                 {/* Action column */}
-                <div className="shrink-0 sm:w-[130px] flex sm:justify-end items-center gap-1.5">
-                    <span className="sm:hidden text-2xs text-faint font-semibold uppercase">Action:</span>
+                <div className="shrink-0 lg:w-[130px] flex lg:justify-end items-center gap-1.5">
+                    <span className="lg:hidden text-2xs text-faint font-semibold uppercase">Action:</span>
                     {actionsFor(course)}
                 </div>
             </div>
@@ -895,7 +895,7 @@ function MappingSection({
                                                     Course/Section/Batches/Status/Action stack in the same
                                                     positions as the rows below. Desktop-only — on
                                                     mobile the rows carry inline field labels. */}
-                                                <div className="hidden sm:flex items-center gap-x-3 border-b border-hairline px-1 py-1.5 text-2xs font-semibold uppercase tracking-wide text-faint">
+                                                <div className="hidden lg:flex items-center gap-x-3 border-b border-hairline px-1 py-1.5 text-2xs font-semibold uppercase tracking-wide text-faint">
                                                     <span className="w-[20px] flex-shrink-0" aria-hidden />
                                                     <span className="w-7 flex-shrink-0" aria-hidden />
                                                     <span className="flex-1 min-w-0">Course</span>
@@ -976,7 +976,7 @@ function MappingSection({
                                     />
                                 )}
                             >
-                                <div className="ml-[32px] border-l border-hairline pl-4 pb-1">
+                                <div className="ml-4 sm:ml-[32px] border-l border-hairline pl-2.5 sm:pl-4 pb-1">
                                     {entry.phases.map((p, i) => (
                                         <div key={`${p.phase}-${i}`} className="flex flex-wrap items-center gap-2 py-1">
                                             <span className="h-5 w-5 rounded-chip bg-ink-50 flex items-center justify-center flex-shrink-0">

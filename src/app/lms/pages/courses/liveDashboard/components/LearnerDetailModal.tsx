@@ -501,7 +501,7 @@ export default function LearnerDetailModal({
 
   return (
     <div
-      className="fixed inset-0 z-[1200] flex items-center justify-center p-4"
+      className="fixed inset-0 z-[1200] flex items-center justify-center p-2 sm:p-4"
       style={{ background: "rgba(15,23,42,0.55)" }}
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
       role="dialog"
@@ -515,13 +515,13 @@ export default function LearnerDetailModal({
         // stacked cards without paginating. Still capped so it never fills
         // the full viewport (edge padding shows the underlying dashboard,
         // which is what makes the overlay read as an overlay).
-        style={{ maxWidth: 1600, maxHeight: "96vh", width: "97vw" }}
+        style={{ maxWidth: 1600, maxHeight: "96dvh", width: "97vw" }}
       >
         {/* ── Sticky header — compact. Programming / chip pills, the
             overall status badge and the question-index grid have all been
             dropped; the header now reads as identity + assessment title +
             metric strip only. */}
-        <div className="flex-shrink-0 border-b border-gray-100 px-5 pt-3 pb-3">
+        <div className="flex-shrink-0 border-b border-gray-100 px-3 sm:px-5 pt-3 pb-3">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-2.5 min-w-0">
               <div
@@ -552,8 +552,8 @@ export default function LearnerDetailModal({
             </button>
           </div>
 
-          <div className="mt-2 flex items-center justify-between gap-3">
-            <h2 className="text-[14px] font-semibold text-gray-900 leading-tight truncate">
+          <div className="mt-2 flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+            <h2 className="max-w-full min-w-0 text-[14px] font-semibold text-gray-900 leading-tight truncate">
               {assessmentName}
             </h2>
             <div className="text-[10.5px] text-gray-500 whitespace-nowrap">
@@ -571,7 +571,7 @@ export default function LearnerDetailModal({
           </div>
 
           {/* Overall metric strip — Total Marks · Submitted · Test Cases · Evaluated */}
-          <div className="mt-2.5 grid gap-3 grid-cols-4">
+          <div className="mt-2.5 grid gap-3 grid-cols-2 md:grid-cols-4">
             <MetricCell
               label="Total Marks"
               value={`${roundMark(totals.scoredSum)} / ${totals.totalSum}`}
@@ -600,7 +600,7 @@ export default function LearnerDetailModal({
         </div>
 
         {/* ── Scrolling body ────────────────────────────────────────────── */}
-        <div className="flex-1 overflow-y-auto px-5 py-3">
+        <div className="flex-1 overflow-y-auto px-3 sm:px-5 py-3">
           {/* Question cards — the numbered-tile grid and the legend counts
               have been removed per trainer feedback; every question card
               already surfaces its own status pill. */}
@@ -667,14 +667,14 @@ function QuestionCardRow({
       <button
         type="button"
         onClick={onToggle}
-        className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+        className="flex w-full items-center gap-3 px-3 sm:px-4 py-3 text-left hover:bg-gray-50 transition-colors"
       >
         <span className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-[12px] font-bold ${style.gridBg} ${style.gridText}`}>
           {card.index}
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[13.5px] font-semibold text-gray-900 truncate">
+            <span className="min-w-0 max-w-full text-[13.5px] font-semibold text-gray-900 truncate">
               {card.title}
             </span>
             <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${style.chipBg} ${style.chipText}`}>
@@ -682,8 +682,25 @@ function QuestionCardRow({
               {card.statusLabel}
             </span>
           </div>
+          {/* Compact score line for phones / tablets — the full metadata
+              strip on the right only fits from lg up. */}
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11.5px] font-semibold text-gray-700 tabular-nums lg:hidden">
+            <span className="inline-flex items-center gap-1">
+              <Trophy size={11} className="text-amber-500" />
+              {card.scoreLabel} Marks
+            </span>
+            {card.hasTestCases && (
+              <span className="inline-flex items-center gap-1">
+                <Code2 size={11} className={style.chipText} />
+                {card.testCasesPassed} / {card.testCasesTotal} Passed
+              </span>
+            )}
+            {card.evaluationLabel && (
+              <span className="font-medium text-gray-500">{card.evaluationLabel}</span>
+            )}
+          </div>
         </div>
-        <div className="hidden flex-shrink-0 items-center gap-3 sm:flex">
+        <div className="hidden flex-shrink-0 items-center gap-3 lg:flex">
           <span className="rounded-md bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">
             Programming
           </span>
@@ -730,7 +747,7 @@ function QuestionCardRow({
       </button>
 
       {expanded && (
-        <div className="border-t border-gray-100 bg-gray-50/50 px-4 py-4">
+        <div className="border-t border-gray-100 bg-gray-50/50 px-3 sm:px-4 py-4">
           {card.isSubmitted ? (
             <>
               <div className="grid gap-4 md:grid-cols-2">
@@ -868,7 +885,7 @@ function TestCasePill({ tc }: {
       {open && (
         <div
           role="tooltip"
-          className="absolute left-1/2 bottom-full z-40 mb-1.5 w-[260px] -translate-x-1/2 overflow-hidden rounded-md border border-slate-200 bg-white p-2.5 shadow-lg"
+          className="absolute left-1/2 bottom-full z-40 mb-1.5 w-[260px] max-w-[80vw] -translate-x-1/2 overflow-hidden rounded-md border border-slate-200 bg-white p-2.5 shadow-lg"
         >
           <div className="flex items-center justify-between mb-1.5">
             <div className="text-[11px] font-semibold text-slate-800">Test Case {tc.index + 1}</div>

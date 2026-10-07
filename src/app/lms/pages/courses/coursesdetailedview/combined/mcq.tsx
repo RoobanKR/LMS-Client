@@ -647,9 +647,9 @@ const MCQQuestion: React.FC<MCQQuestionProps> = ({
       <div className="w-full h-full flex flex-col overflow-hidden">
 
         {/* ── Question Header (matches student view) ── */}
-        <div style={{ flexShrink: 0, background: T.bg, borderBottom: `1px solid ${T.border}`, padding: '16px 28px' }}>
+        <div className="max-sm:!px-3.5 max-sm:!py-3" style={{ flexShrink: 0, background: T.bg, borderBottom: `1px solid ${T.border}`, padding: '16px 28px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div className="max-sm:!flex-wrap max-sm:!gap-2" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               {/* Question number */}
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
                 <span style={{ fontSize: 10, color: T.textHint, fontWeight: 700, letterSpacing: '0.05em' }}>Q</span>
@@ -703,7 +703,7 @@ const MCQQuestion: React.FC<MCQQuestionProps> = ({
         </div>
 
         {/* ── Scrollable Question Content ── */}
-        <div className="mcq-fade" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '28px' }}>
+        <div className="mcq-fade max-sm:!p-4" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '28px' }}>
           {/* Title */}
           <ContentBlockRenderer title={question.mcqQuestionTitle} />
 
@@ -743,7 +743,7 @@ const MCQQuestion: React.FC<MCQQuestionProps> = ({
           )}
 
           {(question.mcqQuestionType === 'multiple_choice' || question.mcqQuestionType === 'multiple_select') && (
-            <div style={{ display: 'grid', gridTemplateColumns: getGridCols(), gap: 12 }}>
+            <div className="max-sm:!grid-cols-1" style={{ display: 'grid', gridTemplateColumns: getGridCols(), gap: 12 }}>
               {question.mcqQuestionOptions.map((option, idx) =>
                 question.mcqQuestionType === 'multiple_select' ? (
                   <CheckboxOption

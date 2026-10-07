@@ -34,6 +34,19 @@ const GLOBAL_STYLES = `
     color: white;
     box-shadow: 0 3px 10px rgba(251,146,60,0.4), 0 0 0 1px rgba(251,146,60,0.2);
   }
+
+  /* Responsive: below lg the Notes panel floats over the text instead of
+     squeezing it; phones get tighter padding and an icon-only Notes button. */
+  @media (max-width: 1023px) {
+    .txt-content { position: relative; }
+    .txt-content > .txt-side-panel { position: absolute !important; inset: 10px; z-index: 40; width: auto !important; margin-left: 0 !important; }
+  }
+  @media (max-width: 640px) {
+    .txt-topbar .pdf-toolbar-btn { font-size: 0 !important; gap: 0 !important; padding: 8px 9px !important; }
+    .txt-topbar .txt-crumbs > button, .txt-topbar .txt-crumbs > svg { display: none; }
+    .txt-topbar .txt-crumbs > span { flex-shrink: 1 !important; min-width: 0; }
+    .txt-viewer-scroll { padding: 16px !important; }
+  }
 `
 
 // ─── PROPS ───────────────────────────────────────────────────────────────────
@@ -143,10 +156,10 @@ export default function TxtViewer({
         }}
       >
         {/* ── TOP TOOLBAR ────────────────────────────────────────────────── */}
-        <div style={{ display: "flex", alignItems: "center", padding: "10px 12px 0 12px", gap: 8, flexShrink: 0 }}>
+        <div className="txt-topbar" style={{ display: "flex", alignItems: "center", padding: "10px 12px 0 12px", gap: 8, flexShrink: 0 }}>
 
           {/* Breadcrumbs */}
-          <div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1, minWidth: 0, overflow: "hidden" }}>
+          <div className="txt-crumbs" style={{ display: "flex", alignItems: "center", gap: 4, flex: 1, minWidth: 0, overflow: "hidden" }}>
             {/* Icon badge */}
             <div style={{
               width: 22, height: 22, borderRadius: 6,
@@ -227,7 +240,7 @@ export default function TxtViewer({
         </div>
 
         {/* ── CONTENT AREA ───────────────────────────────────────────────── */}
-        <div style={{ flex: 1, display: "flex", padding: "10px 10px 10px 10px", minHeight: 0 }}>
+        <div className="txt-content" style={{ flex: 1, display: "flex", padding: "10px 10px 10px 10px", minHeight: 0 }}>
           <div style={{
             flex: 1, background: "white", borderRadius: 14, overflow: "hidden",
             display: "flex", flexDirection: "column",
@@ -301,7 +314,7 @@ export default function TxtViewer({
 
           {/* ── Notes Panel ────────────────────────────────────────────────── */}
           {notesOpen && showNotesButton && (
-            <div style={{
+            <div className="txt-side-panel" style={{
               width: 340, flexShrink: 0, marginLeft: 10,
               background: "white", borderRadius: 14, overflow: "hidden",
               boxShadow: "0 2px 16px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.05)",
@@ -356,7 +369,7 @@ export default function TxtViewer({
             background: "rgba(0,0,0,0.45)", backdropFilter: "blur(6px)",
           }}>
             <div style={{
-              background: "white", borderRadius: 18, padding: "32px", width: 380,
+              background: "white", borderRadius: 18, padding: "32px", width: 380, maxWidth: "calc(100vw - 32px)",
               boxShadow: "0 24px 64px rgba(0,0,0,0.2)", border: "1px solid rgba(0,0,0,0.06)",
               animation: "slideUp 0.2s ease-out",
             }}>

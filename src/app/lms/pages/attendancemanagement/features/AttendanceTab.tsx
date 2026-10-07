@@ -151,7 +151,7 @@ export default function AttendanceTab({ courseId }: AttendanceTabProps) {
   ];
 
   return (
-    <div className="h-full flex flex-col px-1">
+    <div className="h-full flex flex-col px-1 overflow-y-auto lg:overflow-visible">
       {/* Summary cards — five compact blocks (Total / Present / Absent /
           Half-day / Not marked). Sits directly under the shell header and
           matches the reference reads. */}
@@ -181,7 +181,7 @@ export default function AttendanceTab({ courseId }: AttendanceTabProps) {
           flush right. Reused StyledSelect for the batch dropdown (keeps the
           dirty-cell guard on batch switch). */}
       <div className="mt-3 flex items-center gap-2 flex-wrap">
-        <div className="relative flex-1 min-w-[220px] max-w-md">
+        <div className="relative w-full sm:w-auto sm:flex-1 sm:min-w-[220px] sm:max-w-md">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-faint pointer-events-none" />
           <input
             type="text"
@@ -241,14 +241,14 @@ export default function AttendanceTab({ courseId }: AttendanceTabProps) {
 
       {/* Save-changes bar — appears once anything is marked but not saved. */}
       {dirtyCells.length > 0 && (
-        <div className="mt-2 flex items-center justify-between gap-3 rounded-md border border-brand-200 bg-brand-50/70 px-3 py-2">
-          <span className="text-[12px] font-medium text-brand-800">
+        <div className="sticky bottom-0 z-10 lg:static mt-2 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 sm:gap-3 rounded-md border border-brand-200 bg-brand-50/70 px-3 py-2">
+          <span className="min-w-0 text-[12px] font-medium text-brand-800">
             {dirtyCells.length} unsaved change{dirtyCells.length === 1 ? "" : "s"}
             <span className="ml-1.5 font-normal text-brand-500">
               — nothing is saved until you click Save changes.
             </span>
           </span>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 ml-auto sm:ml-0">
             <button
               type="button"
               onClick={discardChanges}

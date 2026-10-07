@@ -167,9 +167,9 @@ export const GradeSettingsStep: React.FC<GradeSettingsStepProps> = ({
     const passMarks = g.sectionPassMarks || {};
     return (
       <div className="py-2">
-        <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${D.border2}` }}>
+        <div className="rounded-xl overflow-x-auto" style={{ border: `1px solid ${D.border2}` }}>
           <div
-            className="grid px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide"
+            className="grid px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide min-w-[380px]"
             style={{
               background: D.surface,
               borderBottom: `1px solid ${D.border}`,
@@ -196,7 +196,7 @@ export const GradeSettingsStep: React.FC<GradeSettingsStepProps> = ({
               return (
                 <div
                   key={s.id}
-                  className="grid items-center px-3 py-2"
+                  className="grid items-center px-3 py-2 min-w-[380px]"
                   style={{
                     gridTemplateColumns: '140px 1fr 1fr',
                     gap: '8px',
@@ -251,9 +251,9 @@ export const GradeSettingsStep: React.FC<GradeSettingsStepProps> = ({
     const sections = Array.isArray(g.sections) ? g.sections : seededSections;
     return (
       <div className="py-2">
-        <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${D.border2}` }}>
+        <div className="rounded-xl overflow-x-auto" style={{ border: `1px solid ${D.border2}` }}>
           <div
-            className="grid px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide"
+            className="grid px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide min-w-[380px]"
             style={{
               background: D.surface,
               borderBottom: `1px solid ${D.border}`,
@@ -278,7 +278,7 @@ export const GradeSettingsStep: React.FC<GradeSettingsStepProps> = ({
               return (
                 <div
                   key={p.id}
-                  className="grid items-center px-3 py-2"
+                  className="grid items-center px-3 py-2 min-w-[380px]"
                   style={{
                     gridTemplateColumns: '100px 1fr 1fr 28px',
                     gap: '8px',
@@ -617,9 +617,9 @@ export const GradeSettingsStep: React.FC<GradeSettingsStepProps> = ({
           </span>
         </SectionHeading>
 
-        <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${D.border2}` }}>
+        <div className="rounded-xl overflow-x-auto" style={{ border: `1px solid ${D.border2}` }}>
           <div
-            className="grid px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide"
+            className="grid px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide min-w-[380px]"
             style={{
               background: D.surface,
               borderBottom: `1px solid ${D.border}`,
@@ -645,7 +645,7 @@ export const GradeSettingsStep: React.FC<GradeSettingsStepProps> = ({
               return (
                 <div
                   key={b.id}
-                  className="grid items-center px-3 py-2"
+                  className="grid items-center px-3 py-2 min-w-[380px]"
                   style={{
                     gridTemplateColumns: '1fr 190px 28px',
                     gap: '8px',
@@ -742,7 +742,7 @@ export const GradeSettingsStep: React.FC<GradeSettingsStepProps> = ({
                   >
                     {row.icon}
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', minWidth: 240, flex: 1, gap: 2 }}>
+                  <div className="min-w-0 sm:min-w-[240px]" style={{ display: 'flex', alignItems: 'center', flex: 1, gap: 2 }}>
                     <span style={{ fontSize: 11, fontWeight: 600, color: '#101828', lineHeight: 1.25 }}>
                       {row.label}
                     </span>

@@ -47,20 +47,20 @@ export default function InputOutputPanel({
         aria-expanded={open}
         className="flex h-[51px] w-full items-center justify-between px-4 transition-colors hover:bg-[#F8FAFE]"
       >
-        <span className="flex items-center gap-2.5">
-          <span className="flex h-[26px] w-[26px] items-center justify-center rounded-[7px] bg-[#F1F5FB]">
+        <span className="flex min-w-0 items-center gap-2.5">
+          <span className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-[7px] bg-[#F1F5FB]">
             <SquareTerminal className="h-[15px] w-[15px] text-[#39496B]" />
           </span>
-          <span className="text-[14px] font-bold text-[#0B1437]">
+          <span className="truncate text-[13px] font-bold text-[#0B1437] sm:text-[14px]">
             Input / Output (stdin / stdout)
           </span>
           {running && (
-            <span className="rounded-full bg-[#FDF0DF] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#DE8100]">
+            <span className="shrink-0 rounded-full bg-[#FDF0DF] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#DE8100]">
               running
             </span>
           )}
           {awaitingInput && (
-            <span className="rounded-full bg-[#E4F7EE] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#12A15C]">
+            <span className="shrink-0 rounded-full bg-[#E4F7EE] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#12A15C]">
               waiting for input
             </span>
           )}
@@ -74,7 +74,7 @@ export default function InputOutputPanel({
       </button>
 
       {open && (
-        <div className="grid grid-cols-2 divide-x divide-[#E7EEF8] border-t border-[#E7EEF8]">
+        <div className="grid grid-cols-1 divide-y divide-[#E7EEF8] border-t border-[#E7EEF8] sm:grid-cols-2 sm:divide-x sm:divide-y-0">
           <div className="flex min-w-0 flex-col">
             <div className="flex h-[34px] items-center justify-between border-b border-[#E7EEF8] bg-[#F8FAFE] px-3">
               <span className="text-[11px] font-bold uppercase tracking-wide text-[#66789C]">
@@ -111,7 +111,7 @@ export default function InputOutputPanel({
                 onClick={onClear}
                 title="Clear output"
                 aria-label="Clear output"
-                className="flex h-[22px] w-[22px] items-center justify-center rounded-[5px] text-[#8090AF] transition-colors hover:bg-white hover:text-[#DE3450]"
+                className="flex h-7 w-7 items-center justify-center rounded-[5px] text-[#8090AF] lg:h-[22px] lg:w-[22px] transition-colors hover:bg-white hover:text-[#DE3450]"
               >
                 <Trash2 className="h-[13px] w-[13px]" />
               </button>

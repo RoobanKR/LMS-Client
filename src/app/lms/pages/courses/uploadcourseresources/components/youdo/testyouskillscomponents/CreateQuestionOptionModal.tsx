@@ -231,6 +231,11 @@ export const CreateQuestionOptionModal: React.FC<CreateQuestionOptionModalProps>
           animation: cqm-modal-in .22s cubic-bezier(0.16, 1, 0.3, 1);
           display: flex; flex-direction: column;
           max-height: calc(100vh - 48px);
+          max-height: calc(100dvh - 48px);
+        }
+        @media (max-width: 639.98px) {
+          .cqm-scrim { padding: 12px; }
+          .cqm-modal { max-height: calc(100dvh - 24px); }
         }
         .cqm-body { padding: 0 20px; overflow-y: auto; flex: 1; }
         .cqm-header {

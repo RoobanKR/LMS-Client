@@ -102,12 +102,12 @@ const CreateQuestionModal = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-      <div className="flex h-[min(920px,94vh)] w-[min(1520px,96vw)] flex-col overflow-hidden rounded-[18px] border border-[#E8EAF2] bg-white shadow-[0_20px_60px_rgba(16,24,40,0.12)]">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-0 backdrop-blur-sm sm:p-4">
+      <div className="flex h-[100dvh] w-full flex-col overflow-hidden border-[#E8EAF2] bg-white shadow-[0_20px_60px_rgba(16,24,40,0.12)] sm:h-[min(920px,94vh)] sm:w-[min(1520px,96vw)] sm:rounded-[18px] sm:border">
 
         {/* Header — compact, fixed */}
-        <div className="flex h-[50px] shrink-0 items-center justify-between border-b border-[#E8EAF2] bg-white px-5">
-          <div className="flex items-center gap-2.5">
+        <div className="flex h-[50px] shrink-0 items-center justify-between gap-2 border-b border-[#E8EAF2] bg-white px-4 sm:px-5">
+          <div className="flex min-w-0 items-center gap-2.5">
             <div className="flex h-8 w-8 items-center justify-center rounded-[8px] bg-brand-wash text-brand-strong">
               {isProg ? <Code2 size={15} /> : <ListChecks size={15} />}
             </div>
@@ -120,7 +120,7 @@ const CreateQuestionModal = ({
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="rounded-lg p-1 text-faint transition-colors hover:bg-row-hover hover:text-subtle" aria-label="Close">
+          <button onClick={onClose} className="shrink-0 rounded-lg p-2 text-faint transition-colors hover:bg-row-hover hover:text-subtle sm:p-1" aria-label="Close">
             <X size={16} />
           </button>
         </div>
@@ -134,12 +134,12 @@ const CreateQuestionModal = ({
         )}
 
         {/* Footer — compact, fixed */}
-        <div className="flex h-[46px] shrink-0 items-center justify-between border-t border-[#E8EAF2] bg-white px-5">
+        <div className="flex min-h-[46px] shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-[#E8EAF2] bg-white px-4 py-2 sm:h-[46px] sm:flex-nowrap sm:gap-0 sm:px-5 sm:py-0">
           <label className="flex items-center gap-1.5 text-[12.5px] font-medium text-body">
             <input type="checkbox" className="h-3.5 w-3.5" checked={addAnother} onChange={e => setAddAnother(e.target.checked)} />
             Add another question after saving
           </label>
-          <div className="flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-2">
             <button onClick={onClose} disabled={saving}
               className="h-8 rounded-[8px] border border-[#D7DCE5] bg-white px-3.5 text-[12.5px] font-semibold text-body transition-colors hover:bg-row-hover disabled:opacity-50">
               Cancel

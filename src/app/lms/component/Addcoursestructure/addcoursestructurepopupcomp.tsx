@@ -265,7 +265,7 @@ const AddCourseSettingsPopup: React.FC<AddCourseSettingsPopupProps> = ({
         <AnimatePresence>
             <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
                 <DialogContent 
-                    className="w-[98%] max-w-7xl h-[95vh] rounded-xl bg-white dark:bg-gray-900 p-0 overflow-hidden flex flex-col font-sans border border-gray-200 dark:border-gray-800" 
+                    className="w-[98%] max-w-7xl h-[95dvh] rounded-xl bg-white dark:bg-gray-900 p-0 overflow-hidden flex flex-col font-sans border border-gray-200 dark:border-gray-800" 
                     showCloseButton={false}
                 >
                     <DialogTitle className="sr-only">
@@ -291,7 +291,7 @@ const AddCourseSettingsPopup: React.FC<AddCourseSettingsPopupProps> = ({
                                 />
 
                                 <div className="flex-1 min-h-0 overflow-hidden bg-white dark:bg-gray-900">
-                                    <div className="h-full overflow-y-auto p-6 font-sans">
+                                    <div className="h-full overflow-y-auto p-3 sm:p-6 font-sans">
                                         {currentStep === 1 && (
                                             <Step1BasicConfig
                                                 formData={formData}

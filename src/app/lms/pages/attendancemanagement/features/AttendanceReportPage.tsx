@@ -105,7 +105,7 @@ export default function AttendanceReportPage() {
     const loading = studentsLoading || summaryLoading;
 
     return (
-        <div className={`${poppins.className} h-full overflow-y-auto px-6 py-4 space-y-4`}>
+        <div className={`${poppins.className} h-full overflow-y-auto px-3 sm:px-4 lg:px-6 py-3 sm:py-4 space-y-4`}>
             <div className="space-y-4">
                         {/* Filters */}
                         <div className="bg-white rounded-xl border border-gray-200 px-4 py-3">
@@ -116,7 +116,7 @@ export default function AttendanceReportPage() {
                                 and on the standalone /attendancemanagement/report page. */}
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-3 items-end">
                                 <div className="lg:col-span-3">
-                                    <div className="flex items-center gap-3 mb-1">
+                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-1">
                                         <span className="text-[11px] font-medium text-gray-600">Date</span>
                                         <label className="inline-flex items-center gap-1 text-[11px] text-gray-700 cursor-pointer">
                                             <input

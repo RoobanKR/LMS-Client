@@ -511,15 +511,14 @@ const BreadcrumbBar = ({
 
   return (
     <div
-      className="sticky top-0 z-40 w-full flex items-center"
+      className="sticky top-0 z-40 w-full flex items-center px-4 py-2"
       style={{
         minHeight: 48,
-        padding: "8px 16px",
         background: "#ffffff",
         borderBottom: "none",
       }}
     >
-      <nav className="flex items-center" style={{ gap: 2 }}>
+      <nav className="flex flex-wrap items-center min-w-0" style={{ gap: 2 }}>
         {filteredCrumbs.map((crumb, index) => {
           const isLast = index === filteredCrumbs.length - 1;
           const isCourse = crumb.type === "course";
@@ -916,6 +915,9 @@ export default function DynamicLMSCoordinator() {
   const [folderNavState, setFolderNavState] = useState<Record<string, FolderNavState>>({});
   const [sidebarWidth, setSidebarWidth] = useState(280);
   const [isResizing, setIsResizing] = useState(false);
+  // Below lg (phones / tablets) the syllabus starts as the 56px icon rail and
+  // opens as an overlay drawer instead of squeezing the workspace.
+  const [isNarrowViewport, setIsNarrowViewport] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isRestoringFromAnalytics, setIsRestoringFromAnalytics] = useState(false);
   const [currentPPTFileId, setCurrentPPTFileId] = useState("");
@@ -4042,6 +4044,20 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
     return () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
   }, [isResizing]);
 
+  // Responsive syllabus: collapse to the icon rail below lg; when expanded
+  // there it renders as an overlay drawer (see the sidebar slot below).
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(max-width: 1023.98px)");
+    const apply = () => {
+      setIsNarrowViewport(mq.matches);
+      if (mq.matches) setSidebarWidth(56);
+    };
+    apply();
+    mq.addEventListener?.("change", apply);
+    return () => mq.removeEventListener?.("change", apply);
+  }, []);
+
   const handleUpdateFileSettings = async (fileId: string, settings: { studentShow: boolean; downloadAllow: boolean }) => {
     if (!selectedNode) return;
     try {
@@ -4344,12 +4360,30 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
           <div
             className="relative flex flex-col h-full flex-shrink-0"
             style={{
-              width: `${sidebarWidth}px`,
-              overflow: 'hidden',
+              // Below lg an expanded syllabus floats over the workspace as a
+              // drawer, so only the 56px rail keeps its place in the row.
+              width: isNarrowViewport && sidebarWidth > 80 ? '56px' : `${sidebarWidth}px`,
+              overflow: isNarrowViewport && sidebarWidth > 80 ? 'visible' : 'hidden',
               transition: isResizing ? 'none' : 'width 0.2s ease',
               fontFamily: "'Poppins', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
             }}
           >
+            {isNarrowViewport && sidebarWidth > 80 && (
+              <div
+                aria-hidden
+                className="fixed inset-0 z-[60]"
+                style={{ background: 'rgba(15,23,42,0.35)' }}
+                onClick={() => setSidebarWidth(56)}
+              />
+            )}
+            <div
+              className={isNarrowViewport && sidebarWidth > 80
+                ? "fixed inset-y-0 left-0 z-[61] flex flex-col bg-surface-sunken shadow-2xl"
+                : "flex flex-col h-full"}
+              style={isNarrowViewport && sidebarWidth > 80
+                ? { width: `${sidebarWidth}px`, maxWidth: 'calc(100vw - 48px)' }
+                : undefined}
+            >
             <CourseSidebar
               courseData={courseData}
               selectedNode={selectedNode}
@@ -4358,7 +4392,11 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
               searchQuery={searchQuery}
               courseName={courseStructureResponse?.data?.courseName || "Course"}
               moduleCount={courseData[0]?.children?.length || 0}
-              onNodeSelect={selectNode}
+              onNodeSelect={(node) => {
+                selectNode(node);
+                // Drawer mode: picking a leaf closes the overlay.
+                if (isNarrowViewport && !node.children?.length) setSidebarWidth(56);
+              }}
               onToggleNode={toggleNode}
               onExpandAll={expandAllNodes}
               onCollapseAll={collapseAllNodes}
@@ -4367,6 +4405,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
               isLoading={isSidebarLoading}
               onMouseDown={(e) => { setIsResizing(true); e.preventDefault(); }}
             />
+            </div>
           </div>
         }
       >
@@ -4853,7 +4892,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
             className={`relative flex flex-col overflow-hidden mx-4 ${isButtonLoading ? 'pointer-events-none' : ''}`}
             style={{
               width: 880, maxWidth: 'calc(100vw - 32px)',
-              height: '86vh', maxHeight: '86vh',
+              height: '86dvh', maxHeight: '86dvh',
               background: T.bg, borderRadius: '22px',
               border: `1.5px solid ${T.border}`,
               boxShadow: '0 24px 60px rgba(0,0,0,0.18)',
@@ -4895,7 +4934,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
                   </div>
                 </div>
                 <button onClick={() => { resetUploadModalStates(); setShowNotionModal(true); }}
-                  className="flex-shrink-0 p-1 rounded-lg transition-all"
+                  className="flex-shrink-0 p-2 sm:p-1 rounded-lg transition-all"
                   style={{ background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.25)', color: 'rgba(255,255,255,0.85)' }}
                   onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.30)'}
                   onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.18)'}
@@ -5477,7 +5516,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
 
         return (
           <div className="fixed inset-0 z-[90] flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.52)', backdropFilter: 'blur(4px)' }}>
-            <div className="relative flex flex-col mx-4 overflow-hidden" style={{ background: T.bg, borderRadius: '20px', border: `1.5px solid ${T.border}`, width: 924, maxWidth: 'calc(100vw - 32px)', height: '92.4vh', maxHeight: '92.4vh', boxShadow: '0 24px 60px rgba(0,0,0,0.20)', fontFamily: "'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" }} onClick={e => e.stopPropagation()}>
+            <div className="relative flex flex-col mx-4 overflow-hidden" style={{ background: T.bg, borderRadius: '20px', border: `1.5px solid ${T.border}`, width: 924, maxWidth: 'calc(100vw - 32px)', height: '92.4dvh', maxHeight: '92.4dvh', boxShadow: '0 24px 60px rgba(0,0,0,0.20)', fontFamily: "'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" }} onClick={e => e.stopPropagation()}>
 
               {/* ── Upload overlay ─────────────────────────────────────────── */}
               {folderBuilderUploading && (
@@ -5784,8 +5823,8 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
                       {/* Explorer-style column headers */}
                       <div className="flex items-center gap-2 px-3 py-1.5" style={{ background: '#fbfbfd', borderBottom: `1px solid ${T.border}` }}>
                         <span className="flex-1 min-w-0 text-[10.5px] font-bold" style={{ color: T.textSub }}>Name</span>
-                        <span className="w-[140px] flex-shrink-0 text-[10.5px] font-bold" style={{ color: T.textSub }}>Date modified</span>
-                        <span className="w-[96px] flex-shrink-0 text-[10.5px] font-bold" style={{ color: T.textSub }}>Type</span>
+                        <span className="hidden md:block w-[140px] flex-shrink-0 text-[10.5px] font-bold" style={{ color: T.textSub }}>Date modified</span>
+                        <span className="hidden sm:block w-[96px] flex-shrink-0 text-[10.5px] font-bold" style={{ color: T.textSub }}>Type</span>
                         <span className="w-[72px] flex-shrink-0 text-[10.5px] font-bold text-right" style={{ color: T.textSub }}>Size</span>
                       </div>
 
@@ -5802,8 +5841,8 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
                             <Folder size={16} style={{ color: '#F97316', flexShrink: 0 }} fill="rgba(249,115,22,0.18)" />
                             <span className="truncate text-[12.5px] font-semibold" style={{ color: T.textMain }}>{g.groupName}</span>
                           </div>
-                          <span className="w-[140px] flex-shrink-0 text-[11px]" style={{ color: T.textMuted }}>—</span>
-                          <span className="w-[96px] flex-shrink-0 text-[11px]" style={{ color: T.textMuted }}>Folder group</span>
+                          <span className="hidden md:block w-[140px] flex-shrink-0 text-[11px]" style={{ color: T.textMuted }}>—</span>
+                          <span className="hidden sm:block w-[96px] flex-shrink-0 text-[11px]" style={{ color: T.textMuted }}>Folder group</span>
                           <span className="w-[72px] flex-shrink-0 text-[11px] text-right" style={{ color: T.textMuted }} />
                         </div>
                       ))}
@@ -5825,8 +5864,8 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
                               <Folder size={16} style={{ color: '#F97316', flexShrink: 0 }} fill="rgba(249,115,22,0.18)" />
                               <span className="truncate text-[12.5px] font-semibold" style={{ color: T.textMain }}>{ef.name}</span>
                             </div>
-                            <span className="w-[140px] flex-shrink-0 text-[11px]" style={{ color: T.textMuted }}>{fmtDate(ef.updatedAt ?? ef.createdAt ?? ef.uploadedAt)}</span>
-                            <span className="w-[96px] flex-shrink-0 text-[11px]" style={{ color: T.textMuted }}>File folder</span>
+                            <span className="hidden md:block w-[140px] flex-shrink-0 text-[11px]" style={{ color: T.textMuted }}>{fmtDate(ef.updatedAt ?? ef.createdAt ?? ef.uploadedAt)}</span>
+                            <span className="hidden sm:block w-[96px] flex-shrink-0 text-[11px]" style={{ color: T.textMuted }}>File folder</span>
                             <span className="w-[72px] flex-shrink-0 text-[11px] text-right" style={{ color: T.textMuted }} />
                           </div>
                         );
@@ -5846,8 +5885,8 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
                               <FileIcon size={15} style={{ color: extColor, flexShrink: 0 }} />
                               <span className="truncate text-[12px] font-medium" style={{ color: T.textMain }}>{name}</span>
                             </div>
-                            <span className="w-[140px] flex-shrink-0 text-[11px]" style={{ color: T.textMuted }}>{fmtDate(ef.uploadedAt ?? ef.updatedAt ?? ef.createdAt)}</span>
-                            <span className="w-[96px] flex-shrink-0 text-[11px] uppercase" style={{ color: T.textMuted }}>{ext ? `${ext} file` : 'File'}</span>
+                            <span className="hidden md:block w-[140px] flex-shrink-0 text-[11px]" style={{ color: T.textMuted }}>{fmtDate(ef.uploadedAt ?? ef.updatedAt ?? ef.createdAt)}</span>
+                            <span className="hidden sm:block w-[96px] flex-shrink-0 text-[11px] uppercase" style={{ color: T.textMuted }}>{ext ? `${ext} file` : 'File'}</span>
                             <span className="w-[72px] flex-shrink-0 text-[11px] text-right" style={{ color: T.textMuted }}>{sz > 0 ? fmtSz(sz) : ''}</span>
                           </div>
                         );
@@ -5864,8 +5903,8 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
                               <FileText size={15} style={{ color: '#6366f1', flexShrink: 0 }} />
                               <span className="truncate text-[12px] font-medium" style={{ color: T.textMain }}>{title}</span>
                             </div>
-                            <span className="w-[140px] flex-shrink-0 text-[11px]" style={{ color: T.textMuted }}>{fmtDate(ep.updatedAt ?? ep.createdAt)}</span>
-                            <span className="w-[96px] flex-shrink-0 text-[11px]" style={{ color: T.textMuted }}>Page</span>
+                            <span className="hidden md:block w-[140px] flex-shrink-0 text-[11px]" style={{ color: T.textMuted }}>{fmtDate(ep.updatedAt ?? ep.createdAt)}</span>
+                            <span className="hidden sm:block w-[96px] flex-shrink-0 text-[11px]" style={{ color: T.textMuted }}>Page</span>
                             <span className="w-[72px] flex-shrink-0 text-[11px] text-right" style={{ color: T.textMuted }} />
                           </div>
                         );
@@ -5877,8 +5916,8 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
               </div>
 
               {/* ── Footer ─────────────────────────────────────────────────── */}
-              <div className="flex-shrink-0 flex items-center justify-between px-4 py-3" style={{ borderTop: `1px solid ${T.border}`, background: T.pageBg }}>
-                <div className="flex items-center gap-1.5">
+              <div className="flex-shrink-0 flex flex-wrap items-center justify-between gap-2 px-4 py-3" style={{ borderTop: `1px solid ${T.border}`, background: T.pageBg }}>
+                <div className="flex flex-wrap items-center gap-1.5">
                   <span className="text-[11px]" style={{ color: T.textMuted }}>
                     <strong style={{ color: T.orange }}>{totalFolders}</strong> folder{totalFolders !== 1 ? 's' : ''} &nbsp;·&nbsp;
                     <strong style={{ color: T.orange }}>{totalFiles}</strong> file{totalFiles !== 1 ? 's' : ''} total
@@ -5918,7 +5957,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
       {/* ── Create / Edit Folder Modal ─────────────────────────────────────────── */}
       {showCreateFolderModal && (
         <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50" style={{ background: 'rgba(0,0,0,0.5)' }}>
-          <div className={`relative flex flex-col mx-4 overflow-hidden ${isButtonLoading ? 'opacity-60 pointer-events-none' : ''}`} style={{ background: T.bg, borderRadius: '20px', border: `1.5px solid ${T.border}`, width: '100%', maxWidth: '860px', maxHeight: '85vh', minHeight: '380px', boxShadow: `0 24px 60px rgba(0,0,0,0.16)` }} onClick={e => e.stopPropagation()}>
+          <div className={`relative flex flex-col mx-4 overflow-hidden ${isButtonLoading ? 'opacity-60 pointer-events-none' : ''}`} style={{ background: T.bg, borderRadius: '20px', border: `1.5px solid ${T.border}`, width: '100%', maxWidth: '860px', maxHeight: '85dvh', minHeight: 'min(380px, 85dvh)', boxShadow: `0 24px 60px rgba(0,0,0,0.16)` }} onClick={e => e.stopPropagation()}>
             {isButtonLoading && (
               <div className="absolute inset-0 backdrop-blur-sm flex items-center justify-center z-10 rounded-2xl" style={{ background: 'rgba(255,255,255,0.85)' }}>
                 <div className="w-9 h-9 rounded-full animate-spin" style={{ border: `3px solid ${T.orangeLight}`, borderTopColor: T.orange }} />

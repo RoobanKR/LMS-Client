@@ -116,7 +116,7 @@ export default function SubscriptionsPage() {
           <EmptyState icon={CreditCard} title="No matches" description="No subscriptions match the current filters." />
         ) : (
           <>
-            <Table className="w-full table-fixed">
+            <Table className="w-full min-w-[780px] table-fixed lg:min-w-0">
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <TableHead className={cn(tableHeadClass, 'w-[24%]')}><SortLabel label="Institution" sortKey="name" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></TableHead>
@@ -178,9 +178,9 @@ export default function SubscriptionsPage() {
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>{isNew ? 'Add' : 'Edit'} Subscription — {instName}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="break-words pr-6">{isNew ? 'Add' : 'Edit'} Subscription — {instName}</DialogTitle></DialogHeader>
           <form onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(); }} className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label>Plan</Label>
                 <FieldSelect value={form.plan!} onChange={(v) => setForm({ ...form, plan: v })} className="w-full">
@@ -192,7 +192,7 @@ export default function SubscriptionsPage() {
                 <Input type="number" min={0} value={form.amount} onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label>Storage Quota (MB)</Label>
                 <Input type="number" min={0} value={form.storageQuotaMB} onChange={(e) => setForm({ ...form, storageQuotaMB: Number(e.target.value) })} />
@@ -202,7 +202,7 @@ export default function SubscriptionsPage() {
                 <Input type="number" min={0} value={form.maxUsers} onChange={(e) => setForm({ ...form, maxUsers: Number(e.target.value) })} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label>Status</Label>
                 <FieldSelect value={form.status!} onChange={(v) => setForm({ ...form, status: v as 'active' | 'suspended' })} className="w-full">

@@ -832,7 +832,7 @@ const saveNoteToPanel = async () => {
                           {sessions.length > 1 && (
                             <button
                               onClick={(e) => deleteSession(session.sessionId, e)}
-                              className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 rounded text-gray-400 hover:text-red-600 transition-all ml-1"
+                              className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 p-1 hover:bg-red-100 rounded text-gray-400 hover:text-red-600 transition-all ml-1"
                               title="Delete"
                             >
                               <Trash2 className="w-3 h-3" />

@@ -569,6 +569,22 @@ function CalendarStage({
                         )}
                     </div>
                 </div>
+                {/* Phone-only search row — the inline search above is hidden below sm. */}
+                <div className="sm:hidden px-3 pb-2.5">
+                    <div className="relative w-full">
+                        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
+                        <input
+                            type="text"
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder="Search…"
+                            className="h-9 w-full rounded-control border border-hairline-strong bg-surface pl-8 pr-8 text-sm text-body placeholder:text-faint transition-colors duration-150 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15"
+                        />
+                        {search && (
+                            <button type="button" aria-label="Clear search" onClick={() => setSearch('')} className="absolute right-2 top-1/2 inline-flex size-6 -translate-y-1/2 items-center justify-center rounded-chip text-faint hover:bg-ink-100 hover:text-heading transition-colors"><X size={13} /></button>
+                        )}
+                    </div>
+                </div>
             </header>
 
             {/* ── Body ── */}
@@ -640,7 +656,7 @@ function CalendarStage({
                                         onRemove={canDelete ? removeHoliday : noop}
                                     />
                                 ) : (
-                                    <div className="h-full overflow-y-auto px-4 py-4 custom-scrollbar">
+                                    <div className="h-full overflow-y-auto px-3 sm:px-4 py-4 custom-scrollbar">
                                         <AgendaView
                                             holidays={displayHolidays}
                                             isFiltered={isDisplayFiltered}
@@ -764,7 +780,7 @@ function CalendarStage({
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: -8, scale: 0.97 }}
                         transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
-                        className="fixed top-5 right-5 z-toast flex items-center gap-2.5 bg-surface border border-hairline px-4 py-2.5 rounded-xl shadow-lg"
+                        className="fixed top-5 right-5 z-toast flex items-center gap-2.5 bg-surface border border-hairline px-4 py-2.5 rounded-xl shadow-lg max-w-[calc(100vw-2.5rem)]"
                     >
                         <span className={`flex items-center justify-center h-6 w-6 rounded-full shrink-0 ${toast.tone === 'success' ? 'bg-success-50 text-success-700' : 'bg-danger-50 text-danger-700'}`}>
                             {toast.tone === 'success' ? <Check size={13} strokeWidth={2.6} /> : <CircleAlert size={13} strokeWidth={2.4} />}

@@ -435,6 +435,11 @@ export default function FeedbackReportDesignerModal({
     onOpenForm,
 }: Props) {
     const [drawerCollapsed, setDrawerCollapsed] = useState(false);
+    // Below lg the expanded drawer overlays the canvas — start folded on
+    // phones/tablets so the report preview is visible first.
+    useEffect(() => {
+        if (typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches) setDrawerCollapsed(true);
+    }, []);
     const [downloadOpen, setDownloadOpen] = useState(false);
     const [busy, setBusy] = useState<"" | "xlsx" | "pdf">("");
     const [views, setViews] = useState<Set<ViewKey>>(new Set(DEFAULT_VIEWS));
@@ -1438,13 +1443,17 @@ export default function FeedbackReportDesignerModal({
             onClick={onClose}
         >
             <div
-                className="relative flex h-[94vh] w-[97vw] max-w-[1440px] overflow-hidden rounded-tile border border-hairline bg-surface shadow-2xl"
+                className="relative flex h-[94dvh] w-[97vw] max-w-[1440px] overflow-hidden rounded-tile border border-hairline bg-surface shadow-2xl"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* ─── LEFT DRAWER ───────────────────────────────────────── */}
+                {/* Below lg the expanded drawer overlays the canvas instead of
+                    squeezing it; lg+ keeps the side-by-side layout. */}
                 <aside
-                    className={`flex shrink-0 flex-col border-r border-hairline bg-surface-sunken/40 transition-[width] duration-150 ${
-                        drawerCollapsed ? "w-[52px]" : "w-[340px]"
+                    className={`flex shrink-0 flex-col border-r border-hairline transition-[width] duration-150 ${
+                        drawerCollapsed
+                            ? "w-[52px] bg-surface-sunken/40"
+                            : "absolute inset-y-0 left-0 z-20 w-[min(340px,100%)] bg-surface shadow-xl lg:static lg:z-auto lg:w-[340px] lg:bg-surface-sunken/40 lg:shadow-none"
                     }`}
                 >
                     <header
@@ -1656,7 +1665,7 @@ export default function FeedbackReportDesignerModal({
 
                 {/* ─── RIGHT CANVAS ──────────────────────────────────────── */}
                 <div className="flex flex-1 min-w-0 flex-col">
-                    <header className="flex flex-shrink-0 items-center justify-between gap-3 border-b border-hairline bg-surface px-5 py-2.5">
+                    <header className="flex flex-shrink-0 items-center justify-between gap-3 border-b border-hairline bg-surface px-3 py-2.5 sm:px-5">
                         <div className="min-w-0">
                             <h2 className="truncate text-sm font-semibold text-heading">Feedback Report</h2>
                             <p className="mt-0.5 truncate text-[10px] text-subtle tabular-nums">
@@ -1669,10 +1678,11 @@ export default function FeedbackReportDesignerModal({
                                     type="button"
                                     onClick={() => setDownloadOpen((v) => !v)}
                                     disabled={!!busy || workingForms.length === 0}
+                                    aria-label="Download report"
                                     className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-brand-500 bg-brand-500 text-white text-xs font-semibold hover:bg-brand-strong disabled:opacity-50 transition-colors"
                                 >
                                     {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                                    Download report
+                                    <span className="hidden sm:inline">Download report</span>
                                     <ChevronDown className={`h-3 w-3 transition-transform ${downloadOpen ? "rotate-180" : ""}`} />
                                 </button>
                                 {downloadOpen && (
@@ -1707,7 +1717,7 @@ export default function FeedbackReportDesignerModal({
                         </div>
                     </header>
 
-                    <div className="flex-1 min-h-0 overflow-y-auto bg-surface-sunken/20 px-5 py-4 space-y-4">
+                    <div className="flex-1 min-h-0 overflow-y-auto bg-surface-sunken/20 px-3 py-3 space-y-4 sm:px-5 sm:py-4">
                         {removed.size > 0 ? (
                             <div className="flex flex-wrap items-center gap-2 rounded-md border border-dashed border-hairline bg-surface/60 px-3 py-2">
                                 <span className="text-[10px] font-semibold uppercase tracking-wider text-subtle">Removed</span>
@@ -1743,7 +1753,7 @@ export default function FeedbackReportDesignerModal({
                             <>
                                 {shouldShow("stats") ? (
                                     <Sec id="stats">
-                                        <header className="flex items-center justify-between border-b border-hairline px-4 py-2 pr-10">
+                                        <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 border-b border-hairline px-4 py-2 pr-10">
                                             <h3 className="text-xs font-semibold text-heading">Summary</h3>
                                             <span className="text-[10px] text-subtle tabular-nums">
                                                 pooled across {stats.totalForms} form{stats.totalForms === 1 ? "" : "s"}
@@ -1770,7 +1780,7 @@ export default function FeedbackReportDesignerModal({
 
                                 {shouldShow("distPie") ? (
                                     <Sec id="distPie">
-                                        <header className="flex items-center justify-between border-b border-hairline px-4 py-2 pr-10">
+                                        <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 border-b border-hairline px-4 py-2 pr-10">
                                             <h3 className="text-xs font-semibold text-heading">Rating distribution</h3>
                                             <span className="text-[10px] text-subtle">1–5 stars</span>
                                         </header>
@@ -1810,7 +1820,7 @@ export default function FeedbackReportDesignerModal({
 
                                 {shouldShow("paramBars") ? (
                                     <Sec id="paramBars">
-                                        <header className="flex items-center justify-between border-b border-hairline px-4 py-2 pr-10">
+                                        <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 border-b border-hairline px-4 py-2 pr-10">
                                             <h3 className="text-xs font-semibold text-heading">Parameter averages</h3>
                                             <span className="text-[10px] text-subtle">
                                                 every question · colour-coded by parameter · avg on Y
@@ -1831,7 +1841,7 @@ export default function FeedbackReportDesignerModal({
 
                                 {shouldShow("trainerBars") ? (
                                     <Sec id="trainerBars">
-                                        <header className="flex items-center justify-between border-b border-hairline px-4 py-2 pr-10">
+                                        <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 border-b border-hairline px-4 py-2 pr-10">
                                             <h3 className="text-xs font-semibold text-heading">Trainer averages</h3>
                                             <span className="text-[10px] text-subtle">avg / 5 across pooled responses</span>
                                         </header>
@@ -1895,14 +1905,14 @@ export default function FeedbackReportDesignerModal({
 
                                 {shouldShow("formsTable") ? (
                                     <Sec id="formsTable">
-                                        <header className="flex items-center justify-between border-b border-hairline px-4 py-2 pr-10">
+                                        <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 border-b border-hairline px-4 py-2 pr-10">
                                             <h3 className="text-xs font-semibold text-heading">Forms</h3>
                                             <span className="text-[10px] text-subtle tabular-nums">
                                                 {workingForms.length} in scope
                                             </span>
                                         </header>
                                         <div className="overflow-x-auto">
-                                            <table className="w-full border-collapse text-xs">
+                                            <table className="w-full min-w-[600px] border-collapse text-xs lg:min-w-0">
                                                 <thead className="bg-surface-sunken/50">
                                                     <tr>
                                                         <th className="w-10 px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-subtle border-b border-hairline">#</th>
@@ -1961,14 +1971,14 @@ export default function FeedbackReportDesignerModal({
 
                                 {shouldShow("responses") ? (
                                     <Sec id="responses">
-                                        <header className="flex items-center justify-between border-b border-hairline px-4 py-2 pr-10">
+                                        <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 border-b border-hairline px-4 py-2 pr-10">
                                             <h3 className="text-xs font-semibold text-heading">Response detail</h3>
                                             <span className="text-[10px] text-subtle tabular-nums">
                                                 {workingResponses.length} response{workingResponses.length === 1 ? "" : "s"}
                                             </span>
                                         </header>
                                         <div className="overflow-x-auto">
-                                            <table className="w-full border-collapse text-xs">
+                                            <table className="w-full min-w-[600px] border-collapse text-xs lg:min-w-0">
                                                 <thead className="bg-surface-sunken/50">
                                                     <tr>
                                                         <th className="w-10 px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-subtle border-b border-hairline">#</th>
@@ -2019,7 +2029,7 @@ export default function FeedbackReportDesignerModal({
 
                                 {shouldShow("comments") ? (
                                     <Sec id="comments">
-                                        <header className="flex items-center justify-between border-b border-hairline px-4 py-2 pr-10">
+                                        <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 border-b border-hairline px-4 py-2 pr-10">
                                             <h3 className="text-xs font-semibold text-heading">Comments &amp; suggestions</h3>
                                             <span className="text-[10px] text-subtle tabular-nums">
                                                 {commentRows.length} shown

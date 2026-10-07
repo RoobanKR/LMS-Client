@@ -173,7 +173,7 @@ export default function EditProfileModal({ open, onClose, user, onUpdated }: Pro
         onInteractOutside={(e) => e.preventDefault()}
         className="sm:max-w-[460px] p-0 gap-0 overflow-hidden rounded-2xl"
       >
-        <DialogHeader className="border-b border-gray-100 px-5 py-4 dark:border-gray-800">
+        <DialogHeader className="border-b border-gray-100 px-4 sm:px-5 py-4 dark:border-gray-800">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <DialogTitle className="text-base font-black text-gray-900 dark:text-white">Edit Profile</DialogTitle>
@@ -194,7 +194,7 @@ export default function EditProfileModal({ open, onClose, user, onUpdated }: Pro
           </div>
         </DialogHeader>
 
-        <div className="max-h-[70vh] overflow-y-auto px-5 py-4 space-y-5">
+        <div className="max-h-[62dvh] sm:max-h-[70vh] overflow-y-auto px-4 sm:px-5 py-4 space-y-5">
 
           {/* ── Photo ── */}
           <div>
@@ -298,10 +298,10 @@ export default function EditProfileModal({ open, onClose, user, onUpdated }: Pro
           </div>
         </div>
 
-        <DialogFooter className="border-t border-gray-100 bg-gray-50/60 px-5 py-3 dark:border-gray-800 dark:bg-gray-900/50">
-          <div className="flex w-full items-center justify-between gap-3">
+        <DialogFooter className="border-t border-gray-100 bg-gray-50/60 px-4 sm:px-5 py-3 dark:border-gray-800 dark:bg-gray-900/50">
+          <div className="flex w-full flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
             <p className="min-w-0 flex-1 truncate text-[11px] text-gray-400">{blocked || "Ready to save."}</p>
-            <div className="flex flex-shrink-0 gap-2">
+            <div className="flex flex-shrink-0 justify-end gap-2">
               <Button variant="outline" size="sm" onClick={requestClose} disabled={saving}>
                 Cancel
               </Button>

@@ -566,17 +566,17 @@ export default function LiveInteractiveCompilerPage() {
     const statusLabel = status === 'queued' && queuePos ? `Queued… #${queuePos}` : STATUS_UI[status].label
 
     return (
-        <div className="flex h-screen flex-col bg-[#f6f7f9] text-slate-800">
+        <div className="flex h-screen flex-col bg-[#f6f7f9] text-slate-800 max-lg:h-auto max-lg:min-h-[100dvh]">
             {/* ── Top bar ── */}
-            <header className="flex flex-wrap items-center gap-3 border-b border-slate-200 bg-white px-4 py-2.5">
-                <div className="flex items-center gap-2">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#FDF0E9] text-[#EE6A22]"><Zap size={17} /></span>
-                    <div>
+            <header className="flex flex-wrap items-center gap-3 border-b border-slate-200 bg-white px-4 py-2.5 max-sm:gap-2 max-sm:px-3">
+                <div className="flex min-w-0 items-center gap-2">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#FDF0E9] text-[#EE6A22]"><Zap size={17} /></span>
+                    <div className="min-w-0">
                         <h1 className="text-[15px] font-semibold leading-tight">Live Interactive Compiler</h1>
                         <p className="text-[11px] text-slate-500">Programs that ask for input wait for you; type into the terminal while they run.</p>
                     </div>
                 </div>
-                <div className="ml-auto flex flex-wrap items-center gap-2">
+                <div className="ml-auto flex flex-wrap items-center gap-2 max-sm:ml-0 max-sm:w-full">
                     <select
                         aria-label="Language"
                         value={langId}
@@ -610,8 +610,8 @@ export default function LiveInteractiveCompilerPage() {
             </header>
 
             {/* ── Editor | Terminal ── */}
-            <main className="grid min-h-0 flex-1 grid-cols-1 gap-3 p-3 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-                <section className="flex min-h-[320px] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <main className="grid min-h-0 flex-1 grid-cols-1 gap-3 p-3 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] max-sm:gap-2 max-sm:p-2">
+                <section className="flex min-h-[320px] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm max-lg:h-[60dvh]">
                     <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2 text-[12px] text-slate-500">
                         <span className="font-semibold text-slate-700">{lang.label}</span>
                         <span>Ctrl + Enter to run</span>
@@ -628,8 +628,8 @@ export default function LiveInteractiveCompilerPage() {
                     </div>
                 </section>
 
-                <section className="flex min-h-[320px] flex-col overflow-hidden rounded-xl border border-slate-800 bg-[#0f1419] shadow-sm">
-                    <div className="flex items-center gap-2 border-b border-white/10 px-3 py-2 text-[12px]">
+                <section className="flex min-h-[320px] flex-col overflow-hidden rounded-xl border border-slate-800 bg-[#0f1419] shadow-sm max-lg:h-[50dvh]">
+                    <div className="flex flex-wrap items-center gap-2 border-b border-white/10 px-3 py-2 text-[12px]">
                         <SquareTerminal size={14} className="text-slate-400" />
                         <span className="font-semibold text-slate-200">Terminal</span>
                         <span className={`ml-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${STATUS_UI[status].cls}`}>
@@ -637,7 +637,7 @@ export default function LiveInteractiveCompilerPage() {
                             {statusLabel}
                         </span>
                         <button type="button" onClick={() => setLines([])} title="Clear terminal"
-                            className="ml-auto inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-slate-400 hover:bg-white/10 hover:text-slate-200">
+                            className="ml-auto inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-slate-400 hover:bg-white/10 hover:text-slate-200 max-lg:px-2 max-lg:py-1.5">
                             <Eraser size={13} /> Clear
                         </button>
                     </div>
@@ -680,7 +680,7 @@ export default function LiveInteractiveCompilerPage() {
                 </section>
             </main>
 
-            <footer className="flex items-center justify-between border-t border-slate-200 bg-white px-4 py-1.5 text-[11px] text-slate-500">
+            <footer className="flex items-center justify-between border-t border-slate-200 bg-white px-4 py-1.5 text-[11px] text-slate-500 max-sm:px-3">
                 <span>Java, C, C++ and C# run on the LMS compiler service. Python runs in your browser.</span>
             </footer>
 
@@ -688,13 +688,13 @@ export default function LiveInteractiveCompilerPage() {
             {showViz && (
                 <div
                     onClick={(e) => { if (e.target === e.currentTarget) closeViz() }}
-                    className="fixed inset-0 z-[500] flex items-center justify-center bg-slate-900/55 p-4 backdrop-blur-[3px]"
+                    className="fixed inset-0 z-[500] flex items-center justify-center bg-slate-900/55 p-4 backdrop-blur-[3px] max-sm:p-2"
                 >
-                    <div className="flex h-[min(860px,94vh)] w-[min(1280px,97vw)] flex-col overflow-hidden rounded-xl bg-white shadow-[0_24px_60px_rgba(0,0,0,0.3)]">
+                    <div className="flex h-[min(860px,94vh)] w-[min(1280px,97vw)] flex-col overflow-hidden rounded-xl bg-white shadow-[0_24px_60px_rgba(0,0,0,0.3)] max-lg:h-[min(860px,94dvh)] max-lg:max-w-full">
                         {vizLoading && vizSteps.length === 0 ? (
                             <div className="flex h-full flex-col items-center justify-center gap-3">
                                 <Loader2 className="h-7 w-7 animate-spin text-indigo-700" />
-                                <div className="text-sm text-gray-600">
+                                <div className="text-sm text-gray-600 max-lg:px-4 max-lg:text-center">
                                     {vizLang.engine === 'browser'
                                         ? 'Starting Python… (the first run downloads Pyodide)'
                                         : vizQueuePos

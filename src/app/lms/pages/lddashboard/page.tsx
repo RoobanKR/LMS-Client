@@ -1803,7 +1803,7 @@ function FloatingPicker({
             // underneath. Force it back on for the popover itself.
             pointerEvents: "auto",
           }}
-          className="pointer-events-auto z-[9999] overflow-hidden rounded-[10px] border border-hairline bg-surface shadow-xl ring-1 ring-black/[0.04]"
+          className="pointer-events-auto z-[9999] max-w-[calc(100vw-16px)] overflow-hidden rounded-[10px] border border-hairline bg-surface shadow-xl ring-1 ring-black/[0.04]"
         >
           {showSearch && (
             <div className="relative border-b border-hairline p-1.5">
@@ -1932,8 +1932,8 @@ function ServiceCoursesOverlay({ serviceTitle, clientName, courses, onClose }: {
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent showCloseButton={false} className="z-popover flex h-[86vh] max-h-[820px] w-[96vw] flex-col gap-0 overflow-hidden rounded-tile border border-hairline-strong bg-surface p-0 sm:w-[1040px] sm:max-w-[1040px]">
-        <DialogHeader className="relative flex-shrink-0 border-b border-hairline px-6 py-3 text-left">
+      <DialogContent showCloseButton={false} className="z-popover flex h-[86dvh] max-h-[820px] w-[96vw] max-w-[1040px] flex-col gap-0 overflow-hidden rounded-tile border border-hairline-strong bg-surface p-0 sm:max-w-[1040px]">
+        <DialogHeader className="relative flex-shrink-0 border-b border-hairline px-4 py-3 text-left sm:px-6">
           <div className="flex items-center gap-2.5 pr-10">
             <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-brand-100 text-brand-700 dark:bg-brand-500/15 dark:text-brand-400">
               <BookOpen size={15} />
@@ -1959,9 +1959,9 @@ function ServiceCoursesOverlay({ serviceTitle, clientName, courses, onClose }: {
           </button>
         </DialogHeader>
 
-        <div className="flex min-h-0 flex-1 flex-col px-6 pt-3 pb-3">
-          <div className="mb-3 flex flex-shrink-0 flex-nowrap items-center gap-2">
-            <div className="relative min-w-0 flex-1">
+        <div className="flex min-h-0 flex-1 flex-col px-4 pt-3 pb-3 sm:px-6">
+          <div className="mb-3 flex flex-shrink-0 flex-wrap items-center gap-2 lg:flex-nowrap">
+            <div className="relative min-w-0 flex-1 basis-full sm:basis-0">
               <Search size={15} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-faint" aria-hidden />
               <input
                 value={q}
@@ -2003,7 +2003,7 @@ function ServiceCoursesOverlay({ serviceTitle, clientName, courses, onClose }: {
           </div>
 
           <div ref={tableWrapRef} className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-tile border border-hairline bg-surface">
-            <div className="min-h-0 flex-1">
+            <div className="min-h-0 flex-1 overflow-x-auto lg:overflow-visible">
               {shown.length === 0 ? (
                 <p className="px-4 py-6 text-center text-sm text-subtle">
                   {enriched.length === 0
@@ -2011,7 +2011,7 @@ function ServiceCoursesOverlay({ serviceTitle, clientName, courses, onClose }: {
                     : "No courses match the current filters."}
                 </p>
               ) : (
-                <table className="w-full border-collapse">
+                <table className="w-full min-w-[520px] border-collapse lg:min-w-0">
                   <thead className="sticky top-0 z-10 bg-surface-sunken/60">
                     <tr className="border-b border-hairline">
                       <th className="px-3 py-1.5 text-left text-2xs font-semibold uppercase tracking-wider text-subtle">Course</th>
@@ -2048,7 +2048,7 @@ function ServiceCoursesOverlay({ serviceTitle, clientName, courses, onClose }: {
               ? "No courses to show"
               : <>Showing <b className="font-semibold text-heading">{rangeFrom}</b> to <b className="font-semibold text-heading">{rangeTo}</b> of <b className="font-semibold text-heading">{shown.length}</b> courses</>}
           </span>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <FloatingPicker
               size="sm"
               minWidth="min-w-[128px]"
@@ -2278,8 +2278,8 @@ function ClientServicesOverlay({ name, courses, onClose, onOpenCourses }: {
       {/* Fixed frame: same width/height no matter what the current page holds.
           Pagination handles overflow (auto-fit pageSize keeps rows from ever
           being clipped by the fixed height). */}
-      <DialogContent showCloseButton={false} className="z-popover flex h-[86vh] max-h-[820px] w-[96vw] flex-col gap-0 overflow-hidden rounded-tile border border-hairline-strong bg-surface p-0 sm:w-[1120px] sm:max-w-[1120px]">
-        <DialogHeader className="relative flex-shrink-0 border-b border-hairline px-6 py-3 text-left">
+      <DialogContent showCloseButton={false} className="z-popover flex h-[86dvh] max-h-[820px] w-[96vw] max-w-[1120px] flex-col gap-0 overflow-hidden rounded-tile border border-hairline-strong bg-surface p-0 sm:max-w-[1120px]">
+        <DialogHeader className="relative flex-shrink-0 border-b border-hairline px-4 py-3 text-left sm:px-6">
           <div className="flex items-center gap-3 pr-12">
             <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-brand-100 text-[11px] font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-400">
               {(() => {
@@ -2328,13 +2328,13 @@ function ClientServicesOverlay({ name, courses, onClose, onOpenCourses }: {
         {/* Content column — fills the fixed frame; the table container inside
             claims the remaining vertical space and `pageSize` is auto-fit to
             match, so rows always fill the box without being clipped. */}
-        <div className="flex min-h-0 flex-1 flex-col px-6 pt-3 pb-3">
+        <div className="flex min-h-0 flex-1 flex-col px-4 pt-3 pb-3 sm:px-6">
 
       {/* Toolbar — search + three floating-label pickers + Clear filters.
           Deliberately NOT wrapped in a card: it should read as one row of
           controls, not a bordered widget inside the modal chrome. */}
-      <div className="mb-3 flex flex-shrink-0 flex-nowrap items-center gap-2">
-        <div className="relative min-w-0 flex-1">
+      <div className="mb-3 flex flex-shrink-0 flex-wrap items-center gap-2 lg:flex-nowrap">
+        <div className="relative min-w-0 flex-1 basis-full sm:basis-[200px] lg:basis-0">
           <Search size={15} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-faint" aria-hidden />
           <input
             value={q}
@@ -2405,7 +2405,7 @@ function ClientServicesOverlay({ name, courses, onClose, onOpenCourses }: {
       </div>
 
       <div ref={tableWrapRef} className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-tile border border-hairline bg-surface">
-        <div className="min-h-0 flex-1">
+        <div className="min-h-0 flex-1 overflow-x-auto lg:overflow-visible">
         {loading && services.length === 0 ? (
           <p className="px-4 py-6 text-center text-sm text-subtle">Loading services…</p>
         ) : serviceCount === 0 ? (
@@ -2416,7 +2416,7 @@ function ClientServicesOverlay({ name, courses, onClose, onOpenCourses }: {
             <button type="button" className="ldc-link" onClick={clearAllFilters}>Clear all</button>
           </p>
         ) : (
-          <table className="w-full border-collapse">
+          <table className="w-full min-w-[900px] border-collapse lg:min-w-0">
             <thead className="sticky top-0 z-10 bg-surface-sunken/60">
               <tr className="border-b border-hairline">
                 <th className="w-56 px-3 py-1.5 text-left text-2xs font-semibold uppercase tracking-wider text-subtle">Service model</th>
@@ -2541,7 +2541,7 @@ function ClientServicesOverlay({ name, courses, onClose, onOpenCourses }: {
               ? "No services to show"
               : <>Showing <b className="font-semibold text-heading">{rangeFrom}</b> to <b className="font-semibold text-heading">{rangeTo}</b> of <b className="font-semibold text-heading">{shownCount}</b> services</>}
           </span>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <FloatingPicker
               size="sm"
               minWidth="min-w-[128px]"
@@ -3558,8 +3558,8 @@ type AttState = {
 function AttFilters({ s, batches, showStatus }: { s: AttState; batches: string[]; showStatus: boolean }) {
   const active = s.statusF !== "all" || s.batchF !== "all" || !!s.q;
   return (
-    <div className="flex flex-nowrap items-center gap-2">
-      <div className="relative min-w-0 flex-1 sm:max-w-xs">
+    <div className="flex flex-wrap items-center gap-2 md:flex-nowrap">
+      <div className="relative min-w-0 flex-1 basis-full sm:basis-0 sm:max-w-xs">
         <Search size={15} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-faint" aria-hidden />
         <input
           value={s.q}
@@ -3734,7 +3734,7 @@ function AttRegisterSingle({
         ) : rows.length === 0 ? (
           <p className="px-4 py-8 text-center text-sm text-subtle">No students match these filters on this day.</p>
         ) : (
-          <table className="w-full border-collapse">
+          <table className="w-full min-w-[720px] border-collapse lg:min-w-0">
             <thead className="sticky top-0 z-10 bg-surface-sunken/60">
               <tr className="border-b border-hairline">
                 <th className="w-10 px-3 py-1.5 text-left">
@@ -6656,6 +6656,39 @@ export const LDC_CSS = `
 .ldr-ck small{display:block; font-size:10px; font-weight:500; color:var(--muted); overflow:hidden; text-overflow:ellipsis;}
 .ldr-mp-actions{display:flex; gap:6px; margin-top:6px; padding-top:8px; border-top:1px solid var(--grid);}
 .ldr-mp-actions button{font:inherit; font-size:11px; font-weight:650; color:var(--accent); background:none; border:none; cursor:pointer; padding:2px 4px;}
+
+/* ═════════ Phone / small-tablet refinements ═════════
+   max-width queries only, so every rule above stays exactly as-is on
+   laptops/desktops. Keeps 360–430px phones free of horizontal page scroll. */
+@media (max-width:640px){
+  .ldc-btn-cluster{flex-wrap:wrap;}
+  .ldc-tabs{flex-wrap:wrap; column-gap:16px; row-gap:6px; max-width:100%;}
+  .ldc-tabs button{white-space:nowrap;}
+  .ldc-seg{flex-wrap:wrap; max-width:100%;}
+  .ldc-cbar{gap:10px;}
+  .ldc-cfield{min-width:0; max-width:100%;}
+  .ldc-cfield select{min-width:0; width:100%; max-width:100%;}
+  .ldc-search{min-width:0;}
+  .ldc-filters{margin-left:0;}
+  .ldr-searchwrap{min-width:0; flex-basis:100%; max-width:100%;}
+  .ldr-mp-panel{width:min(270px, calc(100vw - 32px));}
+  .ldc-prog{flex-direction:column; align-items:stretch; gap:16px;}
+  .ldc-prog .ldc-ringwrap{align-self:center;}
+  .ldc-topbar-r{margin-left:0; align-items:flex-start; max-width:100%;}
+  .ldc-method{text-align:left;}
+  .ldc-topbar h1{font-size:18px;}
+  .ldm-hdr-l h1{font-size:19px;}
+  .ldm-hdr-r{margin-left:0; width:100%;}
+  .ldm-search{flex:1 1 auto; width:auto; max-width:none;}
+  .ldm-donutrow{flex-wrap:wrap;}
+  .ldc-ccourse-meta{margin-left:0;}
+  .ldc-s{padding:2px 10px;}
+  .ldc-panel{padding:14px;}
+  .ldr-bar{grid-template-columns:minmax(72px,1fr) 1.6fr 46px; gap:8px;}
+  .ldr-cols{gap:8px;}
+  .ldc-q-meta, .ldc-q-opts{margin-left:0;}
+}
+@media (max-width:460px){ .ldc-cards{grid-template-columns:1fr;} }
 
 /* ═════════ Print ═════════
    The shell is a 100vh overflow:hidden construction — without these unlocks a

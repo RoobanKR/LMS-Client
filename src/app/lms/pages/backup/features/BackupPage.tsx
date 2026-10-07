@@ -92,7 +92,7 @@ export default function BackupPage() {
   if (!isReady) {
     return (
       <DashboardLayout>
-        <div className="h-full min-h-0 flex flex-col px-6 py-5 md:px-8 md:py-6">
+        <div className="h-full min-h-0 flex flex-col px-4 sm:px-6 py-5 md:px-8 md:py-6">
           <BackupPageHeader />
 
           <div className="mt-5 flex flex-col gap-5">
@@ -136,7 +136,7 @@ export default function BackupPage() {
   if (!hasPage) {
     return (
       <DashboardLayout>
-        <div className="h-full min-h-0 flex flex-col px-6 py-5 md:px-8 md:py-6">
+        <div className="h-full min-h-0 flex flex-col px-4 sm:px-6 py-5 md:px-8 md:py-6">
           <BackupPageHeader />
 
           <div className="mt-5">
@@ -176,8 +176,8 @@ export default function BackupPage() {
         {/* The shell owns no padding of its own — the header and the scroll
             area each set their own, so the two never stack into a double
             gutter down the left edge. */}
-        <div className="flex items-start justify-between gap-4 border-b border-hairline px-5 py-3.5 md:px-6">
-          <div>
+        <div className="flex flex-wrap md:flex-nowrap items-start justify-between gap-x-4 gap-y-3 border-b border-hairline px-4 sm:px-5 py-3.5 md:px-6">
+          <div className="min-w-0">
             {showCreate ? (
               <button
                 type="button"
@@ -204,7 +204,7 @@ export default function BackupPage() {
             </div>
           </div>
           {!showCreate ? (
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="flex flex-wrap shrink-0 items-center gap-2">
               {/* The schedule editor is an ACTION, so it lives with the other
                   page action rather than inside a card that otherwise only
                   reports numbers. */}
@@ -226,12 +226,12 @@ export default function BackupPage() {
           ) : null}
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 md:px-6">
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-5 py-4 md:px-6">
           {showCreate ? (
             <CreateBackupCard canCreate={canCreate} />
           ) : (
             <div className="flex flex-col gap-4 pb-1">
-              <div className="grid gap-3 xl:grid-cols-4 md:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 {/* NOTE ON LABELS: the second card is "Local Archives", not
                     "File Storage Backup". A backup stores the URL of an
                     uploaded video or PDF, never its bytes (see the fileUrl

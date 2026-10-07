@@ -1863,7 +1863,7 @@ function calculateDuration(startDate: string, endDate: string): string {
 
       {/* User Details Modal */}
       <Dialog open={isDetailsModalOpen} onOpenChange={setIsDetailsModalOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden">
+        <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-3xl max-h-[90dvh] overflow-hidden p-4 sm:p-6">
           {selectedUser && (
             <>
               <DialogHeader>
@@ -2093,7 +2093,7 @@ function calculateDuration(startDate: string, endDate: string): string {
         </div>
 
         {/* Dates Row */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="enrolment-starts" className="text-xs">Start Date</Label>
             <Input

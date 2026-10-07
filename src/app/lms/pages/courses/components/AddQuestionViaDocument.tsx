@@ -1038,7 +1038,7 @@ const selectAllValid = () => {
         <div style={{ padding: "12px 16px 0", flexShrink: 0 }}>
           {renderCapacityBar()}
 
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+          <div className="flex-wrap" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
             <button
               onClick={selectAllValid}
               style={{
@@ -1372,7 +1372,7 @@ const selectAllValid = () => {
             border: "1px solid #e4e4ed",
             width: "100%",
             maxWidth: 1200,
-            maxHeight: "92vh",
+            maxHeight: "92dvh",
             display: "flex",
             flexDirection: "column",
             overflow: "hidden",

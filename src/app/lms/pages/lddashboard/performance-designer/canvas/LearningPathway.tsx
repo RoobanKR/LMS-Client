@@ -105,7 +105,7 @@ function StageColumns({ rows }: { rows: Row[] }) {
                             // number above still shows the true value.
                             const h = na ? NA_PLACEHOLDER_PX : Math.max(MIN_BAR_PX, rawH);
                             return (
-                                <div key={r.key} className="flex flex-col items-center" style={{ width: 88 }}>
+                                <div key={r.key} className="flex flex-col items-center" style={{ width: 88, maxWidth: `${100 / rows.length}%` }}>
                                     <span
                                         className={`mb-1 text-[13px] font-bold leading-none tabular-nums ${na ? "text-faint" : ""}`}
                                         style={na ? undefined : { color: BAR_FILL }}
@@ -146,7 +146,7 @@ function StageColumns({ rows }: { rows: Row[] }) {
                 {/* Stage labels under each column */}
                 <div className="absolute inset-x-0 flex justify-around pl-8 pr-2" style={{ bottom: 8 }}>
                     {rows.map((r) => (
-                        <div key={r.key} className="text-center" style={{ width: 88 }}>
+                        <div key={r.key} className="text-center" style={{ width: 88, maxWidth: `${100 / rows.length}%` }}>
                             <p className="text-[12px] font-semibold text-heading">{r.label}</p>
                         </div>
                     ))}

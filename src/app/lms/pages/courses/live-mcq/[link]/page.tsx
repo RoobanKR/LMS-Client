@@ -457,7 +457,7 @@ export default function LiveMCQPage() {
       }}>
 
         {/* ── Top bar ──────────────────────────────────────────────────────── */}
-        <header style={{
+        <header className="lmcq-header" style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
           padding: "14px 24px",
           background: "rgba(255,255,255,0.03)",
@@ -484,7 +484,7 @@ export default function LiveMCQPage() {
             </div>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div className="lmcq-header-actions" style={{ display: "flex", alignItems: "center", gap: 16 }}>
             {remaining !== null && (
               <div style={{
                 display: "flex", alignItems: "center", gap: 6,
@@ -530,10 +530,10 @@ export default function LiveMCQPage() {
           </div>
         </header>
 
-        <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+        <div className="lmcq-body" style={{ flex: 1, display: "flex", overflow: "hidden" }}>
 
           {/* ── Question nav sidebar ──────────────────────────────────────── */}
-          <aside style={{
+          <aside className="lmcq-aside" style={{
             width: 220, flexShrink: 0,
             background: "rgba(255,255,255,0.02)",
             borderRight: "1px solid rgba(255,255,255,0.06)",
@@ -541,7 +541,7 @@ export default function LiveMCQPage() {
             overflowY: "auto",
             display: "flex", flexDirection: "column", gap: 8,
           }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.3)", letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8, paddingLeft: 4 }}>
+            <div className="lmcq-aside-label" style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.3)", letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8, paddingLeft: 4 }}>
               Questions
             </div>
             {questions.map((q, i) => {
@@ -555,7 +555,7 @@ export default function LiveMCQPage() {
               else if (answered) { bg = "rgba(16,185,129,0.1)"; border = "rgba(16,185,129,0.3)"; }
 
               return (
-                <button key={q._id} onClick={() => goTo(i)} style={{
+                <button key={q._id} className="lmcq-qbtn" onClick={() => goTo(i)} style={{
                   display: "flex", alignItems: "center", gap: 10,
                   padding: "9px 10px", borderRadius: 8,
                   background: bg, border: `1px solid ${border}`,
@@ -569,7 +569,7 @@ export default function LiveMCQPage() {
                     fontSize: 11, fontWeight: 800,
                     color: isCurrent ? "#a5b4fc" : answered ? "#6ee7b7" : "rgba(255,255,255,0.4)",
                   }}>{i + 1}</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="lmcq-qtitle" style={{ flex: 1, minWidth: 0 }}>
                     <div style={{
                       fontSize: 11, color: isCurrent ? "white" : answered ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.35)",
                       fontWeight: isCurrent ? 600 : 400,
@@ -586,7 +586,7 @@ export default function LiveMCQPage() {
               );
             })}
 
-            <div style={{ marginTop: "auto", paddingTop: 16 }}>
+            <div className="lmcq-progress" style={{ marginTop: "auto", paddingTop: 16 }}>
               <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", marginBottom: 6 }}>
                 Progress {Math.round((answeredCount / totalQ) * 100)}%
               </div>
@@ -602,13 +602,13 @@ export default function LiveMCQPage() {
           </aside>
 
           {/* ── Question area ─────────────────────────────────────────────── */}
-          <main style={{
+          <main className="lmcq-main" style={{
             flex: 1, overflowY: "auto",
             padding: "32px 40px",
             display: "flex", flexDirection: "column", gap: 24,
             maxWidth: 860,
           }}>
-            <div style={{
+            <div className="lmcq-card" style={{
               background: "rgba(255,255,255,0.04)",
               border: "1px solid rgba(255,255,255,0.08)",
               borderRadius: 18,
@@ -657,7 +657,7 @@ export default function LiveMCQPage() {
                 )}
               </div>
 
-              <h2 style={{
+              <h2 className="lmcq-title" style={{
                 fontSize: 18, fontWeight: 700, color: "white",
                 lineHeight: 1.55, margin: "0 0 24px",
                 borderLeft: "3px solid #6366f1", paddingLeft: 16,
@@ -680,7 +680,7 @@ export default function LiveMCQPage() {
                 )}
               </div>
 
-              <div style={{
+              <div className="lmcq-options" style={{
                 display: "grid",
                 gridTemplateColumns: `repeat(${Math.min(cols, 2)}, 1fr)`,
                 gap: 10,
@@ -749,7 +749,7 @@ export default function LiveMCQPage() {
             </div>
 
             {/* ── Navigation ─────────────────────────────────────────────── */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: 32 }}>
+            <div className="lmcq-nav" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: 32 }}>
               <button
                 onClick={() => goTo(currentIdx - 1)}
                 disabled={currentIdx === 0}
@@ -766,7 +766,7 @@ export default function LiveMCQPage() {
                 <ChevronLeft size={15} /> Previous
               </button>
 
-              <div style={{ display: "flex", gap: 6 }}>
+              <div className="lmcq-dots" style={{ display: "flex", gap: 6 }}>
                 {questions.map((q, i) => {
                   const ans = answers[q._id];
                   const answered = Array.isArray(ans) ? ans.length > 0 : !!ans;
@@ -826,6 +826,27 @@ export default function LiveMCQPage() {
           ::-webkit-scrollbar { width: 4px; height: 4px; }
           ::-webkit-scrollbar-track { background: transparent; }
           ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 99px; }
+          /* Phones / small tablets: question rail becomes a horizontal strip
+             above the question; desktop layout is untouched. */
+          @media (max-width: 767px) {
+            .lmcq-header { padding: 10px 12px !important; }
+            .lmcq-header-actions { gap: 8px !important; flex-wrap: wrap; }
+            .lmcq-body { flex-direction: column !important; overflow: visible !important; }
+            .lmcq-aside {
+              width: 100% !important; flex-direction: row !important; align-items: center;
+              overflow-x: auto !important; overflow-y: hidden !important;
+              padding: 10px 12px !important; gap: 6px !important;
+              border-right: none !important; border-bottom: 1px solid rgba(255,255,255,0.06);
+            }
+            .lmcq-aside-label, .lmcq-progress, .lmcq-qtitle { display: none !important; }
+            .lmcq-qbtn { width: auto !important; flex-shrink: 0; padding: 6px !important; gap: 4px !important; }
+            .lmcq-main { padding: 16px 12px !important; max-width: none !important; gap: 16px !important; }
+            .lmcq-card { padding: 18px 14px !important; }
+            .lmcq-title { font-size: 16px !important; padding-left: 12px !important; }
+            .lmcq-options { grid-template-columns: 1fr !important; }
+            .lmcq-nav { flex-wrap: wrap; gap: 12px; padding-bottom: 20px !important; }
+            .lmcq-dots { order: 3; width: 100%; flex-wrap: wrap; justify-content: center; }
+          }
         `}</style>
       </div>
     </>

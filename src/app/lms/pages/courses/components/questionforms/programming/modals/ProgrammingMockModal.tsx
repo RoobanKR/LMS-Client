@@ -222,13 +222,13 @@ export const ProgrammingMockModal: React.FC<{
           }}>
             <Code size={13} style={{ color: 'white' }} />
           </div>
-          <span style={{ fontSize: 12, fontWeight: 700, color: '#333', fontFamily: 'var(--lms-font)', letterSpacing: 0.2 }}>
+          <span className="max-sm:hidden" style={{ fontSize: 12, fontWeight: 700, color: '#333', fontFamily: 'var(--lms-font)', letterSpacing: 0.2 }}>
             Mock Preview
           </span>
         </div>
 
         {/* Center: question pills */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <div className="max-md:flex-1 max-md:min-w-0 max-md:overflow-x-auto max-md:mx-2 no-scrollbar" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           {questions.map((qItem, i) => {
             const ds = DS[qItem.difficulty] || DS.medium;
             const isActive = i === idx;
@@ -251,7 +251,7 @@ export const ProgrammingMockModal: React.FC<{
         </div>
 
         {/* Right: lang select + close */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div className="flex-shrink-0" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <select value={lang} onChange={e => setLang(e.target.value)}
             style={{
               fontFamily: 'var(--lms-font)', fontSize: 11, fontWeight: 600,
@@ -274,16 +274,16 @@ export const ProgrammingMockModal: React.FC<{
       </div>
 
       {/* ── BODY ── */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+      <div className="max-md:!flex-col max-md:!overflow-y-auto" style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
         {/* ── LEFT: Problem Panel ── */}
-        <div style={{
+        <div className="max-md:!w-full max-md:!overflow-visible max-md:!border-r-0 max-md:border-b max-md:border-[#e5e5e5]" style={{
           width: '42%', flexShrink: 0, borderRight: '1px solid #e5e5e5',
           display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#ffffff'
         }}>
 
           {/* Panel content — all in one like LeetCode */}
-          <div className="lms-sidebar-scroll" style={{ flex: 1, overflowY: 'auto', padding: '24px 20px' }}>
+          <div className="lms-sidebar-scroll max-md:!overflow-visible max-sm:!px-4 max-sm:!py-4" style={{ flex: 1, overflowY: 'auto', padding: '24px 20px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
 
               {/* Title row */}
@@ -404,7 +404,7 @@ export const ProgrammingMockModal: React.FC<{
         </div>
 
         {/* ── RIGHT: Editor + Console ── */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#fefefe' }}>
+        <div className="max-md:!flex-none max-md:h-[85dvh] max-md:min-h-[480px]" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#fefefe' }}>
 
           {/* Editor toolbar */}
           <div style={{

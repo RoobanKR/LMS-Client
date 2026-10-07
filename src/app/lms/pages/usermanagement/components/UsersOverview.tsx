@@ -34,7 +34,7 @@ export default function UsersOverview({ stats, isError, onViewUsersByRole }: {
                     <Icon className="size-[18px]" strokeWidth={1.75} />
                 </span>
                 <div className="min-w-0">
-                    <dt className="text-[10px] font-medium text-subtle sm:text-xs">{label}</dt>
+                    <dt className="text-[11px] font-medium text-subtle sm:text-xs">{label}</dt>
                     <dd className="mt-1 text-xl font-semibold leading-6 tracking-tight text-heading tabular-nums sm:text-2xl">
                         {value !== undefined
                             ? value.toLocaleString()

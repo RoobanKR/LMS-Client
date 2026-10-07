@@ -654,7 +654,7 @@ export const LectureResourceList: React.FC<LectureResourceListProps> = ({
     {
       key: 'size',
       label: 'Size',
-      className: 'w-[10%] px-3 pr-4 text-left align-middle whitespace-nowrap tabular-nums',
+      className: 'hidden md:table-cell w-[10%] px-3 pr-4 text-left align-middle whitespace-nowrap tabular-nums',
       // A group's size is the total of the files in it.
       render: (row) => row.kind === 'group' ? (
         <span style={{ fontSize: 12, fontWeight: 600, color: S.textMuted }}>{fmtFolderSize(row.stats.bytes)}</span>
@@ -678,7 +678,7 @@ export const LectureResourceList: React.FC<LectureResourceListProps> = ({
 
       {/* Toolbar: search / sort / filter */}
       <div className="flex items-center gap-2 flex-wrap">
-        <div className="flex items-center gap-2 h-9 px-3 flex-1 min-w-[200px] rounded-lg border border-gray-200 bg-white focus-within:border-gray-400 transition-colors">
+        <div className="flex items-center gap-2 h-9 px-3 flex-1 max-sm:basis-full min-w-0 sm:min-w-[200px] rounded-lg border border-gray-200 bg-white focus-within:border-gray-400 transition-colors">
           <Search size={14} className="flex-shrink-0 text-gray-400" />
           <input
             value={query}
@@ -708,14 +708,14 @@ export const LectureResourceList: React.FC<LectureResourceListProps> = ({
             style={{ color: showSort ? "#F97316" : "#475569" }}
           >
             <ArrowUpDown size={13} />
-            <span className="text-[#667085]">Sort by:</span>
+            <span className="hidden sm:inline text-[#667085]">Sort by:</span>
             <span className="font-semibold text-[#101828]">{sortLabel}</span>
             <ChevronDown size={12} className={`transition-transform ${showSort ? "rotate-180" : ""}`} />
           </button>
           {showSort && (
             <div
               ref={sortMenuRef}
-              className="absolute top-full right-0 mt-1 w-[200px] rounded-lg border border-[#E4E7EC] bg-white z-50 overflow-hidden"
+              className="absolute top-full left-0 sm:left-auto sm:right-0 mt-1 w-[200px] rounded-lg border border-[#E4E7EC] bg-white z-50 overflow-hidden"
               style={{ boxShadow: "0 8px 24px rgba(15,23,42,0.10)" }}
             >
               {([
@@ -771,7 +771,7 @@ export const LectureResourceList: React.FC<LectureResourceListProps> = ({
       {showFilter && (
         <div
           ref={filterPanelRef}
-          className="absolute mt-1 z-40 rounded-xl border border-[#E4E7EC] bg-white"
+          className="absolute mt-1 max-sm:!mt-[88px] z-40 rounded-xl border border-[#E4E7EC] bg-white"
           style={{
             top: 0, right: 0, marginTop: 44,
             width: 400,

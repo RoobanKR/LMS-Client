@@ -1148,7 +1148,7 @@ export default function CodeCompiler() {
   }
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden bg-background dark:bg-gray-900">
+    <div className="h-screen max-lg:h-auto max-lg:min-h-[100dvh] flex flex-col overflow-hidden bg-background dark:bg-gray-900">
       {/* Header - Fixed */}
       <motion.div 
         initial="hidden"
@@ -1156,10 +1156,10 @@ export default function CodeCompiler() {
         variants={slideIn}
         className="border-b bg-gradient-to-r from-emerald-600 via-blue-600 to-purple-600 text-white shadow-lg flex-shrink-0"
       >
-        <div className="flex items-center justify-between p-4">
-          <div className="flex items-center gap-4">
-            <motion.h1 
-              className="text-xl font-bold flex items-center gap-2"
+        <div className="flex items-center justify-between p-4 max-xl:flex-wrap max-xl:gap-3 max-lg:flex-col max-lg:items-stretch max-sm:p-3">
+          <div className="flex items-center gap-4 min-w-0 max-sm:flex-wrap max-sm:gap-2">
+            <motion.h1
+              className="text-xl font-bold flex items-center gap-2 max-sm:text-lg"
               whileHover={{ scale: 1.02 }}
               transition={{ type: "spring", stiffness: 400, damping: 10 }}
             >
@@ -1181,7 +1181,7 @@ export default function CodeCompiler() {
             </Select>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 max-xl:flex-wrap">
             <motion.div whileHover="hover" whileTap="tap" variants={buttonHover}>
               <Button
                 onClick={saveCode}
@@ -1306,7 +1306,7 @@ export default function CodeCompiler() {
               transition={{ duration: 0.3 }}
               className="overflow-hidden"
             >
-              <div className="px-4 pb-4 flex items-center gap-4 flex-wrap">
+              <div className="px-4 pb-4 flex items-center gap-4 flex-wrap max-sm:px-3 max-sm:gap-3">
                 <div className="flex items-center gap-2">
                   <label className="text-sm font-medium">User ID:</label>
                   <Input
@@ -1342,7 +1342,7 @@ export default function CodeCompiler() {
                   <motion.div
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className={`text-sm px-3 py-1 rounded ${
+                    className={`text-sm px-3 py-1 rounded max-w-full break-words ${
                       saveStatus.type === "success"
                         ? "bg-green-500/20 text-green-100 border border-green-400/30"
                         : "bg-red-500/20 text-red-100 border border-red-400/30"
@@ -1361,7 +1361,7 @@ export default function CodeCompiler() {
             onClick={() => setIsExpanded(!isExpanded)}
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
-            className="text-white/60 hover:text-white"
+            className="text-white/60 hover:text-white max-lg:p-2 max-lg:-my-1"
           >
             {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
           </motion.button>
@@ -1369,13 +1369,13 @@ export default function CodeCompiler() {
       </motion.div>
 
       {/* Main Content - Flexible */}
-      <div className="flex-1 flex overflow-hidden min-h-0">
+      <div className="flex-1 flex overflow-hidden min-h-0 max-lg:flex-none max-lg:flex-col">
         {/* Editor Side - Scrollable */}
-        <motion.div 
+        <motion.div
           initial="hidden"
           animate="visible"
           variants={fadeIn}
-          className="flex-1 flex flex-col min-w-0 min-h-0"
+          className="flex-1 flex flex-col min-w-0 min-h-0 max-lg:flex-none max-lg:h-[60dvh] max-lg:min-h-[320px]"
         >
           <div ref={editorRef} className="flex-1 border-r overflow-auto min-h-0 h-full" />
         </motion.div>
@@ -1385,7 +1385,7 @@ export default function CodeCompiler() {
           initial="hidden"
           animate="visible"
           variants={slideIn}
-          className="w-96 flex flex-col border-l min-w-0"
+          className="w-96 flex flex-col border-l min-w-0 max-lg:w-full max-lg:h-[50dvh] max-lg:min-h-[300px] max-lg:border-l-0 max-lg:border-t"
         >
           {/* Tabs - Fixed */}
           <div className="flex border-b bg-muted/30 flex-shrink-0">
@@ -1483,14 +1483,14 @@ export default function CodeCompiler() {
                             {line.type === "input-prompt" &&
                             interactiveExecution.isWaitingForInput &&
                             outputLines[outputLines.length - 1]?.id === line.id ? (
-                              <div className="flex items-center">
-                                <span>{line.text}</span>
+                              <div className="flex items-center max-sm:flex-wrap">
+                                <span className="max-sm:min-w-0 max-sm:break-words">{line.text}</span>
                                 <Input
                                   ref={inputRef}
                                   value={currentInput}
                                   onChange={(e) => setCurrentInput(e.target.value)}
                                   onKeyPress={handleInputKeyPress}
-                                  className="ml-2 w-48 h-6 text-sm font-mono bg-transparent border-none p-0 text-green-600 dark:text-green-400 font-semibold focus:ring-0 focus:outline-none"
+                                  className="ml-2 w-48 max-w-full min-w-0 h-6 text-sm font-mono bg-transparent border-none p-0 text-green-600 dark:text-green-400 font-semibold focus:ring-0 focus:outline-none"
                                   placeholder=""
                                   autoFocus
                                 />
@@ -1572,7 +1572,7 @@ export default function CodeCompiler() {
                           className="text-sm p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md flex items-start gap-2"
                         >
                           <span className="w-2 h-2 bg-red-500 rounded-full mt-2 flex-shrink-0"></span>
-                          <span>{problem}</span>
+                          <span className="min-w-0 break-words">{problem}</span>
                         </motion.div>
                       ))}
                     </div>
@@ -1589,9 +1589,9 @@ export default function CodeCompiler() {
         initial="hidden"
         animate="visible"
         variants={slideIn}
-        className="border-t bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 px-4 py-2 text-xs flex items-center justify-between flex-shrink-0"
+        className="border-t bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 px-4 py-2 text-xs flex items-center justify-between flex-shrink-0 max-lg:flex-wrap max-lg:gap-y-1 max-sm:px-3"
       >
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-6 max-lg:flex-wrap max-lg:gap-x-4 max-lg:gap-y-1">
           <span className="flex items-center gap-2">
             <span className="font-medium">Language:</span>
             <span className="text-blue-600 dark:text-blue-400">{LANGUAGES[selectedLanguage].name}</span>
@@ -1613,7 +1613,7 @@ export default function CodeCompiler() {
             <span className="text-green-600 dark:text-green-400">{interactiveExecution.userInputs.length}</span>
           </span>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 max-sm:gap-2">
           <span className="text-muted-foreground">
             {isRunning
               ? interactiveExecution.isWaitingForInput

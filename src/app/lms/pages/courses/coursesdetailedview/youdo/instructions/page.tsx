@@ -952,7 +952,7 @@ function InstructionsContent() {
               </button>
               <div style={{ minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                  <h1 style={{ fontSize: wide ? 26 : 21, fontWeight: 700, color: C.text, margin: 0, lineHeight: 1.25 }}>
+                  <h1 style={{ fontSize: wide ? 26 : 21, fontWeight: 700, color: C.text, margin: 0, lineHeight: 1.25, wordBreak: "break-word" }}>
                     {info.exerciseName || "Assessment"}
                   </h1>
                   <span style={{

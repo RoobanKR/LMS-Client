@@ -53,24 +53,24 @@ export default function TrainerCourseManagement() {
         <header className="flex flex-wrap items-center justify-between gap-4">
           <div>
             {selected && <button onClick={() => openClient(null)} className="mb-3 inline-flex items-center gap-2 text-sm text-subtle hover:text-heading"><ArrowLeft className="h-4 w-4" />All my clients</button>}
-            <h1 className="text-2xl font-semibold text-heading">{selected?.name || 'Course Management'}</h1>
+            <h1 className="text-xl font-semibold text-heading sm:text-2xl">{selected?.name || 'Course Management'}</h1>
             <p className="mt-1 text-sm text-subtle">{selected ? 'Manage the courses you are enrolled in for this client.' : 'Your enrolled courses, organised by client.'}</p>
           </div>
-          {!loading && !query.isError && <div className="flex gap-3 text-sm">
+          {!loading && !query.isError && <div className="flex flex-wrap gap-3 text-sm">
             <span className="flex items-center gap-2 rounded-lg border border-hairline bg-surface px-4 py-3"><Building2 className="h-4 w-4 text-brand" /><strong>{clients.length}</strong> Clients</span>
             <span className="flex items-center gap-2 rounded-lg border border-hairline bg-surface px-4 py-3"><BookOpen className="h-4 w-4 text-brand" /><strong>{query.data?.length || 0}</strong> Courses</span>
           </div>}
         </header>
 
-        {loading ? <div className="space-y-3 rounded-xl border border-hairline bg-surface p-5" aria-label="Loading your enrolled courses"><Skeleton className="h-10 w-72" />{[0, 1, 2, 3].map((row) => <Skeleton key={row} className="h-16 w-full" />)}</div> :
+        {loading ? <div className="space-y-3 rounded-xl border border-hairline bg-surface p-5" aria-label="Loading your enrolled courses"><Skeleton className="h-10 w-full max-w-72" />{[0, 1, 2, 3].map((row) => <Skeleton key={row} className="h-16 w-full" />)}</div> :
           query.isError || !userId ? <div role="alert" className="rounded-xl border border-hairline bg-surface p-8 text-center"><p className="text-heading">{!userId ? 'Sign in to view your enrolled courses.' : 'Unable to load your enrolled courses.'}</p>{userId && <Button className="mt-4" onClick={() => query.refetch()}>Try again</Button>}</div> :
           <section className="overflow-hidden rounded-xl border border-hairline bg-surface shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline p-4 sm:p-5">
               <h2 className="font-semibold text-heading">{selected ? 'My courses' : 'My clients'} <span className="ml-2 text-sm font-normal text-subtle">({selected ? visibleCourses.length : visibleClients.length})</span></h2>
               <div className="relative w-full sm:w-80"><Search className="absolute left-3 top-3 h-4 w-4 text-subtle" /><Input className="pl-9" aria-label={selected ? 'Search your courses' : 'Search your clients or courses'} placeholder={selected ? 'Search courses…' : 'Search clients or courses…'} value={search} onChange={(event) => setSearch(event.target.value)} /></div>
             </div>
             {(selected ? visibleCourses.length : visibleClients.length) === 0 ? <div className="px-6 py-16 text-center"><BookOpen className="mx-auto mb-4 h-8 w-8 text-subtle" /><p className="font-medium text-heading">{term ? 'No matches found' : 'No enrolled courses yet'}</p><p className="mt-2 text-sm text-subtle">{term ? 'Try another client or course name.' : 'Clients appear here when you are enrolled in one of their courses.'}</p></div> :
-              <div className="overflow-x-auto"><table className="w-full text-left">
+              <div className="overflow-x-auto"><table className="w-full min-w-[640px] text-left">
                 <thead className="bg-canvas text-xs uppercase tracking-wide text-subtle"><tr>{(selected ? ['Course', 'Service', 'Modules', 'Status', 'Action'] : ['Client', 'Enrolled courses', 'Services', 'Action']).map((heading) => <th key={heading} className="px-5 py-3 font-medium">{heading}</th>)}</tr></thead>
                 <tbody className="divide-y divide-hairline">
                   {selected ? visibleCourses.map((course) => <tr key={course._id} className="hover:bg-canvas/50">

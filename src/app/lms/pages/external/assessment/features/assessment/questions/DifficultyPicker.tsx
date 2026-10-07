@@ -51,7 +51,7 @@ export default function DifficultyPicker({
       <motion.div
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
         transition={{ duration: 0.14 }}
-        className="fixed inset-0 z-[1001] flex items-center justify-center p-4"
+        className="fixed inset-0 z-[1001] flex items-center justify-center p-3 sm:p-4"
         style={{ background: 'rgba(30,41,59,0.55)', backdropFilter: 'blur(5px)' }}
         onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
       >
@@ -60,20 +60,20 @@ export default function DifficultyPicker({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.97, y: 8 }}
           transition={{ duration: 0.16 }}
-          className="w-full max-w-md bg-white overflow-hidden"
+          className="w-full max-w-md max-h-[90dvh] overflow-x-hidden overflow-y-auto overscroll-contain bg-white"
           style={{ borderRadius: 20, boxShadow: '0 24px 64px rgba(0,0,0,0.26)' }}
         >
-          <header className="px-6 pt-5 pb-4 relative">
+          <header className="px-4 pr-12 pt-5 pb-4 relative sm:px-6">
             <button
               type="button" onClick={onClose} aria-label="Close"
               className="absolute right-4 top-4 inline-flex size-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
             >
               <X size={18} />
             </button>
-            <p className="text-[12px]" style={{ color: D.textMuted }}>
+            <p className="text-[12px] break-words" style={{ color: D.textMuted }}>
               Assessment: <strong style={{ color: D.orange }}>{assessmentName}</strong>
             </p>
-            <h3 className="text-[19px] font-extrabold mt-2" style={{ color: D.textMain }}>
+            <h3 className="text-[17px] font-extrabold mt-2 sm:text-[19px]" style={{ color: D.textMain }}>
               Which difficulty?
             </h3>
             <p className="text-[12px] mt-0.5" style={{ color: D.textMuted }}>
@@ -81,7 +81,7 @@ export default function DifficultyPicker({
             </p>
           </header>
 
-          <div className="px-4 pb-4 space-y-2">
+          <div className="px-3 pb-4 space-y-2 sm:px-4">
             {slots.map((s) => {
               const m = META[s.level];
               const left = Math.max(0, s.allowed - s.used);

@@ -78,14 +78,15 @@ export default function BusinessWorkspaceChrome({ children, showAllTabs = false 
             activationMode="manual"
             className="flex h-full min-h-0 min-w-0 flex-col"
         >
-            {/* pt-14 on mobile clears the shell's floating hamburger
-                  (top-3 left-4, md:hidden). Desktop keeps pt-3 so the
-                  tab strip sits close to the top of the panel.
+            {/* The shells now carry an in-flow mobile top bar (hamburger)
+                  below lg, so no extra top padding is needed to clear a
+                  floating button — pt-3 everywhere.
                   `flex justify-between` gives the CTA slot a home on
                   the far right without breaking the tab strip's
-                  active-underline. Wraps only on very narrow viewports. */}
-            <div className="no-print shrink-0 px-4 sm:px-6 md:px-8 pt-14 md:pt-3 flex items-center justify-between gap-3 flex-wrap">
-                <TabsList aria-label="Business management sections" className="gap-1 overflow-x-auto overflow-y-hidden">
+                  active-underline. Wraps only on very narrow viewports;
+                  the tab list itself scrolls sideways if it can't fit. */}
+            <div className="no-print shrink-0 px-3 sm:px-6 md:px-8 pt-3 flex items-center justify-between gap-3 flex-wrap">
+                <TabsList aria-label="Business management sections" className="max-w-full min-w-0 gap-1 overflow-x-auto overflow-y-hidden">
                     {WORKSPACE_TABS.filter((tab) => showAllTabs || tab.value === activeTab || can(tab.permission)).map((tab) => (
                         <TabsTrigger
                             key={tab.value}

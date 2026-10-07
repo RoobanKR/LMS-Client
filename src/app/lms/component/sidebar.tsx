@@ -11,7 +11,6 @@ import {
     User as UserIcon,
     Loader2,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
@@ -54,8 +53,11 @@ const sidebarSpring = { type: "spring" as const, stiffness: 400, damping: 34 };
 export function Sidebar({ className }: SidebarProps) {
     const pathname = usePathname();
     const router = useRouter();
-    const { isCollapsed, setIsCollapsed } = useSidebar();
+    const { isCollapsed: desktopCollapsed, setIsCollapsed, setMobileOpen } = useSidebar();
     const [isMobile, setIsMobile] = useState(false);
+    // Below lg the rail lives in an off-canvas drawer and always renders
+    // expanded; the desktop collapse state only applies at lg and up.
+    const isCollapsed = isMobile ? false : desktopCollapsed;
     const [userPermissions, setUserPermissions] = useState<UserPermission[]>([]);
     const [sidebarItems, setSidebarItems] = useState<SidebarItem[]>([]);
     const [loading, setLoading] = useState(true);
@@ -71,7 +73,7 @@ export function Sidebar({ className }: SidebarProps) {
     // Check if mobile view
     useEffect(() => {
         const checkMobile = () => {
-            setIsMobile(window.innerWidth < 768);
+            setIsMobile(window.innerWidth < 1024);
         };
 
         checkMobile();
@@ -124,7 +126,7 @@ export function Sidebar({ className }: SidebarProps) {
     // (The Recents section that lived here was removed; the localStorage
     // purge in clearUserData still cleans up any legacy stored entries.)
     const handleItemClick = (item: SidebarItem) => {
-        if (isMobile) setIsCollapsed(true);
+        if (isMobile) setMobileOpen?.(false);
         router.push(item.href);
     };
 
@@ -200,7 +202,9 @@ export function Sidebar({ className }: SidebarProps) {
                     // surface, no right border. The mobile overlay keeps a
                     // solid surface so content can't bleed through it.
                     "relative z-40 h-full flex flex-col overflow-hidden",
-                    isMobile && !isCollapsed ? "fixed top-0 left-0 shadow-xl bg-surface" : "bg-transparent",
+                    // Below lg the shell's drawer supplies the surface,
+                    // position and shadow.
+                    "bg-transparent",
                     className
                 )}
             >
@@ -225,18 +229,29 @@ export function Sidebar({ className }: SidebarProps) {
                                 </p>
                             </div>
                         )}
-                        <button
-                            type="button"
-                            aria-label={isCollapsed ? "Expand navigation" : "Collapse navigation"}
-                            aria-expanded={!isCollapsed}
-                            onClick={() => setIsCollapsed(!isCollapsed)}
-                            className="flex-shrink-0 inline-flex h-6 w-6 items-center justify-center rounded-control text-faint hover:bg-row-hover hover:text-body transition-colors"
-                        >
-                            <ChevronDown className={cn(
-                                "w-4 h-4 transition-transform duration-150",
-                                isCollapsed ? "-rotate-90" : "rotate-90"
-                            )} />
-                        </button>
+                        {isMobile ? (
+                            <button
+                                type="button"
+                                aria-label="Close navigation"
+                                onClick={() => setMobileOpen?.(false)}
+                                className="flex-shrink-0 inline-flex h-9 w-9 items-center justify-center rounded-control text-subtle hover:bg-row-hover hover:text-body transition-colors"
+                            >
+                                <X className="w-[18px] h-[18px]" />
+                            </button>
+                        ) : (
+                            <button
+                                type="button"
+                                aria-label={isCollapsed ? "Expand navigation" : "Collapse navigation"}
+                                aria-expanded={!isCollapsed}
+                                onClick={() => setIsCollapsed(!isCollapsed)}
+                                className="flex-shrink-0 inline-flex h-6 w-6 items-center justify-center rounded-control text-faint hover:bg-row-hover hover:text-body transition-colors"
+                            >
+                                <ChevronDown className={cn(
+                                    "w-4 h-4 transition-transform duration-150",
+                                    isCollapsed ? "-rotate-90" : "rotate-90"
+                                )} />
+                            </button>
+                        )}
                     </div>
                 </div>
 
@@ -516,23 +531,8 @@ export function Sidebar({ className }: SidebarProps) {
                 </div>
             </motion.div>
 
-            {isMobile && !isCollapsed && (
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    className="fixed top-4 right-4 w-10 h-10 rounded-full bg-surface shadow-lg hover:bg-row-hover z-overlay border border-hairline-strong"
-                    onClick={() => setIsCollapsed(true)}
-                >
-                    <X className="h-5 w-5" />
-                </Button>
-            )}
-
-            {isMobile && !isCollapsed && (
-                <div
-                    className="fixed inset-0 bg-black/50 z-30 md:hidden"
-                    onClick={() => setIsCollapsed(true)}
-                />
-            )}
+            {/* The mobile backdrop + close live in the shell (layout.tsx) now:
+                below lg the rail is an off-canvas drawer with its own X. */}
         </TooltipPrimitive.Provider>
     );
 }

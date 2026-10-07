@@ -399,19 +399,19 @@ const QuizQuestions: React.FC = () => {
 
       {/* Quiz Question Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white w-full max-w-4xl h-[90vh] rounded-2xl flex flex-col">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-white w-full max-w-4xl h-[100dvh] sm:h-[90dvh] rounded-none sm:rounded-2xl flex flex-col">
             {/* Header */}
-            <div className="flex justify-between items-center p-6 border-b border-gray-200">
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900">
+            <div className="flex justify-between items-center gap-3 p-4 sm:p-6 border-b border-gray-200">
+              <div className="min-w-0">
+                <h2 className="text-lg sm:text-xl font-semibold text-gray-900">
                   {currentQuizQuestion.id ? 'Edit Quiz Question' : 'Create Quiz Question'}
                 </h2>
                 <p className="text-gray-600 text-sm mt-1">
                   Create a multiple choice quiz question
                 </p>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 shrink-0">
                 <button
                   onClick={handleSaveQuestion}
                   className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
@@ -429,9 +429,9 @@ const QuizQuestions: React.FC = () => {
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-auto p-6 bg-gray-50">
+            <div className="flex-1 overflow-auto p-3 sm:p-6 bg-gray-50">
               <div className="max-w-4xl mx-auto space-y-6">
-                <div className="bg-white rounded-xl border border-gray-200 p-6">
+                <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6">
                   {/* Basic Info */}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
                     <div>

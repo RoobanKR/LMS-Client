@@ -158,9 +158,9 @@ export function UsersTable({
       // a footer claiming 10. The sticky header stays pinned inside the scroll
       // container. overflow-x stays clipped: table-layout is fixed at 100 %
       // width, so there is nothing to scroll sideways to.
-      className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden"
+      className="flex-1 min-h-0 overflow-y-auto overflow-x-auto lg:overflow-x-hidden"
     >
-      <table className="w-full border-collapse" style={{ tableLayout: "fixed" }}>
+      <table className="w-full min-w-[720px] lg:min-w-0 border-collapse" style={{ tableLayout: "fixed" }}>
         <thead className="sticky top-0 z-sticky">
           <tr>
             <th className={`${HEAD_CELL} ${COL.check}`}>

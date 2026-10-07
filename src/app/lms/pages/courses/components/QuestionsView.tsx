@@ -250,8 +250,8 @@ const [showDocumentUpload, setShowDocumentUpload] = useState(false);
           border: '1.5px solid #ef4444',
           borderRadius: 10,
           padding: '10px 14px',
-          minWidth: 340,
-          maxWidth: 460,
+          minWidth: 'min(340px, calc(100vw - 32px))',
+          maxWidth: 'min(460px, calc(100vw - 32px))',
           boxShadow: '0 8px 24px rgba(239,68,68,0.18)',
           display: 'flex',
           alignItems: 'flex-start',
@@ -1436,11 +1436,11 @@ const addBtnDisabled = isAddingQuestions || (() => {
   return (
   <div className="h-full flex flex-col overflow-hidden" style={{ ...JKT, background: '#ffffff', color: '#1a1a2e' }}>
   {/* Header - fixed height */}
-<div className="flex-none flex items-center justify-between px-4 py-2.5 bg-white" style={{ borderBottom: '1px solid #e4e4ed' }}>
+<div className="flex-none flex flex-wrap gap-y-2 items-center justify-between px-3 sm:px-4 py-2.5 bg-white" style={{ borderBottom: '1px solid #e4e4ed' }}>
   <div className="flex items-center gap-2.5 min-w-0 flex-1">
     {/* Back */}
     <button onClick={onBack}
-      className="h-7 w-7 rounded-lg flex items-center justify-center transition-all flex-shrink-0"
+      className="h-8 w-8 sm:h-7 sm:w-7 rounded-lg flex items-center justify-center transition-all flex-shrink-0"
       style={{ color: '#8b8b9e', cursor: 'pointer' }}
       title="Go back"
       onMouseEnter={e => { e.currentTarget.style.color = '#1a1a2e'; e.currentTarget.style.background = '#f5f5f8'; }}
@@ -1466,13 +1466,13 @@ const addBtnDisabled = isAddingQuestions || (() => {
     </div>
   </div>
 
-  <div className="flex items-center gap-1.5 flex-shrink-0 ml-3">
+  <div className="flex items-center gap-1.5 flex-shrink-0 ml-3 max-sm:ml-0 max-sm:w-full max-sm:justify-end">
     {/* Search */}
-    <div className="relative">
+    <div className="relative max-sm:flex-1 max-sm:min-w-0">
       <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#bcbccc' }} />
       <input placeholder="Search questions…" value={searchTerm}
         onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-        className="pl-7 pr-7 h-7 w-40 sm:w-52 text-[12px] rounded-lg outline-none transition-all"
+        className="pl-7 pr-7 h-8 sm:h-7 w-full sm:w-52 text-[12px] rounded-lg outline-none transition-all"
         style={{ ...JKT, background: '#fafafa', border: '1.5px solid #e4e4ed', color: '#1a1a2e', cursor: 'text' }}
         onFocus={e => { e.currentTarget.style.borderColor = '#F27757'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(242,119,87,0.1)'; e.currentTarget.style.background = '#fff'; }}
         onBlur={e => { e.currentTarget.style.borderColor = '#e4e4ed'; e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.background = '#fafafa'; }} />
@@ -1492,7 +1492,7 @@ const addBtnDisabled = isAddingQuestions || (() => {
     {/* Refresh */}
     <button onClick={fetchQuestions} disabled={loadingQuestions || isAddingQuestions}
       title="Refresh questions"
-      className="h-7 w-7 rounded-lg flex items-center justify-center transition-all disabled:opacity-40"
+      className="h-8 w-8 sm:h-7 sm:w-7 flex-shrink-0 rounded-lg flex items-center justify-center transition-all disabled:opacity-40"
       style={{ color: '#8b8b9e', cursor: 'pointer' }}
       onMouseEnter={e => { if (!loadingQuestions) { e.currentTarget.style.color = '#F27757'; e.currentTarget.style.background = 'rgba(242,119,87,0.08)'; } }}
       onMouseLeave={e => { e.currentTarget.style.color = '#8b8b9e'; e.currentTarget.style.background = 'transparent'; }}>
@@ -1503,7 +1503,7 @@ const addBtnDisabled = isAddingQuestions || (() => {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button title="Filter questions"
-          className="h-7 w-7 rounded-lg flex items-center justify-center transition-all"
+          className="h-8 w-8 sm:h-7 sm:w-7 flex-shrink-0 rounded-lg flex items-center justify-center transition-all"
           style={{
             color: (filterDifficulty !== 'all' || filterType !== 'all') ? '#F27757' : '#8b8b9e',
             background: (filterDifficulty !== 'all' || filterType !== 'all') ? 'rgba(242,119,87,0.08)' : 'transparent',
@@ -1555,7 +1555,7 @@ const addBtnDisabled = isAddingQuestions || (() => {
       <button
         onClick={routeAddQuestion}
         title={addBtnDisabled ? 'All slots are filled' : 'Add a new question'}
-        className="h-7 px-3 text-[12px] font-semibold rounded-lg flex items-center gap-1 transition-all select-none"
+        className="h-8 sm:h-7 px-3 text-[12px] font-semibold rounded-lg flex items-center gap-1 transition-all select-none"
         style={
           isAddingQuestions
             ? { ...JKT, background: '#f5f5f8', color: '#bcbccc', border: '1px solid #e4e4ed', cursor: 'not-allowed' }
@@ -1730,7 +1730,7 @@ const addBtnDisabled = isAddingQuestions || (() => {
 </div>
       {/* ══ Active filters bar ══ */}
       {(filterDifficulty !== 'all' || filterType !== 'all' || searchTerm) && (
-        <div className="flex-none flex items-center gap-2 px-4 py-1.5"
+        <div className="flex-none flex flex-wrap items-center gap-2 px-3 sm:px-4 py-1.5"
           style={{ background: 'rgba(242,119,87,0.05)', borderBottom: '1px solid rgba(242,119,87,0.15)' }}>
           <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#F27757' }}>Filters:</span>
           {searchTerm && (
@@ -1777,7 +1777,7 @@ const addBtnDisabled = isAddingQuestions || (() => {
             <p className="text-[12px] font-medium" style={{ color: '#8b8b9e' }}>Loading questions…</p>
           </div>
         ) : pagedQs.length > 0 ? (
-          <table className="w-full border-collapse text-sm table-fixed">
+          <table className="w-full min-w-[640px] border-collapse text-sm table-fixed">
             {/* ── thead ── */}
             <thead>
               <tr style={{ background: '#fafbfc', borderBottom: '1px solid #eef0f4' }}>
@@ -1967,7 +1967,7 @@ const addBtnDisabled = isAddingQuestions || (() => {
 
       {/* ══ Pagination ══════════════════════════════════════════════════════ */}
       {filteredQs.length > 0 && (
-        <div className="flex-none bg-white px-4 py-2 flex items-center justify-between" style={{ borderTop: '1px solid #e4e4ed' }}>
+        <div className="flex-none bg-white px-3 sm:px-4 py-2 flex flex-wrap gap-2 items-center justify-between" style={{ borderTop: '1px solid #e4e4ed' }}>
           <div className="text-[11px]" style={{ color: '#8b8b9e', ...JKT }}>
             Showing{' '}
             <span className="font-semibold" style={{ color: '#1a1a2e' }}>{startIdx + 1}</span>

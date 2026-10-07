@@ -304,7 +304,7 @@ const PracticeSettings: React.FC<PracticeSettingsProps> = ({
 
     const renderStep3 = () => (
         <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
                     <label className="text-xs font-semibold text-gray-600">Exercise ID</label>
                     <input
@@ -336,7 +336,7 @@ const PracticeSettings: React.FC<PracticeSettingsProps> = ({
                 />
             </div>
 
-            <div className="grid grid-cols-2 gap-4 pt-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
                 <div className="space-y-1">
                     <label className="text-xs font-semibold text-gray-600">Difficulty Level</label>
                     <div className="flex p-1 bg-gray-100 rounded-lg">
@@ -658,7 +658,7 @@ const PracticeSettings: React.FC<PracticeSettingsProps> = ({
 
     return (
         <div className="space-y-5 animate-in fade-in slide-in-from-right-4 duration-300">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
                     <label className="text-xs font-semibold text-gray-600">Start Date</label>
                     <div className="relative">
@@ -752,7 +752,7 @@ const PracticeSettings: React.FC<PracticeSettingsProps> = ({
                         </div>
                         
                         <div className="text-[10px] text-gray-400 pt-1">
-                            <div className="flex items-center gap-1">
+                            <div className="flex flex-wrap items-center gap-1">
                                 <Calendar size={10} />
                                 <span>End Date: {practiceData.endDate}</span>
                                 <ChevronRight size={10} className="mx-1" />
@@ -792,7 +792,7 @@ const PracticeSettings: React.FC<PracticeSettingsProps> = ({
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 font-sans">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4 font-sans">
             <style>{`
   /* Custom Scrollbar Styles */
   .custom-scrollbar::-webkit-scrollbar {
@@ -822,9 +822,9 @@ const PracticeSettings: React.FC<PracticeSettingsProps> = ({
   }
 `}</style>
 
-            <div className="bg-white w-full max-w-7xl h-[95vh] md:h-[96vh] rounded-xl shadow-2xl overflow-hidden flex flex-col">
+            <div className="bg-white w-full max-w-7xl h-[100dvh] sm:h-[95dvh] md:h-[96vh] rounded-none sm:rounded-xl shadow-2xl overflow-hidden flex flex-col">
                 {/* Minimal Header with Icons */}
-                <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 bg-white">
+                <div className="flex items-center justify-between px-3 sm:px-5 py-3 border-b border-gray-200 bg-white">
                     <div className="flex-1 min-w-0">
                         {/* Breadcrumb with icons */}
                         <div className="flex items-center text-sm text-gray-600 mb-2 overflow-x-auto gap-2">
@@ -881,9 +881,9 @@ const PracticeSettings: React.FC<PracticeSettingsProps> = ({
                         </div>
 
                         {/* Title and info */}
-                        <div className="flex items-center gap-3">
-                            <h2 className="text-lg font-semibold text-gray-900">Practice Exercise Settings</h2>
-                            <div className="flex items-center gap-2 text-sm text-gray-500">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                            <h2 className="text-base sm:text-lg font-semibold text-gray-900">Practice Exercise Settings</h2>
+                            <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm text-gray-500">
                                 <span>Date: {dateOfCreation}</span>
                                 <span className="w-1 h-1 rounded-full bg-gray-300"></span>
                                 <span>Pedagogy: {tabType}</span>
@@ -893,10 +893,24 @@ const PracticeSettings: React.FC<PracticeSettingsProps> = ({
 
                     <button
                         onClick={onCancel}
-                        className="p-2 text-gray-500 hover:text-gray-700 ml-4"
+                        className="p-2 text-gray-500 hover:text-gray-700 ml-2 sm:ml-4 shrink-0"
                     >
                         <X size={18} />
                     </button>
+                </div>
+                {/* Mobile stepper — the steps sidebar is hidden below md */}
+                <div className="md:hidden flex items-center gap-1.5 overflow-x-auto px-3 py-2 border-b border-slate-200 bg-slate-50">
+                    {steps.map((step, index) => (
+                        <div
+                            key={step.id}
+                            className={`flex items-center gap-1.5 shrink-0 px-2 py-1 rounded-full text-xs font-semibold ${step.active ? 'bg-white text-blue-700 shadow-sm border border-blue-100' : step.completed ? 'text-green-700' : 'text-slate-500'}`}
+                        >
+                            <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center bg-white ${step.active ? 'border-blue-600' : step.completed ? 'border-green-500' : 'border-slate-300'}`}>
+                                {step.completed ? <Check size={10} className="text-green-600" /> : <span className="text-[10px] leading-none">{index + 1}</span>}
+                            </span>
+                            <span className="whitespace-nowrap">{step.title}</span>
+                        </div>
+                    ))}
                 </div>
                 {/* Content Body */}
                 <div className="flex flex-1 overflow-hidden">
@@ -952,8 +966,8 @@ const PracticeSettings: React.FC<PracticeSettingsProps> = ({
                     {/* Right Content */}
                     <div className="flex-1 flex flex-col min-w-0 bg-white relative ">
                         {/* Scrollable Area */}
-                        <div className="flex-1 overflow-hidden mt-3 mb-16 mx-5"> {/* CHANGED: Added mb-16 to create space for footer */}
-                            <div className="max-w-5xl mx-auto h-full overflow-y-auto custom-scrollbar p-4">
+                        <div className="flex-1 overflow-hidden mt-3 mb-16 mx-2 sm:mx-5"> {/* CHANGED: Added mb-16 to create space for footer */}
+                            <div className="max-w-5xl mx-auto h-full overflow-y-auto custom-scrollbar p-2 sm:p-4">
                                 <div className="mb-3">
                                     <h1 className="text-xl font-bold text-gray-900">
                                         {currentStep === 2 && 'Module Selection'}
@@ -975,7 +989,7 @@ const PracticeSettings: React.FC<PracticeSettingsProps> = ({
                         </div>
 
                         {/* Sticky Footer */}
-                        <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-100 p-4 flex items-center justify-between z-20 shadow-sm"> {/* CHANGED: Added shadow-sm */}
+                        <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-100 p-3 sm:p-4 flex items-center justify-between gap-2 z-20 shadow-sm"> {/* CHANGED: Added shadow-sm */}
                             <button
                                 onClick={handleBack}
                                 disabled={currentStep === 2 || isLoading}

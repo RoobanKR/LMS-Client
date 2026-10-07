@@ -150,7 +150,7 @@ function FeedbackPageContent() {
         >
           <ArrowLeft className="h-4 w-4" />
         </button>
-        <div>
+        <div className="min-w-0">
           <h1 className="text-[15px] font-semibold text-gray-900 dark:text-white tracking-tight leading-tight">
             Feedback Forms
           </h1>
@@ -180,7 +180,7 @@ function FeedbackPageContent() {
       </div>
 
       {/* Body */}
-      <div className="flex-1 min-h-0 flex flex-col px-4 py-3">
+      <div className="flex-1 min-h-0 flex flex-col px-3 sm:px-4 py-3">
         {!courseId ? (
           <div className="overflow-auto">
           <div className="max-w-md mx-auto mt-16 text-center">
@@ -223,7 +223,7 @@ function FeedbackPageContent() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            className={`${poppins.className} fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm`}
+            className={`${poppins.className} fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/50 backdrop-blur-sm`}
             onClick={closeFormModal}
           >
             <motion.div
@@ -231,12 +231,12 @@ function FeedbackPageContent() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.97, y: 8 }}
               transition={{ duration: 0.18, ease: 'easeOut' }}
-              className="bg-white dark:bg-gray-900 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-800 w-full max-w-6xl h-[92vh] flex flex-col overflow-hidden"
+              className="bg-white dark:bg-gray-900 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-800 w-full max-w-6xl h-[96dvh] sm:h-[92dvh] flex flex-col overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Modal header — single compact row: title · course */}
-              <div className="flex items-center justify-between gap-3 px-5 py-2 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 sticky top-0 z-10">
-                <div className="min-w-0 flex items-baseline gap-2">
+              <div className="flex items-center justify-between gap-3 px-3 sm:px-5 py-2 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 sticky top-0 z-10">
+                <div className="min-w-0 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                   <h2 className="text-[13px] font-semibold text-gray-900 dark:text-white tracking-tight shrink-0">
                     {editingFeedback ? 'Edit Feedback Form' : 'Create Feedback Form'}
                   </h2>
@@ -267,7 +267,7 @@ function FeedbackPageContent() {
 
               {/* Body — the form owns the layout: fixed step sidebar on the
                   left, scrolling step content on the right. */}
-              <div className="flex-1 min-h-0 overflow-hidden px-5 py-4 bg-white dark:bg-gray-900 flex flex-col">
+              <div className="flex-1 min-h-0 overflow-hidden px-3 py-3 sm:px-5 sm:py-4 bg-white dark:bg-gray-900 flex flex-col">
                 <FeedbackForm
                   courseId={courseId}
                   feedback={editingFeedback}

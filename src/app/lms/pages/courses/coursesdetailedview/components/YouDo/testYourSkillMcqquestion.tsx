@@ -222,7 +222,7 @@ const ContentBlockRenderer: React.FC<{ title: unknown }> = ({ title }) => {
             const isDark = ['#1e1e1e', '#282a36', '#272822', '#2e3440'].includes(bg);
             return (
               <div key={i} style={{ display: 'inline-block', maxWidth: '100%', margin: '4px 0' }}>
-                <pre style={{ margin: 0, padding: '10px 16px', fontSize: 13, lineHeight: 1.7, fontFamily: 'Menlo,Monaco,"Courier New",monospace', color: isDark ? '#d4d4d4' : '#1a1a2e', background: bg, borderRadius: 8, border: `1.5px solid ${isDark ? '#3a3a3a' : '#e2e2e2'}`, whiteSpace: 'pre', display: 'inline-block', width: '400px', maxWidth: '800px', overflowX: 'auto', boxSizing: 'border-box' as const }}>{cb.value || ''}</pre>
+                <pre style={{ margin: 0, padding: '10px 16px', fontSize: 13, lineHeight: 1.7, fontFamily: 'Menlo,Monaco,"Courier New",monospace', color: isDark ? '#d4d4d4' : '#1a1a2e', background: bg, borderRadius: 8, border: `1.5px solid ${isDark ? '#3a3a3a' : '#e2e2e2'}`, whiteSpace: 'pre', display: 'inline-block', width: '400px', maxWidth: 'min(800px, 100%)', overflowX: 'auto', boxSizing: 'border-box' as const }}>{cb.value || ''}</pre>
               </div>
             );
           }
@@ -2023,10 +2023,24 @@ const StudentTestYourSkillsMCQQuestion: React.FC<YouDoMCQProps> = ({
         .yd-s::-webkit-scrollbar-thumb:hover{background:#6b6b7e;}
         .yd-btn-prev:hover:not(:disabled){border-color:${T.orange}!important;color:${T.orange}!important;}
         .yd-btn-next:hover{background:${T.orangeDark}!important;}
+        @media (max-width:1023px){
+          .tys-body{flex-direction:column!important;}
+          .tys-body > .yd-s{width:auto!important;border-left:none!important;border-top:1px solid ${T.border};max-height:40%;}
+        }
+        @media (max-width:640px){
+          .tys-topbar-row{padding:0 12px!important;gap:8px!important;}
+          .tys-brand,.tys-brand-div,.tys-stats{display:none!important;}
+          .tys-qmeta{padding:0 12px!important;}
+          .tys-qmeta-chips{overflow-x:auto;min-width:0;scrollbar-width:none;}
+          .tys-content{padding:16px 14px!important;}
+          .tys-opts{grid-template-columns:1fr!important;}
+          .tys-bottombar{padding:0 12px!important;gap:8px!important;}
+          .tys-bottombar button{padding-left:14px!important;padding-right:14px!important;}
+        }
       `}</style>
 
       <ToastContainer position="top-right" />
-      
+
       {/* Back Confirmation Modal */}
       {showBackConfirmation && (
         <BackConfirmationModal 
@@ -2044,7 +2058,7 @@ const StudentTestYourSkillsMCQQuestion: React.FC<YouDoMCQProps> = ({
       )}
 
       <div style={{ flexShrink: 0, height: TOP_BAR_H, background: T.bg, borderBottom: `1px solid ${T.border}`, display: 'flex', flexDirection: 'column', zIndex: 50 }}>
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', gap: 12 }}>
+        <div className="tys-topbar-row" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 0, minWidth: 0, flex: 1 }}>
             {onCloseExercise && (
               <button onClick={handleBackConfirmation} className="yd-btn-prev"
@@ -2052,13 +2066,13 @@ const StudentTestYourSkillsMCQQuestion: React.FC<YouDoMCQProps> = ({
                 <ArrowLeft size={13} /> Back
               </button>
             )}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0, marginRight: 14 }}>
+            <div className="tys-brand" style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0, marginRight: 14 }}>
               <div style={{ width: 28, height: 28, borderRadius: 8, background: `linear-gradient(135deg,${T.orange},${T.orangeDark})`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 3px 10px ${T.orangeGlow}` }}>
                 <Target size={13} color="#fff" />
               </div>
               <span style={{ fontSize: 13, fontWeight: 800, color: T.textMain }}>Test Your Skills</span>
             </div>
-            <div style={{ width: 1, height: 18, background: T.border, marginRight: 14, flexShrink: 0 }} />
+            <div className="tys-brand-div" style={{ width: 1, height: 18, background: T.border, marginRight: 14, flexShrink: 0 }} />
             <nav style={{ display: 'flex', alignItems: 'center', gap: 0, minWidth: 0, overflow: 'hidden' }}>
               <span style={{ fontSize: 12, fontWeight: 500, color: T.textMuted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 200 }}>
                 {nodeName || 'Quiz'}
@@ -2067,7 +2081,7 @@ const StudentTestYourSkillsMCQQuestion: React.FC<YouDoMCQProps> = ({
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: T.textSub }}>
+            <div className="tys-stats" style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: T.textSub }}>
               <span><span style={{ fontWeight: 700, color: T.textMain }}>{questions.length}</span> Total</span>
               <span><span style={{ fontWeight: 700, color: T.green }}>{answeredCount}</span> Done</span>
               <span><span style={{ fontWeight: 700, color: T.textSub }}>{questions.length - answeredCount}</span> Left</span>
@@ -2080,10 +2094,10 @@ const StudentTestYourSkillsMCQQuestion: React.FC<YouDoMCQProps> = ({
         </div>
       </div>
 
-      <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex' }}>
+      <div className="tys-body" style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex' }}>
         <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <div style={{ flexShrink: 0, height: Q_META_H, background: T.bg, borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 28px', gap: 10, zIndex: 20 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div className="tys-qmeta" style={{ flexShrink: 0, height: Q_META_H, background: T.bg, borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 28px', gap: 10, zIndex: 20 }}>
+            <div className="tys-qmeta-chips" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
                 <span style={{ fontSize: 10, color: T.textHint, fontWeight: 700, letterSpacing: '0.05em' }}>Q</span>
                 <span style={{ fontSize: 26, fontWeight: 900, color: T.orange, lineHeight: 1, letterSpacing: '-0.03em', margin: '0 2px' }}>{currentIndex + 1}</span>
@@ -2112,7 +2126,7 @@ const StudentTestYourSkillsMCQQuestion: React.FC<YouDoMCQProps> = ({
             </button>
           </div>
 
-          <div ref={scrollRef} className="yd-fade yd-s" key={currentIndex}
+          <div ref={scrollRef} className="yd-fade yd-s tys-content" key={currentIndex}
             style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '24px 28px' }}>
             <div style={{ marginBottom: 8 }}><ContentBlockRenderer title={cq.mcqQuestionTitle} /></div>
             
@@ -2132,7 +2146,7 @@ const StudentTestYourSkillsMCQQuestion: React.FC<YouDoMCQProps> = ({
             {cq.mcqQuestionType === 'matching'    && cq.matchingPairs && <MatchingWidget pairs={cq.matchingPairs} answers={matchingAnswers} onChange={handleMatchingChange} disabled={quizCompleted} />}
             {cq.mcqQuestionType === 'ordering'    && cq.orderingItems && <OrderingWidget items={cq.orderingItems} answers={orderingAnswers} onChange={handleOrderingChange} disabled={quizCompleted} />}
             {(cq.mcqQuestionType === 'multiple_choice' || cq.mcqQuestionType === 'multiple_select') && (
-              <div style={{ display: 'grid', gridTemplateColumns: getGridCols(), gap: 10 }}>
+              <div className="tys-opts" style={{ display: 'grid', gridTemplateColumns: getGridCols(), gap: 10 }}>
                 {cq.mcqQuestionOptions?.map((option, idx) => (
                   cq.mcqQuestionType === 'multiple_select'
                     ? <CheckboxOption key={option._id} option={option} checked={selectedCheckboxOptions.has(option._id)} onChange={() => handleOptionSelect(option._id)} index={idx} disabled={quizCompleted} />
@@ -2161,7 +2175,7 @@ const StudentTestYourSkillsMCQQuestion: React.FC<YouDoMCQProps> = ({
         />
       </div>
 
-      <div style={{ flexShrink: 0, height: BOTTOM_BAR_H, background: T.bg, borderTop: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', padding: '0 28px', gap: 16, zIndex: 50 }}>
+      <div className="tys-bottombar" style={{ flexShrink: 0, height: BOTTOM_BAR_H, background: T.bg, borderTop: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', padding: '0 28px', gap: 16, zIndex: 50 }}>
         <button onClick={handlePrev} disabled={currentIndex === 0} className="yd-btn-prev"
           style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 20px', borderRadius: 10, border: `1.5px solid ${T.border}`, background: 'transparent', color: currentIndex === 0 ? T.textHint : T.textSub, fontSize: 13, fontWeight: 600, cursor: currentIndex === 0 ? 'not-allowed' : 'pointer', fontFamily: 'inherit', transition: 'all 0.13s', flexShrink: 0 }}>
           <ChevronLeft size={15} /> Previous

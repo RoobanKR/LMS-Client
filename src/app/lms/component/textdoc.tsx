@@ -425,7 +425,7 @@ export default function TxtViewerTeacher({
             background: "rgba(0,0,0,0.45)", backdropFilter: "blur(6px)",
           }}>
             <div style={{
-              background: "white", borderRadius: 18, padding: "32px", width: 380,
+              background: "white", borderRadius: 18, padding: "32px", width: 380, maxWidth: "calc(100vw - 32px)", boxSizing: "border-box",
               boxShadow: "0 24px 64px rgba(0,0,0,0.2)", border: "1px solid rgba(0,0,0,0.06)",
               animation: "slideUp 0.2s ease-out",
             }}>

@@ -97,7 +97,7 @@ function MonthGrid({
                     const isTodayCol = isCurrentMonth && i === today.getDay()
                     const isWeekendCol = i === 0 || i === 6
                     return (
-                        <div key={d} className="relative px-2 py-2.5 text-center">
+                        <div key={d} className="relative px-0.5 py-2.5 text-center sm:px-2">
                             <span className={`text-2xs font-semibold uppercase tracking-wider ${
                                 isTodayCol ? 'text-brand-strong' : isWeekendCol ? 'text-danger-500/70' : 'text-faint'
                             }`}>
@@ -109,7 +109,7 @@ function MonthGrid({
                 })}
             </div>
 
-            <div className="grid grid-cols-7 auto-rows-[minmax(84px,auto)]">
+            <div className="grid grid-cols-7 auto-rows-[minmax(60px,auto)] sm:auto-rows-[minmax(84px,auto)]">
                 {cells.map((d, i) => {
                     const colStart = i % 7 === 0
                     if (!d) return <div key={i} className={`border-b border-hairline bg-canvas/60 ${colStart ? '' : 'border-l'}`} />
@@ -123,7 +123,7 @@ function MonthGrid({
                         <div
                             key={i}
                             aria-label={iso}
-                            className={`relative border-b border-hairline p-1.5 flex flex-col gap-1 overflow-hidden
+                            className={`relative min-w-0 border-b border-hairline p-1 sm:p-1.5 flex flex-col gap-1 overflow-hidden
                                 ${colStart ? '' : 'border-l'}
                                 ${isToday ? 'bg-brand-wash/50' : isWeekend ? 'bg-canvas/40' : ''}`}
                         >
@@ -142,7 +142,7 @@ function MonthGrid({
                                         type="button"
                                         onClick={() => onOpen(h)}
                                         title={`${h.name} — ${showSource ? (h.source === 'client' ? clientName : 'Institute') : meta.label}`}
-                                        className={`w-full text-left border-l-[3px] rounded-chip px-1.5 py-1 min-w-0 transition-opacity hover:opacity-80 ${meta.chip} ${meta.bar}`}
+                                        className={`w-full text-left border-l-[3px] rounded-chip px-1 sm:px-1.5 py-1 min-w-0 transition-opacity hover:opacity-80 ${meta.chip} ${meta.bar}`}
                                     >
                                         <span className="block text-2xs font-semibold truncate">{h.name}</span>
                                     </button>
@@ -315,7 +315,7 @@ export default function StudentCalendarPage() {
                     <CalendarSkeleton />
                 ) : (
                     <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
-                        <div className="xl:col-span-8">
+                        <div className="min-w-0 xl:col-span-8">
                             <MonthGrid
                                 month={month}
                                 byDate={byDate}
@@ -335,7 +335,10 @@ export default function StudentCalendarPage() {
                             )}
                         </div>
 
-                        <div className="xl:col-span-4 space-y-4">
+                        {/* Tablets: the two side cards sit side by side under the
+                            grid instead of stacking full-width; xl restores the
+                            right-hand column. */}
+                        <div className="min-w-0 xl:col-span-4 space-y-4 md:grid md:grid-cols-2 md:items-start md:gap-4 md:space-y-0 xl:block xl:space-y-4">
                             {/* This month at a glance */}
                             <div className="rounded-[14px] border border-hairline bg-surface p-4">
                                 <p className="text-2xs font-semibold uppercase tracking-wider text-faint">
@@ -413,7 +416,7 @@ export default function StudentCalendarPage() {
                         aria-modal="true"
                         aria-label={preview.name}
                         onClick={e => e.stopPropagation()}
-                        className="w-full max-w-sm rounded-[16px] border border-hairline bg-surface shadow-xl overflow-hidden"
+                        className="w-full max-w-sm max-h-[90dvh] overflow-y-auto rounded-[16px] border border-hairline bg-surface shadow-xl"
                     >
                         <div className="flex items-start justify-between gap-3 px-4 py-3 border-b border-hairline">
                             <div className="min-w-0">
@@ -493,15 +496,15 @@ function CalendarSkeleton() {
                         </div>
                     ))}
                 </div>
-                <div className="grid grid-cols-7 auto-rows-[minmax(84px,auto)]">
+                <div className="grid grid-cols-7 auto-rows-[minmax(60px,auto)] sm:auto-rows-[minmax(84px,auto)]">
                     {Array.from({ length: 35 }).map((_, i) => (
-                        <div key={i} className={`border-b border-hairline p-2 ${i % 7 === 0 ? '' : 'border-l'}`}>
+                        <div key={i} className={`border-b border-hairline p-1 sm:p-2 ${i % 7 === 0 ? '' : 'border-l'}`}>
                             <div className="h-5 w-5 rounded-full bg-ink-100/70 animate-pulse" />
                         </div>
                     ))}
                 </div>
             </div>
-            <div className="xl:col-span-4 space-y-4">
+            <div className="xl:col-span-4 space-y-4 md:grid md:grid-cols-2 md:items-start md:gap-4 md:space-y-0 xl:block xl:space-y-4">
                 <div className="h-24 rounded-[14px] border border-hairline bg-surface animate-pulse" />
                 <div className="h-64 rounded-[14px] border border-hairline bg-surface animate-pulse" />
             </div>

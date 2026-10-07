@@ -298,7 +298,7 @@ function Breadcrumbs({
 }) {
     const router = useRouter();
     return (
-        <nav className="flex items-center gap-1.5 text-xs mb-2" aria-label="Breadcrumb">
+        <nav className="flex flex-wrap items-center gap-1.5 text-xs mb-2 min-w-0" aria-label="Breadcrumb">
             <button
                 type="button"
                 onClick={() => router.push('/lms/pages/studentdashboard')}
@@ -322,12 +322,12 @@ function Breadcrumbs({
                 <>
                     <ChevronRight className="w-3 h-3 text-faint" />
                     {level === 'services' ? (
-                        <span className="inline-flex items-center gap-1 text-heading font-semibold truncate max-w-[220px]">{clientName || 'Client'}</span>
+                        <span className="inline-flex items-center gap-1 text-heading font-semibold truncate max-w-[140px] sm:max-w-[220px]">{clientName || 'Client'}</span>
                     ) : (
                         <button
                             type="button"
                             onClick={onGoServices}
-                            className="inline-flex items-center gap-1 text-subtle font-medium hover:text-brand-strong transition-colors truncate max-w-[220px]"
+                            className="inline-flex items-center gap-1 text-subtle font-medium hover:text-brand-strong transition-colors truncate max-w-[140px] sm:max-w-[220px]"
                         >
                             {clientName || 'Client'}
                         </button>
@@ -337,7 +337,7 @@ function Breadcrumbs({
             {level === 'courses' && (
                 <>
                     <ChevronRight className="w-3 h-3 text-faint" />
-                    <span className="inline-flex items-center gap-1 text-heading font-semibold truncate max-w-[220px]">{serviceLabel || 'Service'}</span>
+                    <span className="inline-flex items-center gap-1 text-heading font-semibold truncate max-w-[140px] sm:max-w-[220px]">{serviceLabel || 'Service'}</span>
                 </>
             )}
         </nav>
@@ -981,7 +981,7 @@ export default function GradePage() {
     const pageContent = (
         <div className="h-full flex flex-col bg-surface">
             {/* Header */}
-            <div className="flex-shrink-0 bg-surface border-b border-hairline px-5 md:px-7 pt-3 pb-3">
+            <div className="flex-shrink-0 bg-surface border-b border-hairline px-4 sm:px-5 md:px-7 pt-3 pb-3">
                 <Breadcrumbs
                     level={isAdmin ? level : 'clients'}
                     clientName={currentClient?.name}
@@ -1011,12 +1011,12 @@ export default function GradePage() {
                             </div>
                         )}
                         <div className="min-w-0">
-                            <h1 className="text-lg font-semibold text-heading tracking-[-0.01em] leading-tight truncate">{displayInfo.title}</h1>
+                            <h1 className="text-base sm:text-lg font-semibold text-heading tracking-[-0.01em] leading-tight truncate">{displayInfo.title}</h1>
                             <p className="text-xs text-subtle leading-tight mt-0.5">{displayInfo.description}</p>
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                         <span className="inline-flex items-center gap-1.5 h-7 rounded-full border border-hairline bg-surface px-2.5 text-xs font-medium text-body">
                             <Users className="w-3.5 h-3.5 text-faint" />{roleLabel}
                         </span>
@@ -1028,7 +1028,7 @@ export default function GradePage() {
 
                 {/* One toolbar — search + level-scoped filter */}
                 <div className="mt-3 flex items-center gap-2 flex-wrap">
-                    <div className="relative flex-1 min-w-[200px] max-w-md">
+                    <div className="relative w-full sm:w-auto sm:flex-1 sm:min-w-[200px] sm:max-w-md">
                         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
                         <input
                             type="text"
@@ -1068,7 +1068,7 @@ export default function GradePage() {
                 so the outer div is flex-col with min-h-0 and NO scroll.
                 For non-admins the legacy card grid keeps its overflow-y-auto
                 scroll behavior (rendered inside its own wrapper below). */}
-            <div className="flex-1 min-h-0 flex flex-col px-5 md:px-7 py-5">
+            <div className="flex-1 min-h-0 flex flex-col px-4 sm:px-5 md:px-7 py-4 sm:py-5">
                 <AnimatePresence mode="wait">
                     {/* Card-grid skeleton is only meaningful for non-admins
                         (they still render the card grid). Admin flows go

@@ -832,7 +832,7 @@ const BulkUploadModal: React.FC<BulkUploadModalProps> = ({
         // The backdrop can't dismiss this: a configured upload with a validated
         // file is too much work to lose to a stray click.
         onInteractOutside={(e) => e.preventDefault()}
-        className="sm:max-w-[640px] max-h-[88vh] flex flex-col gap-0 p-0 overflow-hidden"
+        className="sm:max-w-[640px] max-h-[88dvh] flex flex-col gap-0 p-0 overflow-hidden"
       >
         <DialogHeader className="border-b border-hairline px-5 py-4">
           <div className="flex items-start justify-between gap-3">
@@ -858,7 +858,7 @@ const BulkUploadModal: React.FC<BulkUploadModalProps> = ({
               <span className="sr-only">Close</span>
             </button>
           </div>
-          <div className="flex items-center gap-2 pt-1" aria-hidden="true">
+          <div className="flex flex-wrap items-center gap-2 pt-1" aria-hidden="true">
             {steps.map((s, i) => (
               <div key={s} className="flex items-center gap-2">
                 <span
@@ -1173,7 +1173,7 @@ const BulkUploadModal: React.FC<BulkUploadModalProps> = ({
 
               {/* Header row → template field, as read from the file */}
               <div className="rounded-tile border border-hairline overflow-hidden">
-                <div className="flex items-center justify-between gap-3 px-3 py-2 border-b border-hairline bg-ink-50">
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-3 py-2 border-b border-hairline bg-ink-50">
                   <p className="text-xs font-semibold text-heading">Columns read from your file</p>
                   <span className="text-2xs text-subtle">
                     {inspection?.totalRows ?? 0} row{(inspection?.totalRows ?? 0) === 1 ? '' : 's'} will be created
@@ -1273,7 +1273,7 @@ const BulkUploadModal: React.FC<BulkUploadModalProps> = ({
           {/* Upload Results */}
           {uploadResults && (
             <div className="space-y-3">
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {[
                   { label: "Processed", n: uploadResults.summary?.totalProcessed || 0, cls: "border-hairline bg-canvas text-body" },
                   { label: "Created", n: uploadResults.summary?.successfullyCreated || 0, cls: "border-success-500/20 bg-success-50 text-success-700" },
@@ -1331,7 +1331,7 @@ const BulkUploadModal: React.FC<BulkUploadModalProps> = ({
         </div>
 
         <DialogFooter className="border-t border-hairline bg-surface px-5 py-3.5">
-          <div className="flex w-full justify-between items-center">
+          <div className="flex flex-wrap w-full justify-between items-center gap-2">
             {/* Once results are in there is nothing left to lose — Close goes
                 straight through; Cancel mid-setup confirms. */}
             <Button
@@ -1343,7 +1343,7 @@ const BulkUploadModal: React.FC<BulkUploadModalProps> = ({
               {uploadResults ? 'Close' : 'Cancel'}
             </Button>
 
-            <div className="flex gap-2">
+            <div className="ml-auto flex flex-wrap justify-end gap-2">
               {uploadResults && (
                 <Button onClick={handleUploadAnotherFile} variant="outline" size="sm">
                   Upload another

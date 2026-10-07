@@ -549,9 +549,9 @@ export default function ServiceManagementComponent() {
         }
       >
         {selectedService ? (
-          <div className="-mx-5 -my-4">
+          <div className="-mx-4 sm:-mx-5 -my-4">
             {/* Mini toolbar */}
-            <div className="flex items-center justify-between gap-3 border-b border-hairline px-5 py-3">
+            <div className="flex items-center justify-between gap-3 border-b border-hairline px-4 sm:px-5 py-3">
               <CountPill value={selectedService.serviceModals.length} label="models" />
               {canAdd && (
                 <Button size="sm" onClick={handleAddNewModel} disabled={isLoading}>
@@ -577,7 +577,7 @@ export default function ServiceManagementComponent() {
               />
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full border-collapse" style={{ minWidth: 560 }}>
+                <table className="w-full border-collapse" style={{ minWidth: 480 }}>
                   <thead>
                     <tr>
                       <th className={`${TH_CLASS} w-16 text-center`}>S.No</th>

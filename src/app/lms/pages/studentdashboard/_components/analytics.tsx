@@ -46,7 +46,7 @@ export const PerformanceTrend = ({ trend }: { trend: TrendPoint[] }) => {
                 subtitle="Last 8 weeks"
                 icon={<IconBox tint={C.primary} size={34}><TrendingUp size={17} strokeWidth={2.2} /></IconBox>}
                 action={
-                    <div className="flex shrink-0 items-center gap-3 pt-1">
+                    <div className="hidden shrink-0 items-center gap-3 pt-1 sm:flex">
                         <span className="flex items-center gap-1.5 text-2xs font-medium text-slate-500"><Dot color={C.primary} /> Score</span>
                         <span className="flex items-center gap-1.5 text-2xs font-medium text-slate-500"><Dot color={C.success} /> Attendance</span>
                         <span className="flex items-center gap-1.5 text-2xs font-medium text-slate-500"><Dot color={`${C.info}66`} /> Submissions</span>
@@ -54,10 +54,20 @@ export const PerformanceTrend = ({ trend }: { trend: TrendPoint[] }) => {
                 }
             />
 
+            {/* Phones: the legend no longer fits beside the title, so it wraps
+                onto its own row under the header instead. */}
+            {hasAny && (
+                <div className="-mt-2 mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 sm:hidden">
+                    <span className="flex items-center gap-1.5 text-2xs font-medium text-slate-500"><Dot color={C.primary} /> Score</span>
+                    <span className="flex items-center gap-1.5 text-2xs font-medium text-slate-500"><Dot color={C.success} /> Attendance</span>
+                    <span className="flex items-center gap-1.5 text-2xs font-medium text-slate-500"><Dot color={`${C.info}66`} /> Submissions</span>
+                </div>
+            )}
+
             {!hasAny ? (
                 <Empty icon={<TrendingUp size={20} />} title="No trend data yet" hint="Your weekly scores and attendance appear once work is submitted and marked." />
             ) : (
-                <div className="h-[248px] w-full">
+                <div className="h-[220px] w-full min-w-0 sm:h-[248px]">
                     <ResponsiveContainer width="100%" height="100%">
                         <ComposedChart data={data} margin={{ top: 8, right: 6, left: -22, bottom: 0 }}>
                             <defs>
@@ -98,7 +108,7 @@ const MonthHeatmap = ({ byDay }: { byDay: Record<string, 'P' | 'A' | 'H'> }) => 
 
     return (
         <div>
-            <div className="mb-2 flex items-center justify-between">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
                     {first.toLocaleString('en', { month: 'long', year: 'numeric' })}
                 </p>

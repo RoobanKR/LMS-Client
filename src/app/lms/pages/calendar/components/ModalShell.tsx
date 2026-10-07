@@ -46,15 +46,15 @@ export default function ModalShell({
                         onClick={e => e.stopPropagation()}
                         role="dialog"
                         aria-modal="true"
-                        className="w-full max-w-md bg-surface rounded-xl border border-hairline shadow-xl overflow-hidden"
+                        className="w-full max-w-md max-h-[90dvh] flex flex-col bg-surface rounded-xl border border-hairline shadow-xl overflow-hidden"
                     >
                         {/* Header */}
-                        <div className="px-5 py-4 border-b border-hairline flex items-start justify-between gap-3">
-                            <div className="flex items-start gap-3">
+                        <div className="shrink-0 px-4 sm:px-5 py-4 border-b border-hairline flex items-start justify-between gap-3">
+                            <div className="flex items-start gap-3 min-w-0">
                                 <span className="w-9 h-9 rounded-tile bg-brand-wash flex items-center justify-center shrink-0 mt-0.5">
                                     {icon}
                                 </span>
-                                <div>
+                                <div className="min-w-0">
                                     <p className="text-2xs font-semibold uppercase tracking-wider text-faint">{eyebrow}</p>
                                     <p className="text-md font-semibold text-heading mt-0.5">{title}</p>
                                     {subtitle}
@@ -70,10 +70,12 @@ export default function ModalShell({
                             </button>
                         </div>
 
-                        {children}
+                        <div className="flex-1 min-h-0 overflow-y-auto">
+                            {children}
+                        </div>
 
                         {/* Footer */}
-                        <div className="flex items-center gap-2 px-5 py-4 border-t border-hairline bg-canvas">
+                        <div className="shrink-0 flex flex-wrap items-center gap-2 px-4 sm:px-5 py-4 border-t border-hairline bg-canvas">
                             {footer}
                         </div>
                     </motion.div>

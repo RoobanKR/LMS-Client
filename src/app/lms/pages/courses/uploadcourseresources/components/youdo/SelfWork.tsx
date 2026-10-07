@@ -64,7 +64,7 @@ export default function SelfWork({ nodeName, subcategoryLabel, hierarchyData }: 
     >
       {/* ── Header ── */}
       <div
-        className="flex-shrink-0 px-6 py-4"
+        className="flex-shrink-0 px-3 sm:px-6 py-4"
         style={{ background: T.bg, borderBottom: `1px solid ${T.border}`, borderLeft: `3px solid ${T.orange}` }}
       >
         <div className="flex items-center gap-3">
@@ -78,7 +78,7 @@ export default function SelfWork({ nodeName, subcategoryLabel, hierarchyData }: 
             <h2 className="text-[15px] font-extrabold tracking-tight" style={{ color: T.textMain }}>
               {subcategoryLabel}
             </h2>
-            <div className="flex items-center gap-1.5 mt-0.5">
+            <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
               <span className="text-[10px] font-semibold" style={{ color: T.textHint }}>
                 {hierarchyData.courseName}
               </span>
@@ -95,7 +95,7 @@ export default function SelfWork({ nodeName, subcategoryLabel, hierarchyData }: 
 
       {/* ── Body ── */}
       <div
-        className="flex-1 min-h-0 overflow-y-auto p-6"
+        className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-6"
         style={{ scrollbarWidth: "thin", scrollbarColor: `${T.border} transparent` }}
       >
         {/* Stats */}
@@ -181,7 +181,7 @@ export default function SelfWork({ nodeName, subcategoryLabel, hierarchyData }: 
             return (
               <div
                 key={task.id}
-                className="flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer"
+                className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3 rounded-xl cursor-pointer"
                 style={{
                   background: T.bg,
                   border: `1.5px solid ${task.done ? "rgba(5,150,105,0.20)" : T.border}`,
@@ -210,7 +210,7 @@ export default function SelfWork({ nodeName, subcategoryLabel, hierarchyData }: 
 
                 {/* Label */}
                 <span
-                  className="flex-1 text-[12px] font-semibold"
+                  className="flex-1 min-w-0 break-words text-[12px] font-semibold"
                   style={{
                     color: task.done ? T.textHint : T.textMain,
                     textDecoration: task.done ? "line-through" : "none",

@@ -18,7 +18,7 @@ export function ChartCard({
     className?: string;
 }) {
     return (
-        <div className={cn('rounded-xl border border-hairline bg-surface p-5 shadow-xs', className)}>
+        <div className={cn('rounded-xl border border-hairline bg-surface p-4 shadow-xs sm:p-5', className)}>
             <div className="mb-4">
                 <h3 className="text-md font-semibold text-heading">{title}</h3>
                 {description ? <p className="mt-0.5 text-xs text-subtle">{description}</p> : null}

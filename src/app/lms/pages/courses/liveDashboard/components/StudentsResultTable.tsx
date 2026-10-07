@@ -436,6 +436,7 @@ export default function StudentsResultTable({
           first-column bottom border went missing after a hover repaint. */}
       <div className="border border-indigo-100 rounded-lg bg-white overflow-visible">
         {toolbar}
+        <div className="overflow-x-auto xl:overflow-visible">
         <table className="min-w-full text-[12.5px] border-separate border-spacing-0">
           <thead>
             <tr
@@ -477,10 +478,10 @@ export default function StudentsResultTable({
               <th className="border-b border-gray-200 px-3 py-2 text-right text-[11px] font-medium text-gray-500 w-[108px] bg-gray-50">
                 <SortableHeader label="Marks" columnKey="marks" align="right" active={sortKey} dir={sortDir} onToggle={toggleSort} />
               </th>
-              <th className="border-b border-gray-200 px-3 py-2 text-right text-[11px] font-medium text-gray-500 w-[104px] bg-gray-50">
+              <th className="hidden border-b border-gray-200 px-3 py-2 text-right text-[11px] font-medium text-gray-500 w-[104px] bg-gray-50 md:table-cell">
                 <SortableHeader label="Percentage" columnKey="percent" align="right" active={sortKey} dir={sortDir} onToggle={toggleSort} />
               </th>
-              <th className="border-b border-gray-200 px-3 py-2 text-left text-[11px] font-medium text-gray-500 w-[128px] bg-gray-50">
+              <th className="hidden border-b border-gray-200 px-3 py-2 text-left text-[11px] font-medium text-gray-500 w-[128px] bg-gray-50 md:table-cell">
                 <SortableHeader label="Scale" columnKey="scale" align="left" active={sortKey} dir={sortDir} onToggle={toggleSort} />
               </th>
               <th className="rounded-tr-lg border-b border-gray-200 px-3 py-2 text-center text-[11px] font-medium text-gray-500 w-[144px] bg-gray-50">
@@ -570,14 +571,14 @@ export default function StudentsResultTable({
                         </span>
                       )}
                     </td>
-                    <td className="w-[104px] px-3 py-1.5 text-right">
+                    <td className="hidden w-[104px] px-3 py-1.5 text-right md:table-cell">
                       {percent == null ? (
                         <span className="text-[12.5px] text-gray-400">—</span>
                       ) : (
                         <span className="text-[12.5px] font-semibold text-gray-800 tabular-nums">{percent}%</span>
                       )}
                     </td>
-                    <td className="w-[128px] px-3 py-1.5">
+                    <td className="hidden w-[128px] px-3 py-1.5 md:table-cell">
                       {percent == null || !scaleLabel ? (
                         <span className="text-[12.5px] text-gray-400">—</span>
                       ) : (
@@ -718,13 +719,14 @@ export default function StudentsResultTable({
               )}
             </tbody>
           </table>
-      <div className="flex items-center justify-between gap-3 rounded-b-lg border-t border-indigo-100 bg-white px-3 py-2 text-[11px] text-gray-500">
+        </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-b-lg border-t border-indigo-100 bg-white px-3 py-2 text-[11px] text-gray-500">
         <div>
           {totalFiltered === 0
             ? "0 learners"
             : `${totalFiltered} ${totalFiltered === 1 ? "learner" : "learners"}`}
         </div>
-        {totalFiltered > pageSize && <div className="flex items-center gap-2">
+        {totalFiltered > pageSize && <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-1">
             <button
               type="button"

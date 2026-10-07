@@ -52,7 +52,7 @@ export default function ApprovalsPage() {
             // meaning as a tooltip. Screen readers announce the same string
             // through `aria-label` on the icon.
             title={hint}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-2 text-sm rounded-t-md border-b-2 -mb-px transition-colors ${
+            className={`inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 sm:px-3.5 py-2 text-sm rounded-t-md border-b-2 -mb-px transition-colors ${
                 tab === id
                     ? "border-orange-500 text-orange-700 font-bold"
                     : "border-transparent text-gray-500 hover:text-gray-800"
@@ -77,7 +77,7 @@ export default function ApprovalsPage() {
         <DashboardLayout>
             {/* Root flex column — consumes <main>'s bounded height so children
                 can share it. h-full/min-h-0/flex-col are all load-bearing. */}
-            <div className="flex flex-col h-full min-h-0 min-w-0 p-6 max-w-6xl">
+            <div className="flex flex-col h-full min-h-0 min-w-0 p-4 sm:p-6 max-w-6xl">
                 {/* Title header — single heading, Client Management size. */}
                 <div className="shrink-0 mb-4">
                     <h1 className="text-base sm:text-lg font-semibold text-heading tracking-[-0.01em]">

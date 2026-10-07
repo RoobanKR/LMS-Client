@@ -466,7 +466,7 @@ const TestCaseModal: React.FC<{
 
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 p-4 animate-fadeIn">
-      <div className="bg-white rounded-lg w-full max-w-2xl transform transition-all duration-200 scale-100 animate-scaleIn">
+      <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90dvh] overflow-y-auto transform transition-all duration-200 scale-100 animate-scaleIn">
         <div className="flex justify-between items-center p-4 border-b">
           <h3 className="font-semibold text-gray-900 text-sm">
             {testCase ? 'Edit Test Case' : 'Add Test Case'}
@@ -524,7 +524,7 @@ const TestCaseModal: React.FC<{
             />
           </div>
 
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <label className="flex items-center gap-2 text-sm cursor-pointer">
               <ToggleSwitch
                 enabled={formData.isPublic}
@@ -986,10 +986,10 @@ const AddQuestionModal: React.FC<AddQuestionModalProps> = ({
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 p-0 animate-fadeIn">
       <div className={`${currentTheme.backgroundColor} w-full h-full flex transform transition-all duration-200 scale-100 animate-scaleIn`}>
         {/* Left Panel - Form */}
-        <div className="flex-1 flex flex-col border-r border-gray-300">
+        <div className="flex-1 min-w-0 flex flex-col border-r border-gray-300">
           {/* Header */}
-          <div className="flex justify-between items-center p-3 border-b border-gray-300 bg-gray-100">
-            <div>
+          <div className="flex flex-wrap justify-between items-center gap-2 p-3 border-b border-gray-300 bg-gray-100">
+            <div className="min-w-0">
               <h2 className="font-semibold text-gray-900 text-base">
                 {currentQuestion.id ? 'Edit Exercise' : 'Create Exercise'}
               </h2>
@@ -1030,7 +1030,7 @@ const AddQuestionModal: React.FC<AddQuestionModalProps> = ({
 
           {/* Navigation Tabs */}
           <div className="border-b border-gray-300 bg-gray-100">
-            <div className="flex">
+            <div className="flex overflow-x-auto">
               {[
                 { key: 'problem' as const, label: 'Exercise', icon: FileText },
                 { key: 'testcases' as const, label: 'Test Cases', icon: TestTube },
@@ -1053,7 +1053,7 @@ const AddQuestionModal: React.FC<AddQuestionModalProps> = ({
           </div>
 
           {/* Content Area */}
-          <div className="flex-1 overflow-auto p-4 bg-white">
+          <div className="flex-1 overflow-auto p-3 sm:p-4 bg-white">
             {activeTab === 'problem' && (
               <div className="max-w-4xl space-y-6">
                 {/* Basic Information */}
@@ -1150,7 +1150,7 @@ const AddQuestionModal: React.FC<AddQuestionModalProps> = ({
                       </div>
 
                       {/* Time and Memory Limits */}
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                           <label className="block text-xs font-medium text-gray-700 mb-2">
                             Time Limit (seconds)
@@ -1379,21 +1379,21 @@ const AddQuestionModal: React.FC<AddQuestionModalProps> = ({
                         <div className="flex items-center gap-1">
                           <button
                             onClick={() => copyToClipboard(testCase.input)}
-                            className="p-1 hover:bg-blue-50 rounded text-blue-600"
+                            className="p-2 sm:p-1 hover:bg-blue-50 rounded text-blue-600"
                             title="Copy input"
                           >
                             <Copy size={12} />
                           </button>
                           <button
                             onClick={() => handleEditTestCase(testCase)}
-                            className="p-1 hover:bg-yellow-50 rounded text-yellow-600"
+                            className="p-2 sm:p-1 hover:bg-yellow-50 rounded text-yellow-600"
                             title="Edit test case"
                           >
                             <Edit3 size={12} />
                           </button>
                           <button
                             onClick={() => handleDeleteTestCase(testCase.id)}
-                            className="p-1 hover:bg-red-50 rounded text-red-600"
+                            className="p-2 sm:p-1 hover:bg-red-50 rounded text-red-600"
                             title="Delete test case"
                           >
                             <Trash2 size={12} />

@@ -89,11 +89,11 @@ export const CourseDetailsPopup: React.FC<CourseDetailsPopupProps> = ({ course, 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] w-[95vw] h-[95vh] max-h-[95vh] p-0 overflow-hidden animate-in fade-in-0 zoom-in-95 duration-300">
+      <DialogContent className="max-w-[95vw] w-[95vw] h-[95dvh] max-h-[95dvh] p-0 overflow-hidden animate-in fade-in-0 zoom-in-95 duration-300">
         <DialogTitle className="sr-only">Course Details for {course.courseName}</DialogTitle>
-        <div className="flex h-full animate-in slide-in-from-bottom-2 duration-500">
+        <div className="flex flex-col md:flex-row h-full overflow-y-auto md:overflow-visible animate-in slide-in-from-bottom-2 duration-500">
           {/* Left Column - Main Content */}
-          <div className="flex-1 p-3 overflow-y-auto">
+          <div className="md:flex-1 min-w-0 p-3 md:overflow-y-auto">
             <div className="space-y-3">
               {/* Course Header */}
               <div className="space-y-2 transform transition-all duration-300 hover:scale-[1.01]">
@@ -103,7 +103,7 @@ export const CourseDetailsPopup: React.FC<CourseDetailsPopupProps> = ({ course, 
                   </div>
                   <div>
                     <h1 className="text-lg font-semibold text-gray-900 leading-tight">{course.courseName}</h1>
-                    <div className="flex items-center space-x-3 mt-1">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
                       <div className="flex items-center space-x-1 text-xs text-gray-500">
                         <Tag className="h-3 w-3" />
                         <span>{course.courseCode}</span>
@@ -222,7 +222,7 @@ export const CourseDetailsPopup: React.FC<CourseDetailsPopupProps> = ({ course, 
           </div>
 
           {/* Right Column - Pedagogy Sections */}
-          <div className="w-72 bg-gray-50 p-3 space-y-3 overflow-y-auto">
+          <div className="w-full md:w-72 shrink-0 bg-gray-50 p-3 space-y-3 md:overflow-y-auto">
             {/* I Do */}
             <div className="bg-white rounded-md p-3 transition-all duration-300 hover:shadow-md hover:bg-blue-50/30 transform hover:scale-[1.02]">
               <h3 className="text-xs font-medium text-blue-700 mb-2 flex items-center">

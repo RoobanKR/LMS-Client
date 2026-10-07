@@ -2069,7 +2069,7 @@ const renderCombinedConfig = (section: Section) => {
     <div className="space-y-4 mt-4">
 
       {/* ── Outer split inputs: MCQ marks + Programming marks ── */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div
           className="p-3 rounded-lg border"
           style={{ background: (D.blue || '#185FA5') + '08', borderColor: (D.blue || '#185FA5') + '30' }}
@@ -2278,8 +2278,8 @@ const renderCombinedConfig = (section: Section) => {
 
   return (
     <div className="p-4 space-y-4">
-      <div className="flex items-center justify-between mb-1">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-3 mb-1">
+        <div className="flex items-center gap-3 min-w-0">
           <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: '#ede9fe', color: '#7c3aed' }}>
             <Layers size={16} />
           </div>
@@ -2382,7 +2382,7 @@ const renderCombinedConfig = (section: Section) => {
             ) : null;
           })()}
         </div>
-        <div className="flex gap-1.5">
+        <div className="flex flex-wrap gap-1.5">
           {exerciseTypeOptions.map((opt) => (
             <button
               key={opt.value}

@@ -98,6 +98,20 @@ const GLOBAL_STYLES = `
     background: white;
   }
   .wv-page-input:focus { border-color: #F97316; box-shadow: 0 0 0 3px rgba(249,115,22,0.12); }
+
+  /* Responsive: below lg the AI / Notes side panels float over the document
+     instead of squeezing it; desktop keeps the 3-panel split. */
+  @media (max-width: 1023px) {
+    .wv-panels-row { position: relative; }
+    .wv-panels-row > .wv-resize-handle { display: none !important; }
+    .wv-panels-row > .wv-side-panel { position: absolute !important; inset: 10px; z-index: 40; flex: none !important; }
+  }
+  @media (max-width: 640px) {
+    .wv-topbar .wv-toolbar-btn { font-size: 0 !important; gap: 0 !important; padding: 8px 9px !important; }
+    .wv-topbar .wv-engine-badge { display: none !important; }
+    .wv-topbar .wv-crumbs > button, .wv-topbar .wv-crumbs > svg { display: none; }
+    .wv-topbar .wv-crumbs > span { flex-shrink: 1 !important; min-width: 0; }
+  }
 `
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
@@ -459,10 +473,10 @@ export default function WordViewer({
       >
         {/* ── TOP TOOLBAR ────────────────────────────────────────────────────── */}
         {!isFullscreen && (
-          <div style={{ display:"flex", alignItems:"center", padding:"10px 12px 0 12px", gap:8, flexShrink:0 }}>
+          <div className="wv-topbar" style={{ display:"flex", alignItems:"center", padding:"10px 12px 0 12px", gap:8, flexShrink:0 }}>
 
             {/* Breadcrumb */}
-            <div style={{
+            <div className="wv-crumbs" style={{
               display:"flex", alignItems:"center", gap:4,
               flex:1, minWidth:0, overflow:"hidden",
             }}>
@@ -504,7 +518,7 @@ export default function WordViewer({
               {/* Engine badge + reload — only in iframe fallback mode */}
               {!useImageMode && !converting && (
                 <>
-                  <div style={{
+                  <div className="wv-engine-badge" style={{
                     padding:"5px 10px", borderRadius:8, background:"white", fontSize:11, fontWeight:600, color:"#6b7280",
                     boxShadow:"0 1px 2px rgba(0,0,0,0.06),0 0 0 1px rgba(0,0,0,0.06)", whiteSpace:"nowrap",
                   }}>
@@ -558,12 +572,13 @@ export default function WordViewer({
         {/* ── THREE-PANEL ROW ────────────────────────────────────────────────── */}
         <div
           ref={panelsRowRef}
+          className="wv-panels-row"
           style={{ flex:1, display:"flex", padding:GAP, gap:0, minHeight:0, overflow:"hidden", paddingTop:GAP }}
         >
           {/* ─── LEFT: AI Panel ─────────────────────────────────────────── */}
           {aiOpen && showAIButton && (
             <>
-              <div className="wv-panel-card" style={{ flex: aiFlexActual, transition:"flex 0.05s" }}>
+              <div className="wv-panel-card wv-side-panel" style={{ flex: aiFlexActual, transition:"flex 0.05s" }}>
                 <PanelHeader bgClass="wv-panel-header-purple" onClose={handleAIToggle}>
                   <div style={{ display:"flex", alignItems:"center", gap:10, flex:1 }}>
                     <div style={{ display:"flex", alignItems:"center", gap:7 }}>
@@ -824,7 +839,7 @@ export default function WordViewer({
                 style={{ margin:`0 ${GAP / 2}px` }}
               />
 
-              <div className="wv-panel-card" style={{ flex: notesFlexActual, transition:"flex 0.05s" }}>
+              <div className="wv-panel-card wv-side-panel" style={{ flex: notesFlexActual, transition:"flex 0.05s" }}>
                 <PanelHeader
                   bgClass="wv-panel-header-blue"
                   onClose={() => { setNotesOpen(false); onNotesStateChange?.(false) }}
@@ -869,7 +884,7 @@ export default function WordViewer({
         {/* ── Navigation Confirmation Dialog */}
         {showNavConfirm && (
           <div style={{ position:"fixed",inset:0,zIndex:4000,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.45)",backdropFilter:"blur(6px)" }}>
-            <div style={{ background:"white",borderRadius:18,padding:"32px",width:380,boxShadow:"0 24px 64px rgba(0,0,0,0.2)",border:"1px solid rgba(0,0,0,0.06)",animation:"slideUp 0.2s ease-out" }}>
+            <div style={{ background:"white",borderRadius:18,padding:"32px",width:380,maxWidth:"calc(100vw - 32px)",boxShadow:"0 24px 64px rgba(0,0,0,0.2)",border:"1px solid rgba(0,0,0,0.06)",animation:"slideUp 0.2s ease-out" }}>
               <div style={{ width:48,height:48,borderRadius:14,background:"#FEF3C7",display:"flex",alignItems:"center",justifyContent:"center",marginBottom:16 }}>
                 <span style={{ fontSize:22 }}>⚠️</span>
               </div>

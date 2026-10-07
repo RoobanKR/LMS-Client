@@ -252,7 +252,7 @@ const DeleteConfirmationModal: React.FC<{
       onClick={onCancel}
     >
       <div 
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 max-h-[90dvh] overflow-hidden overflow-y-auto"
         style={{ border: '1px solid var(--lms-border)' }}
         onClick={e => e.stopPropagation()}
       >
@@ -327,7 +327,7 @@ const BulkDeleteConfirmationModal: React.FC<{
       onClick={onCancel}
     >
       <div 
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 max-h-[90dvh] overflow-hidden overflow-y-auto"
         style={{ border: '1px solid var(--lms-border)' }}
         onClick={e => e.stopPropagation()}
       >
@@ -525,7 +525,7 @@ const PreviewModal: React.FC<{
       return (
         <div className="mt-4">
           <p className="text-xs font-semibold text-gray-500 mb-2">Matching Pairs:</p>
-          <div className="grid grid-cols-2 gap-2 p-3 rounded-lg bg-gray-50 border border-gray-200">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 rounded-lg bg-gray-50 border border-gray-200">
             {pairs.map((pair: any, idx: number) => (
               <div key={idx} className="flex justify-between items-center p-2 border-b border-gray-200">
                 <span className="text-sm font-medium">{pair.left}</span>
@@ -574,8 +574,8 @@ const PreviewModal: React.FC<{
   
   return (
     <div className="fixed inset-0 z-[2000] flex flex-col" style={{ background: '#f9f9fb' }}>
-      <div className="flex-shrink-0 flex items-center justify-between px-6 py-3" style={{ borderBottom: '1.5px solid #eaeaef', background: '#fff' }}>
-        <div className="flex items-center gap-3">
+      <div className="flex-shrink-0 flex items-center justify-between gap-2 px-3 sm:px-6 py-3" style={{ borderBottom: '1.5px solid #eaeaef', background: '#fff' }}>
+        <div className="flex items-center gap-3 min-w-0">
           <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: T.purple }}>
             <Eye className="h-4 w-4 text-white" />
           </div>
@@ -595,7 +595,7 @@ const PreviewModal: React.FC<{
         </div>
       </div>
       
-      <div className="flex-shrink-0 px-6 py-3 bg-white border-b" style={{ borderColor: '#eaeaef' }}>
+      <div className="flex-shrink-0 px-3 sm:px-6 py-3 bg-white border-b max-h-[30dvh] overflow-y-auto sm:max-h-none sm:overflow-visible" style={{ borderColor: '#eaeaef' }}>
         <div className="flex gap-2 flex-wrap">
           {questions.map((q, idx) => (
             <button
@@ -614,7 +614,7 @@ const PreviewModal: React.FC<{
         </div>
       </div>
       
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-6">
         <div className="max-w-3xl mx-auto">
           <div className="flex items-center gap-2 mb-4 flex-wrap">
             <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold" style={{ background: '#f0f0f7', color: '#6b6b7e' }}>
@@ -654,7 +654,7 @@ const PreviewModal: React.FC<{
         </div>
       </div>
       
-      <div className="flex-shrink-0 flex items-center justify-between px-6 py-3 border-t border-gray-200 bg-white">
+      <div className="flex-shrink-0 flex items-center justify-between px-3 sm:px-6 py-3 border-t border-gray-200 bg-white">
         <button
           onClick={() => setCurrentIndex(i => Math.max(0, i - 1))}
           disabled={currentIndex === 0}
@@ -1150,7 +1150,7 @@ const MockTestModal: React.FC<MockTestModalProps> = ({ isOpen, questions, onClos
         const leftItems = matchingPairs.map((p: any) => p.left);
         
         return (
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div>
               <p className="text-sm font-semibold mb-3">Items</p>
               {leftItems.map((left: string, idx: number) => {
@@ -1256,7 +1256,7 @@ const MockTestModal: React.FC<MockTestModalProps> = ({ isOpen, questions, onClos
   if (!testStarted) {
     return (
       <div className="fixed inset-0 z-[2000] flex items-center justify-center" style={{ background: 'rgba(26,26,46,0.75)', backdropFilter: 'blur(4px)' }}>
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden" style={{ border: '1px solid var(--lms-border)' }}>
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90dvh] overflow-hidden overflow-y-auto" style={{ border: '1px solid var(--lms-border)' }}>
           <div className="px-6 py-5 border-b" style={{ borderColor: T.border }}>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: T.greenLight }}>
@@ -1318,7 +1318,7 @@ const MockTestModal: React.FC<MockTestModalProps> = ({ isOpen, questions, onClos
     
     return (
       <div className="fixed inset-0 z-[2000] flex items-center justify-center" style={{ background: 'rgba(26,26,46,0.75)', backdropFilter: 'blur(4px)' }}>
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden" style={{ border: '1px solid var(--lms-border)' }}>
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90dvh] overflow-hidden overflow-y-auto" style={{ border: '1px solid var(--lms-border)' }}>
           <div className="px-6 py-5 border-b" style={{ borderColor: T.border }}>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: passed ? T.greenLight : '#fee2e2' }}>
@@ -1370,8 +1370,8 @@ const MockTestModal: React.FC<MockTestModalProps> = ({ isOpen, questions, onClos
   
   return (
     <div className="fixed inset-0 z-[2000] flex flex-col" style={{ background: '#f9f9fb' }}>
-      <div className="flex-shrink-0 flex items-center justify-between px-6 py-3 bg-white border-b" style={{ borderColor: T.border }}>
-        <div className="flex items-center gap-3">
+      <div className="flex-shrink-0 flex items-center justify-between gap-2 px-3 sm:px-6 py-3 bg-white border-b" style={{ borderColor: T.border }}>
+        <div className="flex items-center gap-3 min-w-0">
           <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: T.greenLight }}>
             <ClipboardList className="h-4 w-4" style={{ color: T.green }} />
           </div>
@@ -1393,7 +1393,7 @@ const MockTestModal: React.FC<MockTestModalProps> = ({ isOpen, questions, onClos
         </div>
       </div>
       
-      <div className="flex-shrink-0 px-6 py-3 bg-white border-b" style={{ borderColor: T.border }}>
+      <div className="flex-shrink-0 px-3 sm:px-6 py-3 bg-white border-b max-h-[30dvh] overflow-y-auto sm:max-h-none sm:overflow-visible" style={{ borderColor: T.border }}>
         <div className="flex gap-1.5 flex-wrap">
           {questions.map((q, idx) => {
             const status = answers[q.id] ? 'answered' : 'unanswered';
@@ -1419,7 +1419,7 @@ const MockTestModal: React.FC<MockTestModalProps> = ({ isOpen, questions, onClos
         </div>
       </div>
       
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-6">
         <div className="max-w-3xl mx-auto">
           <div className="flex items-center gap-2 mb-4">
             <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold" style={{ background: T.pageBg, color: T.textMuted }}>
@@ -1445,7 +1445,7 @@ const MockTestModal: React.FC<MockTestModalProps> = ({ isOpen, questions, onClos
         </div>
       </div>
       
-      <div className="flex-shrink-0 flex items-center justify-between px-6 py-3 bg-white border-t" style={{ borderColor: T.border }}>
+      <div className="flex-shrink-0 flex items-center justify-between px-3 sm:px-6 py-3 bg-white border-t" style={{ borderColor: T.border }}>
         <button
           onClick={handlePrev}
           disabled={currentIndex === 0}
@@ -2300,7 +2300,7 @@ const loadQuestions = async (_opts: { silent?: boolean } = {}) => {
     >
       {/* Header */}
       <div
-        className="flex-shrink-0 flex items-center justify-between px-5 py-3.5"
+        className="flex-shrink-0 flex flex-col items-start gap-3 lg:flex-row lg:items-center lg:gap-0 justify-between px-3 sm:px-5 py-3.5"
         style={{ background: T.bg, borderBottom: `1px solid ${T.border}`, borderLeft: `3px solid ${T.green}` }}
       >
         <div className="flex items-center gap-3 min-w-0">
@@ -2408,7 +2408,7 @@ const loadQuestions = async (_opts: { silent?: boolean } = {}) => {
       </div>
 
       {/* Body */}
-      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden" style={{ scrollbarWidth: "thin", scrollbarColor: `${T.border} transparent` }}>
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto lg:overflow-x-hidden" style={{ scrollbarWidth: "thin", scrollbarColor: `${T.border} transparent` }}>
         {searchQuery && (
           <div className="flex items-center gap-2 px-3 sm:px-4 md:px-6 pt-3 pb-2 flex-wrap min-w-0">
             <span className="text-[10px] font-semibold uppercase tracking-wide text-brand-strong">Filtering:</span>
@@ -2428,7 +2428,7 @@ const loadQuestions = async (_opts: { silent?: boolean } = {}) => {
         {/* Flush list with a small horizontal gutter so the table has
             breathing room instead of running edge-to-edge (which caused a
             horizontal scroll on narrow viewports). */}
-        <div className="px-3 sm:px-4 md:px-6">
+        <div className={`px-3 sm:px-4 md:px-6 ${filteredQuestions.length > 0 ? "min-w-[760px] lg:min-w-0" : ""}`}>
 
           {/* Table Header — h-8, bg-canvas, hairline bottom border */}
           <div style={rowBase} className="h-8 border-b border-hairline bg-canvas">

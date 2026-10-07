@@ -399,7 +399,7 @@ const MonthlyChart = ({
 
   return (
     <div className="w-full max-w-3xl">
-      <div className="flex items-center justify-between mb-1">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mb-1">
         <span className="text-sm font-bold" style={{ color: isDark ? T.dark.textMain : T.textMain }}>
           Monthly Overall Progress
         </span>
@@ -607,7 +607,7 @@ const WeeklyChart = ({
 
   return (
     <div className="w-full max-w-3xl">
-      <div className="flex items-center justify-between mb-1">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mb-1">
         <span className="text-sm font-bold" style={{ color: isDark ? T.dark.textMain : T.textMain }}>
           Weekly Overall Progress
         </span>
@@ -959,18 +959,18 @@ export default function CourseUsersPage() {
 
   // ─── Content ────────────────────────────────────────────────────────────────
   const content = (
-    <div className="max-w-7xl mx-auto px-4 py-6">
+    <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
       {/* ─── Header ─── */}
-      <div className="flex items-center gap-4 mb-6">
+      <div className="flex items-center gap-3 sm:gap-4 mb-6">
         <button
           onClick={() => router.back()}
-          className="p-2 rounded-lg transition-all"
+          className="p-2 rounded-lg transition-all flex-shrink-0"
           style={{ background: isDark ? T.dark.card : T.bg, border: `1px solid ${isDark ? T.dark.border : T.border}` }}
         >
           <ArrowLeft className="w-5 h-5" style={{ color: isDark ? T.dark.textSub : T.textSub }} />
         </button>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold" style={{ color: isDark ? T.dark.textMain : T.textMain }}>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold break-words" style={{ color: isDark ? T.dark.textMain : T.textMain }}>
             {data.course?.courseName || 'Course'}
           </h1>
           {/* Joined from the parts that exist rather than hardcoded bullets:
@@ -995,10 +995,10 @@ export default function CourseUsersPage() {
 
       {/* ─── Performance Analytics ─── */}
       {filteredStudents.length > 0 && (
-        <div className="mb-6 p-5 rounded-xl" style={{ background: isDark ? T.dark.card : T.bg, border: `1px solid ${isDark ? T.dark.border : T.border}` }}>
+        <div className="mb-6 p-4 sm:p-5 rounded-xl" style={{ background: isDark ? T.dark.card : T.bg, border: `1px solid ${isDark ? T.dark.border : T.border}` }}>
           <div className="flex flex-wrap items-center justify-between gap-2 mb-5">
             <h3 className="text-sm font-bold" style={{ color: isDark ? T.dark.textMain : T.textMain }}>Performance Analytics</h3>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <TimeViewToggle view={timeView} setView={setTimeView} isDark={isDark} />
               <ThresholdLegend isDark={isDark} />
             </div>
@@ -1113,7 +1113,7 @@ export default function CourseUsersPage() {
           </div>
         )}
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full min-w-[720px] lg:min-w-0">
             <thead>
               <tr style={{ borderBottom: `1px solid ${isDark ? T.dark.border : T.border}` }}>
                 <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>Student</th>
@@ -1272,7 +1272,7 @@ export default function CourseUsersPage() {
       </div>
 
       {/* ─── Footer stats ─── */}
-      <div className="mt-4 flex justify-between items-center">
+      <div className="mt-4 flex flex-wrap justify-between items-center gap-2">
         <p className="text-sm" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>
           Showing {filteredStudents.length} of {data.students?.length || 0} students
         </p>

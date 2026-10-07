@@ -46,7 +46,7 @@ export const CustomInputModal: React.FC<{
   return (
     <div className="lms-modal-backdrop">
       <div style={{
-        background: '#FFFFFF', borderRadius: 14, width: 'min(900px, 96vw)', maxHeight: '88vh',
+        background: '#FFFFFF', borderRadius: 14, width: 'min(900px, 96vw)', maxHeight: '88dvh',
         display: 'flex', flexDirection: 'column', overflow: 'hidden',
         boxShadow: '0 20px 60px rgba(0,0,0,0.22)',
       }}>
@@ -54,7 +54,7 @@ export const CustomInputModal: React.FC<{
           <div style={{ fontWeight: 700, fontSize: 15, color: '#0F172A' }}>Custom Input — Terminal</div>
           <button className="lms-cancel-btn" onClick={onClose}>Close</button>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, padding: '14px 18px', overflowY: 'auto' }}>
+        <div className="max-sm:!grid-cols-1 max-sm:!px-3" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, padding: '14px 18px', overflowY: 'auto' }}>
           <div>
             <div style={labelStyle}>stdin</div>
             <textarea

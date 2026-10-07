@@ -107,7 +107,7 @@ export function DeleteConfirmModal({
             hideClose
             dismissOnOutsideClick={false}
             footer={
-                <div className="flex flex-1 items-center justify-end gap-2">
+                <div className="flex flex-1 flex-wrap items-center justify-end gap-2">
                     <Button variant="outline" size="sm" onClick={onCancel} disabled={isLoading}>
                         Cancel
                     </Button>
@@ -240,7 +240,7 @@ export function ClientCreatedSuccessModal({
             hideClose
             dismissOnOutsideClick={false}
             footer={
-                <div className="flex flex-1 items-center justify-end gap-2">
+                <div className="flex flex-1 flex-wrap items-center justify-end gap-2">
                     <Button variant="outline" size="sm" onClick={onClose}>
                         Done
                     </Button>
@@ -303,13 +303,13 @@ export function DeactivateConfirmModal({
     if (!open) return null
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-            <div className="w-full max-w-md rounded-2xl border border-hairline bg-surface p-6 shadow-xl">
+            <div className="w-full max-w-md max-h-[90dvh] overflow-y-auto rounded-2xl border border-hairline bg-surface p-5 shadow-xl sm:p-6">
                 <h2 className="text-base font-semibold text-heading">Deactivate client?</h2>
                 <p className="mt-2 text-sm text-subtle">
                     <span className="font-medium text-body">{clientName}</span> will be marked
                     inactive. You can reactivate it at any time.
                 </p>
-                <div className="mt-5 flex justify-end gap-2">
+                <div className="mt-5 flex flex-wrap justify-end gap-2">
                     <Button variant="outline" size="sm" onClick={onCancel} disabled={isLoading}>
                         No, keep active
                     </Button>

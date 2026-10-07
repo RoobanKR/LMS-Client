@@ -41,7 +41,7 @@ export const SectionHeading: React.FC<{
   children: React.ReactNode;
   right?: React.ReactNode;
 }> = ({ children, right }) => (
-  <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '4px 0 10px' }}>
+  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, margin: '4px 0 10px' }}>
     <span style={{
       fontSize: 12, fontWeight: 700, color: D.orange,
       letterSpacing: '-.01em', whiteSpace: 'nowrap', textTransform: 'none',
@@ -63,7 +63,7 @@ export const StepShell: React.FC<{
   maxWidth?: number;
   style?: React.CSSProperties;
 }> = ({ children, maxWidth = 1200, style }) => (
-  <div style={{ padding: '16px 32px 24px', maxWidth, fontFamily: FONT, ...style }}>
+  <div className="px-4 sm:px-8" style={{ paddingTop: 16, paddingBottom: 24, maxWidth, fontFamily: FONT, ...style }}>
     {children}
   </div>
 );

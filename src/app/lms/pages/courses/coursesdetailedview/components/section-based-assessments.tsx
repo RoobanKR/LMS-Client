@@ -408,10 +408,10 @@ export function SectionStartPopup({
         </div>
 
         {/* Scrollable body */}
-        <div style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", display: "grid", gridTemplateColumns: "1fr 190px", alignItems: "start", scrollbarWidth: "thin", scrollbarColor: "#cbd5e1 #f1f5f9" }}>
+        <div className="ssp-body" style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", display: "grid", gridTemplateColumns: "1fr 190px", alignItems: "start", scrollbarWidth: "thin", scrollbarColor: "#cbd5e1 #f1f5f9" }}>
 
           {/* Left — Summary + Sections list */}
-          <div style={{ padding: "14px 16px", borderRight: "1px solid #f1f5f9", display: "flex", flexDirection: "column", gap: 14 }}>
+          <div className="ssp-left" style={{ padding: "14px 16px", borderRight: "1px solid #f1f5f9", display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
             <div>
               <SecLabel>Summary</SecLabel>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -500,7 +500,8 @@ export function SectionStartPopup({
           </div>
         </div>
       </div>
-      <style>{`@keyframes popIn{from{opacity:0;transform:scale(.92) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}`}</style>
+      <style>{`@keyframes popIn{from{opacity:0;transform:scale(.92) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
+        @media (max-width: 560px){.ssp-body{grid-template-columns:minmax(0,1fr) !important}.ssp-left{border-right:none !important;border-bottom:1px solid #f1f5f9}}`}</style>
     </div>
   )
 }
@@ -615,7 +616,7 @@ if (activeTest) {
     <>
       {/* Toast */}
       {toast && (
-        <div style={{ position: "fixed", top: 24, right: 24, zIndex: 999999, padding: "12px 20px", borderRadius: 12, background: toast.type === "error" ? "#fef2f2" : "#fffbeb", border: `1px solid ${toast.type === "error" ? "#fecaca" : "#fde68a"}`, color: toast.type === "error" ? "#b91c1c" : "#92400e", fontSize: 13, fontWeight: 600, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", display: "flex", alignItems: "center", gap: 8, whiteSpace: "nowrap" }}>
+        <div className="max-sm:!left-4 max-sm:!right-4 max-sm:!top-4 max-sm:!whitespace-normal" style={{ position: "fixed", top: 24, right: 24, zIndex: 999999, padding: "12px 20px", borderRadius: 12, background: toast.type === "error" ? "#fef2f2" : "#fffbeb", border: `1px solid ${toast.type === "error" ? "#fecaca" : "#fde68a"}`, color: toast.type === "error" ? "#b91c1c" : "#92400e", fontSize: 13, fontWeight: 600, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", display: "flex", alignItems: "center", gap: 8, whiteSpace: "nowrap" }}>
           <AlertCircle style={{ width: 16, height: 16, flexShrink: 0 }} />
           {toast.message}
         </div>
@@ -721,7 +722,7 @@ if (activeTest) {
 
         {/* Table */}
         <div
-          className="exercises-scroll flex-1 overflow-y-auto"
+          className="exercises-scroll flex-1 overflow-y-auto overflow-x-auto lg:overflow-x-visible"
           style={{ scrollbarWidth: "thin", scrollbarColor: "#94a3b8 #f1f5f9" }}
         >
           <style>{`
@@ -732,7 +733,7 @@ if (activeTest) {
           `}</style>
 
           {/* Column headers — same pattern + extra "Sections" column */}
-          <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-t-lg border-b border-gray-200 text-2xs font-semibold text-gray-600 sticky top-0 z-10">
+          <div className="flex items-center gap-2 px-3 py-2 min-w-[760px] lg:min-w-0 bg-gray-50 rounded-t-lg border-b border-gray-200 text-2xs font-semibold text-gray-600 sticky top-0 z-10">
             <div className="flex-[0.5] text-center">#</div>
             <div className="flex-[1.5] text-center">ID</div>
             <div className="flex-[2] text-left">Assessment Name</div>
@@ -744,7 +745,7 @@ if (activeTest) {
             <div className="flex-[0.8] text-center">Action</div>
           </div>
 
-          <div className="space-y-1">
+          <div className="space-y-1 min-w-[760px] lg:min-w-0">
             {filteredExercises.map((exercise, index) => {
               const availability = getExerciseAvailability(exercise)
               const sub = getSubmissionAttempts(exercise)

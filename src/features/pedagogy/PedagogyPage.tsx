@@ -398,7 +398,7 @@ export default function PedagogyManagement() {
                         {course.courseName}
                     </h3>
 
-                    <div className="flex items-center gap-2 text-xs">
+                    <div className="flex flex-wrap lg:flex-nowrap items-center gap-2 text-xs">
                         <span className="bg-gradient-to-r from-slate-100 to-gray-100 px-1.5 py-0.5 rounded-md font-medium text-slate-700 shadow-sm">
                             {course.courseCode}
                         </span>
@@ -416,7 +416,7 @@ export default function PedagogyManagement() {
                     </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0">
                     {isSelected && (
                         <motion.div
                             initial={{ scale: 0, rotate: -180 }}
@@ -544,7 +544,7 @@ export default function PedagogyManagement() {
                         </div>
 
                         {/* Filter Toggle */}
-                        <div className="flex items-center justify-between mb-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                             <motion.button
                                 onClick={() => setIsFiltersVisible(!isFiltersVisible)}
                                 className="flex items-center gap-1 text-slate-600 hover:text-slate-800 transition-colors text-xs font-medium"

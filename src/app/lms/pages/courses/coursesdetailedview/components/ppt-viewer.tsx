@@ -122,6 +122,19 @@ const GLOBAL_STYLES = `
     background: white;
   }
   .slide-page-input:focus { border-color: #F97316; box-shadow: 0 0 0 3px rgba(249,115,22,0.12); }
+
+  /* Responsive: below lg the AI / Notes side panels float over the slides
+     instead of squeezing them; desktop keeps the 3-panel split. */
+  @media (max-width: 1023px) {
+    .ppt-panels-row { position: relative; }
+    .ppt-panels-row > .ppt-viewer-resize-handle { display: none !important; }
+    .ppt-panels-row > .ppt-side-panel { position: absolute !important; inset: 10px; z-index: 40; flex: none !important; min-width: 0 !important; }
+  }
+  @media (max-width: 640px) {
+    .ppt-topbar .ppt-toolbar-btn { font-size: 0 !important; gap: 0 !important; padding: 8px 9px !important; }
+    .ppt-topbar .ppt-crumbs > button, .ppt-topbar .ppt-crumbs > svg { display: none; }
+    .ppt-topbar .ppt-crumbs > span { flex-shrink: 1 !important; min-width: 0; }
+  }
 `
 
 // ─── MCQ OVERLAY ──────────────────────────────────────────────────────────────
@@ -798,10 +811,10 @@ export default function PPTViewer({
       >
         {/* ── TOP TOOLBAR ──────────────────────────────────────────────────── */}
         {!isFullscreen && (
-          <div style={{ display:"flex", alignItems:"center", padding:"10px 12px 0 12px", gap:8, flexShrink:0 }}>
+          <div className="ppt-topbar" style={{ display:"flex", alignItems:"center", padding:"10px 12px 0 12px", gap:8, flexShrink:0 }}>
 
             {/* Breadcrumbs */}
-            <div style={{ display:"flex",alignItems:"center",gap:4,flex:1,minWidth:0,overflow:"hidden" }}>
+            <div className="ppt-crumbs" style={{ display:"flex",alignItems:"center",gap:4,flex:1,minWidth:0,overflow:"hidden" }}>
               <div style={{ width:22,height:22,borderRadius:6,background:"linear-gradient(135deg,#F97316,#EA580C)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>
                 <FileText size={11} style={{ color:"white" }} />
               </div>
@@ -865,12 +878,13 @@ export default function PPTViewer({
         {/* ── THREE-PANEL ROW ────────────────────────────────────────────────── */}
         <div
           ref={panelsRowRef}
+          className="ppt-panels-row"
           style={{ flex:1, display:"flex", padding:GAP, gap:0, minHeight:0, overflow:"hidden", paddingTop:GAP }}
         >
           {/* LEFT: AI Panel */}
           {aiOpen && showAIButton && (
             <>
-              <div className="panel-card" style={{ flex:aiFlexActual, transition:"flex 0.05s", minWidth:180 }}>
+              <div className="panel-card ppt-side-panel" style={{ flex:aiFlexActual, transition:"flex 0.05s", minWidth:180 }}>
                 <PanelHeader bgClass="panel-header-purple" onClose={handleAIToggle}>
                   <div style={{ display:"flex",alignItems:"center",gap:4 }}>
                     <div style={{ width:26,height:26,borderRadius:8,background:"linear-gradient(135deg,#F97316,#EA580C)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>
@@ -1108,7 +1122,7 @@ export default function PPTViewer({
                   >
                     {/* Loading spinner while image loads */}
                     {!imgLoaded && !imgError && (
-                      <div style={{ width:640, height:480, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:14, background:"white" }}>
+                      <div style={{ width:640, maxWidth:"calc(100vw - 48px)", height:480, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:14, background:"white" }}>
                         <div style={{ width:40,height:40,border:"3px solid rgba(249,115,22,0.15)",borderTopColor:"#F97316",borderRadius:"50%",animation:"spin 0.75s linear infinite" }} />
                         <p style={{ fontSize:13,color:"#6b7280",margin:0,fontWeight:500 }}>Loading slide {currentSlide}…</p>
                       </div>
@@ -1116,7 +1130,7 @@ export default function PPTViewer({
 
                     {/* Error state */}
                     {imgError && (
-                      <div style={{ width:640,height:480,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:12,background:"white" }}>
+                      <div style={{ width:640,maxWidth:"calc(100vw - 48px)",height:480,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:12,background:"white" }}>
                         <FileText size={32} style={{ color:"#ef4444" }} />
                         <p style={{ fontSize:13,color:"#6b7280",margin:0 }}>Failed to load slide {currentSlide}</p>
                       </div>
@@ -1159,7 +1173,7 @@ export default function PPTViewer({
           {notesOpen && notesEnabled && (
             <>
               <div className={`ppt-viewer-resize-handle ppt-viewer-resize-handle-blue${draggingHandle==="right"?" dragging":""}`} onMouseDown={e => startDrag("right", e)} style={{ margin:`0 ${GAP/2}px` }} />
-              <div className="panel-card" style={{ flex:notesFlexActual, transition:"flex 0.05s", minWidth:180 }}>
+              <div className="panel-card ppt-side-panel" style={{ flex:notesFlexActual, transition:"flex 0.05s", minWidth:180 }}>
                 <PanelHeader bgClass="panel-header-blue" onClose={() => { setNotesOpen(false); onNotesStateChange?.(false) }}>
                   <div style={{ display:"flex",alignItems:"center",gap:7 }}>
                     <div style={{ width:26,height:26,borderRadius:8,background:"linear-gradient(135deg,#F97316,#EA580C)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>
@@ -1201,7 +1215,7 @@ export default function PPTViewer({
         {/* ── Navigation Confirmation Dialog */}
         {showNavConfirm && (
           <div style={{ position:"fixed",inset:0,zIndex:4000,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.45)",backdropFilter:"blur(6px)" }}>
-            <div style={{ background:"white",borderRadius:18,padding:"32px",width:380,boxShadow:"0 24px 64px rgba(0,0,0,0.2)",border:"1px solid rgba(0,0,0,0.06)",animation:"slideUp 0.2s ease-out" }}>
+            <div style={{ background:"white",borderRadius:18,padding:"32px",width:380,maxWidth:"calc(100vw - 32px)",boxShadow:"0 24px 64px rgba(0,0,0,0.2)",border:"1px solid rgba(0,0,0,0.06)",animation:"slideUp 0.2s ease-out" }}>
               <div style={{ width:48,height:48,borderRadius:14,background:"#FEF3C7",display:"flex",alignItems:"center",justifyContent:"center",marginBottom:16 }}>
                 <span style={{ fontSize:22 }}>⚠️</span>
               </div>

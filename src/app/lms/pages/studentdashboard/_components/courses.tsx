@@ -27,13 +27,13 @@ export const CourseProgressTable = ({
             <Empty icon={<BookOpen size={20} />} title="No courses yet" hint="Once you're enrolled, your courses appear here." />
         ) : (
             <div className="-mx-1 overflow-x-auto">
-                <table className="w-full min-w-[520px] border-collapse">
+                <table className="w-full border-collapse sm:min-w-[520px]">
                     <thead>
                         <tr className="text-left">
                             {['Course', 'Track', 'Progress', 'Last Opened', ''].map((h, i) => (
                                 <th
                                     key={h || i}
-                                    className="border-b border-[#EEF0F4] px-1 pb-2 text-2xs font-semibold uppercase tracking-[0.05em] text-slate-400 dark:border-gray-800"
+                                    className={`border-b border-[#EEF0F4] px-1 pb-2 text-2xs font-semibold uppercase tracking-[0.05em] text-slate-400 dark:border-gray-800 ${i === 1 || i === 3 ? 'hidden sm:table-cell' : ''}`}
                                 >
                                     {h}
                                 </th>
@@ -51,23 +51,23 @@ export const CourseProgressTable = ({
                                     <div className="flex items-center gap-2.5">
                                         <NameAvatar name={c.name} size={32} />
                                         <div className="min-w-0">
-                                            <p className="max-w-[170px] truncate text-sm font-semibold text-slate-800 group-hover:text-indigo-600 dark:text-slate-100">
+                                            <p className="max-w-[96px] truncate text-sm font-semibold sm:max-w-[170px] text-slate-800 group-hover:text-indigo-600 dark:text-slate-100">
                                                 {c.name}
                                             </p>
                                             <p className="truncate text-2xs text-slate-400">{c.code || 'No course code'}</p>
                                         </div>
                                     </div>
                                 </td>
-                                <td className="px-1 py-3">
+                                <td className="hidden px-1 py-3 sm:table-cell">
                                     <Tag label={c.level || c.category || 'General'} color={C.info} soft={C.infoSoft} />
                                 </td>
                                 <td className="px-1 py-3">
-                                    <div className="w-[92px]">
+                                    <div className="w-[64px] sm:w-[92px]">
                                         <p className="mb-1 text-xs font-bold" style={{ color: progressTint(c.progress) }}>{c.progress}%</p>
                                         <Bar value={c.progress} color={progressTint(c.progress)} height={5} />
                                     </div>
                                 </td>
-                                <td className="px-1 py-3 text-xs text-slate-400">
+                                <td className="hidden px-1 py-3 text-xs text-slate-400 sm:table-cell">
                                     {c.lastAccessed ? timeAgo(c.lastAccessed) : 'Not opened'}
                                 </td>
                                 <td className="px-1 py-3 text-right">
@@ -200,7 +200,7 @@ export const UpcomingSchedule = ({
                             </div>
                             <div className="min-w-0 flex-1 pt-0.5">
                                 <div className="flex items-start justify-between gap-2">
-                                    <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{d.title}</p>
+                                    <p className="min-w-0 truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{d.title}</p>
                                     <Tag label={st.label} color={st.color} soft={st.soft} />
                                 </div>
                                 <p className="mt-1 flex items-center gap-1.5 truncate text-2xs text-slate-400">

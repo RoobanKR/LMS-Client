@@ -504,9 +504,9 @@ export default function CourseActionsMenu({
                         // orange selected state without a jump.
                         // Sized to fit the 3×3 grid without hanging empty
                         // space above the footer.
-                        className="flex max-h-[min(720px,calc(100vh-24px))] w-full max-w-[920px] flex-col overflow-hidden rounded-2xl border border-hairline bg-[#FFF9F2] shadow-2xl"
+                        className="flex max-h-[min(720px,calc(100dvh-24px))] w-full max-w-[920px] flex-col overflow-hidden rounded-2xl border border-hairline bg-[#FFF9F2] shadow-2xl"
                     >
-                        <div className="flex items-start justify-between gap-4 px-6 pb-2 pt-4">
+                        <div className="flex items-start justify-between gap-4 px-4 pb-2 pt-4 sm:px-6">
                             <div className="min-w-0">
                                 {!!breadcrumbs?.length && breadcrumbs.length > 1 && (
                                     <nav className="mb-1 flex max-w-3xl flex-wrap items-center gap-1 text-2xs font-semibold text-subtle" aria-label="Course path">
@@ -519,7 +519,7 @@ export default function CourseActionsMenu({
                                     </nav>
                                 )}
                                 {!!breadcrumbs?.length && (
-                                    <h2 className="text-xl font-bold leading-tight text-heading">
+                                    <h2 className="text-lg font-bold leading-tight text-heading break-words sm:text-xl">
                                         {(breadcrumbs[breadcrumbs.length - 1] || '').replace(/^Course:\s*/, '')}
                                     </h2>
                                 )}
@@ -535,7 +535,7 @@ export default function CourseActionsMenu({
                             </button>
                         </div>
 
-                        <div className="grid flex-1 auto-rows-fr grid-cols-1 gap-4 overflow-y-auto px-5 pb-4 pt-2 sm:grid-cols-2 lg:grid-cols-3">
+                        <div className="grid flex-1 auto-rows-fr grid-cols-1 gap-3 overflow-y-auto px-3 pb-4 pt-2 sm:gap-4 sm:px-5 sm:grid-cols-2 lg:grid-cols-3">
                             {GRID_ITEMS.map((item) => {
                                 const isSelected = selectedKey === item.key
                                 const isPending = pendingKey === item.key
@@ -600,7 +600,7 @@ export default function CourseActionsMenu({
                             })}
                         </div>
 
-                        <div className="flex items-center justify-end gap-3 border-t border-hairline bg-surface px-6 py-3">
+                        <div className="flex items-center justify-end gap-3 border-t border-hairline bg-surface px-4 py-3 sm:px-6">
                             <button
                                 type="button"
                                 disabled={!selectedKey || Boolean(pendingKey)}
@@ -613,7 +613,7 @@ export default function CourseActionsMenu({
                                     onBeforeNavigate?.()
                                     item.onClick()
                                 }}
-                                className={`inline-flex min-w-[200px] items-center justify-center gap-2 rounded-lg px-6 py-2.5 text-sm font-semibold shadow-sm transition-all ${
+                                className={`inline-flex w-full sm:w-auto sm:min-w-[200px] items-center justify-center gap-2 rounded-lg px-6 py-2.5 text-sm font-semibold shadow-sm transition-all ${
                                     !selectedKey || pendingKey
                                         ? 'cursor-not-allowed bg-ink-100 text-ink-400'
                                         : 'bg-orange-500 text-white hover:bg-orange-600 hover:shadow-md'

@@ -147,7 +147,7 @@ export default function QuestionSourceStep({
         </div>
 
         <div className="px-4 py-3.5">
-          <div className="flex items-center gap-6 flex-wrap">
+          <div className="flex items-center gap-x-6 gap-y-2 sm:gap-y-6 flex-wrap">
             {SOURCES.map((s) => {
               const on = sources.includes(s.value);
               const isLast = on && sources.length === 1;

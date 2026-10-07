@@ -67,11 +67,10 @@ export default function ReportExportModal(props: ReportExportModalProps) {
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
-        className="bg-white rounded-xl shadow-xl overflow-hidden flex flex-col"
-        style={{ width: "90vw", height: "90vh" }}
+        className="bg-white rounded-xl shadow-xl overflow-hidden flex flex-col w-[calc(100vw-1rem)] h-[calc(100dvh-1rem)] sm:w-[90vw] sm:h-[90dvh]"
       >
         {/* ── Header ── */}
-        <div className="flex items-center justify-between px-6 py-3 border-b border-gray-200 flex-shrink-0">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-b border-gray-200 flex-shrink-0">
           <h2 className="text-[15px] font-bold text-gray-900">Report Export Preview</h2>
           <button
             type="button"
@@ -84,7 +83,7 @@ export default function ReportExportModal(props: ReportExportModalProps) {
         </div>
 
         {/* ── Body ── */}
-        <div className="flex-1 min-h-0 overflow-auto p-4 lmsd-scroll">
+        <div className="flex-1 min-h-0 overflow-auto p-3 sm:p-4 lmsd-scroll">
           {/* Top control row: column picker | report options | export buttons */}
           <ReportExportControls
             state={state}
@@ -98,8 +97,8 @@ export default function ReportExportModal(props: ReportExportModalProps) {
         </div>
 
         {/* ── Footer ── */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-3 border-t border-gray-200 flex-shrink-0">
-          <div className="flex items-center gap-4 text-[12.5px] text-gray-500">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 sm:px-6 py-3 border-t border-gray-200 flex-shrink-0">
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[12.5px] text-gray-500">
             <div className="flex items-center gap-1.5">
               <span>Rows per page:</span>
               <select

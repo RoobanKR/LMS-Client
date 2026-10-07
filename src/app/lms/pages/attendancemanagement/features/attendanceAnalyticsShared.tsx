@@ -88,7 +88,7 @@ export const ChartCard: React.FC<{
     children: React.ReactNode;
 }> = ({ title, headerRight, children }) => (
     <div className="bg-white rounded-xl border border-gray-200 px-4 py-3">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
             <div className="text-[13px] font-semibold text-gray-900">{title}</div>
             {headerRight}
         </div>

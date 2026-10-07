@@ -70,7 +70,7 @@ export const NotificationsStep: React.FC<NotificationsStepProps> = ({ formData, 
         >
           {row.icon}
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 240, flex: 1, gap: 2 }}>
+        <div className="min-w-0 sm:min-w-[240px]" style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: 2 }}>
           <span
             style={{
               fontSize: 11,

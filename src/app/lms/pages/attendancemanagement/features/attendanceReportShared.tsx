@@ -99,8 +99,8 @@ export const StatCard: React.FC<{
     value: string;
     sub?: string;
 }> = ({ iconBg, icon, label, value, sub }) => (
-    <div className="bg-white rounded-xl border border-gray-200 px-4 py-3 flex items-center gap-3">
-        <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${iconBg}`}>{icon}</div>
+    <div className="bg-white rounded-xl border border-gray-200 px-3 sm:px-4 py-3 flex items-center gap-2.5 sm:gap-3 min-w-0">
+        <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${iconBg}`}>{icon}</div>
         <div className="min-w-0">
             <div className="text-[10.5px] uppercase tracking-wider text-gray-500 font-medium">{label}</div>
             <div className="text-[15px] font-semibold text-gray-900 mt-0.5">

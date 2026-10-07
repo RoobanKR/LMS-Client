@@ -613,12 +613,12 @@ Constraints: ${generatedContent.constraints?.join(', ')}
     const hasGeneratedContent = generatedContent || generatedMcqQuestions.length > 0;
 
     return (
-        <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-[1px] flex items-center justify-center p-4">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl border border-slate-200 max-h-[90vh] overflow-hidden">
+        <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-[1px] flex items-center justify-center p-3 sm:p-4">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl border border-slate-200 max-h-[90dvh] overflow-hidden">
 
                 {/* Modal Header */}
-                <div className="flex items-center justify-between p-4 border-b border-slate-100">
-                    <div className="flex items-center gap-3">
+                <div className="flex items-center justify-between gap-2 p-4 border-b border-slate-100">
+                    <div className="flex items-center gap-3 min-w-0">
                         <div className="p-2 bg-purple-50 rounded-lg">
                             <Sparkles className="h-5 w-5 text-purple-600" />
                         </div>
@@ -640,7 +640,7 @@ Constraints: ${generatedContent.constraints?.join(', ')}
                 </div>
 
                 {/* Modal Content */}
-                <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
+                <div className="p-4 sm:p-6 overflow-y-auto max-h-[calc(90dvh-140px)]">
                     {apiError && (
                         <Alert variant="destructive" className="mb-4">
                             <AlertCircle className="h-4 w-4" />
@@ -752,7 +752,7 @@ Constraints: ${generatedContent.constraints?.join(', ')}
                                 </div>
                             </div>
 
-                            <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                            <div className="flex flex-wrap gap-2 items-center justify-between pt-4 border-t border-slate-100">
                                 <Button
                                     variant="outline"
                                     onClick={onClose}
@@ -819,7 +819,7 @@ Constraints: ${generatedContent.constraints?.join(', ')}
                                                         <span className="text-xs font-medium text-slate-500">Description</span>
                                                         <p className="text-sm text-slate-700 whitespace-pre-wrap">{generatedContent.description}</p>
                                                     </div>
-                                                    <div className="grid grid-cols-2 gap-4">
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                                         <div>
                                                             <span className="text-xs font-medium text-slate-500">Difficulty</span>
                                                             <p className="text-sm font-medium text-slate-900 capitalize">{generatedContent.difficulty}</p>
@@ -872,8 +872,8 @@ Constraints: ${generatedContent.constraints?.join(', ')}
                                         </div>
                                     </div>
 
-                                    <div className="flex items-center justify-between pt-4 border-t border-slate-100">
-                                        <div className="flex items-center gap-2">
+                                    <div className="flex flex-wrap gap-2 items-center justify-between pt-4 border-t border-slate-100">
+                                        <div className="flex flex-wrap items-center gap-2">
                                             <Button
                                                 variant="outline"
                                                 onClick={handleCopyToClipboard}
@@ -891,7 +891,7 @@ Constraints: ${generatedContent.constraints?.join(', ')}
                                                 Regenerate
                                             </Button>
                                         </div>
-                                        <div className="flex items-center gap-3">
+                                        <div className="flex flex-wrap items-center gap-3">
                                             <Button
                                                 variant="outline"
                                                 onClick={onClose}

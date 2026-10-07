@@ -132,7 +132,7 @@ function ActivityContent() {
   const isIDo = type === "I_Do";
 
   return (
-    <div style={T({ background: "#F7F6FB", minHeight: "calc(100vh * var(--ui-scale-inv, 1))", padding: "26px 30px" })}>
+    <div className="px-3 py-4 sm:px-[30px] sm:py-[26px]" style={T({ background: "#F7F6FB", minHeight: "calc(100vh * var(--ui-scale-inv, 1))" })}>
 
       {/* ── Back button ── */}
       <button
@@ -147,7 +147,7 @@ function ActivityContent() {
         <div style={{ width: 48, height: 48, borderRadius: 12, background: meta.accentBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           <div style={{ width: 14, height: 14, borderRadius: "50%", background: meta.accent }} />
         </div>
-        <div>
+        <div className="min-w-0">
           <h1 style={T({ margin: 0, fontSize: 20, fontWeight: 700, color: "#111827" })}>{meta.title}</h1>
           <p style={T({ margin: "3px 0 0", fontSize: 12, fontWeight: 400, color: "#9CA3AF" })}>
             <strong style={{ color: "#6B7280" }}>{studentName}</strong> · {data?.course?.courseName || "Course"} · {meta.sub}
@@ -156,7 +156,7 @@ function ActivityContent() {
       </div>
 
       {/* ── Summary cards ── */}
-      <div style={{ display: "flex", gap: 12, marginBottom: 22 }}>
+      <div className="mb-[22px] grid grid-cols-1 gap-3 sm:flex">
         <StatCard label={isIDo ? "Total Documents" : "Total Items"} value={String(summary.total ?? rows.length)} sub={isIDo ? "With MCQs" : "Configured"} color="#111827" />
         <StatCard label="Attempted" value={String(summary.attempted ?? 0)} sub={`of ${summary.total ?? rows.length}`} color={meta.accent} />
         <StatCard label={isIDo ? "Avg Completion" : "Avg Score"} value={`${isIDo ? (summary.avgCompletion ?? 0) : (summary.avgPercentage ?? 0)}%`} sub="Across all items" color="#7C3AED" />
@@ -164,6 +164,9 @@ function ActivityContent() {
 
       {/* ── Table ── */}
       <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #EDE9F8", boxShadow: "0 2px 10px rgba(100,80,180,.05)", overflow: "hidden" }}>
+        {/* Grid "table" scrolls sideways on narrow screens. */}
+        <div className="overflow-x-auto md:overflow-visible">
+        <div className="min-w-[680px] md:min-w-0">
         {/* header */}
         <div style={{
           display: "grid",
@@ -234,6 +237,8 @@ function ActivityContent() {
             </div>
           );
         })}
+        </div>
+        </div>
       </div>
     </div>
   );

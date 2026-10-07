@@ -47,7 +47,7 @@ export default function ProgramCalendarModeViewToggles(props: Props) {
     ]
     return (
         <div className="flex items-center gap-3 flex-wrap">
-            <div role="group" aria-label="Calendar view" className="flex shrink-0 items-center gap-0.5 rounded-control bg-canvas p-0.5">
+            <div role="group" aria-label="Calendar view" className="flex max-w-full shrink-0 items-center gap-0.5 overflow-x-auto rounded-control bg-canvas p-0.5 lg:max-w-none lg:overflow-visible">
                 {modeOptions.map(([value, label]) => {
                     const disabled = (value === 'actual' || value === 'comparison') && !props.hasActualData
                     return (
@@ -70,7 +70,7 @@ export default function ProgramCalendarModeViewToggles(props: Props) {
                 })}
             </div>
             {props.mode !== 'planned' && (props.batches?.length ?? 0) > 0 && (
-                <div role="group" aria-label="Calendar batch" className="flex shrink-0 items-center gap-1 border-l border-hairline pl-3">
+                <div role="group" aria-label="Calendar batch" className="flex max-w-full shrink-0 items-center gap-1 overflow-x-auto border-l border-hairline pl-3 lg:max-w-none lg:overflow-visible">
                     {props.batches!.map(batch => (
                         <button
                             key={batch.value}

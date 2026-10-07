@@ -3567,7 +3567,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
                 help="Equal Distribution splits marks evenly across all questions; Question Specific lets you set marks per question individually"
                 note={isEqual ? 'All questions will have equal marks, auto-calculated from total.' : 'Set individual marks per question when creating them.'}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ width: 280 }}>
+                  <div style={{ width: 280, maxWidth: '100%' }}>
                     <ODropdown
                       value={formData.mcqConfig.scoreSettings.scoreType}
                       options={mcqScoringOptions}
@@ -3709,7 +3709,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
       const activeLevels = (['easy', 'medium', 'hard'] as const).filter(l => counts[l] > 0);
 
       return (
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           {activeLevels.map(level => {
             const count = counts[level];
             const scoring = ls[level];
@@ -3810,7 +3810,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
               <div className={assignmentStyles.generalFields}>
                 <ConfigRow label="Config strategy" required
                   help="General: fixed question count; Level Based: questions by difficulty (Easy/Medium/Hard); Selection Level: pick up to 2 difficulty levels">
-                  <div style={{ width: 280 }}>
+                  <div style={{ width: 280, maxWidth: '100%' }}>
                     <ODropdown value={formData.othersConfig.questionConfigType} options={configOptions}
                       onChange={v => {
                         const applyChange = () => {
@@ -3944,7 +3944,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
                   const isSelLevel = formData.othersConfig.questionConfigType === 'selectionLevel';
                   const bodyCell = (level: 'easy' | 'medium' | 'hard'): React.CSSProperties => ({ ...SPEC_MATRIX_CELL, background: SPEC_LEVEL_TINT[level], borderTop: `1px solid ${D.border}` });
                   return (
-                    <div>
+                    <div className="max-lg:overflow-x-auto">
                       {/* Difficulty matrix — 110px row-label column + 3 tinted level columns */}
                       <div className="es-matrix-grid" style={SPEC_MATRIX}>
                         {/* Header row */}
@@ -4420,7 +4420,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
             help="General: fixed question count; Level Based: questions by difficulty (Easy/Medium/Hard); Selection Level: pick up to 2 difficulty levels"
             note={isConfigStrategyLocked ? 'Config strategy is locked once questions have been added.' : undefined}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 280 }}>
+              <div style={{ width: 280, maxWidth: '100%' }}>
                 <ODropdown
                   value={formData.programmingConfig.questionConfigType}
                   options={configOptions}
@@ -5289,7 +5289,7 @@ const renderNotifications = useCallback(() => (
                       {grandSum} / {target.total} {grandBalanced && <Check size={10} style={{ display: 'inline' }} />}
                     </span>
                   </div>
-                  <div className="overflow-hidden">
+                  <div className="overflow-hidden max-lg:overflow-x-auto">
                     <table className="w-full text-[13px]" style={{ borderCollapse: 'collapse' }}>
                       <thead>
                         <tr style={{ background: '#fff' }}>
@@ -5992,7 +5992,7 @@ const renderNotifications = useCallback(() => (
             onClick={event => event.stopPropagation()}
             style={{
               background: '#fff', borderRadius: 12,
-              width: 'min(560px, 100%)', maxHeight: '86vh',
+              width: 'min(560px, 100%)', maxHeight: '86dvh',
               display: 'flex', flexDirection: 'column',
               boxShadow: '0 20px 40px rgba(15, 23, 42, 0.25)',
               overflow: 'hidden',
@@ -6009,7 +6009,7 @@ const renderNotifications = useCallback(() => (
               </div>
             </div>
             <div style={{ padding: '16px 20px', overflowY: 'auto', flex: 1 }}>
-              <dl style={{ margin: 0, display: 'grid', gridTemplateColumns: '140px 1fr', rowGap: 8, columnGap: 12, fontSize: 12.5, color: '#263746' }}>
+              <dl className="max-sm:!grid-cols-[100px_minmax(0,1fr)]" style={{ margin: 0, display: 'grid', gridTemplateColumns: '140px 1fr', rowGap: 8, columnGap: 12, fontSize: 12.5, color: '#263746' }}>
                 <dt style={{ color: '#57606E' }}>Name</dt><dd style={{ margin: 0, fontWeight: 600 }}>{formData.exerciseName || '—'}</dd>
                 <dt style={{ color: '#57606E' }}>Type</dt><dd style={{ margin: 0, fontWeight: 600 }}>{formData.exerciseType || '—'}</dd>
                 <dt style={{ color: '#57606E' }}>Difficulty</dt><dd style={{ margin: 0, fontWeight: 600, textTransform: 'capitalize' }}>{formData.exerciseLevel || '—'}</dd>

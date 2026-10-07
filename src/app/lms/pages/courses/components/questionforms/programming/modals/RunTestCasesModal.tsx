@@ -122,7 +122,7 @@ export const RunTestCasesModal: React.FC<{
   return (
     <div className="lms-modal-backdrop">
       <div style={{
-        background: '#FFFFFF', borderRadius: 14, width: 'min(960px, 96vw)', maxHeight: '88vh',
+        background: '#FFFFFF', borderRadius: 14, width: 'min(960px, 96vw)', maxHeight: '88dvh',
         display: 'flex', flexDirection: 'column', overflow: 'hidden',
         boxShadow: '0 20px 60px rgba(0,0,0,0.22)',
       }}>

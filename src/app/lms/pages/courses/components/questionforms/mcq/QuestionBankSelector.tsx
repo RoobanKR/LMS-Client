@@ -713,11 +713,11 @@ const QuestionBankSelector: React.FC<QuestionBankSelectorProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-      <div className="flex h-[min(940px,94vh)] w-[min(1400px,96vw)] flex-col overflow-hidden rounded-[18px] border border-[#E8EAF2] bg-white shadow-[0_20px_60px_rgba(16,24,40,0.12)]">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-2 sm:p-4 backdrop-blur-sm">
+      <div className="flex h-[min(940px,94dvh)] w-[min(1400px,96vw)] flex-col overflow-hidden rounded-[18px] border border-[#E8EAF2] bg-white shadow-[0_20px_60px_rgba(16,24,40,0.12)]">
         {/* Header — compact, fixed */}
-        <div className="flex h-[54px] shrink-0 items-center justify-between border-b border-[#E8EAF2] bg-white px-5">
-          <div className="flex items-center gap-2.5">
+        <div className="flex h-[54px] shrink-0 items-center justify-between gap-2 border-b border-[#E8EAF2] bg-white px-5 max-sm:h-auto max-sm:min-h-[54px] max-sm:px-3 max-sm:py-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2.5">
             {onBack && (
               <button
                 onClick={onBack}
@@ -746,21 +746,21 @@ const QuestionBankSelector: React.FC<QuestionBankSelectorProps> = ({
                 className="ml-1 inline-flex h-7 items-center gap-1.5 rounded-full border border-brand-500/30 bg-brand-wash px-2.5 text-[11px] font-semibold text-brand-strong transition-colors hover:bg-brand-wash-hover"
               >
                 {scope === 'course'
-                  ? <><GraduationCap className="h-3 w-3" /><span className="max-w-[220px] truncate">{scopeCourse?.name}</span></>
+                  ? <><GraduationCap className="h-3 w-3" /><span className="max-w-[120px] sm:max-w-[220px] truncate">{scopeCourse?.name}</span></>
                   : <><Globe className="h-3 w-3" /> General</>}
                 <span className="font-normal text-brand-strong/70">· Change</span>
               </button>
             )}
           </div>
-          <button onClick={onClose} className="rounded-lg p-1 text-faint transition-colors hover:bg-row-hover hover:text-subtle" aria-label="Close">
+          <button onClick={onClose} className="shrink-0 rounded-lg p-1 max-sm:p-2 text-faint transition-colors hover:bg-row-hover hover:text-subtle" aria-label="Close">
             <X className="h-4 w-4" />
           </button>
         </div>
 
         {/* ── Scope chooser — shown before any questions list ── */}
         {!scopeReady && scope === null && (
-          <div className="flex min-h-0 flex-1 items-center justify-center p-6">
-            <div className="w-full max-w-2xl">
+          <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto p-4 sm:p-6 max-md:items-start">
+            <div className="w-full max-w-2xl max-md:my-auto">
               <h3 className="text-center text-[16px] font-bold text-heading">Which bank do you want to pick from?</h3>
               <p className="mt-1 text-center text-[12px] text-subtle">
                 General holds reusable questions for the whole institution. Course Specific holds questions authored for one course.
@@ -795,8 +795,8 @@ const QuestionBankSelector: React.FC<QuestionBankSelectorProps> = ({
 
         {/* ── Course picker — second step of the Course Specific path ── */}
         {!scopeReady && scope === 'course' && (
-          <div className="flex min-h-0 flex-1 flex-col p-4">
-            <div className="flex items-center gap-2">
+          <div className="flex min-h-0 flex-1 flex-col p-3 sm:p-4">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => { setScope(null); setCourseSearch(''); }}
@@ -804,7 +804,7 @@ const QuestionBankSelector: React.FC<QuestionBankSelectorProps> = ({
               >
                 <ChevronLeft className="h-3 w-3" /> Back
               </button>
-              <div className="relative flex-1 max-w-md">
+              <div className="relative flex-1 min-w-[160px] max-w-md">
                 <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-faint" />
                 <input
                   type="text"
@@ -859,9 +859,9 @@ const QuestionBankSelector: React.FC<QuestionBankSelectorProps> = ({
 
         {/* Body — filters rail + question list, independent scrolls */}
         {scopeReady && (
-        <div className="flex min-h-0 flex-1 gap-3 p-3">
+        <div className="flex min-h-0 flex-1 gap-3 p-3 max-md:flex-col max-sm:p-2 max-sm:gap-2">
           {/* ── Filters rail ── */}
-          <aside className="w-[26%] min-w-[225px] shrink-0 overflow-y-auto rounded-[14px] border border-[#E8EAF2] p-3.5">
+          <aside className="w-[26%] min-w-[225px] shrink-0 overflow-y-auto rounded-[14px] border border-[#E8EAF2] p-3.5 max-md:w-full max-md:min-w-0 max-md:max-h-[38%]">
             <div className="mb-3 flex items-center justify-between">
               <span className="flex items-center gap-1.5 text-[13px] font-bold text-heading"><Filter className="h-3.5 w-3.5 text-brand-strong" /> Filters</span>
               {anyFilterActive && (
@@ -953,8 +953,8 @@ const QuestionBankSelector: React.FC<QuestionBankSelectorProps> = ({
           </aside>
 
           {/* ── Question list panel ── */}
-          <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-[14px] border border-[#E8EAF2]">
-            <div className="flex h-[44px] shrink-0 items-center justify-between border-b border-[#E8EAF2] px-3.5">
+          <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-[14px] border border-[#E8EAF2] max-md:min-h-[260px]">
+            <div className="flex h-[44px] shrink-0 items-center justify-between gap-2 border-b border-[#E8EAF2] px-3.5 max-sm:px-2.5">
               <span className="flex items-center gap-1.5 text-[13px] font-bold text-heading">
                 <Database className="h-3.5 w-3.5 text-brand-strong" />
                 Questions ({resultCount})
@@ -962,7 +962,7 @@ const QuestionBankSelector: React.FC<QuestionBankSelectorProps> = ({
               <div className="flex items-center gap-2.5">
                 <span className="hidden text-[11.5px] text-subtle lg:block">{resultCount} questions found</span>
                 <select value={sortBy} onChange={(e) => setSortBy(e.target.value as any)}
-                  className="h-8 rounded-[8px] border border-[#E5E7EB] bg-white px-2 text-[11.5px] text-body focus:outline-none focus:border-brand">
+                  className="h-8 rounded-[8px] border border-[#E5E7EB] bg-white px-2 text-[11.5px] text-body focus:outline-none focus:border-brand max-sm:max-w-[112px]">
                   <option value="relevance">Sort by: Relevance</option>
                   <option value="title">Sort by: Title A–Z</option>
                   <option value="difficulty">Sort by: Difficulty</option>
@@ -999,7 +999,7 @@ const QuestionBankSelector: React.FC<QuestionBankSelectorProps> = ({
               </p>
             </div>
           ) : (
-            <div className={viewMode === 'grid' ? 'grid grid-cols-2 gap-2.5' : 'space-y-2.5'}>
+            <div className={viewMode === 'grid' ? 'grid grid-cols-1 sm:grid-cols-2 gap-2.5' : 'space-y-2.5'}>
               {filteredQuestions.map((question) => {
                 const title = getQuestionTitle(question);
                 const description = getQuestionDescription(question);
@@ -1085,7 +1085,7 @@ const QuestionBankSelector: React.FC<QuestionBankSelectorProps> = ({
           {/* Pager — only for the server-paginated bank. The authored bank is
               small enough to stay on one scrolling list, exactly as before. */}
           {isOtherPlatform && !loading && resultCount > 0 && totalPages > 1 && (
-            <div className="mt-3 flex items-center justify-between border-t border-[#E8EAF2] pt-2.5">
+            <div className="mt-3 flex flex-wrap gap-2 items-center justify-between border-t border-[#E8EAF2] pt-2.5">
               <span className="text-[11.5px] text-subtle">
                 Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, resultCount)} of {resultCount}
               </span>
@@ -1129,8 +1129,8 @@ const QuestionBankSelector: React.FC<QuestionBankSelectorProps> = ({
             </button>
           </div>
         ) : (
-        <div className="flex h-[52px] shrink-0 items-center justify-between border-t border-[#E8EAF2] bg-white px-4">
-          <div className="flex items-center gap-2">
+        <div className="flex h-[52px] shrink-0 items-center justify-between border-t border-[#E8EAF2] bg-white px-4 max-sm:h-auto max-sm:flex-wrap max-sm:gap-2 max-sm:px-3 max-sm:py-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <span className={`inline-flex h-7 items-center gap-1.5 rounded-[8px] px-2.5 text-[12px] font-semibold ${selectedQuestions.size > 0 ? 'bg-brand-wash text-brand-strong' : 'bg-[#F3F4F8] text-subtle'}`}>
               <Check className="h-3.5 w-3.5" />
               {selectedQuestions.size} question{selectedQuestions.size !== 1 ? 's' : ''} selected
@@ -1146,7 +1146,7 @@ const QuestionBankSelector: React.FC<QuestionBankSelectorProps> = ({
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 max-sm:w-full max-sm:justify-end">
             <button
               onClick={onClose}
               className="h-9 rounded-[10px] border border-[#D7DCE5] bg-white px-4 text-[12.5px] font-semibold text-body transition-colors hover:bg-row-hover"

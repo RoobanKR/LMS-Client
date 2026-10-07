@@ -695,7 +695,7 @@ export default function UserReportPage() {
                     <div className="no-print shrink-0">
                         <ReportHeading />
 
-                        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
+                        <div className="mt-4 grid grid-cols-1 min-[420px]:grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
                             <div className={REPORT_FIELD}>
                                 <FilterLabel icon={Store} tone="text-brand-500">Business Model</FilterLabel>
                                 <MappingMultiFilter
@@ -812,7 +812,7 @@ export default function UserReportPage() {
                                 {!totalRows ? <ReportNoMatches /> : (
                                     <div className={REPORT_TABLE_CARD}>
                                         <div className="min-h-0 flex-1 overflow-auto">
-                                            <table className="w-full table-fixed border-collapse text-xs">
+                                            <table className="w-full min-w-[680px] lg:min-w-0 table-fixed border-collapse text-xs">
                                                 {/* Six columns — the user-scope default
                                                     set: S. No. / User Name / Email / Phone /
                                                     Role / Status. Client and Business Model

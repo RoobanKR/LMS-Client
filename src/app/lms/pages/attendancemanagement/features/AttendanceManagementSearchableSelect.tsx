@@ -74,7 +74,7 @@ export default function SearchableSelect({
     };
 
     return (
-        <div ref={rootRef} className="relative" style={{ minWidth }}>
+        <div ref={rootRef} className="relative flex-1 sm:flex-initial" style={{ minWidth }}>
             <button
                 type="button"
                 aria-label={ariaLabel}

@@ -108,7 +108,7 @@ export function StatCard({
           <p className="text-xs font-medium uppercase tracking-wide text-subtle">
             {label}
           </p>
-          <div className="mt-1 text-3xl font-semibold tabular-nums text-heading">
+          <div className="mt-1 text-2xl sm:text-3xl font-semibold tabular-nums text-heading">
             {value}
           </div>
         </div>

@@ -106,7 +106,7 @@ export default function ReportExportControls({ state, onPrint, onExcel, onPdf }:
 
       {/* Report Options — now also houses the status filter so the
           user can scope what gets previewed AND exported. */}
-      <div className="col-span-6 lg:col-span-3 border border-gray-200 rounded-lg p-3 bg-white">
+      <div className="col-span-12 sm:col-span-6 lg:col-span-3 border border-gray-200 rounded-lg p-3 bg-white">
         <div className="text-[13px] font-semibold text-gray-900 mb-2">Report Options</div>
         <label className="flex items-center gap-2 text-[12.5px] text-gray-700 cursor-pointer mb-1.5">
           <input type="radio" name="reportMode" value="detailed" checked={reportMode === "detailed"} onChange={() => setReportMode("detailed")} className="accent-blue-600" />
@@ -284,7 +284,7 @@ export default function ReportExportControls({ state, onPrint, onExcel, onPdf }:
       </div>
 
       {/* Export Options (top — duplicated in footer per the screenshots) */}
-      <div className="col-span-6 lg:col-span-3 border border-gray-200 rounded-lg p-3 bg-white">
+      <div className="col-span-12 sm:col-span-6 lg:col-span-3 border border-gray-200 rounded-lg p-3 bg-white">
         <div className="text-[13px] font-semibold text-gray-900 mb-2">Export Options</div>
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={onPrint} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-[12.5px] font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50">

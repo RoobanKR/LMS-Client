@@ -110,7 +110,7 @@ function DashHeader({ isFetching, onRefresh }: { isFetching: boolean; onRefresh:
         <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-3">
-                    <h1 className="text-2xl font-semibold tracking-[-0.01em] text-heading">
+                    <h1 className="text-xl sm:text-2xl font-semibold tracking-[-0.01em] text-heading">
                         My Executive Overview
                     </h1>
                     <StatusPill tone="success" dot>
@@ -122,7 +122,7 @@ function DashHeader({ isFetching, onRefresh }: { isFetching: boolean; onRefresh:
                 </p>
             </div>
             {/* mr-10 clears the shell's corner-pinned notification bell. */}
-            <Button variant="outline" className="mr-10" onClick={onRefresh} disabled={isFetching}>
+            <Button variant="outline" className="lg:mr-10" onClick={onRefresh} disabled={isFetching}>
                 <RefreshCw size={14} className={isFetching ? 'animate-spin' : ''} />
                 {isFetching ? 'Refreshing…' : 'Refresh'}
             </Button>
@@ -380,7 +380,7 @@ export default function PocDashboardPage() {
                 variants={pageEnter}
                 initial="hidden"
                 animate="visible"
-                className="min-h-screen px-6 py-5 md:px-8 md:py-6"
+                className="min-h-screen px-4 sm:px-6 py-5 md:px-8 md:py-6"
             >
                 <DashHeader isFetching={isFetching} onRefresh={refetch} />
                 <DashboardSkeleton />
@@ -394,7 +394,7 @@ export default function PocDashboardPage() {
                 variants={pageEnter}
                 initial="hidden"
                 animate="visible"
-                className="min-h-screen px-6 py-5 md:px-8 md:py-6"
+                className="min-h-screen px-4 sm:px-6 py-5 md:px-8 md:py-6"
             >
                 <DashHeader isFetching={isFetching} onRefresh={refetch} />
                 <div className="mt-6 rounded-xl border border-hairline bg-surface shadow-xs">
@@ -422,7 +422,7 @@ export default function PocDashboardPage() {
                 variants={pageEnter}
                 initial="hidden"
                 animate="visible"
-                className="min-h-screen px-6 py-5 md:px-8 md:py-6"
+                className="min-h-screen px-4 sm:px-6 py-5 md:px-8 md:py-6"
             >
                 <DashHeader isFetching={isFetching} onRefresh={refetch} />
                 <div className="mt-6 rounded-xl border border-hairline bg-surface shadow-xs">
@@ -449,7 +449,7 @@ export default function PocDashboardPage() {
             variants={pageEnter}
             initial="hidden"
             animate="visible"
-            className="min-h-screen px-6 py-5 md:px-8 md:py-6"
+            className="min-h-screen px-4 sm:px-6 py-5 md:px-8 md:py-6"
         >
             <DashHeader isFetching={isFetching} onRefresh={refetch} />
 
@@ -531,7 +531,7 @@ export default function PocDashboardPage() {
                     title="Enrollment by course"
                     description={`Top ${enrollmentData.length} of your course${enrollmentData.length === 1 ? '' : 's'} — total learners vs currently active`}
                     meta={hasEnrollmentAlerts ? (
-                        <div className="mt-1.5 flex items-center gap-3 text-2xs text-faint">
+                        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs text-faint">
                             <span className="inline-flex items-center gap-1">
                                 <span className="h-1.5 w-1.5 rounded-full bg-danger-500" /> No active learners
                             </span>

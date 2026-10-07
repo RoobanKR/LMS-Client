@@ -50,13 +50,15 @@ export default function PageHeader({
                         <ChevronRight size={12} className="text-line-muted" />
                         <span className="uppercase tracking-wider text-subtle font-medium">{title}</span>
                     </nav>
-                    <h1 className="mt-1.5 text-2xl font-semibold text-heading tracking-[-0.01em]">
+                    <h1 className="mt-1.5 text-xl sm:text-2xl font-semibold text-heading tracking-[-0.01em]">
                         {title}
                     </h1>
                     <p className="text-sm text-subtle mt-0.5">{subtitle}</p>
                 </div>
 
-                <div className="flex items-center gap-2 flex-shrink-0">
+                {/* max-w-full + flex-wrap: on phones a long action row wraps
+                    inside the header instead of running off-screen. */}
+                <div className="flex items-center gap-2 flex-shrink-0 flex-wrap max-w-full">
                     {actions}
                     {actionLabel && onAction && (
                         <motion.button

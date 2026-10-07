@@ -329,6 +329,10 @@ export function StudentSidebar({ isOpen = true, onClose, activeRoute, embedded =
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768)
     checkMobile()
+    // Tablet portrait/landscape (768–1023px): start on the slim 64px rail so
+    // the workspace keeps usable width. Desktop (>= 1024px) is unchanged and
+    // the brand-card chevron still expands it on demand.
+    if (window.innerWidth >= 768 && window.innerWidth < 1024) setRailCollapsed(true)
     window.addEventListener('resize', checkMobile)
     return () => window.removeEventListener('resize', checkMobile)
   }, [])
@@ -671,7 +675,7 @@ export function StudentSidebar({ isOpen = true, onClose, activeRoute, embedded =
             aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
             aria-expanded={!collapsed}
             onClick={() => setRailCollapsed(v => !v)}
-            className="flex-shrink-0 inline-flex h-6 w-6 items-center justify-center rounded-control text-faint hover:bg-row-hover hover:text-body transition-colors"
+            className="flex-shrink-0 inline-flex h-6 w-6 max-lg:h-8 max-lg:w-8 items-center justify-center rounded-control text-faint hover:bg-row-hover hover:text-body transition-colors"
           >
             <ChevronDown className={cn(
               "w-4 h-4 transition-transform duration-150",
@@ -819,8 +823,13 @@ export function StudentSidebar({ isOpen = true, onClose, activeRoute, embedded =
           // Flat on the gray canvas (floating-workspace shell): no surface, no
           // right border. The mobile drawer keeps a solid surface so content
           // can't bleed through it.
-          "relative z-40 h-screen flex flex-col overflow-hidden",
+          "relative z-40 h-screen max-xl:h-dvh flex flex-col overflow-hidden",
           "md:static md:z-auto md:shrink-0 md:bg-transparent",
+          // Phones: keep the rail out of flow (and off-screen while closed)
+          // from the very first paint, before the isMobile effect has run —
+          // otherwise the 268px rail squeezes the page for a frame on load.
+          "max-md:fixed max-md:top-0 max-md:left-0 max-md:z-50 max-md:bg-surface max-md:shadow-xl",
+          !isOpen && "max-md:-translate-x-full",
           isMobile
             ? cn(
                 "fixed top-0 left-0 z-50 shadow-xl bg-surface transition-transform duration-300 ease-out",

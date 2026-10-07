@@ -272,7 +272,7 @@ export default function DegreeSetupForm({
                                 })()}
                             </div>
 
-                            <div className="flex items-center gap-2.5">
+                            <div className="flex flex-wrap items-center gap-2.5">
                                 <span className="flex items-center gap-1.5 text-sm font-medium text-heading">
                                     End year
                                     <InfoTooltip content="Filled in from the degree's length; type it yourself only when that length is missing" />
@@ -316,7 +316,7 @@ export default function DegreeSetupForm({
                         label="Total semesters"
                         tooltip="Every semester this degree has, set in Degree Management; pick the ones in scope below"
                     >
-                        <div className="flex items-center gap-3">
+                        <div className="flex flex-wrap items-center gap-3">
                             <div className="w-[190px]">
                                 <Input
                                     value={semesterOptions.length || '—'}

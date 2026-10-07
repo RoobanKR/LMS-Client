@@ -36,14 +36,14 @@ const Kpi = ({
     meter?: number | null;
     meterColor?: string;
 }) => (
-    <Card className="flex flex-col p-5 transition-[transform,box-shadow] duration-300 hover:-translate-y-[2px]">
+    <Card className="flex min-w-0 flex-col p-3.5 transition-[transform,box-shadow] duration-300 hover:-translate-y-[2px] sm:p-5">
         <IconBox tint={tint} size={36}>{icon}</IconBox>
 
         <p className="mt-3.5 truncate text-sm font-medium text-slate-500 dark:text-slate-400" title={title}>
             {title}
         </p>
 
-        <p className="mt-1.5 flex items-baseline gap-1 text-[30px] font-bold leading-none tracking-[-0.035em] text-slate-900 dark:text-white">
+        <p className="mt-1.5 flex items-baseline gap-1 text-2xl font-bold leading-none tracking-[-0.035em] text-slate-900 sm:text-[30px] dark:text-white">
             {value}
             {unit && <span className="text-sm font-semibold text-slate-400">{unit}</span>}
         </p>
@@ -69,7 +69,7 @@ export const KpiRow = ({ m }: { m: DashboardModel }) => {
     const studyTime = durationParts(m.time.totalSeconds);
 
     return (
-        <div className="grid grid-cols-2 gap-5 md:grid-cols-3 xl:grid-cols-6">
+        <div className="grid grid-cols-2 gap-3 sm:gap-5 md:grid-cols-3 xl:grid-cols-6">
             <Kpi
                 icon={<BookOpen size={18} strokeWidth={2.2} />}
                 tint={C.primary}
@@ -322,7 +322,7 @@ export const TodayFocus = ({
 
 export const StreakCard = ({ m }: { m: DashboardModel }) => (
     <Card>
-        <div className="flex items-start justify-between">
+        <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="flex items-center gap-2.5">
                 <IconBox tint={C.warning} size={34}><Flame size={17} strokeWidth={2.2} /></IconBox>
                 <h3 className="text-md font-semibold tracking-[-0.01em] text-slate-900 dark:text-white">Streak</h3>

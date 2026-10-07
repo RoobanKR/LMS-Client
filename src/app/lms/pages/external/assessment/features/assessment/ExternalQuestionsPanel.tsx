@@ -286,22 +286,24 @@ export default function ExternalQuestionsPanel({
   }
 
   return (
-    <div className="min-h-full h-full flex">
-      <div className="flex-1 min-w-0 flex flex-col">
+    <div className="min-h-full h-full flex flex-col overflow-y-auto lg:flex-row lg:overflow-visible">
+      {/* Below lg the quota rail stacks under the list and the whole panel
+          scrolls; from lg up it is the original side-by-side split. */}
+      <div className="flex-1 min-w-0 min-h-[24rem] lg:min-h-0 flex flex-col">
         <motion.div
           variants={pageEnter} initial="hidden" animate="visible"
           className="flex flex-1 min-h-0 flex-col px-4 sm:px-6 lg:px-8 pt-3 pb-3 text-body"
         >
           {/* ── Header ── */}
           <header className="shrink-0">
-            <div className="flex items-center gap-2 min-w-0">
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 min-w-0">
               <button
                 type="button" onClick={onBack} title="Back to assessments"
                 className="inline-flex size-8 items-center justify-center rounded-control text-subtle hover:bg-row-hover hover:text-heading transition-colors shrink-0"
               >
                 <ArrowLeft className="w-4 h-4" />
               </button>
-              <div className="min-w-0">
+              <div className="min-w-[8rem] flex-1 sm:min-w-0 sm:flex-initial">
                 <h1 className="text-base font-semibold text-heading leading-tight truncate">
                   {assessment.assessmentName}
                 </h1>
@@ -437,13 +439,13 @@ export default function ExternalQuestionsPanel({
                           <button
                             type="button" title="Edit question"
                             onClick={() => { setEditing(q); setStage('form'); }}
-                            className="inline-flex size-7 items-center justify-center rounded-control text-subtle hover:bg-ink-100 hover:text-heading transition-colors"
+                            className="inline-flex size-8 lg:size-7 items-center justify-center rounded-control text-subtle hover:bg-ink-100 hover:text-heading transition-colors"
                           >
                             <Pencil size={13} />
                           </button>
                           <button
                             type="button" title="Delete question" onClick={() => setConfirmDelete(q)}
-                            className="inline-flex size-7 items-center justify-center rounded-control text-subtle hover:bg-danger-50 hover:text-danger-700 transition-colors"
+                            className="inline-flex size-8 lg:size-7 items-center justify-center rounded-control text-subtle hover:bg-danger-50 hover:text-danger-700 transition-colors"
                           >
                             <Trash2 size={13} />
                           </button>

@@ -167,7 +167,7 @@ const FolderBreadcrumbBar: React.FC<{
       className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2"
       style={{ borderBottom: `1px solid ${T.border}` }}
     >
-      <div className="flex items-center gap-1 overflow-x-auto flex-1" style={{ scrollbarWidth: "none" }}>
+      <div className="flex items-center gap-1 overflow-x-auto flex-1 min-w-0" style={{ scrollbarWidth: "none" }}>
         {/* Root — always orange, always navigable */}
         <button
           onClick={() => onNavigateToRoot?.()}
@@ -602,7 +602,7 @@ const InlinePageViewer: React.FC<{
             )}
             {hasCodeBlocks && (
               <span
-                className="flex-shrink-0 flex items-center gap-1 text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-widest"
+                className="flex-shrink-0 hidden sm:flex items-center gap-1 text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-widest"
                 style={{ background: "rgba(16,185,129,0.10)", color: "#059669", border: "1px solid rgba(16,185,129,0.20)" }}
               >
                 <Code2 size={8} />
@@ -615,7 +615,7 @@ const InlinePageViewer: React.FC<{
         <div className="flex items-center gap-1.5 flex-shrink-0">
           {hasCodeBlocks && (
             <div
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-medium"
+              className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-medium"
               style={{ background: "rgba(16,185,129,0.08)", color: "#059669", border: "1px solid rgba(16,185,129,0.18)" }}
             >
               <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse inline-block" />
@@ -641,7 +641,7 @@ const InlinePageViewer: React.FC<{
             onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = "rgba(99,102,241,0.09)"}
           >
             <ExternalLink size={11} />
-            New Tab
+            <span className="hidden sm:inline">New Tab</span>
           </button>
         </div>
       </div>
@@ -1122,8 +1122,8 @@ const FilterSection: React.FC<{
   const activeCount = activeFilters.fileTypes.length;
 
   return (
-    <div className="flex items-center gap-2 w-full">
-      <div className="relative flex-1 min-w-0">
+    <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full">
+      <div className="relative flex-1 basis-full sm:basis-0 min-w-0">
         <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: search ? T.orange : T.textHint }} />
         <input
           type="text"
@@ -1146,7 +1146,7 @@ const FilterSection: React.FC<{
       </div>
 
       {activeCount > 0 && (
-        <div className="flex items-center gap-1 flex-shrink-0">
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-1 flex-shrink-0 max-w-full">
           {activeFilters.fileTypes.map(t => {
             const m = FM[t] || { color: T.orange };
             return (
@@ -2766,7 +2766,7 @@ const renderFileRow = (file: UploadedFile, isPage: boolean = false, extraRowStyl
     return (
       <div className="flex flex-col h-full" style={{ background: T.bg }}>
         {someSelected && (
-          <div className="flex-shrink-0 flex items-center justify-between px-4 py-2" style={{ background: "rgba(239,68,68,0.06)", borderBottom: `1px solid rgba(239,68,68,0.18)`, borderLeft: "2.5px solid #ef4444" }}>
+          <div className="flex-shrink-0 flex flex-wrap items-center justify-between gap-2 px-4 py-2" style={{ background: "rgba(239,68,68,0.06)", borderBottom: `1px solid rgba(239,68,68,0.18)`, borderLeft: "2.5px solid #ef4444" }}>
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-bold" style={{ color: "#ef4444" }}>{selected.size} item{selected.size > 1 ? "s" : ""} selected</span>
               <button type="button" onClick={() => setSelected(new Set())} className="text-[10px] font-semibold px-2 py-0.5 rounded" style={{ color: T.textHint, background: T.pageBg, border: `1px solid ${T.border}` }}>Clear</button>
@@ -2796,7 +2796,7 @@ const renderFileRow = (file: UploadedFile, isPage: boolean = false, extraRowStyl
 
         {groupDeleteConfirm && (
           <div className="fixed inset-0 z-[500] flex items-center justify-center" style={{ background: "rgba(0,0,0,0.35)", backdropFilter: "blur(3px)" }} onClick={() => setGroupDeleteConfirm(null)}>
-            <div className="rounded-2xl p-6 w-[340px] shadow-2xl" style={{ background: T.bg, border: `1px solid ${T.border}` }} onClick={e => e.stopPropagation()}>
+            <div className="rounded-2xl p-6 w-[340px] max-w-[calc(100vw-2rem)] shadow-2xl" style={{ background: T.bg, border: `1px solid ${T.border}` }} onClick={e => e.stopPropagation()}>
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(239,68,68,0.10)", border: "1px solid rgba(239,68,68,0.20)" }}>
                   <Trash2 size={18} style={{ color: "#ef4444" }} />
@@ -2887,7 +2887,7 @@ const renderFileRow = (file: UploadedFile, isPage: boolean = false, extraRowStyl
 
         {confirmBulkDelete && (
           <div className="fixed inset-0 z-[500] flex items-center justify-center" style={{ background: "rgba(0,0,0,0.35)", backdropFilter: "blur(3px)" }} onClick={() => setConfirmBulkDelete(false)}>
-            <div className="rounded-2xl p-6 w-[320px] shadow-2xl" style={{ background: T.bg, border: `1px solid ${T.border}` }} onClick={e => e.stopPropagation()}>
+            <div className="rounded-2xl p-6 w-[320px] max-w-[calc(100vw-2rem)] shadow-2xl" style={{ background: T.bg, border: `1px solid ${T.border}` }} onClick={e => e.stopPropagation()}>
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(239,68,68,0.10)", border: "1px solid rgba(239,68,68,0.20)" }}>
                   <Trash2 size={18} style={{ color: "#ef4444" }} />
@@ -2915,6 +2915,9 @@ const renderFileRow = (file: UploadedFile, isPage: boolean = false, extraRowStyl
           </div>
         )}
 
+    {/* Below lg the 6-column grid scrolls sideways instead of crushing the Name column. */}
+    <div className="flex-1 min-h-0 flex flex-col overflow-x-auto lg:overflow-x-visible">
+    <div className={`flex-1 min-h-0 flex flex-col ${empty ? "" : "min-w-[680px]"} lg:min-w-0`}>
     {/* Header */}
 <div style={{
   display: "grid",
@@ -3026,6 +3029,8 @@ const renderFileRow = (file: UploadedFile, isPage: boolean = false, extraRowStyl
             </div>
           )}
         </div>
+    </div>
+    </div>
       </div>
     );
   };
@@ -3069,18 +3074,17 @@ const TabBar: React.FC<{
 
   return (
     <div
-      className="flex-shrink-0"
+      className="flex-shrink-0 px-2 sm:px-4"
       style={{
         background: T.bg,
         borderBottom: `1px solid ${T.border}`,
         position: "relative",
         zIndex: 30,
-        padding: "0 16px",
       }}
     >
       <div
         ref={trackRef}
-        className="flex items-stretch"
+        className="flex flex-wrap lg:flex-nowrap items-stretch"
         style={{ position: "relative" }}
       >
         {visibleTabs.map((tabKey, idx) => {
@@ -3097,10 +3101,11 @@ const TabBar: React.FC<{
                 ref={el => { if (el) btnRefs.current[tabKey] = el; }}
                 onClick={() => handleTabClick(tabKey)}
                 disabled={isDis}
-                className="flex items-center justify-center select-none"
+                className="flex items-center justify-center select-none px-2.5 sm:px-5 lg:px-7"
                 style={{
                   gap: 7,
-                  padding: "12px 28px 11px",
+                  paddingTop: 12,
+                  paddingBottom: 11,
                   fontSize: 12.5,
                   fontWeight: 600,
                   letterSpacing: "-0.005em",
@@ -3144,9 +3149,10 @@ const TabBar: React.FC<{
                 {isSel && (
                   <span
                     aria-hidden
+                    className="left-1.5 right-1.5 sm:left-4 sm:right-4 lg:left-[22px] lg:right-[22px]"
                     style={{
                       position: "absolute",
-                      left: 22, right: 22, bottom: -1,
+                      bottom: -1,
                       height: 3,
                       borderRadius: "3px 3px 0 0",
                       background: T.orange,
@@ -3174,7 +3180,7 @@ const TabBar: React.FC<{
         })}
 
         {rightSlot && (
-          <div className="flex items-center" style={{ marginLeft: "auto" }}>
+          <div className="flex items-center min-w-0 max-w-full" style={{ marginLeft: "auto" }}>
             {rightSlot}
           </div>
         )}
@@ -3691,8 +3697,8 @@ export const CourseContent: React.FC<CourseContentProps> = ({
         <div className="h-full flex flex-col overflow-hidden" style={{ background: T.bg }}>
 
           {!selectedNode ? (
-            <div className="flex flex-col items-center justify-center h-full text-center p-10" style={{ animation: "ccFadeIn 0.4s ease-out both" }}>
-              <div className="grid grid-cols-3 gap-3 max-w-md w-full">
+            <div className="flex flex-col items-center justify-center h-full text-center p-5 sm:p-10 overflow-y-auto" style={{ animation: "ccFadeIn 0.4s ease-out both" }}>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-md w-full">
                 {([
                   { icon: <Target size={20} />, color: TAB_META.I_Do.color, bg: TAB_META.I_Do.bg, title: "I Do", desc: "Teacher-led instruction" },
                   { icon: <Users size={20} />, color: TAB_META.We_Do.color, bg: TAB_META.We_Do.bg, title: "We Do", desc: "Guided practice" },
@@ -3975,7 +3981,7 @@ if (activeSubcategory === "self_work") return (
               : "0 8px 24px rgba(239,68,68,0.35)",
             animation: "toastSlideIn 0.25s cubic-bezier(0.16,1,0.3,1) both",
             minWidth: 220,
-            maxWidth: 360,
+            maxWidth: "min(360px, calc(100vw - 32px))",
           }}
         >
           <div

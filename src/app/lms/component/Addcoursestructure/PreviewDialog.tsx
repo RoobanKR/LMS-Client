@@ -47,8 +47,8 @@ export const PreviewDialog: React.FC<PreviewDialogProps> = ({ isOpen, onClose, o
                     <div className="space-y-4 font-sans">
                         <div>
                             <div className="relative">
-                                <div className="overflow-auto max-h-[60vh] w-[90vw] border border-gray-400 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900">
-                                    <table className="w-full border-collapse font-sans">
+                                <div className="overflow-auto max-h-[60vh] w-full lg:w-[90vw] border border-gray-400 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900">
+                                    <table className="w-full min-w-max lg:min-w-0 border-collapse font-sans">
                                         <thead className="bg-white dark:bg-gray-800 sticky top-0 border-b-2 border-gray-400 dark:border-gray-600">
                                             <tr>
                                                 {formData.checkboxOptions?.module && (
@@ -103,7 +103,7 @@ export const PreviewDialog: React.FC<PreviewDialogProps> = ({ isOpen, onClose, o
                             </div>
                         </div>
 
-                        <div className="flex justify-end gap-2 pt-4 mt-4 border-t border-slate-200 dark:border-gray-700">
+                        <div className="flex flex-wrap justify-end gap-2 pt-4 mt-4 border-t border-slate-200 dark:border-gray-700">
                             <Button onClick={onClose} className="h-8 px-4 text-xs gap-1 bg-red-600 hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600 text-white transition-all duration-200 hover:scale-105 font-sans rounded-lg">
                                 <X className="h-3 w-3" /> Close Preview
                             </Button>

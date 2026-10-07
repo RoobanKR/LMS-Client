@@ -339,7 +339,7 @@ export default function ExerciseGradeDashboard() {
     ]
     return (
       <div className="bg-white">
-        <nav className="flex items-center gap-2 px-3 py-2 text-xs">
+        <nav className="flex flex-wrap items-center gap-2 px-3 py-2 text-xs">
           <button
             onClick={() => router.back()}
             title="Back"
@@ -542,7 +542,7 @@ export default function ExerciseGradeDashboard() {
   const accuracy = getAccuracy()
 
   return (
-    <div className={`h-screen flex flex-col bg-slate-50 ${montserrat.variable} ${inter.variable} font-sans overflow-hidden`}>
+    <div className={`h-screen h-dvh flex flex-col bg-slate-50 ${montserrat.variable} ${inter.variable} font-sans overflow-hidden`}>
       <style jsx global>{`
         :root {
           --font-montserrat: ${montserrat.style.fontFamily};
@@ -577,9 +577,9 @@ export default function ExerciseGradeDashboard() {
             {renderBreadcrumb()}
           </div>
           
-          <div className="flex items-center justify-between mt-5">
-            <div>
-              <h1 className="text-xl font-bold text-slate-900 font-heading">
+          <div className="flex items-center justify-between gap-3 mt-3 sm:mt-5">
+            <div className="min-w-0">
+              <h1 className="text-lg sm:text-xl font-bold text-slate-900 font-heading">
                 Exercise Grade Analysis
               </h1>
               <p className="text-sm text-slate-500 mt-0.5">
@@ -597,17 +597,17 @@ export default function ExerciseGradeDashboard() {
         </div>
       </div>
 
-      <main className="flex-1 overflow-hidden">
-        <div className="h-full max-w-7xl mx-auto px-4 md:px-6 py-4">
-          
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-full">
+      <main className="flex-1 min-h-0 overflow-y-auto lg:overflow-hidden">
+        <div className="lg:h-full max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-4">
+
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6 lg:h-full">
             
             {/* LEFT COLUMN: Table — L/R borders dropped, corners squared,
                 shadow removed to match the We_Do assignment list panel
                 (edge-to-edge white surface separated only by top/bottom
                 hairlines). Header font sizes stepped down so the title +
                 subtitle share the same rhythm as the assignments toolbar. */}
-            <div className="lg:col-span-3 flex flex-col h-full order-2 lg:order-1 bg-white border-y border-slate-200 overflow-hidden">
+            <div className="lg:col-span-3 flex flex-col h-[75dvh] lg:h-full order-2 lg:order-1 bg-white border-y border-slate-200 overflow-hidden">
 
               <div className="p-3 border-b border-slate-100 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 flex-shrink-0">
                 <div>
@@ -648,7 +648,7 @@ export default function ExerciseGradeDashboard() {
               </div>
               
               <div className="flex-1 overflow-auto min-h-0 custom-scrollbar">
-                <table className="w-full text-left font-body">
+                <table className="w-full min-w-[680px] md:min-w-0 text-left font-body">
                   <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur-sm border-b border-slate-100 shadow-sm">
                     <tr className="text-xs font-semibold text-slate-600 uppercase">
                       <th className="px-6 py-3.5 w-16">#</th>
@@ -755,7 +755,7 @@ export default function ExerciseGradeDashboard() {
             </div>
 
             {/* RIGHT COLUMN: Stats Cards */}
-            <div className="lg:col-span-1 h-full overflow-y-auto custom-scrollbar order-1 lg:order-2 space-y-4 pb-4">
+            <div className="lg:col-span-1 lg:h-full lg:overflow-y-auto custom-scrollbar order-1 lg:order-2 space-y-4 pb-4">
               {/* Grade Summary Card */}
               <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-5 text-white shadow-sm">
                 <div className="flex items-center justify-between mb-3">

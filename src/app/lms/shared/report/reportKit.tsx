@@ -286,7 +286,7 @@ export function ReportPager({ paged, noun }: {
     const { pageSize, setPageSize, page, setPage, pageCount, start, total } = paged
     const singular = noun.replace(/s$/, '')
     return (
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#ece3d8] px-4 py-2">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#ece3d8] px-3 py-2 sm:px-4">
             <label className="inline-flex items-center gap-2 text-xs text-subtle">
                 Rows per page
                 <select
@@ -297,11 +297,11 @@ export function ReportPager({ paged, noun }: {
                     {[10, 20, 50].map((n) => <option key={n} value={n}>{n}</option>)}
                 </select>
             </label>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
                 <span className="text-xs tabular-nums text-subtle">
                     {total ? start + 1 : 0}–{Math.min(start + pageSize, total)} of {total} {total === 1 ? singular : noun}
                 </span>
-                <nav aria-label="Report pages" className="flex items-center gap-1">
+                <nav aria-label="Report pages" className="flex flex-wrap items-center gap-1">
                     <button type="button" aria-label="Previous page" disabled={page <= 1} onClick={() => setPage(page - 1)} className={PAGER_BTN}>
                         <ChevronLeft className="size-4" />
                     </button>

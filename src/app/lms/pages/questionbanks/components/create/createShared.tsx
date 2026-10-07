@@ -44,7 +44,7 @@ export const SectionCard = ({ title, required, optional, action, children }: {
   title: string; required?: boolean; optional?: boolean; action?: React.ReactNode; children: React.ReactNode;
 }) => (
   <section>
-    <div className="mb-2 flex items-center justify-between gap-2">
+    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
       <h3 className="flex items-center gap-1 text-[13.5px] font-semibold text-heading">
         {title}
         {required && <span className="text-red-500">*</span>}
@@ -415,7 +415,7 @@ export const RichTextLite = ({ initialHtml, onChange, placeholder, minHeight = 2
   );
   return (
     <div className="overflow-hidden rounded-[10px] border border-[#E5E7EB] bg-white focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/15 transition-colors">
-      <div className="flex items-center gap-0.5 border-b border-[#EEF0F5] px-2 py-1.5">
+      <div className="flex flex-wrap items-center gap-0.5 border-b border-[#EEF0F5] px-2 py-1.5">
         <ToolBtn title="Bold" onClick={() => exec('bold')}><Bold size={14} /></ToolBtn>
         <ToolBtn title="Italic" onClick={() => exec('italic')}><Italic size={14} /></ToolBtn>
         <ToolBtn title="Underline" onClick={() => exec('underline')}><Underline size={14} /></ToolBtn>
@@ -433,7 +433,7 @@ export const RichTextLite = ({ initialHtml, onChange, placeholder, minHeight = 2
       </div>
       <div className="relative" ref={wrapRef}>
         {empty && placeholder && (
-          <div className="pointer-events-none absolute left-3 top-2 text-[13px] text-faint">{placeholder}</div>
+          <div className="pointer-events-none absolute left-3 right-3 top-2 text-[13px] text-faint">{placeholder}</div>
         )}
         <div
           ref={ref}

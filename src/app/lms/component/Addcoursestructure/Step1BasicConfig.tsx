@@ -558,7 +558,7 @@ export const Step1BasicConfig: React.FC<Step1BasicConfigProps> = ({
                 </p>
               )}
 
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <LabelWithTooltip
                   label="Client Configurations"
                   icon={Building}

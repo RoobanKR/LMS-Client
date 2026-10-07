@@ -101,7 +101,7 @@ export default function AddQuestionPicker({
       <motion.div
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
         transition={{ duration: 0.14 }}
-        className="fixed inset-0 z-[1000] flex items-center justify-center p-4"
+        className="fixed inset-0 z-[1000] flex items-center justify-center p-3 sm:p-4"
         style={{ background: 'rgba(30,41,59,0.55)', backdropFilter: 'blur(5px)' }}
         onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
       >
@@ -110,17 +110,17 @@ export default function AddQuestionPicker({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.97, y: 8 }}
           transition={{ duration: 0.16 }}
-          className="w-full max-w-lg bg-white overflow-hidden flex flex-col"
-          style={{ borderRadius: 20, maxHeight: '88vh', boxShadow: '0 24px 64px rgba(0,0,0,0.26)' }}
+          className="w-full max-w-lg max-h-[90dvh] bg-white overflow-hidden flex flex-col sm:max-h-[88vh]"
+          style={{ borderRadius: 20, boxShadow: '0 24px 64px rgba(0,0,0,0.26)' }}
         >
-          <header className="px-6 pt-5 pb-4 shrink-0 relative">
+          <header className="px-4 pr-12 pt-5 pb-4 shrink-0 relative sm:px-6">
             <button
               type="button" onClick={onClose} aria-label="Close"
               className="absolute right-4 top-4 inline-flex size-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
             >
               <X size={18} />
             </button>
-            <p className="text-[12px]" style={{ color: D.textMuted }}>
+            <p className="text-[12px] break-words" style={{ color: D.textMuted }}>
               Assessment: <strong style={{ color: D.orange }}>{assessmentName}</strong>
             </p>
             <div className="flex items-center gap-2.5 mt-3">
@@ -130,14 +130,14 @@ export default function AddQuestionPicker({
               >
                 <Plus size={16} strokeWidth={2.6} />
               </span>
-              <h3 className="text-[19px] font-extrabold" style={{ color: D.textMain }}>Add Question</h3>
+              <h3 className="text-[17px] font-extrabold sm:text-[19px]" style={{ color: D.textMain }}>Add Question</h3>
             </div>
             <p className="text-[12px] mt-0.5" style={{ color: D.textMuted }}>
               Add {kindLabel} to this assessment
             </p>
           </header>
 
-          <div className="px-4 pb-5 overflow-y-auto space-y-2">
+          <div className="px-3 pb-5 overflow-y-auto overscroll-contain space-y-2 sm:px-4">
             {visible.length === 0 ? (
               <p className="text-center text-[12px] py-6" style={{ color: D.textMuted }}>
                 No question sources are enabled. Pick at least one on Step&nbsp;3 of the assessment.
@@ -195,7 +195,7 @@ export default function AddQuestionPicker({
                           {exhausted ? 'none left' : `${left} left`}
                         </span>
                       </span>
-                      <span className="block text-[11.5px] mt-0.5 truncate" style={{ color: D.textMuted }}>
+                      <span className="text-[11.5px] mt-0.5 line-clamp-2 sm:block sm:truncate" style={{ color: D.textMuted }}>
                         {r.description}
                       </span>
                     </span>

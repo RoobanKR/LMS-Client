@@ -1378,7 +1378,7 @@ export function ClientManagementView({ embedded = false }: { embedded?: boolean 
                 )}
 
                 {/* ── Content ── */}
-                <div ref={tableCardRef} aria-busy={isListBusy} className="mt-2 flex flex-1 min-h-0 flex-col overflow-hidden">
+                <div ref={tableCardRef} aria-busy={isListBusy} className="mt-2 flex flex-1 min-h-0 flex-col overflow-hidden max-lg:min-h-[340px]">
                     {isListError ? (
                         <div role="alert" className="flex flex-1 flex-col items-center justify-center gap-3 py-8 text-sm text-subtle">
                             <p>Couldn’t load clients. Please try again.</p>
@@ -1386,6 +1386,7 @@ export function ClientManagementView({ embedded = false }: { embedded?: boolean 
                         </div>
                     ) : layout === 'table' ? (
                         <div className="flex-1 min-h-0 overflow-x-auto">
+                            <div className="min-w-[760px] lg:min-w-0">
                             <DataTable
                                 rows={currentUsers}
                                 columns={visibleColumnDefs}
@@ -1407,6 +1408,7 @@ export function ClientManagementView({ embedded = false }: { embedded?: boolean 
                                 onEmptyAction={hasActiveFilters ? clearFilters : (canAdd ? handleAddNew : undefined)}
                                 style={tableMinWidth ? { minWidth: tableMinWidth } : undefined}
                             />
+                            </div>
                         </div>
                     ) : (
                         <div className="flex-1 min-h-0 overflow-auto bg-canvas p-4">

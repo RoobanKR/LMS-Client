@@ -97,7 +97,7 @@ export default function StyledSelect({
           role="listbox"
           aria-label={ariaLabel || label}
           style={{ position: "fixed", top: pop.top, left: pop.left, minWidth: pop.width, pointerEvents: "auto" }}
-          className="z-[9999] max-h-64 overflow-y-auto rounded-md border border-hairline bg-surface py-1 shadow-xl ring-1 ring-black/[0.04]"
+          className="z-[9999] max-h-64 max-w-[calc(100vw-1rem)] overflow-y-auto rounded-md border border-hairline bg-surface py-1 shadow-xl ring-1 ring-black/[0.04]"
           onMouseDown={(e) => e.stopPropagation()}
         >
           {options.map((o, i) => {

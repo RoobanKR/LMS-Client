@@ -107,7 +107,7 @@ export const BreadcrumbBar: React.FC<BreadcrumbBarProps> = ({ crumbs, onNavigate
                 {/* Hover tooltip */}
                 {isHov && canNav && (
                   <div
-                    className="absolute pointer-events-none whitespace-nowrap px-2.5 py-1.5 rounded-xl text-[10.5px] font-semibold"
+                    className="hidden sm:block absolute pointer-events-none whitespace-nowrap px-2.5 py-1.5 rounded-xl text-[10.5px] font-semibold"
                     style={{
                       bottom: "calc(100% + 8px)",
                       left:   "50%",

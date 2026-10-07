@@ -554,7 +554,7 @@ export default function ExternalQuestionsPage() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.18, ease: easeStandard }}
-            className="fixed right-4 top-4 z-toast"
+            className="fixed right-4 top-4 z-toast max-w-[calc(100vw-2rem)]"
           >
             <div className="flex items-center gap-2.5 rounded-tile border border-hairline bg-surface px-3.5 py-2.5 shadow-lg">
               {toast.type === 'success'
@@ -570,7 +570,7 @@ export default function ExternalQuestionsPage() {
         variants={pageEnter}
         initial="hidden"
         animate="visible"
-        className="flex min-h-0 flex-1 flex-col px-4 sm:px-6 md:px-8 pt-5 pb-4"
+        className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 sm:px-6 md:px-8 pt-5 pb-4 lg:overflow-visible"
       >
         <div className="flex flex-wrap items-start justify-between gap-4 md:flex-nowrap">
           <div className="min-w-0 flex-1">
@@ -675,7 +675,7 @@ export default function ExternalQuestionsPage() {
           </div>
         )}
 
-        <div className="mt-4 flex flex-1 min-h-0 flex-col overflow-hidden rounded-xl border border-hairline bg-surface shadow-xs">
+        <div className="mt-4 flex flex-1 min-h-[18rem] flex-col overflow-hidden rounded-xl border border-hairline bg-surface shadow-xs lg:min-h-0">
           <QuestionsTable
             questions={clientFilteredQuestions}
             isLoading={isLoading}
@@ -720,7 +720,7 @@ export default function ExternalQuestionsPage() {
             animate={{ opacity: 1, y: 0, x: '-50%' }}
             exit={{ opacity: 0, y: 16, x: '-50%' }}
             transition={{ duration: 0.2, ease: easeStandard }}
-            className="fixed bottom-6 left-1/2 z-dropdown flex items-center gap-3 rounded-full bg-ink-900 py-2 pl-4 pr-2 text-white shadow-xl"
+            className="fixed bottom-6 left-1/2 z-dropdown flex w-max max-w-[calc(100vw-1.5rem)] flex-wrap items-center justify-center gap-x-1.5 gap-y-1 rounded-2xl bg-ink-900 py-2 pl-3 pr-2 text-white shadow-xl sm:flex-nowrap sm:gap-3 sm:rounded-full sm:pl-4"
           >
             <span className="whitespace-nowrap text-xs font-semibold tabular-nums">{selectedVisible.length} selected</span>
             <span className="h-4 w-px bg-white/20" />

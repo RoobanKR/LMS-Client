@@ -128,7 +128,9 @@ export function Modal({
                   // of content — collapsing an accordion section can
                   // never shrink the modal and yank the reader's anchor.
                   "fixed left-1/2 top-1/2 z-modal flex w-[calc(100vw-32px)] flex-col overflow-hidden rounded-xl border border-hairline bg-surface shadow-xl focus:outline-none",
-                  stableHeight ? "h-[95vh]" : "max-h-[95vh]",
+                  // dvh below lg so a phone/tablet browser's dynamic
+                  // toolbars never cover the footer; lg+ keeps 95vh.
+                  stableHeight ? "h-[95dvh] lg:h-[95vh]" : "max-h-[95dvh] lg:max-h-[95vh]",
                   sizeClasses[size]
                 )}
                 initial={{
@@ -149,7 +151,7 @@ export function Modal({
                 {title !== undefined || !hideClose ? (
                   <div className={cn(
                     "flex items-start justify-between gap-4 border-b border-hairline",
-                    compact ? "px-4 py-2.5" : "px-5 py-4"
+                    compact ? "px-4 py-2.5" : "px-4 py-3.5 sm:px-5 sm:py-4"
                   )}>
                     {/* `flex-1 min-w-0` lets the title node stretch across
                           the header, so a caller passing a title component
@@ -200,12 +202,14 @@ export function Modal({
                 )}
                 <div className={cn(
                   "flex-1 overflow-y-auto",
-                  compact ? "px-4 py-3" : "px-5 py-4"
+                  compact ? "px-4 py-3" : "px-4 py-4 sm:px-5"
                 )}>{children}</div>
                 {footer ? (
+                  // flex-wrap: a three-button footer drops to a second row on
+                  // phones instead of overflowing the modal edge.
                   <div className={cn(
-                    "flex shrink-0 items-center justify-end gap-3 border-t border-hairline bg-surface",
-                    compact ? "px-4 py-2.5" : "px-5 py-4"
+                    "flex shrink-0 flex-wrap items-center justify-end gap-2 sm:gap-3 border-t border-hairline bg-surface",
+                    compact ? "px-4 py-2.5" : "px-4 py-3 sm:px-5 sm:py-4"
                   )}>
                     {footer}
                   </div>

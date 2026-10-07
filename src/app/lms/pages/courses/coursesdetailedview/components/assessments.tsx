@@ -1859,7 +1859,7 @@ export default function Assessments({
       `}</style>
       {/* Toast notification */}
       {toast && (
-        <div style={{
+        <div className="max-sm:!left-4 max-sm:!right-4 max-sm:!top-4 max-sm:!whitespace-normal" style={{
           position: 'fixed', top: 24, right: 24,          // ← top-right
           // remove: bottom: 24, left: '50%', transform: 'translateX(-50%)'
           zIndex: 999999, padding: '12px 20px', borderRadius: 12,
@@ -2016,9 +2016,9 @@ export default function Assessments({
         {/* ── Toolbar — matches the We_Do assignments layout: search
              (flex-1), segmented status control (All / Active /
              Submitted / Pending / Missed), orange-outlined Filter button. ── */}
-        <div className="flex-none flex items-center gap-3 pt-2 pb-2 min-w-0">
+        <div className="flex-none flex flex-wrap items-center gap-2 sm:gap-3 pt-2 pb-2 min-w-0">
           {/* Search — grows via flex-1 to fill available width. */}
-          <div className="relative flex-1 min-w-[240px]">
+          <div className="relative flex-1 min-w-0 sm:min-w-[240px]">
             <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
             <input
               type="text"
@@ -2044,7 +2044,7 @@ export default function Assessments({
               orange bg + orange text + orange-tinted badge. */}
           <div
             role="tablist" aria-label="Filter by status"
-            className="inline-flex items-stretch h-9 rounded-control border border-hairline-strong bg-surface overflow-hidden shrink-0"
+            className="order-last basis-full lg:order-none lg:basis-auto inline-flex items-stretch h-9 max-w-full rounded-control border border-hairline-strong bg-surface overflow-x-auto lg:overflow-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden shrink-0"
           >
             {([
               { key: 'all' as const,       label: 'All',       count: statusCounts.all },
@@ -2059,7 +2059,7 @@ export default function Assessments({
                   key={c.key}
                   type="button" role="tab" aria-selected={selected}
                   onClick={() => setChip(c.key)}
-                  className={`inline-flex items-center gap-1.5 px-3 text-[12.5px] font-semibold transition-colors duration-150 ${
+                  className={`inline-flex flex-1 lg:flex-none shrink-0 whitespace-nowrap items-center justify-center gap-1.5 px-2.5 sm:px-3 text-[12.5px] font-semibold transition-colors duration-150 ${
                     selected ? 'text-brand-strong' : 'text-subtle hover:text-heading'
                   } ${i > 0 ? 'border-l border-hairline' : ''}`}
                   style={selected ? { background: '#FFF4EC' } : undefined}
@@ -2105,7 +2105,7 @@ export default function Assessments({
               <div
                 className="absolute top-full right-0 mt-2 z-40 bg-surface rounded-xl border border-hairline-strong"
                 style={{
-                  width: 360,
+                  width: 'min(360px, calc(100vw - 24px))',
                   boxShadow: '0 14px 36px rgba(15,23,42,0.10), 0 2px 6px rgba(15,23,42,0.06)',
                 }}
               >
@@ -2234,7 +2234,7 @@ export default function Assessments({
         )}
 
         {/* ── Table area ── */}
-        <div ref={tableAreaRef} className="flex-1 min-h-0 overflow-y-auto bg-white roster-scroll">
+        <div ref={tableAreaRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-auto bg-white roster-scroll">
           {filteredExercises.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center p-8 text-center">
               <div className="mb-4 p-5 rounded-2xl" style={{ background: 'rgba(249,115,22,0.05)', border: '1.5px dashed rgba(249,115,22,0.2)' }}>
@@ -2246,19 +2246,19 @@ export default function Assessments({
               </p>
             </div>
           ) : (
-            <table className="w-full border-collapse text-sm table-fixed">
+            <table className="w-full min-w-[620px] md:min-w-[960px] xl:min-w-0 border-collapse text-sm table-fixed">
               <thead style={{ position: 'sticky', top: 0, zIndex: 5 }}>
                 <tr style={{ background: '#f8fafc', borderBottom: '1px solid #eef0f4' }}>
                   {([
                     { label: '#', cls: 'w-9 pl-4 pr-2', key: null },
-                    { label: 'ID', cls: 'w-[72px] px-3', key: null },
+                    { label: 'ID', cls: 'hidden md:table-cell w-[72px] px-3', key: null },
                     // Assessment Name is the only flexible column (no fixed
                     // width); the +50px we added to Action below comes out of
                     // here automatically thanks to `table-fixed`.
                     { label: 'Assessment Name', cls: 'px-3', key: 'name' as const },
-                    { label: 'Available From', cls: 'w-[150px] pl-0 pr-2', key: 'start' as const },
+                    { label: 'Available From', cls: 'hidden md:table-cell w-[150px] pl-0 pr-2', key: 'start' as const },
                     { label: 'Due Date', cls: 'w-[150px] pl-0 pr-2', key: 'end' as const },
-                    { label: 'Level', cls: 'w-[110px] pl-0 pr-2', key: 'level' as const },
+                    { label: 'Level', cls: 'hidden md:table-cell w-[110px] pl-0 pr-2', key: 'level' as const },
                     // Left-aligned and widened to 110px: at 85px the
                     // status pill overflowed its cell and ran into the
                     // neighbouring Level chip.
@@ -2266,7 +2266,7 @@ export default function Assessments({
                     // Widened to 200px so the full-size (h-9 / 128px) Start
                     // button — matching the We_Do assignment list — plus the
                     // kebab fit on one line without wrapping.
-                    { label: 'Action', cls: 'w-[200px] pl-2 pr-4 text-right', key: null },
+                    { label: 'Action', cls: 'w-[168px] lg:w-[200px] pl-2 pr-4 text-right', key: null },
                   ] as const).map(h => {
                     const isSorted = h.key && sortColumn === h.key
                     return (
@@ -2351,7 +2351,7 @@ export default function Assessments({
                       </td>
 
                       {/* ID */}
-                      <td className="px-3 h-11 align-middle text-[12px] text-subtle">
+                      <td className="hidden md:table-cell px-3 h-11 align-middle text-[12px] text-subtle">
                         <span className="font-mono truncate block">{exercise.exerciseInformation.exerciseId}</span>
                       </td>
 
@@ -2366,7 +2366,7 @@ export default function Assessments({
                       </td>
 
                       {/* Start Date */}
-                      <td className="pl-0 pr-2 h-11 align-middle text-[12px] text-body">
+                      <td className="hidden md:table-cell pl-0 pr-2 h-11 align-middle text-[12px] text-body">
                         <span className="flex items-center gap-1 whitespace-nowrap">
                           <Calendar size={11} className="text-faint flex-shrink-0" />
                           {exercise.availabilityPeriod?.startDate
@@ -2389,7 +2389,7 @@ export default function Assessments({
                           Assignment list. Neutral slate so a column
                           full of identical "Intermediate" chips doesn't
                           shout over the Status column. */}
-                      <td className="pl-0 pr-2 h-11 align-middle text-[12px] text-body whitespace-nowrap">
+                      <td className="hidden md:table-cell pl-0 pr-2 h-11 align-middle text-[12px] text-body whitespace-nowrap">
                         <span className="inline-flex items-center whitespace-nowrap text-2xs font-medium px-2 py-0.5 rounded-full border"
                           style={{ background: '#FFFFFF', color: '#475569', borderColor: '#E2E8F0' }}>
                           {diff.label}
@@ -2463,7 +2463,7 @@ export default function Assessments({
                               // slightly different orange for what is one and
                               // the same action, so they collapse into the one
                               // outlined-orange treatment.
-                              className="inline-flex items-center justify-center h-9 w-[128px] text-[13px] font-semibold rounded-control transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
+                              className="inline-flex items-center justify-center h-9 w-[104px] lg:w-[128px] text-[13px] font-semibold rounded-control transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
                               style={{ background: '#FFFFFF', color: '#F97316', border: '1px solid #F97316', cursor: 'pointer' }}
                             >
                               {mock && isCompleted ? 'Retest' : canRetake ? (isSec ? 'Retake' : 'Re Submit') : (retestOpen ? 'Start Retest' : 'Start')}

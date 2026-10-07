@@ -90,7 +90,7 @@ export const AddQuestionSourceRow: React.FC<{
   <button onClick={() => { if (full) return; onClick(); }}
     disabled={full}
     title={full ? (fullTitle || '') : ''}
-    className="group w-full text-left transition-all flex items-center gap-3.5"
+    className="group w-full text-left transition-all flex items-center gap-3 sm:gap-3.5 max-sm:!px-3 max-sm:!py-3"
     style={{
       border: `1px solid ${AQ.cardBorder}`,
       borderRadius: 14,
@@ -176,7 +176,7 @@ export const AddQuestionLevelStep: React.FC<{
             {open ? `${rem} slot${rem === 1 ? '' : 's'} still open` : 'All slots filled for this level'}
           </div>
         </div>
-        {open && <ChevronRight size={17} className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-all" style={{ color: '#F27757' }} />}
+        {open && <ChevronRight size={17} className="flex-shrink-0 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all" style={{ color: '#F27757' }} />}
       </button>
     ))}
   </div>
@@ -230,7 +230,7 @@ export const AddQuestionModalShell: React.FC<{
   return (
     <>
       <div className="fixed inset-0" style={{ zIndex: 100, background: 'rgba(26,26,46,0.45)', backdropFilter: 'blur(4px)' }} />
-      <div className="fixed inset-0 z-[101] flex items-center justify-center p-4" style={{ pointerEvents: 'none' }}>
+      <div className="fixed inset-0 z-[101] flex items-center justify-center p-3 sm:p-4" style={{ pointerEvents: 'none' }}>
         <div role="dialog" aria-modal="true" aria-label={title} className="bg-white overflow-hidden flex flex-col"
           style={{
             ...JKT,
@@ -239,7 +239,7 @@ export const AddQuestionModalShell: React.FC<{
             // figures crowded their labels — the modal read as cramped
             // because it genuinely was.
             width: '100%', maxWidth,
-            maxHeight: 'calc(100vh - 48px)',
+            maxHeight: 'calc(100dvh - 48px)',
             border: `1px solid ${AQ.modalBorder}`,
             borderRadius: 20,
             boxShadow: '0 24px 64px rgba(18,23,38,0.20)',
@@ -248,7 +248,7 @@ export const AddQuestionModalShell: React.FC<{
 
           {/* ── Header — coral outlined + icon, title + one-line description,
               circular close. */}
-          <div style={{ padding: '24px 26px 18px', flexShrink: 0 }}>
+          <div className="max-sm:!px-4 max-sm:!pt-4 max-sm:!pb-3" style={{ padding: '24px 26px 18px', flexShrink: 0 }}>
             <div className="flex items-start gap-3.5">
               <div className="flex-shrink-0"
                 style={{
@@ -260,7 +260,7 @@ export const AddQuestionModalShell: React.FC<{
                 <Plus size={20} strokeWidth={2.4} style={{ color: AQ.coral }} />
               </div>
               <div className="flex-1 min-w-0">
-                <h2 style={{ fontSize: 20, fontWeight: 700, color: AQ.ink, letterSpacing: '-.015em', lineHeight: 1.25, margin: 0 }}>
+                <h2 className="max-sm:!text-lg" style={{ fontSize: 20, fontWeight: 700, color: AQ.ink, letterSpacing: '-.015em', lineHeight: 1.25, margin: 0 }}>
                   {title}
                 </h2>
                 <p style={{ fontSize: 13.5, color: AQ.textMuted, lineHeight: 1.5, margin: '5px 0 0' }}>
@@ -286,7 +286,7 @@ export const AddQuestionModalShell: React.FC<{
           {/* ── Context panel — compact identity card (F8F9FC, indigo code
               tile, "Adding to" label + exercise name + topic). */}
           {(contextName || contextSub) && (
-            <div style={{ padding: '0 26px 14px', flexShrink: 0 }}>
+            <div className="max-sm:!px-4" style={{ padding: '0 26px 14px', flexShrink: 0 }}>
               <div style={{
                 background: AQ.panel, border: `1px solid ${AQ.panelBorder}`,
                 borderRadius: 14, padding: '14px 16px',
@@ -332,12 +332,12 @@ export const AddQuestionModalShell: React.FC<{
 
           {/* ── Scrollable body — the only scrolling region, so header and
               footer stay pinned on short laptop viewports. */}
-          <div className="flex-1 overflow-y-auto" style={{ padding: '0 26px' }}>
+          <div className="flex-1 overflow-y-auto max-sm:!px-4" style={{ padding: '0 26px' }}>
             {children}
           </div>
 
           {/* ── Footer: physical Esc key chip + compact Cancel ────────── */}
-          {footer || <div className="flex-shrink-0" style={{
+          {footer || <div className="flex-shrink-0 max-sm:!px-4" style={{
             height: 62, padding: '0 26px',
             borderTop: `1px solid ${AQ.footerBorder}`,
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',

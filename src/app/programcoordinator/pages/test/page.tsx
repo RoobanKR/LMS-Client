@@ -850,8 +850,8 @@
     return (
       <div className="max-w-7xl mx-auto p-4 space-y-4  dark:bg-gray-900 rounded-lg">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
             <h1 className="text-xl font-bold text-gray-900 dark:text-white">
               Learning Elements Settings
             </h1>
@@ -872,7 +872,7 @@
         {/* Add Element Modal */}
         {showAddElement && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-800 p-4 rounded-lg w-80">
+            <div className="bg-white dark:bg-gray-800 p-4 rounded-lg w-80 max-w-[calc(100%-2rem)]">
               <h3 className="text-lg font-semibold mb-3 dark:text-white">
                 Add New Learning Element
               </h3>
@@ -960,16 +960,16 @@
             {currentElement ? (
               <div className="space-y-4">
                 {/* Element Header */}
-                <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                  <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                  <div className="flex min-w-0 items-center gap-3">
                     <div
-                      className="w-10 h-10 rounded-lg flex items-center justify-center"
+                      className="w-10 h-10 shrink-0 rounded-lg flex items-center justify-center"
                       style={{ backgroundColor: currentElement.color }}
                     >
                       <currentElement.icon className="w-5 h-5 text-white" />
                     </div>
-                    
-                    <div>
+
+                    <div className="min-w-0">
                       <h2 className="text-lg font-bold text-gray-900 dark:text-white">
                         {currentElement.name}
                       </h2>

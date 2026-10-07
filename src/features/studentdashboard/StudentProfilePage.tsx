@@ -275,7 +275,7 @@ export default function StudentProfilePage() {
         <div className="max-w-7xl mx-auto">
           {/* Header with Theme Toggle */}
           <div className="mb-6">
-            <nav className="flex items-center text-sm text-gray-600 dark:text-gray-400 mb-2">
+            <nav className="flex flex-wrap items-center gap-y-1 text-sm text-gray-600 dark:text-gray-400 mb-2">
               <button
                 onClick={handleDashboardClick}
                 className="flex items-center gap-2 text-gray-500 dark:text-gray-400 hover:text-orange-600 dark:hover:text-orange-400 transition-colors"
@@ -286,21 +286,21 @@ export default function StudentProfilePage() {
               <ChevronRight className="h-4 w-4 mx-2 text-gray-400 dark:text-gray-600" />
               <span className="text-gray-400 dark:text-gray-500">Profile</span>
               <ChevronRight className="h-4 w-4 mx-2 text-gray-400 dark:text-gray-600" />
-              <span className="font-semibold text-gray-800 dark:text-white">{userData.firstName} {userData.lastName}</span>
+              <span className="min-w-0 break-words font-semibold text-gray-800 dark:text-white">{userData.firstName} {userData.lastName}</span>
             </nav>
             
             <div className="flex justify-between items-center">
               <div>
-                <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Student Profile</h1>
-                <p className="text-gray-600 dark:text-gray-400 mt-2">View and manage your personal information and academic details</p>
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">Student Profile</h1>
+                <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mt-2">View and manage your personal information and academic details</p>
               </div>
              
             </div>
           </div>
 
           {/* Profile Header Card */}
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6 transition-colors duration-200">
-            <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 sm:p-6 mb-6 transition-colors duration-200">
+            <div className="flex flex-col md:flex-row items-start md:items-center gap-4 sm:gap-6">
               {/* Profile Image */}
               <div className="relative">
                 <div className="h-24 w-24 rounded-full bg-gradient-to-br from-orange-500 via-orange-600 to-indigo-500 p-1">
@@ -326,13 +326,13 @@ export default function StudentProfilePage() {
               </div>
 
               {/* User Info */}
-              <div className="flex-1">
+              <div className="w-full min-w-0 flex-1">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div>
-                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  <div className="min-w-0">
+                    <h2 className="break-words text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
                       {userData.firstName} {userData.lastName}
                     </h2>
-                    <div className="flex items-center gap-2 mt-2">
+                    <div className="flex flex-wrap items-center gap-2 mt-2">
                       <span className={cn(
                         "px-3 py-1 rounded-full text-xs font-bold",
                         getStatusColor(userData.status)
@@ -347,26 +347,26 @@ export default function StudentProfilePage() {
                 </div>
 
                 {/* Quick Stats */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-                  <div className="bg-gray-50 dark:bg-gray-900/50 rounded-xl p-4 border border-gray-100 dark:border-gray-700 transition-colors duration-200">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mt-4 sm:mt-6">
+                  <div className="bg-gray-50 dark:bg-gray-900/50 rounded-xl p-3 sm:p-4 border border-gray-100 dark:border-gray-700 transition-colors duration-200">
                     <p className="text-sm text-gray-600 dark:text-gray-400">Enrolled Courses</p>
                     <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
                       {userData.courses?.length || 0}
                     </p>
                   </div>
-                  <div className="bg-gray-50 dark:bg-gray-900/50 rounded-xl p-4 border border-gray-100 dark:border-gray-700 transition-colors duration-200">
+                  <div className="bg-gray-50 dark:bg-gray-900/50 rounded-xl p-3 sm:p-4 border border-gray-100 dark:border-gray-700 transition-colors duration-200">
                     <p className="text-sm text-gray-600 dark:text-gray-400">Completed</p>
                     <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">
                       {completedCourses}
                     </p>
                   </div>
-                  <div className="bg-gray-50 dark:bg-gray-900/50 rounded-xl p-4 border border-gray-100 dark:border-gray-700 transition-colors duration-200">
+                  <div className="bg-gray-50 dark:bg-gray-900/50 rounded-xl p-3 sm:p-4 border border-gray-100 dark:border-gray-700 transition-colors duration-200">
                     <p className="text-sm text-gray-600 dark:text-gray-400">Active</p>
                     <p className="text-2xl font-bold text-orange-600 dark:text-orange-400 mt-1">
                       {activeCourses}
                     </p>
                   </div>
-                  <div className="bg-gray-50 dark:bg-gray-900/50 rounded-xl p-4 border border-gray-100 dark:border-gray-700 transition-colors duration-200">
+                  <div className="bg-gray-50 dark:bg-gray-900/50 rounded-xl p-3 sm:p-4 border border-gray-100 dark:border-gray-700 transition-colors duration-200">
                     <p className="text-sm text-gray-600 dark:text-gray-400">Progress</p>
                     <p className="text-2xl font-bold text-purple-600 dark:text-purple-400 mt-1">
                       {overallProgress}%
@@ -379,11 +379,11 @@ export default function StudentProfilePage() {
 
           {/* Tabs */}
           <div className="mb-6">
-            <div className="flex space-x-1 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex space-x-1 overflow-x-auto border-b border-gray-200 dark:border-gray-700 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <button
                 onClick={() => setActiveTab("personal")}
                 className={cn(
-                  "px-4 py-3 text-sm font-medium border-b-2 transition-colors",
+                  "shrink-0 whitespace-nowrap px-3 sm:px-4 py-3 text-sm font-medium border-b-2 transition-colors",
                   activeTab === "personal"
                     ? "border-orange-600 dark:border-orange-500 text-orange-600 dark:text-orange-400"
                     : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
@@ -394,7 +394,7 @@ export default function StudentProfilePage() {
               <button
                 onClick={() => setActiveTab("academic")}
                 className={cn(
-                  "px-4 py-3 text-sm font-medium border-b-2 transition-colors",
+                  "shrink-0 whitespace-nowrap px-3 sm:px-4 py-3 text-sm font-medium border-b-2 transition-colors",
                   activeTab === "academic"
                     ? "border-orange-600 dark:border-orange-500 text-orange-600 dark:text-orange-400"
                     : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
@@ -405,7 +405,7 @@ export default function StudentProfilePage() {
               <button
                 onClick={() => setActiveTab("notes")}
                 className={cn(
-                  "px-4 py-3 text-sm font-medium border-b-2 transition-colors",
+                  "shrink-0 whitespace-nowrap px-3 sm:px-4 py-3 text-sm font-medium border-b-2 transition-colors",
                   activeTab === "notes"
                     ? "border-orange-600 dark:border-orange-500 text-orange-600 dark:text-orange-400"
                     : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
@@ -416,7 +416,7 @@ export default function StudentProfilePage() {
               <button
                 onClick={() => setActiveTab("activity")}
                 className={cn(
-                  "px-4 py-3 text-sm font-medium border-b-2 transition-colors",
+                  "shrink-0 whitespace-nowrap px-3 sm:px-4 py-3 text-sm font-medium border-b-2 transition-colors",
                   activeTab === "activity"
                     ? "border-orange-600 dark:border-orange-500 text-orange-600 dark:text-orange-400"
                     : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
@@ -428,10 +428,10 @@ export default function StudentProfilePage() {
           </div>
 
           {/* Content */}
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 transition-colors duration-200">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 sm:p-6 transition-colors duration-200">
             {activeTab === "personal" && (
               <div className="space-y-6">
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Personal Information</h3>
+                <h3 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-4">Personal Information</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-4">
                     <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-100 dark:border-gray-700 transition-colors duration-200">
@@ -445,9 +445,9 @@ export default function StudentProfilePage() {
                     </div>
                     <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-100 dark:border-gray-700 transition-colors duration-200">
                       <Mail className="h-5 w-5 text-gray-400 dark:text-gray-500" />
-                      <div>
+                      <div className="min-w-0">
                         <p className="text-sm text-gray-500 dark:text-gray-400">Email Address</p>
-                        <p className="font-medium text-gray-900 dark:text-white">{userData.email}</p>
+                        <p className="break-all font-medium text-gray-900 dark:text-white">{userData.email}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-100 dark:border-gray-700 transition-colors duration-200">
@@ -494,7 +494,7 @@ export default function StudentProfilePage() {
 
             {activeTab === "academic" && (
               <div className="space-y-6">
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Academic Details</h3>
+                <h3 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-4">Academic Details</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-4">
                     <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-100 dark:border-gray-700 transition-colors duration-200">
@@ -558,8 +558,8 @@ export default function StudentProfilePage() {
                         
                         return (
                           <div key={index} className="p-4 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50/50 dark:bg-gray-900/50 transition-colors duration-200">
-                            <div className="flex justify-between items-center mb-2">
-                              <p className="font-medium text-gray-900 dark:text-white">{courseName}</p>
+                            <div className="flex justify-between items-center gap-3 mb-2">
+                              <p className="min-w-0 break-words font-medium text-gray-900 dark:text-white">{courseName}</p>
                               <span className="text-sm font-bold text-orange-600 dark:text-orange-400">{progress}%</span>
                             </div>
                             <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-2">
@@ -568,7 +568,7 @@ export default function StudentProfilePage() {
                                 style={{ width: `${progress}%` }}
                               />
                             </div>
-                            <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">
+                            <div className="flex flex-wrap justify-between gap-x-3 gap-y-1 text-sm text-gray-500 dark:text-gray-400">
                               <span>Last accessed: {lastAccessed}</span>
                               <span>{progress >= 90 ? 'Completed' : 'In Progress'}</span>
                             </div>
@@ -583,8 +583,8 @@ export default function StudentProfilePage() {
 
             {activeTab === "notes" && (
               <div className="space-y-6">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-xl font-bold text-gray-900 dark:text-white">Notes ({totalNotes})</h3>
+                <div className="flex flex-wrap justify-between items-center gap-x-3 gap-y-1">
+                  <h3 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">Notes ({totalNotes})</h3>
                   <span className="text-sm text-gray-500 dark:text-gray-400">
                     {pinnedNotes} pinned • {totalNotes - pinnedNotes} regular
                   </span>
@@ -605,14 +605,14 @@ export default function StudentProfilePage() {
                                          note.color !== '#000000' && isDarkMode ? note.color : undefined 
                         }}
                       >
-                        <div className="flex justify-between items-start mb-3">
-                          <h4 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                        <div className="flex justify-between items-start gap-2 mb-3">
+                          <h4 className="min-w-0 break-words font-bold text-gray-900 dark:text-white flex items-center gap-2">
                             {note.title}
                             {note.isPinned && (
                               <Award className="h-4 w-4 text-yellow-500 dark:text-yellow-400" />
                             )}
                           </h4>
-                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                          <span className="shrink-0 text-xs text-gray-500 dark:text-gray-400">
                             {formatDate(note.lastEdited)}
                           </span>
                         </div>
@@ -644,7 +644,7 @@ export default function StudentProfilePage() {
 
             {activeTab === "activity" && (
               <div className="space-y-6">
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Recent Activity</h3>
+                <h3 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-4">Recent Activity</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="p-4 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-100 dark:border-gray-700 transition-colors duration-200">
                     <h4 className="font-bold text-gray-900 dark:text-white mb-2">Notifications</h4>
@@ -699,13 +699,13 @@ export default function StudentProfilePage() {
                               : "border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/20"
                           )}
                         >
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <h5 className="font-bold text-gray-900 dark:text-white">{notification.title}</h5>
-                              <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">{notification.message}</p>
+                          <div className="flex justify-between items-start gap-2">
+                            <div className="min-w-0">
+                              <h5 className="break-words font-bold text-gray-900 dark:text-white">{notification.title}</h5>
+                              <p className="break-words text-sm text-gray-600 dark:text-gray-300 mt-1">{notification.message}</p>
                             </div>
                             {!notification.isRead && (
-                              <span className="h-2 w-2 rounded-full bg-orange-500 dark:bg-orange-400"></span>
+                              <span className="h-2 w-2 shrink-0 rounded-full bg-orange-500 dark:bg-orange-400"></span>
                             )}
                           </div>
                           <div className="flex justify-between items-center mt-3 text-sm text-gray-500 dark:text-gray-400">

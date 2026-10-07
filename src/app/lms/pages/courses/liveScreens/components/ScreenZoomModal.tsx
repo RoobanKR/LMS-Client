@@ -130,17 +130,17 @@ export default function ScreenZoomModal({ assessmentId, student, stream, onClose
 
   return (
     <div
-      className="fixed inset-0 z-[1000] flex items-center justify-center p-4"
+      className="fixed inset-0 z-[1000] flex items-center justify-center p-2 sm:p-4"
       style={{ background: "rgba(15,15,30,0.7)", backdropFilter: "blur(4px)" }}
       onClick={onClose}
     >
       <div
         className="bg-white rounded-2xl w-full overflow-hidden flex flex-col"
-        style={{ maxWidth: 1100, maxHeight: "92vh", boxShadow: "0 24px 64px rgba(0,0,0,0.35)" }}
+        style={{ maxWidth: 1100, maxHeight: "92dvh", boxShadow: "0 24px 64px rgba(0,0,0,0.35)" }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+        <div className="flex items-center justify-between gap-2 px-4 py-3 sm:px-5 border-b border-gray-100">
           <div className="flex items-center gap-3 min-w-0">
             <div className="min-w-0">
               <div className="text-[15px] font-bold text-gray-900 truncate">{student.studentName}</div>
@@ -151,13 +151,13 @@ export default function ScreenZoomModal({ assessmentId, student, stream, onClose
               {statusLabel}
             </span>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100">
+          <button onClick={onClose} className="flex-shrink-0 p-1.5 rounded-lg hover:bg-gray-100">
             <X size={18} className="text-gray-500" />
           </button>
         </div>
 
         {/* Body */}
-        <div className="flex flex-col md:flex-row min-h-0 flex-1 overflow-hidden">
+        <div className="flex flex-col md:flex-row min-h-0 flex-1 overflow-y-auto md:overflow-hidden">
           {/* Large live screen */}
           <div className="relative bg-black flex-1 min-h-[260px] md:min-h-0" style={{ aspectRatio: "16 / 9" }}>
             {hasVideo ? (

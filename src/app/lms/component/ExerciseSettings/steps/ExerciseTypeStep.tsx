@@ -27,7 +27,7 @@ export const ExerciseTypeStep: React.FC<ExerciseTypeStepProps> = ({
         <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: D.orangeLight, color: D.orange }}><Settings2 size={13} /></div>
         <h3 className="text-sm font-bold" style={{ color: D.textMain, fontFamily: FONT }}>Select Exercise Type</h3>
       </div>
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {types.map(t => {
           const sel = formData.exerciseType === t.value;
           return (

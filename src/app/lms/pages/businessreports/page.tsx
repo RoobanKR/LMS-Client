@@ -749,9 +749,9 @@ export default function BusinessReportsPage() {
                                 />
 
                                 {!table.rows.length ? <ReportNoMatches /> : (
-                                    <div className={REPORT_TABLE_CARD}>
+                                    <div className={`${REPORT_TABLE_CARD} max-lg:min-h-[360px]`}>
                                         <div className="min-h-0 flex-1 overflow-auto">
-                                            <table className="w-full table-fixed border-collapse text-xs">
+                                            <table className="w-full min-w-[640px] table-fixed border-collapse text-xs lg:min-w-0">
                                                 {/* Column widths match the shared
                                                     REPORT_COLUMN_WIDTHS used by the modal
                                                     preview + PDF + print: 7 / 33 / 24 / 22 / 14. */}

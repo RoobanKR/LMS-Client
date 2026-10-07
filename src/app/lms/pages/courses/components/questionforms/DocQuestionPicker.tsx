@@ -134,9 +134,9 @@ const DocQuestionPicker: React.FC<DocQuestionPickerProps> = ({
   return (
     <>
       <div className="fixed inset-0 z-[120]" style={{ background: 'rgba(26,26,46,0.45)', backdropFilter: 'blur(3px)' }} onClick={onClose} />
-      <div className="fixed inset-0 z-[121] flex items-center justify-center p-4" style={{ pointerEvents: 'none' }}>
+      <div className="fixed inset-0 z-[121] flex items-center justify-center p-3 sm:p-4" style={{ pointerEvents: 'none' }}>
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col"
-          style={{ ...JKT, border: '1px solid #e4e4ed', maxHeight: '84vh', pointerEvents: 'auto' }}>
+          style={{ ...JKT, border: '1px solid #e4e4ed', maxHeight: '84dvh', pointerEvents: 'auto' }}>
 
           {/* Header */}
           <div className="flex items-start justify-between gap-3 px-4 py-3" style={{ borderBottom: '1px solid #e4e4ed' }}>
@@ -151,7 +151,7 @@ const DocQuestionPicker: React.FC<DocQuestionPickerProps> = ({
                 </div>
               </div>
             </div>
-            <button onClick={onClose} style={{ cursor: 'pointer', color: '#bcbccc', lineHeight: 0, padding: 4 }}
+            <button onClick={onClose} className="max-sm:!p-2" style={{ cursor: 'pointer', color: '#bcbccc', lineHeight: 0, padding: 4 }}
               onMouseEnter={e => (e.currentTarget.style.color = '#6b6b7e')}
               onMouseLeave={e => (e.currentTarget.style.color = '#bcbccc')}>
               <X size={15} />
@@ -195,8 +195,8 @@ const DocQuestionPicker: React.FC<DocQuestionPickerProps> = ({
           </div>
 
           {/* Footer */}
-          <div className="flex items-center gap-2 px-4 py-3" style={{ borderTop: '1px solid #e4e4ed', background: '#fafafa' }}>
-            <span className="text-[10.5px] font-semibold flex-1 min-w-0 truncate" style={{ color: '#6b6b7e' }}>{quotaChip()}</span>
+          <div className="flex flex-wrap sm:flex-nowrap items-center justify-end gap-2 px-4 py-3" style={{ borderTop: '1px solid #e4e4ed', background: '#fafafa' }}>
+            <span className="text-[10.5px] font-semibold flex-1 basis-full sm:basis-0 min-w-0 truncate" style={{ color: '#6b6b7e' }}>{quotaChip()}</span>
             <button onClick={selectAll}
               className="text-[11px] font-semibold px-2.5 py-1.5 rounded-lg transition-all"
               style={{ border: '1px solid #e4e4ed', color: '#6b6b7e', background: '#fff', cursor: 'pointer' }}>

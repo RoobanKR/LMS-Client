@@ -626,7 +626,7 @@ export const GradeSettingsStep: React.FC<GradeSettingsStepProps> = ({
         <div style={TABLE_WRAP}>
           <div
             className="grid"
-            style={{ gridTemplateColumns: '1fr 190px 30px', gap: 8, background: '#FCFBFA', borderBottom: `1px solid ${D.border}` }}
+            style={{ gridTemplateColumns: 'minmax(72px, 1fr) minmax(140px, 190px) 30px', gap: 8, background: '#FCFBFA', borderBottom: `1px solid ${D.border}` }}
           >
             <span style={TH}>Grade</span>
             <span className="text-center" style={TH}>Score Range (%)</span>
@@ -643,7 +643,7 @@ export const GradeSettingsStep: React.FC<GradeSettingsStepProps> = ({
               const invalid = from < 0 || to > 100 || from >= to;
               return (
                 <div key={b.id} className="grid items-center"
-                  style={{ gridTemplateColumns: '1fr 190px 30px', gap: 8, padding: '7px 9px', borderTop: idx > 0 ? `1px solid ${D.border}` : 'none', background: '#fff' }}>
+                  style={{ gridTemplateColumns: 'minmax(72px, 1fr) minmax(140px, 190px) 30px', gap: 8, padding: '7px 9px', borderTop: idx > 0 ? `1px solid ${D.border}` : 'none', background: '#fff' }}>
                   <input
                     type="text"
                     value={b.label}

@@ -55,7 +55,7 @@ export default function AttendanceTabGrid({
   attCurrent: number;
 }) {
   return (
-      <div className="mt-3 flex-1 min-h-0 flex flex-col">
+      <div className="mt-3 flex-1 min-h-[60dvh] lg:min-h-0 flex flex-col">
         {loadingStudents || loadingAttendance ? (
           <div className="flex-1 overflow-hidden">
             <div className="flex h-10 items-center gap-4 border-b border-hairline bg-canvas px-4">
@@ -110,7 +110,7 @@ export default function AttendanceTabGrid({
           </div>
         ) : (
           <div ref={attTableWrapRef} className="flex-1 min-h-0 overflow-auto custom-scrollbar">
-            <table className="w-full border-collapse text-sm">
+            <table className="w-full min-w-[860px] lg:min-w-0 border-collapse text-sm">
               <thead className="sticky top-0 z-sticky">
                 <tr>
                   <th className="w-12 h-10 px-3 text-left text-[11px] font-semibold uppercase tracking-wider text-subtle align-middle bg-canvas border-b border-hairline whitespace-nowrap">#</th>
@@ -175,7 +175,7 @@ export default function AttendanceTabGrid({
                             {(s.firstName?.[0] || "?").toUpperCase()}
                             {(s.lastName?.[0] || "").toUpperCase()}
                           </div>
-                          <div className="min-w-0">
+                          <div className="min-w-0 max-w-[200px] sm:max-w-[260px] lg:max-w-none">
                             <div className="text-[12.5px] font-semibold text-heading truncate leading-tight">
                               {fullName}
                             </div>

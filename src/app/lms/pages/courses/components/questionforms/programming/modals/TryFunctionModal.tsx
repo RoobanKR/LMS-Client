@@ -52,7 +52,7 @@ export const TryFunctionModal: React.FC<{
 
   return (
     <div className="lms-modal-backdrop">
-      <div style={{
+      <div className="max-lg:max-h-[90dvh]" style={{
         background: '#FFFFFF', borderRadius: 14, width: 'min(720px, 94vw)',
         display: 'flex', flexDirection: 'column', overflow: 'hidden',
         boxShadow: '0 20px 60px rgba(0,0,0,0.22)',
@@ -61,13 +61,13 @@ export const TryFunctionModal: React.FC<{
           <div style={{ fontWeight: 700, fontSize: 15, color: '#0F172A' }}>Try Function</div>
           <button className="lms-cancel-btn" onClick={onClose}>Close</button>
         </div>
-        <div style={{ padding: '14px 18px' }}>
+        <div className="max-lg:overflow-y-auto max-lg:min-h-0 max-sm:!px-3" style={{ padding: '14px 18px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {functionContract.params.length === 0 && (
               <div style={{ fontSize: 12, color: '#64748B' }}>Function has no parameters — press Call Function to invoke it.</div>
             )}
             {functionContract.params.map(p => (
-              <div key={p.id} style={{ display: 'grid', gridTemplateColumns: '170px 1fr', gap: 8, alignItems: 'center' }}>
+              <div key={p.id} className="max-sm:!grid-cols-1 max-sm:!gap-1" style={{ display: 'grid', gridTemplateColumns: '170px 1fr', gap: 8, alignItems: 'center' }}>
                 <div>
                   <div style={{ fontWeight: 700, fontSize: 12, color: '#0F172A' }}>{p.name}</div>
                   <div style={{ fontFamily: 'ui-monospace,monospace', fontSize: 11, color: '#64748B' }}>{p.type}</div>

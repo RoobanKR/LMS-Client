@@ -857,7 +857,7 @@ function PedagogyScreen(
                         </div>
 
                         {/* Footer */}
-                        <div className="flex justify-between items-center p-5 bg-gray-50 border-t border-gray-200">
+                        <div className="flex flex-wrap justify-between items-center gap-3 p-4 sm:p-5 bg-gray-50 border-t border-gray-200">
                             <div className="text-sm text-gray-600">
                                 Duplicating to: <span className="font-medium">{selectedCourse?.courseName}</span>
                             </div>
@@ -1017,7 +1017,7 @@ function PedagogyScreen(
                                 </div>
                             </div>
 
-                            <div className="flex justify-between items-center p-4 bg-gray-50 border-t border-gray-200">
+                            <div className="flex flex-wrap justify-between items-center gap-3 p-4 bg-gray-50 border-t border-gray-200">
                                 <div className="text-sm text-gray-600">
                                     Total items: <span className="font-medium text-[#F97316]">{calculateConfirmationStats().total}</span>
                                 </div>
@@ -1065,9 +1065,9 @@ function PedagogyScreen(
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-xl shadow-2xl max-w-6xl w-full max-h-[90vh] flex flex-col">
                         {/* Header */}
-                        <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-[#FFF3EA] to-[#FFF3EA] rounded-t-xl">
+                        <div className="flex items-center justify-between gap-3 p-4 sm:p-6 border-b border-gray-200 bg-gradient-to-r from-[#FFF3EA] to-[#FFF3EA] rounded-t-xl">
                             <div>
-                                <h2 className="text-xl font-bold text-gray-900">Course Structure Preview</h2>
+                                <h2 className="text-lg sm:text-xl font-bold text-gray-900">Course Structure Preview</h2>
                                 <p className="text-sm text-gray-600 mt-1">
                                     {selectedCourse?.courseName} - Complete hierarchy view
                                 </p>
@@ -1082,7 +1082,7 @@ function PedagogyScreen(
                         </div>
 
                         {/* Preview Content */}
-                        <div className="flex-1 overflow-auto p-6">
+                        <div className="flex-1 overflow-auto p-3 sm:p-6">
                             {selectedCourse && (
                                 <PreviewTable
                                     pedagogyViews={pedagogyViews}
@@ -1122,7 +1122,7 @@ function PedagogyScreen(
                         </div>
 
                         {/* Footer */}
-                        <div className="flex justify-between items-center p-4 border-t border-gray-200 bg-gray-50 rounded-b-xl">
+                        <div className="flex flex-wrap justify-between items-center gap-3 p-4 border-t border-gray-200 bg-gray-50 rounded-b-xl">
                             <div className="text-sm text-gray-600">
                                 Showing all hierarchy levels for {selectedCourse?.courseName}
                             </div>

@@ -505,7 +505,7 @@ export const UserModals: React.FC<UserModalsProps> = ({
             in size. Body flex-1 handles scroll when the form exceeds
             the reserved height. */}
         <DialogContent
-          className="w-[calc(100vw-32px)] sm:max-w-[820px] h-[85vh] flex flex-col gap-0 p-0 overflow-hidden rounded-2xl shadow-2xl bg-surface"
+          className="w-[calc(100vw-32px)] sm:max-w-[820px] h-[90dvh] sm:h-[85vh] flex flex-col gap-0 p-0 overflow-hidden rounded-2xl shadow-2xl bg-surface"
           showCloseButton={false}
           // A part-filled account form is easy to lose to a stray backdrop
           // click, so only the header X / Cancel close it. (Bulk-parity
@@ -530,7 +530,7 @@ export const UserModals: React.FC<UserModalsProps> = ({
               <X className="h-3.5 w-3.5" />
             </DialogClose>
           </DialogHeader>
-          <div className="flex-1 overflow-y-auto px-5 pb-4 pt-1">
+          <div className="flex-1 overflow-y-auto px-3 sm:px-5 pb-4 pt-1">
             {/* Single bordered card wrapping the whole form — matches the
                 reference's nested container. Grey wash under the card was
                 removed so the modal and the card share one clean surface
@@ -538,7 +538,7 @@ export const UserModals: React.FC<UserModalsProps> = ({
             {/* Compact inner card — reduced padding + section spacing so
                 the whole form fits without inner scroll for common role
                 states (only student-on-degree-program still overflows). */}
-            <div className="rounded-2xl border border-hairline bg-surface p-4">
+            <div className="rounded-2xl border border-hairline bg-surface p-3 sm:p-4">
               <form onSubmit={handleSubmit} className="space-y-3.5">
                 <div className="space-y-2.5">
 
@@ -740,9 +740,9 @@ export const UserModals: React.FC<UserModalsProps> = ({
 
                 {/* ─── Hierarchy cascade — degree ▸ department ▸ section ── */}
                 {isStudent && newUser.serviceModel && enabledLevels.length > 0 && (
-                  <div className="grid grid-cols-2 gap-x-3.5 gap-y-2.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3.5 gap-y-2.5">
                     {enabledLevels.map((level) => (
-                      <div key={level} className={enabledLevels.length === 1 ? 'col-span-2' : ''}>
+                      <div key={level} className={enabledLevels.length === 1 ? 'sm:col-span-2' : ''}>
                         {renderDropdown(
                           requiredLevels.includes(level)
                             ? <>{level} <span className="text-danger-600">*</span></>
@@ -945,8 +945,8 @@ export const UserModals: React.FC<UserModalsProps> = ({
               surface. Bulk Upload stays on the left as a tertiary action;
               Cancel + Create are the right-aligned secondary/primary
               pair the spec calls out. */}
-          <DialogFooter className="bg-surface px-5 pb-4 pt-2">
-            <div className="flex items-center justify-between w-full gap-3">
+          <DialogFooter className="bg-surface px-3 sm:px-5 pb-4 pt-2">
+            <div className="flex flex-wrap items-center justify-between w-full gap-3">
               <div className="flex items-center gap-2">
                 {canBulkUpload && !isSubmitting && (
                   <Button
@@ -960,7 +960,7 @@ export const UserModals: React.FC<UserModalsProps> = ({
                   </Button>
                 )}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="ml-auto flex items-center gap-2">
                 <Button
                   variant="outline"
                   onClick={() => setShowAddUserModal(false)}
@@ -1066,7 +1066,7 @@ export const UserModals: React.FC<UserModalsProps> = ({
 
       {/* View Details Modal */}
       <Dialog open={showViewDetailsModal} onOpenChange={setShowViewDetailsModal}>
-        <DialogContent className="sm:max-w-[640px] max-h-[88vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[640px] max-h-[88dvh] overflow-y-auto">
           <DialogHeader>
             <div className="flex items-center gap-3">
               <UserAvatar name={selectedUserForDetails?.firstName} size="lg" />

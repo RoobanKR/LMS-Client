@@ -124,7 +124,7 @@ export default function PrintPreviewModal({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 z-modal flex items-center justify-center bg-ink-900/40 backdrop-blur-[2px] p-4"
+                className="fixed inset-0 z-modal flex items-center justify-center bg-ink-900/40 backdrop-blur-[2px] p-0 sm:p-4"
                 onClick={onClose}
             >
                 <motion.div
@@ -133,16 +133,16 @@ export default function PrintPreviewModal({
                     animate={{ scale: 1, y: 0 }}
                     exit={{ scale: 0.96, y: 8 }}
                     onClick={(e) => e.stopPropagation()}
-                    className="relative flex h-[92vh] w-[97vw] max-w-[1180px] flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl"
+                    className="relative flex h-[100dvh] w-full sm:h-[92dvh] sm:w-[97vw] max-w-[1180px] flex-col overflow-hidden rounded-none sm:rounded-xl border border-gray-200 bg-white shadow-2xl"
                 >
-                    <header className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-5 py-3">
-                        <div className="flex items-center gap-2">
+                    <header className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-3 sm:px-5 py-3">
+                        <div className="flex min-w-0 items-center gap-2">
                             {step === "edit" && (
                                 <button
                                     type="button"
                                     onClick={() => setStep("pick")}
                                     title="Back to picker"
-                                    className="flex h-7 w-7 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100"
+                                    className="flex h-9 w-9 sm:h-7 sm:w-7 shrink-0 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100"
                                 >
                                     <ArrowLeft className="h-4 w-4" />
                                 </button>
@@ -156,7 +156,7 @@ export default function PrintPreviewModal({
                             type="button"
                             onClick={onClose}
                             aria-label="Close"
-                            className="flex h-7 w-7 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100"
+                            className="flex h-9 w-9 sm:h-7 sm:w-7 shrink-0 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100"
                         >
                             <X className="h-4 w-4" />
                         </button>
@@ -202,7 +202,7 @@ function PickerStep({
     const isEmpty = !loading && !errorMessage && groups.common.length === 0 && groups.perClient.length === 0;
     return (
         <>
-            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+            <div className="min-h-0 flex-1 overflow-y-auto px-3 sm:px-5 py-4">
                 <p className="mb-3 text-[12px] text-gray-600">
                     Pick a saved print layout from{" "}
                     <span className="font-semibold text-gray-800">Dynamic Field Settings ▸ Print Setting</span>.
@@ -232,7 +232,7 @@ function PickerStep({
                     </div>
                 )}
             </div>
-            <footer className="flex shrink-0 items-center justify-between gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3">
+            <footer className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-gray-200 bg-gray-50 px-3 sm:px-5 py-3">
                 <button
                     type="button"
                     onClick={onSkip}
@@ -294,7 +294,7 @@ function LayoutCard({ setting, onPick }: { setting: PrintSetting; onPick: () => 
                     ) : null}
                 </div>
             </div>
-            <span className="mt-1 shrink-0 rounded-full border border-indigo-200 bg-white px-2 py-0.5 text-[10.5px] font-semibold text-indigo-700 opacity-0 transition-opacity group-hover:opacity-100">
+            <span className="mt-1 shrink-0 rounded-full border border-indigo-200 bg-white px-2 py-0.5 text-[10.5px] font-semibold text-indigo-700 opacity-100 lg:opacity-0 transition-opacity lg:group-hover:opacity-100">
                 Use this
             </span>
         </button>
@@ -317,7 +317,7 @@ function EditorStep({
     if (!draft) return null;
     return (
         <>
-            <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px]">
+            <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,2fr)_minmax(0,3fr)] lg:grid-rows-none lg:grid-cols-[minmax(0,1fr)_360px]">
                 {/* Live preview — same HTML the print job will submit. */}
                 <div className="min-h-0 border-b border-gray-200 bg-gray-100 p-3 lg:border-b-0 lg:border-r">
                     <iframe
@@ -335,8 +335,8 @@ function EditorStep({
                 </div>
             </div>
 
-            <footer className="flex shrink-0 items-center justify-between gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3">
-                <span className="text-[10.5px] text-gray-500">
+            <footer className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-gray-200 bg-gray-50 px-3 sm:px-5 py-3">
+                <span className="min-w-0 text-[10.5px] text-gray-500">
                     Edits stay in this print — nothing is saved to the print setting.
                 </span>
                 <Button

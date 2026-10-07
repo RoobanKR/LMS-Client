@@ -20,7 +20,7 @@ export default function CodeTabs({ active, onChange }: CodeTabsProps) {
     <div
       role="tablist"
       aria-label="Submission views"
-      className="flex h-[42px] flex-none items-center gap-9 border-b border-[#E7EEF8] px-4"
+      className="flex h-[42px] flex-none items-center gap-5 overflow-x-auto border-b border-[#E7EEF8] px-3 [scrollbar-width:none] sm:gap-9 sm:overflow-visible sm:px-4"
     >
       {CODE_TABS.map((tab) => {
         const isActive = tab.id === active;
@@ -32,7 +32,7 @@ export default function CodeTabs({ active, onChange }: CodeTabsProps) {
             aria-selected={isActive}
             onClick={() => onChange(tab.id)}
             className={cn(
-              "relative flex h-full items-center text-[13.5px] transition-colors",
+              "relative flex h-full items-center text-[13.5px] transition-colors max-sm:shrink-0 max-sm:whitespace-nowrap",
               isActive
                 ? "font-semibold text-[#0667F9]"
                 : "font-medium text-[#66789C] hover:text-[#39496B]",

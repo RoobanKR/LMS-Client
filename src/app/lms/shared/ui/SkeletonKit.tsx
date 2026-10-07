@@ -54,8 +54,8 @@ export function SkeletonTable({ rows = 6, cols = 4 }: SkeletonTableProps) {
     <div aria-hidden="true">
       <div className="flex h-10 items-center gap-4 border-b border-hairline bg-canvas px-4">
         {Array.from({ length: cols }).map((_, col) => (
-          <div key={col} className="flex-1">
-            <Skeleton className="h-2.5 w-16" />
+          <div key={col} className="min-w-0 flex-1">
+            <Skeleton className="h-2.5 w-16 max-w-full" />
           </div>
         ))}
       </div>
@@ -65,7 +65,7 @@ export function SkeletonTable({ rows = 6, cols = 4 }: SkeletonTableProps) {
           className="flex h-12 items-center gap-4 border-b border-hairline px-4 last:border-b-0"
         >
           {Array.from({ length: cols }).map((_, col) => (
-            <div key={col} className="flex-1">
+            <div key={col} className="min-w-0 flex-1">
               <Skeleton
                 className={cn(
                   "h-3.5",

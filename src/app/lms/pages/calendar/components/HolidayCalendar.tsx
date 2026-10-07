@@ -90,7 +90,7 @@ export default function HolidayCalendar({
                     const isTodayCol = isCurrentMonth && i === todayDow
                     const isWeekendCol = i === 0 || i === 6
                     return (
-                        <div key={d} className="relative px-2 py-2.5 text-center">
+                        <div key={d} className="relative px-0.5 sm:px-2 py-2 sm:py-2.5 text-center">
                             <span className={`text-2xs font-semibold uppercase tracking-wider ${
                                 isTodayCol ? 'text-brand-strong' : isWeekendCol ? 'text-danger-500/70' : 'text-faint'
                             }`}>
@@ -140,7 +140,7 @@ export default function HolidayCalendar({
                                 }
                             }}
                             aria-label={iso}
-                            className={`group relative border-b border-hairline p-1.5 flex flex-col gap-1 cursor-pointer overflow-hidden transition-colors duration-150 min-h-0
+                            className={`group relative border-b border-hairline p-0.5 sm:p-1.5 flex flex-col gap-0.5 sm:gap-1 cursor-pointer overflow-hidden transition-colors duration-150 min-h-0
                                 ${colStart ? '' : 'border-l'}
                                 ${inDrag ? 'bg-brand-wash ring-1 ring-inset ring-brand-300'
                                     : isToday ? 'bg-brand-wash/50'
@@ -158,7 +158,7 @@ export default function HolidayCalendar({
                                     {d.getDate()}
                                 </span>
                                 {!inDrag && !holiday && (
-                                    <span className="inline-flex items-center gap-0.5 h-5 px-1.5 rounded-chip border border-brand-300 bg-brand-wash text-2xs font-semibold text-brand-strong opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                                    <span className="hidden sm:inline-flex items-center gap-0.5 h-5 px-1.5 rounded-chip border border-brand-300 bg-brand-wash text-2xs font-semibold text-brand-strong opacity-0 group-hover:opacity-100 transition-opacity duration-150">
                                         <Plus size={10} strokeWidth={2.6} /> Add
                                     </span>
                                 )}

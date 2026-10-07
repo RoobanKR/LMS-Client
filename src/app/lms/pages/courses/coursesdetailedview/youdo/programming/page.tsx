@@ -128,7 +128,7 @@ const ProgrammingPageContent = () => {
   const exerciseInfo = exerciseData.exerciseInformation || {};
 
   return (
-    <div className="w-full h-screen overflow-hidden">
+    <div className="w-full h-screen h-dvh overflow-hidden">
       <CodeEditor
         exercise={exerciseData}
         courseId={courseId}

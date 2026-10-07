@@ -34,7 +34,9 @@ export function OverviewTiles<K extends string>({ tiles, active, allKey, onSelec
         <div
             role="group"
             aria-label={ariaLabel}
-            className={`grid shrink-0 grid-cols-2 gap-2 sm:gap-3 ${tiles.length === 5 ? "sm:grid-cols-5" : "sm:grid-cols-4"}`}
+            // Phones 2-up, tablets 3-up (5 tiles) / 2-up (4 tiles) so the
+            // figures never clip; the full single row from lg up as before.
+            className={`grid shrink-0 grid-cols-2 gap-2 sm:gap-3 ${tiles.length === 5 ? "sm:grid-cols-3 lg:grid-cols-5" : "lg:grid-cols-4"}`}
         >
             {tiles.map(({ key, label, value, icon: Icon, chip, tint, tintOn, ring }) => {
                 const isActive = active === key;

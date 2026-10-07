@@ -105,7 +105,7 @@ export default function CodeEditor({
           onClick={handleCopy}
           title={copied ? "Copied" : "Copy code"}
           aria-label="Copy code"
-          className="flex h-[26px] w-[26px] items-center justify-center rounded-[6px] bg-[#22303F] text-[#8FA3B8] transition-colors hover:bg-[#2C3D50] hover:text-white"
+          className="flex h-8 w-8 items-center justify-center rounded-[6px] bg-[#22303F] lg:h-[26px] lg:w-[26px] text-[#8FA3B8] transition-colors hover:bg-[#2C3D50] hover:text-white"
         >
           {copied ? (
             <Check className="h-[14px] w-[14px] text-[#4ADE80]" />
@@ -118,7 +118,7 @@ export default function CodeEditor({
           onClick={onToggleExpand}
           title={expanded ? "Exit fullscreen" : "Fullscreen editor"}
           aria-label={expanded ? "Exit fullscreen" : "Fullscreen editor"}
-          className="flex h-[26px] w-[26px] items-center justify-center rounded-[6px] bg-[#22303F] text-[#8FA3B8] transition-colors hover:bg-[#2C3D50] hover:text-white"
+          className="flex h-8 w-8 items-center justify-center rounded-[6px] bg-[#22303F] lg:h-[26px] lg:w-[26px] text-[#8FA3B8] transition-colors hover:bg-[#2C3D50] hover:text-white"
         >
           <Expand className="h-[14px] w-[14px]" />
         </button>

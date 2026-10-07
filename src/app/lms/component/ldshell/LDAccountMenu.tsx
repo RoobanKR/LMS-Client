@@ -86,7 +86,7 @@ export default function LDAccountMenu({ variant = "topbar" }: { variant?: "topba
       </DropdownMenuTrigger>
 
       <DropdownMenuContent
-        className="w-64 bg-surface border border-hairline-strong shadow-lg rounded-tile p-2 z-popover"
+        className="w-64 max-w-[calc(100vw-1.5rem)] bg-surface border border-hairline-strong shadow-lg rounded-tile p-2 z-popover"
         align="end"
         sideOffset={8}
         forceMount

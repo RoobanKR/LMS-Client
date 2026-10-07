@@ -800,7 +800,7 @@ export const FileUploadModal: React.FC<FileUploadModalProps> = ({
         <div className="fum" style={{
           position: "relative",
           width: 1160, maxWidth: "calc(100vw - 24px)",
-          height: "90vh", maxHeight: "90vh",
+          height: "90dvh", maxHeight: "90dvh",
           background: T.bg, borderRadius: 16,
           border: `1px solid ${T.border}`,
           boxShadow: "0 24px 60px rgba(0,0,0,0.18)",
@@ -1003,7 +1003,10 @@ export const FileUploadModal: React.FC<FileUploadModalProps> = ({
                   alignItems: "center",
                   gap: 4,
                   flex: 1,
-                  overflow: "hidden",
+                  minWidth: 0,
+                  overflowX: "auto",
+                  overflowY: "hidden",
+                  scrollbarWidth: "none",
                 }}>
                   {/* Root breadcrumb */}
                   <div style={{
@@ -1156,7 +1159,7 @@ export const FileUploadModal: React.FC<FileUploadModalProps> = ({
 
             {/* ② Toolbar */}
             <div style={{
-              display: "flex", alignItems: "center", gap: 6, padding: "8px 20px",
+              display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, padding: "8px 20px",
               borderBottom: `1px solid ${T.border}`, background: T.surface, flexShrink: 0,
             }}>
               {/* New Folder */}
@@ -1268,7 +1271,7 @@ export const FileUploadModal: React.FC<FileUploadModalProps> = ({
                   : ([...currentFolderPath].slice(-1)[0] ?? "Root");
               return (
                 <div style={{
-                  display: "flex", alignItems: "center", gap: 4, padding: "6px 20px",
+                  display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4, padding: "6px 20px",
                   borderBottom: `1px solid ${T.border}`, background: T.surfaceEl, flexShrink: 0,
                 }}>
                   <button onClick={() => navigateTo(-1)} style={{
@@ -1727,7 +1730,7 @@ export const FileUploadModal: React.FC<FileUploadModalProps> = ({
 
           {/* ⑤ Visibility Settings — OUTSIDE scroll area, always visible above footer */}
           <div style={{
-            display: "flex", alignItems: "center", gap: 24, padding: "11px 20px",
+            display: "flex", flexWrap: "wrap", alignItems: "center", gap: 24, rowGap: 8, padding: "11px 20px",
             borderTop: `1px solid ${T.border}`, background: T.bg,
             flexShrink: 0,
           }}>
@@ -1753,7 +1756,7 @@ export const FileUploadModal: React.FC<FileUploadModalProps> = ({
 
           {/* ── Footer ── */}
           <div style={{
-            display: "flex", alignItems: "center", justifyContent: "space-between",
+            display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 8,
             padding: "10px 20px", borderTop: `1px solid ${T.border}`,
             background: T.surface, flexShrink: 0,
           }}>

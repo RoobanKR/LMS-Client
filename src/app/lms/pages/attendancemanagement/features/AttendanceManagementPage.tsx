@@ -266,7 +266,7 @@ export default function AttendanceManagementPage() {
                 <h1 className="text-base sm:text-lg font-semibold text-heading tracking-[-0.01em]">
                     Attendance Management
                 </h1>
-                <div className="mr-8 flex items-center gap-2">
+                <div className="mr-8 flex flex-wrap items-center gap-2">
                     {!isLoading && (
                         <span
                             className={`inline-flex items-center gap-1.5 h-7 rounded-chip border px-2.5 text-xs font-medium tabular-nums ${
@@ -305,7 +305,7 @@ export default function AttendanceManagementPage() {
                 line on desktop; they still wrap on very narrow shells because
                 of the min-w-0 on the search field. */}
             <div className="mt-3 flex items-center gap-2 flex-wrap min-w-0">
-                <div className="relative flex-1 min-w-[220px] max-w-md">
+                <div className="relative w-full sm:w-auto sm:flex-1 sm:min-w-[220px] sm:max-w-md">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-faint pointer-events-none" />
                     <input
                         type="text"
@@ -362,7 +362,7 @@ export default function AttendanceManagementPage() {
                 no rounded box: just a scroll region with per-row hairlines. */}
             <div className="mt-2 flex flex-1 min-h-0 flex-col">
                 <div className="flex-1 min-h-0 overflow-auto custom-scrollbar">
-                    <table className="w-full border-collapse">
+                    <table className="w-full min-w-[760px] lg:min-w-0 border-collapse">
                         <thead className="sticky top-0 z-sticky">
                             <tr>
                                 <th className={`${HEAD_CELL} w-12 pl-4 sm:pl-5 text-left`}>#</th>
@@ -457,7 +457,7 @@ export default function AttendanceManagementPage() {
                                                 {String(rowNumber).padStart(2, "0")}
                                             </td>
                                             <td className={BODY_CELL}>
-                                                <div className="min-w-0">
+                                                <div className="min-w-0 max-w-[260px] sm:max-w-[340px] lg:max-w-none">
                                                     <div className="font-medium text-heading truncate">
                                                         {course.courseName || "—"}
                                                     </div>

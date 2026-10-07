@@ -1504,7 +1504,7 @@ function MCQQuestionForm({
 
   const renderOptions = (block: any) => {
     const cols = block.optionsPerRow || 1
-    const gridCls = ["grid-cols-1", "grid-cols-2", "grid-cols-3", "grid-cols-4"][cols - 1]
+    const gridCls = ["grid-cols-1", "grid-cols-1 sm:grid-cols-2", "grid-cols-1 sm:grid-cols-3", "grid-cols-2 sm:grid-cols-4"][cols - 1]
     return (
       <div className={`grid ${gridCls} gap-2`}>
         {block.mcqQuestion.options.map((opt: any, idx: number) => (
@@ -1529,7 +1529,7 @@ function MCQQuestionForm({
                   )}
                 </button>
                 <input type="text" value={opt.text} onChange={e => updateOptionText(block.id, opt.id, e.target.value)} placeholder={`Option ${String.fromCharCode(65 + idx)}`} className={`flex-1 text-xs outline-none bg-transparent placeholder:text-slate-300 ${opt.isCorrect ? "text-emerald-700 font-semibold" : "text-slate-700"}`} />
-                <div className="opacity-0 group-hover/opt:opacity-100 flex items-center gap-0.5 transition-opacity">
+                <div className="opacity-100 lg:opacity-0 lg:group-hover/opt:opacity-100 flex items-center gap-0.5 transition-opacity">
                   {!opt.imageUrl && (<label className="cursor-pointer p-1 hover:bg-slate-100 rounded-md transition-colors"><Image className="h-3 w-3 text-slate-400" /><input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadOptionImage(block.id, opt.id, f) }} /></label>)}
                   {block.mcqQuestion.options.length > 2 && (<button onClick={() => removeOption(block.id, opt.id)} className="p-1 hover:bg-red-50 rounded-md transition-colors"><X className="h-3 w-3 text-slate-300 hover:text-red-400" /></button>)}
                 </div>
@@ -1560,8 +1560,8 @@ function MCQQuestionForm({
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-slate-900/60 backdrop-blur-sm">
-      <div className="flex items-center justify-between px-5 py-3 bg-white border-b border-slate-200 shadow-sm flex-shrink-0">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between gap-2 px-3 sm:px-5 py-3 bg-white border-b border-slate-200 shadow-sm flex-shrink-0">
+        <div className="flex items-center gap-3 min-w-0">
           <div className={`w-8 h-8 rounded-lg flex items-center justify-center shadow-sm ${isLinkMode ? "bg-amber-500" : "bg-violet-600"}`}>
             {isLinkMode ? <Zap className="h-4 w-4 text-white" /> : <HelpCircle className="h-4 w-4 text-white" />}
           </div>
@@ -1693,13 +1693,13 @@ function MCQQuestionForm({
         </div>
       </div>
 
-      <div className="flex items-center justify-between px-5 py-3 border-t border-slate-200 bg-white flex-shrink-0">
+      <div className="flex items-center justify-between max-sm:flex-wrap max-sm:gap-2 px-3 sm:px-5 py-3 border-t border-slate-200 bg-white flex-shrink-0">
         <span className="flex items-center gap-1.5 text-xs text-slate-500">
           <div className={`w-1.5 h-1.5 rounded-full ${isLinkMode ? "bg-amber-400" : "bg-emerald-400"}`} />
           {blocks.length} question{blocks.length !== 1 ? "s" : ""} ready
           {isLinkMode && <span className="ml-1 text-amber-600 font-semibold">· saves to DB & generates live link</span>}
         </span>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 max-sm:w-full max-sm:justify-end">
           <button onClick={onClose} className="px-4 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold transition-all">Cancel</button>
           <button onClick={handleSave} disabled={isSaving} className={`px-5 py-2 rounded-lg text-xs font-bold text-white flex items-center gap-1.5 disabled:opacity-50 shadow-sm transition-all ${isLinkMode ? "bg-amber-500 hover:bg-amber-600" : "bg-emerald-600 hover:bg-emerald-700"}`}>
             {isSaving ? <><Loader className="h-3.5 w-3.5 animate-spin" />Saving…</> : isLinkMode ? <><Share2 className="h-3.5 w-3.5" />Save & Generate Link</> : <><Save className="h-3.5 w-3.5" />Save Questions</>}

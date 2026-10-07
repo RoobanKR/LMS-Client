@@ -326,7 +326,7 @@ export default function CourseBatchesPage() {
         className={`${poppins.className} h-full flex flex-col bg-white overflow-hidden`}
       >
         {/* Breadcrumb */}
-        <div className="px-4 pt-2">
+        <div className="px-3 sm:px-4 pt-2">
           <Breadcrumb>
             <BreadcrumbList className="text-[11px]">
               <BreadcrumbItem>
@@ -365,7 +365,7 @@ export default function CourseBatchesPage() {
         </div>
 
         {/* Course name + actions */}
-        <div className="px-4 pt-1.5 flex items-center justify-between gap-3">
+        <div className="px-4 pt-1.5 flex flex-wrap items-center justify-between gap-3">
           <div className="text-[13px] text-gray-800 min-w-0">
             <span className="font-medium text-gray-500">Course Name:</span>{' '}
             <span className="font-semibold text-gray-900 truncate">{courseName}</span>
@@ -386,7 +386,7 @@ export default function CourseBatchesPage() {
         {/* Toolbar + table */}
         <div className="px-4 pt-3 flex-1 min-h-0 flex flex-col">
           <div className="border border-gray-200 rounded-lg flex-1 min-h-0 flex flex-col">
-            <div className="p-3 flex items-center justify-between gap-3">
+            <div className="p-3 flex flex-wrap items-center justify-between gap-3">
               <div className="relative w-full max-w-md">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
                 <Input
@@ -472,14 +472,14 @@ export default function CourseBatchesPage() {
                             <Layers className="h-3.5 w-3.5" />
                           </span>
                           <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-semibold text-gray-900">{batch.batchName}</span>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-xs font-semibold text-gray-900 break-words">{batch.batchName}</span>
                               <span className="text-[10px] text-gray-400">{batch.code}</span>
                               <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${statusChipClasses[batch.displayStatus] || statusChipClasses.Active}`}>
                                 {batch.displayStatus}
                               </Badge>
                             </div>
-                            <div className="flex items-center gap-1.5 text-[11px] text-gray-500 mt-0.5">
+                            <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-gray-500 mt-0.5">
                               <Calendar className="h-3 w-3 text-gray-400" />
                               {formatDate(batch.batchStartDate)} - {formatDate(batch.batchEndDate)}
                               <span className="text-gray-300">·</span>
@@ -518,7 +518,7 @@ export default function CourseBatchesPage() {
                               const deptKey = `${degKey}/${dept.department}`
                               return (
                                 <div key={dept.department}>
-                                  <div className="flex items-center gap-2 px-2 py-1.5 pl-12">
+                                  <div className="flex items-center gap-2 px-2 py-1.5 pl-7 sm:pl-12">
                                     <button type="button" onClick={() => toggleExpand(deptKey)} className="w-5 h-5 flex items-center justify-center rounded text-gray-500 hover:bg-gray-100">
                                       {expanded.has(deptKey) ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                                     </button>
@@ -535,7 +535,7 @@ export default function CourseBatchesPage() {
                                     const secKey = `${deptKey}/${sec}`
                                     return (
                                       <div key={sec}>
-                                        <div className="flex items-center gap-2 px-2 py-1.5 pl-[72px]">
+                                        <div className="flex items-center gap-2 px-2 py-1.5 pl-10 sm:pl-[72px]">
                                           <button type="button" onClick={() => toggleExpand(secKey)} className="w-5 h-5 flex items-center justify-center rounded text-gray-500 hover:bg-gray-100">
                                             {expanded.has(secKey) ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                                           </button>
@@ -549,7 +549,7 @@ export default function CourseBatchesPage() {
                                         {/* ── Semesters (leaves) — one per department semester ── */}
                                         {expanded.has(secKey) && (
                                           (dept.semesters && dept.semesters.length ? dept.semesters : ['']).map((sm) => (
-                                            <div key={sm || 'none'} className="flex items-center gap-2 px-2 py-1.5 pl-[96px]">
+                                            <div key={sm || 'none'} className="flex items-center gap-2 px-2 py-1.5 pl-12 sm:pl-[96px]">
                                               <span className="w-5" />
                                               <BookOpen className="h-3.5 w-3.5 text-amber-500" />
                                               <span className="text-xs text-gray-700">Semester {sm || '—'}</span>
@@ -576,7 +576,7 @@ export default function CourseBatchesPage() {
 
             {/* Footer: count + pagination */}
             {!loading && !error && filteredBatches.length > 0 && (
-              <div className="px-4 py-2.5 border-t border-gray-200 flex items-center justify-between">
+              <div className="px-4 py-2.5 border-t border-gray-200 flex flex-wrap items-center justify-between gap-2">
                 <span className="text-[11px] text-gray-500">
                   Showing {(safePage - 1) * PAGE_SIZE + 1}-{Math.min(safePage * PAGE_SIZE, filteredBatches.length)} of {filteredBatches.length}
                 </span>
@@ -618,7 +618,7 @@ export default function CourseBatchesPage() {
 
         {/* Edit batch modal — schedule/description/status only */}
         <Dialog open={isFormOpen} onOpenChange={(open) => { if (!open) setIsFormOpen(false) }}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-md max-h-[90dvh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="text-base">Edit Batch</DialogTitle>
               <DialogDescription className="text-xs">
@@ -644,7 +644,7 @@ export default function CourseBatchesPage() {
                   className="text-xs min-h-[60px]"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label className="text-xs">Start Date</Label>
                   <Input
@@ -695,7 +695,7 @@ export default function CourseBatchesPage() {
 
         {/* View batch modal */}
         <Dialog open={!!viewBatch} onOpenChange={(open) => { if (!open) setViewBatch(null) }}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-md max-h-[90dvh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="text-base">{viewBatch?.batchName}</DialogTitle>
               <DialogDescription className="text-xs">Batch details</DialogDescription>

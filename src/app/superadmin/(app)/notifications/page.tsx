@@ -54,7 +54,7 @@ export default function NotificationsPage() {
       <PageHeader title="Notification Management" description="Broadcast a notification to users across the platform." />
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-        <Panel className="p-5 lg:col-span-2">
+        <Panel className="p-4 sm:p-5 lg:col-span-2">
           <form onSubmit={handleSend} className="space-y-4">
             <div className="space-y-1.5">
               <Label>Title</Label>
@@ -64,7 +64,7 @@ export default function NotificationsPage() {
               <Label>Message</Label>
               <Textarea rows={4} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Notification body..." />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label>Type</Label>
                 <FieldSelect value={type} onChange={setType} className="w-full">

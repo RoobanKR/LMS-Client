@@ -118,7 +118,7 @@ function RolesPageInner() {
             <EmptyState icon={ShieldCheck} title="No matches" description="No roles match the current search." />
           ) : (
             <>
-              <Table>
+              <Table className="min-w-[520px] lg:min-w-0">
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
                     <TableHead className={tableHeadClass}><SortLabel label="Role Name" sortKey="name" activeKey={sortKey} dir={sortDir} onSort={toggleSort} /></TableHead>

@@ -719,7 +719,7 @@ export default function QuestionBankPage() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.18, ease: easeStandard }}
-            className="fixed right-4 top-4 z-toast"
+            className="fixed right-4 top-4 z-toast max-w-[calc(100vw-2rem)]"
           >
             <div className="flex items-center gap-2.5 rounded-tile border border-hairline bg-surface px-3.5 py-2.5 shadow-lg">
               {toast.type === 'success'
@@ -735,7 +735,7 @@ export default function QuestionBankPage() {
         variants={pageEnter}
         initial="hidden"
         animate="visible"
-        className="flex min-h-0 flex-1 flex-col px-4 sm:px-6 md:px-8 pt-3 pb-3"
+        className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 sm:px-6 md:px-8 pt-3 pb-3 lg:overflow-visible"
       >
         {/* Slim heading — chip strip dropped, matching Client Management. */}
         <div className="flex items-center justify-between gap-4">
@@ -778,9 +778,9 @@ export default function QuestionBankPage() {
             selected). Manage on a row swaps in the same questions UI, pinned
             to that course. */}
         {activeTab === 'courses' && !selectedCourseId && (
-          <div className="mt-3 flex flex-1 min-h-0 flex-col">
+          <div className="mt-3 flex flex-1 min-h-[18rem] flex-col lg:min-h-0">
             <div className="flex items-center gap-2 flex-wrap min-w-0">
-              <div className="relative flex-1 min-w-[220px] max-w-md">
+              <div className="relative flex-1 min-w-0 sm:min-w-[220px] max-w-md">
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-faint" />
                 <input
                   type="text"
@@ -796,8 +796,8 @@ export default function QuestionBankPage() {
             </div>
 
             <div className="mt-2 flex flex-1 min-h-0 flex-col overflow-hidden">
-              <div className="flex-1 min-h-0 overflow-hidden">
-                <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
+              <div className="flex-1 min-h-0 overflow-auto lg:overflow-hidden">
+                <table className="w-full min-w-[560px] border-collapse lg:min-w-0" style={{ tableLayout: 'fixed' }}>
                   <thead className="sticky top-0 z-sticky">
                     <tr>
                       <th className="h-8 w-[4%] pl-4 sm:pl-5 pr-0 text-left text-[10px] font-semibold uppercase tracking-wider text-subtle align-middle bg-canvas border-b border-hairline">#</th>
@@ -894,7 +894,7 @@ export default function QuestionBankPage() {
               <ArrowLeft size={13} /> Back to courses
             </button>
             <span className="text-xs text-line-muted">·</span>
-            <span className="text-xs font-medium text-heading truncate max-w-[420px]" title={selectedCourseName}>
+            <span className="min-w-0 text-xs font-medium text-heading truncate max-w-full sm:max-w-[420px]" title={selectedCourseName}>
               {selectedCourseName}
             </span>
           </div>
@@ -904,7 +904,7 @@ export default function QuestionBankPage() {
             vertical divider · Create Question (primary). Same layout the
             other admin lists use. */}
         <div className="no-print mt-3 flex items-center gap-2 flex-wrap min-w-0">
-          <div className="relative flex-1 min-w-[220px] max-w-md">
+          <div className="relative flex-1 min-w-[180px] sm:min-w-[220px] max-w-md">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-faint" />
             <input
               type="text"
@@ -1012,7 +1012,7 @@ export default function QuestionBankPage() {
         {/* Flat listing — no card border, matching Client Management. The page
             size is fixed at 10 now, so this slot no longer gets measured; when
             10 rows don't fit, QuestionsTable's body scrolls. */}
-        <div className="mt-2 flex flex-1 min-h-0 flex-col overflow-hidden">
+        <div className="mt-2 flex flex-1 min-h-[18rem] flex-col overflow-hidden lg:min-h-0">
           <QuestionsTable
             questions={pageQuestions}
             isLoading={isLoading}
@@ -1060,7 +1060,7 @@ export default function QuestionBankPage() {
             animate={{ opacity: 1, y: 0, x: '-50%' }}
             exit={{ opacity: 0, y: 16, x: '-50%' }}
             transition={{ duration: 0.2, ease: easeStandard }}
-            className="fixed bottom-6 left-1/2 z-dropdown flex items-center gap-3 rounded-full bg-ink-900 py-2 pl-4 pr-2 text-white shadow-xl"
+            className="fixed bottom-6 left-1/2 z-dropdown flex w-max max-w-[calc(100vw-1.5rem)] flex-wrap items-center justify-center gap-x-1.5 gap-y-1 rounded-2xl bg-ink-900 py-2 pl-3 pr-2 text-white shadow-xl sm:flex-nowrap sm:gap-3 sm:rounded-full sm:pl-4"
           >
             <span className="whitespace-nowrap text-xs font-semibold tabular-nums">{selectedVisible.length} selected</span>
             <span className="h-4 w-px bg-white/20" />

@@ -145,7 +145,7 @@ const QuestionDetailModal: React.FC<{
       onClick={onClose}
     >
       <div 
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden"
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90dvh] flex flex-col overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -168,7 +168,7 @@ const QuestionDetailModal: React.FC<{
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
           {/* Question Type Badge */}
           <div className="flex items-center gap-3 flex-wrap">
             <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getDifficultyColor(question.mcqQuestionDifficulty || question.difficulty || 'medium')}`}>
@@ -321,7 +321,7 @@ const QuestionDetailModal: React.FC<{
           {/* Metadata */}
           <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
             <h4 className="text-sm font-semibold text-gray-700 mb-3">Metadata</h4>
-            <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
               <div>
                 <span className="text-gray-500">Question ID:</span>
                 <p className="text-gray-900 font-mono text-xs break-all">{question._id}</p>
@@ -614,11 +614,11 @@ const TestYourSKillsQuestionBanklist: React.FC<QuestionBankSelectorProps> = ({
 
   return (
     <>
-      <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-<div className="bg-white rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+<div className="bg-white rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90dvh] flex flex-col overflow-hidden">
           {/* Header */}
-          <div className="flex items-center justify-between p-6 pb-4 border-b border-gray-200">
-            <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between gap-3 p-4 sm:p-6 pb-4 sm:pb-4 border-b border-gray-200">
+            <div className="flex items-center gap-3 min-w-0">
               {onBack && (
                 <button
                   onClick={onBack}
@@ -631,9 +631,9 @@ const TestYourSKillsQuestionBanklist: React.FC<QuestionBankSelectorProps> = ({
                   Back
                 </button>
               )}
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">Question Bank</h2>
-                <p className="text-gray-600 text-sm mt-1">
+              <div className="min-w-0">
+                <h2 className="text-lg sm:text-xl font-bold text-gray-900">Question Bank</h2>
+                <p className="text-gray-600 text-sm mt-1 break-words">
                   Select questions to add to "{exerciseData.exerciseName}"
                 </p>
               </div>
@@ -647,9 +647,9 @@ const TestYourSKillsQuestionBanklist: React.FC<QuestionBankSelectorProps> = ({
           </div>
 
           {/* Search and Filter */}
-          <div className="px-6 py-4 border-b border-gray-100">
-            <div className="flex items-center gap-3">
-              <div className="flex-1 relative">
+          <div className="px-4 sm:px-6 py-4 border-b border-gray-100">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex-1 min-w-[180px] relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <input
                   type="text"
@@ -673,7 +673,7 @@ const TestYourSKillsQuestionBanklist: React.FC<QuestionBankSelectorProps> = ({
           </div>
 
           {/* Question List */}
-          <div className="flex-1 overflow-y-auto p-6">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6">
             {loading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader className="h-8 w-8 animate-spin text-purple-600" />
@@ -763,7 +763,7 @@ const TestYourSKillsQuestionBanklist: React.FC<QuestionBankSelectorProps> = ({
                         </div>
                         
                         <div className="flex items-start justify-between gap-4">
-                          <div className="flex-1">
+                          <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-gray-900 line-clamp-2">
                               {title}
                               {isDuplicateQuestion && <span className="ml-2 text-amber-600 text-xs">(Duplicate)</span>}
@@ -800,7 +800,7 @@ const TestYourSKillsQuestionBanklist: React.FC<QuestionBankSelectorProps> = ({
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 bg-gray-50">
+          <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-4 border-t border-gray-200 bg-gray-50">
             <div className="text-sm text-gray-600">
               {selectedQuestions.size} question{selectedQuestions.size !== 1 ? 's' : ''} selected
             </div>

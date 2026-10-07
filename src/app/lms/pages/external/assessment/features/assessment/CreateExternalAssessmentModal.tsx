@@ -694,17 +694,18 @@ export default function CreateExternalAssessmentModal({
       <motion.div
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
         transition={{ duration: 0.15 }}
-        className="fixed inset-0 z-[1000] flex items-center justify-center p-4"
+        className="fixed inset-0 z-[1000] flex items-center justify-center p-0 sm:p-4"
         style={{ background: 'rgba(30,41,59,0.55)', backdropFilter: 'blur(6px)' }}
         onMouseDown={(e) => { if (e.target === e.currentTarget && !saving) onClose(); }}
       >
+        {/* Full-screen sheet on phones; the 94vh rounded card from sm up. */}
         <motion.div
           initial={{ opacity: 0, scale: 0.98, y: 8 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.98, y: 8 }}
           transition={{ duration: 0.18 }}
-          className="w-full max-w-6xl bg-white overflow-hidden flex"
-          style={{ height: '94vh', borderRadius: 24, boxShadow: '0 24px 64px rgba(0,0,0,0.28)' }}
+          className="w-full max-w-6xl bg-white overflow-hidden flex h-[100dvh] rounded-none sm:h-[94vh] sm:rounded-[24px]"
+          style={{ boxShadow: '0 24px 64px rgba(0,0,0,0.28)' }}
         >
           {/* ── Step rail ── */}
           <aside
@@ -770,12 +771,12 @@ export default function CreateExternalAssessmentModal({
 
           {/* ── Pane ── */}
           <div className="flex-1 min-w-0 flex flex-col">
-            <header className="flex items-start justify-between px-8 pt-6 pb-3 shrink-0">
+            <header className="flex items-start justify-between gap-2 px-4 pt-4 pb-3 shrink-0 sm:px-8 sm:pt-6">
               <div className="min-w-0">
                 <p className="text-xs font-semibold" style={{ color: D.textMuted }}>
                   Step {step}/{STEPS.length}
                 </p>
-                <h3 className="text-2xl font-extrabold truncate" style={{ color: D.textMain }}>
+                <h3 className="text-lg sm:text-2xl font-extrabold truncate" style={{ color: D.textMain }}>
                   {STEPS[step - 1].title}
                 </h3>
               </div>
@@ -801,13 +802,13 @@ export default function CreateExternalAssessmentModal({
               </div>
             </header>
 
-            <div className="flex-1 min-h-0 overflow-y-auto px-8 pb-6" style={{ borderTop: `1px solid ${D.border}` }}>
+            <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-6 sm:px-8" style={{ borderTop: `1px solid ${D.border}` }}>
               <div className="pt-5 space-y-6">
 
                 {/* ══ 1. Exercise Details ══ */}
                 {step === 1 && (
                   <>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <SectionLabel info="Auto-generated unique identifier for this assessment">
                           Assessment ID
@@ -844,7 +845,7 @@ export default function CreateExternalAssessmentModal({
                       <SectionLabel required info="Mock simulates exam conditions; Final is the end-of-term assessment.">
                         Test Type
                       </SectionLabel>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {TEST_TYPES.map((t) => (
                           <RadioCard
                             key={t.value}
@@ -865,7 +866,7 @@ export default function CreateExternalAssessmentModal({
                     </div>
 
                     <div className="pt-4" style={{ borderTop: `1px solid ${D.border}` }}>
-                      <div className="flex items-center gap-3">
+                      <div className="flex flex-wrap items-center gap-3">
                         <div className="flex items-center gap-1">
                           <span className="text-xs font-semibold" style={{ color: D.textSub }}>Section Based</span>
                           <InfoTooltip content="Split the assessment into parts (Part A, Part B…). Disables the single Exercise Type picker." />
@@ -892,7 +893,7 @@ export default function CreateExternalAssessmentModal({
                             <SectionLabel required info="Each part of the assessment.">Sections</SectionLabel>
                             <div className="space-y-2">
                               {form.sections.map((s, i) => (
-                                <div key={i} className="grid grid-cols-[1fr_110px_110px_36px] gap-2 items-start">
+                                <div key={i} className="grid grid-cols-[minmax(0,1fr)_72px_72px_36px] sm:grid-cols-[1fr_110px_110px_36px] gap-2 items-start">
                                   <OInput
                                     value={s.name}
                                     onChange={(v) => set('sections', form.sections.map((x, idx) => idx === i ? { ...x, name: v } : x))}
@@ -935,7 +936,7 @@ export default function CreateExternalAssessmentModal({
                       )}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <SectionLabel required info="What kind of questions this assessment holds.">
                           Exercise Type
@@ -980,7 +981,7 @@ export default function CreateExternalAssessmentModal({
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div>
                         <SectionLabel info="Guidance only — it does not filter questions.">Difficulty Level</SectionLabel>
                         <OSelect value={form.exerciseLevel} onChange={(v) => set('exerciseLevel', v)} options={LEVELS} />
@@ -1044,7 +1045,7 @@ export default function CreateExternalAssessmentModal({
                         {/* Combined — split the total between the two halves first. */}
                         {form.exerciseType === 'Combined' && (
                           <StepGroup title="Marks split" hint="How the total is divided between the MCQ and programming halves.">
-                            <div className="grid grid-cols-3 gap-4 items-end">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
                               <div>
                                 <SectionLabel required>MCQ Marks</SectionLabel>
                                 <OInput type="number" min={0} value={form.totalMarksMCQ}
@@ -1110,7 +1111,7 @@ export default function CreateExternalAssessmentModal({
                             </div>
 
                             <div className="space-y-3">
-                              <div className="grid grid-cols-2 gap-4">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                   <SectionLabel required info="How many MCQ questions the paper should hold.">
                                     Total Questions
@@ -1219,7 +1220,7 @@ export default function CreateExternalAssessmentModal({
                                 on={qc.levelBasedEnabled}
                                 onChange={(v) => setGroup('questionConfiguration', 'levelBasedEnabled', v)}
                               >
-                                <div className="grid grid-cols-3 gap-3">
+                                <div className="grid grid-cols-3 gap-2 sm:gap-3">
                                   {(['easy', 'medium', 'hard'] as const).map((lvl) => (
                                     <div key={lvl}>
                                       <SectionLabel>{lvl[0].toUpperCase() + lvl.slice(1)}</SectionLabel>
@@ -1310,7 +1311,7 @@ export default function CreateExternalAssessmentModal({
                     </div>
 
                     <StepGroup title="Assessment window">
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                           <SectionLabel required={form.status === 'published'}>Start Date</SectionLabel>
                           <OInput type="date" value={form.startDate} onChange={(v) => set('startDate', v)} error={errors.startDate} />
@@ -1338,7 +1339,7 @@ export default function CreateExternalAssessmentModal({
                           on={form.scheduleExtras.cutOffEnabled}
                           onChange={(v) => setGroup('scheduleExtras', 'cutOffEnabled', v)}
                         >
-                          <div className="grid grid-cols-2 gap-3 max-w-md">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-md">
                             <div>
                               <SectionLabel>Cut-off Date</SectionLabel>
                               <OInput type="date" value={form.scheduleExtras.cutOffDate}
@@ -1428,7 +1429,7 @@ export default function CreateExternalAssessmentModal({
                     </StepGroup>
 
                     <StepGroup title="Extra restrictions">
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {([
                           ['requireFullscreen', 'Require fullscreen'],
                           ['preventDevTools', 'Prevent dev tools'],
@@ -1478,7 +1479,7 @@ export default function CreateExternalAssessmentModal({
                 {step === 7 && (
                   <>
                     <StepGroup title="Marks & pass mark">
-                      <div className="grid grid-cols-2 gap-4 max-w-lg">
+                      <div className="grid grid-cols-2 gap-3 sm:gap-4 max-w-lg">
                         <div>
                           <SectionLabel info="Leave 0 to sum from the questions.">Total Mark</SectionLabel>
                           <OInput type="number" min={0} value={form.totalMarks}
@@ -1509,7 +1510,7 @@ export default function CreateExternalAssessmentModal({
                       >
                         <div className="space-y-2">
                           {form.gradeSettings.gradeBands.map((b, i) => (
-                            <div key={i} className="grid grid-cols-[1fr_100px_100px] gap-2">
+                            <div key={i} className="grid grid-cols-[minmax(0,1fr)_72px_72px] sm:grid-cols-[1fr_100px_100px] gap-2">
                               <OInput value={b.label}
                                 onChange={(v) => setGroup('gradeSettings', 'gradeBands',
                                   form.gradeSettings.gradeBands.map((x, idx) => idx === i ? { ...x, label: v } : x))} />
@@ -1598,17 +1599,17 @@ export default function CreateExternalAssessmentModal({
                             ? [['Evaluation', form.evaluationMethod.method === 'ai' ? 'AI evaluation' : 'Test cases']] as Array<[string, React.ReactNode]>
                             : []),
                         ] as Array<[string, React.ReactNode]>).map(([k, v], i) => (
-                          <div key={k} className="flex items-center justify-between px-3.5 py-2 text-xs"
+                          <div key={k} className="flex items-center justify-between gap-3 px-3.5 py-2 text-xs"
                             style={{ background: i % 2 ? D.surface : '#fff' }}>
-                            <span style={{ color: D.textMuted }}>{k}</span>
-                            <span className="font-semibold text-right" style={{ color: D.textMain }}>{v}</span>
+                            <span className="shrink-0" style={{ color: D.textMuted }}>{k}</span>
+                            <span className="min-w-0 break-words font-semibold text-right" style={{ color: D.textMain }}>{v}</span>
                           </div>
                         ))}
                       </div>
                     </StepGroup>
 
                     <StepGroup title="Save as">
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         {([
                           { v: 'draft' as const, t: 'Draft', d: 'Keep editing. No invitations can be sent.' },
                           { v: 'published' as const, t: 'Published', d: 'Live. Participants can be invited.' },
@@ -1639,7 +1640,7 @@ export default function CreateExternalAssessmentModal({
 
             {/* ── Footer ── */}
             <footer
-              className="flex items-center gap-2 px-8 py-4 shrink-0"
+              className="flex items-center gap-2 px-4 py-3 shrink-0 sm:px-8 sm:py-4"
               style={{ borderTop: `1px solid ${D.border}` }}
             >
               <button

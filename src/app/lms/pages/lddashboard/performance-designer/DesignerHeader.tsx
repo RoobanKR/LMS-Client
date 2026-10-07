@@ -29,9 +29,9 @@ export function DesignerHeader({
     onClose: () => void;
 }) {
     return (
-        <header className="flex h-[62px] flex-shrink-0 items-center gap-4 border-b border-hairline bg-surface px-6">
+        <header className="flex h-[62px] flex-shrink-0 items-center gap-2 border-b border-hairline bg-surface px-3 sm:gap-4 sm:px-6">
             <div className="min-w-0">
-                <h2 className="truncate text-[19px] font-bold leading-tight tracking-[-0.015em] text-heading">Create Performance Report</h2>
+                <h2 className="truncate text-[16px] font-bold sm:text-[19px] leading-tight tracking-[-0.015em] text-heading">Create Performance Report</h2>
                 <p className="mt-0.5 truncate text-[11.5px] text-subtle">
                     Build a report around learner progress, pedagogy stages, and industry readiness
                 </p>
@@ -45,17 +45,18 @@ export function DesignerHeader({
                 Live preview updates as you edit
             </span>
 
-            <div ref={downloadRef} className="relative ml-2">
+            <div ref={downloadRef} className="relative ml-auto md:ml-2">
                 <button
                     type="button"
                     onClick={onToggleDownload}
                     disabled={!!busy || !canDownload}
                     aria-haspopup="menu"
                     aria-expanded={downloadOpen}
-                    className="inline-flex h-9 items-center gap-2 rounded-control bg-brand-500 px-3.5 text-[12.5px] font-semibold text-white transition-colors hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
+                    aria-label="Download report"
+                    className="inline-flex h-9 items-center gap-2 rounded-control bg-brand-500 px-2.5 sm:px-3.5 text-[12.5px] font-semibold text-white transition-colors hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
                 >
                     {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Download className="h-4 w-4" aria-hidden />}
-                    {busy === "xlsx" ? "Preparing Excel…" : busy === "pdf" ? "Preparing PDF…" : "Download Report"}
+                    <span className="hidden sm:inline">{busy === "xlsx" ? "Preparing Excel…" : busy === "pdf" ? "Preparing PDF…" : "Download Report"}</span>
                     <ChevronDown className={`h-3.5 w-3.5 transition-transform ${downloadOpen ? "rotate-180" : ""}`} aria-hidden />
                 </button>
                 {downloadOpen ? (

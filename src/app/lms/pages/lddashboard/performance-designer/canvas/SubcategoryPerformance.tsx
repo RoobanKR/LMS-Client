@@ -133,7 +133,7 @@ function ActivityColumns({ cols }: { cols: ActivityCol[] }) {
                                 : (Math.max(0, Math.min(100, c.avg as number)) / 100) * CHART_H;
                             const h = na ? NA_PLACEHOLDER_PX : Math.max(MIN_BAR_PX, rawH);
                             return (
-                                <div key={c.key} className="flex flex-col items-center" style={{ width: colW }}>
+                                <div key={c.key} className="flex flex-col items-center" style={{ width: colW, maxWidth: `${100 / cols.length}%` }}>
                                     <span
                                         className={`mb-1 text-[13px] font-bold leading-none tabular-nums ${na ? "text-faint" : ""}`}
                                         style={na ? undefined : { color: BAR_FILL }}
@@ -172,7 +172,7 @@ function ActivityColumns({ cols }: { cols: ActivityCol[] }) {
                 {/* Activity name under each column */}
                 <div className="absolute inset-x-0 flex justify-around pl-8 pr-2" style={{ bottom: 8 }}>
                     {cols.map((c) => (
-                        <div key={c.key} className="text-center" style={{ width: colW }}>
+                        <div key={c.key} className="text-center" style={{ width: colW, maxWidth: `${100 / cols.length}%` }}>
                             <p className="truncate text-[12px] font-semibold text-heading" title={c.label}>{c.label}</p>
                         </div>
                     ))}

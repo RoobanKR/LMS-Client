@@ -79,8 +79,8 @@ export const ProgrammingConfiguration: React.FC<BaseConfigProps> = ({
 
   return (
     <div className="px-4 py-3">
-      <div className="mb-5 flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <div className="mb-5 flex flex-wrap lg:flex-nowrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: '#ede9fe', color: '#7c3aed' }}>
             <Terminal size={16} />
           </div>
@@ -335,7 +335,7 @@ export const ProgrammingConfiguration: React.FC<BaseConfigProps> = ({
         {/* Question Flow */}
         <div>
           <SectionLabel info="Free Flow: any order; Controlled: sequential">Question Flow</SectionLabel>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {questionFlowOptions.map(opt => {
               const sel = formData.programmingConfig.questionFlow === opt.value;
               return (

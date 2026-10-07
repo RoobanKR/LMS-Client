@@ -475,7 +475,7 @@ export default function FileMCQAnnotationForm({
         </div>
 
         {/* ── BODY ── */}
-        <div className="flex flex-1 min-h-0" style={{ overflow: "hidden" }}>
+        <div className="flex flex-col lg:flex-row flex-1 min-h-0" style={{ overflow: "hidden" }}>
 
           {/* ── EDITOR (main/left) ── */}
           <div className="flex-1 flex flex-col min-w-0" style={{ background: "var(--lms-bg-white)", overflow: "hidden" }}>
@@ -704,7 +704,7 @@ export default function FileMCQAnnotationForm({
                               </div>
 
                               {/* Image button (shown on hover like MCQQuestionForm) */}
-                              <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover/opt:opacity-100 transition-opacity">
+                              <div className="flex items-center gap-1 flex-shrink-0 opacity-100 lg:opacity-0 lg:group-hover/opt:opacity-100 transition-opacity">
                                 <button type="button"
                                   className="cursor-pointer p-1 rounded-md transition-colors hover:bg-slate-100"
                                   title={opt.imageUrl ? "Change image" : "Add image"}
@@ -735,9 +735,9 @@ export default function FileMCQAnnotationForm({
             </div>
 
             {/* ── BOTTOM BAR ── */}
-            <div className="flex-shrink-0 py-3"
+            <div className="flex-shrink-0 py-3 max-sm:!px-3"
               style={{ borderTop: "1.5px solid var(--lms-border)", background: "var(--lms-bg-white)", paddingLeft: 32, paddingRight: 32 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", gap: 8 }}>
+              <div className="max-sm:!grid-cols-1" style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", gap: 8 }}>
 
                 {/* LEFT: error or empty */}
                 <div>
@@ -749,7 +749,7 @@ export default function FileMCQAnnotationForm({
                 </div>
 
                 {/* CENTER: Save buttons */}
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap sm:flex-nowrap items-center justify-center sm:justify-start gap-2">
                   {!editingId && (
                     <button onClick={() => handleSave(true)} disabled={saving}
                       className="lms-btn lms-btn-slate flex-shrink-0">
@@ -791,7 +791,8 @@ export default function FileMCQAnnotationForm({
           </div>
 
           {/* ── RIGHT PANEL ── */}
-          <div style={{ width: 280, flexShrink: 0, borderLeft: "1.5px solid var(--lms-border)", background: "var(--lms-bg-white)", display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
+          <div className="w-full lg:w-[280px] h-[38%] lg:h-full border-t-[1.5px] lg:border-t-0 lg:border-l-[1.5px] border-[color:var(--lms-border)]"
+            style={{ flexShrink: 0, background: "var(--lms-bg-white)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
 
             {/* Top info section */}
             <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 0, borderBottom: "1.5px solid var(--lms-border)", flexShrink: 0, background: "var(--lms-bg-surface)" }}>

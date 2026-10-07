@@ -292,7 +292,7 @@ const CourseCard = React.memo(function CourseCard({
   if (viewMode === 'list') {
     return (
       <motion.div layout variants={cardV}
-        className="group relative overflow-hidden flex items-center gap-4 p-3 rounded-2xl"
+        className="group relative overflow-hidden flex flex-wrap sm:flex-nowrap items-center gap-3 sm:gap-4 p-3 rounded-2xl"
         style={{ background: isDark ? T.dark.card : T.bg, border: `1px solid ${isDark ? T.dark.border : T.border}`, transition: 'border-color .15s, box-shadow .15s' }}
         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = T.orange; (e.currentTarget as HTMLElement).style.boxShadow = `0 4px 16px ${T.orangeGlow}`; handlePrefetch(); }}
         onFocus={handlePrefetch}
@@ -332,7 +332,7 @@ const CourseCard = React.memo(function CourseCard({
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex w-full flex-wrap items-center justify-end gap-2 flex-shrink-0 sm:w-auto sm:flex-nowrap">
           {!isStudent ? (
             <>
               {canStaffViewSchedule && (
@@ -937,7 +937,7 @@ export default function CoursesPage() {
       {/* ── Header ── */}
       <div className="mb-5">
         <div className="flex items-center gap-2">
-          <h1 className="text-[22px] font-bold tracking-tight" style={{ color: isDark ? T.dark.textMain : T.textMain, letterSpacing: '-0.02em' }}>
+          <h1 className="text-xl sm:text-[22px] font-bold tracking-tight" style={{ color: isDark ? T.dark.textMain : T.textMain, letterSpacing: '-0.02em' }}>
             Courses
           </h1>
           {/* {!loading && (
@@ -966,16 +966,16 @@ export default function CoursesPage() {
           >Clear ×</button>
         )}
 
-        <div className="flex-1" />
+        <div className="flex-1 max-sm:hidden" />
 
         {/* Search */}
-        <div className="relative">
+        <div className="relative max-sm:min-w-0 max-sm:flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: isDark ? T.dark.textMuted : T.textMuted }} />
           <input
             value={searchTerm}
             onChange={(e) => handleSearchChange(e.target.value)}
             placeholder="Search courses..."
-            className="h-9 w-52 pl-9 pr-3 rounded-lg text-[12.5px] outline-none"
+            className="h-9 w-full sm:w-52 pl-9 pr-3 rounded-lg text-[12.5px] outline-none"
             style={{ background: isDark ? T.dark.card : T.bg, border: `1.5px solid ${isDark ? T.dark.border : T.border}`, color: isDark ? T.dark.textMain : T.textMain }}
           />
         </div>

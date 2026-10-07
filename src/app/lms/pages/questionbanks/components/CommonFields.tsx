@@ -68,7 +68,7 @@ const CommonFields: React.FC<CommonFieldsProps> = ({
             </label>
           )}
           <div className="flex gap-2">
-            <div className="relative flex-1">
+            <div className="relative min-w-0 flex-1">
               <Database
                 size={15}
                 className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-violet-400"
@@ -132,7 +132,7 @@ const CommonFields: React.FC<CommonFieldsProps> = ({
           />
           
           {/* Modal Content */}
-          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-sm">
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[calc(100%-2rem)] max-w-sm">
             <div className="bg-white/95 backdrop-blur-lg rounded-xl shadow-2xl border border-white/30 overflow-hidden">
               {/* Header */}
               <div className="px-4 py-3 border-b border-gray-200/50 bg-gradient-to-r from-gray-50/80 to-white/80">

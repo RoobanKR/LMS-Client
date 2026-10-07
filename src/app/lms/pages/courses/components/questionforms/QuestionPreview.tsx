@@ -195,7 +195,7 @@ const MultipleChoiceRenderer: React.FC<{ question: Question; multi?: boolean }> 
     wrong: 'border-red-400 bg-red-50',
   };
 
-  const gridClass = perRow === 2 ? 'grid grid-cols-2 gap-2' : 'flex flex-col gap-2';
+  const gridClass = perRow === 2 ? 'grid grid-cols-1 sm:grid-cols-2 gap-2' : 'flex flex-col gap-2';
 
   return (
     <div>
@@ -735,7 +735,7 @@ const ProgrammingRenderer: React.FC<{ question: Question }> = ({ question }) => 
 
       {/* Sample I/O */}
       {(question.sampleInput || question.sampleOutput) && (
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {question.sampleInput && (
             <div>
               <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Sample Input</p>
@@ -1059,11 +1059,11 @@ const QuestionPreview: React.FC<QuestionPreviewProps> = ({
   const showAnswerKey = isMcq && !['short_answer', 'essay'].includes(question.mcqQuestionType || '');
 
   return (
-    <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-7xl max-h-[95vh] flex flex-col overflow-hidden border border-slate-200">
+    <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-7xl max-h-[95dvh] flex flex-col overflow-hidden border border-slate-200">
 
         {/* ── Header ── */}
-        <div className="flex-none flex items-start justify-between gap-3 px-5 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white">
+        <div className="flex-none flex items-start justify-between gap-3 px-4 sm:px-5 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="flex-shrink-0 p-2 bg-blue-100 rounded-xl">
               <Eye size={15} className="text-blue-600" />
@@ -1081,27 +1081,27 @@ const QuestionPreview: React.FC<QuestionPreviewProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-shrink-0 items-center gap-1.5">
             {/* Navigate buttons */}
             {allQuestions.length > 1 && (
               <>
                 <button
                   onClick={() => hasPrev && onNavigate?.(allQuestions[currentIndex - 1])}
                   disabled={!hasPrev}
-                  className="h-7 w-7 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:text-slate-700 hover:border-slate-300 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                  className="h-8 w-8 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:text-slate-700 hover:border-slate-300 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                 >
                   <ChevronLeft size={14} />
                 </button>
                 <button
                   onClick={() => hasNext && onNavigate?.(allQuestions[currentIndex + 1])}
                   disabled={!hasNext}
-                  className="h-7 w-7 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:text-slate-700 hover:border-slate-300 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                  className="h-8 w-8 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:text-slate-700 hover:border-slate-300 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                 >
                   <ChevronRight size={14} />
                 </button>
               </>
             )}
-            <button onClick={onClose} className="h-7 w-7 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-all">
+            <button onClick={onClose} className="h-8 w-8 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-all">
               <X size={15} />
             </button>
           </div>
@@ -1109,7 +1109,7 @@ const QuestionPreview: React.FC<QuestionPreviewProps> = ({
 
         {/* ── Body ── */}
         <div className="flex-1 overflow-y-auto">
-          <div className="px-6 py-5 space-y-5">
+          <div className="px-4 sm:px-6 py-5 space-y-5">
 
             {/* Question meta */}
             <div className="flex flex-wrap items-center gap-2">
@@ -1168,7 +1168,7 @@ const QuestionPreview: React.FC<QuestionPreviewProps> = ({
         </div>
 
         {/* ── Footer ── */}
-        <div className="flex-none flex items-center justify-between px-5 py-3 border-t border-slate-100 bg-slate-50/60">
+        <div className="flex-none flex flex-wrap gap-2 items-center justify-between px-4 sm:px-5 py-3 border-t border-slate-100 bg-slate-50/60">
           <div className="text-[10px] text-slate-400">
             {allQuestions.length > 1 && (
               <span>Use <kbd className="px-1 py-0.5 bg-white border border-slate-200 rounded text-[9px]">←</kbd> <kbd className="px-1 py-0.5 bg-white border border-slate-200 rounded text-[9px]">→</kbd> to navigate · <kbd className="px-1 py-0.5 bg-white border border-slate-200 rounded text-[9px]">Esc</kbd> to close</span>

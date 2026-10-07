@@ -159,6 +159,7 @@ export function RerunDialog(props: RerunDialogProps) {
       <div style={{
         background: '#fff', borderRadius: 16, width: 'min(560px, 92vw)',
         boxShadow: '0 24px 48px rgba(15,23,42,0.28)', overflow: 'hidden',
+        maxHeight: '90dvh', overflowY: 'auto',
         fontFamily: "'Poppins','Inter',sans-serif",
       }}>
         {/* Header */}

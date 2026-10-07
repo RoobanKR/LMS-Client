@@ -5,6 +5,7 @@ import {
   Bell,
   EyeSlash,
   CircleNotch,
+  List,
 } from "@phosphor-icons/react"
 import { T } from "./types/constants"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
@@ -85,7 +86,20 @@ export const TopBar: React.FC<TopBarProps> = ({ items, onAIClick, onSummaryClick
       height: 48, width: '100%', boxSizing: 'border-box',
       background: T.bg, flexShrink: 0,
       position: 'relative', borderBottom: `1px solid ${T.border}`
-    }}>
+    }} className="max-sm:!gap-1.5">
+
+      {/* Course menu — opens the slide-in course sidebar below lg (the
+          desktop sidebar has its own collapse/expand controls). */}
+      <button
+        type="button"
+        onClick={onMenuClick}
+        title="Course menu"
+        aria-label="Open course menu"
+        className="lg:hidden flex items-center justify-center flex-shrink-0 rounded-[9px] border-0 bg-transparent text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors"
+        style={{ width: 36, height: 36, cursor: 'pointer', marginLeft: -6 }}
+      >
+        <List size={20} weight="regular" />
+      </button>
 
       {/* Left slot: the pedagogy tabs live in this same 48px row (tabs left,
           action icons right). Stretch so the active underline sits on the
@@ -209,7 +223,7 @@ export const TopBar: React.FC<TopBarProps> = ({ items, onAIClick, onSummaryClick
               <div style={{ position: 'fixed', inset: 0, zIndex: 10 }} onClick={() => setShowNotificationsDropdown(false)} />
               <div style={{
                 position: 'absolute', right: 0, top: 'calc(100% + 8px)',
-                width: 320, borderRadius: 12, background: T.bg,
+                width: 'min(320px, calc(100vw - 24px))', borderRadius: 12, background: T.bg,
                 border: `1px solid ${T.line}`,
                 boxShadow: '0 10px 30px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06)',
                 zIndex: 11, overflow: 'hidden', animation: 'fadeIn .15s ease both',

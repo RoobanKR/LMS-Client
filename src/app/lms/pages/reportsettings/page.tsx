@@ -239,8 +239,8 @@ export default function ReportSettingsPage() {
 
     return (
         <DashboardLayout>
-            <motion.div variants={pageEnter} initial="hidden" animate="visible" className="flex h-full min-h-0 min-w-0 flex-col">
-                <div className="flex min-h-0 flex-1 flex-col px-4 pb-3 pt-14 sm:px-6 md:px-8 md:pt-3">
+            <motion.div variants={pageEnter} initial="hidden" animate="visible" className="flex min-h-full lg:h-full lg:min-h-0 min-w-0 flex-col">
+                <div className="flex min-h-0 flex-1 flex-col px-4 pb-3 pt-3 sm:px-6 md:px-8">
 
                     <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
                         <div className="flex min-w-0 items-center gap-2">
@@ -262,7 +262,7 @@ export default function ReportSettingsPage() {
                                 </p>
                             </div>
                         </div>
-                        <div className="flex shrink-0 items-center gap-2">
+                        <div className="flex flex-wrap shrink-0 items-center gap-2">
                             {dirty && <span className="text-[11px] font-medium text-warn-700">Unsaved changes</span>}
                             {!active && (
                                 <Button type="button" variant="outline" size="sm" className="text-xs"
@@ -284,7 +284,7 @@ export default function ReportSettingsPage() {
                         /* ── The list ─────────────────────────────────────── */
                         <div className="mt-3 min-h-0 flex-1 overflow-y-auto">
                             <div className="max-w-full overflow-x-auto rounded-xl border border-hairline bg-white">
-                                <table className="w-full border-collapse text-xs">
+                                <table className="w-full min-w-[760px] lg:min-w-0 border-collapse text-xs">
                                     <thead>
                                         <tr>
                                             {['S. No.', 'Report setting', 'In use', 'Drawn for', 'Page', ''].map((header, index) => (
@@ -371,7 +371,7 @@ export default function ReportSettingsPage() {
                                             {label}
                                         </Button>
                                     ))}
-                                    <span className="ml-auto flex items-center gap-1.5">
+                                    <span className="ml-auto flex flex-wrap items-center gap-1.5">
                                         <Button type="button" variant="outline" size="sm" className="text-[11px]" onClick={() => setConfirmLetterhead(true)}>
                                             <Stamp className="size-3.5" />Letterhead
                                         </Button>

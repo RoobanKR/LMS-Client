@@ -462,13 +462,12 @@ export default function BulkUserModal({ isOpen, onClose, roles, existingUsers = 
       {/* ── Main modal — Step 1 (config + upload) ─────────────────────────── */}
       <Dialog open={isOpen} onOpenChange={(o) => { if (!o && !busy) onClose(); }}>
         <DialogContent
-          className="!max-w-none flex flex-col gap-0 p-0 overflow-hidden rounded-2xl shadow-2xl bg-surface"
-          style={{ width: "95vw", height: "95vh" }}
+          className="!max-w-none w-[95vw] h-[95dvh] flex flex-col gap-0 p-0 overflow-hidden rounded-2xl shadow-2xl bg-surface"
           showCloseButton={false}
           onInteractOutside={(e) => e.preventDefault()}
         >
           {/* Header — title on the left; Template + Preview + X on the right */}
-          <DialogHeader className="px-6 pt-4 pb-3 border-b border-hairline">
+          <DialogHeader className="px-4 sm:px-6 pt-4 pb-3 border-b border-hairline">
             <div className="flex items-start justify-between gap-3">
               <DialogTitle className="text-base font-semibold text-heading text-left flex items-center gap-2">
                 <span className="w-7 h-7 rounded-tile bg-brand-wash flex items-center justify-center">
@@ -513,7 +512,7 @@ export default function BulkUserModal({ isOpen, onClose, roles, existingUsers = 
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5 space-y-4">
+          <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-5 space-y-4">
             {/* Config selectors — Role * / Client * / Service (Service unmarked) */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <Dropdown
@@ -677,7 +676,7 @@ export default function BulkUserModal({ isOpen, onClose, roles, existingUsers = 
             })()}
           </div>
 
-          <DialogFooter className="bg-surface px-6 pb-4 pt-3 border-t border-hairline">
+          <DialogFooter className="bg-surface px-4 sm:px-6 pb-4 pt-3 border-t border-hairline">
             <div className="flex w-full justify-end items-center">
               <Button
                 variant="outline"
@@ -697,12 +696,11 @@ export default function BulkUserModal({ isOpen, onClose, roles, existingUsers = 
           reopens via the Preview button in the main modal's header. */}
       <Dialog open={previewOpen && !!previewRows && !results} onOpenChange={(o) => { if (!o && !busy) setPreviewOpen(false); }}>
         <DialogContent
-          className="!max-w-none flex flex-col gap-0 p-0 overflow-hidden rounded-2xl shadow-2xl bg-surface"
-          style={{ width: "95vw", height: "95vh" }}
+          className="!max-w-none w-[95vw] h-[95dvh] flex flex-col gap-0 p-0 overflow-hidden rounded-2xl shadow-2xl bg-surface"
           showCloseButton={false}
           onInteractOutside={(e) => e.preventDefault()}
         >
-          <DialogHeader className="px-6 pt-4 pb-3 border-b border-hairline">
+          <DialogHeader className="px-4 sm:px-6 pt-4 pb-3 border-b border-hairline">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <DialogTitle className="text-base font-semibold text-heading text-left flex items-center gap-2">
@@ -738,7 +736,7 @@ export default function BulkUserModal({ isOpen, onClose, roles, existingUsers = 
             </div>
           </DialogHeader>
 
-          <div className="flex-1 overflow-hidden px-6 py-4 flex flex-col gap-3">
+          <div className="flex-1 overflow-hidden px-4 sm:px-6 py-4 flex flex-col gap-3">
             {/* Helper line only when there is actually something to add —
                 "click Add 0 Users" reads as nonsense when every row is an
                 existing / duplicate / invalid one. */}
@@ -750,7 +748,7 @@ export default function BulkUserModal({ isOpen, onClose, roles, existingUsers = 
 
             <div className="flex-1 min-h-0 border border-hairline rounded-tile overflow-hidden">
               <div className="h-full overflow-auto">
-                <table className="w-full text-xs">
+                <table className="w-full min-w-[760px] lg:min-w-0 text-xs">
                   <thead className="sticky top-0 z-20 bg-surface">
                     <tr className="text-2xs font-semibold uppercase tracking-wider text-subtle border-b border-hairline">
                       <th className="px-3 py-2 w-12 text-left">#</th>
@@ -786,7 +784,7 @@ export default function BulkUserModal({ isOpen, onClose, roles, existingUsers = 
             )}
           </div>
 
-          <DialogFooter className="bg-surface px-6 pb-4 pt-3 border-t border-hairline">
+          <DialogFooter className="bg-surface px-4 sm:px-6 pb-4 pt-3 border-t border-hairline">
             <div className="flex w-full justify-between items-center">
               <Button
                 variant="outline"

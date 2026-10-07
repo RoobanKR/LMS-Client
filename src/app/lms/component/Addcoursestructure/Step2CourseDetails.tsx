@@ -187,7 +187,7 @@ const LabelWithTooltip: React.FC<{ label: string; icon: any; required?: boolean;
 
 const HierarchySection: React.FC<Pick<Step2CourseDetailsProps, 'formData' | 'setFormData' | 'validationErrors' | 'setValidationErrors'>> = ({ formData, setFormData, validationErrors, setValidationErrors }) => (
     <div className="bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-xl p-4 shadow-sm">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
             <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <Folder className="h-4 w-4 text-orange-500 dark:text-orange-400" /> Course Hierarchy <span className="text-red-500">*</span>
             </h3>
@@ -237,7 +237,7 @@ const HierarchySection: React.FC<Pick<Step2CourseDetailsProps, 'formData' | 'set
 
 const PedagogySection: React.FC<{ formData: FormData; setFormData: React.Dispatch<React.SetStateAction<FormData>>; pedagogyActivities: PedagogyActivity[]; isLoadingServices: boolean }> = ({ formData, setFormData, pedagogyActivities, isLoadingServices }) => (
     <div className="bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-xl p-4 shadow-sm">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
             <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <GraduationCap className="h-5 w-5 text-orange-600 dark:text-orange-400" /> Pedagogy
             </h3>

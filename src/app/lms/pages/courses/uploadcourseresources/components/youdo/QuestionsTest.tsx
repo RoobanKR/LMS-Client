@@ -1610,7 +1610,7 @@ const QuestionsTest: React.FC<QuestionsTestProps> = ({
   // Delete Modal
   const DeleteConfirmModal = () => (
     <div className="fixed inset-0 flex items-center justify-center z-[1000]" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}>
-      <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden" style={{ boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
+      <div className="bg-white rounded-2xl w-full max-w-md mx-4 overflow-hidden" style={{ boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
         <div className="flex items-center justify-between p-4 border-b" style={{ borderColor: T.border }}>
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: T.redLight }}>
@@ -1888,7 +1888,7 @@ const QuestionsTest: React.FC<QuestionsTestProps> = ({
           the content, so on long lists the trainer had to scroll all the way
           down to reach it. Horizontal gutter matches the header / toolbar
           above so nothing steps out of the workspace's alignment. */}
-      <div ref={tableBodyRef} className="flex-1 min-h-0 overflow-hidden px-3 sm:px-4 md:px-6">
+      <div ref={tableBodyRef} className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden lg:overflow-hidden px-3 sm:px-4 md:px-6">
         {loading ? (
           // Full-panel loading state — same shared <Loading /> the first-load
           // block above uses. Takes the whole content area so it reads as a
@@ -1915,7 +1915,7 @@ const QuestionsTest: React.FC<QuestionsTestProps> = ({
           // Flat list — no card chrome / rounded border, so the list
           // matches Assessment's flat panel. Rows are separated by the
           // hairline tokens the shared DataTable rhythm uses.
-          <div className="bg-surface">
+          <div className="bg-surface min-w-[640px] lg:min-w-0">
             {/* Table Header — h-8 bg-canvas, uppercase text-subtle labels,
                 matching the DataTable / Assessment header rhythm. */}
             <div className="grid grid-cols-12 gap-3 h-8 items-center bg-canvas border-b border-hairline">
@@ -2895,7 +2895,7 @@ const QuestionsTest: React.FC<QuestionsTestProps> = ({
             <div className="fixed inset-0" style={{ zIndex: 100, background: 'rgba(15,15,30,0.55)', backdropFilter: 'blur(2px)' }} onClick={() => setPreviewQuestion(null)} />
             <div className="fixed inset-0 z-[101] flex items-center justify-center p-4" style={{ pointerEvents: 'none' }}>
               <div className="bg-white rounded-2xl shadow-2xl w-full flex flex-col overflow-hidden"
-                style={{ maxWidth: 640, maxHeight: '85vh', pointerEvents: 'auto', fontFamily: "'Poppins', sans-serif", border: `1px solid ${T.border}` }}>
+                style={{ maxWidth: 640, maxHeight: '85dvh', pointerEvents: 'auto', fontFamily: "'Poppins', sans-serif", border: `1px solid ${T.border}` }}>
                 <div className="flex-shrink-0 px-5 py-4 flex items-start justify-between gap-3" style={{ borderBottom: `1px solid ${T.border}`, background: T.pageBg }}>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 mb-1.5 flex-wrap">

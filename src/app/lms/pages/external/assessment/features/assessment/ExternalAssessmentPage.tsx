@@ -207,7 +207,7 @@ export default function ExternalAssessmentPage() {
           variants={pageEnter}
           initial="hidden"
           animate="visible"
-          className="flex flex-1 min-h-0 flex-col px-4 sm:px-6 lg:px-8 pt-3 pb-3 text-body"
+          className="flex flex-1 min-h-0 flex-col overflow-y-auto lg:overflow-visible px-4 sm:px-6 lg:px-8 pt-3 pb-3 text-body"
         >
           {/* ── Header ── */}
           <header className="shrink-0">
@@ -220,7 +220,7 @@ export default function ExternalAssessmentPage() {
 
             {/* ── Toolbar ── search · status · refresh │ create ── */}
             <div className="mt-2.5 flex items-center gap-2 flex-wrap min-w-0">
-              <div className="relative flex-1 min-w-[220px] max-w-md">
+              <div className="relative flex-1 min-w-[180px] sm:min-w-[220px] max-w-md">
                 <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
                 <input
                   placeholder="Search assessments…"
@@ -296,7 +296,7 @@ export default function ExternalAssessmentPage() {
           </header>
 
           {/* ── Body ── */}
-          <div className="mt-3 flex-1 min-h-0 flex flex-col">
+          <div className="mt-3 flex-1 min-h-[18rem] lg:min-h-0 flex flex-col">
             {error ? (
               <div className="m-4 p-4 rounded-tile border border-danger-500/20 bg-danger-50 text-center">
                 <AlertTriangle className="mx-auto h-5 w-5 text-danger-700" />
@@ -309,7 +309,10 @@ export default function ExternalAssessmentPage() {
               </div>
             ) : (
               <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-                <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+                <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto lg:overflow-x-hidden">
+                  {/* Below lg the fixed-width grid columns can't fit, so the
+                      rows keep a readable min width and scroll sideways. */}
+                  <div className={!isLoading && filtered.length === 0 ? 'min-w-0' : 'min-w-[820px] lg:min-w-0'}>
                   {/* Header row */}
                   <div style={rowBase} className="h-8 border-b border-hairline bg-canvas sticky top-0 z-10">
                     {['Assessment Name', 'Starts', 'Duration', 'Questions', 'Participants', 'Status', ''].map((h, i) => (
@@ -386,7 +389,7 @@ export default function ExternalAssessmentPage() {
                               type="button"
                               aria-label="Row actions"
                               onClick={() => setMenuFor(menuFor === a._id ? null : a._id)}
-                              className="inline-flex size-7 items-center justify-center rounded-control text-subtle hover:bg-ink-100 hover:text-heading transition-colors"
+                              className="inline-flex size-8 lg:size-7 items-center justify-center rounded-control text-subtle hover:bg-ink-100 hover:text-heading transition-colors"
                             >
                               <MoreVertical size={14} />
                             </button>
@@ -444,10 +447,11 @@ export default function ExternalAssessmentPage() {
                       );
                     })
                   )}
+                  </div>
                 </div>
 
                 {!isLoading && filtered.length > 0 && (
-                  <div className="shrink-0 grid grid-cols-[1fr_auto_1fr] items-center gap-3 border-t border-hairline px-1 py-2">
+                  <div className="shrink-0 grid grid-cols-1 justify-items-center sm:justify-items-stretch sm:grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-3 border-t border-hairline px-1 py-2">
                     <p className="text-2xs text-subtle tabular-nums truncate">
                       Showing <span className="font-semibold text-body">{rangeStart}-{rangeEnd}</span> of {filtered.length} assessments
                     </p>

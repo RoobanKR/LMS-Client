@@ -30,7 +30,7 @@ export const MCQConfiguration: React.FC<BaseConfigProps> = ({
   const isMatch = isEqual ? isApproximatelyEqual(allocated, totalToUse) : true;
   
   return (
-    <div className="px-10 pt-4 pb-6">
+    <div className="px-4 sm:px-6 lg:px-10 pt-4 pb-6">
       {/* Live Total / Used / Remaining — equal distribution fills the total
           as soon as a question count is typed. */}
       {isEqual && formData.isGraded !== false && (

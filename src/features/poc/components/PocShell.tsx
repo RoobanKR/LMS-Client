@@ -25,9 +25,9 @@ export function PocPage({
 }) {
   return (
     <div className="px-6 py-6 max-md:px-4">
-      <header className="mb-6 flex flex-wrap items-start justify-between gap-3 pr-28">
+      <header className="mb-6 flex flex-wrap items-start justify-between gap-3 lg:pr-28">
         <div>
-          <h1 className="text-[22px] font-semibold tracking-tight text-heading">{title}</h1>
+          <h1 className="text-lg sm:text-xl lg:text-[22px] font-semibold tracking-tight text-heading">{title}</h1>
           {subtitle ? <p className="mt-1 text-sm text-muted">{subtitle}</p> : null}
         </div>
         {actions}

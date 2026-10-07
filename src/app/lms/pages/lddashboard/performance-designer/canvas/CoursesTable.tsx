@@ -36,7 +36,7 @@ export function CoursesTable({
                 <div className="px-4 pb-4"><CanvasEmpty>No courses with learners in the current selection.</CanvasEmpty></div>
             ) : (
                 <div className="overflow-x-auto">
-                    <table className="w-full border-collapse">
+                    <table className="w-full min-w-[640px] border-collapse lg:min-w-0">
                         <thead>
                             <tr>
                                 {["Course", "Client", "Students", "Avg %", "Completed", "In progress", "Not started"].map((h, i) => (

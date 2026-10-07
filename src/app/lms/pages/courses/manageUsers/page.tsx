@@ -189,7 +189,7 @@ const UnlockModal: React.FC<UnlockModalProps> = ({ name, requireSchedule, onClos
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-md rounded-2xl overflow-hidden bg-surface shadow-xl border border-hairline"
+        className="relative w-full max-w-md max-h-[90dvh] rounded-2xl overflow-y-auto bg-surface shadow-xl border border-hairline"
         onClick={e => e.stopPropagation()}
       >
         <button
@@ -200,7 +200,7 @@ const UnlockModal: React.FC<UnlockModalProps> = ({ name, requireSchedule, onClos
           <X size={16} />
         </button>
 
-        <div className="flex flex-col items-center text-center px-7 pt-7 pb-3">
+        <div className="flex flex-col items-center text-center px-5 sm:px-7 pt-7 pb-3">
           <div className="flex items-center justify-center rounded-full mb-3 bg-warn-50 text-warn-700" style={{ width: 56, height: 56 }}>
             <AlertTriangle size={28} />
           </div>
@@ -212,12 +212,12 @@ const UnlockModal: React.FC<UnlockModalProps> = ({ name, requireSchedule, onClos
         </div>
 
         {requireSchedule ? (
-          <div className="px-7 pb-2">
+          <div className="px-5 sm:px-7 pb-2">
             <div className="rounded-tile p-3.5 bg-canvas border border-hairline">
               <p className="text-xs font-semibold mb-2.5 text-subtle">
                 The assessment window has ended — set a retest window for this student only
               </p>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-2xs font-semibold uppercase tracking-wider mb-1 text-subtle">Start</label>
                   <input
@@ -248,7 +248,7 @@ const UnlockModal: React.FC<UnlockModalProps> = ({ name, requireSchedule, onClos
             </div>
           </div>
         ) : (
-          <div className="px-7 pb-2">
+          <div className="px-5 sm:px-7 pb-2">
             <div className="rounded-tile p-3.5 bg-canvas border border-hairline">
               <p className="text-sm leading-relaxed text-subtle">
                 This assessment is still open, so no schedule is needed. Unlocking clears{" "}
@@ -258,7 +258,7 @@ const UnlockModal: React.FC<UnlockModalProps> = ({ name, requireSchedule, onClos
           </div>
         )}
 
-        <div className="flex items-center gap-3 px-7 py-5">
+        <div className="flex items-center gap-3 px-5 sm:px-7 py-5">
           <button
             onClick={onClose}
             disabled={loading}
@@ -859,8 +859,8 @@ function ManageUsersInner() {
         {/* ── Users List body ── */}
         {tab === "users" && (
           <div className="mt-3 flex flex-col rounded-xl border border-hairline bg-surface overflow-hidden">
-            <div className="overflow-y-auto overflow-x-hidden">
-              <table className="w-full border-collapse" style={{ tableLayout: "fixed" }}>
+            <div className="overflow-y-auto overflow-x-auto sm:overflow-x-hidden">
+              <table className="w-full min-w-[560px] sm:min-w-0 border-collapse" style={{ tableLayout: "fixed" }}>
                 <thead className="sticky top-0 z-sticky">
                   <tr>
                     <th className={`${HEAD_CELL} ${USERS_COL.user}`}>Student</th>
@@ -943,8 +943,8 @@ function ManageUsersInner() {
         {/* ── Request List body ── */}
         {tab === "requests" && (
           <div className="mt-3 flex flex-col rounded-xl border border-hairline bg-surface overflow-hidden">
-            <div className="overflow-y-auto overflow-x-hidden">
-              <table className="w-full border-collapse" style={{ tableLayout: "fixed" }}>
+            <div className="overflow-y-auto overflow-x-auto lg:overflow-x-hidden">
+              <table className="w-full min-w-[760px] lg:min-w-0 border-collapse" style={{ tableLayout: "fixed" }}>
                 <thead className="sticky top-0 z-sticky">
                   <tr>
                     <th className={`${HEAD_CELL} ${REQ_COL.user}`}>Student</th>
@@ -1107,7 +1107,7 @@ const SendMessageModal: React.FC<SendMessageModalProps> = ({ name, email, onClos
       className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-black/50"
       onMouseDown={(e) => { if (e.target === e.currentTarget && !sending) onClose(); }}
     >
-      <div className="w-full max-w-md rounded-2xl bg-surface shadow-xl border border-hairline overflow-hidden">
+      <div className="w-full max-w-md max-h-[90dvh] rounded-2xl bg-surface shadow-xl border border-hairline overflow-y-auto">
         <div className="flex items-center justify-between px-5 py-4 border-b border-hairline">
           <h2 className="text-md font-semibold text-heading">Send Message to Student</h2>
           <button
@@ -1218,7 +1218,7 @@ const BroadcastMessageModal: React.FC<BroadcastModalProps> = ({ open, onClose, o
       onMouseDown={(e) => { if (e.target === e.currentTarget && !sending) onClose(); }}
     >
       <div
-        className={`w-full max-w-md rounded-2xl bg-surface shadow-xl border border-hairline overflow-hidden transition-all duration-150 ${show ? "scale-100 translate-y-0 opacity-100" : "scale-95 translate-y-2 opacity-0"}`}
+        className={`w-full max-w-md max-h-[90dvh] rounded-2xl bg-surface shadow-xl border border-hairline overflow-y-auto transition-all duration-150 ${show ? "scale-100 translate-y-0 opacity-100" : "scale-95 translate-y-2 opacity-0"}`}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-hairline">
           <h2 className="text-md font-semibold text-heading">Send Message to All Students</h2>

@@ -941,7 +941,7 @@ const GenerateProgFamilyAI: React.FC<Props> = ({
 
   // ── Settings sidebar ──
   const renderSettingsSidebar = () => (
-    <div className="pf-sidebar-scroll"
+    <div className={`pf-sidebar-scroll${showRightSidebar ? ' max-md:!w-full max-md:!overflow-visible max-md:!border-l-0 max-md:border-t-[1.5px] max-md:border-[color:var(--pf-border)]' : ''}`}
       style={{ flexShrink: 0, overflowY: 'auto', borderLeft: '1.5px solid var(--pf-border)', background: 'var(--pf-bg-white)', transition: 'width 0.2s', width: showRightSidebar ? 256 : 0, overflow: showRightSidebar ? 'auto' : 'hidden' }}>
       {showRightSidebar && (
         <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -1127,11 +1127,11 @@ const GenerateProgFamilyAI: React.FC<Props> = ({
           style={{
             background: 'var(--pf-bg-white)', borderRadius: 'var(--pf-radius-lg)',
             boxShadow: '0 20px 60px rgba(0,0,0,0.2)', width: '100%', maxWidth: 960,
-            border: '1.5px solid var(--pf-border)', maxHeight: '92vh', overflow: 'hidden',
+            border: '1.5px solid var(--pf-border)', maxHeight: '92dvh', overflow: 'hidden',
             display: 'flex', flexDirection: 'column', position: 'relative',
           }}>
           {/* HEADER */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 20px', background: 'var(--pf-bg-white)', borderBottom: '1.5px solid var(--pf-border)', flexShrink: 0 }}>
+          <div className="max-sm:!px-3" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 20px', background: 'var(--pf-bg-white)', borderBottom: '1.5px solid var(--pf-border)', flexShrink: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
               <div style={{ width: 34, height: 34, borderRadius: 9, background: 'var(--pf-orange)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 3px 10px var(--pf-orange-glow)' }}>
                 <Sparkles size={16} style={{ color: 'white' }} />
@@ -1141,7 +1141,7 @@ const GenerateProgFamilyAI: React.FC<Props> = ({
                 <AIBreadcrumb breadcrumbs={breadcrumbs} exerciseName={exerciseName} title={meta.title} />
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 12 }}>
+            <div className="max-sm:!gap-1 max-sm:!ml-2" style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 12 }}>
               <button onClick={resetToInitial} title="Reset"
                 style={{ padding: 8, borderRadius: 8, border: 'none', background: 'none', cursor: 'pointer', color: 'var(--pf-text-muted)' }}>
                 <RefreshCw size={14} />
@@ -1183,11 +1183,11 @@ const GenerateProgFamilyAI: React.FC<Props> = ({
           )}
 
           {/* BODY */}
-          <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-            <div style={{ flex: 1, overflowY: 'auto', background: 'var(--pf-bg-white)' }}>
+          <div className="max-md:!flex-col max-md:!overflow-y-auto" style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+            <div className="max-md:!flex-none max-md:!overflow-visible" style={{ flex: 1, overflowY: 'auto', background: 'var(--pf-bg-white)' }}>
               {generatedQuestions.length === 0 ? (
                 /* Empty / generate prompt */
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100%', padding: 32 }}>
+                <div className="max-sm:!p-4" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100%', padding: 32 }}>
                   <div style={{ width: '100%', maxWidth: 480, display: 'flex', flexDirection: 'column', gap: 16 }}>
 
                     {error && (

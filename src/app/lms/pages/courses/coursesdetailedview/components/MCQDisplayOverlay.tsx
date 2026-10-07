@@ -76,9 +76,9 @@ function QuestionCard({ question, questionIndex, totalQuestions, onNext, onPrev,
 
   const gridClass = {
     1: "grid-cols-1",
-    2: "grid-cols-2",
-    3: "grid-cols-3",
-    4: "grid-cols-2",
+    2: "grid-cols-1 sm:grid-cols-2",
+    3: "grid-cols-1 sm:grid-cols-3",
+    4: "grid-cols-1 sm:grid-cols-2",
   }[Math.min(optionsPerRow, 4)] || "grid-cols-1";
 
   const allCorrect = revealed && selectedOption !== null && isCorrectOption(options[selectedOption]);

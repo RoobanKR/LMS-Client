@@ -58,7 +58,7 @@ export function EmptyState({
         <p className="mt-1 max-w-sm text-sm text-subtle">{message}</p>
       ) : null}
       {hasActions ? (
-        <div className="mt-4 flex items-center gap-2">
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
           {secondaryAction}
           {primaryAction}
         </div>

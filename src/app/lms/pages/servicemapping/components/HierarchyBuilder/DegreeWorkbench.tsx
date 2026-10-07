@@ -134,7 +134,7 @@ export default function DegreeWorkbench({ degree, courseApi, editableSemester, g
                         )
                     })}
                 </div>
-                <div className="flex items-center gap-2 pb-1.5">
+                <div className="flex flex-wrap items-center gap-2 pb-1.5">
                     <span className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-[#475467]">
                         Semester
                         <SettingsHelp content="Semesters are set up one at a time. The current one can be edited; earlier ones are view only (🔒)." />
@@ -209,7 +209,7 @@ export default function DegreeWorkbench({ degree, courseApi, editableSemester, g
 
                     {sections.length > 0 && (
                         <div className="mt-3 max-w-[860px]">
-                            <div className="grid grid-cols-[112px_minmax(0,1fr)_32px] items-center gap-3 border-b border-[#eaecf0] pb-1.5">
+                            <div className="grid grid-cols-[72px_minmax(0,1fr)_32px] items-center gap-2 border-b border-[#eaecf0] pb-1.5 sm:grid-cols-[112px_minmax(0,1fr)_32px] sm:gap-3">
                                 <span className={colHead}>Section</span>
                                 <span className={colHead}>Batches</span>
                                 <span />
@@ -219,7 +219,7 @@ export default function DegreeWorkbench({ degree, courseApi, editableSemester, g
                                 const existingCourses = courseApi.coursesAt(legacyPath(section.name))
                                 const batchErrors = section.batches.map((_, bi) => fieldErrors[`${key}:batch:${bi}`]).filter(Boolean)
                                 return <div key={i} className="border-b border-[#f2f4f7] py-2.5">
-                                    <div className="grid grid-cols-[112px_minmax(0,1fr)_32px] items-start gap-3">
+                                    <div className="grid grid-cols-[72px_minmax(0,1fr)_32px] items-start gap-2 sm:grid-cols-[112px_minmax(0,1fr)_32px] sm:gap-3">
                                         <Input id={`section-${i}`} value={section.name} aria-label={`Section ${i + 1} name`} readOnly={existingCourses.length > 0}
                                             title="A short name such as A, B or Morning" placeholder="A"
                                             onChange={(e) => updateSection(i, { name: e.target.value })} className={inputCls} aria-invalid={Boolean(fieldErrors[`${key}:name`])} />
@@ -230,7 +230,7 @@ export default function DegreeWorkbench({ degree, courseApi, editableSemester, g
                                                         onChange={(e) => updateSection(i, { batches: section.batches.map((b, n) => n === bi ? e.target.value : b) })} />
                                                     <button type="button" aria-label={`Remove batch ${bi + 1} from ${sectionLabel(section.name)}`} title="Remove batch"
                                                         onClick={() => updateSection(i, { batches: section.batches.filter((_, n) => n !== bi) })}
-                                                        className="flex h-6 w-6 items-center justify-center rounded-full text-[#98a2b3] hover:bg-danger-50 hover:text-danger-700"><X size={13} /></button>
+                                                        className="flex h-8 w-8 items-center justify-center rounded-full text-[#98a2b3] hover:bg-danger-50 hover:text-danger-700 lg:h-6 lg:w-6"><X size={13} /></button>
                                                 </span>
                                             ))}
                                             {!section.batches.length && <span className="text-[12.5px] text-[#98a2b3]">No batches: the whole section studies together.</span>}

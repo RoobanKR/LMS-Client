@@ -149,7 +149,7 @@ export default function ForgotPasswordPage() {
  
   return (
     <>
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-200">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-200 px-4 py-6 sm:px-6 lg:px-0 lg:py-0">
         <Card className="w-full max-w-md shadow-xl border-0">
           <CardHeader className="flex flex-col items-center gap-2 pb-0">
             {step === "forgotpassword" && (
@@ -164,7 +164,7 @@ export default function ForgotPasswordPage() {
             {step === "done" && (
               <ShieldCheckIcon className="h-10 w-10 text-green-600 mb-2" />
             )}
-            <CardTitle className="text-2xl font-bold text-gray-900 animate-in fade-in-0 slide-in-from-bottom-4 duration-500 ease-in-out">
+            <CardTitle className="text-xl sm:text-2xl text-center font-bold text-gray-900 animate-in fade-in-0 slide-in-from-bottom-4 duration-500 ease-in-out">
               {step === "forgotpassword" && "Forgot Password?"}
               {step === "otp" && "Enter Verification Code"}
               {step === "reset" && "Set a New Password"}
@@ -263,7 +263,7 @@ export default function ForgotPasswordPage() {
                   pattern="^[0-9]+$"
                   className="justify-center"
                 >
-                  <InputOTPGroup className="flex gap-x-5">
+                  <InputOTPGroup className="flex gap-x-2 sm:gap-x-5">
                     {[...Array(OTP_LENGTH)].map((_, idx) => (
                       <InputOTPSlot
                         key={idx}
@@ -340,7 +340,7 @@ export default function ForgotPasswordPage() {
                 Contact support
               </a>
             </div>
-            <div className="flex gap-2 text-xs text-gray-400">
+            <div className="flex flex-wrap justify-center gap-2 text-xs text-gray-400">
               <span>© {new Date().getFullYear()} YourApp</span>
               <span>•</span>
               <a href="/privacy" className="hover:underline">

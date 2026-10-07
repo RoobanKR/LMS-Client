@@ -67,7 +67,7 @@ function StudentFollowUp({ learners }: { learners: StudentRow[] }) {
       <p className="mt-3 max-w-4xl text-xs leading-relaxed text-subtle">{selected.explanation}</p>
       {!rows.length ? <EmptyState title="No students in this group" hint="Choose another group to review its students." /> : <>
         <div className="mt-4 overflow-x-auto">
-          <table className="w-full text-left text-sm">
+          <table className="w-full min-w-[640px] text-left text-sm lg:min-w-0">
             <caption className="sr-only">{selected.label}: students and course progress</caption>
             <thead className="border-b border-hairline bg-canvas text-xs text-subtle">
               <tr>
@@ -164,7 +164,7 @@ export function TeachingOverview({ data }: { data: UseTrainerDashboard }) {
       <div id="todays-batches" className="scroll-mt-4 @5xl:col-span-2">
         <SectionCard title="Today's batches" meta={`${count(pending)} attendance pending`}>
           {!batchesToday.length ? <EmptyState title="No batches scheduled today" hint="Scheduled teaching batches appear here with their attendance status." /> : <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
+            <table className="w-full min-w-[480px] text-left text-sm lg:min-w-0">
               <caption className="sr-only">Today’s teaching batches and attendance status</caption>
               <thead className="border-b border-hairline bg-canvas text-xs text-subtle">
                 <tr>
@@ -244,7 +244,7 @@ export function TeachingOverview({ data }: { data: UseTrainerDashboard }) {
     <div id="course-performance" className="scroll-mt-4">
       <SectionCard title="My courses at a glance" meta={`${count(coursePerf.length)} courses`}>
         {!coursePerf.length ? <EmptyState title="No courses assigned yet" hint="Courses appear here when you are assigned to their teaching batches." /> : <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+          <table className="w-full min-w-[760px] text-left text-sm lg:min-w-0">
             <caption className="sr-only">Your courses with separate We Do and You Do activity scores</caption>
             <thead className="border-b border-hairline bg-canvas text-xs text-subtle">
               <tr>{["Course", "Enrolments", "Learning progress", "We Do score", "You Do score", "Below 50% progress", "Action"].map((heading) => <th key={heading} scope="col" className="px-3 py-3">{heading}</th>)}</tr>

@@ -26,14 +26,14 @@ export function Toolbar({ search, filters, actions, className }: ToolbarProps) {
       )}
     >
       {search ? (
-        <div className="relative">
+        <div className="relative w-full sm:w-auto">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-faint" />
           <input
             type="text"
             value={search.value}
             onChange={(event) => search.onChange(event.target.value)}
             placeholder={search.placeholder ?? "Search…"}
-            className="h-9 w-64 rounded-control border border-hairline-strong bg-surface pl-9 pr-3 text-sm text-body placeholder:text-faint transition-colors focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15"
+            className="h-9 w-full sm:w-64 rounded-control border border-hairline-strong bg-surface pl-9 pr-3 text-sm text-body placeholder:text-faint transition-colors focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15"
           />
         </div>
       ) : null}
@@ -42,7 +42,7 @@ export function Toolbar({ search, filters, actions, className }: ToolbarProps) {
       ) : null}
       <div className="flex-1" />
       {actions ? (
-        <div className="flex items-center gap-2">{actions}</div>
+        <div className="flex flex-wrap items-center gap-2">{actions}</div>
       ) : null}
     </div>
   );
