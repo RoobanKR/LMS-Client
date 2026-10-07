@@ -525,6 +525,10 @@ const getQuotaForDiff = useCallback((d: Diff): number => {
   // evaluationMethod is 'ai' and testCasesCountMode is 'perQuestion'.
   // Otherwise stored-but-unused (harmless). null = not set (legacy questions).
   const [aiTestCasesCount, setAiTestCasesCount] = useState<number | null>(null);
+  // Sample Input / Output — info shown to students with the question. Not run
+  // and not graded: the test cases stay separate and are what Run / Submit use.
+  const [sampleInputText, setSampleInputText] = useState('');
+  const [sampleOutputText, setSampleOutputText] = useState('');
   // Link-question mode: the toolbar radio switches the WHOLE form down to one
   // URL input; only that link is required to save. Students then get the URL
   // in an iframe instead of the question+compiler workspace.
@@ -854,17 +858,18 @@ const getQuotaForDiff = useCallback((d: Diff): number => {
 
   const hasUnsavedFormChanges = useMemo((): boolean => {
     const currentQ = flowQuestions[currentIndex];
-    if (!currentQ || (!currentQ._id && !currentQ.isSaved && !currentQ.isPreExisting)) return !!(getTitleText(titleBlocks) || desc.trim() || category || tags.length > 0);
+    if (!currentQ || (!currentQ._id && !currentQ.isSaved && !currentQ.isPreExisting)) return !!(getTitleText(titleBlocks) || desc.trim() || category || tags.length > 0 || sampleInputText.trim() || sampleOutputText.trim());
     if (isEditMode && currentQ) {
       const existingDesc = typeof currentQ.description === 'object' ? currentQ.description?.text || '' : currentQ.description || '';
       const existingTags: string[] = Array.isArray((currentQ as any).tags) ? (currentQ as any).tags : [];
       const tagsChanged = tags.length !== existingTags.length || tags.some((t, i) => t !== existingTags[i]);
       return getTitleText(titleBlocks) !== (Array.isArray(currentQ.title) ? getTitleText(currentQ.title as any) : currentQ.title || '') || desc !== existingDesc || score !== (currentQ.score || 0) || timeLimit !== (currentQ.timeLimit || 2000) || memLimit !== (currentQ.memoryLimit || 256)
         || isLinkQuestion !== (currentQ.isLinkQuestion === true) || questionLink.trim() !== (currentQ.questionLink || '')
-        || category !== ((currentQ as any).category || '') || tagsChanged;
+        || category !== ((currentQ as any).category || '') || tagsChanged
+        || sampleInputText !== ((currentQ as any).sampleInput || '') || sampleOutputText !== ((currentQ as any).sampleOutput || '');
     }
     return false;
-  }, [flowQuestions, currentIndex, isEditMode, titleBlocks, desc, score, timeLimit, memLimit, isLinkQuestion, questionLink, category, tags]);
+  }, [flowQuestions, currentIndex, isEditMode, titleBlocks, desc, score, timeLimit, memLimit, isLinkQuestion, questionLink, category, tags, sampleInputText, sampleOutputText]);
 
   const hasSavedQuestionsInSession = useMemo((): boolean =>
     flowQuestions.some(q => q.isSaved || q._id || serverIdMap.current.has(q.__localId)),
@@ -937,6 +942,8 @@ const getQuotaForDiff = useCallback((d: Diff): number => {
       }))
     );
     setScore(q.score || 0);
+    setSampleInputText(typeof q.sampleInput === 'string' ? q.sampleInput : '');
+    setSampleOutputText(typeof q.sampleOutput === 'string' ? q.sampleOutput : '');
     setTL(q.timeLimit || 2000);
     setML(q.memoryLimit || 256);
     setTcs(
@@ -1017,6 +1024,7 @@ const getQuotaForDiff = useCallback((d: Diff): number => {
     setScore(defaultScore ?? (isGeneral ? generalMPQ : isScoreEditable(currentDiff) ? 0 : getFixedScore(currentDiff)));
     setTL(2000); setML(256); setTcs([mkTC(0)]); setErrs({}); setTouched(new Set()); setIsEditMode(false);
     setAiTestCasesCount(null);
+    setSampleInputText(''); setSampleOutputText('');
     setIsLinkQuestion(false); setQuestionLink('');
     setStarterCode(''); setSolutionCode('');
     // Execution setup back to defaults (fullProgram + blank editor)
@@ -1070,6 +1078,8 @@ const getQuotaForDiff = useCallback((d: Diff): number => {
       aiTestCasesCount,
       isLinkQuestion,
       questionLink: questionLink.trim(),
+      sampleInput: sampleInputText,
+      sampleOutput: sampleOutputText,
       starterCode,
       solutionCode,
       codeSetupLanguage,
@@ -1130,6 +1140,9 @@ const getQuotaForDiff = useCallback((d: Diff): number => {
       difficulty: isGeneral ? 'medium' : currentDiff,
       score: finalScore,
       points: finalScore,
+      // Info-only sample shown with the question; never run or graded.
+      sampleInput: isLinkQuestion ? '' : sampleInputText,
+      sampleOutput: isLinkQuestion ? '' : sampleOutputText,
       constraints: constraints.filter(c => c.trim()),
       hints: allHints,
       testCases: tcs.map((tc, i) => ({
@@ -1515,18 +1528,10 @@ const handleBankSelectedQuestions = useCallback((selected: any[], sourceTag?: st
         explanation: tc.explanation || `Test Case`,
         sequence: tc.sequence || 0,
       }));
-    } else if (q.sampleInput && q.sampleOutput) {
-      testCasesList = [{
-        input: q.sampleInput,
-        expectedOutput: q.sampleOutput,
-        isSample: true,
-        isHidden: false,
-        points: 1,
-        explanation: 'Sample Test Case',
-        sequence: 0,
-      }];
     }
-    
+    // Sample Input / Output is the worked example shown with the question —
+    // info, never a test case (it rides along as sampleInput / sampleOutput).
+
     // If no test cases, create a default one
     if (testCasesList.length === 0) {
       testCasesList = [mkTC(0)];
@@ -1574,6 +1579,8 @@ const handleBankSelectedQuestions = useCallback((selected: any[], sourceTag?: st
     return {
       title: titleText || 'Untitled Programming Question',
       description: descriptionBlocks,
+      sampleInput: typeof q.sampleInput === 'string' ? q.sampleInput : '',
+      sampleOutput: typeof q.sampleOutput === 'string' ? q.sampleOutput : '',
       difficulty: difficulty,
       score: questionScore,
       constraints: constraintsList,
@@ -1677,6 +1684,8 @@ const handleBankSelectedQuestions = useCallback((selected: any[], sourceTag?: st
       isPreExisting: false,
       starterCode: (base as any).starterCode || '',
       solutionCode: (base as any).solutionCode || '',
+      sampleInput: base.sampleInput || '',
+      sampleOutput: base.sampleOutput || '',
       codeSetupLanguage: (base as any).codeSetupLanguage,
       executionType: (base as any).executionType || 'fullProgram',
       functionContract: (base as any).functionContract || mkFunctionContract(),
@@ -2011,6 +2020,8 @@ const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean
       difficulty: d,
       score: finalScore,
       points: finalScore,
+      sampleInput: isLink ? '' : (q.sampleInput || ''),
+      sampleOutput: isLink ? '' : (q.sampleOutput || ''),
       constraints: (q.constraints || []).filter((c: string) => (c || '').trim()),
       hints: q.hints || [],
       testCases: (q.testCases || []).map((tc: any, i: number) => ({
@@ -3659,6 +3670,39 @@ const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean
               <div className="lms-editor-meta">
                 <span>Markdown supported</span>
                 <span>{desc.replace(/<[^>]*>/g, '').length.toLocaleString()} / 5,000</span>
+              </div>
+            </div>
+
+            {/* ── Sample Input & Output ── info shown to students with the
+                question. Not run and not graded: the test cases stay
+                separate and are what Run / Submit use. */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label className="prog-label" style={{ margin: 0 }}>
+                Sample Input &amp; Output <span style={{ fontWeight: 400, color: 'var(--lms-text-hint)', textTransform: 'none', letterSpacing: 0, fontSize: 11 }}>(Optional · shown to students, not used for evaluation)</span>
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 10 }}>
+                {([
+                  { key: 'in', label: 'Sample Input', value: sampleInputText, set: setSampleInputText, ph: 'e.g.\n5\n1 2 3 4 5' },
+                  { key: 'out', label: 'Sample Output', value: sampleOutputText, set: setSampleOutputText, ph: 'e.g.\n15' },
+                ] as const).map(f => (
+                  <div key={f.key} style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+                    <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, fontWeight: 600, color: 'var(--lms-text-sub, #475467)' }}>{f.label}</span>
+                    <textarea
+                      value={f.value}
+                      onChange={e => f.set(e.target.value)}
+                      disabled={isFormDisabled}
+                      rows={4}
+                      placeholder={f.ph}
+                      className="lms-input"
+                      spellCheck={false}
+                      style={{
+                        height: 'auto', minHeight: 88, resize: 'vertical', padding: '8px 10px',
+                        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: 12, lineHeight: 1.5,
+                        whiteSpace: 'pre', overflowX: 'auto',
+                      }}
+                    />
+                  </div>
+                ))}
               </div>
             </div>
 

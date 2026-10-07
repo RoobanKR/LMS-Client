@@ -16,7 +16,7 @@
 /**
  * First visible example input for a question, or '' when it has none.
  * Tolerates every shape the authoring surfaces have produced over time:
- * `testCases[]` rows, a legacy `sampleInput` string, or already-converted
+ * `testCases[]` rows or already-converted
  * `examples[]` rows.
  */
 export function firstSampleInput(question: any): string {
@@ -26,10 +26,6 @@ export function firstSampleInput(question: any): string {
   const visible = cases.find((tc: any) => tc && !tc.isHidden);
   if (visible && typeof visible.input === 'string' && visible.input !== '') {
     return visible.input;
-  }
-
-  if (typeof question.sampleInput === 'string' && question.sampleInput !== '') {
-    return question.sampleInput;
   }
 
   const examples = Array.isArray(question.examples) ? question.examples : [];

@@ -197,6 +197,11 @@ export interface ParsedProgrammingQuestion {
   marks?: number;
   /** True when the document itself stated the difficulty (vs the 'medium' default). */
   difficultyDeclared?: boolean;
+  /** The paper's "Sample Input:" / "Sample Output:" — the worked example
+   *  shown with the question. Info only: it is NOT one of `testCases`, which
+   *  come from the paper's "Input:" / "Output:" pairs. */
+  sampleInput?: string;
+  sampleOutput?: string;
 }
 
 /**
@@ -456,6 +461,7 @@ const escapeHtml = (s: string): string =>
  */
 function buildDescriptionHtml(d: {
   statement: string[]; inputFormat: string[]; outputFormat: string[]; complexity: string[]; notes: string[];
+  sampleExplanation?: string[];
 }): string {
   const out: string[] = [];
   const para = (lines: string[]) => joinProseWrapped(lines).map(l => `<p>${escapeHtml(l)}</p>`).join('');
@@ -465,12 +471,13 @@ function buildDescriptionHtml(d: {
   out.push(para(d.statement));
   if (d.inputFormat.length) out.push('<p><b>Input Format</b></p>', list(d.inputFormat));
   if (d.outputFormat.length) out.push('<p><b>Output Format</b></p>', list(d.outputFormat));
+  if (d.sampleExplanation?.length) out.push('<p><b>Sample Explanation</b></p>', para(d.sampleExplanation));
   if (d.notes.length) out.push('<p><b>Notes</b></p>', para(d.notes));
   if (d.complexity.length) out.push(`<p><b>Expected Complexity:</b> ${escapeHtml(d.complexity.join(' '))}</p>`);
   return out.join('');
 }
 
-interface RawDocCase { input: string[]; output: string[]; explanation: string[]; hidden: boolean }
+interface RawDocCase { input: string[]; output: string[]; explanation: string[]; hidden: boolean; sample?: boolean }
 
 function parseDocChunk(header: DocHeader, body: string[]): ParsedProgrammingQuestion | null {
   const statement: string[] = [];
@@ -512,6 +519,7 @@ function parseDocChunk(header: DocHeader, body: string[]): ParsedProgrammingQues
       // A second "Input:" after the current case already has its output starts
       // the NEXT case (papers that list bare Input:/Output: pairs).
       const c = cur && cur.output.length === 0 ? cur : openCase(hiddenDefault || /^hidden/i.test(line));
+      if (/^sample/i.test(line)) c.sample = true;
       capture = 'input';
       if (inp[1].trim()) c.input.push(inp[1].trim());
       return true;
@@ -519,6 +527,7 @@ function parseDocChunk(header: DocHeader, body: string[]): ParsedProgrammingQues
     const outp = line.match(TC_OUTPUT);
     if (outp) {
       const c = cur ?? openCase(hiddenDefault);
+      if (/^sample/i.test(line)) c.sample = true;
       capture = 'output';
       if (outp[1].trim()) c.output.push(outp[1].trim());
       return true;
@@ -594,7 +603,13 @@ function parseDocChunk(header: DocHeader, body: string[]): ParsedProgrammingQues
     bucket().push(line);
   }
 
+  // The paper's "Sample Input:" / "Sample Output:" is the worked example shown
+  // with the question — info, NOT a test case. The test cases are only the
+  // "Input:" / "Output:" pairs. (A second sample block stays a test case so
+  // nothing written in the paper is lost.)
+  const sampleCase = cases.find(c => c.sample);
   const testCases: ParsedTestCase[] = cases
+    .filter(c => c !== sampleCase)
     .map(c => ({
       input: normalizeStdinInput(c.input.join('\n')),
       expectedOutput: normalizeStdinOutput(c.output.join('\n')),
@@ -606,7 +621,12 @@ function parseDocChunk(header: DocHeader, body: string[]): ParsedProgrammingQues
     }))
     .filter(tc => tc.input !== '' || tc.expectedOutput !== '');
 
-  const description = buildDescriptionHtml({ statement, inputFormat, outputFormat, complexity, notes });
+  // ...kept exactly as written, with its explanation in the description.
+  const sampleInput = sampleCase ? sampleCase.input.join('\n').trim() : '';
+  const sampleOutput = sampleCase ? sampleCase.output.join('\n').trim() : '';
+  const sampleExplanation = sampleCase ? sampleCase.explanation.filter(l => l.trim()) : [];
+
+  const description = buildDescriptionHtml({ statement, inputFormat, outputFormat, complexity, notes, sampleExplanation });
   if (!header.title && !description) return null;
 
   return {
@@ -619,6 +639,7 @@ function parseDocChunk(header: DocHeader, body: string[]): ParsedProgrammingQues
     constraints: joinBulletWrapped(constraints).map(stripBullet).filter(Boolean),
     testCases: orderTestCases(testCases),
     ...(header.marks !== undefined ? { marks: header.marks } : {}),
+    ...(sampleInput || sampleOutput ? { sampleInput, sampleOutput } : {}),
   };
 }
 

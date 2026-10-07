@@ -164,8 +164,9 @@ const getQuestionHtml = (q: any): string => {
 }
 
 // The question's first example — the same case the problem panel shows as
-// "Example 1": the first non-hidden test case, else the legacy sampleInput /
-// sampleOutput pair. Shaped as a judge test case. Null when there is none.
+// "Example 1": the first non-hidden test case. Shaped as a judge test case.
+// Null when there is none. (The question's Sample Input / Output is info
+// only — shown with the question, never run.)
 const firstExampleCase = (q: any): { input: string; expectedOutput: string; expectedType?: string; epsilon?: number } | null => {
   const tc = (Array.isArray(q?.testCases) ? q.testCases : [])
     .filter((t: any) => t && t.isHidden !== true)
@@ -176,11 +177,7 @@ const firstExampleCase = (q: any): { input: string; expectedOutput: string; expe
       epsilon: t.epsilon,
     }))
     .find((t: any) => t.input || t.expectedOutput)
-  if (tc) return tc
-  if (q?.sampleInput || q?.sampleOutput) {
-    return { input: String(q.sampleInput || ""), expectedOutput: String(q.sampleOutput || "") }
-  }
-  return null
+  return tc || null
 }
 
 // Build a FileNode from a {path, content} draft/submission record.
@@ -2146,11 +2143,10 @@ export default function MultiFileCodeEditor({
     </div>
   ) : null
 
-  // Build examples list — fallback to handle any question shape:
-  //   1. ALL non-hidden testCases (matches code-editor.tsx logic — the forms
-  //      only flag the first case isSample, so preferring flagged samples
-  //      collapsed a multi-case question to one example)
-  //   2. Legacy sampleInput / sampleOutput strings
+  // Examples = ALL non-hidden testCases (matches code-editor.tsx logic — the
+  // forms only flag the first case isSample, so preferring flagged samples
+  // collapsed a multi-case question to one example). The question's own
+  // Sample Input / Output is shown separately, as info.
   const _tcs: any[] = (currentQuestion as any)?.testCases || []
   const _visibleTcs = _tcs.filter((tc: any) => tc.isHidden !== true)
   const examples: Array<{ input: string; output: string; explanation?: string }> = _visibleTcs.length > 0
@@ -2161,9 +2157,9 @@ export default function MultiFileCodeEditor({
           explanation: tc.explanation || "Sample test case",
         }))
         .filter(e => e.input || e.output)
-    : ((currentQuestion as any)?.sampleInput || (currentQuestion as any)?.sampleOutput)
-      ? [{ input: (currentQuestion as any).sampleInput || "", output: (currentQuestion as any).sampleOutput || "", explanation: "Sample input and output" }]
-      : []
+    : []
+  const sampleIn: string = (currentQuestion as any)?.sampleInput || ""
+  const sampleOut: string = (currentQuestion as any)?.sampleOutput || ""
   const hintsList: string[] = ((currentQuestion as any)?.hints || [])
     .filter((h: any) => h && (h.isPublic === undefined || h.isPublic === true))
     .map((h: any) => (typeof h === "string" ? h : (h.hintText || h.text || "")))
@@ -2199,12 +2195,34 @@ export default function MultiFileCodeEditor({
         <div className="prose prose-sm max-w-none text-gray-800" dangerouslySetInnerHTML={{ __html: getQuestionHtml(currentQuestion) || exercise?.exerciseInformation?.description || "<p>Solve the problem using the editor on the right.</p>" }} />
       </div>
 
-      {/* Sample Input & Output */}
-      {examples.length > 0 && (
+      {/* Sample Input & Output — the author's info-only sample */}
+      {(sampleIn || sampleOut) && (
         <div>
           <div className="flex items-center gap-1.5 mb-2">
             <TerminalIcon className="w-3.5 h-3.5 text-green-500" />
             <h3 className="text-xs font-semibold text-gray-900">Sample Input &amp; Output</h3>
+          </div>
+          {sampleIn && (
+            <div>
+              <div className="text-2xs font-medium text-gray-700 mb-0.5">Sample Input:</div>
+              <pre className="bg-gray-50 border border-gray-200 p-2 rounded text-2xs overflow-x-auto whitespace-pre-wrap">{sampleIn}</pre>
+            </div>
+          )}
+          {sampleOut && (
+            <div className="mt-1.5">
+              <div className="text-2xs font-medium text-gray-700 mb-0.5">Sample Output:</div>
+              <pre className="bg-gray-50 border border-gray-200 p-2 rounded text-2xs overflow-x-auto whitespace-pre-wrap">{sampleOut}</pre>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Examples — the visible test cases */}
+      {examples.length > 0 && (
+        <div>
+          <div className="flex items-center gap-1.5 mb-2">
+            <TerminalIcon className="w-3.5 h-3.5 text-green-500" />
+            <h3 className="text-xs font-semibold text-gray-900">Examples</h3>
           </div>
           <div className="flex flex-col gap-3">
             {examples.map((ex, ei) => (

@@ -432,11 +432,9 @@ const convertExerciseToProblems = (exercise: Exercise): ProblemData[] => {
                 input: tc.input,
                 output: tc.expectedOutput,
                 explanation: tc.explanation || "Sample test case"
-            })) || (question.sampleInput ? [{
-                input: question.sampleInput,
-                output: question.sampleOutput,
-                explanation: "Sample input and output"
-            }] : []),
+            })) || [],
+        // (The question's Sample Input / Output is info only — shown on its own
+        // in the problem panel, never run.)
         constraints: question.constraints || [],
         initialCode: question.starterCode || question.solutions?.startedCode || question.solutions?.staetedCode ||
             (() => {
@@ -3477,7 +3475,7 @@ else:
             // is the old behaviour until the student edits it.
             const runInput = customInput !== ''
                 ? customInput
-                : (problem?.examples?.[0]?.input || currentQuestion?.sampleInput || "");
+                : (problem?.examples?.[0]?.input || "");
 
             const executionResult = await executeCode(runInput);
 
@@ -5424,11 +5422,33 @@ else:
                                 />
                             </div>
 
-                            {problem?.examples && problem.examples.length > 0 && (
+                            {/* Sample Input & Output — the author's info-only sample (never run) */}
+                            {(currentQuestion?.sampleInput || currentQuestion?.sampleOutput) && (
                                 <div>
                                     <div className="flex items-center gap-1.5 mb-2">
                                         <Terminal className={`w-4 h-4 ${theme === 'dark' ? 'text-green-400' : 'text-green-500'}`} />
                                         <h3 className={`text-sm font-semibold ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>Sample Input & Output</h3>
+                                    </div>
+                                    {currentQuestion?.sampleInput && (
+                                        <div className="mt-1 mb-2">
+                                            <div className={`text-xs font-medium mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-700'}`}>Sample Input:</div>
+                                            <div className={`p-2 rounded font-mono text-xs whitespace-pre-wrap ${theme === 'dark' ? 'bg-gray-800 text-gray-300 border border-gray-700' : 'bg-gray-100 text-gray-900 border border-gray-200'}`}>{currentQuestion.sampleInput}</div>
+                                        </div>
+                                    )}
+                                    {currentQuestion?.sampleOutput && (
+                                        <div className="mb-2">
+                                            <div className={`text-xs font-medium mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-700'}`}>Sample Output:</div>
+                                            <div className={`p-2 rounded font-mono text-xs whitespace-pre-wrap ${theme === 'dark' ? 'bg-gray-800 text-gray-300 border border-gray-700' : 'bg-gray-100 text-gray-900 border border-gray-200'}`}>{currentQuestion.sampleOutput}</div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {problem?.examples && problem.examples.length > 0 && (
+                                <div>
+                                    <div className="flex items-center gap-1.5 mb-2">
+                                        <Terminal className={`w-4 h-4 ${theme === 'dark' ? 'text-green-400' : 'text-green-500'}`} />
+                                        <h3 className={`text-sm font-semibold ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>Examples</h3>
                                     </div>
                                     <div className="space-y-3">
                                         {problem.examples.map((example, index) => (

@@ -64,6 +64,8 @@ export const dbQuestionToFlow = (q: any): FlowQuestion => {
     isPreExisting: true,
     isLinkQuestion: q.isLinkQuestion === true,
     questionLink: q.questionLink || '',
+    sampleInput: typeof q.sampleInput === 'string' ? q.sampleInput : '',
+    sampleOutput: typeof q.sampleOutput === 'string' ? q.sampleOutput : '',
     starterCode: typeof q.starterCode === 'string' ? q.starterCode : '',
     solutionCode: typeof q.solutionCode === 'string' ? q.solutionCode : '',
     codeSetupLanguage: typeof q.codeSetupLanguage === 'string' ? q.codeSetupLanguage : undefined,

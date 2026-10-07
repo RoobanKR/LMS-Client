@@ -62,6 +62,9 @@ export interface FlowQuestion {
   // get the URL in an iframe instead of the question+compiler workspace.
   isLinkQuestion?: boolean;
   questionLink?: string;
+  // Info-only sample shown with the question (not run, not graded).
+  sampleInput?: string;
+  sampleOutput?: string;
   // Code Setup — Starter is shown to students when an attempt begins.
   // Solution is the reference solution used for validation; never leaks to the learner UI.
   starterCode?: string;
