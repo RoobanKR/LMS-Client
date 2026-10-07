@@ -61,10 +61,10 @@ export default function OverallMarksCard({
         </svg>
 
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-[23px] font-bold leading-none tracking-[-0.02em] tabular-nums text-[#0B1437]">
+          <span className="text-[18px] font-bold leading-none tracking-[-0.02em] tabular-nums text-[#0B1437]">
             {earned} / {total}
           </span>
-          <span className="mt-1.5 text-[12px] font-semibold tabular-nums text-[#39496B]">
+          <span className="mt-1 text-[11px] font-semibold tabular-nums text-[#39496B]">
             {pct}%
           </span>
         </div>
