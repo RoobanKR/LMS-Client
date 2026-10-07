@@ -195,6 +195,8 @@ export interface ParsedProgrammingQuestion {
   testCases: ParsedTestCase[];
   /** Marks declared on the paper's header line, when it carries one. */
   marks?: number;
+  /** True when the document itself stated the difficulty (vs the 'medium' default). */
+  difficultyDeclared?: boolean;
 }
 
 /**
@@ -357,6 +359,12 @@ interface DocHeader { title: string; difficulty?: string; marks?: number }
 const HEADER_DIFF = /^(easy|medium|hard|beginner|intermediate|advanced|simple|moderate|difficult|expert)$/i;
 const HEADER_MARKS = /^(\d+(?:\.\d+)?)\s*(?:marks?|points?|pts?)$/i;
 
+// "Difficulty: Easy" / "Level - Hard" / "Difficulty Level: Medium" on a line of
+// its own. The value must be a known difficulty word, so "Level order
+// traversal" or "Level: 3" are never read as one.
+const DIFF_LABEL_LINE =
+  /^(?:difficulty(?:\s*level)?|level|complexity\s*level)\s*[:.\-–—]?\s*(easy|medium|hard|beginner|intermediate|advanced|simple|moderate|difficult|expert)\s*\.?$/i;
+
 /** "Find Pivot Index | Easy | 10 Marks" → title + difficulty + marks, order-insensitive. */
 function parseDocHeader(line: string): DocHeader | null {
   if (!line.includes('|')) return null;
@@ -501,7 +509,9 @@ function parseDocChunk(header: DocHeader, body: string[]): ParsedProgrammingQues
 
     const inp = line.match(TC_INPUT);
     if (inp) {
-      const c = cur ?? openCase(hiddenDefault || /^hidden/i.test(line));
+      // A second "Input:" after the current case already has its output starts
+      // the NEXT case (papers that list bare Input:/Output: pairs).
+      const c = cur && cur.output.length === 0 ? cur : openCase(hiddenDefault || /^hidden/i.test(line));
       capture = 'input';
       if (inp[1].trim()) c.input.push(inp[1].trim());
       return true;
@@ -531,11 +541,29 @@ function parseDocChunk(header: DocHeader, body: string[]): ParsedProgrammingQues
     cur[capture].push(line);
     return true;
   };
+  // "Output:" with its value on the next line — that next line IS the value,
+  // even when it reads "Easy".
+  const awaitingValue = (): boolean => !!cur && !!capture && cur[capture].length === 0;
 
-  for (const rawLine of body) {
-    const line = rawLine.trim();
+  // A bare "Easy" / "Medium" / "Hard" counts only as the chunk's LAST non-blank
+  // line — where a table's Level cell lands after the question text. Anywhere
+  // else it may be a genuine test-case value, so it is left alone.
+  const lastLine = body.reduce((last, l, i) => (l.trim() ? i : last), -1);
+  let bodyDifficulty: string | undefined;
+
+  for (let i = 0; i < body.length; i++) {
+    const line = body[i].trim();
     // A blank line closes the value being collected but not the question.
     if (!line) { capture = null; continue; }
+
+    // Checked before the test-case logic: otherwise the Level line is read as
+    // one more line of the last case's expected output (or a constraint).
+    const lbl = line.match(DIFF_LABEL_LINE);
+    if (lbl || (i === lastLine && HEADER_DIFF.test(line) && !awaitingValue())) {
+      bodyDifficulty ??= (lbl ? lbl[1] : line).toLowerCase();
+      capture = null;
+      continue;
+    }
 
     if (section === 'cases' && takeCaseMarker(line)) continue;
 
@@ -586,7 +614,8 @@ function parseDocChunk(header: DocHeader, body: string[]): ParsedProgrammingQues
     // A PDF renders Word's auto-numbering as literal text ("1. Find Pivot Index").
     title: stripBullet(header.title) || 'Untitled Programming Question',
     description,
-    difficulty: normalizeDifficulty(header.difficulty),
+    difficulty: normalizeDifficulty(header.difficulty ?? bodyDifficulty),
+    difficultyDeclared: (header.difficulty ?? bodyDifficulty) !== undefined,
     constraints: joinBulletWrapped(constraints).map(stripBullet).filter(Boolean),
     testCases: orderTestCases(testCases),
     ...(header.marks !== undefined ? { marks: header.marks } : {}),
@@ -630,15 +659,24 @@ function splitDocChunks(lines: string[]): { header: DocHeader; body: string[] }[
   lines.forEach((l, i) => { if (/^\s*problem\s*statement\b/i.test(l)) stmtIdx.push(i); });
   if (!stmtIdx.length) return [];
 
+  const labelDiff: (string | undefined)[] = [];
   const titleIdx = stmtIdx.map((s, n) => {
     let t = s - 1;
-    while (t >= 0 && !lines[t].trim()) t--;
+    // "Title / Level: Easy / Problem Statement: …" — step over the label (it is
+    // this question's difficulty) to reach the real title above it.
+    for (; t >= 0; t--) {
+      const l = lines[t].trim();
+      if (!l) continue;
+      const d = l.match(DIFF_LABEL_LINE);
+      if (!d) break;
+      labelDiff[n] ??= d[1].toLowerCase();
+    }
     // Don't reach back into the previous question for a title.
     return t > (n === 0 ? -1 : stmtIdx[n - 1]) ? t : -1;
   });
 
   return stmtIdx.map((s, n) => ({
-    header: { title: titleIdx[n] >= 0 ? lines[titleIdx[n]].trim() : '' },
+    header: { title: titleIdx[n] >= 0 ? lines[titleIdx[n]].trim() : '', difficulty: labelDiff[n] },
     body: lines.slice(s, n + 1 < stmtIdx.length ? (titleIdx[n + 1] >= 0 ? titleIdx[n + 1] : stmtIdx[n + 1]) : lines.length),
   }));
 }

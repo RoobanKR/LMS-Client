@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import AddQuestionForm from '@/app/lms/pages/courses/components/questionforms/AddQuestionForm';
-import QuestionBankSelector from '@/app/lms/pages/courses/components/questionforms/mcq/QuestionBankSelector';
+import QuestionBankSelector, { type SelectionQuota } from '@/app/lms/pages/courses/components/questionforms/mcq/QuestionBankSelector';
 import GenerateMCQAIQuestion from '@/app/lms/pages/courses/components/questionforms/mcq/GenerateMCQAIQuestion';
 import AddQuestionViaDocument from '@/app/lms/pages/courses/components/AddQuestionViaDocument';
 import DocQuestionPicker from '@/app/lms/pages/courses/components/questionforms/DocQuestionPicker';
@@ -915,12 +915,13 @@ const QuestionsTest: React.FC<QuestionsTestProps> = ({
     setAddQ(prev => ({ ...prev, sourceChoice: undefined, step: 'source' }));
   };
 
-  // Open Manual slots the document importer is allowed to fill: the chosen
-  // level's when the assessment is level-based, the assessment-wide
-  // programming total otherwise, narrowed by the Manual slice under a Custom
-  // mix. Same arithmetic the source chooser runs — it lives here because the
-  // picker renders outside that closure and still has to cap ticking.
-  const progManualRemaining = (): number => {
+  // Open Manual slots the document importer is allowed to fill: the
+  // assessment-wide programming total on a General paper, one cap PER LEVEL on
+  // a level-based one (every imported question fills its own level), each
+  // narrowed by the Manual slice under a Custom mix. Same arithmetic the
+  // source chooser runs — it lives here because the picker renders outside
+  // that closure and still has to cap ticking.
+  const progDocSelectionQuota = (): SelectionQuota => {
     const exData = buildAddQExerciseData();
     const fx: any = exData?.fullExerciseData || {};
     const cfg: any = fx?.questionConfiguration?.programmingQuestionConfiguration || {};
@@ -936,23 +937,28 @@ const QuestionsTest: React.FC<QuestionsTestProps> = ({
       const quota = (t === 'selectionLevel' ? cfg.selectionLevelCounts?.[d] : cfg.levelBasedCounts?.[d]) || 0;
       return Math.max(0, quota - qs.filter(q => diffOf(q) === d).length);
     };
-    const levels: readonly ('easy' | 'medium' | 'hard')[] =
-      addQ.difficulty ? [addQ.difficulty] : (['easy', 'medium', 'hard'] as const);
-    const open = t === 'general'
-      ? Math.max(0, (cfg.generalQuestionCount || 0) - qs.length)
-      : levels.reduce((s, d) => s + openFor(d), 0);
+    const levels = ['easy', 'medium', 'hard'] as const;
 
     // Custom mix — the importer bills the Manual (scratch) slice, so clamp by
     // whatever that slice still has for the same level(s).
     const dist: any = fx.questionSource === 'custom' ? fx.customDistribution : null;
-    if (!dist) return open;
-    const slice = levels.reduce((s, d) => {
+    const sliceFor = (d: 'easy' | 'medium' | 'hard') => {
       const alloc = dist?.[d]?.scratch || 0;
       const used = qs.filter(q => diffOf(q) === d
         && ((q as any).source ?? '').toString().startsWith('scratch')).length;
-      return s + Math.max(0, alloc - used);
-    }, 0);
-    return Math.min(open, slice);
+      return Math.max(0, alloc - used);
+    };
+
+    if (t === 'general') {
+      const open = Math.max(0, (cfg.generalQuestionCount || 0) - qs.length);
+      const remainingTotal = dist ? Math.min(open, levels.reduce((s, d) => s + sliceFor(d), 0)) : open;
+      return { mode: 'general', remainingTotal };
+    }
+    const capFor = (d: 'easy' | 'medium' | 'hard') => (dist ? Math.min(openFor(d), sliceFor(d)) : openFor(d));
+    return {
+      mode: 'difficulty',
+      remainingByDifficulty: { easy: capFor('easy'), medium: capFor('medium'), hard: capFor('hard') },
+    };
   };
 
   // Programming "Import from document" — parse client-side, then let the
@@ -972,11 +978,12 @@ const QuestionsTest: React.FC<QuestionsTestProps> = ({
       }
       setDocPickerQuestions(parsed.map((q, i) => ({
         ...q,
-        // A level was chosen in the chooser, so every imported question fills
-        // THAT level's slots. Without this the paper's own "Easy | 10 Marks"
-        // header would decide, and a Medium pick could silently save an Easy
-        // question into a Medium slot.
-        ...(addQ.difficulty ? { difficulty: addQ.difficulty } : {}),
+        // The document is the authority on each question's level (a Level /
+        // Difficulty column, an "| Easy |" header, a "Difficulty:" line), so
+        // that question fills its OWN level's slots — the picker caps every
+        // level separately. The level chosen in the chooser only fills in for
+        // a question the document leaves unlabeled.
+        ...(addQ.difficulty && !q.difficultyDeclared ? { difficulty: addQ.difficulty } : {}),
         _previewId: `doc-${i}`,
       })));
     } catch (err: any) {
@@ -2790,11 +2797,10 @@ const QuestionsTest: React.FC<QuestionsTestProps> = ({
       {docPickerQuestions && (
         <DocQuestionPicker
           questions={docPickerQuestions}
-          // Cap ticking at the Manual slots actually open — for the chosen
-          // level when the assessment is level-based, assessment-wide
-          // otherwise. A total cap (not per-difficulty) is right here because
-          // every imported question is stamped with the chosen level below.
-          selectionQuota={{ mode: 'general', remainingTotal: progManualRemaining() }}
+          // Cap ticking at the Manual slots actually open — per level on a
+          // level-based assessment (each question keeps the level the
+          // document gives it), assessment-wide otherwise.
+          selectionQuota={progDocSelectionQuota()}
           onClose={() => { setDocPickerQuestions(null); backToSourceChooser(); }}
           onConfirm={(selected) => {
             setDocPickerQuestions(null);
@@ -2859,7 +2865,9 @@ const QuestionsTest: React.FC<QuestionsTestProps> = ({
             initialBankSource={editingQuestion ? undefined : bankPreload?.source}
             // Level already chosen in the chooser — don't ask twice. Editing an
             // existing question keeps its own stored difficulty instead.
-            initialDifficulty={editingQuestion ? undefined : addQ.difficulty}
+            // A document import can mix levels, so the form opens on the
+            // first imported question's own level rather than the chooser's.
+            initialDifficulty={editingQuestion || (addQ.sourceChoice === 'doc' && bankPreload) ? undefined : addQ.difficulty}
           />
         );
       })()}

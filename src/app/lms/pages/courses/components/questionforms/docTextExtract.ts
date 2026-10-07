@@ -71,6 +71,57 @@ const decodeXmlEntities = (s: string): string =>
  * next `</w:t>` swallows a screenful of raw XML into the text.
  */
 export function docxXmlToText(xml: string): string {
+  return paragraphsToText(liftLevelColumns(xml));
+}
+
+// A question paper laid out as a table ("Q. No. | Question Detail | Level")
+// keeps each question's difficulty in its own cell. Flattened paragraph by
+// paragraph that cell is just a stray "Easy" line glued to the question's
+// last test case. When the header row names a Level / Difficulty column, the
+// cell is re-emitted as an explicit "Difficulty: Easy" line at the END of its
+// row, so every parser reads it as that row's difficulty whichever column it
+// sat in. Tables without such a header column pass through byte-identical.
+const LEVEL_HEADER = /^(?:level|difficulty|difficulty\s*level|complexity(?:\s*level)?)\s*:?$/i;
+const LEVEL_VALUE = /^(?:easy|medium|hard|beginner|intermediate|advanced|simple|moderate|difficult|expert)$/i;
+const TBL_RE = /<w:tbl(?:\s[^>]*)?>[\s\S]*?<\/w:tbl>/g;
+const TR_RE = /<w:tr(?:\s[^>]*)?>[\s\S]*?<\/w:tr>/g;
+const TC_RE = /<w:tc(?:\s[^>]*)?>[\s\S]*?<\/w:tc>/g;
+
+/** Cells of a row with the grid column each starts at (honours w:gridSpan). */
+function rowCells(row: string): { xml: string; col: number }[] {
+  let col = 0;
+  return (row.match(TC_RE) ?? []).map(xml => {
+    const cell = { xml, col };
+    col += Number(xml.match(/<w:gridSpan\s+w:val="(\d+)"/)?.[1] ?? 1);
+    return cell;
+  });
+}
+
+function liftLevelColumns(xml: string): string {
+  return xml.replace(TBL_RE, tbl => {
+    // A nested table defeats the lazy match above - leave it untouched.
+    if (/<w:tbl[\s>]/.test(tbl.slice(6))) return tbl;
+    const cellText = (c: string) => paragraphsToText(c).replace(/\s+/g, ' ').trim();
+    let levelCol = -1;
+    let rowNo = 0;
+    return tbl.replace(TR_RE, row => {
+      const cells = rowCells(row);
+      if (rowNo++ === 0) {
+        levelCol = cells.find(c => LEVEL_HEADER.test(cellText(c.xml)))?.col ?? -1;
+        return row;
+      }
+      const cell = levelCol < 0 ? undefined : cells.find(c => c.col === levelCol);
+      const level = cell ? cellText(cell.xml) : '';
+      if (!cell || !LEVEL_VALUE.test(level)) return row;
+      return row.replace(cell.xml, () => '').replace(
+        /<\/w:tr>$/,
+        () => `<w:p><w:r><w:t>Difficulty: ${level}</w:t></w:r></w:p></w:tr>`,
+      );
+    });
+  });
+}
+
+function paragraphsToText(xml: string): string {
   const lines: string[] = [];
   const paraRe = /<w:p(?:\s[^>]*)?>([\s\S]*?)<\/w:p>|<w:p\s*\/>/g;
 

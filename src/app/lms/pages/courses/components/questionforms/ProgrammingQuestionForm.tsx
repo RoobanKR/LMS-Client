@@ -810,6 +810,19 @@ const getQuotaForDiff = useCallback((d: Diff): number => {
       if (src) return srcOfTag((q as any).source) === src;
       return true;
     }).length, []);
+  // ── Imported-question review queue ───────────────────────────────────────
+  // Bank / AI / Other Platform / document imports land in the flow as staged
+  // entries (a `source` tag and content, no server id) that the trainer
+  // reviews one by one. Hand-typed slots carry no `source`, and a cleared
+  // import has no title, so neither counts as pending.
+  const flowTitleText = (q?: FlowQuestion | null): string =>
+    (q ? (Array.isArray(q.title) ? getTitleText(q.title as any) : (q.title || '')) : '').toString().trim();
+  const isImportedPending = (q?: FlowQuestion | null): boolean =>
+    !!q && !(serverIdMap.current.get(q.__localId) || q._id || q.isSaved) && !!q.source && !!flowTitleText(q);
+  /** Flow indexes of imports still waiting to be saved, optionally skipping one. */
+  const pendingImportIdxs = (skipIdx?: number): number[] =>
+    flowQuestionsRef.current.reduce<number[]>((acc, q, i) => (i !== skipIdx && isImportedPending(q) ? [...acc, i] : acc), []);
+
   const getSourceRemaining = useCallback((src: 'scratch' | 'ai' | 'thirdParty', d: Diff, excludeLocalId?: string): number => {
     const open = Math.max(0, getRemainingSlots(d) - getStagedCount(d, undefined, excludeLocalId));
     if (!useCustomDist) return open;
@@ -857,7 +870,13 @@ const getQuotaForDiff = useCallback((d: Diff): number => {
     flowQuestions.some(q => q.isSaved || q._id || serverIdMap.current.has(q.__localId)),
     [flowQuestions]);
 
-  const shouldConfirmClose = useMemo((): boolean => hasUnsavedFormChanges || hasSavedQuestionsInSession, [hasUnsavedFormChanges, hasSavedQuestionsInSession]);
+  // Imports still waiting for review would be dropped by a close — ask first.
+  const hasPendingImportsInSession = useMemo((): boolean =>
+    flowQuestions.some(q => isImportedPending(q)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [flowQuestions]);
+
+  const shouldConfirmClose = useMemo((): boolean => hasUnsavedFormChanges || hasSavedQuestionsInSession || hasPendingImportsInSession, [hasUnsavedFormChanges, hasSavedQuestionsInSession, hasPendingImportsInSession]);
 
   const handleCloseRequest = useCallback(() => { if (shouldConfirmClose) setShowCloseConfirm(true); else onClose(); }, [shouldConfirmClose, onClose]);
   const handleCloseConfirmed = useCallback(() => { setShowCloseConfirm(false); onClose(); }, [onClose]);
@@ -1060,6 +1079,11 @@ const getQuotaForDiff = useCallback((d: Diff): number => {
       // Author-provided taxonomy — see [[lms-questionforms-unification]] Phase 3.
       category: category || undefined,
       tags: tags.length > 0 ? tags : undefined,
+      // Import tags ride along so Back / Next / a jump don't turn a bank, AI
+      // or Other Platform import into a Manual one (mkPayload and the review
+      // queue read them off the flow entry).
+      source: (existing as any)?.source,
+      bankQuestionId: (existing as any)?.bankQuestionId,
       ...overrides,
     };
   };
@@ -1582,34 +1606,48 @@ const handleBankSelectedQuestions = useCallback((selected: any[], sourceTag?: st
     };
   };
 
-  // Auto-distribute marks for question-specific scoring
-  const autoScore = (() => {
+  // Each pick keeps its OWN level (a document's Level column, a bank row's
+  // difficulty); an AI question fills the slot it was generated for. General
+  // papers save every question as 'medium', so the flow carries that too.
+  const levelOf = (b: Partial<FlowQuestion>): Diff =>
+    isGeneral ? 'medium'
+      : tag === 'ai' && currentDiff ? currentDiff as Diff
+      : ((b.difficulty as Diff) || (currentDiff as Diff) || 'medium');
+  const bases = selected.map(q => bankToProgrammingQuestion(q));
+  const perLevel: Record<Diff, number> = { easy: 0, medium: 0, hard: 0 };
+  bases.forEach(b => { perLevel[levelOf(b)]++; });
+
+  // Auto-distribute marks for question-specific scoring — each level's
+  // remaining marks over that level's picks only.
+  const autoScoreFor = (d: Diff): number | undefined => {
     if (isGeneral) return undefined;
-    if (typeof isScoreEditable === 'function' && !isScoreEditable(currentDiff as Diff)) return undefined;
+    if (typeof isScoreEditable === 'function' && !isScoreEditable(d)) return undefined;
     if (typeof getRemainingMarksForDiff === 'function') {
-      const remainingMarks = getRemainingMarksForDiff(currentDiff as Diff);
-      if (remainingMarks > 0 && selected.length > 0) {
-        return parseFloat((remainingMarks / selected.length).toFixed(2));
+      const remainingMarks = getRemainingMarksForDiff(d);
+      if (remainingMarks > 0 && perLevel[d] > 0) {
+        return parseFloat((remainingMarks / perLevel[d]).toFixed(2));
       }
     }
     return undefined;
-  })();
+  };
 
   // Add questions from bank
   const newQuestions: FlowQuestion[] = selected.map((q, i) => {
-    const base = bankToProgrammingQuestion(q);
+    const base = bases[i];
+    const d = levelOf(base);
     const newId = mkLocalId();
-    
+
     // Calculate score
     let questionScore = base.score;
+    const autoScore = autoScoreFor(d);
     if (autoScore !== undefined) {
       questionScore = autoScore;
     } else if (isGeneral) {
       questionScore = generalMPQ;
-    } else if (typeof isScoreEditable === 'function' && isScoreEditable(currentDiff as Diff)) {
+    } else if (typeof isScoreEditable === 'function' && isScoreEditable(d)) {
       questionScore = 0;
     } else if (typeof getFixedScore === 'function') {
-      questionScore = getFixedScore(currentDiff as Diff);
+      questionScore = getFixedScore(d);
     }
     
     const newQ: FlowQuestion = {
@@ -1619,10 +1657,8 @@ const handleBankSelectedQuestions = useCallback((selected: any[], sourceTag?: st
       description: base.description || [mkProgTextBlock()],
       // An AI question fills the slot it was generated for — the slot's
       // difficulty wins over any label on the question, so it bills that
-      // difficulty's AI allowance (never another level's).
-      difficulty: tag === 'ai' && !isGeneral && currentDiff
-        ? currentDiff as Diff
-        : base.difficulty || (typeof currentDiff === 'string' ? currentDiff as Diff : 'medium'),
+      // difficulty's AI allowance (never another level's). See levelOf.
+      difficulty: d,
       score: questionScore,
       testCases: base.testCases || [mkTC(0)],
       constraints: base.constraints || [],
@@ -1690,8 +1726,12 @@ const handleBankSelectedQuestions = useCallback((selected: any[], sourceTag?: st
 
   toast.success(`${newQuestions.length} programming question${newQuestions.length > 1 ? 's' : ''} added from bank`);
   
-  if (autoScore !== undefined && autoScore > 0) {
-    toast.info('Marks distributed', `Each question assigned ${autoScore} mark${autoScore !== 1 ? 's' : ''} from remaining balance.`);
+  const splits = (['easy', 'medium', 'hard'] as Diff[])
+    .map(d => ({ d, v: perLevel[d] > 0 ? autoScoreFor(d) : undefined }))
+    .filter((x): x is { d: Diff; v: number } => x.v !== undefined && x.v > 0);
+  if (splits.length) {
+    toast.info(`Marks distributed from the remaining balance: ${splits
+      .map(x => `${x.d} ${x.v} mark${x.v !== 1 ? 's' : ''} each`).join(', ')}.`);
   }
 // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [currentDiff, isGeneral, isScoreEditable, getFixedScore, getRemainingMarksForDiff, generalMPQ, flowQuestions.length, loadQuestionIntoForm]);
@@ -1715,7 +1755,14 @@ const handleBankSelectedQuestions = useCallback((selected: any[], sourceTag?: st
         toast.warning('No questions found', 'Could not read any questions from that document — it needs either assessment-paper sections (Problem Statement / Test Cases with Input: and Output:) or Title:/Description:/Input:/Output: blocks.');
         return;
       }
-      setDocPickerQs(parsed.map((q, i) => ({ ...q, _previewId: `doc-${i}` })));
+      // The document's own level wins (Level column, "| Easy |" header,
+      // "Difficulty:" line); a question it leaves unlabeled fills the level
+      // being added here.
+      setDocPickerQs(parsed.map((q, i) => ({
+        ...q,
+        difficulty: q.difficultyDeclared ? q.difficulty : (isGeneral ? 'medium' : currentDiff),
+        _previewId: `doc-${i}`,
+      })));
     } catch (err: any) {
       toast.error('Upload failed', err?.message || 'Could not read the file.');
     }
@@ -1818,6 +1865,9 @@ const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean
   // ──────────────────────────────────────────────────────────────────────────
   const checkDiffComplete = (savedLocalId: string | undefined): boolean => {
     if (isGeneral) return false;
+    // Imports still queued for review come first — the level hand-over (or
+    // close) waits until the batch is through. advanceAfterSave moves on.
+    if (pendingImportIdxs(currentIndexRef.current).length > 0) return false;
     const flowNow = flowQuestionsRef.current;
     const idxNow  = currentIndexRef.current;
     const savedQ  = flowNow[idxNow];
@@ -1919,6 +1969,217 @@ const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean
 
     advanceAfterSave(savedId, localId);
     routeLandedSlot();
+  };
+
+  // ── Save & Finish with imports still queued ───────────────────────────────
+  // Finish must not drop the rest of an imported batch (questions stepped past
+  // with Next, or never opened). Everything is validated first — nothing is
+  // posted while any question would be rejected — then each question is saved
+  // through the normal save path in flow order, and the form closes.
+  const bulkSavingRef = useRef(false);
+
+  /** Save payload for a flow entry that is NOT loaded in the editor. Same
+   *  rules as mkPayload (which reads the editor) — keep the two in step. */
+  const payloadFromFlow = (q: FlowQuestion) => {
+    const d: Diff = isGeneral ? 'medium' : ((q.difficulty as Diff) || currentDiff);
+    const blocks: any[] = Array.isArray(q.description) ? q.description : descToBlocks(q.description);
+    const img: any = blocks.find((b: any) => b.type === 'image');
+    const title = flowTitleText(q);
+    const isLink = q.isLinkQuestion === true;
+    const link = (q.questionLink || '').trim();
+    const fc = q.functionContract || mkFunctionContract();
+    // Loading an entry without a language keeps the editor's current one.
+    const lang = q.codeSetupLanguage || codeSetupLanguage;
+    const se = q.startingExperience || (q.executionType === 'function' ? 'generated' : 'blank');
+    const finalScore = isGeneral ? generalMPQ : isScoreEditable(d) ? (Number(q.score) || 0) : getFixedScore(d);
+    const qTags: string[] = Array.isArray((q as any).tags)
+      ? ((q as any).tags as any[]).filter(t => typeof t === 'string' && t.trim()).map((t: string) => t.trim())
+      : [];
+    return {
+      questionType: 'programming',
+      sectionId: exerciseData?.currentSectionId || null,
+      source: q.source || 'scratch-manual',
+      bankQuestionId: q.bankQuestionId || null,
+      title,
+      description: {
+        contentBlocks: blocks,
+        text: blocks.filter((b: any) => b.type === 'text').map((b: any) => b.value).join('\n').trim(),
+        imageUrl: img?.url || null,
+        imageAlignment: img?.alignment || 'left',
+        imageSizePercent: img?.sizePercent || 100,
+      },
+      difficulty: d,
+      score: finalScore,
+      points: finalScore,
+      constraints: (q.constraints || []).filter((c: string) => (c || '').trim()),
+      hints: q.hints || [],
+      testCases: (q.testCases || []).map((tc: any, i: number) => ({
+        input: tc.input ?? '',
+        expectedOutput: tc.expectedOutput ?? '',
+        isSample: tc.isSample ?? i === 0,
+        isHidden: !!tc.isHidden,
+        points: 1,
+        explanation: tc.explanation || tc.description || `Test Case ${i + 1}`,
+        sequence: i,
+        ...(tc.functionInputs ? { functionInputs: tc.functionInputs } : {}),
+      })),
+      solutions: { startedCode: '', functionName: fc.functionName || 'main', language: (lang || 'python').toLowerCase() },
+      timeLimit: q.timeLimit || 2000,
+      memoryLimit: q.memoryLimit || 256,
+      isActive: true,
+      aiTestCasesCount: typeof q.aiTestCasesCount === 'number' && q.aiTestCasesCount >= 0 ? Math.min(50, Math.floor(q.aiTestCasesCount)) : null,
+      isLinkQuestion: isLink,
+      questionLink: link,
+      ...(isLink && !title ? { title: link } : {}),
+      starterCode: isLink ? '' : (se === 'blank' ? '' : se === 'generated' ? execGeneratedStarter(lang || 'Python', fc) : (q.starterCode || '')),
+      solutionCode: isLink ? '' : (q.solutionCode || ''),
+      codeSetupLanguage: isLink ? undefined : (lang || undefined),
+      executionType: isLink ? undefined : (q.executionType === 'function' ? 'function' : 'fullProgram'),
+      functionContract: isLink ? undefined : fc,
+      startingExperience: isLink ? undefined : se,
+      category: (typeof (q as any).category === 'string' ? (q as any).category : '').trim() || undefined,
+      tags: qTags.length > 0 ? qTags : undefined,
+    };
+  };
+
+  /** validate() for a flow entry that is NOT loaded in the editor. */
+  const validateFlowQuestion = (q: FlowQuestion): Record<string, string> => {
+    const e: Record<string, string> = {};
+    if (q.isLinkQuestion === true) {
+      if (!/^https?:\/\/\S+$/i.test((q.questionLink || '').trim())) e.questionLink = 'Paste a valid http(s) link';
+      return e;
+    }
+    const blocks: any[] = Array.isArray(q.description) ? q.description : descToBlocks(q.description);
+    if (!flowTitleText(q)) e.title = 'Title is required';
+    const descText = blocks.filter((b: any) => b.type === 'text').map((b: any) => b.value).join(' ').trim();
+    if (!descText && !blocks.some((b: any) => b.type === 'image' || b.type === 'code')) e.description = 'Description is required';
+    if (q.startingExperience === 'custom' && isStringSolutionEmpty(q.starterCode || '')) {
+      e.starterCode = 'Starter code is required in Custom starter mode';
+    }
+    if (!(q.constraints || []).some((c: string) => (c || '').trim())) e.constraints = 'At least one constraint is required';
+    const qTcs: any[] = q.testCases || [];
+    if (q.executionType === 'function') {
+      if (!(q.functionContract?.functionName || '').trim()) e.functionName = 'Function name is required';
+      const hasValidFnTc = qTcs.some(tc => (tc.expectedOutput || '').toString().trim() || Object.values(tc.functionInputs || {}).some((v: any) => (v || '').toString().trim()));
+      if (!hasValidFnTc) e.testcases = 'At least one function test case with an expected return is required';
+    } else if (!qTcs.some(tc => (tc.input || '').toString().trim() && (tc.expectedOutput || '').toString().trim())) {
+      e.testcases = 'At least one test case with input & output is required';
+    }
+    const d = (q.difficulty as Diff) || currentDiff;
+    if (!isGeneral && isScoreEditable(d) && getScoringType(d) === 'question_specific' && !(Number(q.score) > 0)) {
+      e.score = 'Score must be greater than 0';
+    }
+    const exEvm: any = exerciseData?.fullExerciseData?.evaluationMethod;
+    if (exEvm?.method === 'ai' && exEvm?.ai?.testCasesCountMode === 'perQuestion') {
+      const c = q.aiTestCasesCount;
+      if (c === null || c === undefined || Number.isNaN(c)) e.aiTestCasesCount = 'AI test case count is required';
+      else if (c < 0 || c > 50) e.aiTestCasesCount = 'AI test case count must be between 0 and 50';
+    }
+    return e;
+  };
+
+  // Open flow entry `i` in the editor (parking the editor's own work first).
+  const openFlowEntry = (i: number, park: boolean) => {
+    const idxNow = currentIndexRef.current;
+    const cur = flowQuestionsRef.current[idxNow];
+    if (park && cur && idxNow !== i) {
+      const sid = getServerId(cur);
+      const flowNow = [...flowQuestionsRef.current];
+      flowNow[idxNow] = snapshotForm({ _id: sid, isSaved: !!sid || cur.isSaved, isPreExisting: cur.isPreExisting });
+      flowQuestionsRef.current = flowNow;
+      setFlowQuestions(flowNow);
+    }
+    const q = flowQuestionsRef.current[i];
+    currentIndexRef.current = i; setCurrentIndex(i);
+    if (!isGeneral && q?.difficulty) setCurrentDiff(q.difficulty as Diff);
+    loadQuestionIntoForm(q);
+  };
+
+  const handleSaveAllAndFinish = async () => {
+    if (bulkSavingRef.current) return;
+    const idx = currentIndexRef.current;
+    const others = pendingImportIdxs(idx);
+    if (others.length === 0) { await handleSaveAndContinue(); return; }
+
+    const cur = flowQuestionsRef.current[idx];
+    const curId = getServerId(cur);
+    // The question on screen needs saving when it is a queued import, has
+    // edits, or was typed in; an untouched blank slot is simply skipped.
+    const curNeeds = curId ? hasUnsavedFormChanges : (isImportedPending(cur) || hasUnsavedFormChanges);
+
+    // 1. Validate everything before posting anything.
+    if (curNeeds) {
+      const { valid, errors } = validate();
+      if (!valid) { scrollToFirstError(errors); return; }
+    }
+    for (const i of others) {
+      const q = flowQuestionsRef.current[i];
+      const e = validateFlowQuestion(q);
+      if (Object.keys(e).length) {
+        openFlowEntry(i, true);
+        setTimeout(() => { setErrs(e); setTouched(new Set(Object.keys(e))); scrollToFirstError(e); }, 0);
+        toast.error(`"${flowTitleText(q)}" needs a fix before Finish: ${Object.values(e)[0]}`, { toastId: 'finish-all-invalid' });
+        return;
+      }
+    }
+
+    // 2. Room check per level (the server still has the final word).
+    const want: Record<string, number> = {};
+    const bump = (d: string) => { want[d] = (want[d] || 0) + 1; };
+    if (curNeeds && !curId) bump(isGeneral ? 'all' : currentDiff);
+    others.forEach(i => bump(isGeneral ? 'all' : ((flowQuestionsRef.current[i].difficulty as Diff) || currentDiff)));
+    const full = Object.entries(want).find(([d, c]) => c > (d === 'all' ? getRemainingSlots() : getRemainingSlots(d as Diff)));
+    if (full) {
+      const [d, c] = full;
+      const room = d === 'all' ? getRemainingSlots() : getRemainingSlots(d as Diff);
+      toast.error(`${c} question${c === 1 ? '' : 's'} to save but only ${room} open ${d === 'all' ? '' : `${d} `}slot${room === 1 ? '' : 's'} left. Remove the extra imported questions (Clear all) and press Finish again.`, { toastId: 'finish-all-full' });
+      return;
+    }
+
+    // 3. Save in flow order: the editor's question through mkPayload, the
+    //    queued ones through payloadFromFlow.
+    const order = [...others, ...(curNeeds ? [idx] : [])].sort((a, b) => a - b);
+    bulkSavingRef.current = true;
+    let saved = 0;
+    try {
+      for (const i of order) {
+        if (i === idx) {
+          const localId = ensureCurrentInFlow();
+          const latest = flowQuestionsRef.current[currentIndexRef.current];
+          if (!curId && sourceSliceBlocked(latest, localId)) return;
+          try {
+            await executeSave(localId, mkPayload(), true);
+          } catch (err) {
+            console.error('handleSaveAllAndFinish error:', err);
+            if (saved) toast.error(`Saved ${saved} — this question could not be saved. Fix it and press Finish again.`, { toastId: 'finish-all-failed' });
+            return;
+          }
+          saved++;
+          continue;
+        }
+        const q = flowQuestionsRef.current[i];
+        if (!isImportedPending(q)) continue;
+        try {
+          await executeSave(q.__localId, payloadFromFlow(q), true);
+        } catch (err) {
+          // handleSubmit already showed the server's reason — open the
+          // question that failed so it can be fixed.
+          console.error('handleSaveAllAndFinish error:', err);
+          openFlowEntry(i, false);
+          toast.error(`Saved ${saved} — "${flowTitleText(q)}" could not be saved. Fix it and press Finish again.`, { toastId: 'finish-all-failed' });
+          return;
+        }
+        saved++;
+      }
+    } finally {
+      bulkSavingRef.current = false;
+    }
+
+    setSaveOk(true);
+    setTimeout(() => setSaveOk(false), 2500);
+    setIsEditMode(false);
+    toast.success(`${saved} question${saved === 1 ? '' : 's'} saved`);
+    onClose();
   };
 
   // After Save & Continue moves on: when it landed on a fresh BLANK slot, open
@@ -2073,6 +2334,22 @@ const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean
         setCurrentIndex(returnIdx); currentIndexRef.current = returnIdx;
         loadQuestionIntoForm(flow[returnIdx]);
         if (!isGeneral && flow[returnIdx]?.difficulty) setCurrentDiff(flow[returnIdx].difficulty as Diff);
+        setTimeout(() => titleRef.current?.focus(), 80);
+        return;
+      }
+    }
+
+    // ── Review queue: imported questions still waiting ─────────────────────
+    // Go to the next one (after this slot first, then any stepped past
+    // earlier) before any level hand-over popup or new blank slot.
+    {
+      const pending = pendingImportIdxs(idx);
+      const nextPending = pending.find(i => i > idx) ?? pending[0];
+      if (nextPending !== undefined) {
+        const nq = flow[nextPending];
+        setCurrentIndex(nextPending); currentIndexRef.current = nextPending;
+        if (!isGeneral && nq?.difficulty) setCurrentDiff(nq.difficulty as Diff);
+        loadQuestionIntoForm(nq);
         setTimeout(() => titleRef.current?.focus(), 80);
         return;
       }
@@ -2404,6 +2681,9 @@ const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean
   // placeholder or DB/staged entries interleaved out of quota order, flipping
   // Save & Continue / Save & Finish at the wrong moments.
   const isLastQuestion = useMemo((): boolean => {
+    // Review queue first: while imports wait AFTER this one the button walks
+    // on (Save & Continue); the last import of the batch is the Finish.
+    if (flowQuestions.some((q, i) => i > currentIndex && isImportedPending(q))) return false;
     if (totalSlotsAll <= 0) return currentIndex >= flowQuestions.length - 1;
     const cur = flowQuestions[currentIndex];
     const t = cur ? (Array.isArray(cur.title) ? getTitleText(cur.title as any) : (cur.title || '')) : '';
@@ -3012,10 +3292,12 @@ const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean
             ? { mode: 'general' as const, remainingTotal: getActiveSourceRemaining('scratch') }
             : {
                 mode: 'difficulty' as const,
+                // Each imported question fills its OWN level, so every
+                // level is capped by its own open Manual slots.
                 remainingByDifficulty: {
-                  easy: currentDiff === 'easy' ? getSourceRemaining('scratch', 'easy' as Diff) : 0,
-                  medium: currentDiff === 'medium' ? getSourceRemaining('scratch', 'medium' as Diff) : 0,
-                  hard: currentDiff === 'hard' ? getSourceRemaining('scratch', 'hard' as Diff) : 0,
+                  easy: getSourceRemaining('scratch', 'easy' as Diff),
+                  medium: getSourceRemaining('scratch', 'medium' as Diff),
+                  hard: getSourceRemaining('scratch', 'hard' as Diff),
                 },
               }}
           onClose={() => setDocPickerQs(null)}
@@ -4293,7 +4575,12 @@ const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean
               const isGreen = isFinish;
 
               return (
-                <button onClick={handleSaveAndContinue} disabled={isSaving}
+                <button
+                  onClick={isFinish && pendingImportIdxs(currentIndex).length > 0 ? handleSaveAllAndFinish : handleSaveAndContinue}
+                  disabled={isSaving}
+                  title={isFinish && pendingImportIdxs(currentIndex).length > 0
+                    ? `Saves this and the ${pendingImportIdxs(currentIndex).length} other imported question${pendingImportIdxs(currentIndex).length === 1 ? '' : 's'}`
+                    : undefined}
                   className="lms-btn lms-btn-orange"
                   style={{
                     opacity: isSaving ? 0.6 : 1,

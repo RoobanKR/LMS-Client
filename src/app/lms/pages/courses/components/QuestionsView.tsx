@@ -1332,7 +1332,13 @@ const addBtnDisabled = isAddingQuestions || (() => {
         toast.error('No questions found in that document. It needs either assessment-paper sections (Problem Statement / Test Cases with Input: and Output:) or Title:/Description:/Input:/Output: blocks.');
         return;
       }
-      setDocPickerQuestions(parsed.map((q, i) => ({ ...q, _previewId: `doc-${i}` })));
+      // The document's own level wins; the level picked in the chooser only
+      // fills in for a question the document leaves unlabeled.
+      setDocPickerQuestions(parsed.map((q, i) => ({
+        ...q,
+        ...(addFlowDiff && !q.difficultyDeclared ? { difficulty: addFlowDiff } : {}),
+        _previewId: `doc-${i}`,
+      })));
     } catch (err: any) {
       toast.error(err?.message || 'Could not read the document');
     }

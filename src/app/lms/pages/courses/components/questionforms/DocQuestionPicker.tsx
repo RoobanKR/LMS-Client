@@ -15,7 +15,10 @@ const JKT: React.CSSProperties = {
 };
 
 type Diff = 'easy' | 'medium' | 'hard';
-const diffOf = (d: any): Diff => (d === 'easy' || d === 'hard' ? d : 'medium');
+const diffOf = (d: any): Diff => {
+  const s = String(d ?? '').toLowerCase();
+  return s === 'easy' || s === 'hard' ? s : 'medium';
+};
 const DIFF_STYLE: Record<Diff, { color: string; bg: string }> = {
   easy: { color: '#059669', bg: 'rgba(5,150,105,0.09)' },
   medium: { color: '#d97706', bg: 'rgba(217,119,6,0.09)' },
@@ -89,7 +92,9 @@ const DocQuestionPicker: React.FC<DocQuestionPickerProps> = ({
           );
           return prev;
         }
-        if (selectedByDiff[d] >= cap) {
+        // Count from `prev`, not the render-time tally, so quick clicks can't overshoot.
+        const inLevel = questions.filter(x => next.has(x._previewId) && diffOf(x.difficulty) === d).length;
+        if (inLevel >= cap) {
           toast(`All ${cap} ${d} slot${cap === 1 ? '' : 's'} ticked — deselect a ${d} question to swap.`, { icon: 'ℹ️', id: 'doc-cap' });
           return prev;
         }

@@ -52,6 +52,16 @@ export default function QuestionAllocationChooser({ exercise, questions, part = 
     {/* Hint about Scratch/Question-bank shared allowance removed — the two
         entry points are now folded into a single Scratch card, so the note
         no longer applies. */}
-    {allowDocument && <button type="button" className={styles.documentLink} disabled={!row?.buckets[0]?.remaining} onClick={() => onChoose('document', selected)}><FileText size={14} /> Import from document · uses the Scratch allowance</button>}
+    {/* A document states each question's level, and every imported question
+        fills its own level — so on a level-based paper the import is open
+        while ANY level has Scratch room; `selected` only fills in for
+        questions the document leaves unlabeled. */}
+    {allowDocument && <button type="button" className={styles.documentLink}
+      disabled={allocation.levelBased
+        ? !allocation.rows.some(item => (item.buckets.find(bucket => bucket.key === 'scratch')?.remaining || 0) > 0)
+        : !row?.buckets[0]?.remaining}
+      onClick={() => onChoose('document', selected)}>
+      <FileText size={14} /> Import from document · {allocation.levelBased ? 'each question fills its own level (Scratch allowance)' : 'uses the Scratch allowance'}
+    </button>}
   </AddQuestionModalShell>;
 }
