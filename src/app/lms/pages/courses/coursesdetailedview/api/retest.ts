@@ -101,6 +101,31 @@ export const retestApi = {
     return res.data;
   },
 
+  // Student → retake a Mock / Practice assessment: clears their OWN finished
+  // attempt so the next Start is fresh. Never throws — resolves the server's
+  // answer ({ success, code?, message? }), e.g. code 'attempt_active' when an
+  // attempt is still running and should simply be continued.
+  restartMock: async (payload: {
+    exerciseId: string;
+    courseId: string;
+    subcategory: string;
+    /** The node the exercise is stored on. */
+    nodeId: string;
+    nodeType: string;
+  }): Promise<{ success: boolean; code?: string; message?: string }> => {
+    try {
+      const res = await axios.post(`${BASE_URL}/courses/attempt/restart-mock`, { ...payload, category: 'You_Do' }, {
+        headers: authHeaders(),
+        timeout: 30000,
+      });
+      return res.data;
+    } catch (err) {
+      const e = err as { message?: string; response?: { data?: { code?: string; message?: string } } };
+      const data = e?.response?.data;
+      return { success: false, code: data?.code, message: data?.message || e?.message || 'Network error' };
+    }
+  },
+
   // Coordinator → unlock an assessment for a student (reset + per-student window)
   unlock: async (payload: UnlockPayload) => {
     const res = await axios.post(`${BASE_URL}/retest/unlock`, payload, {

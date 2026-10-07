@@ -83,11 +83,12 @@ const ASSESSMENT_SUBCATEGORY_KEYS = new Set(["assessment", "assessments", "asses
 const isFinalAssessment = (ex: any) =>
   String(ex?.exerciseInformation?.testType || '').toLowerCase() === 'final'
 
-// Calls `cb` for every You Do assessment in the course with the id of the node
-// it is stored on. Buckets are keyed by the tab label as typed ("Assesment",
-// "assessments", ...), so match by normalized key, not literal access.
-const forEachCourseAssessment = (modules: any[] | undefined, cb: (ex: any, ownerNodeId: string) => void) => {
-  const walk = (node: any) => {
+// Calls `cb` for every You Do assessment in the course with the id and type
+// (modules / submodules / topics / subtopics) of the node it is stored on.
+// Buckets are keyed by the tab label as typed ("Assesment", "assessments",
+// ...), so match by normalized key, not literal access.
+const forEachCourseAssessment = (modules: any[] | undefined, cb: (ex: any, ownerNodeId: string, ownerNodeType: string) => void) => {
+  const walk = (node: any, type: string) => {
     if (!node) return
     const yd = node?.pedagogy?.You_Do
     if (yd && typeof yd === 'object' && !Array.isArray(yd)) {
@@ -95,14 +96,14 @@ const forEachCourseAssessment = (modules: any[] | undefined, cb: (ex: any, owner
       for (const key of Object.keys(yd)) {
         if (!ASSESSMENT_SUBCATEGORY_KEYS.has(normalizeKey(key))) continue
         const arr = (yd as any)[key]
-        if (Array.isArray(arr)) arr.forEach((ex: any) => cb(ex, ownerNodeId))
+        if (Array.isArray(arr)) arr.forEach((ex: any) => cb(ex, ownerNodeId, type))
       }
     }
-    ;(node.subModules || []).forEach(walk)
-    ;(node.topics || []).forEach(walk)
-    ;(node.subTopics || []).forEach(walk)
+    ;(node.subModules || []).forEach((n: any) => walk(n, 'submodules'))
+    ;(node.topics || []).forEach((n: any) => walk(n, 'topics'))
+    ;(node.subTopics || []).forEach((n: any) => walk(n, 'subtopics'))
   }
-  ;(modules || []).forEach(walk)
+  ;(modules || []).forEach((m: any) => walk(m, 'modules'))
 }
 
 // The nodes a student sees an assessment on: the ones the teacher ticked under
@@ -1406,12 +1407,13 @@ const getExercisesForActivity = (): any[] => {
       const currentNodeId = selectedItem?.id ? String(selectedItem.id) : ''
       const collected: any[] = []
       const seen = new Set<string>()
-      forEachCourseAssessment(courseData?.modules, (ex, ownerNodeId) => {
+      forEachCourseAssessment(courseData?.modules, (ex, ownerNodeId, ownerNodeType) => {
         const id = ex?._id ? String(ex._id) : ''
         if (!id || seen.has(id)) return
         if (currentNodeId && !assessmentNodeIds(ex, ownerNodeId).includes(currentNodeId)) return
         seen.add(id)
-        collected.push(ex)
+        // Where it is stored — a Mock test's Retest resets it on that node.
+        collected.push({ ...ex, __ownerNodeId: ownerNodeId, __ownerNodeType: ownerNodeType })
       })
       return collected
     }

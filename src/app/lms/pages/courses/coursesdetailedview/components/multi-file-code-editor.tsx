@@ -26,7 +26,7 @@
 //   • Submit     → POST /courses/answers/submit-multiple-files
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useState, useEffect, useRef, useMemo, useCallback } from "react"
+import { useState, useEffect, useRef, useMemo, useCallback, type ReactNode } from "react"
 import ExerciseInfoModals, { ExerciseInfoButtons } from "./ExerciseInfoModals"
 // Evaluation Method — Manual posts score:0 for the trainer to grade, Test Case
 // is judged server-side by the submit endpoint, AI is graded client-side.
@@ -103,6 +103,23 @@ const SERVER_TRACE_LANG: Partial<Record<SupportedLanguage, string>> = {
 }
 
 // ─── Props ──────────────────────────────────────────────────────────────────
+/** You Do Mock tests only — passed by YouDo/MockMultiFileTest, which owns the
+ *  attempt, the proctoring and the clock. Absent everywhere else, so I Do /
+ *  We Do / preview behave exactly as before. */
+export interface MultiFileExamHooks {
+  /** Shown in the header between the question paginator and the actions
+   *  (the attempt's timer, the trainer-message bell). */
+  headerSlot?: ReactNode
+  /** Hands the page the final submit so it can auto-submit on time-up or a
+   *  proctoring limit. Resolves true once the submission is stored, false if
+   *  it failed, null if a submit is already in flight (that one ends the
+   *  test). While `exam` is set the editor runs no countdown of its own. */
+  registerFinalSubmit?: (submit: (reason: string) => Promise<boolean | null>) => void
+  /** Live Dashboard hooks. */
+  onQuestionChange?: (fromQuestionId: string | null, toQuestionId: string | null) => void
+  onAnswerSaved?: (questionId: string) => void
+}
+
 interface MultiFileCodeEditorProps {
   /** Use the real editor with disposable work and grading, never student persistence. */
   preview?: boolean
@@ -119,6 +136,7 @@ interface MultiFileCodeEditorProps {
   onNavigateToBreadcrumb?: (level: "course" | "hierarchy" | "category") => void
   courseName?: string
   hierarchy?: string[]
+  exam?: MultiFileExamHooks
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -224,7 +242,9 @@ export default function MultiFileCodeEditor({
   onNavigateToBreadcrumb,
   courseName,
   hierarchy = [],
+  exam,
 }: MultiFileCodeEditorProps) {
+  const examMode = !!exam
   // ─── Core editor state ──────────────────────────────────────────────────────
   const [files, setFiles] = useState<FileNode[]>([])
   const [folders, setFolders] = useState<FolderNode[]>([])
@@ -1517,7 +1537,9 @@ export default function MultiFileCodeEditor({
   // there still has to call it; there is no evaluate-only endpoint.
   const postSubmission = async (
     isTestSubmission: boolean,
-    opts?: { dryRun?: boolean },
+    // `meta` (exam mode only): how the attempt ended — a manual Finish, or an
+    // auto-submit on time-up / a proctoring limit, with its reason.
+    opts?: { dryRun?: boolean; meta?: { submitType: "USER" | "AUTO"; autoSubmitReason?: string } },
   ): Promise<{ ok: boolean; message?: string; result?: TestResultState }> => {
     const dryRun = !!opts?.dryRun
     const exerciseId = exercise?._id
@@ -1694,6 +1716,7 @@ export default function MultiFileCodeEditor({
       // Only send when the client actually produced a breakdown, so Manual
       // submissions don't stamp an empty object onto the answer.
       ...(evaluationBreakdown ? { evaluationBreakdown } : {}),
+      ...(opts?.meta ? { submitType: opts.meta.submitType, autoSubmitReason: opts.meta.autoSubmitReason || "" } : {}),
     }
     // AI dry run — the score already exists locally, so the POST would be a
     // pure write. Skip it: Run Testcase must leave no stored answer behind.
@@ -1819,6 +1842,8 @@ export default function MultiFileCodeEditor({
       if (result.ok) {
         log("success", `Question ${submittedIndex + 1} saved.`)
         setSolvedQuestions((prev) => new Set(prev).add(submittedIndex))
+        const savedId = questions[submittedIndex]?._id
+        if (savedId) exam?.onAnswerSaved?.(String(savedId))
         // A successful Submit moves straight on to the next question. Moving
         // clears the Test Result panel, so an auto-graded score rides along in
         // a toast. The last question stays put with its result showing, and a
@@ -1917,8 +1942,10 @@ export default function MultiFileCodeEditor({
     }
   }
 
-  const submitExercise = async (opts?: { auto?: boolean }) => {
-    if (isSubmitGuardRef.current) return
+  // `reason` (exam mode): why an auto-submit fired. Resolves true once the
+  // submission is stored.
+  const submitExercise = async (opts?: { auto?: boolean; reason?: string }): Promise<boolean> => {
+    if (isSubmitGuardRef.current) return false
     isSubmitGuardRef.current = true
     setIsSubmitting(true)
     try {
@@ -1926,10 +1953,13 @@ export default function MultiFileCodeEditor({
       // payload itself carries the latest files, so we don't need its response
       // before submitting. Sequential awaiting was adding ~300–800 ms of dead time.
       void saveDraft(false)
-      const result = await postSubmission(true)
+      const result = await postSubmission(true, examMode
+        ? { meta: { submitType: opts?.auto ? "AUTO" : "USER", autoSubmitReason: opts?.reason } }
+        : undefined)
       if (result.ok) {
         log("success", "Exercise submitted.")
         setSolvedQuestions((prev) => new Set(prev).add(currentQuestionIndex))
+        if (currentQuestion?._id) exam?.onAnswerSaved?.(String(currentQuestion._id))
         if (!preview && exercise?._id) localStorage.removeItem("ex_in_progress_" + exercise._id)
 
         // Restore-on-redirect safety net: also persist these three keys so the
@@ -1944,23 +1974,29 @@ export default function MultiFileCodeEditor({
         } catch { /* localStorage may be unavailable in some embed contexts */ }
 
         const exName = exercise?.exerciseInformation?.exerciseName || "Exercise"
-        toast.success(preview ? 'Mock preview completed. No student submission saved.' : opts?.auto ? `Time's up! "${exName}" submitted successfully.` : `"${exName}" submitted successfully`)
+        toast.success(preview ? 'Mock preview completed. No student submission saved.'
+          : opts?.auto && opts?.reason ? `"${exName}" submitted — ${opts.reason}.`
+          : opts?.auto ? `Time's up! "${exName}" submitted successfully.`
+          : `"${exName}" submitted successfully`)
         // Close the confirm modal (if open) and redirect immediately — no need
         // for the old 700 ms cosmetic delay; the toast survives the navigation
         // because react-hot-toast's Toaster lives at the page root.
         setShowSubmitConfirm(false)
         if (onCloseExercise) onCloseExercise(); else if (onBack) onBack()
+        return true
       } else {
         log("error", `Submission failed: ${result.message}`)
         toast.error(`Submission failed: ${result.message || "unknown error"}`)
         if (opts?.auto) toast.error("Auto-submit failed. Please submit manually.")
         isSubmitGuardRef.current = false
+        return false
       }
     } catch (e: any) {
       log("error", `Submission error: ${e?.message || e}`)
       toast.error(`Submission error: ${e?.message || e}`)
       if (opts?.auto) toast.error("Auto-submit failed. Please submit manually.")
       isSubmitGuardRef.current = false
+      return false
     } finally {
       setIsSubmitting(false)
     }
@@ -1975,8 +2011,34 @@ export default function MultiFileCodeEditor({
     }
   })
 
-  // ─── Timer ──────────────────────────────────────────────────────────────────
+  // Exam mode: the page auto-submits (time-up, proctoring limits) through
+  // this — always the latest submitExercise, so the registered callback
+  // never closes over stale files.
+  const finalSubmitRef = useRef<(reason: string) => Promise<boolean | null>>(async () => false)
   useEffect(() => {
+    finalSubmitRef.current = async (reason: string) => {
+      if (isSubmitGuardRef.current) return null
+      return submitExercise({ auto: true, reason })
+    }
+  })
+  useEffect(() => {
+    exam?.registerFinalSubmit?.((reason: string) => finalSubmitRef.current(reason))
+  }, [exam?.registerFinalSubmit])
+
+  // Exam mode: tell the Live Dashboard which question the student is on.
+  const shownQuestionIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    const id = currentQuestion?._id ? String(currentQuestion._id) : null
+    if (id === shownQuestionIdRef.current) return
+    exam?.onQuestionChange?.(shownQuestionIdRef.current, id)
+    shownQuestionIdRef.current = id
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fires on question change only
+  }, [currentQuestion?._id])
+
+  // ─── Timer ──────────────────────────────────────────────────────────────────
+  // Not in exam mode: there the attempt's server-held clock decides time-up.
+  useEffect(() => {
+    if (examMode) return
     const totalDuration = exData?.exerciseInformation?.totalDuration
     if (!totalDuration || totalDuration <= 0) { setExerciseTimeLeft(null); return }
     setExerciseTimeLeft(totalDuration * 60)
@@ -1988,7 +2050,7 @@ export default function MultiFileCodeEditor({
       })
     }, 1000)
     return () => clearInterval(timer)
-  }, [exData?.exerciseInformation?.totalDuration])
+  }, [exData?.exerciseInformation?.totalDuration, examMode])
 
   // ─── Resize handler ──────────────────────────────────────────────────────────
   // Delta-based: each drag adjusts the width/height by (current pointer -
@@ -2331,6 +2393,9 @@ export default function MultiFileCodeEditor({
                 </button>
               </div>
             </div>
+
+            {/* Exam mode: the page's timer / message bell. */}
+            {exam?.headerSlot}
 
             {/* Right — primary actions moved up from the editor toolbar. */}
             <div style={{ display: "flex", alignItems: "center", gap: 8, justifySelf: "end" }}>
@@ -2733,6 +2798,9 @@ export default function MultiFileCodeEditor({
                   a Stop button STILL surfaces here when a run is live so
                   the student can halt without scrolling their eye all the
                   way up. */}
+              {/* Exam mode, maximized: the global header is hidden, so the
+                  timer / message bell ride on this toolbar instead. */}
+              {isFull && exam?.headerSlot}
               <select
                 value={selectedLanguage}
                 onChange={(e) => setSelectedLanguage(e.target.value as SupportedLanguage)}

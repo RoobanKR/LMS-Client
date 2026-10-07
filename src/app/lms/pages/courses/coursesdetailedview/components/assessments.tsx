@@ -13,6 +13,7 @@ import {
 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { retestApi } from "@/app/lms/pages/courses/coursesdetailedview/api/retest"
+import { isMockAssessment } from "@/app/lms/pages/courses/coursesdetailedview/components/YouDo/mockTest"
 import TableFooter from "@/app/lms/shared/listing/TableFooter"
 import { SectionStartPopup } from "@/app/lms/pages/courses/coursesdetailedview/components/section-based-assessments"
 import SectionBasedTestPage from "@/app/lms/pages/courses/coursesdetailedview/components/YouDo/SectionBasedTestPage"
@@ -1151,11 +1152,14 @@ function RequestRetestModal({ exercise, onClose, onSubmit, submitting }: Request
 // Per-row 3-dot menu → "Request Retest"
 // ═══════════════════════════════════════════════════════════════════════════════
 function RetestRowMenu({
-  exercise, isPending, onRequest, onGrade, isGradeEnabled, isSubmitted,
+  exercise, isPending, onRequest, onGrade, isGradeEnabled, isSubmitted, hideRequest = false,
 }: {
   exercise: Exercise;
   isPending: boolean;
   onRequest: () => void;
+  // Mock tests retake themselves from the row's Retest button, so there is
+  // nothing to request from the coordinator.
+  hideRequest?: boolean;
   // Grade action — kept inside this menu (below "Request Retest") so the
   // teacher / student only see one three-dot affordance per row. Grade is
   // disabled until the student has submitted at least one answer for this
@@ -1221,7 +1225,7 @@ function RetestRowMenu({
             boxShadow: '0 10px 30px rgba(0,0,0,0.12)', padding: 4, minWidth: 172,
           }}
         >
-          {(() => {
+          {!hideRequest && (() => {
             // Request Retest is only meaningful AFTER a submission exists.
             // Disable it while the Action column still shows the Start button
             // (i.e. nothing submitted yet) so students can't request a retest
@@ -1259,7 +1263,7 @@ function RetestRowMenu({
           })()}
           {onGrade && (
             <>
-              <div style={{ height: 1, margin: '4px 6px', background: '#eef2f7' }} />
+              {!hideRequest && <div style={{ height: 1, margin: '4px 6px', background: '#eef2f7' }} />}
               <button
                 disabled={!isGradeEnabled}
                 title={isGradeEnabled ? 'Open grading' : 'Available after at least one answer is submitted'}
@@ -1336,6 +1340,10 @@ export default function Assessments({
   // ── Retest request state ──────────────────────────────────────────────────
   const [retestModalExercise, setRetestModalExercise] = useState<Exercise | null>(null)
   const [submittingRetest, setSubmittingRetest] = useState(false)
+  // Mock / Practice assessments never lock: "Retest" asks once, clears the
+  // student's own previous attempt, then opens the test fresh.
+  const [mockRetestExercise, setMockRetestExercise] = useState<Exercise | null>(null)
+  const [restartingMock, setRestartingMock] = useState(false)
   const [pendingRetestIds, setPendingRetestIds] = useState<Set<string>>(new Set())
   // Approved retest windows (exerciseId → window), fetched live so the "Start
   // Retest" label appears WITHOUT a manual refresh after the coordinator unlocks.
@@ -1624,7 +1632,9 @@ export default function Assessments({
   // any reload of it — can read everything. The instructions page shows the
   // hierarchy, duration, marks, schedule, instructions and security, then its
   // "Start Test" button routes on to the real youdo/* test page.
-  const openInstructionsTab = (exercise: Exercise) => {
+  // `target` — a tab already opened inside the click (Retest opens it before
+  // its network call, so the browser's popup blocker allows it).
+  const openInstructionsTab = (exercise: Exercise, target?: Window | null) => {
     const qs = Array.isArray((exercise as any).questions) ? (exercise as any).questions : []
     const payload = {
       exercise: { ...exercise, questions: qs },
@@ -1642,7 +1652,39 @@ export default function Assessments({
     }
     try { localStorage.setItem('youdo_test_intro_' + exercise._id, JSON.stringify(payload)) } catch { /* quota */ }
     const url = `/lms/pages/courses/coursesdetailedview/youdo/instructions?exerciseId=${encodeURIComponent(exercise._id)}`
+    if (target && !target.closed) {
+      try { target.opener = null } catch { /* ignore */ }
+      target.location.href = url
+      return
+    }
     window.open(url, '_blank', 'noopener,noreferrer')
+  }
+
+  // Retest a Mock test. Runs inside the confirm click: the new tab opens
+  // right away and is pointed at the test once the reset is stored.
+  const confirmMockRetest = async () => {
+    const exercise = mockRetestExercise
+    if (!exercise || restartingMock) return
+    const tab = window.open('', '_blank')
+    setRestartingMock(true)
+    const exAny = exercise as any
+    const res = await retestApi.restartMock({
+      exerciseId: String(exercise._id),
+      courseId: courseId != null ? String(courseId) : '',
+      subcategory: subcategory || '',
+      nodeId: exAny.__ownerNodeId || (selectedItem as any)?.id || '',
+      nodeType: exAny.__ownerNodeType || nodeType || (selectedItem as any)?.type || '',
+    })
+    setRestartingMock(false)
+    setMockRetestExercise(null)
+    // `attempt_active`: an attempt is still running — just continue it.
+    if (res.success || res.code === 'attempt_active') {
+      onSectionSubmit?.()   // refetch answers so this row shows the fresh attempt
+      openInstructionsTab(exercise, tab)
+      return
+    }
+    try { tab?.close() } catch { /* ignore */ }
+    showToast(res.message || 'Could not start the retest. Please try again.')
   }
 
   const handleStartClick = (exercise: Exercise, e: React.MouseEvent) => {
@@ -1659,7 +1701,9 @@ export default function Assessments({
       }
       const submissionAttempts = getSubmissionAttempts(exercise)
       const testSubmissions = getTestSubmissions(exercise, studentAnswers, method, subcategory)
-      if (testSubmissions >= submissionAttempts) return
+      const mock = isMockAssessment(exercise, subcategory)
+      if (mock && testSubmissions >= 1) { setMockRetestExercise(exercise); return }
+      if (!mock && testSubmissions >= submissionAttempts) return
       const isYouDo = (method || '').toLowerCase().replace(/[-_\s]/g, '').includes('youdo')
       if (isYouDo) { openInstructionsTab(exercise); return }
       setSectionPopupExercise(exercise) // fallback for non You-Do contexts
@@ -1676,7 +1720,10 @@ export default function Assessments({
     const submissionAttempts = getSubmissionAttempts(exercise)
     const testSubmissions = getTestSubmissions(exercise, studentAnswers, method, subcategory)
     const isCompleted = testSubmissions >= 1
-    const limitReached = testSubmissions >= submissionAttempts
+    // A Mock test never runs out: a finished one is retaken (fresh) instead.
+    const mock = isMockAssessment(exercise, subcategory)
+    if (mock && isCompleted) { setMockRetestExercise(exercise); return }
+    const limitReached = !mock && testSubmissions >= submissionAttempts
     const isRetake = isCompleted && !limitReached
 
     if (limitReached) return
@@ -1871,6 +1918,61 @@ export default function Assessments({
             getSubmissionAttempts(sectionPopupExercise)
           }
         />,
+        document.body
+      )}
+
+      {/* Mock retest confirmation portal */}
+      {mockRetestExercise && typeof document !== 'undefined' && ReactDOM.createPortal(
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 99999,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+            background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(4px)',
+          }}
+          onClick={() => { if (!restartingMock) setMockRetestExercise(null) }}
+        >
+          <div
+            style={{
+              width: '100%', maxWidth: 420, borderRadius: 16, background: '#ffffff',
+              boxShadow: '0 20px 50px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.06)', overflow: 'hidden',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ height: 4, background: 'linear-gradient(90deg,#f97316,#ea580c)' }} />
+            <div style={{ padding: '18px 20px 6px', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 34, height: 34, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff7ed', color: '#f97316', flexShrink: 0 }}>
+                <RotateCcw className="w-4 h-4" />
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#0f172a' }}>Retest this mock test?</div>
+                <div style={{ fontSize: 11.5, color: '#94a3b8', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {mockRetestExercise.exerciseInformation.exerciseName}
+                </div>
+              </div>
+            </div>
+            <p style={{ padding: '6px 20px 0', margin: 0, fontSize: 13, color: '#475569', lineHeight: 1.6 }}>
+              You start a fresh attempt with all the test&apos;s rules. Your previous answers and score for this mock test are replaced by the new attempt.
+            </p>
+            <div style={{ display: 'flex', gap: 10, padding: '16px 20px 18px' }}>
+              <button
+                type="button"
+                disabled={restartingMock}
+                onClick={() => setMockRetestExercise(null)}
+                style={{ flex: 1, padding: '10px', borderRadius: 10, border: '1.5px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: 13, fontWeight: 600, cursor: restartingMock ? 'not-allowed' : 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={restartingMock}
+                onClick={() => { void confirmMockRetest() }}
+                style={{ flex: 1, padding: '10px', borderRadius: 10, border: 'none', background: '#F97316', color: '#fff', fontSize: 13, fontWeight: 700, cursor: restartingMock ? 'wait' : 'pointer', opacity: restartingMock ? 0.75 : 1 }}
+              >
+                {restartingMock ? 'Starting…' : 'Start retest'}
+              </button>
+            </div>
+          </div>
+        </div>,
         document.body
       )}
 
@@ -2201,7 +2303,9 @@ export default function Assessments({
                   const submissionAttempts = getSubmissionAttempts(exercise)
                   const testSubmissions = getTestSubmissions(exercise, studentAnswers, method, subcategory)
                   const isCompleted = testSubmissions >= 1
-                  const limitReached = testSubmissions >= submissionAttempts
+                  // Mock / Practice: never locked — Retest once submitted.
+                  const mock = isMockAssessment(exercise, subcategory)
+                  const limitReached = !mock && testSubmissions >= submissionAttempts
                   // canRetake: submitted but still has attempts left and window is open (applies to all types incl. section-based)
                   const canRetake = isCompleted && !limitReached && availability.canStart
                   const rowNum = startIdx + idx + 1
@@ -2351,7 +2455,7 @@ export default function Assessments({
                               className="inline-flex items-center justify-center h-9 w-[128px] text-[13px] font-semibold rounded-control transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
                               style={{ background: '#FFFFFF', color: '#F97316', border: '1px solid #F97316', cursor: 'pointer' }}
                             >
-                              {canRetake ? (isSec ? 'Retake' : 'Re Submit') : (retestOpen ? 'Start Retest' : 'Start')}
+                              {mock && isCompleted ? 'Retest' : canRetake ? (isSec ? 'Retake' : 'Re Submit') : (retestOpen ? 'Start Retest' : 'Start')}
                             </button>
                           )}
                           <RetestRowMenu
@@ -2361,6 +2465,7 @@ export default function Assessments({
                             onGrade={handleGradeClick}
                             isGradeEnabled={hasExerciseBeenAttempted(exercise, studentAnswers, method, subcategory)}
                             isSubmitted={isCompleted || limitReached || canRetake}
+                            hideRequest={mock}
                           />
                         </div>
                       </td>

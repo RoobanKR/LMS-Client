@@ -25,6 +25,7 @@ import {
   type AssessmentSecurityConfig,
 } from "@/app/lms/pages/courses/coursesdetailedview/components/YouDo/useAssessmentSecurity";
 import { captureSharedScreen } from "@/app/lms/pages/courses/coursesdetailedview/components/YouDo/screenStreamStore";
+import { isMockAssessment } from "@/app/lms/pages/courses/coursesdetailedview/components/YouDo/mockTest";
 import {
   Home, ChevronRight, ArrowLeft, CalendarDays, Clock, ClipboardList, Award,
   RotateCcw, Trophy, Code2, Gauge, ListChecks, SlidersHorizontal, Play,
@@ -477,18 +478,20 @@ function computeAvailability(ex: any): { canStart: boolean; message: string; ton
 }
 
 /** Resolve the test route + localStorage key — mirrors [id]/page.tsx's branching. */
-function resolveRoute(ex: any): { key: string; path: string } {
+// `mock` — a Mock / Practice assessment: its programming test opens in the
+// multi-file editor (youdo/mockprogramming). Every other type is unchanged.
+function resolveRoute(ex: any, mock = false): { key: string; path: string } {
   if (ex?.exerciseType === "SectionBased" || ex?.isSectionBased === true) return { key: "currentSectionBasedExercise", path: "sectionbased" };
   if (ex?.exerciseType === "Combined") return { key: "currentCombinedExercise", path: "combined" };
   if (ex?.programmingSettings?.selectedModule === "Frontend") return { key: "currentFrontendExercise", path: "frontend" };
   if (ex?.programmingSettings?.selectedModule === "Database") return { key: "currentSQLExercise", path: "sql" };
   if (ex?.exerciseType === "MCQ") return { key: "currentMCQExercise", path: "mcq" };
   if (ex?.exerciseType === "Other") return { key: "currentOthersExercise", path: "others" };
-  return { key: "currentProgrammingExercise", path: "programming" };
+  return { key: "currentProgrammingExercise", path: mock ? "mockprogramming" : "programming" };
 }
 
 // ── Dynamic instruction lines ───────────────────────────────────────────────
-function buildInstructionList(ex: any, sec: AssessmentSecurityConfig): string[] {
+function buildInstructionList(ex: any, sec: AssessmentSecurityConfig, mock = false): string[] {
   const out: string[] = [];
   const info = ex?.exerciseInformation || {};
   const qc = ex?.questionConfiguration || {};
@@ -532,9 +535,12 @@ function buildInstructionList(ex: any, sec: AssessmentSecurityConfig): string[] 
     out.push("Do not refresh or close this tab once you have started; you may lose unsaved answers.");
   }
 
+  const attemptsLine = mock
+    ? "This is a mock test: you can take it again any time with Retest."
+    : `You have ${plural(attempts, "attempt")}.`;
   out.push(duration > 0
-    ? `All answers must be submitted before the timer expires. You have ${plural(attempts, "attempt")}.`
-    : `All answers must be submitted before you finish. You have ${plural(attempts, "attempt")}.`);
+    ? `All answers must be submitted before the timer expires. ${attemptsLine}`
+    : `All answers must be submitted before you finish. ${attemptsLine}`);
 
   out.push("If you experience a device or connectivity issue, contact your trainer before starting.");
   return out;
@@ -695,12 +701,15 @@ function InstructionsContent() {
   const totalMarks = useMemo(() => getTotalMarks(exercise), [exercise]);
   const passMark = useMemo(() => getPassMark(exercise), [exercise]);
   const attempts = useMemo(() => getSubmissionAttempts(exercise), [exercise]);
+  // A Mock / Practice assessment never locks — it can be retaken any time.
+  const mock = useMemo(() => isMockAssessment(exercise, context?.subcategory), [exercise, context?.subcategory]);
+  const attemptsText = mock ? "Unlimited" : String(attempts);
   const levelRows = useMemo(() => getLevelRows(exercise), [exercise]);
   const partRows = useMemo(() => getParts(exercise), [exercise]);
   const flatPerQuestion = useMemo(() => getFlatMarksPerQuestion(exercise), [exercise]);
   const evaluation = useMemo(() => getEvaluation(exercise), [exercise]);
   const questionMode = useMemo(() => getQuestionMode(exercise), [exercise]);
-  const instructionList = useMemo(() => (exercise ? buildInstructionList(exercise, security) : []), [exercise, security]);
+  const instructionList = useMemo(() => (exercise ? buildInstructionList(exercise, security, mock) : []), [exercise, security, mock]);
 
   const duration = num(info.totalDuration);
   const languages: string[] = useMemo(
@@ -745,7 +754,7 @@ function InstructionsContent() {
       });
     }
     if (isGraded && totalMarks) rows.push({ key: "marks", icon: <Award size={16} />, label: "Total marks", value: String(totalMarks) });
-    rows.push({ key: "attempts", icon: <RotateCcw size={16} />, label: "Attempts", value: String(attempts) });
+    rows.push({ key: "attempts", icon: <RotateCcw size={16} />, label: "Attempts", value: attemptsText });
     if (isGraded && passPercent != null) {
       rows.push({ key: "pass", icon: <Trophy size={16} />, label: "Passing score", value: `${passPercent}%` });
     } else if (isGraded && passMark != null) {
@@ -759,7 +768,7 @@ function InstructionsContent() {
       });
     }
     return rows;
-  }, [duration, totalQuestions, questionNoun, isGraded, totalMarks, attempts, passPercent, passMark, evaluation.label, languages]);
+  }, [duration, totalQuestions, questionNoun, isGraded, totalMarks, attempts, attemptsText, passPercent, passMark, evaluation.label, languages]);
 
   // ── Assessment details grid ───────────────────────────────────────────────
   const details = useMemo(() => {
@@ -780,7 +789,7 @@ function InstructionsContent() {
     if (isCoding && prog?.allowCodeExecution) rows.push({ label: "Run code", value: "Enabled before submitting" });
     if (isCoding && prog?.showSampleCases) rows.push({ label: "Sample test cases", value: "Visible while solving" });
     if (isCoding && prog?.enableTestCases) rows.push({ label: "Hidden test cases", value: "Used for final marks" });
-    rows.push({ label: "Attempts allowed", value: String(attempts) });
+    rows.push({ label: "Attempts allowed", value: attemptsText });
     rows.push({ label: "Evaluation", value: evaluation.label });
     if (security.requireFullscreen) rows.push({ label: "Full screen", value: "Required" });
     if (security.preventTabSwitch) rows.push({ label: "Tab switching", value: "Not allowed" });
@@ -790,7 +799,7 @@ function InstructionsContent() {
     if (ap.startDate) rows.push({ label: "Opens", value: formatDateTime(ap.startDate) });
     if (ap.endDate) rows.push({ label: "Due", value: formatDateTime(ap.endDate) });
     return rows;
-  }, [exercise, exerciseType, info, isGraded, languages, totalQuestions, questionNoun, duration, flow, isCoding, prog, attempts, evaluation.label, security, cameraOn, ap, questionMode]);
+  }, [exercise, exerciseType, info, isGraded, languages, totalQuestions, questionNoun, duration, flow, isCoding, prog, attempts, attemptsText, evaluation.label, security, cameraOn, ap, questionMode]);
 
   // ── Optional sidebar hints — only genuinely special rules ─────────────────
   const hints = useMemo(() => {
@@ -816,7 +825,7 @@ function InstructionsContent() {
     if (!exercise || starting) return;
     setStarting(true);
     setStartError(null);
-    const { key, path } = resolveRoute(exercise);
+    const { key, path } = resolveRoute(exercise, mock);
 
     // Fullscreen needs a real user gesture — request it inside the click so it
     // survives Next's client-side navigation and the test page stays locked.
@@ -831,7 +840,7 @@ function InstructionsContent() {
     // and the code editor reuses this stream (screenStreamStore) instead of
     // popping the picker over an already-rendered editor. Programming only —
     // the other players still capture on their own.
-    if (path === "programming" && security.screenRecordingEnabled) {
+    if ((path === "programming" || path === "mockprogramming") && security.screenRecordingEnabled) {
       const stream = await captureSharedScreen(!!security.cameraMicEnabled);
       if (!stream) {
         if (typeof document !== "undefined" && document.fullscreenElement) document.exitFullscreen().catch(() => {});
@@ -865,7 +874,7 @@ function InstructionsContent() {
       securityAck: "1",
     });
     router.push(`/lms/pages/courses/coursesdetailedview/youdo/${path}?${params.toString()}`);
-  }, [exercise, starting, context, exerciseId, info.exerciseName, router, security]);
+  }, [exercise, starting, context, exerciseId, info.exerciseName, router, security, mock]);
 
   // ── load / error ──────────────────────────────────────────────────────────
   if (loading && !exercise) {
@@ -1236,7 +1245,9 @@ function InstructionsContent() {
 
               <div>
                 <SummaryRow icon={<RotateCcw size={15} />}>
-                  <b style={{ color: C.text }}>{attempts}</b> {attempts === 1 ? "attempt" : "attempts"} available
+                  {mock
+                    ? <><b style={{ color: C.text }}>Unlimited</b> retests — this is a mock test</>
+                    : <><b style={{ color: C.text }}>{attempts}</b> {attempts === 1 ? "attempt" : "attempts"} available</>}
                 </SummaryRow>
                 {isGraded && totalMarks ? (
                   <SummaryRow icon={<Award size={15} />}>

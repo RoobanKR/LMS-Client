@@ -18,6 +18,9 @@ export interface RecordingOptions {
   subcategory?: string;  // needed to store recording under the right exercise slot
   withCamera?: boolean;  // overlay camera PiP on screen recording
   cameraOnly?: boolean;  // record ONLY camera feed (no screen capture)
+  /** A screen already shared on the instructions page — recorded instead of
+   *  prompting again. Absent: the hook asks for the screen itself. */
+  screenStream?: MediaStream | null;
 }
 
 /**
@@ -211,10 +214,13 @@ export function useScreenRecording() {
   // ── Mode B/C: screen recording (+ optional camera PiP) ───────────────────
   const startScreenRecording = useCallback(async (opts: RecordingOptions): Promise<boolean> => {
     try {
-      // 1. Capture screen — flag the open prompt so the broadcaster waits for
-      //    THIS stream instead of opening a second prompt.
-      markScreenCaptureStarting();
-      const screenStream = await navigator.mediaDevices.getDisplayMedia({
+      // 1. Capture screen — reuse one already shared (it is still live), else
+      //    prompt, flagging the open prompt so the broadcaster waits for THIS
+      //    stream instead of opening a second prompt.
+      const reuse = opts.screenStream && opts.screenStream.getVideoTracks().some((t) => t.readyState === 'live')
+        ? opts.screenStream : null;
+      if (!reuse) markScreenCaptureStarting();
+      const screenStream = reuse || await navigator.mediaDevices.getDisplayMedia({
         video: { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 15 } } as any,
         audio: true,
       });
