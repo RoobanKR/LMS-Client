@@ -3547,6 +3547,8 @@ const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean
                 replaces, not orphaned in the sticky toolbar. Clicking it
                 collapses the form to just the URL input; the same button
                 (with an active look) toggles back. */}
+            {/* Hidden for now — commented out, not removed, so it can be
+                switched back on by deleting this comment wrapper.
             <button
               type="button"
               disabled={isFormDisabled}
@@ -3575,6 +3577,7 @@ const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean
               </svg>
               Use external question link
             </button>
+            */}
 
             {/* Problem Title section */}
             <div ref={titleSectionRef} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
