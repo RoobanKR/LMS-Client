@@ -9,6 +9,8 @@ const DASHBOARD_SECTIONS = [
   'coursestructure/course-participants', 'coursestructure/feedback',
   'coursestructure/programcalendar',
   'coursestructure/view-resources',
+  // Course Actions ▸ Report (also opened from Reports) — keeps the sidebar.
+  'coursestructure/courseReport',
 ];
 // pedagogy2 is deliberately absent: the builder is a wide, tool-dense canvas
 // (zoom, merge, drag-reorder, full-view) and the 244px rail cost it horizontal

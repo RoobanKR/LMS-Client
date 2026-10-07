@@ -66,6 +66,13 @@ export type ReportTable = {
      *  long edge to spread across. Pagination is computed against the
      *  rotated box so rows-per-page stays correct. */
     tableRotated?: boolean
+    /** Start a block on a fresh page rather than splitting it, when the
+     *  whole block fits on one page (Course Report: one student's
+     *  questions). A block taller than a page still splits. Opt-in. */
+    keepBlocksTogether?: boolean
+    /** Leave the space under the last row blank instead of ruling empty
+     *  rows down to the table box's edge. Opt-in. */
+    noFillerRows?: boolean
 }
 
 export async function loadServiceReport(filters: MappingPageFilters, signal: AbortSignal): Promise<ServiceMapping[]> {

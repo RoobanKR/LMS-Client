@@ -31,6 +31,7 @@ import { StaffLayout } from '@/app/lms/component/stafflayout/staff-layout';
 import { usePermissions } from '@/hooks/usePermissions';
 import { PERMISSION_IDS } from '@/app/lms/pages/usermanagement/components/permissions/index';
 import TableFooter from '@/app/lms/shared/listing/TableFooter';
+import { useSectionHref } from '@/lib/sectionRoute';
 
 // Notifications workspace — repainted onto the same design system as Client
 // Management and Course Structure. All colours, spacing and control sizes
@@ -94,6 +95,7 @@ export default function NotificationsPage() {
 
   const queryClient = useQueryClient();
   const router = useRouter();
+  const sectionHref = useSectionHref();
 
   // Page-by-page pagination via React Query — one page per request, swapped
   // in place; keepPreviousData holds the previous rows so the list never
@@ -288,6 +290,26 @@ export default function NotificationsPage() {
       router.push(redirectUrl);
       return;
     }
+    // A retest request or a student's (late) submission opens that
+    // assessment's Manage Users screen — requests or submissions — in the
+    // reader's own section, the way the notification bell does.
+    const read = (k: string) => (meta instanceof Map ? meta.get?.(k) : meta?.[k]);
+    const kind = String(read('kind') || '');
+    const isRetest = kind === 'retest_request' || Boolean(read('requestId'));
+    const isSubmission = kind === 'submission' || kind === 'late_submission';
+    if ((isRetest || isSubmission) && read('courseId') && read('exerciseId')) {
+      const q = new URLSearchParams({
+        courseId: String(read('courseId')),
+        exerciseId: String(read('exerciseId')),
+        assessmentName: String(read('exerciseName') || ''),
+        subcategory: String(read('subcategory') || ''),
+        nodeId: String(read('nodeId') || ''),
+        nodeType: String(read('nodeType') || ''),
+        ...(isRetest ? { tab: 'requests' } : {}),
+      }).toString();
+      router.push(`${sectionHref('manageUsers')}?${q}`);
+      return;
+    }
     setExpandedId(expandedId === notification._id ? null : notification._id);
   };
 
@@ -323,7 +345,7 @@ export default function NotificationsPage() {
   };
 
   const pageContent = (
-    <div className="flex flex-col h-full min-h-0 min-w-0 px-4 sm:px-6 md:px-8 pt-3 pb-3">
+    <div className="flex flex-col h-full min-h-0 min-w-0 px-2 sm:px-6 md:px-8 pt-1 sm:pt-3 pb-3">
       {/* Slim heading — matches Client Management / Course Structure.
           Total / Unread chip strip removed; the count already surfaces in
           the pagination footer, and the Unread tab carries its own badge. */}
@@ -335,7 +357,7 @@ export default function NotificationsPage() {
           Same h-8 pill shape, same rounded-control radius, same border /
           hover tokens as Client Management. */}
       <div className="mt-3 flex items-center gap-2 flex-wrap min-w-0">
-        <div className="relative flex-1 min-w-[220px] max-w-md">
+        <div className="relative flex-1 min-w-[170px] sm:min-w-[220px] max-w-md">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-faint pointer-events-none" />
           <input
             type="text"
@@ -504,11 +526,11 @@ export default function NotificationsPage() {
                     }`}
                     onClick={() => handleNotificationClick(notification)}
                   >
-                    <div className="flex items-center px-4 py-2.5 gap-3">
+                    <div className="flex items-center px-2 sm:px-4 py-2 sm:py-2.5 gap-2 sm:gap-3">
                       {canEdit && (
                         <button
                           type="button"
-                          className="flex-shrink-0 inline-flex items-center justify-center size-6 rounded-chip hover:bg-ink-100 transition-colors duration-150 z-20"
+                          className="flex-shrink-0 inline-flex items-center justify-center size-8 lg:size-6 rounded-chip hover:bg-ink-100 transition-colors duration-150 z-20"
                           onClick={(e) => {
                             e.stopPropagation();
                             toggleFavoriteMutation.mutate(notification._id);
@@ -524,15 +546,15 @@ export default function NotificationsPage() {
                         </button>
                       )}
 
-                      <div className="flex flex-1 items-center min-w-0 gap-3 overflow-hidden">
+                      <div className="flex flex-1 items-center min-w-0 gap-2 sm:gap-3 overflow-hidden">
                         <div
-                          className={`w-32 md:w-40 flex-shrink-0 inline-flex items-center gap-1.5 truncate px-2 py-0.5 rounded-chip text-2xs font-semibold ring-1 ring-inset ${getTypeChip(
+                          className={`w-auto sm:w-32 md:w-40 flex-shrink-0 inline-flex items-center gap-1.5 truncate px-1.5 sm:px-2 py-0.5 rounded-chip text-2xs font-semibold ring-1 ring-inset ${getTypeChip(
                             notification.type,
                             notification.relatedEntity,
                           )}`}
                         >
                           {getIconForType(notification.type, notification.relatedEntity)}
-                          <span className="truncate">
+                          <span className="hidden sm:inline truncate">
                             {notification.relatedEntity
                               ? notification.relatedEntity.charAt(0).toUpperCase() + notification.relatedEntity.slice(1)
                               : 'System'}
@@ -552,8 +574,10 @@ export default function NotificationsPage() {
                         </div>
                       </div>
 
-                      <div className="flex-shrink-0 flex items-center justify-end w-24 pl-2">
-                        <div className="hidden group-hover:flex items-center gap-1 mr-2">
+                      <div className="flex-shrink-0 flex items-center justify-end w-auto lg:w-24 pl-1 lg:pl-2">
+                        {/* Touch screens have no hover: below lg the actions stay
+                            visible next to the date; lg+ keeps the hover swap. */}
+                        <div className="flex lg:hidden lg:group-hover:flex items-center gap-1 mr-1 lg:mr-2">
                           {canEdit && (
                             <button
                               type="button"
@@ -561,7 +585,7 @@ export default function NotificationsPage() {
                                 e.stopPropagation();
                                 deleteNotificationMutation.mutate(notification._id);
                               }}
-                              className="inline-flex items-center justify-center size-6 rounded-chip text-faint hover:bg-danger-50 hover:text-danger-600 transition-colors duration-150"
+                              className="inline-flex items-center justify-center size-8 lg:size-6 rounded-chip text-faint hover:bg-danger-50 hover:text-danger-600 transition-colors duration-150"
                               title="Delete"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
@@ -573,7 +597,7 @@ export default function NotificationsPage() {
                               e.stopPropagation();
                               handleNotificationClick(notification);
                             }}
-                            className="inline-flex items-center justify-center size-6 rounded-chip text-faint hover:bg-brand-wash hover:text-brand-strong transition-colors duration-150"
+                            className="hidden sm:inline-flex items-center justify-center size-8 lg:size-6 rounded-chip text-faint hover:bg-brand-wash hover:text-brand-strong transition-colors duration-150"
                             title="View details"
                           >
                             <Eye className="h-3.5 w-3.5" />
@@ -581,7 +605,7 @@ export default function NotificationsPage() {
                         </div>
 
                         <span
-                          className={`text-2xs group-hover:hidden ${
+                          className={`text-2xs whitespace-nowrap lg:group-hover:hidden ${
                             !isRead ? 'font-semibold text-brand-strong' : 'text-subtle'
                           }`}
                         >
@@ -592,14 +616,14 @@ export default function NotificationsPage() {
 
                     {isExpanded && (
                       <div
-                        className="px-4 pb-4 pl-14 pr-4 border-t border-hairline bg-surface cursor-default"
+                        className="px-3 pb-4 sm:pl-14 sm:pr-4 border-t border-hairline bg-surface cursor-default"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <div className="pt-4">
                           <div className="flex items-start justify-between mb-3">
                             <div className="min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <h3 className="text-sm font-semibold text-heading">{notification.title}</h3>
+                                <h3 className="min-w-0 break-words text-sm font-semibold text-heading">{notification.title}</h3>
                                 {notification.isFavorite && (
                                   <span className="inline-flex h-5 items-center rounded-full px-2 text-2xs font-semibold bg-brand-wash text-brand-strong ring-1 ring-inset ring-brand-500/25">
                                     Favorite
@@ -614,7 +638,7 @@ export default function NotificationsPage() {
                             </div>
                           </div>
 
-                          <div className="text-xs leading-relaxed whitespace-pre-wrap text-body">
+                          <div className="text-xs leading-relaxed whitespace-pre-wrap break-words text-body">
                             {notification.message}
                           </div>
 
@@ -625,7 +649,7 @@ export default function NotificationsPage() {
                               </h4>
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-y-2 text-xs">
                                 {Object.entries(notification.metadata).map(([key, value]) => (
-                                  <div key={key} className="flex gap-2">
+                                  <div key={key} className="flex flex-wrap sm:flex-nowrap gap-x-2 gap-y-0.5 min-w-0">
                                     <span className="font-medium min-w-[100px] text-subtle">{key}:</span>
                                     <span className="break-all text-body">{String(value)}</span>
                                   </div>

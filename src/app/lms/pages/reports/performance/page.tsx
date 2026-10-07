@@ -28,7 +28,7 @@ import { Eye, Search, X } from "lucide-react";
 import DashboardLayout from "@/app/lms/component/layout";
 import { StaffLayout } from "@/app/lms/component/stafflayout/staff-layout";
 import LDLayout from "@/app/lms/component/ldshell/LDLayout";
-import DataTable, { type Column } from "@/app/lms/shared/listing/DataTable";
+import DataTable, { type Column, type SortDir } from "@/app/lms/shared/listing/DataTable";
 import TableFooter from "@/app/lms/shared/listing/TableFooter";
 import { ClientAvatar } from "@/app/lms/pages/servicemapping/components/workspaceShared";
 import { useClients } from "@/app/lms/pages/clientmanagement/api/clientManagementService";
@@ -52,6 +52,11 @@ interface CourseRow {
     category?: string;
     participantCount?: number;
     exerciseCount?: number;
+    /** Students only (a batch's users also hold its trainers), and the
+     *  exercises the Course Report lists — so this list and the report agree.
+     *  Older servers send neither; the plain counts stand in. */
+    studentCount?: number;
+    reportExerciseCount?: number;
     hasSubmissions?: boolean;
     createdAt?: string;
     updatedAt?: string;
@@ -79,6 +84,9 @@ const readShell = (): Shell => {
 
 const titleCase = (s?: string) =>
     (s || "").replace(/\b\w/g, (ch) => ch.toUpperCase());
+
+const studentsOf = (row: CourseRow) => row.studentCount ?? row.participantCount ?? 0;
+const exercisesOf = (row: CourseRow) => row.reportExerciseCount ?? row.exerciseCount ?? 0;
 
 export default function ReportsPage() {
     const router = useRouter();
@@ -118,6 +126,13 @@ export default function ReportsPage() {
     const [clientFilter, setClientFilter] = useState("all");
     const [serviceFilter, setServiceFilter] = useState("all");
     const [statusFilter, setStatusFilter] = useState("all");
+    // Column sort; none picked = most recently changed first.
+    const [sortKey, setSortKey] = useState<string | null>(null);
+    const [sortDir, setSortDir] = useState<SortDir>("asc");
+    const onSort = (key: string) => {
+        if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+        else { setSortKey(key); setSortDir("asc"); }
+    };
 
     const clientOptions = useMemo(() => {
         const seen = new Map<string, string>();
@@ -143,11 +158,25 @@ export default function ReportsPage() {
                 .some((f) => (f || "").toLowerCase().includes(q)))
             .slice()
             .sort((a, b) => {
+                if (sortKey) {
+                    const value = (r: CourseRow): string | number =>
+                        sortKey === "course" ? (r.courseName || "")
+                            : sortKey === "client" ? clientNameOf(r)
+                                : sortKey === "service" ? (r.serviceModal || "")
+                                    : sortKey === "students" ? studentsOf(r)
+                                        : sortKey === "exercises" ? exercisesOf(r)
+                                            : r.hasSubmissions ? 1 : 0;
+                    const va = value(a), vb = value(b);
+                    const cmp = typeof va === "number" && typeof vb === "number"
+                        ? va - vb
+                        : String(va).localeCompare(String(vb), undefined, { numeric: true, sensitivity: "base" });
+                    if (cmp) return sortDir === "asc" ? cmp : -cmp;
+                }
                 const ts = (r: CourseRow) => Math.max(r.updatedAt ? Date.parse(r.updatedAt) : 0, r.createdAt ? Date.parse(r.createdAt) : 0);
                 return ts(b) - ts(a) || String(b._id).localeCompare(String(a._id));
             });
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [courses, clientById, search, clientFilter, serviceFilter, statusFilter]);
+    }, [courses, clientById, search, clientFilter, serviceFilter, statusFilter, sortKey, sortDir]);
 
     // ── Pagination + auto-fit page size (Client Management recipe) ───────
     const [pageSize, setPageSize] = useState(5);
@@ -159,14 +188,18 @@ export default function ReportsPage() {
         if (!autoFitPageSize) return;
         const cardEl = tableCardRef.current;
         if (!cardEl) return;
-        const HEADER_H = 40;
-        const ROW_H = 52;
-        const SAFETY = Math.round(ROW_H / 2);
+        // Header and row heights are measured off the rendered table (a
+        // course row is two lines, taller than the skeleton's), falling back
+        // to the design values before it has rendered. SAFETY leaves room for
+        // the sideways scrollbar the table shows on narrow screens.
+        const SAFETY = 14;
         const compute = () => {
             if (cardEl.clientHeight <= 0) return;
+            const headerH = cardEl.querySelector("thead")?.getBoundingClientRect().height || 40;
+            const rowH = Math.max(44, cardEl.querySelector("tbody tr")?.getBoundingClientRect().height || 52);
             const footerH = tableFooterRef.current?.clientHeight ?? 44;
-            const budget = Math.max(0, cardEl.clientHeight - HEADER_H - footerH - SAFETY);
-            const fits = Math.max(3, Math.min(50, Math.floor(budget / ROW_H)));
+            const budget = Math.max(0, cardEl.clientHeight - headerH - footerH - SAFETY);
+            const fits = Math.max(3, Math.min(50, Math.floor(budget / rowH)));
             setPageSize((prev) => (prev === fits ? prev : fits));
         };
         compute();
@@ -174,7 +207,7 @@ export default function ReportsPage() {
         ro.observe(cardEl);
         if (tableFooterRef.current) ro.observe(tableFooterRef.current);
         return () => ro.disconnect();
-    }, [autoFitPageSize, shell]);
+    }, [autoFitPageSize, shell, coursesQ.isLoading]);
     useEffect(() => { setCurrentPage(1); }, [search, clientFilter, serviceFilter, statusFilter]);
 
     const totalRows = filtered.length;
@@ -200,14 +233,15 @@ export default function ReportsPage() {
         {
             key: "num",
             label: "#",
-            className: "w-[5%] pl-5 text-left text-xs text-faint tabular-nums align-middle",
+            className: "w-[4%] pl-5 text-left text-xs text-faint tabular-nums align-middle",
             skeletonWidth: "20px",
             render: (_r, i) => (safePage - 1) * pageSize + i + 1,
         },
         {
             key: "course",
             label: "Course",
-            className: "w-[25%] px-3 text-left align-middle",
+            sortKey: "course",
+            className: "w-[23%] px-3 text-left align-middle",
             skeletonWidth: "70%",
             render: (row) => (
                 <div className="min-w-0">
@@ -219,7 +253,8 @@ export default function ReportsPage() {
         {
             key: "client",
             label: "Client",
-            className: "w-[20%] px-3 text-left align-middle",
+            sortKey: "client",
+            className: "w-[18%] px-3 text-left align-middle",
             skeletonWidth: "80%",
             render: (row) => {
                 const name = clientNameOf(row);
@@ -234,7 +269,8 @@ export default function ReportsPage() {
         {
             key: "service",
             label: "Service",
-            className: "w-[18%] px-3 text-left align-middle",
+            sortKey: "service",
+            className: "w-[16%] px-3 text-left align-middle",
             skeletonWidth: "70%",
             render: (row) => (
                 <div className="min-w-0">
@@ -245,22 +281,25 @@ export default function ReportsPage() {
         },
         {
             key: "learners",
-            label: "Participants",
+            label: "Students",
+            sortKey: "students",
             className: "w-[9%] px-3 text-left align-middle tabular-nums",
             skeletonWidth: "30px",
-            render: (row) => row.participantCount ?? 0,
+            render: (row) => studentsOf(row),
         },
         {
             key: "exercises",
             label: "Exercises",
-            className: "w-[8%] px-3 text-left align-middle tabular-nums",
+            sortKey: "exercises",
+            className: "w-[9%] px-3 text-left align-middle tabular-nums",
             skeletonWidth: "30px",
-            render: (row) => row.exerciseCount ?? 0,
+            render: (row) => exercisesOf(row),
         },
         {
             key: "status",
             label: "Submissions",
-            className: "w-[9%] px-3 text-left align-middle",
+            sortKey: "submissions",
+            className: "w-[11%] px-3 text-left align-middle whitespace-nowrap",
             skeletonWidth: "60px",
             render: (row) => row.hasSubmissions ? (
                 <span className="inline-flex items-center rounded-full bg-success-50 px-2 py-0.5 text-2xs font-semibold text-success-700">Received</span>
@@ -271,7 +310,7 @@ export default function ReportsPage() {
         {
             key: "actions",
             label: "Action",
-            className: "w-[6%] no-print pl-2 pr-4 sm:pr-5 text-right whitespace-nowrap align-middle",
+            className: "w-[10%] no-print pl-2 pr-4 text-right whitespace-nowrap align-middle",
             skeletonWidth: "40px",
             render: (row) => (
                 <button
@@ -288,7 +327,7 @@ export default function ReportsPage() {
     const content = (
         // Root flex column — consumes the shell's bounded height so the table
         // area can auto-fit. h-full / min-h-0 / flex-col are all load-bearing.
-        <div className="flex flex-col h-full min-h-0 min-w-0 p-6">
+        <div className="flex flex-col h-full min-h-0 min-w-0 p-4 sm:p-6">
             <div className="shrink-0 mb-4">
                 <h1 className="text-base sm:text-lg font-semibold text-heading tracking-[-0.01em]">Reports</h1>
                 <p className="mt-0.5 text-xs text-subtle">
@@ -297,7 +336,7 @@ export default function ReportsPage() {
             </div>
 
             <div className="shrink-0 mb-3 flex flex-wrap items-center gap-2">
-                <div className="relative flex-1 min-w-[240px] max-w-md">
+                <div className="relative flex-1 basis-full sm:basis-0 min-w-0 sm:min-w-[240px] max-w-md">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-faint pointer-events-none" />
                     <input
                         type="text"
@@ -320,7 +359,7 @@ export default function ReportsPage() {
                 </div>
 
                 <Select value={clientFilter} onValueChange={setClientFilter}>
-                    <SelectTrigger aria-label="Filter by client" className="h-9 min-w-[180px] rounded-md border-hairline">
+                    <SelectTrigger aria-label="Filter by client" className="h-9 flex-1 min-w-[140px] sm:flex-initial sm:min-w-[180px] rounded-md border-hairline">
                         <SelectValue placeholder="All clients" />
                     </SelectTrigger>
                     <SelectContent sideOffset={4} style={{ width: "var(--radix-select-trigger-width)" }} className="max-h-[280px]">
@@ -330,7 +369,7 @@ export default function ReportsPage() {
                 </Select>
 
                 <Select value={serviceFilter} onValueChange={setServiceFilter}>
-                    <SelectTrigger aria-label="Filter by service" className="h-9 min-w-[170px] rounded-md border-hairline">
+                    <SelectTrigger aria-label="Filter by service" className="h-9 flex-1 min-w-[140px] sm:flex-initial sm:min-w-[170px] rounded-md border-hairline">
                         <SelectValue placeholder="All services" />
                     </SelectTrigger>
                     <SelectContent sideOffset={4} style={{ width: "var(--radix-select-trigger-width)" }} className="max-h-[280px]">
@@ -340,11 +379,11 @@ export default function ReportsPage() {
                 </Select>
 
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger aria-label="Filter by submissions" className="h-9 min-w-[170px] rounded-md border-hairline">
-                        <SelectValue placeholder="All courses" />
+                    <SelectTrigger aria-label="Filter by submissions" className="h-9 flex-1 min-w-[140px] sm:flex-initial sm:min-w-[170px] rounded-md border-hairline">
+                        <SelectValue placeholder="All submissions" />
                     </SelectTrigger>
                     <SelectContent sideOffset={4} style={{ width: "var(--radix-select-trigger-width)" }} className="max-h-[280px]">
-                        <SelectItem value="all">All courses</SelectItem>
+                        <SelectItem value="all">All submissions</SelectItem>
                         <SelectItem value="submitted">Submissions received</SelectItem>
                         <SelectItem value="none">No submissions yet</SelectItem>
                     </SelectContent>
@@ -371,13 +410,17 @@ export default function ReportsPage() {
                         rows={pageRows}
                         columns={columns}
                         rowKey={(row) => row._id}
-                        sortKey={null}
-                        sortDir="asc"
-                        onSort={() => {}}
+                        sortKey={sortKey}
+                        sortDir={sortDir}
+                        onSort={onSort}
                         isLoading={shell === null || coursesQ.isLoading}
                         isFiltered={hasActiveFilters}
                         fillHeight
                         fixedLayout
+                        // Below this the columns cannot hold their content
+                        // (the View button needs ~95px), so the table scrolls
+                        // sideways instead of clipping the Action column.
+                        minTableWidth={960}
                         onRowClick={openReport}
                         emptyTitle={hasActiveFilters ? "No courses match these filters" : "No courses yet"}
                         emptyHint={hasActiveFilters

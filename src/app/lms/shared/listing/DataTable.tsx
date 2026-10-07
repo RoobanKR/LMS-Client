@@ -71,7 +71,9 @@ export function DataTable<T>({
     onEmptyAction,
     minWidth = 720,
     fixedLayout = false,
+    minTableWidth,
     columnWidths,
+    mobileMinWidthClass = 'min-w-[640px]',
     maxHeight = 'calc(100vh * var(--ui-scale-inv, 1) - 360px)',
     fillHeight = false,
     loading,
@@ -104,6 +106,11 @@ export function DataTable<T>({
     // table can never exceed its container — i.e. no horizontal scrollbar.
     // Callers own truncation (`truncate` + title tooltips) on cell content.
     fixedLayout?: boolean
+    // With `fixedLayout`: the narrowest the table may get, in px. Below it
+    // the wrapper scrolls sideways at EVERY width (not only below lg), so a
+    // column too small for its content — an Action button, say — can be
+    // scrolled to instead of being clipped.
+    minTableWidth?: number
     // Explicit pixel widths, one per body column (excluding the built-in
     // selection and row-actions columns — those keep their fixed widths).
     // When supplied, the table renders a <colgroup> so header AND every
@@ -113,6 +120,10 @@ export function DataTable<T>({
     // the wrapper — the header row scrolls with the body, so labels can
     // never "merge" visually even at cramped viewports.
     columnWidths?: string[]
+    // Below-lg floor width for the fluid fixedLayout table (a literal
+    // Tailwind class, e.g. 'min-w-[480px]', so the JIT picks it up from the
+    // caller). lg+ always resets to min-w-0, so desktop is unaffected.
+    mobileMinWidthClass?: string
     maxHeight?: string
     // When true, the scroll region grows to fill its parent's remaining
     // height (flex-1 min-h-0) instead of capping at maxHeight. Only works
@@ -172,6 +183,7 @@ export function DataTable<T>({
         )
     }
 
+    const floorScroll = fixedLayout && !columnWidths && Boolean(minTableWidth)
     const headerCellClasses =
         'h-8 align-middle bg-canvas border-b border-hairline'
 
@@ -190,15 +202,18 @@ export function DataTable<T>({
             // The wrapper then scrolls horizontally, keeping every column at
             // its stated width — safer than the fluid-fit % model, which
             // squeezed labels together on narrow viewports.
+            // Below lg the fluid fixedLayout table gets a floor width (see the
+            // <table> below) so its %-columns stay readable on phones/tablets;
+            // the X axis scrolls there instead of clipping. lg+ is unchanged.
             className={
                 fillHeight
-                    ? `flex-1 min-h-[220px] ${fixedLayout && !columnWidths ? 'overflow-x-hidden overflow-y-auto' : 'overflow-auto'}`
-                    : `min-h-[220px] ${fixedLayout && !columnWidths ? 'overflow-x-hidden overflow-y-auto' : 'overflow-auto'}`
+                    ? `flex-1 min-h-[220px] ${fixedLayout && !columnWidths && !floorScroll ? 'overflow-x-auto lg:overflow-x-hidden overflow-y-auto' : 'overflow-auto'}`
+                    : `min-h-[220px] ${fixedLayout && !columnWidths && !floorScroll ? 'overflow-x-auto lg:overflow-x-hidden overflow-y-auto' : 'overflow-auto'}`
             }
             style={fillHeight ? undefined : { maxHeight }}
         >
             <table
-                className="border-collapse"
+                className={`border-collapse ${fixedLayout && !columnWidths && !floorScroll ? `${mobileMinWidthClass} lg:min-w-0` : ''}`}
                 // With `columnWidths`, table-layout: fixed + width: max-content
                 // makes the table exactly the SUM of the col widths — no
                 // proportional scaling, no forced 100%. When the container
@@ -210,7 +225,7 @@ export function DataTable<T>({
                     columnWidths
                         ? { tableLayout: 'fixed', width: 'max-content' }
                         : fixedLayout
-                            ? { tableLayout: 'fixed', width: '100%' }
+                            ? { tableLayout: 'fixed', width: '100%', ...(floorScroll ? { minWidth: minTableWidth } : {}) }
                             : { width: '100%', minWidth }
                 }
             >
@@ -395,13 +410,13 @@ export function DataTable<T>({
                                         </td>
                                     ))}
                                     {rowActions && (
-                                        <td className="w-12 px-3 h-11 align-middle text-right">
+                                        <td className="w-12 px-2 lg:px-3 h-11 align-middle text-right">
                                             <DropdownMenu>
                                                 <DropdownMenuTrigger asChild>
                                                     <button
                                                         type="button"
                                                         aria-label="Row actions"
-                                                        className="inline-flex size-7 items-center justify-center rounded-chip text-subtle hover:bg-ink-100 hover:text-heading transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 data-[state=open]:bg-ink-100 data-[state=open]:text-heading"
+                                                        className="inline-flex size-8 lg:size-7 items-center justify-center rounded-chip text-subtle hover:bg-ink-100 hover:text-heading transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 data-[state=open]:bg-ink-100 data-[state=open]:text-heading"
                                                     >
                                                         <MoreVertical size={15} />
                                                     </button>
@@ -431,15 +446,15 @@ export function DataTable<T>({
                         // Fixed to the viewport: the table body scrolls inside
                         // its own region, so an in-flow bar would drift out of
                         // sight exactly when a long selection needs it most.
-                        className="fixed bottom-6 left-1/2 z-dropdown flex items-center gap-3 rounded-full bg-ink-900 py-2 pl-4 pr-2 text-white shadow-xl"
+                        className="fixed bottom-6 left-1/2 z-dropdown flex max-w-[calc(100vw-1.5rem)] items-center gap-3 rounded-full bg-ink-900 py-2 pl-4 pr-2 text-white shadow-xl"
                     >
-                        <span className="text-xs font-semibold whitespace-nowrap tabular-nums">
+                        <span className="shrink-0 text-xs font-semibold whitespace-nowrap tabular-nums">
                             {selected.length} selected
                         </span>
                         {bulkActions && (
                             <>
-                                <span className="h-4 w-px bg-white/20" />
-                                <span className="flex items-center gap-1.5">
+                                <span className="h-4 w-px shrink-0 bg-white/20" />
+                                <span className="flex min-w-0 items-center gap-1.5 max-lg:overflow-x-auto max-lg:[scrollbar-width:none] max-lg:[&::-webkit-scrollbar]:hidden max-lg:[&>*]:shrink-0">
                                     {bulkActions(selected)}
                                 </span>
                             </>
@@ -448,7 +463,7 @@ export function DataTable<T>({
                             type="button"
                             aria-label="Clear selection"
                             onClick={() => onSelectionChange?.([])}
-                            className="inline-flex size-7 items-center justify-center rounded-full text-white/70 hover:bg-white/10 hover:text-white transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+                            className="inline-flex size-7 shrink-0 items-center justify-center rounded-full text-white/70 hover:bg-white/10 hover:text-white transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
                         >
                             <X size={14} />
                         </button>

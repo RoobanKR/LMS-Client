@@ -7,15 +7,15 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowLeft, BookOpen, ChevronRight, ClipboardList, Eye, Loader2, Search, SearchX, UsersRound, X,
 } from "lucide-react";
-import { courseDataApi } from "@/app/lms/pages/courses/api/coursesData";
 import { PrintPreviewModal } from "@/app/lms/pages/businessreports/components/PrintPreviewModal";
 import type { ServiceMapping } from "@/app/lms/pages/servicemapping/api/serviceMappingService";
 import type { ReportClientBlock } from "@/app/lms/pages/servicemapping/components/serviceReport";
 import {
-  collectExercises, collectStudents, formatDate, formatMarks, formatPercent, questionsFor,
+  appliesTo, batchLabel, collectExercises, collectStudents, formatDate, formatMarks, formatPercent, questionsFor,
   resultFor, round1, totalsFor,
   type ActivityType, type QuestionRow, type ReportExercise, type ReportStudent, type StudentResult,
 } from "./reportData";
+import { fetchReportPayload, liveBatches } from "./reportApi";
 import {
   exerciseBlocks, LAYOUT_FIELDS, studentBlocks,
   type PrintLayout, type PrintSources,
@@ -43,6 +43,11 @@ import {
 type Tab = "exercise" | "student";
 type Activity = "" | ActivityType;
 
+const ACTIVITY_LABEL: Record<ActivityType, string> = {
+  Assignment: "Assignment (We Do)",
+  Assessment: "Assessment (You Do)",
+};
+
 const EMPTY_RESULT: StudentResult = {
   status: "not-started", scored: 0, total: 0, percent: null, scale: "", attempted: 0, totalQuestions: 0,
 };
@@ -50,7 +55,14 @@ const EMPTY_RESULT: StudentResult = {
 interface PrintJob {
   layout: PrintLayout;
   blocks: ReportClientBlock[];
+  /** Short on purpose — the default letterhead sets the title beside the
+   *  scope line, so a long one runs into it. What the sheet is about goes
+   *  in `subject`, which prints on the full-width line below. */
   title: string;
+  /** "Exercise: … · Student: …" — empty for a whole-roster print. */
+  subject: string;
+  /** One exercise's sheet: the Activity / Subcategory filters do not apply. */
+  byExercise: boolean;
   fileBase: string;
   /** Extra words for the sheet's "Filtered by" line (e.g. who was ticked). */
   scopeNote: string;
@@ -107,24 +119,29 @@ export default function CourseReport() {
     setSearch("");
   }, [screenKey]);
 
-  // ── Data: one payload, the Live Dashboard's. ──
-  const { data, isLoading, isError } = useQuery({
-    ...courseDataApi.getById(courseId),
+  // ── Data: the Live Dashboard's payload (roster + answers), plus each
+  //    batch's own exercises when the course keeps different material per
+  //    batch — see reportApi.ts. ──
+  const { data: payload, isLoading, isError } = useQuery({
+    queryKey: ["courseReport", "payload", courseId],
+    queryFn: () => fetchReportPayload(courseId),
     enabled: Boolean(courseId),
+    staleTime: 60_000,
   });
-  const courseData = (data as { data?: Record<string, any> } | undefined)?.data ?? null;
+  const courseData = payload?.course ?? null;
   const courseName: string = courseData?.courseName || "Course";
 
-  const exercises = useMemo(() => collectExercises(courseData), [courseData]);
+  const exercises = useMemo(() => (payload ? collectExercises(payload.views) : []), [payload]);
   const students = useMemo(() => collectStudents(courseData), [courseData]);
 
-  // Every student in every exercise, computed once per payload. Filters and
-  // views only read from it.
+  // Every student in every exercise set for their batch, computed once per
+  // payload. Filters and views only read from it; a pair that is not in it
+  // is an exercise the student's batch does not have.
   const results = useMemo(() => {
     const byExercise = new Map<string, Map<string, StudentResult>>();
     for (const ex of exercises) {
       const row = new Map<string, StudentResult>();
-      for (const s of students) row.set(s.id, resultFor(courseId, ex, s));
+      for (const s of students) if (appliesTo(ex, s)) row.set(s.id, resultFor(courseId, ex, s));
       byExercise.set(ex.id, row);
     }
     return byExercise;
@@ -149,47 +166,93 @@ export default function CourseReport() {
   }, [courseId, resultOf]);
 
   // ── Filters ──
+  // Every option list is read off the course's own exercises, and each one
+  // narrows by the others: a course with no assessments offers no
+  // "Assessment", and picking a batch offers only what that batch was set.
+  const batchOptions = useMemo(() => {
+    const withStudents = new Set(students.flatMap((s) => s.batchIds));
+    return liveBatches(courseData)
+      .filter((b) => withStudents.has(String(b._id)))
+      .map((b) => ({ value: String(b._id), label: batchLabel(b) || "Batch" }))
+      .sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }));
+  }, [courseData, students]);
+  const batchName = batchOptions.find((o) => o.value === batch)?.label || "";
+  const batchNameById = useMemo(() => new Map(batchOptions.map((o) => [o.value, o.label])), [batchOptions]);
+  const inBatch = useCallback(
+    (ex: ReportExercise) => !batch || !ex.batchIds || ex.batchIds.has(batch),
+    [batch],
+  );
+
+  const activityOptions = useMemo(() => {
+    const present = new Set(
+      exercises.filter((ex) => inBatch(ex) && (!subcategory || ex.subcategoryKey === subcategory)).map((ex) => ex.type),
+    );
+    return (Object.keys(ACTIVITY_LABEL) as ActivityType[])
+      .filter((t) => present.has(t))
+      .map((t) => ({ value: t, label: ACTIVITY_LABEL[t] }));
+  }, [exercises, inBatch, subcategory]);
+
   const subcategoryOptions = useMemo(() => {
     const seen = new Map<string, string>();
     for (const ex of exercises) {
-      if (activity && ex.type !== activity) continue;
+      if (!inBatch(ex) || (activity && ex.type !== activity)) continue;
       if (!seen.has(ex.subcategoryKey)) seen.set(ex.subcategoryKey, ex.subcategory);
     }
     return [...seen.entries()]
       .map(([value, label]) => ({ value, label }))
       .sort((a, b) => a.label.localeCompare(b.label));
-  }, [exercises, activity]);
+  }, [exercises, inBatch, activity]);
 
-  // A subcategory the activity no longer offers would filter everything out
+  // Subcategory only says something when an activity has more than one —
+  // otherwise it repeats Type, so its filter and columns stay hidden.
+  const showSubcategory = useMemo(() => {
+    const byType = new Map<string, Set<string>>();
+    for (const ex of exercises) {
+      if (!byType.has(ex.type)) byType.set(ex.type, new Set());
+      byType.get(ex.type)!.add(ex.subcategoryKey);
+    }
+    return [...byType.values()].some((keys) => keys.size > 1);
+  }, [exercises]);
+
+  // A pick the other filters no longer offer would filter everything out
   // with nothing on screen explaining why.
   useEffect(() => {
-    if (subcategory && !subcategoryOptions.some((o) => o.value === subcategory)) setSubcategory("");
-  }, [subcategory, subcategoryOptions]);
-
-  const batchOptions = useMemo(() => {
-    const all = new Set<string>();
-    students.forEach((s) => s.batches.forEach((b) => all.add(b)));
-    return [...all].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).map((b) => ({ value: b, label: b }));
-  }, [students]);
+    if (activity && !activityOptions.some((o) => o.value === activity)) setActivity("");
+  }, [activity, activityOptions]);
+  useEffect(() => {
+    if (subcategory && (!showSubcategory || !subcategoryOptions.some((o) => o.value === subcategory))) setSubcategory("");
+  }, [subcategory, subcategoryOptions, showSubcategory]);
 
   const filteredExercises = useMemo(
-    () => exercises.filter((ex) => (!activity || ex.type === activity) && (!subcategory || ex.subcategoryKey === subcategory)),
-    [exercises, activity, subcategory],
+    () => exercises.filter((ex) => inBatch(ex)
+      && (!activity || ex.type === activity)
+      && (!subcategory || ex.subcategoryKey === subcategory)),
+    [exercises, inBatch, activity, subcategory],
   );
   const roster = useMemo(
-    () => students.filter((s) => !batch || s.batches.includes(batch)),
+    () => students.filter((s) => !batch || s.batchIds.includes(batch)),
     [students, batch],
+  );
+  /** The roster students an exercise is set for. */
+  const rosterFor = useCallback(
+    (ex: ReportExercise) => roster.filter((s) => appliesTo(ex, s)),
+    [roster],
   );
 
   const totalsOf = useCallback(
-    (s: ReportStudent) => totalsFor(filteredExercises, (exId) => resultOf(exId, s.id)),
-    [filteredExercises, resultOf],
+    (s: ReportStudent) => totalsFor(filteredExercises, (exId) => results.get(exId)?.get(s.id)),
+    [filteredExercises, results],
   );
 
   const printSources: PrintSources = useMemo(
-    () => ({ resultOf, questionsOf, totalsOf }),
+    () => ({ resultOf, questionsOf, totalsOf, appliesTo }),
     [resultOf, questionsOf, totalsOf],
   );
+  const printFields = useMemo(() => {
+    if (!printJob) return undefined;
+    const { fields } = LAYOUT_FIELDS[printJob.layout];
+    return showSubcategory ? fields : fields.filter((f) => f.key !== "subcategory");
+  }, [printJob, showSubcategory]);
 
   const q = search.trim().toLowerCase();
   const currentExercise = tab === "exercise" && exerciseId ? exercises.find((e) => e.id === exerciseId) || null : null;
@@ -197,22 +260,24 @@ export default function CourseReport() {
 
   // ── Print ──
   const { letterhead, initialFormat } = usePrintSetup();
-  const filterWords = (extra: string) => {
+  // The full-width line under the title: what the sheet is about, then what
+  // it was narrowed by.
+  const filterWords = (job: PrintJob) => {
     const parts = [
-      activity && `Activity: ${activity}`,
-      subcategory && `Subcategory: ${subcategoryOptions.find((o) => o.value === subcategory)?.label || subcategory}`,
-      batch && `Batch: ${batch}`,
-      extra,
+      !job.byExercise && activity && `Activity: ${ACTIVITY_LABEL[activity]}`,
+      !job.byExercise && subcategory && `Subcategory: ${subcategoryOptions.find((o) => o.value === subcategory)?.label || subcategory}`,
+      batchName && `Batch: ${batchName}`,
+      job.scopeNote,
     ].filter(Boolean);
-    return parts.length ? `Filtered by  ·  ${parts.join("  ·  ")}` : "";
+    return [job.subject, parts.length ? `Filtered by  ·  ${parts.join("  ·  ")}` : ""].filter(Boolean).join("  ·  ");
   };
   const printMeta = useMemo(() => ({
     title: printJob?.title || "Course Report",
-    scope: [courseName, batch || "All batches"].join(" · "),
+    scope: [courseName, batchName || "All batches"].join(" · "),
     generated: new Date().toLocaleString(),
-    filters: printJob ? filterWords(printJob.scopeNote) : "",
+    filters: printJob ? filterWords(printJob) : "",
     ...letterhead,
-  }), [printJob, courseName, batch, letterhead]); // eslint-disable-line react-hooks/exhaustive-deps
+  }), [printJob, courseName, batchName, letterhead]); // eslint-disable-line react-hooks/exhaustive-deps
   const printSnapshot = useMemo(
     () => ({ draft: {}, rows: [] as ServiceMapping[], generated: printMeta.generated }),
     [printMeta.generated],
@@ -245,16 +310,25 @@ export default function CourseReport() {
     );
   }
 
+  // Average over COMPLETED attempts only: a half-done attempt's percentage
+  // is not a result yet and would drag the figure down.
   const tallies = (ex: ReportExercise) => {
     let attempted = 0, completed = 0, pctSum = 0, pctN = 0;
-    for (const s of roster) {
+    const set = rosterFor(ex);
+    for (const s of set) {
       const r = resultOf(ex.id, s.id);
       if (r.status !== "not-started") attempted += 1;
-      if (r.status === "completed") completed += 1;
-      if (r.percent != null) { pctSum += r.percent; pctN += 1; }
+      if (r.status === "completed") {
+        completed += 1;
+        if (r.percent != null) { pctSum += r.percent; pctN += 1; }
+      }
     }
-    return { attempted, completed, avg: pctN ? pctSum / pctN : null };
+    return { students: set.length, attempted, completed, avg: pctN ? pctSum / pctN : null };
   };
+  const batchesOf = (ex: ReportExercise) =>
+    ex.batchIds && batchOptions.length > 1
+      ? [...ex.batchIds].map((id) => batchNameById.get(id)).filter(Boolean).join(", ")
+      : "";
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 px-3 py-3 sm:px-4">
@@ -294,14 +368,20 @@ export default function CourseReport() {
 
       {/* ── Filters ── */}
       <div className="flex flex-wrap items-end gap-3 rounded-xl border border-hairline bg-surface px-3 py-2.5 shadow-xs">
-        <SelectField
-          label="Activity"
-          value={activity}
-          onChange={(v) => setActivity(v as Activity)}
-          allLabel="All activities"
-          options={[{ value: "Assignment", label: "Assignment (We Do)" }, { value: "Assessment", label: "Assessment (You Do)" }]}
-        />
-        <SelectField label="Subcategory" value={subcategory} onChange={setSubcategory} allLabel="All subcategories" options={subcategoryOptions} />
+        {/* One exercise is already open on E2, so only Batch and Search
+            apply there. */}
+        {!currentExercise && (
+          <SelectField
+            label="Activity"
+            value={activity}
+            onChange={(v) => setActivity(v as Activity)}
+            allLabel="All activities"
+            options={activityOptions}
+          />
+        )}
+        {!currentExercise && showSubcategory && (
+          <SelectField label="Subcategory" value={subcategory} onChange={setSubcategory} allLabel="All subcategories" options={subcategoryOptions} />
+        )}
         {batchOptions.length > 0 && (
           <SelectField label="Batch" value={batch} onChange={setBatch} allLabel="All batches" options={batchOptions} />
         )}
@@ -335,14 +415,17 @@ export default function CourseReport() {
         <ExerciseList
           rows={filteredExercises.filter((ex) => matches(q, ex.name, ex.location, ex.subcategory))}
           tallies={tallies}
-          rosterSize={roster.length}
+          batchesOf={batchesOf}
+          showSubcategory={showSubcategory}
           onView={(id) => setExerciseId(id)}
         />
       ) : tab === "exercise" && currentExercise ? (
         <ExerciseResults
           exercise={currentExercise}
-          rows={roster.filter((s) => matches(q, s.name, s.regNo, s.email))}
-          roster={roster}
+          rows={rosterFor(currentExercise).filter((s) => matches(q, s.name, s.regNo, s.email))}
+          roster={rosterFor(currentExercise)}
+          batches={batchesOf(currentExercise)}
+          showSubcategory={showSubcategory}
           resultOf={resultOf}
           selected={selected}
           setSelected={setSelected}
@@ -352,7 +435,9 @@ export default function CourseReport() {
             setPrintJob({
               layout,
               blocks: exerciseBlocks(layout as "exercise-summary" | "exercise-questions", currentExercise, chosen, printSources),
-              title: `${currentExercise.type} Report — ${currentExercise.name}`,
+              title: `${currentExercise.type} Report`,
+              subject: `Exercise: ${currentExercise.name}`,
+              byExercise: true,
               fileBase: `${courseName}-${currentExercise.name}`,
               scopeNote: scopeNote(chosen.length, visible.length, "student"),
             });
@@ -372,6 +457,8 @@ export default function CourseReport() {
               layout,
               blocks: studentBlocks(layout as "student-totals" | "student-exercises" | "student-questions", chosen, filteredExercises, printSources),
               title: "Student Report",
+              subject: "",
+              byExercise: false,
               fileBase: `${courseName}-Student-Report`,
               scopeNote: scopeNote(chosen.length, visible.length, "student"),
             });
@@ -380,8 +467,9 @@ export default function CourseReport() {
       ) : currentStudent ? (
         <StudentResults
           student={currentStudent}
-          rows={filteredExercises.filter((ex) => matches(q, ex.name, ex.location, ex.subcategory))}
+          rows={filteredExercises.filter((ex) => appliesTo(ex, currentStudent) && matches(q, ex.name, ex.location, ex.subcategory))}
           totals={totalsOf(currentStudent)}
+          showSubcategory={showSubcategory}
           resultOf={resultOf}
           questionsOf={questionsOf}
           expanded={expanded}
@@ -389,7 +477,9 @@ export default function CourseReport() {
           onPrint={(layout) => setPrintJob({
             layout,
             blocks: studentBlocks(layout as "student-exercises" | "student-questions", [currentStudent], filteredExercises, printSources),
-            title: `Student Report — ${currentStudent.name}`,
+            title: "Student Report",
+            subject: `Student: ${currentStudent.name}${currentStudent.regNo ? ` (${currentStudent.regNo})` : ""}`,
+            byExercise: false,
             fileBase: `${courseName}-${currentStudent.name}`,
             scopeNote: "",
           })}
@@ -411,7 +501,9 @@ export default function CourseReport() {
           setPrintJob({
             layout: "exercise-questions",
             blocks: exerciseBlocks("exercise-questions", exercise, [student], printSources),
-            title: `${exercise.name} — ${student.name}`,
+            title: `${exercise.type} Report`,
+            subject: `Exercise: ${exercise.name}  ·  Student: ${student.name}`,
+            byExercise: true,
             fileBase: `${courseName}-${exercise.name}-${student.name}`,
             scopeNote: "",
             reopenDrawer: { exerciseId: exercise.id, studentId: student.id },
@@ -430,9 +522,11 @@ export default function CourseReport() {
         letterhead={letterhead}
         initialFormat={initialFormat}
         meta={printMeta}
-        fields={printJob ? LAYOUT_FIELDS[printJob.layout].fields : undefined}
+        fields={printFields}
         defaultEnabled={printJob ? LAYOUT_FIELDS[printJob.layout].defaults : undefined}
         filenameBase={printJob ? `${fileSafe(printJob.fileBase)}-${new Date().toISOString().slice(0, 10)}` : undefined}
+        keepBlocksTogether
+        noFillerRows
       />
     </div>
   );
@@ -502,22 +596,30 @@ const THEAD = "sticky top-0 z-[1] bg-canvas";
 
 // E1 ────────────────────────────────────────────────────────────────────────
 function ExerciseList({
-  rows, tallies, rosterSize, onView,
+  rows, tallies, batchesOf, showSubcategory, onView,
 }: {
   rows: ReportExercise[];
-  tallies: (ex: ReportExercise) => { attempted: number; completed: number; avg: number | null };
-  rosterSize: number;
+  tallies: (ex: ReportExercise) => { students: number; attempted: number; completed: number; avg: number | null };
+  /** "batch1" when the exercise is set for some batches only, else "". */
+  batchesOf: (ex: ReportExercise) => string;
+  showSubcategory: boolean;
   onView: (id: string) => void;
 }) {
+  const cols = showSubcategory ? 11 : 10;
   return (
-    <Card toolbar={<span className="text-xs text-subtle">{rows.length} exercise{rows.length === 1 ? "" : "s"}</span>}>
-      <table className="w-full border-collapse">
+    <Card toolbar={(
+      <>
+        <span className="text-xs text-subtle">{rows.length} exercise{rows.length === 1 ? "" : "s"}</span>
+        <span className="text-2xs text-faint">Avg % is over completed attempts</span>
+      </>
+    )}>
+      <table className="w-full min-w-[900px] border-collapse lg:min-w-0">
         <thead className={THEAD}>
           <tr>
             <th className={`${TH} w-10 text-right`}>#</th>
             <th className={TH}>Name</th>
             <th className={TH}>Type</th>
-            <th className={TH}>Subcategory</th>
+            {showSubcategory && <th className={TH}>Subcategory</th>}
             <th className={TH}>Module › Topic</th>
             <th className={`${TH} text-right`}>Questions</th>
             <th className={`${TH} text-right`}>Total Marks</th>
@@ -528,9 +630,10 @@ function ExerciseList({
           </tr>
         </thead>
         <tbody>
-          {rows.length === 0 && <EmptyRow colSpan={11} text="No assignments or assessments match these filters." />}
+          {rows.length === 0 && <EmptyRow colSpan={cols} text="No assignments or assessments match these filters." />}
           {rows.map((ex, i) => {
             const t = tallies(ex);
+            const batches = batchesOf(ex);
             return (
               <tr key={ex.id} onClick={() => onView(ex.id)} className="cursor-pointer border-t border-hairline transition-colors hover:bg-row-hover">
                 <td className={`${TD_NUM} text-faint`}>{i + 1}</td>
@@ -539,14 +642,15 @@ function ExerciseList({
                   {(ex.startDate || ex.endDate) && (
                     <span className="block text-2xs text-faint">{formatDate(ex.startDate)} – {formatDate(ex.endDate)}</span>
                   )}
+                  {batches && <span className="block truncate text-2xs text-faint" title={batches}>Batch: {batches}</span>}
                 </td>
                 <td className={TD}><TypeChip type={ex.type} /></td>
-                <td className={TD}>{ex.subcategory || <Dash />}</td>
+                {showSubcategory && <td className={TD}>{ex.subcategory || <Dash />}</td>}
                 <td className={`${TD} max-w-[240px]`}><span className="block truncate" title={ex.location}>{ex.location || <Dash />}</span></td>
                 <td className={TD_NUM}>{ex.questionCount}</td>
                 <td className={TD_NUM}>{round1(ex.totalMarks)}</td>
-                <td className={TD_NUM}>{t.attempted} / {rosterSize}</td>
-                <td className={TD_NUM}>{t.completed}</td>
+                <td className={TD_NUM}>{t.attempted} / {t.students}</td>
+                <td className={TD_NUM}>{t.completed} / {t.students}</td>
                 <td className={TD_NUM}>{t.avg == null ? <Dash /> : formatPercent(t.avg)}</td>
                 <td className={`${TD} text-right`}><ViewButton onClick={() => onView(ex.id)} label={`View ${ex.name}`} /></td>
               </tr>
@@ -560,11 +664,14 @@ function ExerciseList({
 
 // E2 ────────────────────────────────────────────────────────────────────────
 function ExerciseResults({
-  exercise, rows, roster, resultOf, selected, setSelected, onView, onPrint,
+  exercise, rows, roster, batches, showSubcategory, resultOf, selected, setSelected, onView, onPrint,
 }: {
   exercise: ReportExercise;
   rows: ReportStudent[];
+  /** The students this exercise is set for (batch filter applied). */
   roster: ReportStudent[];
+  batches: string;
+  showSubcategory: boolean;
   resultOf: (exId: string, stId: string) => StudentResult;
   selected: Set<string>;
   setSelected: (s: Set<string>) => void;
@@ -576,9 +683,11 @@ function ExerciseResults({
     let completed = 0, inProgress = 0, pctSum = 0, pctN = 0;
     for (const s of roster) {
       const r = resultOf(exercise.id, s.id);
-      if (r.status === "completed") completed += 1;
-      else if (r.status === "in-progress") inProgress += 1;
-      if (r.percent != null) { pctSum += r.percent; pctN += 1; }
+      if (r.status === "completed") {
+        completed += 1;
+        // Completed attempts only — see `tallies`.
+        if (r.percent != null) { pctSum += r.percent; pctN += 1; }
+      } else if (r.status === "in-progress") inProgress += 1;
     }
     return { completed, inProgress, notStarted: roster.length - completed - inProgress, avg: pctN ? pctSum / pctN : null };
   }, [exercise.id, roster, resultOf]);
@@ -589,11 +698,12 @@ function ExerciseResults({
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="truncate text-sm font-semibold text-heading" title={exercise.name}>{exercise.name}</h2>
           <TypeChip type={exercise.type} />
-          {exercise.subcategory && <span className="text-2xs text-subtle">{exercise.subcategory}</span>}
+          {showSubcategory && exercise.subcategory && <span className="text-2xs text-subtle">{exercise.subcategory}</span>}
         </div>
         <p className="mt-0.5 text-2xs text-faint">
           {[exercise.location, `${exercise.questionCount} question${exercise.questionCount === 1 ? "" : "s"}`, `${round1(exercise.totalMarks)} marks`,
-            (exercise.startDate || exercise.endDate) ? `${formatDate(exercise.startDate)} – ${formatDate(exercise.endDate)}` : ""]
+            (exercise.startDate || exercise.endDate) ? `${formatDate(exercise.startDate)} – ${formatDate(exercise.endDate)}` : "",
+            batches && `Batch: ${batches}`]
             .filter(Boolean).join(" · ")}
         </p>
         <div className="mt-2.5 flex flex-wrap gap-2">
@@ -601,7 +711,7 @@ function ExerciseResults({
           <Stat label="Completed" value={counts.completed} tone="text-success-700" />
           <Stat label="In Progress" value={counts.inProgress} tone="text-info-700" />
           <Stat label="Not Started" value={counts.notStarted} tone="text-subtle" />
-          <Stat label="Average" value={formatPercent(counts.avg)} />
+          <Stat label="Avg (completed)" value={formatPercent(counts.avg)} />
         </div>
       </div>
       <Card
@@ -619,7 +729,7 @@ function ExerciseResults({
           </>
         )}
       >
-        <table className="w-full border-collapse">
+        <table className="w-full min-w-[900px] border-collapse lg:min-w-0">
           <thead className={THEAD}>
             <tr>
               <th className={`${TH} w-10`}><Checkbox checked={sel.all} indeterminate={sel.some} onChange={sel.toggleAll} label="Select all students" disabled={!rows.length} /></th>
@@ -686,6 +796,7 @@ function StudentList({
           <span className="text-xs text-subtle">
             {sel.picked ? `${sel.picked} of ${rows.length} selected` : `${rows.length} student${rows.length === 1 ? "" : "s"}`}
             {` · totals over ${exerciseCount} exercise${exerciseCount === 1 ? "" : "s"}`}
+            <span className="block text-2xs text-faint">Marks count exercises that are due or started; ones still open and not started are left out.</span>
           </span>
           <PrintMenu
             layouts={["student-totals", "student-exercises", "student-questions"]}
@@ -696,7 +807,7 @@ function StudentList({
         </>
       )}
     >
-      <table className="w-full border-collapse">
+      <table className="w-full min-w-[900px] border-collapse lg:min-w-0">
         <thead className={THEAD}>
           <tr>
             <th className={`${TH} w-10`}><Checkbox checked={sel.all} indeterminate={sel.some} onChange={sel.toggleAll} label="Select all students" disabled={!rows.length} /></th>
@@ -743,11 +854,12 @@ function StudentList({
 
 // S2 ────────────────────────────────────────────────────────────────────────
 function StudentResults({
-  student, rows, totals, resultOf, questionsOf, expanded, setExpanded, onPrint,
+  student, rows, totals, showSubcategory, resultOf, questionsOf, expanded, setExpanded, onPrint,
 }: {
   student: ReportStudent;
   rows: ReportExercise[];
   totals: ReturnType<typeof totalsFor>;
+  showSubcategory: boolean;
   resultOf: (exId: string, stId: string) => StudentResult;
   questionsOf: (ex: ReportExercise, s: ReportStudent) => QuestionRow[];
   expanded: Set<string>;
@@ -774,6 +886,11 @@ function StudentResults({
           <Stat label="Overall" value={formatPercent(totals.percent)} tone="text-brand-strong" />
           <Stat label="Scale" value={totals.scale || "—"} />
         </div>
+        {totals.open > 0 && (
+          <p className="mt-2 text-2xs text-faint">
+            {totals.open} open exercise{totals.open === 1 ? "" : "s"} not started yet {totals.open === 1 ? "is" : "are"} left out of Marks and Overall.
+          </p>
+        )}
       </div>
       <Card
         toolbar={(
@@ -795,14 +912,14 @@ function StudentResults({
           </>
         )}
       >
-        <table className="w-full border-collapse">
+        <table className="w-full min-w-[900px] border-collapse lg:min-w-0">
           <thead className={THEAD}>
             <tr>
               <th className={`${TH} w-8`} aria-label="Expand" />
               <th className={`${TH} w-10 text-right`}>#</th>
               <th className={TH}>Exercise</th>
               <th className={TH}>Type</th>
-              <th className={TH}>Subcategory</th>
+              {showSubcategory && <th className={TH}>Subcategory</th>}
               <th className={TH}>Module › Topic</th>
               <th className={TH}>Status</th>
               <th className={`${TH} text-right`}>Attempted</th>
@@ -812,7 +929,7 @@ function StudentResults({
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && <EmptyRow colSpan={11} text="No assignments or assessments match these filters." />}
+            {rows.length === 0 && <EmptyRow colSpan={showSubcategory ? 11 : 10} text="No assignments or assessments match these filters." />}
             {rows.map((ex, i) => {
               const r = resultOf(ex.id, student.id);
               const open = expanded.has(ex.id);
@@ -825,7 +942,7 @@ function StudentResults({
                     <td className={`${TD_NUM} text-faint`}>{i + 1}</td>
                     <td className={`${TD} max-w-[240px]`}><span className="block truncate font-semibold text-heading" title={ex.name}>{ex.name}</span></td>
                     <td className={TD}><TypeChip type={ex.type} /></td>
-                    <td className={TD}>{ex.subcategory || <Dash />}</td>
+                    {showSubcategory && <td className={TD}>{ex.subcategory || <Dash />}</td>}
                     <td className={`${TD} max-w-[220px]`}><span className="block truncate" title={ex.location}>{ex.location || <Dash />}</span></td>
                     <td className={TD}><StatusChip status={r.status} /></td>
                     <td className={TD_NUM}>{r.attempted} / {r.totalQuestions}</td>
@@ -835,7 +952,7 @@ function StudentResults({
                   </tr>
                   {open && (
                     <tr className="bg-canvas/60">
-                      <td colSpan={11} className="px-3 pb-3 pt-1 sm:pl-12">
+                      <td colSpan={showSubcategory ? 11 : 10} className="px-3 pb-3 pt-1 sm:pl-12">
                         <QuestionTable rows={questionsOf(ex, student)} />
                       </td>
                     </tr>
@@ -893,27 +1010,27 @@ function StudentDrawer({
             onMouseDown={(e) => e.stopPropagation()}
             className="flex h-full w-full max-w-[760px] flex-col bg-surface shadow-2xl"
           >
-            <div className="flex items-start justify-between gap-3 border-b border-hairline px-5 py-4">
+            <div className="flex items-start justify-between gap-3 border-b border-hairline px-4 py-4 sm:px-5">
               <div className="min-w-0">
-                <p className="text-2xs font-semibold uppercase tracking-wider text-subtle">{exercise.type} · {exercise.name}</p>
+                <p className="break-words text-2xs font-semibold uppercase tracking-wider text-subtle">{exercise.type} · {exercise.name}</p>
                 <h3 className="mt-0.5 truncate text-base font-semibold text-heading">{student.name}</h3>
-                <p className="text-2xs text-faint">{[student.regNo && `Reg No ${student.regNo}`, student.email, student.batch].filter(Boolean).join(" · ")}</p>
+                <p className="break-words text-2xs text-faint">{[student.regNo && `Reg No ${student.regNo}`, student.email, student.batch].filter(Boolean).join(" · ")}</p>
               </div>
-              <button type="button" onClick={onClose} aria-label="Close" className="rounded-md p-1 text-subtle hover:bg-row-hover hover:text-heading">
+              <button type="button" onClick={onClose} aria-label="Close" className="shrink-0 rounded-md p-1.5 text-subtle hover:bg-row-hover hover:text-heading sm:p-1">
                 <X size={18} />
               </button>
             </div>
-            <div className="flex flex-wrap gap-2 px-5 py-3">
+            <div className="flex flex-wrap gap-2 px-4 py-3 sm:px-5">
               <Stat label="Status" value={<StatusChip status={r.status} />} />
               <Stat label="Attempted" value={`${r.attempted} / ${r.totalQuestions}`} />
               <Stat label="Marks" value={formatMarks(r.scored, r.total, r.status !== "not-started")} />
               <Stat label="Percentage" value={formatPercent(r.percent)} tone="text-brand-strong" />
               <Stat label="Scale" value={r.scale || "—"} />
             </div>
-            <div className="min-h-0 flex-1 overflow-auto px-5 pb-4">
+            <div className="min-h-0 flex-1 overflow-auto px-4 pb-4 sm:px-5">
               <QuestionTable rows={questionsOf(exercise, student)} />
             </div>
-            <div className="flex items-center justify-end gap-2 border-t border-hairline bg-canvas px-5 py-3">
+            <div className="flex flex-wrap items-center justify-end gap-2 border-t border-hairline bg-canvas px-4 py-3 sm:px-5">
               <button type="button" onClick={onClose} className="inline-flex h-9 items-center rounded-control border border-hairline-strong bg-surface px-3.5 text-xs font-medium text-body hover:bg-row-hover">
                 Close
               </button>

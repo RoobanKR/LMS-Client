@@ -209,7 +209,10 @@ export const NotificationBell: React.FC = () => {
       m.kind === "retest_request" ||
       !!m.requestId ||
       (n.title || "").toLowerCase().includes("retest");
-    if (isRetest && m.courseId && m.exerciseId) {
+    // A student's (late) submission opens the same assessment screen, on its
+    // submissions rather than its requests.
+    const isSubmission = m.kind === "submission" || m.kind === "late_submission";
+    if ((isRetest || isSubmission) && m.courseId && m.exerciseId) {
       setOpen(false);
       const q = new URLSearchParams({
         courseId: String(m.courseId),
@@ -218,7 +221,7 @@ export const NotificationBell: React.FC = () => {
         subcategory: String(m.subcategory || ""),
         nodeId: String(m.nodeId || ""),
         nodeType: String(m.nodeType || ""),
-        tab: "requests",
+        ...(isRetest ? { tab: "requests" } : {}),
       }).toString();
       router.push(`${sectionHref("manageUsers")}?${q}`);
     }
@@ -321,7 +324,7 @@ export const NotificationBell: React.FC = () => {
           style={{
             position: "fixed", top: pos.top, right: clampedRight,
             width: panelWidth, maxWidth: "calc(100vw - 24px)",
-            maxHeight: "min(500px, calc(100vh - 88px))",
+            maxHeight: "min(500px, calc(100dvh - 88px))",
             background: "#fff",
             border: `1px solid ${BORDER}`, borderRadius: 14,
             boxShadow: "0 12px 32px rgba(15, 23, 42, 0.12)",

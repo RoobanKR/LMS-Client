@@ -93,6 +93,9 @@ export type ReportColumnRole =
     | 'clientId' | 'contactNumber' | 'email' | 'address' | 'contactPerson'
     | 'city' | 'state' | 'pincode' | 'generated'
     | 'code' | 'category' | 'course' | 'other'
+    // Course Report: short figures, mark totals, the question text, the
+    // exercise name and the student's name.
+    | 'num' | 'marks' | 'longText' | 'exercise' | 'person'
 
 /** Preferred column widths, in "share" units. The renderer normalises the
  *  chosen columns' shares to 100 so any subset of columns fills the page
@@ -123,9 +126,19 @@ export const REPORT_COLUMN_WIDTHS: Record<ReportColumnRole, number> = {
     code: 12,
     category: 14,
     course: 20,
+    // Course Report
+    num: 7,
+    marks: 10,
+    longText: 34,
+    exercise: 22,
+    person: 16,
     // Fallback
     other: 12,
 }
+
+/** Roles whose cells (and header) sit centred in every renderer. */
+const CENTERED_ROLES: ReadonlySet<ReportColumnRole> = new Set(['sno', 'year', 'status', 'pincode', 'num', 'marks'])
+export const reportColumnCentered = (role: ReportColumnRole) => CENTERED_ROLES.has(role)
 
 /** What the column carries — used to line up alignment, wrapping and
  *  width the same way in every renderer. Header-label matching so a
@@ -135,6 +148,16 @@ export function reportColumnRole(header: string, columnIndex: number): ReportCol
     const label = (header || '').toLowerCase()
     // Feedback reports' long free-text columns. Matched EXACTLY so no other report's widths move.
     if (label === 'parameter' || label === 'feedback title' || label === 'comments' || label === 'question text') return 'course'
+    // Course Report's columns — also matched EXACTLY, for the same reason.
+    switch (label) {
+        case 'q. no.': case 'max': case 'scored': case '%': case 'percentage': case 'overall %': case 'attempted':
+            return 'num'
+        case 'marks': case 'total marks': case 'exercise marks': case 'overall marks': case 'assignments': case 'assessments':
+            return 'marks'
+        case 'question': return 'longText'
+        case 'exercise': case 'module › topic': return 'exercise'
+        case 'student': return 'person'
+    }
     // Order matters: the more specific labels are tested first so
     // "Client ID" and "Client Status" don't fall into the plain
     // "client" bucket, and "Contact Person" doesn't land in the
@@ -305,7 +328,7 @@ export function paginateReport(format: ReportFormat, table: ReportTable): Pagina
      *  stopping a hair above it. Never negative: a page that already
      *  spilled just reports 0. */
     const fillerRowsFor = (usedMm: number) =>
-        Math.max(0, Math.ceil((availableMm - usedMm) / REPORT_ROW_MM))
+        table.noFillerRows ? 0 : Math.max(0, Math.ceil((availableMm - usedMm) / REPORT_ROW_MM))
 
     const pages: ReportLine[][] = []
     const fillers: number[] = []
@@ -369,6 +392,27 @@ export function paginateReport(format: ReportFormat, table: ReportTable): Pagina
             }
             groupAnchor = null
             const groupSpans = mergeIdx.length ? groupCellSpans(block.services, groupCarry) : null
+
+            /* keepBlocksTogether: a block that would straddle this page's
+             * end starts the next page instead, as long as it fits on one
+             * page by itself. Measured with the same estimator the rows
+             * below are charged with. */
+            if (table.keepBlocksTogether && current.length > 0) {
+                const blockMm = block.services.reduce((sum, service) => sum + estimateRowMm([
+                    String(serial),
+                    ...columns.map((col) => col.scope === 'client'
+                        ? (resolveClient(block, col.key) || '—')
+                        : col.mergeGroup && service.__groupSpan === '0' ? '' : (String(service[col.key] ?? '') || '—')),
+                ], widthsPct, layout.width), 0)
+                if (blockMm <= availableMm && currentHeightMm + blockMm > availableMm) {
+                    pages.push(current)
+                    fillers.push(fillerRowsFor(currentHeightMm))
+                    current = []
+                    currentHeightMm = 0
+                    anchor = null
+                    groupAnchor = null
+                }
+            }
 
             for (const [serviceIdx, rawService] of block.services.entries()) {
                 // Merging columns read the group opener's values, so a
@@ -778,7 +822,7 @@ export async function exportDesignedPdf(
         const cellWidth = (widthsPct[index] / 100) * contentWidth
         columnStyles[index] = {
             cellWidth,
-            halign: role === 'sno' || role === 'year' ? 'center' : 'left',
+            halign: reportColumnCentered(role) ? 'center' : 'left',
             // Every column wraps to multiple lines when its text doesn't
             // fit on one — autoTable then grows the row height to fit,
             // and re-paginates rows across pages if needed. The old
@@ -1039,7 +1083,7 @@ function drawRotatedTable(doc: PdfDoc, options: {
                 fill: HEAD_FILL,
                 textColor: [255, 255, 255],
                 bold: true,
-                center: role === 'sno' || role === 'year' || role === 'status' || role === 'pincode',
+                center: reportColumnCentered(role),
             },
         )
     })
@@ -1071,7 +1115,7 @@ function drawRotatedTable(doc: PdfDoc, options: {
                     fill: role === 'client' || role === 'business' ? CLIENT_FILL : undefined,
                     textColor: role === 'client' || role === 'business' ? [15, 23, 42] : undefined,
                     bold: role === 'client' || role === 'business',
-                    center: role === 'sno' || role === 'year' || role === 'status' || role === 'pincode',
+                    center: reportColumnCentered(role),
                 },
             )
         })
@@ -1369,6 +1413,7 @@ export function printDesignedReport(format: ReportFormat, table: ReportTable, me
       td.c-sno { color:#667085; }
       th.c-year, td.c-year { text-align:center; font-variant-numeric: tabular-nums; }
       th.c-status, td.c-status { text-align:center; }
+      th.c-pincode, td.c-pincode, th.c-num, td.c-num, th.c-marks, td.c-marks { text-align:center; font-variant-numeric: tabular-nums; }
       th.c-client, td.c-client { text-align:left; }
       td.c-client { color:#0f172a; font-weight:700; background:#fafbfc; }
       th.c-business, td.c-business { text-align:left; }

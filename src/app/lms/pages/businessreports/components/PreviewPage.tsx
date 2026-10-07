@@ -15,7 +15,7 @@
 
 import { PAPER_MM, type ReportElement, type ReportFormat } from '../../reportsettings/api/reportSettingsService'
 import {
-    fillTokens, REPORT_ROW_MM, reportColumnRole, reportColumnWidths,
+    fillTokens, REPORT_ROW_MM, reportColumnCentered, reportColumnRole, reportColumnWidths,
     type ReportLine, type ReportMeta,
 } from '../designedExport'
 
@@ -295,7 +295,7 @@ export function PreviewPage({
                             <tr>
                                 {headers.map((header, index) => {
                                     const role = reportColumnRole(header, index)
-                                    const align: React.CSSProperties['textAlign'] = role === 'sno' || role === 'year' ? 'center' : 'left'
+                                    const align: React.CSSProperties['textAlign'] = reportColumnCentered(role) ? 'center' : 'left'
                                     return (
                                         <th
                                             key={`${header}-${index}`}
@@ -353,7 +353,7 @@ export function PreviewPage({
                                         {(line.cells || []).map((cell, cellIndex) => {
                                             if (cell === null) return null
                                             const role = reportColumnRole(headers[cellIndex] || '', cellIndex)
-                                            const isCenter = ['sno', 'year', 'status', 'pincode'].includes(role)
+                                            const isCenter = reportColumnCentered(role)
                                             // Every column wraps rather than
                                             // ellipsize — the row height grows
                                             // to fit the wrapped content so
@@ -385,7 +385,7 @@ export function PreviewPage({
                                                         // otherwise black sheet.
                                                         color: role === 'client' || role === 'business' ? '#0f172a' : undefined,
                                                         background: role === 'client' || role === 'business' ? '#fafbfc' : undefined,
-                                                        fontVariantNumeric: role === 'sno' || role === 'year' ? 'tabular-nums' : undefined,
+                                                        fontVariantNumeric: reportColumnCentered(role) ? 'tabular-nums' : undefined,
                                                     }}
                                                 >{cell.text}</td>
                                             )
@@ -408,7 +408,7 @@ export function PreviewPage({
                                 <tr key={`blank-${i}`} aria-hidden>
                                     {headers.map((_, columnIdx) => {
                                         const role = reportColumnRole(headers[columnIdx] || '', columnIdx)
-                                        const isCenter = ['sno', 'year', 'status', 'pincode'].includes(role)
+                                        const isCenter = reportColumnCentered(role)
                                         return (
                                             <td
                                                 key={columnIdx}

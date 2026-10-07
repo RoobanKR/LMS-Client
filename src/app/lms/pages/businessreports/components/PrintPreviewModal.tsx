@@ -73,6 +73,10 @@ type Props = {
      *  z-modal (1200) layer pass 'z-[1250]' — still under z-popover (1300),
      *  so the sidebar's own menus open above the sheet. */
     layerClassName?: string
+    /** Passed to the paginator (see ReportTable): keep a block on one page
+     *  when it fits, and leave the space under the last row unruled. */
+    keepBlocksTogether?: boolean
+    noFillerRows?: boolean
 }
 
 
@@ -248,6 +252,7 @@ export function PrintPreviewModal({
     open, onClose, snapshot, blocks, letterhead, initialFormat, meta,
     fields, defaultEnabled, exportExcel, filenameBase,
     showExport = true, layerClassName = 'z-50',
+    keepBlocksTogether = false, noFillerRows = false,
 }: Props) {
     void snapshot
     void letterhead
@@ -527,8 +532,8 @@ export function PrintPreviewModal({
                 ])
             }
         }
-        return { headers, rows: flat, groups: blocks, columns, clientColumns, serviceColumns, tableRotated }
-    }, [blocks, enabledFields, fieldOrder, tableRotated, effectiveFields])
+        return { headers, rows: flat, groups: blocks, columns, clientColumns, serviceColumns, tableRotated, keepBlocksTogether, noFillerRows }
+    }, [blocks, enabledFields, fieldOrder, tableRotated, effectiveFields, keepBlocksTogether, noFillerRows])
 
     const paginated = useMemo(() => {
         if (!effectiveFormat || !table) return null
@@ -617,11 +622,11 @@ export function PrintPreviewModal({
             role="dialog"
             aria-modal
             aria-labelledby="print-preview-title"
-            className={`fixed inset-0 ${layerClassName} flex items-center justify-center bg-ink-900/60 p-3`}
+            className={`fixed inset-0 ${layerClassName} flex items-center justify-center bg-ink-900/60 p-0 sm:p-3`}
             onClick={() => { if (!exporting) onClose() }}
         >
             <div
-                className="flex h-[94vh] w-[95vw] max-w-[1680px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+                className="flex h-[100dvh] w-full max-w-[1680px] flex-col overflow-hidden rounded-none bg-white shadow-2xl sm:h-[94vh] sm:w-[95vw] sm:rounded-2xl"
                 onClick={(event) => event.stopPropagation()}
             >
                 {/* ── Header — title, tabs, close ─────────────────────
@@ -631,12 +636,15 @@ export function PrintPreviewModal({
                     opens the sidebar with that panel; clicking the same
                     button again closes the sidebar back to the plain
                     preview. */}
-                <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-hairline px-5 py-2">
-                    <div className="min-w-0">
+                <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-hairline px-3 py-2 sm:gap-3 sm:px-5">
+                    {/* Below lg the tabs take their own row, so the close
+                        button stays on the title's row instead of wrapping
+                        onto a line of its own. */}
+                    <div className="min-w-0 flex-1 lg:flex-none">
                         <h2 id="print-preview-title" className="text-sm font-semibold text-heading">Print Preview</h2>
                         <p className="text-[11px] leading-3 text-subtle">Review, customize, download or print.</p>
                     </div>
-                    <div role="tablist" aria-label="Customize" className="flex flex-wrap items-center gap-2">
+                    <div role="tablist" aria-label="Customize" className="order-3 flex basis-full flex-wrap items-center gap-2 lg:order-none lg:basis-auto">
                         <TabButton
                             active={tab === 'fields'}
                             onClick={() => setTab((current) => (current === 'fields' ? null : 'fields'))}
@@ -663,17 +671,17 @@ export function PrintPreviewModal({
                 </header>
 
                 {/* ── Body: optional sidebar + preview + toolbar ────── */}
-                <div className="flex min-h-0 flex-1">
+                <div className="flex min-h-0 flex-1 flex-col md:flex-row">
 
                     {tab && (
                         // Narrower in Settings mode: the panel there is the
                         // element tree, which wants a tall column, not a wide
                         // one — every control moved to the ribbon over the
                         // preview, and the sheet gets the width back.
-                        <aside className={`flex shrink-0 flex-col border-r border-hairline bg-canvas/30 ${
+                        <aside className={`flex max-h-[40dvh] w-full shrink-0 flex-col border-b border-hairline bg-canvas/30 md:max-h-none md:border-b-0 md:border-r ${
                             tab === 'settings'
-                                ? 'w-[24%] min-w-[220px] max-w-[300px]'
-                                : 'w-[30%] min-w-[280px] max-w-[400px]'
+                                ? 'md:w-[24%] md:min-w-[220px] md:max-w-[300px]'
+                                : 'md:w-[30%] md:min-w-[280px] md:max-w-[400px]'
                         }`}>
                             <div className="min-h-0 flex-1 overflow-y-auto p-3">
                                 {tab === 'fields' ? (
@@ -734,7 +742,7 @@ export function PrintPreviewModal({
                             where they sit. Settings mode adds undo / redo
                             after the shared block since only the editor
                             canvas has history to reach for. */}
-                        <div className="flex shrink-0 items-center gap-2 border-b border-hairline bg-white px-3 py-1.5">
+                        <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-hairline bg-white px-3 py-1.5">
                             <div role="group" aria-label="Pages" className="flex items-center gap-1">
                                 <button
                                     type="button"

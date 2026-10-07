@@ -18,6 +18,7 @@ import {
   type BreakdownStatus,
   type GradeBand,
 } from "@/app/lms/pages/courses/liveDashboard/utils/computeStudentMarks";
+import type { ExerciseView } from "./reportApi";
 
 type Loose = Record<string, any>;
 
@@ -54,6 +55,8 @@ export interface ReportExercise {
   /** A one-exercise stand-in for the course payload (see `miniCourseFor`). */
   mini: Loose;
   bands: GradeBand[];
+  /** The batches this exercise is set for; null when every batch has it. */
+  batchIds: Set<string> | null;
 }
 
 export interface ReportStudent {
@@ -65,6 +68,8 @@ export interface ReportStudent {
   /** Every batch the student is enrolled in, joined. */
   batch: string;
   batches: string[];
+  /** The same batches, by id — what exercises are matched against. */
+  batchIds: string[];
   participant: Loose;
 }
 
@@ -134,7 +139,9 @@ export const humanize = (key: string): string =>
     .replace(/_/g, " ")
     .trim()
     .replace(/\s+/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    // The default You Do subcategory is stored misspelt; show it spelt right.
+    .replace(/\bAssesment\b/g, "Assessment");
 
 export const round1 = (n: number): number => Math.round(n * 10) / 10;
 
@@ -187,28 +194,66 @@ const miniCourseFor = (section: Section, exercise: Loose): Loose => ({
 
 type Place = { module: string; subModule: string; topic: string; subTopic: string };
 
-/** Every We Do / You Do exercise in the course, in syllabus order. Walks the
- *  same four levels `findExerciseInCourseData` does. */
-export function collectExercises(courseData: Loose | null | undefined): ReportExercise[] {
-  const out: ReportExercise[] = [];
-  const seen = new Set<string>();
-  if (!courseData || !Array.isArray(courseData.modules)) return out;
+/** Every We Do / You Do exercise in the course, in syllabus order, as the
+ *  batches see them. `views` is one course payload per batch (or a single
+ *  one when every batch has the same material); an exercise in several views
+ *  is listed once, carrying every batch it belongs to. Walks the same four
+ *  levels `findExerciseInCourseData` does. An exercise with no questions has
+ *  nothing to report and is left out. */
+export function collectExercises(views: ExerciseView[]): ReportExercise[] {
+  const byId = new Map<string, ReportExercise & { order: number }>();
+  views.forEach((view, viewIdx) => collectView(view, viewIdx, byId));
+  const out = [...byId.values()].sort((a, b) => a.order - b.order);
+
+  // The exercise's total, taken the way the marks function takes it (it
+  // accounts for section-based and dynamic totals that a plain sum of
+  // question marks would miss). A participant with no courses yields zero
+  // marks but the correct total.
+  for (const ex of out) {
+    ex.totalMarks = computeStudentMarks({
+      courseData: ex.mini,
+      courseId: "",
+      exerciseId: ex.id,
+      participant: { user: { courses: [] } },
+    }).totalMarks;
+  }
+  return out;
+}
+
+/** Is this exercise set for (one of) this student's batches? */
+export const appliesTo = (exercise: ReportExercise, student: ReportStudent): boolean =>
+  !exercise.batchIds || student.batchIds.some((id) => exercise.batchIds!.has(id));
+
+function collectView(view: ExerciseView, viewIdx: number, byId: Map<string, ReportExercise & { order: number }>) {
+  const courseData = view.data;
+  if (!courseData || !Array.isArray(courseData.modules)) return;
+  // Every view walks the same tree, so a node's sequence number is the same
+  // in each — which keeps a batch's own exercises in syllabus position.
+  let nodeSeq = 0;
 
   const take = (pedagogy: Loose | undefined, place: Place) => {
+    nodeSeq += 1;
     if (!pedagogy) return;
-    for (const section of ["We_Do", "You_Do"] as const) {
+    (["We_Do", "You_Do"] as const).forEach((section, sectionIdx) => {
       const tab = pedagogy[section];
-      if (!tab || typeof tab !== "object") continue;
+      if (!tab || typeof tab !== "object") return;
+      let pos = 0;
       for (const [subKey, list] of Object.entries(tab)) {
         if (!Array.isArray(list)) continue;
         for (const ex of list as Loose[]) {
+          pos += 1;
           const id = idOf(ex?._id);
           const name = text(ex?.exerciseInformation?.exerciseName);
-          if (!id || !name || seen.has(id)) continue;
-          seen.add(id);
-          const questions = Array.isArray(ex.questions) ? ex.questions : [];
+          const questions = Array.isArray(ex?.questions) ? ex.questions : [];
+          if (!id || !name || !questions.length) continue;
+          const known = byId.get(id);
+          if (known) {
+            if (known.batchIds && view.batchIds) view.batchIds.forEach((b) => known.batchIds!.add(b));
+            else known.batchIds = null;
+            continue;
+          }
           const mini = miniCourseFor(section, ex);
-          out.push({
+          byId.set(id, {
             id,
             name,
             section,
@@ -229,10 +274,12 @@ export function collectExercises(courseData: Loose | null | undefined): ReportEx
             raw: ex,
             mini,
             bands: bandsOf(ex),
+            batchIds: view.batchIds ? new Set(view.batchIds) : null,
+            order: nodeSeq * 1e6 + sectionIdx * 1e5 + viewIdx * 1e3 + pos,
           });
         }
       }
-    }
+    });
   };
 
   for (const mod of courseData.modules as Loose[]) {
@@ -254,20 +301,6 @@ export function collectExercises(courseData: Loose | null | undefined): ReportEx
       topicsUnder(sub?.topics, subModule);
     }
   }
-
-  // The exercise's total, taken the way the marks function takes it (it
-  // accounts for section-based and dynamic totals that a plain sum of
-  // question marks would miss). A participant with no courses yields zero
-  // marks but the correct total.
-  for (const ex of out) {
-    ex.totalMarks = computeStudentMarks({
-      courseData: ex.mini,
-      courseId: "",
-      exerciseId: ex.id,
-      participant: { user: { courses: [] } },
-    }).totalMarks;
-  }
-  return out;
 }
 
 // ─── Students ───────────────────────────────────────────────────────────────
@@ -286,11 +319,16 @@ const isStudent = (user: Loose | null | undefined): boolean => {
     .includes("student");
 };
 
+/** How a batch reads on the report ("Phase 1 · Batch A"). */
+export const batchLabel = (batch: Loose | null | undefined): string =>
+  [text(batch?.phase), text(batch?.batchName)].filter(Boolean).join(" · ");
+
 /** Enrolled students, one entry each even when enrolled in several batches. */
 export function collectStudents(courseData: Loose | null | undefined): ReportStudent[] {
   const byId = new Map<string, ReportStudent>();
   for (const batch of (courseData?.batchAndParticipants || []) as Loose[]) {
-    const batchName = [text(batch?.phase), text(batch?.batchName)].filter(Boolean).join(" · ");
+    const batchName = batchLabel(batch);
+    const batchId = idOf(batch?._id);
     for (const participant of (batch?.users || []) as Loose[]) {
       const user = participant?.user;
       if (!user || typeof user !== "object" || !isStudent(user)) continue;
@@ -302,6 +340,7 @@ export function collectStudents(courseData: Loose | null | undefined): ReportStu
           existing.batches.push(batchName);
           existing.batch = existing.batches.join(", ");
         }
+        if (batchId && !existing.batchIds.includes(batchId)) existing.batchIds.push(batchId);
         continue;
       }
       const name = [text(user.firstName), text(user.lastName)].filter(Boolean).join(" ") || text(user.email) || "Student";
@@ -312,6 +351,7 @@ export function collectStudents(courseData: Loose | null | undefined): ReportStu
         regNo: text(user.rollNumber) || text(user.userId),
         batch: batchName,
         batches: batchName ? [batchName] : [],
+        batchIds: batchId ? [batchId] : [],
         participant,
       });
     }
@@ -348,7 +388,8 @@ export function resultFor(
     scored: marks.hasSubmitted ? marks.scoredMarks : 0,
     total: marks.totalMarks,
     percent,
-    scale: scaleForPercent(percent, exercise.bands),
+    // A grade describes a finished attempt; a partial one has no grade yet.
+    scale: status === "completed" ? scaleForPercent(percent, exercise.bands) : "",
     attempted: marks.completedQuestions,
     totalQuestions: marks.totalQuestions,
   };
@@ -385,9 +426,12 @@ export function questionsFor(
 }
 
 /** Totals for a student across a set of exercises. The overall percentage is
- *  marks-weighted — sum scored ÷ sum of every exercise's total, the same two
+ *  marks-weighted — sum scored ÷ sum of the exercises' totals, the same two
  *  numbers the Marks column prints — so a 100-mark assessment counts for more
- *  than a 10-mark quiz, and an exercise not attempted counts as zero. */
+ *  than a 10-mark quiz. An exercise not attempted counts as zero once it is
+ *  due; one still open and not yet started is left out (`open`), so a
+ *  student is not marked down for work that is not due yet. Exercises the
+ *  student's batch does not have (`results` gives undefined) are skipped. */
 export interface StudentTotals {
   assignmentsDone: number;
   assignmentsTotal: number;
@@ -397,31 +441,44 @@ export interface StudentTotals {
   total: number;
   percent: number | null;
   scale: string;
+  /** Open, not-started exercises left out of `total`. */
+  open: number;
 }
 
 export function totalsFor(
   exercises: ReportExercise[],
   results: (exerciseId: string) => StudentResult | undefined,
+  now: number = Date.now(),
 ): StudentTotals {
   const t: StudentTotals = {
     assignmentsDone: 0, assignmentsTotal: 0, assessmentsDone: 0, assessmentsTotal: 0,
-    scored: 0, total: 0, percent: null, scale: "",
+    scored: 0, total: 0, percent: null, scale: "", open: 0,
   };
   let attemptedAny = false;
+  // The exercises' own grade bands when they all agree; the default otherwise.
+  let bands: GradeBand[] | null = null;
+  let bandsAgree = true;
   for (const ex of exercises) {
     const r = results(ex.id);
-    const done = r?.status === "completed";
+    if (!r) continue;
+    const done = r.status === "completed";
     if (ex.type === "Assignment") { t.assignmentsTotal += 1; if (done) t.assignmentsDone += 1; }
     else { t.assessmentsTotal += 1; if (done) t.assessmentsDone += 1; }
-    t.total += r?.total ?? ex.totalMarks;
-    if (r && r.status !== "not-started") {
+    const started = r.status !== "not-started";
+    const end = ex.endDate ? Date.parse(ex.endDate) : NaN;
+    const due = Number.isNaN(end) || end <= now;
+    if (!started && !due) { t.open += 1; continue; }
+    t.total += r.total;
+    if (started) {
       t.scored += r.scored;
       attemptedAny = true;
     }
+    if (!bands) bands = ex.bands;
+    else if (bandsAgree && JSON.stringify(bands) !== JSON.stringify(ex.bands)) bandsAgree = false;
   }
   // Null (prints "—") for a student who has not started anything, rather
   // than a 0% that reads as a failed attempt.
   t.percent = attemptedAny && t.total > 0 ? (t.scored / t.total) * 100 : null;
-  t.scale = scaleForPercent(t.percent, DEFAULT_GRADE_BANDS);
+  t.scale = scaleForPercent(t.percent, bands && bandsAgree ? bands : DEFAULT_GRADE_BANDS);
   return t;
 }

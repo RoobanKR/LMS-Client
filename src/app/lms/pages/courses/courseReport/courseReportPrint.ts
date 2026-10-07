@@ -7,9 +7,14 @@
 // block's "client"-scope cells are merged down its rows, and each of its
 // "service" rows is one line. Each layout below says what a block is, what a
 // row is, and which columns the trainer may tick.
+//
+// Column labels matter beyond the header: the sheet sizes and aligns a column
+// by its label (designedExport.ts `reportColumnRole`), which is why the
+// question text, the marks and the small figures each keep a fixed wording.
 
 import type { FieldRow } from "@/app/lms/pages/businessreports/components/PrintPreviewModal";
 import type { ReportClientBlock } from "@/app/lms/pages/servicemapping/components/serviceReport";
+import { GROUP_SPAN_KEY } from "@/app/lms/pages/businessreports/groupSpans";
 import {
   formatMarks, formatPercent, QUESTION_STATUS_LABEL, round1, STATUS_LABEL,
   type QuestionRow, type ReportExercise, type ReportStudent, type StudentResult, type StudentTotals,
@@ -65,19 +70,19 @@ export const LAYOUT_FIELDS: Record<PrintLayout, { fields: FieldRow[]; defaults: 
   "exercise-questions": {
     fields: [
       ...STUDENT_FIELDS,
-      { key: "stMarks", label: "Student Marks", scope: "client", column: "Marks", dataKey: "stMarks" },
+      { key: "stMarks", label: "Total Marks", scope: "client", column: "Total Marks", dataKey: "stMarks" },
       { key: "stPercent", label: "Student Percentage", scope: "client", column: "%", dataKey: "stPercent" },
       { key: "stStatus", label: "Test Status", scope: "client", column: "Test Status", dataKey: "stStatus" },
       ...QUESTION_FIELDS,
     ],
-    defaults: new Set(["student", "regNo", "stMarks", "qNo", "question", "qMax", "qScored", "qStatus"]),
+    defaults: new Set(["student", "regNo", "stMarks", "stStatus", "qNo", "question", "qMax", "qScored", "qStatus"]),
   },
   "student-totals": {
     fields: [
       ...STUDENT_FIELDS,
       { key: "assignments", label: "Assignments Completed", scope: "service", column: "Assignments", dataKey: "assignments" },
       { key: "assessments", label: "Assessments Completed", scope: "service", column: "Assessments", dataKey: "assessments" },
-      { key: "marks", label: "Total Marks", scope: "service", column: "Marks", dataKey: "marks" },
+      { key: "marks", label: "Total Marks", scope: "service", column: "Total Marks", dataKey: "marks" },
       { key: "percent", label: "Overall Percentage", scope: "service", column: "Overall %", dataKey: "percent" },
       { key: "scale", label: "Scale", scope: "service", column: "Scale", dataKey: "scale" },
     ],
@@ -102,12 +107,12 @@ export const LAYOUT_FIELDS: Record<PrintLayout, { fields: FieldRow[]; defaults: 
   "student-questions": {
     fields: [
       ...STUDENT_FIELDS,
-      // The block is one student IN one exercise, so the exercise columns
-      // sit on the block and merge down its questions.
-      { key: "exercise", label: "Exercise", required: true, scope: "client", column: "Exercise", dataKey: "exercise" },
-      { key: "type", label: "Type", scope: "client", column: "Type", dataKey: "type" },
-      { key: "exMarks", label: "Exercise Marks", scope: "client", column: "Marks", dataKey: "exMarks" },
-      { key: "exPercent", label: "Exercise Percentage", scope: "client", column: "%", dataKey: "exPercent" },
+      // The block is one STUDENT (one S. No. each). The exercise columns
+      // merge down that exercise's questions (`mergeGroup`).
+      { key: "exercise", label: "Exercise", required: true, scope: "service", column: "Exercise", dataKey: "exercise", mergeGroup: true },
+      { key: "type", label: "Type", scope: "service", column: "Type", dataKey: "type", mergeGroup: true },
+      { key: "exMarks", label: "Exercise Marks", scope: "service", column: "Exercise Marks", dataKey: "exMarks", mergeGroup: true },
+      { key: "exPercent", label: "Exercise Percentage", scope: "service", column: "%", dataKey: "exPercent", mergeGroup: true },
       ...QUESTION_FIELDS,
     ],
     defaults: new Set(["student", "regNo", "exercise", "exMarks", "qNo", "question", "qMax", "qScored", "qStatus"]),
@@ -135,14 +140,21 @@ const questionService = (q: QuestionRow): Record<string, string> => ({
   qStatus: QUESTION_STATUS_LABEL[q.status],
 });
 
-// A block with no rows prints nothing at all, so an exercise without
-// questions still gets a line saying so.
+// A student who never opened the exercise gets ONE line saying so, not a
+// line per question all reading "Pending". A block with no rows prints
+// nothing at all, so an empty question list gets a line too.
+const NOT_STARTED: Record<string, string> = { qNo: "—", question: "Not started", qStatus: STATUS_LABEL["not-started"] };
 const NO_QUESTIONS: Record<string, string> = { qNo: "—", question: "No questions in this exercise" };
+
+const questionRows = (r: StudentResult, questions: QuestionRow[]) =>
+  !answered(r) ? [NOT_STARTED] : questions.length ? questions.map(questionService) : [NO_QUESTIONS];
 
 export interface PrintSources {
   resultOf: (exerciseId: string, studentId: string) => StudentResult;
   questionsOf: (exercise: ReportExercise, student: ReportStudent) => QuestionRow[];
   totalsOf: (student: ReportStudent) => StudentTotals;
+  /** Whether the exercise is set for the student's batch. */
+  appliesTo: (exercise: ReportExercise, student: ReportStudent) => boolean;
 }
 
 /** By Exercise: the chosen students in ONE exercise. */
@@ -169,7 +181,6 @@ export function exerciseBlocks(
         }],
       };
     }
-    const questions = src.questionsOf(exercise, s);
     return {
       client: cells.client,
       business: cells.business,
@@ -179,22 +190,25 @@ export function exerciseBlocks(
         stPercent: formatPercent(r.percent),
         stStatus: STATUS_LABEL[r.status],
       },
-      services: questions.length ? questions.map(questionService) : [NO_QUESTIONS],
+      services: questionRows(r, answered(r) ? src.questionsOf(exercise, s) : []),
     };
   });
 }
 
-/** By Student: the chosen students across the filtered exercises. */
+/** By Student: the chosen students across the filtered exercises (each
+ *  student only across the exercises set for their batch). */
 export function studentBlocks(
   layout: "student-totals" | "student-exercises" | "student-questions",
   students: ReportStudent[],
   exercises: ReportExercise[],
   src: PrintSources,
 ): ReportClientBlock[] {
-  if (layout === "student-totals") {
-    return students.map((s) => {
-      const t = src.totalsOf(s);
-      const cells = studentCells(s);
+  return students.map((s) => {
+    const cells = studentCells(s);
+    const t = src.totalsOf(s);
+    const own = exercises.filter((ex) => src.appliesTo(ex, s));
+
+    if (layout === "student-totals") {
       return {
         client: cells.client,
         business: cells.business,
@@ -207,13 +221,9 @@ export function studentBlocks(
           scale: t.scale || "—",
         }],
       };
-    });
-  }
+    }
 
-  if (layout === "student-exercises") {
-    return students.map((s) => {
-      const t = src.totalsOf(s);
-      const cells = studentCells(s);
+    if (layout === "student-exercises") {
       return {
         client: cells.client,
         business: cells.business,
@@ -222,8 +232,8 @@ export function studentBlocks(
           overallMarks: `${round1(t.scored)} / ${round1(t.total)}`,
           overallPercent: formatPercent(t.percent),
         },
-        services: exercises.length
-          ? exercises.map((ex) => {
+        services: own.length
+          ? own.map((ex) => {
             const r = src.resultOf(ex.id, s.id);
             return {
               exercise: ex.name,
@@ -238,29 +248,31 @@ export function studentBlocks(
           })
           : [{ exercise: "No exercises match the filters" }],
       };
-    });
-  }
-
-  // student-questions: one block per student per exercise.
-  const blocks: ReportClientBlock[] = [];
-  for (const s of students) {
-    const cells = studentCells(s);
-    for (const ex of exercises) {
-      const r = src.resultOf(ex.id, s.id);
-      const questions = src.questionsOf(ex, s);
-      blocks.push({
-        client: cells.client,
-        business: cells.business,
-        clientExtras: {
-          ...cells.extras,
-          exercise: ex.name,
-          type: ex.type,
-          exMarks: formatMarks(r.scored, r.total, answered(r)),
-          exPercent: formatPercent(r.percent),
-        },
-        services: questions.length ? questions.map(questionService) : [NO_QUESTIONS],
-      });
     }
-  }
-  return blocks;
+
+    // student-questions: one block per student; each exercise is a group of
+    // rows whose exercise cells merge down its questions.
+    const services: Record<string, string>[] = [];
+    for (const ex of own) {
+      const r = src.resultOf(ex.id, s.id);
+      const head = {
+        exercise: ex.name,
+        type: ex.type,
+        exMarks: formatMarks(r.scored, r.total, answered(r)),
+        exPercent: formatPercent(r.percent),
+      };
+      const rows = questionRows(r, answered(r) ? src.questionsOf(ex, s) : []);
+      rows.forEach((row, i) => services.push({
+        ...head,
+        ...row,
+        [GROUP_SPAN_KEY]: i === 0 ? String(rows.length) : "0",
+      }));
+    }
+    return {
+      client: cells.client,
+      business: cells.business,
+      clientExtras: cells.extras,
+      services: services.length ? services : [{ exercise: "No exercises match the filters" }],
+    };
+  });
 }
