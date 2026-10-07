@@ -64,6 +64,14 @@ import BottomPanel, {
   type TestResultState as MFTestResultState,
 } from '@/app/lms/pages/courses/coursesdetailedview/components/multi-file/BottomPanel';
 import { type TermLine as MFTermLine } from '@/app/lms/pages/courses/coursesdetailedview/components/multi-file/RunTerminal';
+// Run Code = the multi-file editor's live terminal (the program waits for
+// input as it is typed); Submit = test cases on Piston, whole project.
+import {
+  startLiveSession, liveStartErrorText, LIVE_LANGUAGES,
+  type LiveSession, type LiveLanguage,
+} from '@/app/lms/pages/courses/coursesdetailedview/components/lib/liveCompilerSession';
+import { runOnPiston } from '@/lib/pistonClient';
+import { LANGUAGE_CONFIG, detectLanguageFromFilename, type SupportedLanguage } from '@/lib/codeLanguages';
 // Same AI grader the student-side editors call so the review console's
 // AI-based Run Code path lands on the identical breakdown shape.
 import { evaluateWithAi } from '@/app/lms/pages/courses/coursesdetailedview/components/lib/aiEvaluator';
@@ -1427,11 +1435,14 @@ export default function EnhancedSubmissionReview() {
   const pyodideRef = useRef<any>(null);
 
   // ── BottomPanel state (Terminal + Test Result) ───────────────────────────
-  // The panel is collapsed by default. Run Code opens it, and stays open
-  // through the run so the trainer sees output live. Which tab it opens on
-  // follows the exercise's evaluation method (see `bottomMode` memo below).
-  const [bottomOpen, setBottomOpen] = useState(false);
+  // Always shown, both tabs, like the multi-file student editor: Run Code
+  // runs the program in the Terminal, Submit runs the test cases into Test
+  // Result.
   const [bottomTab, setBottomTab] = useState<'terminal' | 'test-result'>('terminal');
+  const [isSubmittingTests, setIsSubmittingTests] = useState(false);
+  // Live interactive run on the compiler service (non-Python languages).
+  const liveSessionRef = useRef<LiveSession | null>(null);
+  const [liveRunning, setLiveRunning] = useState(false);
   const [testResult, setTestResult] = useState<MFTestResultState | null>(null);
   const [selectedCaseIndex, setSelectedCaseIndex] = useState<number>(0);
   const [lastRuntimeMs, setLastRuntimeMs] = useState<number | null>(null);
@@ -1924,6 +1935,12 @@ const isNonGraded = !!(
 
   const handleTerminalInput = (value: string) => {
     addLog('stdin', value);
+    // Live run: the line goes straight to the running program, which can
+    // take input at any time — the input line stays open.
+    if (liveSessionRef.current) {
+      liveSessionRef.current.send(`${value}\n`);
+      return;
+    }
     if (inputResolverRef.current) {
       inputResolverRef.current(value);
       inputResolverRef.current = null;
@@ -3427,9 +3444,14 @@ builtins.input = _async_input
     return cat === 'You_Do' ? 'testcase' : 'manual';
   }, [selectedExercise]);
 
-  // Manual → the panel is a plain terminal (no pass/fail chip). Test Case /
-  // AI → the panel shows the Test Result surface with case chips + score.
-  const bottomMode: 'terminal' | 'test-result' = evalMethod === 'manual' ? 'terminal' : 'test-result';
+  // Stop a live run when the trainer moves to another question / student or
+  // leaves the page — its output must not land in the next one's terminal.
+  useEffect(() => () => {
+    liveSessionRef.current?.stop();
+    liveSessionRef.current?.dispose();
+    liveSessionRef.current = null;
+    setLiveRunning(false);
+  }, [selectedQuestion]);
 
   // Adapt the review console's per-log type to the multi-file terminal's
   // TermLine shape. `stdin` is a distinct kind on the multi-file side so
@@ -3443,7 +3465,7 @@ builtins.input = _async_input
               (l.type as string) === 'success' ? 'success' :
                 (l.type as string) === 'info' ? 'info' :
                   l.type === 'stdin' ? 'stdin' : 'stdout';
-      return { id: `t${i}`, kind, text: String(l.content ?? '') };
+      return { id: `t${i}`, kind, text: String(l.content ?? '').replace(/\n$/, '') };
     }),
     [terminalLogs],
   );
@@ -3579,9 +3601,22 @@ builtins.input = _async_input
     });
     let passed = 0;
     const cases: MFTestResultCase[] = [];
+    // The whole project (every file, entry point first) — what the student's
+    // Submit sent — through the shared Piston client.
+    const runFiles = workingFiles.length
+      ? workingFiles.map((f) => ({ path: f.path, content: f.content, isEntryPoint: !!f.isEntryPoint }))
+      : [{ path: activeFile?.path || 'main', content: source, isEntryPoint: true }];
+    const runCase = async (stdin: string) => {
+      try {
+        const r = await runOnPiston({ language: lang as SupportedLanguage, files: runFiles, stdin });
+        return { stdout: r.stdout || '', stderr: r.compileError || r.stderr || '' };
+      } catch (err: any) {
+        return { stdout: '', stderr: err?.message || 'Execution failed.' };
+      }
+    };
     for (let i = 0; i < currentQuestionTestCases.length; i++) {
       const tc = currentQuestionTestCases[i];
-      const r = await pistonRunOnce(source, lang, tc.input);
+      const r = await runCase(tc.input);
       const actual = r.stdout || r.stderr || '';
       const ok = !r.stderr && outputsMatch(r.stdout, tc.expectedOutput);
       if (ok) passed += 1;
@@ -3687,6 +3722,95 @@ builtins.input = _async_input
   //   • Non-Python, Manual    → Piston with the first sample stdin, output to terminal
   //   • Non-Python, Test Case → Piston, loop every case, populate testResult
   //   • Non-Python, AI        → evaluateWithAi, populate testResult with breakdown
+  // Streamed output from a live run: keep printing on the open line until a
+  // newline closes it (a prompt like "Enter n: " stays on its line).
+  const appendLiveOutput = (type: LogEntry['type'], chunk: string) => {
+    setTerminalLogs((prev) => {
+      const last = prev[prev.length - 1];
+      if (last && last.type === type && !last.content.endsWith('\n')) {
+        return [...prev.slice(0, -1), { ...last, content: last.content + chunk }];
+      }
+      return [...prev, { id: Math.random().toString(36).substring(7), type, content: chunk, timestamp: Date.now() }];
+    });
+  };
+
+  // Live run on the compiler service — the same session the multi-file
+  // editor's Run opens: the whole project, the entry file runs, every line
+  // typed in the Terminal reaches the program while it runs.
+  const runLiveConsole = async (lang: string): Promise<boolean> => {
+    const files = workingFiles.filter((f) => f.content != null);
+    const supported = lang as SupportedLanguage;
+    const ofLang = (f: ConsoleFile) => detectLanguageFromFilename(f.name || f.path) === supported;
+    const conventional = (LANGUAGE_CONFIG[supported]?.filename || '').toLowerCase();
+    const entry = files.find((f) => f.isEntryPoint && ofLang(f))
+      || files.find((f) => (f.name || '').toLowerCase() === conventional)
+      || (activeFile && ofLang(activeFile) ? activeFile : null)
+      || files.find(ofLang)
+      || activeFile;
+    if (!entry) return false;
+    const rel = (p: string) => p.replace(/^\/+/, '');
+    const label = LANGUAGE_CONFIG[supported]?.label || lang;
+
+    clearTerminal();
+    addLog('system', `$ Run ${entry.name || rel(entry.path)} (${label} · live terminal)`);
+    setIsExecuting(true);
+    setLiveRunning(true);
+    setIsWaitingForInput(false);
+    let over = false;
+    let announcedQueue = false;
+    const end = (type: LogEntry['type'], text: string) => {
+      over = true;
+      if (text) addLog(type, text);
+      setIsExecuting(false);
+      setLiveRunning(false);
+      setIsWaitingForInput(false);
+      liveSessionRef.current = null;
+    };
+    try {
+      const session = await startLiveSession(lang as LiveLanguage, {
+        source: entry.content,
+        entry: rel(entry.path),
+        files: files.map((f) => ({ path: rel(f.path), content: f.content })),
+      }, {
+        onQueued: (position) => {
+          if (announcedQueue) return;
+          announcedQueue = true;
+          addLog('system', `All ${label} runners are busy — you are #${position} in the queue. It starts by itself.`);
+        },
+        onStatus: (phase) => {
+          if (phase === 'compiling') addLog('system', 'Compiling…');
+          else setIsWaitingForInput(true); // running: type input any time
+        },
+        onStdout: (d) => appendLiveOutput('stdout', d),
+        // Compiler warnings are informational; the program's own stderr is red.
+        onStderr: (d, src) => { if (src === 'compiler') addLog('system', d.trimEnd()); else appendLiveOutput('stderr', d); },
+        onCompileError: (output) => { addLog('stderr', output); end('stderr', 'Compilation failed.'); },
+        onCompleted: ({ exitCode, signal }) =>
+          end('system', `Process exited with code ${exitCode ?? '?'}${signal ? ` (${signal})` : ''}.`),
+        onTimeout: ({ message }) => end('stderr', message),
+        onStopped: () => end('system', 'Stopped.'),
+        onError: ({ message }) => end('stderr', message),
+      });
+      if (over) { session.dispose(); return true; }
+      liveSessionRef.current = session;
+      return true;
+    } catch (e) {
+      // Live compiler unreachable — say so, and fall back to a one-shot run.
+      addLog('system', `${liveStartErrorText(e)} Running it once instead.`);
+      setIsExecuting(false);
+      setLiveRunning(false);
+      setIsWaitingForInput(false);
+      return false;
+    }
+  };
+
+  const stopLiveConsole = () => { liveSessionRef.current?.stop(); };
+
+  // ── Run Code: the program in the Terminal ─────────────────────────────
+  //   • Python                       → Pyodide (input typed in the terminal)
+  //   • Java / C / C++ / C# / JS / TS / Go → live compiler session
+  //   • anything else (or live down) → one Piston run with the first test
+  //                                     case's input
   const runConsoleCode = async () => {
     const source = activeFile?.content || '';
     const lang = ((activeFile?.language as string) || runLanguage || 'javascript').toLowerCase();
@@ -3694,26 +3818,19 @@ builtins.input = _async_input
       toast.error('No code to execute');
       return;
     }
-    setBottomOpen(true);
-    setBottomTab(evalMethod === 'manual' ? 'terminal' : 'test-result');
+    if (isExecuting || liveSessionRef.current) return;
+    setBottomTab('terminal');
     setLastRuntimeMs(null);
 
     if (lang === 'python') {
-      // Python keeps its historical route: Pyodide via initiateRunCode, which
-      // owns the interactive input line + stdout streaming.
-      setBottomTab('terminal');
+      // Python keeps its route: Pyodide via initiateRunCode, which owns the
+      // interactive input line + stdout streaming.
       return initiateRunCode({ source, language: lang, stdin: terminalStdin, useIoPanel: true });
     }
 
-    if (evalMethod === 'testcase') {
-      await runAllTestCasesViaPiston(source, lang);
-      return;
-    }
-    if (evalMethod === 'ai') {
-      await runAiEvaluation(source, lang);
-      return;
-    }
-    // Manual — one-shot Piston run against the first authored test case's
+    if (LIVE_LANGUAGES.includes(lang) && await runLiveConsole(lang)) return;
+
+    // One-shot Piston run against the first authored test case's
     // input (if the trainer configured one) or an empty stdin otherwise.
     // No batch input box means we can't ask the trainer to type stdin here;
     // for a program that reads input, the first configured sample is the
@@ -3727,6 +3844,36 @@ builtins.input = _async_input
     if (r.stdout) addLog('stdout', r.stdout);
     if (r.stderr) addLog('stderr', r.stderr);
     addLog('system', r.ok ? 'Execution finished.' : 'Execution failed.');
+  };
+
+  // ── Submit: test cases (or the AI grader) into the Test Result tab ─────
+  // Same evaluation the student's Submit ran. Manual-graded questions still
+  // run their authored test cases so the trainer sees pass / fail.
+  const submitConsoleCode = async () => {
+    const source = activeFile?.content || '';
+    const lang = ((activeFile?.language as string) || runLanguage || 'javascript').toLowerCase();
+    if (!source.trim()) {
+      toast.error('No code to submit');
+      return;
+    }
+    if (isSubmittingTests) return;
+    setBottomTab('test-result');
+    setIsSubmittingTests(true);
+    try {
+      if (evalMethod === 'ai') {
+        await runAiEvaluation(source, lang);
+      } else if (currentQuestionTestCases.length === 0) {
+        setTestResult({
+          status: 'submission-failed',
+          cases: [],
+          message: 'This question has no test cases to run.',
+        });
+      } else {
+        await runAllTestCasesViaPiston(source, lang);
+      }
+    } finally {
+      setIsSubmittingTests(false);
+    }
   };
 
   const resetConsoleCode = () => {
@@ -4267,6 +4414,8 @@ builtins.input = _async_input
                   languages={exerciseLanguages}
                   onLanguageChange={setRunLanguage}
                   onRun={runConsoleCode}
+                  onSubmit={submitConsoleCode}
+                  submitting={isSubmittingTests}
                   onReset={resetConsoleCode}
                   running={isExecuting}
                   descriptionHtml={problemHtml}
@@ -4286,31 +4435,26 @@ builtins.input = _async_input
                 <div className="border-t border-[#E7EEF8] bg-white">
                   <div className="flex items-center justify-between px-3 py-1.5">
                     <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setBottomOpen((v) => !v)}
-                        className="flex h-6 items-center gap-1.5 rounded-md border border-[#E5E7EB] bg-white px-2 text-[11.5px] font-semibold text-[#39496B] transition-colors hover:bg-[#F7FAFF]"
-                        aria-expanded={bottomOpen}
-                        aria-label={bottomOpen ? 'Hide terminal' : 'Show terminal'}
-                      >
-                        {bottomOpen ? '▾' : '▸'} {bottomMode === 'terminal' ? 'Terminal' : 'Test Result'}
-                      </button>
                       {evalMethod !== 'manual' && (
                         <span className="rounded-[5px] bg-[#EEF2F8] px-2 py-[2px] text-[10px] font-semibold uppercase tracking-wide text-[#66789C]">
                           {evalMethod === 'ai' ? 'AI graded' : 'Test-case graded'}
                         </span>
                       )}
                     </div>
-                    {isExecuting && (
-                      <span className="text-[11px] font-medium text-[#B54708]">Running…</span>
+                    {(isExecuting || isSubmittingTests) && (
+                      <span className="text-[11px] font-medium text-[#B54708]">{isSubmittingTests ? 'Submitting…' : 'Running…'}</span>
                     )}
                   </div>
-                  {bottomOpen && (
+                  {(
                     <div style={{ height: 260 }}>
                       <BottomPanel
                         activeTab={bottomTab}
                         onTabChange={setBottomTab}
-                        mode={bottomMode}
+                        mode="both"
+                        liveTerminal={liveRunning}
+                        onStopRun={stopLiveConsole}
+                        onRetrySubmit={submitConsoleCode}
+                        isSubmitting={isSubmittingTests}
                         testResult={testResult}
                         termLines={termLines}
                         running={isExecuting}

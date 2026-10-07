@@ -1812,7 +1812,11 @@ export default function Assessment({
                         ExamSession row and never unsets it, so there is nothing to
                         open before then — those rows show a dash in the same centred
                         slot, keeping the column aligned in both states. */}
-                    <div className="flex items-center justify-center">
+                    <div
+                      className="flex items-center justify-center"
+                      // No report to review yet: a click anywhere in this cell stays here.
+                      onClick={asm.hasParticipants ? undefined : (e) => e.stopPropagation()}
+                    >
                       {asm.hasParticipants ? (
                         <button
                           type="button"
@@ -1831,7 +1835,14 @@ export default function Assessment({
                           Review
                         </button>
                       ) : (
-                        <span className="text-[11px]" style={{ color: T.textHint }}>—</span>
+                        // Nothing to review yet — the dash is not a link, so
+                        // clicking it must not open the report through the row.
+                        <span
+                          className="text-[11px]"
+                          style={{ color: T.textHint, cursor: 'default', padding: '4px 10px' }}
+                          title="No student has taken this test yet"
+                          onClick={(e) => e.stopPropagation()}
+                        >—</span>
                       )}
                     </div>
 

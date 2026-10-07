@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import DOMPurify from "dompurify";
-import { Code, FileCheck2, FlaskConical, Loader2, Lock, Play, RotateCcw } from "lucide-react";
+import { Code, FileCheck2, FlaskConical, Loader2, Lock, Play, RotateCcw, Send } from "lucide-react";
 import { C } from "./tokens";
 import CodeTabs from "./CodeTabs";
 // CodeToolbar (language dropdown + Multi-file / Single file chip + Run Code +
@@ -33,6 +33,10 @@ interface CodeWorkspaceProps {
   toMonacoLanguage: (language: string) => string;
 
   onRun: () => void;
+  /** Submit — runs the question's test cases (or the AI grader) into the
+   *  Test Result tab, as the student editor's Submit does. */
+  onSubmit?: () => void;
+  submitting?: boolean;
   onReset: () => void;
   running: boolean;
 
@@ -86,6 +90,8 @@ export default function CodeWorkspace({
   onLanguageChange,
   toMonacoLanguage,
   onRun,
+  onSubmit,
+  submitting = false,
   onReset,
   running,
   projectName,
@@ -168,6 +174,22 @@ export default function CodeWorkspace({
                       )}
                       {running ? "Running…" : "Run Code"}
                     </button>
+                    {onSubmit && (
+                      <button
+                        type="button"
+                        onClick={onSubmit}
+                        disabled={submitting || !activeFile?.content.trim()}
+                        title="Run every test case and show the Test Result"
+                        className="flex h-[26px] items-center gap-1.5 rounded-[6px] bg-[#F97316] px-3 text-[12px] font-semibold text-white transition-colors hover:bg-[#EA580C] disabled:cursor-not-allowed disabled:bg-[#FBC59B]"
+                      >
+                        {submitting ? (
+                          <Loader2 className="h-[13px] w-[13px] animate-spin" />
+                        ) : (
+                          <Send className="h-[13px] w-[13px]" />
+                        )}
+                        {submitting ? "Submitting…" : "Submit"}
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={onReset}
