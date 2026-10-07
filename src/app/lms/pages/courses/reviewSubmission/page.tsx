@@ -71,6 +71,11 @@ import {
   type LiveSession, type LiveLanguage,
 } from '@/app/lms/pages/courses/coursesdetailedview/components/lib/liveCompilerSession';
 import { runOnPiston } from '@/lib/pistonClient';
+// Python Run Code = the multi-file editor's in-browser runner: a Pyodide worker
+// where input() pauses the program until the line is typed in the terminal.
+import {
+  runInteractivePython, isInteractiveTerminalSupported, type InteractiveHandle,
+} from '@/app/lms/pages/courses/reviewSubmission/components/rerun/pyodideRunner';
 import { LANGUAGE_CONFIG, detectLanguageFromFilename, type SupportedLanguage } from '@/lib/codeLanguages';
 // Same AI grader the student-side editors call so the review console's
 // AI-based Run Code path lands on the identical breakdown shape.
@@ -1442,6 +1447,8 @@ export default function EnhancedSubmissionReview() {
   const [isSubmittingTests, setIsSubmittingTests] = useState(false);
   // Live interactive run on the compiler service (non-Python languages).
   const liveSessionRef = useRef<LiveSession | null>(null);
+  // Python run in progress (Pyodide worker).
+  const pyHandleRef = useRef<InteractiveHandle | null>(null);
   const [liveRunning, setLiveRunning] = useState(false);
   const [testResult, setTestResult] = useState<MFTestResultState | null>(null);
   const [selectedCaseIndex, setSelectedCaseIndex] = useState<number>(0);
@@ -1939,6 +1946,13 @@ const isNonGraded = !!(
     // take input at any time — the input line stays open.
     if (liveSessionRef.current) {
       liveSessionRef.current.send(`${value}\n`);
+      return;
+    }
+    // Python run: input() was waiting for exactly this line.
+    if (pyHandleRef.current) {
+      pyHandleRef.current.provideInput(value);
+      setIsWaitingForInput(false);
+      setInputPrompt('');
       return;
     }
     if (inputResolverRef.current) {
@@ -3450,6 +3464,8 @@ builtins.input = _async_input
     liveSessionRef.current?.stop();
     liveSessionRef.current?.dispose();
     liveSessionRef.current = null;
+    try { pyHandleRef.current?.stop(); } catch { /* already over */ }
+    pyHandleRef.current = null;
     setLiveRunning(false);
   }, [selectedQuestion]);
 
@@ -3804,7 +3820,61 @@ builtins.input = _async_input
     }
   };
 
-  const stopLiveConsole = () => { liveSessionRef.current?.stop(); };
+  const stopLiveConsole = () => {
+    if (liveSessionRef.current) { liveSessionRef.current.stop(); return; }
+    if (pyHandleRef.current) {
+      try { pyHandleRef.current.stop(); } catch { /* already over */ }
+      pyHandleRef.current = null;
+      setIsExecuting(false);
+      setLiveRunning(false);
+      setIsWaitingForInput(false);
+      addLog('system', 'Execution stopped.');
+    }
+  };
+
+  // Python: every project file is written into Pyodide's filesystem so
+  // cross-file imports resolve, and the file on screen runs.
+  const runPythonConsole = async (source: string) => {
+    const name = activeFile?.name || 'main.py';
+    clearTerminal();
+    addLog('system', `$ Run ${name} (Python · ${isInteractiveTerminalSupported() ? 'live terminal' : 'input via popup'})`);
+    setIsExecuting(true);
+    setLiveRunning(true);
+    setIsWaitingForInput(false);
+    setInputPrompt('');
+    let done = false;
+    try {
+      const handle = await runInteractivePython(source, {
+        // Pyodide hands over each printed line without its newline.
+        onStdout: (t) => appendLiveOutput('stdout', `${t}\n`),
+        onStderr: (t) => appendLiveOutput('stderr', `${t}\n`),
+        // input("prompt") pauses the program: the prompt stays on its line
+        // and the trainer types the answer in the terminal.
+        onInputRequest: (prompt) => {
+          if (prompt) appendLiveOutput('stdout', prompt);
+          setInputPrompt(prompt);
+          setIsWaitingForInput(true);
+        },
+        onDone: (err) => {
+          done = true;
+          pyHandleRef.current = null;
+          setIsWaitingForInput(false);
+          setIsExecuting(false);
+          setLiveRunning(false);
+          if (err) addLog(err === 'Execution stopped.' ? 'system' : 'stderr', err);
+          else addLog('system', 'Process finished.');
+        },
+      }, {
+        files: workingFiles.map((f) => ({ path: f.path, content: f.content })),
+      });
+      if (!done) pyHandleRef.current = handle;
+    } catch (err: any) {
+      setIsExecuting(false);
+      setLiveRunning(false);
+      setIsWaitingForInput(false);
+      addLog('stderr', `Python run failed: ${err?.message || err}`);
+    }
+  };
 
   // ── Run Code: the program in the Terminal ─────────────────────────────
   //   • Python                       → Pyodide (input typed in the terminal)
@@ -3818,14 +3888,13 @@ builtins.input = _async_input
       toast.error('No code to execute');
       return;
     }
-    if (isExecuting || liveSessionRef.current) return;
+    if (isExecuting || liveSessionRef.current || pyHandleRef.current) return;
     setBottomTab('terminal');
     setLastRuntimeMs(null);
 
     if (lang === 'python') {
-      // Python keeps its route: Pyodide via initiateRunCode, which owns the
-      // interactive input line + stdout streaming.
-      return initiateRunCode({ source, language: lang, stdin: terminalStdin, useIoPanel: true });
+      await runPythonConsole(source);
+      return;
     }
 
     if (LIVE_LANGUAGES.includes(lang) && await runLiveConsole(lang)) return;
