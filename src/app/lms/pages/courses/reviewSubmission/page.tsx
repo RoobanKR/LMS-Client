@@ -3117,6 +3117,22 @@ builtins.input = _async_input
       );
   }, [selectedExercise, difficultyFilter]);
 
+  // Difficulty filter lists only the levels this assessment actually has
+  // (plus "All Questions") — an all-Medium paper offers no Easy / Hard.
+  const questionFilterOptions = useMemo(() => {
+    const present = new Set(
+      (selectedExercise?.questions || []).map((q) => getQuestionDisplayDifficulty(q)),
+    );
+    return QUESTION_FILTERS.filter((o) => o.value === 'all' || present.has(o.value));
+  }, [selectedExercise]);
+
+  // A level that disappears (another assessment) falls back to All Questions.
+  useEffect(() => {
+    if (difficultyFilter !== 'all' && !questionFilterOptions.some((o) => o.value === difficultyFilter)) {
+      setDifficultyFilter('all');
+    }
+  }, [questionFilterOptions, difficultyFilter]);
+
   // ── GRADING CONSOLE VIEW MODEL ────────────────────────────────────────────
   // Everything below turns fetched exercise / participant / submission state
   // into the flat props `components/console` renders. That shell is purely
@@ -4118,7 +4134,7 @@ builtins.input = _async_input
           questions={consoleQuestions}
           selectedId={selectedQuestion?._id || null}
           filter={difficultyFilter}
-          filterOptions={QUESTION_FILTERS}
+          filterOptions={questionFilterOptions}
           onFilterChange={setDifficultyFilter}
           onSelect={(q) => goToQuestionIndex(q.index)}
           onPreview={(q) => {
