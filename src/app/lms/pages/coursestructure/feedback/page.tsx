@@ -27,6 +27,7 @@ import DashboardLayout from '../../../component/layout';
 import { StaffLayout } from '../../../component/stafflayout/staff-layout';
 import { Feedback } from './types/feedback';
 import { FeedbackList } from './feedbackComponts/feedbackList';
+import { NO_BATCH_KEY } from './feedbackComponts/feedbackListModel';
 import { FeedbackForm } from './feedbackComponts/feedbackForm';
 import { useCourseRosterQuery } from '@/queries/courseRoster';
 import { useGetAllFeedback } from './hooks/useFeedback';
@@ -63,6 +64,10 @@ function FeedbackPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const courseId = searchParams.get('courseId');
+  // The batch whose management view is open — in the URL so refresh and
+  // browser Back keep it.
+  const batchKey = searchParams.get('batch');
+  const listUrl = `/lms/pages/coursestructure/feedback?courseId=${encodeURIComponent(courseId || '')}`;
 
   const [userRole, setUserRole] = useState<string>('');
   const [showFormModal, setShowFormModal] = useState(false);
@@ -126,16 +131,21 @@ function FeedbackPageContent() {
     >
       {/* Title row — ← returns to Course Setup (deep-linked into this
           course's mapping when known), exactly like the Enrollment page.
-          The old breadcrumb's Dashboard link exited the flow entirely. */}
+          The old breadcrumb's Dashboard link exited the flow entirely.
+          Inside a batch's view it steps back to all batches first. */}
       <div className="px-4 pt-2.5 pb-2 flex items-center justify-between gap-3 border-b border-gray-100 dark:border-gray-800">
         <div className="flex items-center gap-2 min-w-0">
         <button
           type="button"
           onClick={() => {
+            if (batchKey) {
+              router.push(listUrl);
+              return;
+            }
             const mid = String((courseData as any)?.mappingId || '');
             router.push(mid ? `/lms/pages/coursestructure?openMappingId=${mid}` : '/lms/pages/coursestructure');
           }}
-          title="Back to this course's hierarchy"
+          title={batchKey ? 'Back to all batches' : "Back to this course's hierarchy"}
           className="h-8 w-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors shrink-0"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -155,6 +165,14 @@ function FeedbackPageContent() {
                   · {courseData.courseCode}
                 </span>
               )}
+              {batchKey && (
+                <span className="ml-1.5 text-gray-400 dark:text-gray-500">
+                  · Batch:{' '}
+                  <span className="font-medium text-gray-700 dark:text-gray-300">
+                    {batchKey === NO_BATCH_KEY ? 'No batch' : batchKey}
+                  </span>
+                </span>
+              )}
             </div>
           )}
         </div>
@@ -162,8 +180,9 @@ function FeedbackPageContent() {
       </div>
 
       {/* Body */}
-      <div className="flex-1 min-h-0 overflow-auto px-4 py-4">
+      <div className="flex-1 min-h-0 flex flex-col px-4 py-3">
         {!courseId ? (
+          <div className="overflow-auto">
           <div className="max-w-md mx-auto mt-16 text-center">
             <div className="w-12 h-12 rounded-full bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center mx-auto mb-3">
               <AlertCircle className="h-6 w-6 text-amber-600 dark:text-amber-400" />
@@ -182,8 +201,17 @@ function FeedbackPageContent() {
               Go to Course Management
             </Link>
           </div>
+          </div>
         ) : (
-          <FeedbackList courseId={courseId} onEdit={openEdit} onCreate={openCreate} />
+          <FeedbackList
+            courseId={courseId}
+            onEdit={openEdit}
+            onCreate={openCreate}
+            batchKey={batchKey}
+            onBatchChange={(key) =>
+              router.push(key ? `${listUrl}&batch=${encodeURIComponent(key)}` : listUrl, { scroll: false })
+            }
+          />
         )}
       </div>
 

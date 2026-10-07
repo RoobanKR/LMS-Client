@@ -49,8 +49,9 @@ export interface CreateExerciseLauncherProps {
      * `seed` is null for Start from Scratch / Custom Template (wizard opens
      * blank). `label` names the origin for the wizard's app-bar pill —
      * undefined for scratch and command. Presentational only.
+     * `opts.addQuestions` is true when the trainer chose "Create & add questions".
      */
-    onProceed: (seed: Record<string, unknown> | null, label?: string) => void
+    onProceed: (seed: Record<string, unknown> | null, label?: string, opts?: { addQuestions?: boolean }) => void
     onClose: () => void
 }
 
@@ -327,15 +328,16 @@ export default function CreateExerciseLauncher({
 
     const spec = picked ?? parsed?.spec ?? null
 
-    const proceed = (payload: Record<string, unknown> | null, label?: string) => {
+    const proceed = (payload: Record<string, unknown> | null, label?: string, addQuestions = false) => {
         setBusy(true)
-        setTimeout(() => onProceed(payload, label), 0)
+        setTimeout(() => onProceed(payload, label, { addQuestions }), 0)
     }
-    const proceedFromReview = () => {
+    const proceedFromReview = (addQuestions = false) => {
         if (!spec) return
         proceed(
             buildSeedDocument(spec, { configuredLanguages, exerciseName: name.trim() }),
             picked ? picked.name : undefined,
+            addQuestions,
         )
     }
 
@@ -718,7 +720,7 @@ export default function CreateExerciseLauncher({
                                             onClick={() => setPhase(picked ? 'template' : 'command')}>
                                             ← {picked ? 'Change template' : 'Edit the sentence'}
                                         </button>
-                                        <button className="xcl-btn sm gh" disabled={busy} onClick={proceedFromReview}>
+                                        <button className="xcl-btn sm gh" disabled={busy} onClick={() => proceedFromReview()}>
                                             ⚙ Customize configuration
                                         </button>
                                     </div>
@@ -774,7 +776,7 @@ export default function CreateExerciseLauncher({
                                                 <span className="k">{k}</span>
                                                 <span className="v">{v}</span>
                                                 <span className="act">
-                                                    <button className="xcl-btn sm gh" disabled={busy} onClick={proceedFromReview}>
+                                                    <button className="xcl-btn sm gh" disabled={busy} onClick={() => proceedFromReview()}>
                                                         Change
                                                     </button>
                                                 </span>
@@ -832,10 +834,10 @@ export default function CreateExerciseLauncher({
                                     </div>
 
                                     <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                        <button className="xcl-btn pri lg full" disabled={busy} onClick={proceedFromReview}>
+                                        <button className="xcl-btn pri lg full" disabled={busy} onClick={() => proceedFromReview(true)}>
                                             {busy ? 'Opening…' : 'Create & add questions →'}
                                         </button>
-                                        <button className="xcl-btn gh sm full" disabled={busy} onClick={proceedFromReview}>
+                                        <button className="xcl-btn gh sm full" disabled={busy} onClick={() => proceedFromReview()}>
                                             ⚙ Customize all configuration
                                         </button>
                                     </div>

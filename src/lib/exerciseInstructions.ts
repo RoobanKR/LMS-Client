@@ -3,7 +3,7 @@
 // If the exercise's author-written `instructions` (rich-text HTML from
 // ExerciseSettings > Step 1 > Instructions) has visible content, use it as-is.
 // Otherwise, synthesise a plain, factual paragraph from the exercise's own
-// settings (duration, question count, primary language, evaluation method)
+// settings (duration, question count, configured languages, evaluation method)
 // so students always see something useful. This mirrors what a thoughtful
 // author would have typed themselves.
 
@@ -66,7 +66,11 @@ export function resolveExerciseInstructions(exercise: any): InstructionResolutio
   const duration = info.totalDuration || 0
   const languages: string[] = Array.isArray(exercise?.programmingSettings?.selectedLanguages)
     ? exercise.programmingSettings.selectedLanguages : []
-  const primaryLang = languages[0] ? capitalise(languages[0]) : ''
+  // Every configured language, not just the first — "Java or Python".
+  const langs = languages.filter(Boolean).map((l) => capitalise(String(l)))
+  const langList = langs.length > 1
+    ? `${langs.slice(0, -1).join(', ')} or ${langs[langs.length - 1]}`
+    : (langs[0] || '')
   const isPractice = exercise?.evaluationSettings?.practiceMode === true
 
   // Evaluation method — mirrors resolveEvaluationMethod's public labels
@@ -82,9 +86,9 @@ export function resolveExerciseInstructions(exercise: any): InstructionResolutio
   bits.push(
     `Read each problem carefully before writing your solution.`,
   )
-  if (primaryLang) {
+  if (langList) {
     bits.push(
-      `Use ${escape(primaryLang)} in the provided editor${
+      `Use ${escape(langList)} in the provided editor${
         totalQ > 0 ? ` and complete all ${totalQ} problem${totalQ === 1 ? '' : 's'}` : ''
       }${duration > 0 ? ` within ${duration} minutes` : ''}.`,
     )

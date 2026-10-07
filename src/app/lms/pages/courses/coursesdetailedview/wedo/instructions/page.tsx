@@ -113,22 +113,13 @@ function pickAttempts(ex: any): { left: number; total: number } {
     1;
   return { left: total, total }; // Actual "left" needs studentAnswers, unavailable on this page — show configured attempts.
 }
+// The exercise's own Beginner / Intermediate / Expert level — not the
+// per-question Easy / Medium / Hard scale.
 function pickDifficulty(ex: any): string {
-  const d = (ex?.exerciseInformation?.exerciseLevel || "").toString().toLowerCase();
-  if (d === "beginner") return "Easy";
-  if (d === "expert") return "Hard";
-  if (!d) return "";
-  return capitalise(d);
+  return capitalise((ex?.exerciseInformation?.exerciseLevel || "").toString().toLowerCase());
 }
 function pickAssignedBy(ex: any): string {
   return ex?.createdBy || ex?.assignedBy || ex?.author?.name || "";
-}
-function testTypeLabel(t?: string): string {
-  const v = (t || "").toLowerCase();
-  if (v === "mock") return "Mock test";
-  if (v === "final") return "Final assessment";
-  if (v === "practice") return "Practice";
-  return "";
 }
  
 // Route resolution mirrors handleExerciseSelect in coursesdetailedview/[id]/page.tsx
@@ -314,11 +305,13 @@ function WedoInstructionsContent() {
     const mcqCfg = exercise?.questionConfiguration?.mcqQuestionConfiguration;
     const flowCfg = progCfg || exercise?.questionConfiguration?.othersQuestionConfiguration;
     const aiCriteria: string[] = exercise?.evaluationMethod?.ai?.criteria || [];
- 
+    // Criteria are seeded (and kept after a method switch) even for test-case
+    // grading — only list them when the AI reviewer actually grades.
+    const isAiEval = (exercise?.evaluationMethod?.method || "").toString().toLowerCase() === "ai";
+
     push("Exercise type", exercise?.exerciseType);
     push("Module", exercise?.programmingSettings?.selectedModule || info.selectedModule);
     push("Difficulty level", capitalise(info.exerciseLevel));
-    push("Test type", testTypeLabel(info.testType));
     push("Grading", exercise?.isGraded === false ? "Practice — not graded" : "Graded");
     push("Languages", languages.length > 0 ? languages.join(", ") : "");
     push("Question flow", flowCfg?.questionFlow === "controlled" ? "One question at a time" : flowCfg?.questionFlow ? "Answer in any order" : "");
@@ -328,7 +321,7 @@ function WedoInstructionsContent() {
     push("Question order", mcqCfg?.shuffleQuestions ? "Shuffled per student" : "");
     push("Attempts allowed", `${attempts.total}`);
     push("Evaluation", evalLabel);
-    push("AI review criteria", aiCriteria.map((c) => AI_CRITERIA_LABEL[c] || c).join(", "));
+    push("AI review criteria", isAiEval ? aiCriteria.map((c) => AI_CRITERIA_LABEL[c] || c).join(", ") : "");
     push("Opens", formatDateTime(availability.startDate));
     push("Due", formatDateTime(availability.endDate || dueDate));
     push("Cut-off", availability.cutOffEnabled ? formatDateTime(availability.cutOffDate) : "");
@@ -353,7 +346,9 @@ function WedoInstructionsContent() {
     setStarting(true);
     const qs = Array.isArray(exercise.questions) ? exercise.questions : [];
     const cId = context?.courseId || exercise?.courseId || "";
-    const cName = context?.courseName || exercise?.courseName || "Course";
+    // Never put a "Course" placeholder in the URL — the exercise page has its
+    // own fallback when the param is empty.
+    const cName = context?.courseName || exercise?.courseName || "";
     const route = resolveWeDoRoute(exercise);
     if (!route) { setStarting(false); return; }
  
@@ -493,11 +488,11 @@ function WedoInstructionsContent() {
                       {difficulty}
                     </span>
                   )}
-                  {testTypeLabel(info.testType) && (
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                      <ClipboardCheck size={13} /> {testTypeLabel(info.testType)}
-                    </span>
-                  )}
+                  {/* This page only serves We Do assignments; exerciseInformation.testType
+                      is a You Do concept that the server defaults to "mock". */}
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    <ClipboardCheck size={13} /> Assignment
+                  </span>
                 </div>
               </div>
             </div>
@@ -524,7 +519,7 @@ function WedoInstructionsContent() {
           <InfoCell icon={<RotateCcw size={16} />} label="Attempts" value={`${attempts.total}`} />
           <InfoCell icon={<Trophy size={16} />} label="Passing score" value={passing != null ? `${passing}%` : marks.passMark != null ? `${marks.passMark} marks` : "—"} />
           <InfoCell icon={<ClipboardCheck size={16} />} label="Evaluation" value={evalLabel} />
-          <InfoCell icon={<Code2 size={16} />} label="Language" value={languages[0] || "—"} />
+          <InfoCell icon={<Code2 size={16} />} label={languages.length > 1 ? "Languages" : "Language"} value={languages.length ? languages.join(", ") : "—"} />
         </section>
  
         {/* ── Body ─────────────────────────────────────────────────────── */}

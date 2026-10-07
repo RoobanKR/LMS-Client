@@ -160,7 +160,9 @@ export const AssignmentAnalytics = ({ m, onViewAll }: { m: DashboardModel; onVie
 /* ── Upcoming schedule ───────────────────────────────────────────────────── */
 
 const stateStyle = (d: DeadlineItem): { label: string; color: string; soft: string } => {
-    if (d.state === 'overdue') return { label: d.inGrace ? 'Late window' : 'Missed', color: C.danger, soft: C.dangerSoft };
+    // Every past-due unsubmitted item reads Missed (matches the We Do list);
+    // the late window is still called out by the insights text.
+    if (d.state === 'overdue') return { label: 'Missed', color: C.danger, soft: C.dangerSoft };
     if (d.state === 'due-today') return { label: 'Due today', color: C.warning, soft: C.warningSoft };
     if (d.state === 'due-soon') return { label: 'Due soon', color: C.warning, soft: C.warningSoft };
     if (d.state === 'opens') return { label: 'Opens', color: C.info, soft: C.infoSoft };

@@ -5,7 +5,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
-  ChevronRight,
   ChevronDown,
   AlertTriangle,
   Search,
@@ -35,7 +34,7 @@ import { RerunConfirmDialog } from "@/app/lms/pages/courses/reviewSubmission/com
 
 // ── Session detail — the Live Dashboard's report page ───────────────────────
 //
-//   [top nav]  Back  Programming > <name>              Share  ⋮
+//   [top nav]  Back  Programming                       Share  ⋮
 //   [header]   title + chips + counts            Started · thumb
 //   [toolbar]  search · Test Status filter           (no tabs — Overview only)
 //   [table]    dense learner list (Student · Test Status · Marks · % · Scale)
@@ -477,11 +476,8 @@ export default function SessionDetail() {
           <ArrowLeft size={12} /> Back
         </button>
         <nav aria-label="Breadcrumb" className="flex items-center text-[12px] text-gray-500 min-w-0 flex-1">
+          {/* Type context only — the header card's h1 below carries the name. */}
           <span className="text-gray-500 whitespace-nowrap">{breadcrumbLabel}</span>
-          <ChevronRight size={11} className="mx-1 text-gray-300 flex-shrink-0" />
-          <span className="text-gray-800 font-medium truncate">
-            {assessmentName || "Session"}
-          </span>
         </nav>
         {/* Share + kebab removed — trainer feedback: the header should not
             carry extra actions; the assessment header + report modal cover

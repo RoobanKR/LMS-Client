@@ -133,6 +133,8 @@ export const REPORT_COLUMN_WIDTHS: Record<ReportColumnRole, number> = {
 export function reportColumnRole(header: string, columnIndex: number): ReportColumnRole {
     if (columnIndex === 0) return 'sno'
     const label = (header || '').toLowerCase()
+    // Feedback reports' long free-text columns. Matched EXACTLY so no other report's widths move.
+    if (label === 'parameter' || label === 'feedback title' || label === 'comments' || label === 'question text') return 'course'
     // Order matters: the more specific labels are tested first so
     // "Client ID" and "Client Status" don't fall into the plain
     // "client" bucket, and "Contact Person" doesn't land in the

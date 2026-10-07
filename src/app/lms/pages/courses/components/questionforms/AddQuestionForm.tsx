@@ -27,7 +27,8 @@ interface AddQuestionFormProps {
   isEditing?: boolean;
   initialQuestionId?: string;          // ← ADD THIS
 
-  onClose: () => void;
+  // `finished` = the child form closed because every slot is filled (not a dismiss).
+  onClose: (opts?: { finished?: boolean }) => void;
   onSave: (data: any) => void;
   onOpenQuestionBank?: (type: string) => void;
   onOpenDocumentUpload?: () => void;
@@ -866,7 +867,7 @@ const DiffPopup = () => {
                 <span className="font-medium text-gray-600">{modeLabel}</span>
               </p>
             </div>
-            <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg shrink-0" aria-label="Close">
+            <button onClick={() => onClose()} className="p-1.5 hover:bg-gray-100 rounded-lg shrink-0" aria-label="Close">
               <X size={14} className="text-gray-500" />
             </button>
           </div>
@@ -1048,7 +1049,7 @@ const DiffPopup = () => {
         <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
           <div className="flex items-center justify-between p-4 border-b">
             <h2 className="text-base font-semibold text-gray-900">Add Question</h2>
-            <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg">
+            <button onClick={() => onClose()} className="p-1 hover:bg-gray-100 rounded-lg">
               <X className="h-4 w-4 text-gray-500" />
             </button>
           </div>

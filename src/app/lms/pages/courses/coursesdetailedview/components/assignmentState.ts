@@ -18,8 +18,9 @@
 // precedence":
 //   1. graded
 //   2. submitted
-//   3. missed / closed  (past deadline, no valid final submission)
-//   4. in-progress     (attempt exists, not yet finalised, still resumable)
+//   3. missed          (past the due date, no final submission; a still-open
+//                       late window keeps Start/Continue)
+//   4. in-progress     (attempt exists, not yet finalised, before the due date)
 //   5. due-soon        (available, within `dueSoonThresholdMs` of end)
 //   6. active          (available, not due soon, no attempt yet)
 //   7. upcoming        (window hasn't opened)
@@ -290,20 +291,6 @@ const CHIP: Record<AssignmentStateKind, { label: string; tone: StatusPillTone }>
   closed:       { label: 'Closed',      tone: 'neutral' },
 };
 
-function actionFor(kind: AssignmentStateKind, attempt: AttemptInfo): { label: string | null; kind: ActionKind } {
-  switch (kind) {
-    case 'graded':      return { label: 'View feedback', kind: 'text' };
-    case 'submitted':   return { label: 'View submission', kind: 'text' };
-    case 'missed':
-    case 'closed':      return { label: 'Closed', kind: 'disabled' };
-    case 'in-progress': return { label: 'Continue', kind: 'primary' };
-    case 'due-soon':
-    case 'active':      return { label: 'Start', kind: 'secondary' };
-    case 'upcoming':    return { label: 'Not available', kind: 'disabled' };
-    default:            return { label: null, kind: 'none' };
-  }
-}
-
 export function resolveAssignmentState(
   exercise: any,
   studentAnswers: Record<string, any> | undefined,
@@ -346,21 +333,22 @@ export function resolveAssignmentState(
     };
   }
 
-  // Past deadline with no valid final submission. Distinguish "missed" (no
-  // attempt at all) from "closed" (attempt exists but never finalised); both
-  // land on the same disabled "Closed" action so the row doesn't dead-end
-  // into an em-dash.
-  if (availability.status === 'expired' && !attempt.canResume) {
-    const kind: AssignmentStateKind = attempt.attemptExists ? 'closed' : 'missed';
-    const act = actionFor(kind, attempt);
+  // Past the DUE date with no final submission → Missed, whether or not a
+  // draft exists. A late window that is still open (cut-off / grace) keeps
+  // the row actionable so a late submission can still be made; otherwise
+  // the action is the disabled "Closed".
+  const endMs = availability.endTime ? availability.endTime.getTime() : null;
+  if (availability.status === 'expired' || (endMs != null && now > endMs)) {
+    const lateOpen = availability.canStart;
+    const resume = lateOpen && attempt.canResume;
     return {
-      kind,
-      label: CHIP[kind].label,
-      tone: CHIP[kind].tone,
+      kind: 'missed',
+      label: CHIP.missed.label,
+      tone: CHIP.missed.tone,
       labelSuffix: '',
-      actionLabel: act.label,
-      actionKind: act.kind,
-      isUrgent: false,
+      actionLabel: lateOpen ? (resume ? 'Continue' : 'Start') : 'Closed',
+      actionKind: lateOpen ? (resume ? 'primary' : 'secondary') : 'disabled',
+      isUrgent: resume,
       availability,
       attempt,
     };
@@ -443,7 +431,7 @@ export function matchesChip(kind: AssignmentStateKind, chip: FilterChip): boolea
 // ─── Date formatting (spec §"Due-date presentation") ────────────────────────
 
 export interface FormattedDeadline {
-  headline: string;              // "Due today" / "Due tomorrow" / "Due Sep 7, 2026" / "Submitted Aug 29, 2026" / "Closed Aug 8, 2026"
+  headline: string;              // "Due today" / "Due tomorrow" / "Due Sep 7, 2026" / "Aug 29, 2026" (submitted: plain due date) / "Closed Aug 8, 2026"
   timeLine: string;              // "6:00 PM"
   variant: 'today' | 'tomorrow' | 'future' | 'submitted' | 'closed' | 'none';
 }
@@ -473,22 +461,24 @@ export function formatDeadline(state: ResolvedState, opts?: ResolveOpts): Format
   const time = (d: Date) => d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
   const shortDate = (d: Date) => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 
-  // Submitted / graded — headline shows when the student submitted.
+  // Submitted / graded — the plain due date. Submission state lives in the
+  // Status column; the row carries no `submittedAt`, so never imply one here.
   if (state.kind === 'submitted' || state.kind === 'graded') {
-    // We don't currently carry `submittedAt` on the exercise row shape used
-    // here; fall back to the end date so the second line is never blank.
     const end = state.availability.endTime;
     if (end) {
-      return { headline: `Submitted ${shortDate(end)}`, timeLine: time(end), variant: 'submitted' };
+      return { headline: shortDate(end), timeLine: time(end), variant: 'submitted' };
     }
-    return { headline: 'Submitted', timeLine: '', variant: 'submitted' };
+    return { headline: 'No deadline', timeLine: '', variant: 'submitted' };
   }
 
-  // Missed / closed — headline shows when the window closed.
+  // Missed / closed — headline shows when the window closed. While a late
+  // window (cut-off / grace) is still open the row isn't closed yet, so it
+  // shows the due date it missed instead.
   if (state.kind === 'missed' || state.kind === 'closed') {
     const end = state.availability.endTime;
     if (end) {
-      return { headline: `Closed ${shortDate(end)}`, timeLine: time(end), variant: 'closed' };
+      const headline = state.availability.canStart ? `Due ${shortDate(end)}` : `Closed ${shortDate(end)}`;
+      return { headline, timeLine: time(end), variant: 'closed' };
     }
     return { headline: 'Closed', timeLine: '', variant: 'closed' };
   }

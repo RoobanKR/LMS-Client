@@ -2215,7 +2215,7 @@ const addBtnDisabled = isAddingQuestions || (() => {
           breadcrumbs={breadcrumbs} tabType={tabType}
           // Level already chosen in the Add Question chooser — don't ask twice.
           initialDifficulty={addFlowDiff ?? undefined}
-          onClose={() => {
+          onClose={(opts?: { finished?: boolean }) => {
             // Close the form SYNCHRONOUSLY so X / Cancel feel instant. Previously
             // this awaited Promise.all([fetchQuestions, refreshFullExData]) BEFORE
             // hiding the form, so on a slow network the teacher clicked X, nothing
@@ -2226,7 +2226,9 @@ const addBtnDisabled = isAddingQuestions || (() => {
             // the promises land; the tiny stale window is invisible in practice.
             setShowAddQuestion(false);
             setBankReviewQuestions([]);
-            backToAddOptions();
+            // A finished plan (every slot filled) falls through to the list —
+            // reopening the chooser would only show 0 remaining slots.
+            if (!opts?.finished) backToAddOptions();
             // Reset the auto-open flag so a subsequent Add Question click
             // starts from a clean 'manual' state instead of inheriting the
             // last-used source. Without this, `routeAddQuestion` still

@@ -115,7 +115,8 @@ export interface ProgrammingQuestionFormProps {
   tabType: string;
   initialData?: any;
   isEditing?: boolean;
-  onClose: () => void;
+  /** `finished` = closed because every configured slot is now filled (not a dismiss). */
+  onClose: (opts?: { finished?: boolean }) => void;
   onSave: (data: any) => Promise<any>;
   onDeleteQuestion?: (questionId: string) => Promise<any>;
   isSaving: boolean;

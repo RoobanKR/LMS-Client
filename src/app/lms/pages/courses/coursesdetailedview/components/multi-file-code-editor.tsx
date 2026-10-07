@@ -48,7 +48,7 @@ import {
   NotebookPen,
 } from "lucide-react"
 import {
-  LANGUAGE_CONFIG, LANGUAGE_ORDER, STARTER_CODE,
+  LANGUAGE_CONFIG, STARTER_CODE,
   normalizeLanguage, detectLanguageFromFilename,
   type SupportedLanguage,
 } from "@/lib/codeLanguages"
@@ -343,6 +343,14 @@ export default function MultiFileCodeEditor({
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
   const currentQuestion = questions[currentQuestionIndex] || null
 
+  // When each question was first opened — sent on submit as `questionStartedAt`
+  // so the report can show the time taken per question.
+  const questionOpenedAtRef = useRef<Record<string, string>>({})
+  useEffect(() => {
+    const id = currentQuestion?._id ? String(currentQuestion._id) : ""
+    if (id && !questionOpenedAtRef.current[id]) questionOpenedAtRef.current[id] = new Date().toISOString()
+  }, [currentQuestion?._id])
+
   // We Do: while this editor is open the trainer's Live Dashboard shows the
   // learner as Started. Submitting a question doesn't finish the assignment —
   // only Finish does. You Do reports through its exam session instead.
@@ -446,7 +454,8 @@ export default function MultiFileCodeEditor({
   const availableLanguages = useMemo<SupportedLanguage[]>(() => {
     const raw = exData?.programmingSettings?.selectedLanguages ?? exercise?.programmingSettings?.selectedLanguages ?? []
     const normalized = (raw as string[]).map(normalizeLanguage).filter((l): l is SupportedLanguage => !!l)
-    const unique = LANGUAGE_ORDER.filter((l) => normalized.includes(l))
+    // Keep the trainer's order (dedupe only) so the default (first) language matches the instructions page.
+    const unique = normalized.filter((l, i) => normalized.indexOf(l) === i)
     return unique.length > 0 ? unique : (["python"] as SupportedLanguage[])
   }, [exData, exercise])
 
@@ -1710,6 +1719,7 @@ export default function MultiFileCodeEditor({
       status: submitStatus,
       score: submitScore,
       isTestSubmission,
+      questionStartedAt: questionOpenedAtRef.current[String(questionId)] || undefined,
       // Only send when the client actually produced a breakdown, so Manual
       // submissions don't stamp an empty object onto the answer.
       ...(evaluationBreakdown ? { evaluationBreakdown } : {}),
@@ -1848,7 +1858,12 @@ export default function MultiFileCodeEditor({
         if (submittedIndex < questions.length - 1) {
           const r = result.result
           const graded = r && r.cases.length > 0 && typeof r.score === "number"
-          toast.success(`Question ${submittedIndex + 1} submitted${graded ? ` · Score ${r.score} / ${r.maxMarks}` : ""}`)
+          // Click-through, so it never covers or blocks the header's Submit /
+          // Finish buttons, and hovering it cannot pause its auto-dismiss.
+          toast.success(
+            `Question ${submittedIndex + 1} submitted${graded ? ` · Score ${r.score} / ${r.maxMarks}` : ""}`,
+            { duration: 3000, style: { pointerEvents: "none" } },
+          )
           setCurrentQuestionIndex((i) => (i === submittedIndex ? i + 1 : i))
         }
       } else log("error", `Save failed: ${result.message}`)

@@ -63,6 +63,29 @@ export const submissionRank = (s: Loose): number =>
 export const submissionRecency = (s: Loose): string =>
   String(s?.evaluatedAt || s?.updatedAt || s?.submittedAt || "");
 
+// The language a submission was actually written in. Multi-file submits store
+// the literal 'multi-file' on the question row — the real language lives on
+// the project files (entry point first), so read it from there.
+const EXT_LANGUAGE: Record<string, string> = {
+  py: "python", js: "javascript", ts: "typescript", java: "java", c: "c",
+  cpp: "cpp", cc: "cpp", cs: "csharp", go: "go", rb: "ruby", php: "php",
+  kt: "kotlin", rs: "rust", sql: "sql",
+};
+export const resolveSubmissionLanguage = (sub: Loose | undefined, question?: Loose): string => {
+  const raw = String(sub?.language || "").trim();
+  if (raw && raw.toLowerCase() !== "multi-file") return raw;
+  const files: Loose[] = Array.isArray(sub?.files) ? sub!.files : [];
+  const entry = files.find((f) => f?.isEntryPoint) || files[0];
+  if (entry) {
+    const lang = String(entry.language || "").trim();
+    if (lang && !["plaintext", "text"].includes(lang.toLowerCase())) return lang;
+    const name = String(entry.filename || entry.path || "");
+    const ext = name.includes(".") ? name.split(".").pop()!.toLowerCase() : "";
+    if (EXT_LANGUAGE[ext]) return EXT_LANGUAGE[ext];
+  }
+  return String(question?.programmingLanguage || "").trim();
+};
+
 // ─── Exercise discovery ─────────────────────────────────────────────────────
 // The same recursive walk reviewSubmission's `collectExercisesWithMetadata` does,
 // but short-circuits as soon as we find the exercise we want — we never need

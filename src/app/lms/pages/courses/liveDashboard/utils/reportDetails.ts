@@ -9,6 +9,7 @@
 import {
   findExerciseInCourseData,
   getQuestionMaxScore,
+  resolveSubmissionLanguage,
 } from "./computeStudentMarks";
 
 type Loose = Record<string, any>;
@@ -112,7 +113,7 @@ export interface StudentQuestionRow {
   hasTestCases: boolean;
   testCasesPassed: number | null;
   testCasesTotal: number | null;
-  testCasesLabel: string; // "8 / 10 Passed", "All Passed", "No Test Cases", "—"
+  testCasesLabel: string; // "8 / 10 Passed", "No Test Cases", "—"
   evaluationStatus: QuestionEvaluationStatus;
   evaluationLabel: string; // "Auto Evaluated", "Manually Evaluated", "Needs Review", "—"
   language: string | null;
@@ -209,7 +210,7 @@ export function computeStudentQuestionRows(args: {
     let testCasesLabel: string;
     if (isMCQ) testCasesLabel = "—";
     else if (hasTestCases && total != null && passed != null) {
-      testCasesLabel = passed >= total ? "All Passed" : `${passed} / ${total} Passed`;
+      testCasesLabel = `${passed} / ${total} Passed`;
     } else testCasesLabel = "No Test Cases";
 
     // Marks — MCQ auto-grades to full/zero via isCorrect; others use
@@ -251,15 +252,19 @@ export function computeStudentQuestionRows(args: {
     const percentage = totalMark > 0 ? Math.round((scoredMark / totalMark) * 100) : null;
 
     // Language / submittedAt / timeTakenSeconds — surface only when real.
-    const language = (() => {
-      const raw = String(sub?.language || q?.programmingLanguage || "").trim();
-      return raw || null;
-    })();
+    const language = resolveSubmissionLanguage(sub, q) || null;
     const submittedAt = sub?.submittedAt || null;
+    // Time taken: a stored duration if any, else submittedAt − startedAt.
+    // `startedAt` is stamped by the editors when the question is first opened;
+    // `createdAt` (first save) is the fallback for older single-file rows.
     const timeTakenSeconds = (() => {
       const raw = Number(sub?.timeTaken ?? sub?.timeTakenSeconds);
-      if (!Number.isFinite(raw) || raw <= 0) return null;
-      return Math.round(raw);
+      if (Number.isFinite(raw) && raw > 0) return Math.round(raw);
+      const end = sub?.submittedAt ? new Date(sub.submittedAt).getTime() : NaN;
+      const startRaw = sub?.startedAt || sub?.createdAt;
+      const start = startRaw ? new Date(startRaw).getTime() : NaN;
+      if (Number.isFinite(end) && Number.isFinite(start) && end > start) return Math.round((end - start) / 1000);
+      return null;
     })();
 
     return {

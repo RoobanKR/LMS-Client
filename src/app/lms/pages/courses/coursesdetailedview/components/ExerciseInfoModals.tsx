@@ -130,8 +130,19 @@ const ExerciseInfoModals: React.FC<ExerciseInfoModalsProps> = ({
     _progCalc || _othersCalc ||
     // Final fallback: sum the per-question scores of the served questions.
     questions.reduce((s: number, q: any) => s + (q?.score ?? q?.points ?? 0), 0) || 0;
-  const marksPerQ = exercise?.questionConfiguration?.mcqQuestionConfiguration?.marksPerQuestion
-    ?? _progSS?.evenMarks ?? _othersSS?.evenMarks ?? _othersSS?.equalDistribution ?? null;
+  // Marks per question. Configured values count only when actually set — unset
+  // ones are stored as 0 (evenMarks is 0 under level/separate schemes) and would
+  // read as "0". Otherwise fall back to each served question's own score (what
+  // its answer is graded out of): one value when uniform, else listed per question.
+  const _qMarks: number[] = questions.map((q: any) => Number(q?.score ?? q?.points ?? q?.mcqQuestionScore) || 0);
+  const _uniformQMark = _qMarks.length > 0 && _qMarks[0] > 0 && _qMarks.every(m => m === _qMarks[0]) ? _qMarks[0] : null;
+  const _mcqPerQ = Number(exercise?.questionConfiguration?.mcqQuestionConfiguration?.marksPerQuestion) || null;
+  const _evenOf = (ss: any): number | null =>
+    (ss?.scoreType === 'evenMarks' || ss?.scoreType === 'equalDistribution')
+      ? (Number(ss.evenMarks || ss.equalDistribution) || null) : null;
+  const _evenPerQ = _evenOf(_progSS) ?? _evenOf(_othersSS);
+  const marksPerQ: React.ReactNode = _mcqPerQ ?? _evenPerQ ?? _uniformQMark
+    ?? (_qMarks.some(m => m > 0) ? _qMarks.join(' / ') : null);
   const totalQ = questions.length;
   const answered = solvedQuestions.size;
   const remaining = Math.max(0, totalQ - answered);
@@ -185,7 +196,7 @@ const ExerciseInfoModals: React.FC<ExerciseInfoModalsProps> = ({
     mcqQuestions.reduce((s: number, q: any) => s + (q.mcqQuestionScore ?? q.score ?? 0), 0) ||
     (mcqMarksPerQ ? mcqMarksPerQ * mcqQuestions.length : 0);
 
-  const progMarksPerQ = _progSS?.evenMarks ?? null;
+  const progMarksPerQ = Number(_progSS?.evenMarks) || null; // stored 0 = unset, never "0"
   const progTotalMarks =
     _progCalc ||
     progQuestions.reduce((s: number, q: any) => s + (q.points ?? q.score ?? 0), 0);

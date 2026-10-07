@@ -24,7 +24,7 @@ interface ExerciseInformation {
   exerciseId: string
   exerciseName: string
   description: string
-  exerciseLevel: "beginner" | "medium" | "hard" | "intermediate" | "advanced"
+  exerciseLevel: "beginner" | "medium" | "hard" | "intermediate" | "advanced" | "expert"
   totalDuration?: number
   totalPoints?: number
   totalQuestions?: number
@@ -141,6 +141,7 @@ interface ExerciseSelectOptions {
 
 interface ExercisesProps {
   courseId?: number | string
+  courseName?: string
   exercises: Exercise[]
   onExerciseSelect: (exercise: Exercise, options?: ExerciseSelectOptions) => void
   method?: string
@@ -481,6 +482,7 @@ function getDifficultyStyle(level: string = 'intermediate') {
     case 'intermediate': return { color: '#d97706', bg: '#fffbeb', border: '#fde68a', dot: '#f59e0b', emoji: '⚡', label: 'Intermediate' }
     case 'hard': return { color: '#dc2626', bg: '#fef2f2', border: '#fecaca', dot: '#ef4444', emoji: '🔥', label: 'Hard' }
     case 'advanced': return { color: '#dc2626', bg: '#fef2f2', border: '#fecaca', dot: '#ef4444', emoji: '🔥', label: 'Advanced' }
+    case 'expert': return { color: '#dc2626', bg: '#fef2f2', border: '#fecaca', dot: '#ef4444', emoji: '🔥', label: 'Expert' }
     default: return { color: '#475569', bg: '#f8fafc', border: '#e2e8f0', dot: '#94a3b8', emoji: '📝', label: 'General' }
   }
 }
@@ -1299,7 +1301,7 @@ function RetestRowMenu({
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export default function Assessments({
-  category, subcategory, courseId, exercises, onExerciseSelect,
+  category, subcategory, courseId, courseName = '', exercises, onExerciseSelect,
   method, topic = '', module = '', nodeType = '',
   hierarchy = [], selectedItem = null, currentHierarchy = [],
   studentAnswers,
@@ -1469,8 +1471,10 @@ export default function Assessments({
   }
 
   // Status chip counts — computed off the search-scoped list so All/
-  // Active/Submitted/Pending totals always match the row set the user
-  // will see when they click a chip.
+  // Active/Submitted/Pending/Missed totals always match the row set the user
+  // will see when they click a chip. Uses the same retest-aware availability
+  // as the Status column, so an expired unsubmitted row counts as Missed,
+  // never as Pending.
   const statusCounts = useMemo(() => {
     const scoped = (exercises ?? []).filter((ex) => {
       if (!searchQuery) return true
@@ -1480,30 +1484,34 @@ export default function Assessments({
         ex.exerciseInformation?.exerciseId?.toLowerCase().includes(q)
       )
     })
-    let submitted = 0, active = 0, pending = 0
+    let submitted = 0, active = 0, pending = 0, missed = 0
     for (const ex of scoped) {
-      const avail = getExerciseAvailability(ex)
+      const avail = computeAvailability(ex)
       const testSubs = getTestSubmissions(ex, studentAnswers, method, subcategory)
       const isCompleted = testSubs >= 1
       if (isCompleted) submitted++
       else if (avail.canStart) active++
+      else if (avail.status === 'expired') missed++   // shown as "Missed" in the Status column
       else pending++
     }
-    return { all: scoped.length, submitted, active, pending }
-  }, [exercises, searchQuery, studentAnswers, method, subcategory])
+    return { all: scoped.length, submitted, active, pending, missed }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exercises, searchQuery, studentAnswers, method, subcategory, approvedRetestWindows])
 
-  type ChipKey = 'all' | 'active' | 'submitted' | 'pending'
+  type ChipKey = 'all' | 'active' | 'submitted' | 'pending' | 'missed'
   const activeChip: ChipKey =
     filterStatus.length === 0 ? 'all'
     : filterStatus.length === 1 && filterStatus[0] === 'active' ? 'active'
     : filterStatus.length === 1 && filterStatus[0] === 'submitted' ? 'submitted'
-    : filterStatus.length === 1 && filterStatus[0] === 'not-submitted' ? 'pending'
+    : filterStatus.length === 1 && (filterStatus[0] === 'pending' || filterStatus[0] === 'not-submitted') ? 'pending'
+    : filterStatus.length === 1 && filterStatus[0] === 'missed' ? 'missed'
     : 'all'
   const setChip = (k: ChipKey) => {
     if (k === 'all') setFilterStatus([])
     else if (k === 'active') setFilterStatus(['active'])
     else if (k === 'submitted') setFilterStatus(['submitted'])
-    else if (k === 'pending') setFilterStatus(['not-submitted'])
+    else if (k === 'pending') setFilterStatus(['pending'])
+    else if (k === 'missed') setFilterStatus(['missed'])
   }
   const activeFilterCount = (filterLevel !== 'all' ? 1 : 0) + (filterDue !== 'any' ? 1 : 0)
 
@@ -1540,9 +1548,9 @@ export default function Assessments({
       }
 
       // Apply status filter
-      if (filterStatus !== "all") {
+      if (filterStatus.length > 0) {
         result = result.filter(ex => {
-          const availability = getExerciseAvailability(ex)
+          const availability = computeAvailability(ex)
           const submissionAttempts = getSubmissionAttempts(ex)
           const testSubmissions = getTestSubmissions(ex, studentAnswers, method, subcategory)
           const isCompleted = testSubmissions >= 1
@@ -1554,6 +1562,8 @@ export default function Assessments({
             if (filterStatus.includes("inactive")) checks.push(!availability.canStart)
             if (filterStatus.includes("submitted")) checks.push(isCompleted)
             if (filterStatus.includes("not-submitted")) checks.push(!isCompleted)
+            if (filterStatus.includes("pending")) checks.push(!isCompleted && !availability.canStart && availability.status !== 'expired')
+            if (filterStatus.includes("missed")) checks.push(!isCompleted && availability.status === 'expired')
             return checks.some(Boolean)
           }
           return true
@@ -1566,7 +1576,7 @@ export default function Assessments({
       }
 
       // Column sort. Level uses a difficulty rank; status sorts by Active first.
-      const levelRank: Record<string, number> = { beginner: 0, easy: 0, medium: 1, intermediate: 1, advanced: 2, hard: 2 }
+      const levelRank: Record<string, number> = { beginner: 0, easy: 0, medium: 1, intermediate: 1, advanced: 2, expert: 2, hard: 2 }
       const sortVal = (ex: Exercise): string | number => {
         switch (sortColumn) {
           case 'name': return (ex.exerciseInformation.exerciseName || '').toLowerCase()
@@ -1585,7 +1595,7 @@ export default function Assessments({
         return sortDir === 'asc' ? cmp : -cmp
       })
     },
-    [exercises, searchQuery, filterLevel, filterStatus, filterDue, studentAnswers, method, subcategory, sortColumn, sortDir]
+    [exercises, searchQuery, filterLevel, filterStatus, filterDue, studentAnswers, method, subcategory, sortColumn, sortDir, approvedRetestWindows]
   )
 
   // Reset to page 1 when filters change
@@ -1640,7 +1650,7 @@ export default function Assessments({
       exercise: { ...exercise, questions: qs },
       context: {
         courseId: courseId != null ? String(courseId) : '',
-        courseName: (exercise as any).courseName || '',
+        courseName: courseName || (exercise as any).courseName || '',
         method: method || 'you-do',
         category: category || 'You_Do',
         subcategory: subcategory || '',
@@ -2005,7 +2015,7 @@ export default function Assessments({
 
         {/* ── Toolbar — matches the We_Do assignments layout: search
              (flex-1), segmented status control (All / Active /
-             Submitted / Pending), orange-outlined Filter button. ── */}
+             Submitted / Pending / Missed), orange-outlined Filter button. ── */}
         <div className="flex-none flex items-center gap-3 pt-2 pb-2 min-w-0">
           {/* Search — grows via flex-1 to fill available width. */}
           <div className="relative flex-1 min-w-[240px]">
@@ -2041,6 +2051,7 @@ export default function Assessments({
               { key: 'active' as const,    label: 'Active',    count: statusCounts.active },
               { key: 'submitted' as const, label: 'Submitted', count: statusCounts.submitted },
               { key: 'pending' as const,   label: 'Pending',   count: statusCounts.pending },
+              { key: 'missed' as const,    label: 'Missed',    count: statusCounts.missed },
             ]).map((c, i) => {
               const selected = activeChip === c.key
               return (
@@ -2119,7 +2130,7 @@ export default function Assessments({
                       { val: 'all',          label: 'Any' },
                       { val: 'beginner',     label: 'Beginner' },
                       { val: 'intermediate', label: 'Intermediate' },
-                      { val: 'advanced',     label: 'Advanced' },
+                      { val: 'expert',       label: 'Expert' },
                     ].map(({ val, label }) => {
                       const selected = stagedLevel === val
                       return (

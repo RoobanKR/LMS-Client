@@ -64,7 +64,8 @@ const Kpi = ({
 
 export const KpiRow = ({ m }: { m: DashboardModel }) => {
     const attendanceColor = m.attendance.pct != null && m.attendance.pct < 75 ? C.danger : C.success;
-    const overdue = m.deadlines.filter((d) => d.state === 'overdue').length;
+    // Past-due, never-submitted items — Missed, counted apart from Pending.
+    const missed = m.deadlines.filter((d) => d.state === 'overdue').length;
     const studyTime = durationParts(m.time.totalSeconds);
 
     return (
@@ -135,9 +136,9 @@ export const KpiRow = ({ m }: { m: DashboardModel }) => {
                 tint={C.danger}
                 title="Pending Tasks"
                 value={m.pendingThisWeek}
-                caption={overdue ? `${overdue} overdue` : m.pendingThisWeek ? 'Due this week' : 'All clear'}
-                captionColor={overdue || m.pendingThisWeek ? C.danger : C.success}
-                meter={m.pendingThisWeek ? (overdue / m.pendingThisWeek) * 100 : 0}
+                caption={missed ? `${missed} missed` : m.pendingThisWeek ? 'Due this week' : 'All clear'}
+                captionColor={missed || m.pendingThisWeek ? C.danger : C.success}
+                meter={m.pendingThisWeek + missed ? (missed / (m.pendingThisWeek + missed)) * 100 : 0}
                 meterColor={C.danger}
             />
         </div>

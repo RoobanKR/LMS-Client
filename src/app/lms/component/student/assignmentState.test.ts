@@ -191,11 +191,12 @@ group('resolveAssignmentState — priority order', () => {
     assert.equal(s.actionKind, 'disabled');
   });
 
-  test('past deadline + attempted-but-never-submitted → closed + Closed disabled', () => {
+  test('past deadline + attempted-but-never-submitted → missed + Closed disabled', () => {
     const ex = makeExercise({ availabilityPeriod: { startDate: '2026-01-01T00:00:00Z', endDate: '2026-01-02T00:00:00Z' } });
     const ans = attemptWithAnswers(EX_ID, { status: 'in-progress', questions: [{ status: 'submitted' }] });
     const s = resolveAssignmentState(ex, ans, 'We_Do', 'Assignments', { now: later });
-    assert.equal(s.kind, 'closed');
+    assert.equal(s.kind, 'missed');
+    assert.equal(s.label, 'Missed');
     assert.equal(s.actionLabel, 'Closed');
   });
 
@@ -236,7 +237,7 @@ group('resolveAssignmentState — priority order', () => {
     assert.equal(s.actionKind, 'disabled');
   });
 
-  test('late-submission window still allows Continue when attempt exists', () => {
+  test('past due inside late window → missed but Continue stays live', () => {
     const now = noonOf(2026, 8, 21);
     const ended1hAgo   = new Date(now - 1  * 60 * 60 * 1000).toISOString();
     const cutOff2hAway = new Date(now + 2  * 60 * 60 * 1000).toISOString();
@@ -250,8 +251,9 @@ group('resolveAssignmentState — priority order', () => {
     });
     const ans = attemptWithAnswers(EX_ID, { questions: [{ status: 'submitted' }] });
     const s = resolveAssignmentState(ex, ans, 'We_Do', 'Assignments', { now });
-    assert.equal(s.kind, 'in-progress');
+    assert.equal(s.kind, 'missed');
     assert.equal(s.actionLabel, 'Continue');
+    assert.equal(s.actionKind, 'primary');
   });
 });
 
@@ -296,13 +298,13 @@ group('formatDeadline — spec §"Due-date presentation"', () => {
     assert.match(formatDeadline(s, { now }).headline, /^Due Sep 7,\s?2026$/);
   });
 
-  test('submitted → "Submitted <date>"', () => {
+  test('submitted → plain due date (status lives in Status column)', () => {
     const now = new Date(2026, 9, 1).getTime();
     const end = new Date(2026, 7, 29, 9, 40, 0).toISOString();
     const ex = makeExercise({ availabilityPeriod: { startDate: '2026-08-01T00:00:00Z', endDate: end } });
     const s = resolveAssignmentState(ex, attemptWithAnswers(EX_ID, { status: 'completed', testSubmissions: 1 }), 'We_Do', 'Assignments', { now });
     const dl = formatDeadline(s, { now });
-    assert.match(dl.headline, /^Submitted Aug 29,\s?2026$/);
+    assert.match(dl.headline, /^Aug 29,\s?2026$/);
     assert.equal(dl.variant, 'submitted');
   });
 

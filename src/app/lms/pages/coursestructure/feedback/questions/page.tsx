@@ -335,6 +335,11 @@ function ManageQuestionsContent() {
   const router = useRouter();
   const courseId = searchParams.get('courseId') || '';
   const feedbackId = searchParams.get('feedbackId') || '';
+  // The batch view this was opened from — the list reopens on it.
+  const batchQ = searchParams.get('batch');
+  const listHref = `/lms/pages/coursestructure/feedback${
+    courseId ? `?courseId=${courseId}${batchQ ? `&batch=${encodeURIComponent(batchQ)}` : ''}` : ''
+  }`;
 
   const [userRole, setUserRole] = useState<string>('');
   useEffect(() => {
@@ -558,9 +563,7 @@ function ManageQuestionsContent() {
   const getQuestionTypeLabel = (type: QuestionType) => (type === 'rating' ? 'Rating' : 'Text');
 
   const backToList = () => {
-    router.push(
-      `/lms/pages/coursestructure/feedback${courseId ? `?courseId=${courseId}` : ''}`
-    );
+    router.push(listHref);
   };
 
   const scaleLabels = scale.ratingLabels || [];
@@ -602,7 +605,7 @@ function ManageQuestionsContent() {
             <BreadcrumbSeparator className="text-gray-300 dark:text-gray-600" />
             <BreadcrumbItem>
               <BreadcrumbLink
-                href={`/lms/pages/coursestructure/feedback${courseId ? `?courseId=${courseId}` : ''}`}
+                href={listHref}
                 className="flex items-center gap-1 text-[11px] text-blue-600 hover:text-blue-800 hover:underline dark:text-blue-400 dark:hover:text-blue-300"
               >
                 <MessageSquare className="h-3 w-3" />

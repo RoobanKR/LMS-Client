@@ -40,7 +40,7 @@ interface ExerciseInformation {
   exerciseId: string
   exerciseName: string
   description: string
-  exerciseLevel: "beginner" | "medium" | "hard" | "intermediate" | "advanced"
+  exerciseLevel: "beginner" | "medium" | "hard" | "intermediate" | "advanced" | "expert"
   totalDuration?: number
   totalPoints?: number
   totalQuestions?: number
@@ -157,6 +157,7 @@ interface ExerciseSelectOptions {
 
 interface ExercisesProps {
   courseId?: number | string
+  courseName?: string
   exercises: Exercise[]
   onExerciseSelect: (exercise: Exercise, options?: ExerciseSelectOptions) => void
   method?: string
@@ -387,6 +388,7 @@ function getDifficultyStyle(level: string = 'intermediate') {
     case 'intermediate': return { color: '#d97706', bg: '#fffbeb', border: '#fde68a', dot: '#f59e0b', emoji: '⚡', label: 'Intermediate' }
     case 'hard': return { color: '#dc2626', bg: '#fef2f2', border: '#fecaca', dot: '#ef4444', emoji: '🔥', label: 'Hard' }
     case 'advanced': return { color: '#dc2626', bg: '#fef2f2', border: '#fecaca', dot: '#ef4444', emoji: '🔥', label: 'Advanced' }
+    case 'expert': return { color: '#dc2626', bg: '#fef2f2', border: '#fecaca', dot: '#ef4444', emoji: '🔥', label: 'Expert' }
     default: return { color: '#475569', bg: '#f8fafc', border: '#e2e8f0', dot: '#94a3b8', emoji: '📝', label: 'General' }
   }
 }
@@ -1205,7 +1207,7 @@ function ResumeModal({ exercise, onResume, onStartFresh, onClose }: ResumeModalP
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export default function Exercises({
-  category, subcategory, courseId, exercises, onExerciseSelect,
+  category, subcategory, courseId, courseName = '', exercises, onExerciseSelect,
   method, topic = '', module = '', nodeType = '',
   hierarchy = [], selectedItem = null, currentHierarchy = [],
   studentAnswers, isHeaderHidden = false, onShowHeader,
@@ -1339,7 +1341,7 @@ const filteredExercises = useMemo(
     }
 
     // Column sort. Level uses a difficulty rank; status sorts by Active first.
-    const levelRank: Record<string, number> = { beginner: 0, easy: 0, medium: 1, intermediate: 1, advanced: 2, hard: 2 }
+    const levelRank: Record<string, number> = { beginner: 0, easy: 0, medium: 1, intermediate: 1, advanced: 2, expert: 2, hard: 2 }
     const sortVal = (ex: Exercise): string | number => {
       switch (sortColumn) {
         case 'name': return (ex.exerciseInformation.exerciseName || '').toLowerCase()
@@ -1477,8 +1479,9 @@ const handleStartClick = (exercise: Exercise, e: React.MouseEvent) => {
   // The localStorage flag is still respected as a same-device fallback
   // so a draft that isn't yet in `answers` (e.g. the student is on the
   // pre-start page) still routes to resume.
-  const resolvedKind = resolveAssignmentState(exercise, studentAnswers, method, subcategory).kind
-  const hasServerAttempt = resolvedKind === 'in-progress'
+  // `canResume` also covers a draft past the due date inside a still-open
+  // late window (status Missed, action Continue).
+  const hasServerAttempt = resolveAssignmentState(exercise, studentAnswers, method, subcategory).attempt.canResume
   const hasLocalDraft = getExerciseAttemptData(exercise._id).inProgress
   const hasResumableAttempt = hasServerAttempt || hasLocalDraft
 
@@ -1498,7 +1501,7 @@ const handleStartClick = (exercise: Exercise, e: React.MouseEvent) => {
         exercise,
         context: {
           courseId,
-          courseName: (exercise as any)?.courseName || '',
+          courseName: courseName || (exercise as any)?.courseName || '',
           nodeId: (selectedItem as any)?.id || '',
           nodeName: (selectedItem as any)?.title || '',
           nodeType: (selectedItem as any)?.type || '',
@@ -1553,7 +1556,7 @@ const handleStartClick = (exercise: Exercise, e: React.MouseEvent) => {
       // device), swap to the resume dialog rather than silently
       // overwriting their draft.
       const serverInProgress =
-        resolveAssignmentState(popupExercise.exercise, studentAnswers, method, subcategory).kind === 'in-progress'
+        resolveAssignmentState(popupExercise.exercise, studentAnswers, method, subcategory).attempt.canResume
       const localInProgress = getExerciseAttemptData(popupExercise.exercise._id).inProgress
       if (serverInProgress || localInProgress) {
         setResumeModalExercise(popupExercise.exercise)
@@ -1681,7 +1684,8 @@ const handleStartClick = (exercise: Exercise, e: React.MouseEvent) => {
       //   Due today  / 6:00 PM        — deadline lands on the local calendar today
       //   Due tomorrow / 10:00 AM     — deadline on the local calendar tomorrow
       //   Due Sep 7, 2026 / 5:00 PM   — future
-      //   Submitted <date> / <time>   — student's final submission is in
+      //   Sep 7, 2026 / 5:00 PM       — submitted rows show the plain due date
+      //                                 (submission state lives in Status)
       //   Closed <date> / <time>      — window closed without a submission
       // Local calendar is authoritative (not "< 24h from now") so a 23:30
       // click on a 00:30-next-day deadline still reads "Due tomorrow".
@@ -1691,18 +1695,17 @@ const handleStartClick = (exercise: Exercise, e: React.MouseEvent) => {
         const state = resolveAssignmentState(ex, studentAnswers, method, subcategory)
         const dl = formatDeadline(state)
         const isUrgent = dl.variant === 'today' || dl.variant === 'tomorrow'
-        const isTerminal = dl.variant === 'submitted' || dl.variant === 'closed'
-        const IconCmp = dl.variant === 'submitted' ? CheckCircle : Clock
+        const isTerminal = dl.variant === 'closed'
+        const IconCmp = Clock
         const headlineColor = isUrgent ? '#C2410C'         // brand-strong orange for today/tomorrow urgency
                             : dl.variant === 'closed' ? '#64748B'
-                            : dl.variant === 'submitted' ? '#15803D'
-                            : '#101828'                    // slate for regular future dates
+                            : '#101828'                    // slate for regular future / submitted dates
         const headlineWeight = isUrgent || isTerminal ? 600 : 500
         return (
           <div className="flex items-start gap-1.5 whitespace-nowrap"
             title={ex.availabilityPeriod?.endDate ? formatDateTime(ex.availabilityPeriod.endDate) : ''}>
             <IconCmp size={12} className="mt-0.5 flex-shrink-0"
-              style={{ color: isUrgent ? '#F97316' : dl.variant === 'submitted' ? '#22C55E' : '#94a3b8' }} />
+              style={{ color: isUrgent ? '#F97316' : '#94a3b8' }} />
             <div className="flex flex-col leading-tight">
               <span style={{ color: headlineColor, fontWeight: headlineWeight, fontSize: 13 }}>
                 {dl.headline}
@@ -1777,6 +1780,7 @@ const handleStartClick = (exercise: Exercise, e: React.MouseEvent) => {
         // review screen. Disabled + none produce non-interactive labels.
         const isReview = s.kind === 'submitted' || s.kind === 'graded'
         const isStart  = s.kind === 'active' || s.kind === 'due-soon' || s.kind === 'in-progress'
+          || (s.kind === 'missed' && s.availability.canStart)   // late window still open
         const onClick  = isReview
           ? (e: React.MouseEvent) => handleGradeClick(ex, e)
           : isStart
@@ -1784,7 +1788,8 @@ const handleStartClick = (exercise: Exercise, e: React.MouseEvent) => {
             : undefined
 
         if (s.actionKind === 'primary' && s.actionLabel) {
-          // Continue — orange filled, only for in-progress rows.
+          // Continue — orange filled, only for resumable drafts (in-progress,
+          // or missed inside a still-open late window).
           return (
             <div className="flex items-center justify-center">
               <button type="button" onClick={onClick} className={btnBase} style={primary}>
@@ -2067,7 +2072,7 @@ const handleStartClick = (exercise: Exercise, e: React.MouseEvent) => {
                       { val: 'all',          label: 'Any' },
                       { val: 'beginner',     label: 'Beginner' },
                       { val: 'intermediate', label: 'Intermediate' },
-                      { val: 'advanced',     label: 'Advanced' },
+                      { val: 'expert',       label: 'Expert' },
                     ].map(({ val, label }) => {
                       const selected = stagedLevel === val
                       return (

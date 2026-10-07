@@ -1909,7 +1909,8 @@ const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean
       setCompletedDiff(diff);
       setShowDiffPopup(true);
     } else {
-      onClose();
+      // Every slot is filled — tell the host so it doesn't reopen the chooser.
+      onClose({ finished: true });
     }
     return true; // popup or close was triggered
   };
@@ -2190,7 +2191,7 @@ const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean
     setTimeout(() => setSaveOk(false), 2500);
     setIsEditMode(false);
     toast.success(`${saved} question${saved === 1 ? '' : 's'} saved`);
-    onClose();
+    onClose({ finished: true });
   };
 
   // After Save & Continue moves on: when it landed on a fresh BLANK slot, open
@@ -2441,7 +2442,7 @@ const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean
         resetForm(generalMPQ);
         setTimeout(() => titleRef.current?.focus(), 80);
       } else {
-        onClose();
+        onClose({ finished: true });
       }
       return;
     }
@@ -2480,7 +2481,7 @@ const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean
         setCompletedDiff(diffToUse);
         setShowDiffPopup(true);
       } else {
-        onClose();
+        onClose({ finished: true });
       }
     }
   };

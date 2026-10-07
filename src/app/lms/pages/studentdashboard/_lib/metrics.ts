@@ -33,6 +33,13 @@ export const dayKey = (d: Date) => {
     return `${y}-${m}-${day}`;
 };
 
+/** Whole LOCAL calendar days from today to `date` (0 = today, 1 = tomorrow, -1 = yesterday). */
+export const calendarDaysUntil = (date: Date) => {
+    const d = new Date(date); d.setHours(0, 0, 0, 0);
+    const t = new Date(); t.setHours(0, 0, 0, 0);
+    return Math.round((d.getTime() - t.getTime()) / 86400000); // round absorbs DST 23h/25h days
+};
+
 export const pct = (part: number, whole: number) =>
     whole > 0 ? Math.max(0, Math.min(100, Math.round((part / whole) * 100))) : 0;
 
@@ -50,11 +57,8 @@ export const timeAgo = (date: string | Date) => {
 
 export const dueLabel = (date: Date) => {
     const ms = new Date(date).getTime() - Date.now();
-    const days = Math.ceil(ms / 86400000);
-    if (ms < 0) {
-        const over = Math.abs(Math.floor(ms / 86400000));
-        return over === 0 ? 'Overdue' : `${over}d overdue`;
-    }
+    const days = calendarDaysUntil(date);
+    if (ms < 0) return days >= 0 ? 'Overdue' : `${-days}d overdue`;
     if (days <= 0) return 'Due today';
     if (days === 1) return 'Due tomorrow';
     if (days <= 7) return `Due in ${days} days`;
@@ -358,7 +362,7 @@ export interface DeadlineItem {
     kind: 'Assignment' | 'Assessment';
     date: Date;
     state: DeadlineState;
-    attempted: boolean;
+    attempted: boolean;        // a final submission exists (merely opening doesn't count)
     inGrace: boolean;
     durationMins: number;
 }
@@ -366,12 +370,15 @@ export interface DeadlineItem {
 const buildDeadlines = (contentCourses: any[], rawCourses: any[]): DeadlineItem[] => {
     const now = Date.now();
 
-    // Every exercise the student has already touched.
-    const touched = new Set<string>();
+    // Every exercise the student has actually SUBMITTED (same isComplete rule as
+    // assignmentState). Opening an exercise also writes an answer row, and
+    // counting that hid past-due work instead of showing it as Missed.
+    const submitted = new Set<string>();
     rawCourses.forEach((uc: any) => {
         (['We_Do', 'You_Do'] as const).forEach((b) => {
             answerExercises(uc?.answers?.[b]).forEach((ex: any) => {
-                const id = idStr(ex?.exerciseId); if (id) touched.add(id);
+                const done = ex?.status === 'completed' || Number(ex?.testSubmissions) >= 1 || !!ex?.lastTestSubmittedAt;
+                const id = idStr(ex?.exerciseId); if (id && done) submitted.add(id);
             });
         });
     });
@@ -385,8 +392,9 @@ const buildDeadlines = (contentCourses: any[], rawCourses: any[]): DeadlineItem[
                     const start = ap.startDate ? new Date(ap.startDate) : null;
                     const end = ap.endDate ? new Date(ap.endDate) : null;
                     const cutOff = ap.cutOffEnabled && ap.cutOffDate ? new Date(ap.cutOffDate) : null;
+                    const grace = ap.gracePeriodAllowed && ap.gracePeriodDate ? new Date(ap.gracePeriodDate) : null;
                     const id = idStr(ex?._id) || idStr(ex?.exerciseInformation?.exerciseId);
-                    const attempted = touched.has(id) || touched.has(idStr(ex?.exerciseInformation?.exerciseId));
+                    const attempted = submitted.has(id) || submitted.has(idStr(ex?.exerciseInformation?.exerciseId));
 
                     const base = {
                         id,
@@ -406,11 +414,17 @@ const buildDeadlines = (contentCourses: any[], rawCourses: any[]): DeadlineItem[
                     if (!end || isNaN(end.getTime())) return;
 
                     const ms = end.getTime() - now;
-                    const graceEnd = cutOff && !isNaN(cutOff.getTime()) ? cutOff.getTime() : null;
+                    // Late window = cut-off or grace period, whichever ends last
+                    // (same windows assignmentState lets the student still submit in).
+                    const lateEnds = [cutOff, grace].map((d) => (d ? d.getTime() : NaN)).filter((t) => !isNaN(t));
+                    const graceEnd = lateEnds.length ? Math.max(...lateEnds) : null;
+                    // The local calendar, not "< 24h", decides today/tomorrow —
+                    // matching assignmentState.formatDeadline and dueLabel().
+                    const days = calendarDaysUntil(end);
                     let state: DeadlineState;
                     if (ms < 0) state = 'overdue';
-                    else if (ms < 86400000) state = 'due-today';
-                    else if (ms < 3 * 86400000) state = 'due-soon';
+                    else if (days <= 0) state = 'due-today';
+                    else if (days <= 2) state = 'due-soon';
                     else state = 'upcoming';
 
                     // A closed-and-submitted item is history, not an action.
@@ -749,7 +763,8 @@ const buildFocus = (
 
     // Then the live actions, most urgent first.
     deadlines
-        .filter((d) => d.state !== 'opens' && !d.attempted)
+        // Closed overdue items can no longer be finished — not a live action.
+        .filter((d) => d.state !== 'opens' && !d.attempted && (d.state !== 'overdue' || d.inGrace))
         .slice(0, 4)
         .forEach((d) =>
             items.push({
@@ -964,8 +979,9 @@ export const buildDashboard = (
     const deadlines = buildDeadlines(userCourses || [], rawCourses);
 
     const weekAhead = Date.now() + 7 * 86400000;
+    // Past-due items are Missed and counted separately — never inside Pending.
     const pendingThisWeek = deadlines.filter(
-        (d) => !d.attempted && d.state !== 'opens' && d.date.getTime() <= weekAhead,
+        (d) => !d.attempted && d.state !== 'opens' && d.state !== 'overdue' && d.date.getTime() <= weekAhead,
     ).length;
 
     const monthAgo = Date.now() - 30 * 86400000;

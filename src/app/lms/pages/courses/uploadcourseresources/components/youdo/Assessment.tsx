@@ -1409,16 +1409,21 @@ export default function Assessment({
     // Review sits in its own column (was a "Dashboard" kebab entry) — trainers
     // open it often enough that it shouldn't cost a menu click.
     // Assessment ID is sized to its CONTENT rather than given a share of the
-    // leftover space: the header reads 66px and a typical exerciseId 79px, so
+    // leftover space: the header reads 83px and a typical exerciseId 79px, so
     // 96px covers both with air to spare. As a share (it was 0.62fr) it grew
-    // to 200px+ on a wide monitor and sat mostly empty. `minmax(0,96px)` also
-    // lets it shrink below 96 on a cramped workspace instead of squeezing the
-    // name; the long `_id` fallback truncates and is on the title tooltip.
+    // to 200px+ on a wide monitor and sat mostly empty. `minmax(88px,96px)`
+    // lets it give a little back on a cramped workspace without clipping its
+    // header; the long `_id` fallback truncates and is on the title tooltip.
     // Everything left over now lands in Assessment Name, whose TEXT is capped
     // at 360px (see the name cell) — so the surplus on a wide screen reads as
-    // whitespace after the name instead of one absurdly long column, and
-    // Status / Created / Review keep the widths they actually need.
-    gridTemplateColumns: "minmax(0,96px) minmax(0,1fr) 92px 118px 96px 112px 96px 52px",
+    // whitespace after the name instead of one absurdly long column. The name
+    // also has a 160px floor (it was `minmax(0,1fr)` and collapsed to "Ch…"
+    // in the You Do panel), and the fixed columns are trimmed to what their
+    // content needs. `minWidth: min-content` keeps every row on the summed
+    // track minimums, so a pane narrower than that scrolls sideways (see the
+    // scroll region) instead of clipping Status / Review / Actions.
+    gridTemplateColumns: "minmax(88px,96px) minmax(160px,1fr) 80px 100px 88px 108px 88px 52px",
+    minWidth: "min-content",
     gap: 8, alignItems: "center", padding: "0 12px",
     transition: "background-color 0.15s",
   };
@@ -1637,7 +1642,7 @@ export default function Assessment({
         )}
 
         {/* Scroll region — takes all remaining space; only the rows scroll. */}
-        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden" style={{ scrollbarWidth: "thin", scrollbarColor: `${T.border} transparent` }}>
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto" style={{ scrollbarWidth: "thin", scrollbarColor: `${T.border} transparent` }}>
 
         {/* {assessments.length > 0 && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 pb-0">
@@ -1664,7 +1669,7 @@ export default function Assessment({
             {["Assessment ID", "Assessment Name", "Test Type", "Created", "Level", "Status", "Review", "Actions"].map(h => (
               <div
                 key={h}
-                className={`text-[10px] font-semibold uppercase tracking-wider text-subtle ${h === "Review" ? "text-center" : h === "Actions" ? "text-right" : ""}`}
+                className={`text-[10px] font-semibold uppercase tracking-wider text-subtle truncate ${h === "Review" ? "text-center" : h === "Actions" ? "text-right" : ""}`}
               >
                 {h}
               </div>

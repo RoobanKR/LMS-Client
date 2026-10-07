@@ -64,6 +64,9 @@ function ReportPageContent() {
   const router = useRouter();
   const feedbackId = searchParams.get('feedbackId') || '';
   const courseId = searchParams.get('courseId') || '';
+  // The batch view the report was opened from — carried back to the list.
+  const batchQ = searchParams.get('batch');
+  const batchSuffix = batchQ ? `&batch=${encodeURIComponent(batchQ)}` : '';
 
   const [userRole, setUserRole] = useState<string>('');
   useEffect(() => setUserRole(getUserRole()), []);
@@ -136,7 +139,7 @@ function ReportPageContent() {
               <BreadcrumbLink
                 href={
                   courseId
-                    ? `/lms/pages/coursestructure/feedback?courseId=${courseId}`
+                    ? `/lms/pages/coursestructure/feedback?courseId=${courseId}${batchSuffix}`
                     : '/lms/pages/coursestructure'
                 }
                 className="flex items-center gap-1 text-[11px] text-orange-600 hover:text-orange-800 hover:underline dark:text-orange-400 dark:hover:text-orange-300"
@@ -149,7 +152,7 @@ function ReportPageContent() {
               <BreadcrumbLink
                 href={`/lms/pages/coursestructure/feedback/report/generate?feedbackId=${feedbackId}${
                   courseId ? `&courseId=${courseId}` : ''
-                }`}
+                }${batchSuffix}`}
                 className="flex items-center gap-1 text-[11px] text-orange-600 hover:text-orange-800 hover:underline dark:text-orange-400 dark:hover:text-orange-300"
               >
                 <Download className="h-3 w-3" /> Generated Report
@@ -188,7 +191,7 @@ function ReportPageContent() {
         <button
           onClick={() =>
             router.push(
-              `/lms/pages/coursestructure/feedback/report/generate?feedbackId=${feedbackId}&courseId=${courseId}`
+              `/lms/pages/coursestructure/feedback/report/generate?feedbackId=${feedbackId}&courseId=${courseId}${batchSuffix}`
             )
           }
           disabled={!feedback}

@@ -148,7 +148,7 @@ interface HierarchyData {
 
 interface ExerciseSettingsProps {
   hierarchyData: HierarchyData; nodeId: string; nodeName: string; nodeType: string;
-  subcategory: string; onSave: (exerciseData: ExercisePayload) => void; onClose: () => void;
+  subcategory: string; onSave: (exerciseData: ExercisePayload, exerciseId?: string) => void; onClose: () => void;
   isEditing?: boolean; tabType?: 'I_Do' | 'We_Do' | 'You_Do'; initialData?: any; exercise_Id?: string;
   /**
    * `initialData` carries a TEMPLATE / COMMAND seed rather than a saved
@@ -2586,6 +2586,8 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
       const basePayload = { ...buildFullPayload(), completeSetup: true };
       basePayload.stepsSaved = steps.map(s => s.title);
       const finalId = localExerciseId || (isEditing ? exercise_Id : null);
+      // Id handed back to the parent so it can open question entry after create.
+      let savedId: string | undefined = finalId || undefined;
 
       const entityPath = getEntityType(nodeType);
       const BASE_URL = `${API_ORIGIN}`;
@@ -2609,7 +2611,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
         if (!res.ok) { const errData = await res.json().catch(() => ({})); throw new Error(`Server error (${res.status}): ${JSON.stringify(errData)}`); }
         response = await res.json();
         const newId = response?.data?.exercise?._id || response?.data?._id || response?._id;
-        if (newId) setLocalExerciseId(newId);
+        if (newId) { setLocalExerciseId(newId); savedId = newId; }
       }
 
       toast.success(
@@ -2623,7 +2625,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
       setTimeout(() => {
         setIsLoading(false);
         onClose();
-        onSave(basePayload);
+        onSave(basePayload, savedId);
       }, 1500);
       setTimeout(() => { toast.dismiss('exercise-save-success'); }, 3200);
     } catch (error: any) {

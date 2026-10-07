@@ -12,6 +12,7 @@ import { formatDateTime } from "../utils/assessmentHeader";
 import {
   findExerciseInCourseData,
   getQuestionMaxScore,
+  resolveSubmissionLanguage,
 } from "../utils/computeStudentMarks";
 
 // ── Programming-assessment learner detail modal ─────────────────────────────
@@ -32,7 +33,7 @@ import {
 //   • else, has evaluationBreakdown.testcase / .ai → colour by test-case ratio
 //   • else                                  → "Needs Review"        (amber)
 //
-// The five UI states — Evaluated (Full) / Partial / Needs Review / Failed /
+// The five UI states — Passed / Partial / Needs Review / Failed /
 // Not Submitted — match the wording faculty already sees on the metric strip
 // and the row status pill.
 
@@ -175,7 +176,7 @@ function deriveCardState(args: {
     else if (scoredMarkRaw <= 0) state = "failed";
     return {
       cardState: state,
-      statusLabel: state === "evaluated_full" ? "Evaluated" : state === "failed" ? "Failed" : "Partial",
+      statusLabel: state === "evaluated_full" ? "Passed" : state === "failed" ? "Failed" : "Partial",
       scoredMark: scoredMarkRaw,
       scoreLabel: `${roundMark(scoredMarkRaw)} / ${totalMark}`,
       evaluationLabel: "Manually Evaluated",
@@ -210,7 +211,7 @@ function deriveCardState(args: {
     else if (passed! === 0) state = "failed";
     return {
       cardState: state,
-      statusLabel: state === "evaluated_full" ? "Evaluated" : state === "failed" ? "Failed" : "Partial",
+      statusLabel: state === "evaluated_full" ? "Passed" : state === "failed" ? "Failed" : "Partial",
       scoredMark: scoredMarkRaw,
       scoreLabel: `${roundMark(scoredMarkRaw)} / ${totalMark}`,
       evaluationLabel: effectiveMethod === "ai" ? "Auto Evaluated (AI)" : "Auto Evaluated",
@@ -251,7 +252,7 @@ const STATE_STYLE: Record<CardState, {
   evaluated_full: {
     chipBg: "bg-emerald-50", chipText: "text-emerald-700", chipDot: "bg-emerald-500",
     gridBg: "bg-emerald-500", gridText: "text-white", iconBg: "bg-emerald-600",
-    Icon: Check, legendLabel: "Evaluated (Full)",
+    Icon: Check, legendLabel: "Passed",
   },
   partial: {
     chipBg: "bg-sky-50", chipText: "text-sky-700", chipDot: "bg-sky-500",
@@ -388,7 +389,7 @@ export default function LearnerDetailModal({
       const totalMark = getQuestionMaxScore(exercise, q);
       const state = deriveCardState({ sub, exercise, question: q, totalMark });
       const title = asText(q?.title ?? q?.programmingQuestionTitle ?? q?.mcqQuestionTitle) || `Question ${i + 1}`;
-      const language = String(sub?.language || q?.programmingLanguage || "").trim();
+      const language = resolveSubmissionLanguage(sub, q);
       const cases: QuestionCard["cases"] = [];
       if (sub?.evaluationBreakdown?.testcase?.cases) {
         for (const c of sub.evaluationBreakdown.testcase.cases) {
@@ -467,6 +468,27 @@ export default function LearnerDetailModal({
     };
   }, [cards]);
 
+  // The learner's own completion time — the Finish stamp (lastTestSubmittedAt)
+  // when there is one, else their latest per-question submit. `startDate` is
+  // the exercise's opening time, so it must never read as "Completed on".
+  const completedAt = useMemo<string | null>(() => {
+    if (!student || !courseData || !exerciseId) return null;
+    const participant = participantFor(courseData, student.id);
+    if (!participant) return null;
+    let finishedAt = 0;
+    let lastSubmitAt = 0;
+    for (const ans of getAnswersForParticipant(participant, courseId, idOf(exerciseId))) {
+      const f = ans?.lastTestSubmittedAt ? new Date(ans.lastTestSubmittedAt).getTime() : NaN;
+      if (Number.isFinite(f) && f > finishedAt) finishedAt = f;
+      for (const sub of ans?.questions || []) {
+        const t = sub?.submittedAt ? new Date(sub.submittedAt).getTime() : NaN;
+        if (Number.isFinite(t) && t > lastSubmitAt) lastSubmitAt = t;
+      }
+    }
+    const best = finishedAt || lastSubmitAt;
+    return best ? new Date(best).toISOString() : null;
+  }, [student, courseData, exerciseId, courseId]);
+
   if (!open || !student) return null;
 
   const toggleExpand = (qid: string) => {
@@ -536,12 +558,14 @@ export default function LearnerDetailModal({
             </h2>
             <div className="text-[10.5px] text-gray-500 whitespace-nowrap">
               {/* Only surface "Completed on" when the student explicitly
-                  finished (attemptStatus === "submitted"). Every other
-                  state — including in-progress / walked-away — reads as
-                  Started on to avoid claiming a completion the code
-                  editor's Finish button never triggered. */}
-              {student.attemptStatus === "submitted"
-                ? `Completed on ${formatDateTime(startDate)}`
+                  finished (attemptStatus === "submitted"), and then with
+                  the learner's own Finish / last-submit time — never the
+                  exercise start. Every other state — including in-progress
+                  / walked-away — reads as Started on to avoid claiming a
+                  completion the code editor's Finish button never
+                  triggered. */}
+              {student.attemptStatus === "submitted" && completedAt
+                ? `Completed on ${formatDateTime(completedAt)}`
                 : `Started on ${formatDateTime(startDate)}`}
             </div>
           </div>

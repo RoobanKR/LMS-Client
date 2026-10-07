@@ -926,6 +926,9 @@ export default function CodeEditor({
     // posting 0 there would wipe out an AI or Test Case score the student had
     // already earned from Run Testcase / Submit Question.
     const submittedScoresRef = useRef<Record<string, number>>({});
+    // When each question was first opened — sent on submit as `questionStartedAt`
+    // so the report can show the time taken per question.
+    const questionOpenedAtRef = useRef<Record<string, string>>({});
     const inputResolverRef = useRef<((value: string) => void) | null>(null);
     const [showExitConfirmation, setShowExitConfirmation] = useState(false);
     const [pendingExitAction, setPendingExitAction] = useState<(() => void) | null>(null);
@@ -1253,6 +1256,12 @@ export default function CodeEditor({
         return normalized;
     };
 
+
+    // Stamp when this question was first opened (kept on later visits).
+    useEffect(() => {
+        const id = exercise?.questions?.[currentProblemIndex]?._id;
+        if (id && !questionOpenedAtRef.current[id]) questionOpenedAtRef.current[id] = new Date().toISOString();
+    }, [exercise, currentProblemIndex]);
 
     // --- Initialize ---
     useEffect(() => {
@@ -2773,6 +2782,8 @@ function solve() {
             if (evaluationBreakdown) {
                 formData.append('evaluationBreakdown', JSON.stringify(evaluationBreakdown));
             }
+            const openedAt = questionOpenedAtRef.current[String(questionId)];
+            if (openedAt) formData.append('questionStartedAt', openedAt);
 
             addTerminalLog('system', '📤 Submitting to server...');
 

@@ -852,7 +852,8 @@ function InstructionsContent() {
 
     const qs = Array.isArray(exercise.questions) ? exercise.questions : [];
     const courseId = context?.courseId || exercise?.courseId || "";
-    const courseName = context?.courseName || exercise?.courseName || "Course";
+    // No "Course" placeholder in the URL — the test page falls back itself.
+    const courseName = context?.courseName || exercise?.courseName || "";
     const hierarchy: string[] = Array.isArray(context?.hierarchy) ? context.hierarchy.filter(Boolean) : [];
 
     const stored = {

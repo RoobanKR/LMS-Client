@@ -144,8 +144,16 @@ const ExerciseInfoModals: React.FC<ExerciseInfoModalsProps> = ({
     exerciseInfo.totalPoints ||
     exercise?.questionConfiguration?.mcqQuestionConfiguration?.mcqTotalMarks ||
     _progCalc || 0;
-  const marksPerQ = exercise?.questionConfiguration?.mcqQuestionConfiguration?.marksPerQuestion
-    ?? _progSS?.evenMarks ?? null;
+  // Marks per question. Configured values count only when actually set — unset
+  // ones are stored as 0 (evenMarks is 0 under level/separate schemes) and would
+  // read as "0". Otherwise fall back to each served question's own score (what
+  // its answer is graded out of): one value when uniform, else listed per question.
+  const _qMarks: number[] = questions.map((q: any) => Number(q?.score ?? q?.points ?? q?.mcqQuestionScore) || 0);
+  const _uniformQMark = _qMarks.length > 0 && _qMarks[0] > 0 && _qMarks.every(m => m === _qMarks[0]) ? _qMarks[0] : null;
+  const _mcqPerQ = Number(exercise?.questionConfiguration?.mcqQuestionConfiguration?.marksPerQuestion) || null;
+  const _evenPerQ = _progSS?.scoreType === 'evenMarks' ? (Number(_progSS?.evenMarks) || null) : null;
+  const marksPerQ: React.ReactNode = _mcqPerQ ?? _evenPerQ ?? _uniformQMark
+    ?? (_qMarks.some(m => m > 0) ? _qMarks.join(' / ') : null);
   const totalQ = questions.length;
   const answered = solvedQuestions.size;
   const remaining = Math.max(0, totalQ - answered);

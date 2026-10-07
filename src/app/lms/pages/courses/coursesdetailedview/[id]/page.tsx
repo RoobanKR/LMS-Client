@@ -251,8 +251,10 @@ export default function LMSPage() {
   const [inlinePageIndex, setInlinePageIndex] = useState(0)
   const [activeTab, setActiveTab] = useState<string | null>("Overview")
   const [activeSubcategory, setActiveSubcategory] = useState<string>("")
-  // Student view → You Do → Assessment splits into Mock / Final lists.
-  const [assessmentTestType, setAssessmentTestType] = useState<'mock' | 'final'>('mock')
+  // Student view → You Do → Assessment splits into Mock / Final lists. The
+  // last pick is remembered, so returning from a test (which reloads this page
+  // in the test's tab) reopens the list it was launched from.
+  const [assessmentTestType, setAssessmentTestType] = useState<'mock' | 'final'>(() => load('lms_student_assessment_test_type') === 'final' ? 'final' : 'mock')
   const [showLogoutModal, setShowLogoutModal] = useState(false)
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
   const [descriptionHasMoreContent, setDescriptionHasMoreContent] = useState(false)
@@ -1456,6 +1458,25 @@ const getExercisesForActivity = (): any[] => {
   } catch { return [] }
 }
 
+  // You Do → Assessment: open on the first of Mock / Final that has items.
+  // The remembered tab wins when it has any; otherwise switch, so a node whose
+  // only assessment is Final never lands on an empty Mock list (also after a
+  // submit redirects back here). Once per node + subcategory, so a later click
+  // on an empty tab sticks.
+  const testTypeAutoPickRef = useRef('')
+  useEffect(() => {
+    if (selectedMethod !== 'you-do' || !ASSESSMENT_SUBCATEGORY_KEYS.has(normalizeKey(selectedActivity)) || !selectedItem?.id) return
+    const pickKey = `${selectedItem.id}|${normalizeKey(selectedActivity)}`
+    if (testTypeAutoPickRef.current === pickKey) return
+    const exs = getExercisesForActivity()
+    if (exs.length === 0) return
+    testTypeAutoPickRef.current = pickKey
+    const finals = exs.filter((e: any) => isFinalAssessment(e)).length
+    const mocks = exs.length - finals
+    setAssessmentTestType(prev => ((prev === 'final' ? finals : mocks) > 0 ? prev : (mocks > 0 ? 'mock' : 'final')))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedItem?.id, selectedMethod, selectedActivity, courseData])
+
 
   const getAllResources = (): Resource[] => {
     const all: Resource[] = []
@@ -1563,7 +1584,7 @@ const getExercisesForActivity = (): any[] => {
     const mk: Record<string, string> = { 'i-do': 'I_Do', 'we-do': 'We_Do', 'you-do': 'You_Do' }
     const catP = mk[selectedMethod] || 'We_Do'
     const eid = exercise?._id
-    const cname = courseData?.courseName || "Course"
+    const cname = courseData?.courseName || ""
     const stored = { ...exercise, questions: qs, courseId, courseName: cname, context: { courseId, nodeId: selectedItem?.id, nodeTitle: selectedItem?.title, method: selectedMethod, activity: selectedActivity }, storedAt: new Date().toISOString() }
 
     // You Do → route to youdo/* pages; We Do / I Do → existing pages
@@ -2513,7 +2534,7 @@ const getExercisesForActivity = (): any[] => {
                         { key: 'final', label: 'Final', color: '#F97316', count: ydaExs.filter((e: any) => isFinalAssessment(e)).length },
                       ],
                       active: assessmentTestType,
-                      onChange: (k: string) => setAssessmentTestType(k as 'mock' | 'final'),
+                      onChange: (k: string) => { setAssessmentTestType(k as 'mock' | 'final'); save('lms_student_assessment_test_type', k) },
                     }
                   })()}
                 />
@@ -3029,6 +3050,8 @@ const getExercisesForActivity = (): any[] => {
                           const regularExercises = exs.filter((ex: any) => ex?.exerciseType !== 'SectionBased' && !ex?.isSectionBased)
                           const sharedProps = {
                             courseId,
+                            // Real name for the instructions-page stash / exercise URL.
+                            courseName: courseData?.courseName || '',
                             onExerciseSelect: handleExerciseSelect,
                             method: selectedMethod,
                             category: selectedMethod === 'i-do' ? 'I_Do' : selectedMethod === 'you-do' ? 'You_Do' : 'We_Do',

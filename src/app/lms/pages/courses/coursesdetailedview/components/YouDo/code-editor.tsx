@@ -205,6 +205,8 @@ interface ExerciseQuestion {
     // Code Setup — Starter Code shown to students when an attempt begins.
     // Takes priority over the legacy solutions.startedCode fallback below.
     starterCode?: string
+    // Execution Setup — 'function' = a function-signature question; absent means a stdin/stdout program.
+    executionType?: 'function' | 'fullProgram'
     timeLimit: number
     memoryLimit: number
     isActive: boolean
@@ -229,6 +231,7 @@ interface Exercise {
     questions: ExerciseQuestion[]
     courseId?: string
     exerciseType?: string
+    isGraded?: boolean
     gradeSettings?: {
         programmingGradeToPass?: number
         combinedGradeToPass?: number
@@ -438,6 +441,18 @@ const convertExerciseToProblems = (exercise: Exercise): ProblemData[] => {
         constraints: question.constraints || [],
         initialCode: question.starterCode || question.solutions?.startedCode || question.solutions?.staetedCode ||
             (() => {
+                // Only a function-signature question (Execution Setup → Function)
+                // gets a function stub. Everything else — 'fullProgram' and legacy
+                // questions without the field — is a stdin/stdout program, so start
+                // from a read-input / print-output skeleton, not a `return` stub.
+                if (question.executionType !== 'function') {
+                    const lang = String(question.solutions?.language || question.allowedLanguages?.[0] || exercise.programmingSettings?.selectedLanguages?.[0] || 'python').toLowerCase();
+                    // (Keep the literal "input(" out of this comment — isFunctionStyle
+                    // treats any `input(` as stdin I/O and would skip the function harness.)
+                    return lang.includes('python')
+                        ? `# Write your solution here — read from standard input and print the result\n`
+                        : `// Write your solution here — read from standard input and print the result\n`;
+                }
                 // Generate a function stub: name from solutions.functionName, param
                 // count inferred from the first test case (one input line = one arg).
                 const fn = (question.solutions?.functionName || 'main').replace(/[^A-Za-z0-9_]/g, '') || 'main';
@@ -961,6 +976,11 @@ export default function CodeEditor({
     const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
     const [isSubmittingTest, setIsSubmittingTest] = useState(false);
     const submittedScoresRef = useRef<Record<string, number>>({});
+    // Last SUBMITTED Test Result per question id — restored when the student comes back to a question.
+    const testResultByQRef = useRef<Record<string, TestResultState>>({});
+    // When each question was first opened — sent on submit as `questionStartedAt`
+    // so the report can show the time taken per question.
+    const questionOpenedAtRef = useRef<Record<string, string>>({});
     const timeUpHandledRef = useRef(false);
     // --- Available Languages ---
     const [availableLanguages, setAvailableLanguages] = useState<string[]>(["javascript", "python", "java", "cpp", "c", "csharp"]);
@@ -1460,8 +1480,10 @@ export default function CodeEditor({
             currentQuestionRef.current = question?._id || "";
 
             // The Test Result belongs to the PREVIOUS question — leaving it up
-            // would read as though this question had already been graded.
-            setTestResult(null);
+            // would read as though this question had already been graded. A
+            // question submitted earlier gets its last submission back instead
+            // of a blank panel.
+            setTestResult((question?._id && testResultByQRef.current[question._id]) || null);
             setTestResults([]);
             setSelectedCaseIndex(0);
             // Seed the terminal's stdin with this question's example input so
@@ -1555,6 +1577,12 @@ function solve() {
         }
     }, [problem, exercise, currentProblemIndex])
 
+    // Stamp when this question was first opened (kept on later visits).
+    useEffect(() => {
+        const id = exercise?.questions?.[currentProblemIndex]?._id;
+        if (id && !questionOpenedAtRef.current[id]) questionOpenedAtRef.current[id] = new Date().toISOString();
+    }, [exercise, currentProblemIndex]);
+
 
     // --- Pyodide Initialization ---
     const initPyodide = async () => {
@@ -1638,6 +1666,37 @@ function solve() {
                             newSet.add(currentProblemIndex);
                             return newSet;
                         });
+                    }
+
+                    // Submitted earlier (another visit / before a reload): seed its
+                    // score and rebuild the last Test Result from the stored breakdown.
+                    if (showsTestResult && !resetProgress && (data.status === 'submitted' || data.status === 'solved') && typeof data.score === 'number') {
+                        if (submittedScoresRef.current[targetQuestionId] == null) submittedScoresRef.current[targetQuestionId] = data.score;
+                        if (!testResultByQRef.current[targetQuestionId]) {
+                            const maxMarks = getCurrentQuestionMaxMarks();
+                            const b: any = data.evaluationBreakdown;
+                            let restored: TestResultState;
+                            if (b?.method === 'ai' && b.ai) {
+                                restored = buildAiTestResultState({ ai: b.ai, score: data.score, maxMarks, failed: !!b.ai.failed });
+                            } else if (b?.method === 'testcase' && Array.isArray(b.testcase?.cases) && b.testcase.cases.length > 0) {
+                                restored = buildTestResultState(b.testcase.cases.map((c: any, i: number) => ({
+                                    caseNo: (Number.isFinite(c.index) ? c.index : i) + 1,
+                                    input: c.input ?? '',
+                                    expected: c.expectedOutput ?? '',
+                                    actual: c.actualOutput ?? '',
+                                    status: (c.passed ? 'passed' : 'failed') as 'passed' | 'failed',
+                                    time: '',
+                                    isHidden: !!c.hidden,
+                                })), { score: data.score, maxMarks });
+                            } else {
+                                restored = {
+                                    status: data.status === 'solved' ? 'accepted' : data.score > 0 ? 'partial' : 'wrong-answer',
+                                    cases: [], score: data.score, maxMarks, message: 'Last submission',
+                                };
+                            }
+                            testResultByQRef.current[targetQuestionId] = restored;
+                            setTestResult(prev => prev ?? restored);
+                        }
                     }
                 }
             }
@@ -3048,7 +3107,7 @@ else:
     // produce the SAME score for the same code — only the caller decides
     // whether the answer is also recorded as submitted.
     const evaluateCurrentQuestionWithAi = async (): Promise<{
-        score: number; breakdown: any; failed: boolean; errorMessage?: string; maxMarks: number;
+        score: number; breakdown: any; failed: boolean; errorMessage?: string; maxMarks: number; resultState: TestResultState;
     }> => {
         const liveQuestion: any = exercise?.questions?.[currentProblemIndex] ?? currentQuestion;
         // Per-question mode: pass the specific question so the resolver picks
@@ -3110,13 +3169,14 @@ else:
             const b = aiResult.breakdown.ai;
             addTerminalLog('success', `🏁 AI score: ${aiResult.totalScore}/${maxMarks} — ${b.passedTestCases}/${b.totalTestCases} test cases passed, ${b.criteria.length} criteria evaluated`);
         }
-        setTestResult(buildAiTestResultState({
+        const resultState = buildAiTestResultState({
             ai: aiResult.breakdown.ai,
             score: aiResult.totalScore,
             maxMarks,
             failed: aiResult.failed,
             errorMessage: aiResult.errorMessage,
-        }));
+        });
+        setTestResult(resultState);
         setSelectedCaseIndex(0);
         return {
             score: aiResult.totalScore,
@@ -3124,6 +3184,7 @@ else:
             failed: aiResult.failed,
             errorMessage: aiResult.errorMessage,
             maxMarks,
+            resultState,
         };
     };
 
@@ -3225,6 +3286,8 @@ else:
             let submitStatus: 'submitted' | 'solved' = 'submitted';
             let submitBreakdown: any = null;
             let toastMsg = '';
+            // The painted Test Result, cached per question once the submit is stored.
+            let resultState: TestResultState | null = null;
 
             if (method === 'testcase') {
                 // ── Existing You_Do behaviour, now recorded as a breakdown too. ──
@@ -3234,7 +3297,8 @@ else:
                 const total = rows.length;
                 const maxMarks = getCurrentQuestionMaxMarks();
                 submitScore = total > 0 ? Math.round((passed / total) * maxMarks * 100) / 100 : 0;
-                setTestResult(buildTestResultState(rows, { score: submitScore, maxMarks }));
+                resultState = buildTestResultState(rows, { score: submitScore, maxMarks });
+                setTestResult(resultState);
                 setSelectedCaseIndex(0);
                 submitStatus = (total > 0 && passed === total) ? 'solved' : 'submitted';
                 // Per-case rows ride along so the Review page can show WHICH
@@ -3260,6 +3324,7 @@ else:
                 submitScore = ai.score;
                 submitStatus = 'submitted'; // AI never auto-marks 'solved' — trainer decides
                 submitBreakdown = ai.breakdown;
+                resultState = ai.resultState;
                 toastMsg = ai.failed
                     ? 'Code saved — AI grader unavailable, trainer will grade.'
                     : `AI evaluated: ${submitScore}/${ai.maxMarks}`;
@@ -3276,6 +3341,7 @@ else:
                 const qId = liveQuestion?._id || currentQuestion._id;
                 await submitProgressToBackend(qId, submitStatus, submitScore, false, submitBreakdown);
                 submittedScoresRef.current[qId] = submitScore;
+                if (resultState) testResultByQRef.current[qId] = resultState;
             }
             setSolvedQuestions(prev => { const s = new Set(prev); s.add(currentProblemIndex); return s; });
             showToast({
@@ -3557,6 +3623,8 @@ else:
             if (evaluationBreakdown) {
                 formData.append('evaluationBreakdown', JSON.stringify(evaluationBreakdown));
             }
+            const openedAt = questionOpenedAtRef.current[String(questionId)];
+            if (openedAt) formData.append('questionStartedAt', openedAt);
 
             const token = getToken()
                 || localStorage.getItem('token')
@@ -5397,6 +5465,16 @@ else:
                                         return (
                                             <span style={{ fontSize: 11, fontFamily: FONT, fontWeight: 600, padding: '2px 9px', borderRadius: 99, background: theme === 'dark' ? '#1a3a2a' : '#dcfce7', color: theme === 'dark' ? '#86efac' : '#15803d', whiteSpace: 'nowrap' }}>
                                                 {m} {m === 1 ? 'mark' : 'marks'}
+                                            </span>
+                                        );
+                                    })()}
+                                    {/* Last submission's score — stays after the auto-advance and on revisit */}
+                                    {exercise?.isGraded !== false && (() => {
+                                        const last = currentQuestion?._id ? testResultByQRef.current[currentQuestion._id] : undefined;
+                                        if (typeof last?.score !== 'number' || typeof last?.maxMarks !== 'number') return null;
+                                        return (
+                                            <span style={{ fontSize: 11, fontFamily: FONT, fontWeight: 600, padding: '2px 9px', borderRadius: 99, background: theme === 'dark' ? '#1a3a2a' : '#dcfce7', color: theme === 'dark' ? '#86efac' : '#15803d', whiteSpace: 'nowrap' }}>
+                                                Scored {last.score}/{last.maxMarks}
                                             </span>
                                         );
                                     })()}

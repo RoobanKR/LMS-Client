@@ -65,6 +65,14 @@ type Props = {
     /** File name (no extension) for the PDF / Excel download. Absent means
      *  the generic "report-<date>". */
     filenameBase?: string
+    /** Show the footer's Export (PDF / Excel) menu. Default true. Feedback's
+     *  per-form sheets pass false — that page keeps its own Excel / PDF
+     *  downloads. */
+    showExport?: boolean
+    /** Overlay z-index class. Default 'z-50'. Callers that open over a
+     *  z-modal (1200) layer pass 'z-[1250]' — still under z-popover (1300),
+     *  so the sidebar's own menus open above the sheet. */
+    layerClassName?: string
 }
 
 
@@ -239,6 +247,7 @@ function useFitWidth() {
 export function PrintPreviewModal({
     open, onClose, snapshot, blocks, letterhead, initialFormat, meta,
     fields, defaultEnabled, exportExcel, filenameBase,
+    showExport = true, layerClassName = 'z-50',
 }: Props) {
     void snapshot
     void letterhead
@@ -608,7 +617,7 @@ export function PrintPreviewModal({
             role="dialog"
             aria-modal
             aria-labelledby="print-preview-title"
-            className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/60 p-3"
+            className={`fixed inset-0 ${layerClassName} flex items-center justify-center bg-ink-900/60 p-3`}
             onClick={() => { if (!exporting) onClose() }}
         >
             <div
@@ -928,43 +937,45 @@ export function PrintPreviewModal({
                                     format is being prepared, and the menu is
                                     disabled while any export is running so a
                                     reader can't kick off two at once. */}
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button
-                                            type="button"
-                                            size="sm"
-                                            variant="outline"
-                                            className="border-brand-500/40 text-xs font-bold text-brand-strong hover:bg-brand-wash"
-                                            disabled={Boolean(exporting) || !table?.rows.length}
-                                        >
-                                            {exporting === 'pdf' || exporting === 'excel'
-                                                ? <><Loader2 className="size-3.5 animate-spin" />Preparing…</>
-                                                : <><Download className="size-4" />Export<ChevronRight className="size-3.5 rotate-90" /></>}
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" sideOffset={6} className="w-48">
-                                        <DropdownMenuItem
-                                            onClick={() => void runExport('pdf')}
-                                            className="cursor-pointer"
-                                        >
-                                            <FileText className="size-4" />
-                                            <div className="flex-1">
-                                                <div className="text-sm font-medium">Export as PDF</div>
-                                                <div className="text-2xs text-subtle">Same layout as the preview.</div>
-                                            </div>
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem
-                                            onClick={() => void runExport('excel')}
-                                            className="cursor-pointer"
-                                        >
-                                            <FileSpreadsheet className="size-4" />
-                                            <div className="flex-1">
-                                                <div className="text-sm font-medium">Export as Excel</div>
-                                                <div className="text-2xs text-subtle">Editable .xlsx with filters.</div>
-                                            </div>
-                                        </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
+                                {showExport && (
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="outline"
+                                                className="border-brand-500/40 text-xs font-bold text-brand-strong hover:bg-brand-wash"
+                                                disabled={Boolean(exporting) || !table?.rows.length}
+                                            >
+                                                {exporting === 'pdf' || exporting === 'excel'
+                                                    ? <><Loader2 className="size-3.5 animate-spin" />Preparing…</>
+                                                    : <><Download className="size-4" />Export<ChevronRight className="size-3.5 rotate-90" /></>}
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end" sideOffset={6} className="w-48">
+                                            <DropdownMenuItem
+                                                onClick={() => void runExport('pdf')}
+                                                className="cursor-pointer"
+                                            >
+                                                <FileText className="size-4" />
+                                                <div className="flex-1">
+                                                    <div className="text-sm font-medium">Export as PDF</div>
+                                                    <div className="text-2xs text-subtle">Same layout as the preview.</div>
+                                                </div>
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                onClick={() => void runExport('excel')}
+                                                className="cursor-pointer"
+                                            >
+                                                <FileSpreadsheet className="size-4" />
+                                                <div className="flex-1">
+                                                    <div className="text-sm font-medium">Export as Excel</div>
+                                                    <div className="text-2xs text-subtle">Editable .xlsx with filters.</div>
+                                                </div>
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                )}
                                 <Button
                                     type="button"
                                     size="sm"

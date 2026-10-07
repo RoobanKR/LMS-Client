@@ -3074,6 +3074,10 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
   // Origin label for the wizard's app-bar pill ("Programming Assessment",
   // "Copied from …"). Presentational only — never enters formData or a payload.
   const [seedLabel, setSeedLabel] = useState<string | undefined>(undefined);
+  // Set when the launcher's "Create & add questions" was used: once the wizard
+  // saves the new exercise, open question entry for it instead of the list.
+  // A ref, not state — the wizard calls onClose() before onSave().
+  const addQuestionsAfterCreateRef = useRef(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showAddQuestionModal, setShowAddQuestionModal] = useState(false);
   // Set when a question-authoring surface is opened FROM the Exercise Settings
@@ -3521,6 +3525,7 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
     // or without a seed. Every EDIT path below still goes straight to it.
     setEditingExercise(null); setIsEditing(false);
     setSeed(undefined); setSeedLabel(undefined); setCreatingExercise(true);
+    addQuestionsAfterCreateRef.current = false;
   };
 
   const handleEditExercise = (ex: Exercise) => {
@@ -3592,9 +3597,13 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
     router.push(`${sectionHref('liveDashboard')}?${q}`);
   };
 
-  const handleSaveSettings = async () => {
+  const handleSaveSettings = async (_payload?: any, savedExerciseId?: string) => {
     const prevExerciseId = selectedExerciseForAdd?._id;
     const wasEditing = isEditing;
+    // "Create & add questions" from the launcher → open question entry for
+    // the exercise the wizard just created. Read once and clear.
+    const openQuestionsFor = !wasEditing && addQuestionsAfterCreateRef.current ? savedExerciseId : undefined;
+    addQuestionsAfterCreateRef.current = false;
     const editedExerciseId = editingExercise?._id;
 
     setShowSettingsModal(false);
@@ -3623,6 +3632,13 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
             setFullExerciseForAdd(refreshed);
           }
         }
+      }
+      if (openQuestionsFor) {
+        // The visible page may not hold the new row — fall back to the full list.
+        const created = freshExercises.find(e => e._id === openQuestionsFor)
+          ?? (await fetchProblemSolvingExercises(nodeType, nodeId, activeTab, subcategory)
+            .catch(() => [] as Exercise[])).find(e => e._id === openQuestionsFor);
+        if (created) await handleAddQuestion(created);
       }
     } catch (error) {
       console.error('Error refreshing after save:', error);
@@ -4959,9 +4975,10 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
           // a saved doc is already the shape the wizard hydrates from.
           recentExercises={exercises}
           onClose={() => { setCreatingExercise(false); setSeed(undefined); setSeedLabel(undefined); }}
-          onProceed={(picked, label) => {
+          onProceed={(picked, label, opts) => {
             setSeed(picked);              // null = scratch, object = seeded
             setSeedLabel(label);          // app-bar pill; presentational only
+            addQuestionsAfterCreateRef.current = !!opts?.addQuestions;
             setShowSettingsModal(true);   // launcher hides: seed !== undefined
           }}
         />

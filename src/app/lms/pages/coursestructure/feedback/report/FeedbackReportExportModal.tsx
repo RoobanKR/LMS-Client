@@ -5,6 +5,9 @@
 // ReportExportModal. Opens 90vw × 90vh from the feedback report page. Lets the
 // admin pick columns, filter the responses, switch between Summary and
 // Detailed modes, preview the result, and export it as Print / Excel / PDF.
+// Print / Preview hands the filtered responses (or the question statistics)
+// to the shared print modal — column picker, letterhead, paged preview —
+// via FeedbackPrintPreview; Excel and PDF are this file's own exporters.
 //
 // Every exporter and the preview pull from the same `filteredResponses`
 // pipeline so what the user sees in the preview is exactly what they ship.
@@ -29,6 +32,9 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { format } from "date-fns";
 import { Feedback, FeedbackQuestion } from "../types/feedback";
+import type { FieldRow } from "@/app/lms/pages/businessreports/components/PrintPreviewModal";
+import FeedbackPrintPreview, { sheetFileBase, type FeedbackPrintSpec } from "./FeedbackPrintPreview";
+import { filtersLine } from "../feedbackComponts/feedbackListModel";
 
 const poppins = Poppins({
   subsets: ["latin"],
@@ -47,12 +53,6 @@ const stripHtml = (s: string) => {
 
 const sanitiseFilename = (s: string) =>
   s.replace(/[\/\\:*?"<>|]/g, "").trim().slice(0, 60) || "feedback-report";
-
-const escapeHtml = (v: any) =>
-  String(v ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 type AnyResponse = {
@@ -271,7 +271,17 @@ export default function FeedbackReportExportModal({
   // Filter sub-modal
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  // Page layout (Print / PDF only)
+  // Print / Preview — the sheet is built once per click and kept here.
+  const [printSpec, setPrintSpec] = useState<FeedbackPrintSpec | null>(null);
+  const [printMenuOpen, setPrintMenuOpen] = useState(false);
+  // A closed modal never reopens straight into an old print sheet.
+  useEffect(() => {
+    if (open) return;
+    setPrintSpec(null);
+    setPrintMenuOpen(false);
+  }, [open]);
+
+  // Page layout (PDF only)
   const [pageLayout, setPageLayout] = useState<PageLayoutMode>("flow");
   const [customPerPage, setCustomPerPage] = useState(5);
 
@@ -499,191 +509,6 @@ export default function FeedbackReportExportModal({
 
   // ─── EXPORTERS ──────────────────────────────────────────────────────────
 
-  // ── Print: hidden iframe + window.print, mirrors liveDashboard pattern ──
-  const buildPrintableHtml = (title: string) => {
-    const metaHtml =
-      metaItems.length === 0
-        ? ""
-        : `<table class="meta-table"><thead><tr>${metaItems
-            .map((m) => `<th>${escapeHtml(m.label)}</th>`)
-            .join("")}</tr></thead><tbody><tr>${metaItems
-            .map((m) => `<td>${escapeHtml(m.value)}</td>`)
-            .join("")}</tr></tbody></table>`;
-
-    const summaryHeader = `<tr>${activeSummaryCols
-      .map((c) => `<th>${escapeHtml(c.label)}</th>`)
-      .join("")}</tr>`;
-    const summaryRowsHtml = filteredResponses
-      .map(
-        (r) =>
-          `<tr>${activeSummaryCols
-            .map(
-              (c) =>
-                `<td>${escapeHtml(c.value(r, { feedback: feedback!, ratingScale }))}</td>`
-            )
-            .join("")}</tr>`
-      )
-      .join("");
-
-    let body = "";
-    if (reportMode === "summary") {
-      body = `
-        ${metaHtml}
-        <h2>Response Summary</h2>
-        <table class="report-table">
-          <thead>${summaryHeader}</thead>
-          <tbody>${summaryRowsHtml}</tbody>
-        </table>
-        <h2>Question Statistics</h2>
-        <table class="report-table">
-          <thead><tr>${activeDetailCols
-            .map((c) => `<th>${escapeHtml(c.label)}</th>`)
-            .join("")}</tr></thead>
-          <tbody>${questions
-            .map(
-              (q, i) =>
-                `<tr>${activeDetailCols
-                  .map(
-                    (c) =>
-                      `<td>${escapeHtml(c.value(q, i, questionStats[i] || { avg: 0, answered: 0 }))}</td>`
-                  )
-                  .join("")}</tr>`
-            )
-            .join("")}</tbody>
-        </table>`;
-    } else if (useColumnMatrix) {
-      // ── Detailed · Column matrix ─────────────────────────────────────
-      const questionCols = columnLayout.ordered;
-      const bandCells = columnLayout.groups
-        .map(
-          (g) =>
-            `<th colspan="${g.questions.length}" class="cat-band">${escapeHtml(
-              g.category || "Uncategorized"
-            )}</th>`
-        )
-        .join("");
-      const headerCells = questionCols
-        .map((q) => `<th>${escapeHtml(q.questionText)}</th>`)
-        .join("");
-      const rowsHtml = filteredResponses
-        .map(
-          (r, i) => `
-            <tr>
-              <td>${i + 1}</td>
-              <td>${escapeHtml(r.isAnonymous ? "Anonymous" : r.studentName || "—")}</td>
-              ${questionCols
-                .map(
-                  (q) => `<td>${escapeHtml(answerFor(r, q))}</td>`
-                )
-                .join("")}
-              <td>${
-                typeof r.overallRating === "number" && r.overallRating > 0
-                  ? `★${r.overallRating} `
-                  : ""
-              }${escapeHtml(stripHtml(r.overallReason || ""))}</td>
-            </tr>`
-        )
-        .join("");
-      body = `
-        ${metaHtml}
-        <h2>Detailed Report — Column Matrix</h2>
-        <table class="report-table matrix">
-          <thead>
-            <tr>
-              <th rowspan="2">#</th>
-              <th rowspan="2">Student</th>
-              ${bandCells}
-              <th rowspan="2">Overall</th>
-            </tr>
-            <tr>${headerCells}</tr>
-          </thead>
-          <tbody>${rowsHtml}</tbody>
-        </table>`;
-    } else {
-      const perPage =
-        pageLayout === "one" ? 1 : pageLayout === "custom" ? Math.max(1, customPerPage) : Infinity;
-
-      body = metaHtml + filteredResponses
-        .map((r, i) => {
-          const fields = activeSummaryCols
-            .map(
-              (c) =>
-                `<div class="kv"><span class="k">${escapeHtml(c.label)}</span><span class="v">${escapeHtml(
-                  c.value(r, { feedback: feedback!, ratingScale })
-                )}</span></div>`
-            )
-            .join("");
-          const isLast = i === filteredResponses.length - 1;
-          const forceBreak = !isLast && perPage !== Infinity && (i + 1) % perPage === 0;
-          const extraStyle = forceBreak ? ' style="page-break-after: always;"' : "";
-
-          // Group answers by category for this response
-          const groups = groupAnswersForResponse(r);
-          const detail = groups
-            .map(
-              (g) =>
-                `<h4>${escapeHtml(g.category || "Uncategorized")}</h4>
-                 <table class="report-table">
-                   <thead><tr><th>#</th><th>Question</th><th>Type</th><th>Answer</th><th>Reason</th></tr></thead>
-                   <tbody>${g.rows
-                     .map(
-                       (a, j) =>
-                         `<tr><td>${j + 1}</td><td>${escapeHtml(a.questionText)}</td><td>${escapeHtml(
-                           a.questionType
-                         )}</td><td>${escapeHtml(
-                           a.questionType === "rating" ? a.answer : stripHtml(a.answer?.toString() || "")
-                         )}</td><td>${escapeHtml(stripHtml(a.reason || ""))}</td></tr>`
-                     )
-                     .join("")}</tbody>
-                 </table>`
-            )
-            .join("");
-
-          return `
-            <section class="student-card"${extraStyle}>
-              <h3>Response #${i + 1}</h3>
-              <div class="kv-grid">${fields}</div>
-              ${detail}
-            </section>`;
-        })
-        .join("");
-    }
-
-    return `
-<!doctype html><html><head>
-<meta charset="utf-8" />
-<title>${escapeHtml(title)}</title>
-<style>
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Poppins, sans-serif; color: #111; padding: 24px; }
-  h1 { font-size: 20px; margin: 0 0 4px; }
-  h2 { font-size: 14px; color: #4f46e5; margin: 20px 0 8px; }
-  h3 { font-size: 13px; margin: 24px 0 6px; }
-  h4 { font-size: 12px; color: #4f46e5; margin: 14px 0 6px; }
-  .sub { font-size: 11px; color: #666; margin-bottom: 16px; }
-  .report-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-  .report-table th, .report-table td { border: 1px solid #e5e7eb; padding: 6px 8px; text-align: left; }
-  .report-table th { background: #f9fafb; font-weight: 600; }
-  .meta-table { width: 100%; border-collapse: collapse; font-size: 11px; margin: 6px 0 14px; }
-  .meta-table th, .meta-table td { border: 1px solid #e5e7eb; padding: 6px 8px; text-align: left; }
-  .meta-table th { background: #4f46e5; color: #fff; font-weight: 600; }
-  .report-table.matrix { font-size: 10px; }
-  .report-table.matrix th.cat-band { background: #4f46e5; color: #fff; font-weight: 700; text-align: center; }
-  .report-table.matrix td { max-width: 220px; word-break: break-word; }
-  @page { size: A4 landscape; }
-  .meta-table td { background: #eef2ff; font-weight: 600; color: #111; }
-  .student-card { page-break-inside: avoid; margin: 18px 0 22px; }
-  .kv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 24px; margin: 6px 0 10px; font-size: 11px; }
-  .kv { display: flex; gap: 8px; }
-  .kv .k { color: #555; min-width: 130px; }
-  .kv .v { color: #111; font-weight: 600; }
-  @media print { body { padding: 12px; } }
-</style></head><body>
-<h1>${escapeHtml(feedback?.feedbackTitle || "Feedback Report")}</h1>
-<div class="sub">${escapeHtml(title)} · Generated ${new Date().toLocaleString("en-GB")}</div>
-${body}
-</body></html>`;
-  };
-
   // ── Column-mode helpers ───────────────────────────────────────────────
   // Category-grouped question order used by the "Column" detailed layout:
   // categorized questions first (in category first-appearance order,
@@ -765,45 +590,107 @@ ${body}
     return groups;
   };
 
-  const exportPrint = () => {
-    if (!feedback) return;
-    const html = buildPrintableHtml(
-      reportMode === "summary" ? "Summary Report" : "Detailed Report"
+  // ── Print / Preview sheets ──
+  // Same filtered responses / question stats the preview, Excel and PDF use.
+  // Every column is offered in the print modal's picker; the ones ticked here
+  // (Summary columns, or name + questions + comment in Detailed) start on.
+  const printScope = () =>
+    [
+      feedback?.trainerName && `Trainer: ${feedback.trainerName}`,
+      `${filteredResponses.length} responses`,
+      `Rating scale 1–${ratingScale}`,
+    ]
+      .filter(Boolean)
+      .join("  ·  ");
+  const printFilters = () =>
+    filtersLine(
+      [
+        statusFilter !== "all" ? `Status: ${statusFilter}` : "",
+        resultFilter !== "all" ? `Result: ${resultFilter}` : "",
+        searchQuery.trim() ? `Search: "${searchQuery.trim()}"` : "",
+        ratingFrom || ratingTo ? `Rating ${ratingFrom || "…"}–${ratingTo || "…"}` : "",
+        dateFrom || dateTo ? `Submitted ${dateFrom || "…"} to ${dateTo || "…"}` : "",
+        categoryFilter.size ? `Categories: ${Array.from(categoryFilter).join(", ")}` : "",
+      ].filter(Boolean)
     );
-    const iframe = document.createElement("iframe");
-    Object.assign(iframe.style, {
-      position: "fixed",
-      right: "0",
-      bottom: "0",
-      width: "0",
-      height: "0",
-      border: "0",
-    });
-    document.body.appendChild(iframe);
-    const cleanup = () => setTimeout(() => iframe.remove(), 1000);
-    const doc = iframe.contentDocument || iframe.contentWindow?.document;
-    if (!doc) {
-      iframe.remove();
-      return;
-    }
-    doc.open();
-    doc.write(html);
-    doc.close();
-    const win = iframe.contentWindow;
-    if (!win) {
-      iframe.remove();
-      return;
-    }
-    win.onafterprint = cleanup;
-    setTimeout(() => {
-      try {
-        win.focus();
-        win.print();
-      } catch (e) {
-        console.error("print failed", e);
-      }
-      setTimeout(cleanup, 30000);
-    }, 200);
+
+  const responsesPrintSpec = (): FeedbackPrintSpec | null => {
+    if (!feedback) return null;
+    const fb = feedback;
+    const questionCols = columnLayout.ordered;
+    const fields: FieldRow[] = [
+      ...STATIC_SUMMARY_COLUMNS.map((c) => ({
+        key: c.key,
+        label: c.label,
+        ...(c.key === "name" ? { required: true } : {}),
+        scope: "service" as const,
+        column: c.key === "overallReason" ? "Comments" : c.label,
+        dataKey: c.key,
+      })),
+      ...questionCols.map((q, i) => ({
+        key: `q${i}`,
+        label: `Q${i + 1} · ${q.questionText}`,
+        scope: "service" as const,
+        column: `Q${i + 1}`,
+        dataKey: `q${i}`,
+      })),
+    ];
+    const defaultEnabled =
+      reportMode === "summary"
+        ? new Set(selectedSummary)
+        : new Set(["name", ...questionCols.map((_, i) => `q${i}`), "overallReason"]);
+    const rows = filteredResponses.map((r) => ({
+      ...Object.fromEntries(
+        STATIC_SUMMARY_COLUMNS.map((c) => [c.key, String(c.value(r, { feedback: fb, ratingScale }) ?? "")])
+      ),
+      ...Object.fromEntries(questionCols.map((q, i) => [`q${i}`, String(answerFor(r, q) ?? "")])),
+    }));
+    return {
+      title: `${reportMode === "summary" ? "Response Summary" : "Detailed Responses"} — ${
+        feedback.feedbackTitle || "Feedback"
+      }`,
+      scope: printScope(),
+      filters: printFilters(),
+      fields,
+      defaultEnabled,
+      rows,
+      filenameBase: sheetFileBase(feedback.feedbackTitle, reportMode),
+    };
+  };
+
+  const questionStatsPrintSpec = (): FeedbackPrintSpec | null => {
+    if (!feedback) return null;
+    const fields: FieldRow[] = DETAIL_COLUMNS.map((c) => ({
+      key: c.key,
+      label: c.key === "qno" ? "Question No." : c.label,
+      scope: "service" as const,
+      column: c.key === "qno" ? "Q. No." : c.key === "question" ? "Question Text" : c.label,
+      dataKey: c.key,
+    }));
+    const rows = questions.map((q, i) =>
+      Object.fromEntries(
+        DETAIL_COLUMNS.map((c) => [
+          c.key,
+          c.key === "qno"
+            ? `Q${i + 1}`
+            : String(c.value(q, i, questionStats[i] || { avg: 0, answered: 0 }) ?? ""),
+        ])
+      )
+    );
+    return {
+      title: `Question Statistics — ${feedback.feedbackTitle || "Feedback"}`,
+      scope: printScope(),
+      filters: printFilters(),
+      fields,
+      defaultEnabled: new Set(selectedDetail),
+      rows,
+      filenameBase: sheetFileBase(feedback.feedbackTitle, "question-statistics"),
+    };
+  };
+
+  const openPrint = (build: () => FeedbackPrintSpec | null) => {
+    setPrintMenuOpen(false);
+    setPrintSpec(build());
   };
 
   // ── PDF: jsPDF + autoTable ──
@@ -1334,7 +1221,7 @@ ${body}
       // z above every other portal in the app: LDLayout's NotificationBell
       // popup lives at 100000 (see client/src/app/lms/component/NotificationBell.tsx),
       // and z-[2000] let it punch through this backdrop.
-      className={`${poppins.className} fixed inset-0 z-[100010] bg-black/40 flex items-center justify-center`}
+      className={`${poppins.className} fixed inset-0 z-[100010] bg-black/40 ${printSpec ? "hidden" : "flex"} items-center justify-center`}
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -1382,13 +1269,39 @@ ${body}
           <div className="border border-gray-200 rounded-lg p-3 bg-white mb-4 flex items-center justify-between gap-3 flex-wrap">
             <div className="text-[13px] font-semibold text-gray-900">Export</div>
             <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={exportPrint}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[12px] font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50"
-              >
-                <Printer size={13} /> Print
-              </button>
+              {/* Plain inline menu, not Radix — this modal sits at z-[100010]. */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setPrintMenuOpen((v) => !v)}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[12px] font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50"
+                >
+                  <Printer size={13} /> Print / Preview
+                </button>
+                {printMenuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setPrintMenuOpen(false)} />
+                    <div className="absolute right-0 top-full mt-1 z-20 w-56 bg-white border border-gray-200 rounded-md shadow-lg py-1">
+                      <button
+                        type="button"
+                        onClick={() => openPrint(responsesPrintSpec)}
+                        className="w-full flex flex-col items-start gap-0.5 px-3 py-2 text-left hover:bg-gray-50"
+                      >
+                        <span className="text-[12px] font-medium text-gray-700">Responses</span>
+                        <span className="text-[10.5px] text-gray-500">Pick columns, reorder, print</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openPrint(questionStatsPrintSpec)}
+                        className="w-full flex flex-col items-start gap-0.5 px-3 py-2 text-left hover:bg-gray-50"
+                      >
+                        <span className="text-[12px] font-medium text-gray-700">Question statistics</span>
+                        <span className="text-[10.5px] text-gray-500">Answered count and average per question</span>
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={exportExcel}
@@ -1936,7 +1849,7 @@ ${body}
 
               <div className="md:border-l md:border-gray-100 md:pl-4">
                 <label className="block text-[12.5px] font-semibold text-gray-900 mb-1">
-                  Page Layout (Print/PDF)
+                  Page Layout (PDF)
                 </label>
                 <label className="flex items-center gap-2 text-[12px] text-gray-700 cursor-pointer mb-0.5">
                   <input
@@ -2193,6 +2106,13 @@ ${body}
   );
 
   // Render via portal so the modal escapes any restrictive overflow parents.
+  // The print preview rides along; Print only (Excel / PDF live above).
   if (typeof window === "undefined") return null;
-  return createPortal(modal, document.body);
+  return createPortal(
+    <>
+      {modal}
+      <FeedbackPrintPreview spec={printSpec} onClose={() => setPrintSpec(null)} showExport={false} />
+    </>,
+    document.body
+  );
 }

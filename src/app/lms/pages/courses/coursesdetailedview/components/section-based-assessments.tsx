@@ -22,7 +22,7 @@ interface ExerciseInformation {
   exerciseId: string
   exerciseName: string
   description: string
-  exerciseLevel: "beginner" | "medium" | "hard" | "intermediate" | "advanced"
+  exerciseLevel: "beginner" | "medium" | "hard" | "intermediate" | "advanced" | "expert"
   totalDuration?: number
   totalPoints?: number
   totalQuestions?: number
@@ -285,6 +285,7 @@ function getDifficultyStyle(level: string = "intermediate") {
     case "intermediate":return { color: "#d97706", bg: "#fffbeb", border: "#fde68a", label: "Intermediate" }
     case "hard":        return { color: "#dc2626", bg: "#fef2f2", border: "#fecaca", label: "Hard" }
     case "advanced":    return { color: "#dc2626", bg: "#fef2f2", border: "#fecaca", label: "Advanced" }
+    case "expert":      return { color: "#dc2626", bg: "#fef2f2", border: "#fecaca", label: "Expert" }
     default:            return { color: "#475569", bg: "#f8fafc", border: "#e2e8f0", label: "General" }
   }
 }
@@ -683,7 +684,7 @@ if (activeTest) {
                 <div className="mb-4">
                   <label className="text-xs font-semibold text-gray-700 mb-2 block">Level</label>
                   <div className="flex flex-wrap gap-2">
-                    {["all", "beginner", "intermediate", "advanced", "hard", "medium"].map(level => (
+                    {["all", "beginner", "intermediate", "expert", "advanced", "hard", "medium"].map(level => (
                       <button
                         key={level}
                         onClick={() => setFilterLevel(level)}

@@ -24,6 +24,8 @@ import {
   Download,
   FileText,
   Loader2,
+  Printer,
+  ChevronDown,
 } from 'lucide-react';
 import {
   Breadcrumb,
@@ -43,6 +45,11 @@ import { buildWorkbook, Workbook } from '../workbookShared';
 // the L&D console's Report tab produces the same report (a route file may
 // only export the page).
 import { exportReportExcel, exportReportPdf, GeneratedReportBody } from '../feedbackReportShared';
+// Print / Preview — the shared column-picker + letterhead print modal. The
+// Excel / PDF downloads above are untouched; this only replaces "print".
+import FeedbackPrintPreview, { type FeedbackPrintSpec } from '../FeedbackPrintPreview';
+import { FORM_SHEETS, buildFormSheetSpec, type FormSheetKind } from '../feedbackPrintSheets';
+import { filtersLine } from '../../feedbackComponts/feedbackListModel';
 
 const poppins = Poppins({
   subsets: ['latin'],
@@ -72,6 +79,9 @@ function GenerateReportContent() {
   const router = useRouter();
   const feedbackId = searchParams.get('feedbackId') || '';
   const courseId = searchParams.get('courseId') || '';
+  // The batch view the report was opened from — carried back to the list.
+  const batchQ = searchParams.get('batch');
+  const batchSuffix = batchQ ? `&batch=${encodeURIComponent(batchQ)}` : '';
 
   const [userRole, setUserRole] = useState<string>('');
   useEffect(() => setUserRole(getUserRole()), []);
@@ -107,6 +117,39 @@ function GenerateReportContent() {
     } finally {
       setExporting(null);
     }
+  };
+
+  // Print / Preview — the sheet is built once per click and kept in state.
+  const [printMenuOpen, setPrintMenuOpen] = useState(false);
+  const [printSpec, setPrintSpec] = useState<FeedbackPrintSpec | null>(null);
+
+  const trainerLabel =
+    rf.trainerSel === 'all'
+      ? rf.trainerOptions.length > 1
+        ? `All trainers (${rf.trainerOptions.length})`
+        : activeFeedback?.trainerName || 'All trainers'
+      : rf.trainerOptions.find((o) => o.feedbackId === rf.trainerSel)?.trainerName || 'Trainer';
+  const filtersText = filtersLine(
+    [
+      rf.isDegree && rf.secSel !== 'all' ? `Section ${rf.secSel}` : '',
+      rf.isDegree && rf.semSel !== 'all' ? `Sem ${rf.semSel}` : '',
+    ].filter(Boolean)
+  );
+
+  const openPrint = (kind: FormSheetKind) => {
+    setPrintMenuOpen(false);
+    if (!activeFeedback || !wb) return;
+    setPrintSpec(
+      buildFormSheetSpec(kind, {
+        feedback: activeFeedback,
+        wb,
+        audience,
+        notSubmitted,
+        batchLabel: rf.batchSel,
+        trainerLabel,
+        filtersText,
+      })
+    );
   };
 
   const adminRole =
@@ -148,7 +191,7 @@ function GenerateReportContent() {
               <BreadcrumbLink
                 href={
                   courseId
-                    ? `/lms/pages/coursestructure/feedback?courseId=${courseId}`
+                    ? `/lms/pages/coursestructure/feedback?courseId=${courseId}${batchSuffix}`
                     : '/lms/pages/coursestructure'
                 }
                 className="flex items-center gap-1 text-[11px] text-blue-600 hover:text-blue-800 hover:underline dark:text-blue-400 dark:hover:text-blue-300"
@@ -218,7 +261,7 @@ function GenerateReportContent() {
               router.push(
                 `/lms/pages/coursestructure/feedback/report?feedbackId=${
                   trainerSel === 'all' ? feedbackId : trainerSel
-                }${courseId ? `&courseId=${courseId}` : ''}`
+                }${courseId ? `&courseId=${courseId}` : ''}${batchSuffix}`
               )
             }
             disabled={!feedback}
@@ -227,6 +270,35 @@ function GenerateReportContent() {
             <BarChart3 className="h-3.5 w-3.5" />
             Report Analysis
           </button>
+          <div className="relative">
+            <button
+              onClick={() => setPrintMenuOpen((v) => !v)}
+              disabled={!wb || !activeFeedback}
+              title="Pick a sheet, choose its columns, preview and print"
+              className="inline-flex items-center gap-1.5 h-8 px-3.5 text-[12px] font-semibold border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+            >
+              <Printer className="h-3.5 w-3.5" />
+              Print / Preview
+              <ChevronDown className="h-3.5 w-3.5" />
+            </button>
+            {printMenuOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setPrintMenuOpen(false)} />
+                <div className="absolute right-0 top-full mt-1 z-50 w-64 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg py-1">
+                  {FORM_SHEETS.map((sheet) => (
+                    <button
+                      key={sheet.kind}
+                      onClick={() => openPrint(sheet.kind)}
+                      className="w-full flex flex-col items-start gap-0.5 px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-800"
+                    >
+                      <span className="text-[12px] font-medium text-gray-700 dark:text-gray-200">{sheet.label}</span>
+                      <span className="text-[10.5px] text-gray-500 dark:text-gray-400">{sheet.hint}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
           <div className="relative">
             <button
               onClick={() => setExportOpen((v) => !v)}
@@ -296,6 +368,9 @@ function GenerateReportContent() {
           />
         )}
       </div>
+
+      {/* Print / Preview — Print only; the Export menu keeps the Excel / PDF downloads. */}
+      <FeedbackPrintPreview spec={printSpec} onClose={() => setPrintSpec(null)} showExport={false} />
     </motion.div>
   );
 
