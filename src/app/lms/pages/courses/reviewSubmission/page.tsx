@@ -4939,7 +4939,7 @@ builtins.input = _async_input
                           ? 'video/webm'
                           : assessmentVideoUrl.includes('.mp4')
                           ? 'video/mp4'
-                          : 'video/webm'  /* Cloudinary recordings from hook are always webm */
+                          : 'video/webm'  /* browser recordings from the hook are WebM */
                       }
                     />
                     {/* Fallback for browsers that need the other type */}

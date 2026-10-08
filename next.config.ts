@@ -4,6 +4,11 @@ const nextConfig = {
     domains: ['images.unsplash.com'], // Add your image domains here
     remotePatterns: [
       {
+        protocol: 'http',
+        hostname: '187.126.118.102',
+        port: '5533',
+      },
+      {
         protocol: 'https',
         hostname: '**', // Allow all HTTPS domains (be careful in production)
       },
@@ -22,7 +27,7 @@ const nextConfig = {
   // Cross-origin isolation enables SharedArrayBuffer, which the interactive
   // Python runner (Pyodide in a Web Worker) uses to let input() type directly in
   // the terminal. COEP is set to "credentialless" (the lenient mode) so existing
-  // cross-origin assets (Cloudinary images, etc.) keep loading. If this ever
+  // cross-origin assets keep loading. If this ever
   // interferes with an embed, removing these two headers degrades the interactive
   // runner gracefully to a window.prompt() dialog — nothing else is affected.
   async headers() {

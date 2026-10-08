@@ -30,14 +30,11 @@ import { TestResultView, type SubmitStatus, type TestResultCase, type TestResult
 import { buildAiTestResultState } from '@/app/lms/pages/courses/coursesdetailedview/components/lib/aiTestResult';
 import { firstSampleInput } from '@/app/lms/pages/courses/coursesdetailedview/components/lib/sampleInput';
 import { API_ORIGIN } from '@/lib/apiBase'
+import { uploadRecordingToVps } from '@/lib/uploadRecording'
 
 // Piston API configuration
 const PISTON_API_URL = process.env.NEXT_PUBLIC_PISTON_URL || "https://emkc.org/api/v2/piston/execute"
 
-// Cloudinary configuration for recording
-const CLOUDINARY_CLOUD_NAME = "dusxfgvhi";
-const CLOUDINARY_UPLOAD_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`;
-const CLOUDINARY_PRESET = "dusxfgvhi";
 
 const MonacoEditor = dynamic(
     () => import('@monaco-editor/react'),
@@ -2001,7 +1998,7 @@ function solve() {
                 setCameraStream(null);
                 setScreenStream(null);
 
-                // Save recording to Cloudinary
+                // Save recording to VPS storage
                 await saveRecording();
             };
 
@@ -2095,7 +2092,7 @@ function solve() {
     const saveRecording = async () => {
         try {
             setIsSaving(true);
-            addTerminalLog('system', '💾 Saving recording to Cloudinary...');
+            addTerminalLog('system', '💾 Saving recording to VPS storage...');
 
             if (recordedChunksRef.current.length === 0) {
                 throw new Error('No recording data available');
@@ -2109,34 +2106,9 @@ function solve() {
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
             const filename = `you_do_assessment_${courseId || 'unknown'}_${studentId}_${timestamp}.webm`;
 
-            const formData = new FormData();
-            formData.append('file', blob, filename);
-            formData.append('upload_preset', CLOUDINARY_PRESET);
-            formData.append('cloud_name', CLOUDINARY_CLOUD_NAME);
-            formData.append('folder', 'you_do_assessments');
-            formData.append('tags', `you_do,assessment,course:${courseId},student:${studentId}`);
-            formData.append('context', JSON.stringify({
-                course_id: courseId,
-                student_id: studentId,
-                exercise_id: exercise?._id,
-                question_id: currentQuestion?._id,
-                timestamp: new Date().toISOString(),
-                category: 'You_Do',
-                duration: Math.floor(blob.size / 2500000)
-            }));
+            const recordingUrl = await uploadRecordingToVps(blob, filename, 'assessment');
 
-            const response = await fetch(CLOUDINARY_UPLOAD_URL, {
-                method: 'POST',
-                body: formData
-            });
-
-            if (!response.ok) {
-                throw new Error(`Upload failed: ${response.status}`);
-            }
-
-            const data = await response.json();
-
-            addTerminalLog('success', `✅ Recording saved: ${data.secure_url}`);
+            addTerminalLog('success', `✅ Recording saved: ${recordingUrl}`);
             showToast({
                 type: 'success',
                 title: 'Recording Saved',
@@ -2158,7 +2130,7 @@ function solve() {
                         exerciseId: exercise?._id,
                         questionId: currentQuestion?._id,
                         studentId,
-                        recordingUrl: data.secure_url,
+                        recordingUrl,
                         duration: Math.floor(blob.size / 2500000),
                         timestamp: new Date().toISOString(),
                         category: 'You_Do'
@@ -2181,7 +2153,7 @@ function solve() {
             showToast({
                 type: 'error',
                 title: 'Upload Failed',
-                message: 'Could not upload recording to Cloudinary',
+                message: 'Could not upload recording to VPS storage',
                 duration: 5000
             });
         } finally {

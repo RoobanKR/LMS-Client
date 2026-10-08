@@ -7,7 +7,7 @@
 // re-implements it.
 //
 // Assets (logos, signature, seal, watermark) are sent as multipart, because
-// the server stores them in Cloudinary and returns URLs on the saved document.
+// the server stores them on the VPS and returns URLs on the saved document.
 
 import { http as apiClient } from "@/lib/http";
 

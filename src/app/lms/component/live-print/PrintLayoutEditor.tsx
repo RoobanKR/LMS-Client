@@ -4,7 +4,7 @@
 //
 // Uses the same field vocabulary as Dynamic Field Settings ▸ Print Setting
 // (header title / description / logos / footer / watermark / page & margins /
-// typography), but writes into a local draft — no Cloudinary upload, no
+// typography), but writes into a local draft — no server upload, no
 // database write. Images picked here become data URLs that ride inside the
 // draft and get inlined into the printed sheet.
 //

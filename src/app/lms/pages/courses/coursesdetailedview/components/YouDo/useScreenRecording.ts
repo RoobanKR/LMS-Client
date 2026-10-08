@@ -4,10 +4,7 @@ import { getToken } from "@/lib/session";
 import { useRef, useState, useCallback } from 'react';
 import { setSharedScreenStream, markScreenCaptureStarting, clearScreenCaptureInProgress } from './screenStreamStore';
 import { API_ORIGIN } from '@/lib/apiBase'
-
-const CLOUDINARY_CLOUD_NAME = 'dusxfgvhi';
-const CLOUDINARY_UPLOAD_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`;
-const CLOUDINARY_PRESET = 'dusxfgvhi';
+import { uploadRecordingToVps } from '@/lib/uploadRecording';
 const BACKEND_API_URL = `${API_ORIGIN}`;
 
 export interface RecordingOptions {
@@ -31,7 +28,7 @@ export interface RecordingOptions {
  *  2. withCamera: true                    → screen + camera PiP composite
  *  3. neither                             → screen only
  *
- * All modes upload to Cloudinary then POST the URL to /assessment/recording
+ * All modes upload to VPS storage then POST the URL to /assessment/recording
  * so GET /exercise/status can return it to reviewSubmission.
  */
 export function useScreenRecording() {
@@ -59,7 +56,7 @@ export function useScreenRecording() {
     }
   }, []);
 
-  // ── Upload blob → Cloudinary → persist URL to backend ────────────────────
+  // ── Upload blob → VPS storage → persist URL to backend ───────────────────
   const saveRecording = useCallback(async (blob: Blob, opts: RecordingOptions): Promise<string | null> => {
     if (blob.size === 0) return null;
     setIsSaving(true);
@@ -68,18 +65,7 @@ export function useScreenRecording() {
       const prefix    = opts.cameraOnly ? 'face' : 'screen';
       const filename  = `youdo_${prefix}_${opts.courseId || 'c'}_${opts.studentId || 's'}_${timestamp}.webm`;
 
-      const fd = new FormData();
-      fd.append('file', blob, filename);
-      fd.append('upload_preset', CLOUDINARY_PRESET);
-      fd.append('cloud_name',   CLOUDINARY_CLOUD_NAME);
-      fd.append('folder',       'you_do_assessments');
-      fd.append('tags',         `you_do,assessment,course:${opts.courseId},student:${opts.studentId}`);
-
-      const res = await fetch(CLOUDINARY_UPLOAD_URL, { method: 'POST', body: fd });
-      if (!res.ok) throw new Error(`Cloudinary ${res.status}`);
-
-      const data = await res.json();
-      const url: string = data.secure_url;
+      const url = await uploadRecordingToVps(blob, filename, 'assessment');
       setRecordingUrl(url);
 
       // Persist URL in backend so reviewSubmission can retrieve it via GET /exercise/status

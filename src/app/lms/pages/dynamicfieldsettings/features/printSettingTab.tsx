@@ -1085,7 +1085,7 @@ export default function PrintSettingTab() {
   /**
    * Blob URLs for images chosen but not yet uploaded.
    *
-   * Without these the preview can only show what Cloudinary already has, so
+   * Without these the preview can only show the previously saved image, so
    * every logo looks missing until you save — which is exactly the wrong
    * moment to find out it was the wrong file. These make the picked file
    * visible immediately, in the preview AND in the print test.
@@ -1867,7 +1867,7 @@ export default function PrintSettingTab() {
                       ) : null}
                     </div>
                     <p className="ps-preview-note">
-                      Stored in Cloudinary. A newly chosen image reaches the preview
+                      Stored on the VPS. A newly chosen image reaches the preview
                       only after saving.
                     </p>
                   </div>

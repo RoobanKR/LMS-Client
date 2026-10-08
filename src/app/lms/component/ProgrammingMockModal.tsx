@@ -1,5 +1,6 @@
 "use client";
 import { getToken } from "@/lib/session";
+import { uploadRecordingToVps } from '@/lib/uploadRecording';
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import axios from 'axios';
@@ -335,10 +336,6 @@ const SubmissionSuccessModal = ({
   );
 };
 
-// --- CLOUDINARY CONFIG ---
-const CLOUDINARY_CLOUD_NAME = "dusxfgvhi";
-const CLOUDINARY_UPLOAD_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`;
-const CLOUDINARY_PRESET = "dusxfgvhi";
 
 const ProgrammingMockModal: React.FC<ProgrammingMockModalProps> = ({
   onBack,
@@ -1774,20 +1771,7 @@ const [showQuestionSidebar, setShowQuestionSidebar] = useState(true);
       const recordingType = activeSecurity.screenRecordingEnabled ? 'screen' : 'camera';
       const filename = `${recordingType}_recording_${courseId}_${exerciseId}_${timestamp}.webm`;
 
-      const formData = new FormData();
-      formData.append('file', blob, filename);
-      formData.append('upload_preset', CLOUDINARY_PRESET);
-      formData.append('cloud_name', CLOUDINARY_CLOUD_NAME);
-      formData.append('folder', 'assessments');
-
-      const response = await fetch(CLOUDINARY_UPLOAD_URL, {
-        method: 'POST',
-        body: formData
-      });
-
-      if (!response.ok) {
-        throw new Error(`Upload failed with status: ${response.status}`);
-      }
+      await uploadRecordingToVps(blob, filename, 'mock');
 
       recordedChunksRef.current = [];
       return true;

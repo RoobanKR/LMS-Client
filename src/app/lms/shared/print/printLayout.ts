@@ -419,7 +419,7 @@ export function printSheetsWithLayout(
    * print() paints whatever is decoded AT THAT MOMENT, so calling it straight
    * after close() prints empty boxes wherever a logo was still in flight —
    * which is every remote image on a first run, since none of them are cached
-   * yet. Blob URLs from a just-picked file resolve instantly; Cloudinary ones
+   * yet. Blob URLs from a just-picked file resolve instantly; remote URLs
    * do not.
    */
   const images = Array.from(doc.images);
