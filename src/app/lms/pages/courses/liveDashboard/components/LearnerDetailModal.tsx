@@ -292,6 +292,8 @@ export interface LearnerDetailModalProps {
    *  a specific question if the parent supports it; this modal always passes
    *  the questionId when calling for a per-question Review. */
   onOpenReview?: (studentId: string, questionId?: string) => void;
+  /** False for a non-graded exercise: no marks anywhere in the modal. */
+  graded?: boolean;
 }
 
 const initialsOf = (name: string): string => {
@@ -306,7 +308,7 @@ const initialsOf = (name: string): string => {
 // ── Component ──────────────────────────────────────────────────────────────
 export default function LearnerDetailModal({
   open, student, courseData, courseId, exerciseId, assessmentName, chips,
-  startDate, onClose, onOpenReview,
+  startDate, onClose, onOpenReview, graded = true,
 }: LearnerDetailModalProps) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   // Focused-question ring for the click-to-scroll interaction on the grid.
@@ -571,13 +573,15 @@ export default function LearnerDetailModal({
           </div>
 
           {/* Overall metric strip — Total Marks · Submitted · Test Cases · Evaluated */}
-          <div className="mt-2.5 grid gap-3 grid-cols-2 md:grid-cols-4">
-            <MetricCell
-              label="Total Marks"
-              value={`${roundMark(totals.scoredSum)} / ${totals.totalSum}`}
-              accent="text-amber-600"
-              Icon={Trophy}
-            />
+          <div className={`mt-2.5 grid gap-3 grid-cols-2 ${graded ? "md:grid-cols-4" : "md:grid-cols-3"}`}>
+            {graded && (
+              <MetricCell
+                label="Total Marks"
+                value={`${roundMark(totals.scoredSum)} / ${totals.totalSum}`}
+                accent="text-amber-600"
+                Icon={Trophy}
+              />
+            )}
             <MetricCell
               label="Submitted"
               value={`${totals.submittedCount} / ${cards.length} ${cards.length === 1 ? "Question" : "Questions"}`}
@@ -613,6 +617,7 @@ export default function LearnerDetailModal({
                 onToggle={() => toggleExpand(c.questionId)}
                 onOpenReview={onOpenReview ? () => onOpenReview(student.id, c.questionId) : undefined}
                 studentName={student.studentName}
+                graded={graded}
               />
             ))}
             {cards.length === 0 && (
@@ -650,13 +655,14 @@ function MetricCell({
 }
 
 function QuestionCardRow({
-  card, expanded, onToggle, onOpenReview, studentName,
+  card, expanded, onToggle, onOpenReview, studentName, graded = true,
 }: {
   card: QuestionCard;
   expanded: boolean;
   onToggle: () => void;
   onOpenReview?: () => void;
   studentName: string;
+  graded?: boolean;
 }) {
   const style = STATE_STYLE[card.cardState];
   return (
@@ -685,10 +691,12 @@ function QuestionCardRow({
           {/* Compact score line for phones / tablets — the full metadata
               strip on the right only fits from lg up. */}
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11.5px] font-semibold text-gray-700 tabular-nums lg:hidden">
-            <span className="inline-flex items-center gap-1">
-              <Trophy size={11} className="text-amber-500" />
-              {card.scoreLabel} Marks
-            </span>
+            {graded && (
+              <span className="inline-flex items-center gap-1">
+                <Trophy size={11} className="text-amber-500" />
+                {card.scoreLabel} Marks
+              </span>
+            )}
             {card.hasTestCases && (
               <span className="inline-flex items-center gap-1">
                 <Code2 size={11} className={style.chipText} />
@@ -718,10 +726,12 @@ function QuestionCardRow({
               {card.evaluationLabel}
             </span>
           )}
-          <span className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-gray-800 tabular-nums">
-            <Trophy size={12} className="text-amber-500" />
-            {card.scoreLabel} Marks
-          </span>
+          {graded && (
+            <span className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-gray-800 tabular-nums">
+              <Trophy size={12} className="text-amber-500" />
+              {card.scoreLabel} Marks
+            </span>
+          )}
           {card.hasTestCases ? (
             <span className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-gray-800 tabular-nums">
               <Code2 size={12} className={style.chipText.replace("text-", "text-")} />
@@ -785,8 +795,12 @@ function QuestionCardRow({
                       <dd className="text-gray-800 font-medium">{card.evaluationLabel}</dd>
                     </>
                   )}
-                  <dt className="text-gray-500">Marks</dt>
-                  <dd className="text-gray-800 font-semibold tabular-nums">{card.scoreLabel}</dd>
+                  {graded && (
+                    <>
+                      <dt className="text-gray-500">Marks</dt>
+                      <dd className="text-gray-800 font-semibold tabular-nums">{card.scoreLabel}</dd>
+                    </>
+                  )}
                   {card.hasTestCases ? (
                     <>
                       <dt className="text-gray-500">Test Cases</dt>

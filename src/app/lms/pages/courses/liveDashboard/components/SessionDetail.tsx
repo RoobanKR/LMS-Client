@@ -281,6 +281,10 @@ export default function SessionDetail() {
   }, [studentsWithMarks]);
 
   const exercise = useMemo(() => findExercise(courseData, assessmentId), [courseData, assessmentId]);
+  // A non-graded assignment / assessment has no marks to show — the table,
+  // Detailed View and report leave out Marks, Percentage and Scale. Unknown
+  // (exercise not resolved yet, or older records without the flag) = graded.
+  const graded = (exercise as any)?.isGraded !== false;
 
   // Rerun needs the pedagogy CATEGORY + the subcategory MAP KEY, not the
   // human label the URL carries (`subcategory` here is "Assesment", the map
@@ -539,6 +543,7 @@ export default function SessionDetail() {
           <div className="p-8 text-center text-[13px] text-red-500">{anyError}</div>
         ) : (
           <StudentsResultTable
+            graded={graded}
             students={studentsWithMarks}
             assessmentId={assessmentId}
             assessmentName={assessmentName || "Session"}
@@ -618,6 +623,7 @@ export default function SessionDetail() {
           payload the report already fetched, so no extra network round-trip
           is needed to open it. */}
       <LearnerDetailModal
+        graded={graded}
         open={!!detailStudent}
         student={detailStudent}
         courseData={courseData}
@@ -665,6 +671,7 @@ export default function SessionDetail() {
           same students-with-marks list the underlying table renders so the
           modal's filters and exports agree with the on-screen data. */}
       <ReportGenerateModal
+        graded={graded}
         open={reportOpen}
         onClose={() => setReportOpen(false)}
         students={studentsWithMarks}

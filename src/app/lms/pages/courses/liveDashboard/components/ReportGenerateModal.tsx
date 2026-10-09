@@ -185,11 +185,14 @@ export interface ReportGenerateModalProps {
   courseId: string;
   exerciseId: string;
   assessmentName: string;
+  /** False for a non-graded exercise: no marks, percentage or scale in the
+   *  filters, the preview or the Excel / PDF. Defaults to true. */
+  graded?: boolean;
 }
 
 // ── Main component ─────────────────────────────────────────────────────────
 export default function ReportGenerateModal(props: ReportGenerateModalProps) {
-  const { open, onClose, students, courseData, courseId, exerciseId, assessmentName } = props;
+  const { open, onClose, students, courseData, courseId, exerciseId, assessmentName, graded = true } = props;
 
   // Filter state
   const [studentsMode, setStudentsMode] = useState<StudentsMode>("all");
@@ -538,7 +541,7 @@ export default function ReportGenerateModal(props: ReportGenerateModalProps) {
     const summaryHeader = [
       "#", "Student Name", "Register Number", "Email",
       "Questions Attempted",
-      "Marks Obtained", "Total Marks", "Scale",
+      ...(graded ? ["Marks Obtained", "Total Marks", "Scale"] : []),
     ];
     const summaryBody = payload.map((r, i) => [
       i + 1,
@@ -546,9 +549,7 @@ export default function ReportGenerateModal(props: ReportGenerateModalProps) {
       r.student.studentDisplayId || "—",
       r.student.email || "—",
       r.totalQuestions > 0 ? `${r.attempted} / ${r.totalQuestions}` : "—",
-      r.scored ?? "—",
-      r.totalMarks || "—",
-      r.scaleLabel || "—",
+      ...(graded ? [r.scored ?? "—", r.totalMarks || "—", r.scaleLabel || "—"] : []),
     ]);
     const summarySheet = XLSX.utils.aoa_to_sheet([
       ...headerRows,
@@ -584,9 +585,11 @@ export default function ReportGenerateModal(props: ReportGenerateModalProps) {
             "Question Type": q.type,
             "Submission Status": q.submissionStatusLabel,
             "Test Cases": q.testCasesLabel,
-            "Marks Scored": q.scoredMark == null ? "—" : q.scoredMark,
-            "Total Marks": q.totalMark,
-            "Percentage": q.percentage == null ? "—" : `${q.percentage}%`,
+            ...(graded ? {
+              "Marks Scored": q.scoredMark == null ? "—" : q.scoredMark,
+              "Total Marks": q.totalMark,
+              "Percentage": q.percentage == null ? "—" : `${q.percentage}%`,
+            } : {}),
             "Evaluation Status": q.evaluationLabel,
             "Language": q.language ?? "—",
             "Time Taken": fmtDuration(q.timeTakenSeconds),
@@ -621,7 +624,7 @@ export default function ReportGenerateModal(props: ReportGenerateModalProps) {
     }
 
     XLSX.writeFile(workbook, `${safeFileName(assessmentName || "Assessment Report")}.xlsx`);
-  }, [canExport, buildExportPayload, buildReportMetadata, detailedView, assessmentName]);
+  }, [canExport, buildExportPayload, buildReportMetadata, detailedView, assessmentName, graded]);
 
   const handleExportPdf = useCallback(async () => {
     if (!canExport) return;
@@ -666,15 +669,14 @@ export default function ReportGenerateModal(props: ReportGenerateModalProps) {
     autoTable(doc, {
       startY: summaryStartY,
       head: [[
-        "#", "Student", "Reg. No.", "Attempted", "Marks", "Scale",
+        "#", "Student", "Reg. No.", "Attempted", ...(graded ? ["Marks", "Scale"] : []),
       ]],
       body: payload.map((r, i) => [
         i + 1,
         r.student.studentName || "—",
         r.student.studentDisplayId || "—",
         r.totalQuestions > 0 ? `${r.attempted} / ${r.totalQuestions}` : "—",
-        r.scored == null ? "—" : `${r.scored} / ${r.totalMarks}`,
-        r.scaleLabel || "—",
+        ...(graded ? [r.scored == null ? "—" : `${r.scored} / ${r.totalMarks}`, r.scaleLabel || "—"] : []),
       ]),
       styles: { fontSize: 8.5, cellPadding: 2.5, overflow: "linebreak" },
       headStyles: { fillColor: [234, 88, 12], textColor: [255, 255, 255], fontStyle: "bold" },
@@ -723,9 +725,11 @@ export default function ReportGenerateModal(props: ReportGenerateModalProps) {
             ? `Attempted ${r.attempted} / ${r.totalQuestions}`
             : "Attempted —",
           r.completionPercent == null ? "Completion —" : `Completion ${r.completionPercent}%`,
-          r.scored == null ? "Marks — / —" : `Marks ${r.scored} / ${r.totalMarks}`,
-          r.percentage == null ? "Score —" : `Score ${r.percentage}%`,
-          r.scaleLabel || "—",
+          ...(graded ? [
+            r.scored == null ? "Marks — / —" : `Marks ${r.scored} / ${r.totalMarks}`,
+            r.percentage == null ? "Score —" : `Score ${r.percentage}%`,
+            r.scaleLabel || "—",
+          ] : []),
         ].join("  ·  ");
         doc.text(scoreLine, margin, cursorY + 4);
         cursorY += 10;
@@ -733,29 +737,35 @@ export default function ReportGenerateModal(props: ReportGenerateModalProps) {
         // Question detail table
         autoTable(doc, {
           startY: cursorY,
-          head: [[
-            "#", "Question Title", "Type", "Status", "Marks", "Test Cases",
-            "Percentage", "Evaluation",
-          ]],
-          body: r.questions.map(q => [
-            q.index,
-            q.title,
-            q.type,
-            q.submissionStatusLabel,
-            q.scoredMark == null ? "—" : `${q.scoredMark} / ${q.totalMark}`,
-            q.testCasesLabel,
-            q.percentage == null ? "—" : `${q.percentage}%`,
-            q.evaluationLabel,
-          ]),
+          head: [graded
+            ? ["#", "Question Title", "Type", "Status", "Marks", "Test Cases", "Percentage", "Evaluation"]
+            : ["#", "Question Title", "Type", "Status", "Test Cases", "Evaluation"]],
+          body: r.questions.map(q => graded
+            ? [
+              q.index,
+              q.title,
+              q.type,
+              q.submissionStatusLabel,
+              q.scoredMark == null ? "—" : `${q.scoredMark} / ${q.totalMark}`,
+              q.testCasesLabel,
+              q.percentage == null ? "—" : `${q.percentage}%`,
+              q.evaluationLabel,
+            ]
+            : [q.index, q.title, q.type, q.submissionStatusLabel, q.testCasesLabel, q.evaluationLabel]),
           styles: { fontSize: 8, cellPadding: 2.2, overflow: "linebreak" },
           headStyles: { fillColor: [234, 88, 12], textColor: [255, 255, 255], fontStyle: "bold" },
           alternateRowStyles: { fillColor: [255, 247, 237] },
           margin: { left: margin, right: margin },
-          columnStyles: {
-            0: { cellWidth: 8 }, 1: { cellWidth: 78 }, 2: { cellWidth: 18 },
-            3: { cellWidth: 22 }, 4: { cellWidth: 22 }, 5: { cellWidth: 26 },
-            6: { cellWidth: 20 }, 7: { cellWidth: 32 },
-          },
+          columnStyles: graded
+            ? {
+              0: { cellWidth: 8 }, 1: { cellWidth: 78 }, 2: { cellWidth: 18 },
+              3: { cellWidth: 22 }, 4: { cellWidth: 22 }, 5: { cellWidth: 26 },
+              6: { cellWidth: 20 }, 7: { cellWidth: 32 },
+            }
+            : {
+              0: { cellWidth: 8 }, 1: { cellWidth: 100 }, 2: { cellWidth: 22 },
+              3: { cellWidth: 28 }, 4: { cellWidth: 32 }, 5: { cellWidth: 36 },
+            },
           didDrawPage: () => {
             // Nothing extra: page numbers are stamped in one pass at the end.
           },
@@ -779,7 +789,7 @@ export default function ReportGenerateModal(props: ReportGenerateModalProps) {
     }
 
     doc.save(`${safeFileName(assessmentName || "Assessment Report")}.pdf`);
-  }, [canExport, buildExportPayload, buildReportMetadata, assessmentName, detailedView]);
+  }, [canExport, buildExportPayload, buildReportMetadata, assessmentName, detailedView, graded]);
 
   if (!open) return null;
 
@@ -956,6 +966,9 @@ export default function ReportGenerateModal(props: ReportGenerateModalProps) {
               })}
             </DropdownShell>
 
+            {/* Scale and Percentage Range filter on marks — a non-graded
+                exercise has none, so both are left out. */}
+            {graded && (<>
             {/* Scale — multi-select from actual grade bands */}
             <DropdownShell
               width={190}
@@ -1081,6 +1094,7 @@ export default function ReportGenerateModal(props: ReportGenerateModalProps) {
                 </div>
               )}
             </DropdownShell>
+            </>)}
 
             {/* Test Status */}
             <DropdownShell
@@ -1182,8 +1196,10 @@ export default function ReportGenerateModal(props: ReportGenerateModalProps) {
                   <th className="border-b border-gray-200 px-2.5 py-1.5 text-left text-[11px] font-semibold text-gray-500 min-w-[220px]">Student</th>
                   <th className="border-b border-gray-200 px-2.5 py-1.5 text-left text-[11px] font-semibold text-gray-500">Reg. No.</th>
                   <th className="border-b border-gray-200 px-2.5 py-1.5 text-center text-[11px] font-semibold text-gray-500">Attempted</th>
+                  {graded && (<>
                   <th className="border-b border-gray-200 px-2.5 py-1.5 text-right text-[11px] font-semibold text-gray-500">Marks</th>
                   <th className="border-b border-gray-200 px-2.5 py-1.5 text-left text-[11px] font-semibold text-gray-500">Scale</th>
+                  </>)}
                   {detailedView && (
                     <th className="w-9 border-b border-gray-200 px-2.5 py-1.5 text-center text-[11px] font-semibold text-gray-500">Action</th>
                   )}
@@ -1192,7 +1208,7 @@ export default function ReportGenerateModal(props: ReportGenerateModalProps) {
               <tbody>
                 {filteredStudents.length === 0 ? (
                   <tr>
-                    <td colSpan={detailedView ? 8 : 7} className="px-3 py-10 text-center text-[13px] text-gray-400">
+                    <td colSpan={(graded ? 7 : 5) + (detailedView ? 1 : 0)} className="px-3 py-10 text-center text-[13px] text-gray-400">
                       No learners match the current filters.
                     </td>
                   </tr>
@@ -1244,6 +1260,7 @@ export default function ReportGenerateModal(props: ReportGenerateModalProps) {
                             ? `${row.attempted} / ${row.totalQuestions}`
                             : <span className="text-gray-400">—</span>}
                         </td>
+                        {graded && (<>
                         <td className="px-2.5 py-1 text-right text-[12.5px] font-semibold text-gray-800 tabular-nums">
                           {row.scored == null ? "—" : `${row.scored} / ${row.totalMarks}`}
                         </td>
@@ -1257,6 +1274,7 @@ export default function ReportGenerateModal(props: ReportGenerateModalProps) {
                             <span className="text-[12px] text-gray-400">—</span>
                           )}
                         </td>
+                        </>)}
                         {detailedView && (
                           <td className="px-2.5 py-1 text-center">
                             <button
@@ -1274,7 +1292,7 @@ export default function ReportGenerateModal(props: ReportGenerateModalProps) {
                       </tr>
                       {detailedView && expanded && (
                         <tr className="bg-slate-50/60">
-                          <td colSpan={8} className="border-b border-gray-100 px-3 py-2">
+                          <td colSpan={graded ? 8 : 6} className="border-b border-gray-100 px-3 py-2">
                             <div className="mb-1.5 flex items-center justify-between">
                               <div className="text-[12px] font-semibold text-gray-800">
                                 Question Details — {s.studentName}
@@ -1296,9 +1314,9 @@ export default function ReportGenerateModal(props: ReportGenerateModalProps) {
                                       <th className="border-b border-gray-200 px-2 py-1 text-left">Question Title</th>
                                       <th className="border-b border-gray-200 px-2 py-1 text-left">Type</th>
                                       <th className="border-b border-gray-200 px-2 py-1 text-left">Submission</th>
-                                      <th className="border-b border-gray-200 px-2 py-1 text-right">Marks</th>
+                                      {graded && <th className="border-b border-gray-200 px-2 py-1 text-right">Marks</th>}
                                       <th className="border-b border-gray-200 px-2 py-1 text-left">Test Cases</th>
-                                      <th className="border-b border-gray-200 px-2 py-1 text-right">%</th>
+                                      {graded && <th className="border-b border-gray-200 px-2 py-1 text-right">%</th>}
                                       <th className="border-b border-gray-200 px-2 py-1 text-left">Evaluation</th>
                                       <th className="border-b border-gray-200 px-2 py-1 text-right">Time</th>
                                       <th className="border-b border-gray-200 px-2 py-1 text-left">Submitted At</th>
@@ -1313,13 +1331,17 @@ export default function ReportGenerateModal(props: ReportGenerateModalProps) {
                                         <td className="px-2 py-1">
                                           <SubmissionBadge status={q.submissionStatus} label={q.submissionStatusLabel} />
                                         </td>
-                                        <td className="px-2 py-1 text-right tabular-nums font-medium text-gray-800">
-                                          {q.scoredMark == null ? "—" : `${q.scoredMark} / ${q.totalMark}`}
-                                        </td>
+                                        {graded && (
+                                          <td className="px-2 py-1 text-right tabular-nums font-medium text-gray-800">
+                                            {q.scoredMark == null ? "—" : `${q.scoredMark} / ${q.totalMark}`}
+                                          </td>
+                                        )}
                                         <td className="px-2 py-1 text-gray-700">{q.testCasesLabel}</td>
-                                        <td className="px-2 py-1 text-right tabular-nums font-medium text-gray-800">
-                                          {q.percentage == null ? "—" : `${q.percentage}%`}
-                                        </td>
+                                        {graded && (
+                                          <td className="px-2 py-1 text-right tabular-nums font-medium text-gray-800">
+                                            {q.percentage == null ? "—" : `${q.percentage}%`}
+                                          </td>
+                                        )}
                                         <td className="px-2 py-1">
                                           <EvaluationBadge label={q.evaluationLabel} status={q.evaluationStatus} />
                                         </td>

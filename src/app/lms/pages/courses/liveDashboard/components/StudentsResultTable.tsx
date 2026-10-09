@@ -61,6 +61,9 @@ export interface StudentsResultTableProps {
   search?: string;
   statusFilter?: string;
   toolbar?: React.ReactNode;
+  /** False for a non-graded assignment/assessment: the Marks, Percentage and
+   *  Scale columns are left out. Defaults to true. */
+  graded?: boolean;
 }
 
 
@@ -264,6 +267,7 @@ export default function StudentsResultTable({
   search = "",
   statusFilter = "all",
   toolbar,
+  graded = true,
 }: StudentsResultTableProps) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<PageSize>(10);
@@ -479,6 +483,8 @@ export default function StudentsResultTable({
               <th className="border-b border-gray-200 px-3 py-2 text-left text-[11px] font-medium text-gray-500 w-[130px] bg-gray-50">
                 <SortableHeader label="Test Status" columnKey="status" align="left" active={sortKey} dir={sortDir} onToggle={toggleSort} />
               </th>
+              {/* A non-graded exercise has no marks to show. */}
+              {graded && (<>
               <th className="border-b border-gray-200 px-3 py-2 text-right text-[11px] font-medium text-gray-500 w-[108px] bg-gray-50">
                 <SortableHeader label="Marks" columnKey="marks" align="right" active={sortKey} dir={sortDir} onToggle={toggleSort} />
               </th>
@@ -488,6 +494,7 @@ export default function StudentsResultTable({
               <th className="hidden border-b border-gray-200 px-3 py-2 text-left text-[11px] font-medium text-gray-500 w-[128px] bg-gray-50 md:table-cell">
                 <SortableHeader label="Scale" columnKey="scale" align="left" active={sortKey} dir={sortDir} onToggle={toggleSort} />
               </th>
+              </>)}
               <th className="rounded-tr-lg border-b border-gray-200 px-3 py-2 text-center text-[11px] font-medium text-gray-500 w-[144px] bg-gray-50">
                 Action
               </th>
@@ -562,6 +569,7 @@ export default function StudentsResultTable({
                     <td className="w-[130px] px-3 py-1.5">
                       <TestStatusPill status={status} />
                     </td>
+                    {graded && (<>
                     <td className="w-[108px] px-3 py-1.5 text-right">
                       {marksPending && !finished ? (
                         <span className="text-[12.5px] text-gray-400">—</span>
@@ -593,6 +601,7 @@ export default function StudentsResultTable({
                         />
                       )}
                     </td>
+                    </>)}
                     <td className="w-[144px] px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
                       {/* Action = Review button (primary, opens in new tab)
                           + kebab menu with per-row shortcuts. A Not Started
@@ -716,7 +725,7 @@ export default function StudentsResultTable({
               })}
               {pagedStudents.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-[12.5px] text-gray-400">
+                  <td colSpan={graded ? 8 : 5} className="px-4 py-8 text-center text-[12.5px] text-gray-400">
                     No learners match this search or filter.
                   </td>
                 </tr>
