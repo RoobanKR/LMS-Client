@@ -12,9 +12,10 @@ import {
     ArrowLeft, Plus, X, Clock, CalendarDays, Sparkles, Coffee,
     Lightbulb, Users, Target, AlertCircle, Settings, Eye, EyeOff, BarChart3,
     ChevronLeft, ChevronRight, Rows3, Maximize2, Minimize2, RotateCcw,
-    MousePointerClick, ArrowDown, ArrowUp,
+    MousePointerClick, ArrowDown, ArrowUp, Layers,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -444,7 +445,16 @@ export default function ProgramCalendarContent(
     // same reason the phase is — each group's calendar is latched into local
     // state, and switching must start clean. "" lets the server open the first.
     const [calendarGroup, setCalendarGroup] = useState('')
-    useEffect(() => { setPhaseCourseId(null); setPhase(''); setCalendarGroup('') }, [baseCourseId])
+    // The phase last worked on is remembered per course (?phase= wins), so
+    // coming back to the page reopens THAT phase's calendar instead of the
+    // first phase's — which looked like the saved data had vanished.
+    const phaseStoreKey = `programCalendarPhase:${baseCourseId || ''}`
+    useEffect(() => {
+        setPhaseCourseId(null); setCalendarGroup('')
+        let remembered = searchParams.get('phase') || ''
+        if (!remembered) { try { remembered = localStorage.getItem(phaseStoreKey) || '' } catch {} }
+        setPhase(remembered)
+    }, [baseCourseId]) // eslint-disable-line react-hooks/exhaustive-deps
     const courseId = phaseCourseId || baseCourseId
     return <ProgramCalendarScreen
         key={`${courseId || ''}::${phase}::${calendarGroup}`}
@@ -454,6 +464,7 @@ export default function ProgramCalendarContent(
         onCalendarGroupChange={setCalendarGroup}
         embedded={embedded}
         onPhaseChange={(name, nextCourseId) => {
+            try { localStorage.setItem(phaseStoreKey, name) } catch {}
             setPhase(name)
             setCalendarGroup('')
             if (nextCourseId && nextCourseId !== courseId) setPhaseCourseId(nextCourseId)
@@ -483,7 +494,7 @@ function ProgramCalendarScreen(
     // lone "Default" batch is the fallback container of a batchless course.
     // Shared cache entry with the Batches / Sections / Participants pages —
     // this used to be a private hardcoded-localhost fetch of the same endpoint.
-    const { data: batchHierarchy } = useCourseBatchesQuery(courseId || null)
+    const { data: batchHierarchy, isLoading: batchHierarchyLoading } = useCourseBatchesQuery(courseId || null)
     const courseBatches = useMemo(
         () => (batchHierarchy?.batches || []).map((b: any) => ({
             _id: String(b._id),
@@ -668,11 +679,13 @@ function ProgramCalendarScreen(
     const [deleteSlotId, setDeleteSlotId] = useState<string | null>(null)  // confirm delete slot
     const [clearSessionsConfirm, setClearSessionsConfirm] = useState(false)
     const [saveToast, setSaveToast] = useState<string | null>(null)
+    const [saveToastError, setSaveToastError] = useState(false)
     const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-    const showSaveToast = (msg: string) => {
+    const showSaveToast = (msg: string, isError = false) => {
         if (toastTimer.current) clearTimeout(toastTimer.current)
         setSaveToast(msg)
-        toastTimer.current = setTimeout(() => setSaveToast(null), 3000)
+        setSaveToastError(isError)
+        toastTimer.current = setTimeout(() => setSaveToast(null), isError ? 6000 : 3000)
     }
     const [holidayPrompt, setHolidayPrompt] = useState<string | null>(null)  // ISO date awaiting add/remove confirmation
     const [holidayPromptName, setHolidayPromptName] = useState('')
@@ -743,6 +756,13 @@ function ProgramCalendarScreen(
         return phaseOptions.find(p => p.name.toLowerCase() === path.toLowerCase())?.name
             || phaseOptions[0]?.name || ''
     }, [phase, phaseOptions, course])
+    // A remembered phase that (in an older mapping) has a course record of its
+    // own reopens on that record, the same as picking it from the dropdown.
+    useEffect(() => {
+        if (!phase) return
+        const target = phaseOptions.find(p => p.name === phase)?.courseId
+        if (target && courseId && target !== courseId) onPhaseChange(phase, target)
+    }, [phase, phaseOptions, courseId]) // eslint-disable-line react-hooks/exhaustive-deps
     // Only the first phase may claim a calendar saved before phases existed —
     // every other phase starts empty, which is the whole point of phases.
     const isFirstPhase = !phaseOptions.length || currentPhase === phaseOptions[0]?.name
@@ -785,10 +805,21 @@ function ProgramCalendarScreen(
     const { data: rawSubTopics = [] } = useQuery({ ...subTopicApi.getAll(), enabled: !!course, select: (d: any[]) => d.filter(m => m.courses===courseId).sort((a: any,b: any)=>(a.index||0)-(b.index||0)) })
     const { data: pedagogyViews = [] } = useQuery({ ...pedagogyViewApi.getAll(), queryKey: ['pedagogyViews', courseId, (rawModules as any[]).length], select: (d: any[]) => d.filter(v => v.courses===courseId), enabled: !!token&&!!course&&(rawModules as any[]).length>0 })
 
+    // Whether this course's phases are known yet. The saved calendar is filed
+    // under its phase, so it must not be fetched before the phase is resolved:
+    // fetching with the phase still blank returned no record, the screen
+    // latched that empty answer (dataLoaded), and the real phase's calendar
+    // arrived a moment later with nothing left to restore it — every revisit
+    // looked like a fresh calendar.
+    const phaseMappingId = course?.mappingId || batchHierarchy?.mappingId
+    const phasesReady = Boolean(course) && !phasesUnknown && (
+        phaseMappingId ? Boolean(reportMapping) || reportMetadataError : !batchHierarchyLoading
+    )
+
     // ── Persist / restore program calendar config ──
     const { data: calendarView, isSuccess: calendarFetched, isError: calendarFetchFailed } = useQuery({
         ...programCalendarApi.getByCourse(courseId || '', currentPhase, isFirstPhase, calendarGroup),
-        enabled: !!courseId && !!token,
+        enabled: !!courseId && !!token && phasesReady,
     })
     const savedCalendar = calendarView?.calendar ?? null
     // Degree Program: which group's calendar this is, and whether it is still
@@ -796,7 +827,15 @@ function ProgramCalendarScreen(
     // course, which keeps one calendar.
     const calendarGroupInfo = calendarView?.group?.perGroup ? calendarView.group : null
     const queryClient = useQueryClient()
-    const { mutate: saveCalendar, isPending: isSaving } = useMutation(programCalendarApi.save())
+    // A failed save used to be silent — the page looked saved and the data was
+    // simply gone on the next visit. Every save now reports its failure.
+    const { mutate: saveCalendar, isPending: isSaving } = useMutation({
+        ...programCalendarApi.save(),
+        onError: (error: any) => showSaveToast(
+            `Not saved — ${error?.response?.data?.message || error?.message || 'please try again'}`,
+            true,
+        ),
+    })
     const { mutate: deleteCalendar, isPending: isDeleting } = useMutation(programCalendarApi.delete())
 
     // ── Client holidays: the ONE source the calendar schedules around ──
@@ -1870,6 +1909,31 @@ function ProgramCalendarScreen(
                             </button>
                         </div>
                         <div className="mb-1 flex items-center gap-2">
+                        {/* Phase — in the tab row so Session Details, Program
+                            Calendar and Reports all work on the chosen phase.
+                            Each phase keeps its own calendar; switching
+                            remounts the screen on that phase's record. */}
+                        {phaseOptions.length > 0 && (
+                            <div className="flex items-center gap-2 text-xs">
+                                <Layers className="size-4 text-subtle" />
+                                <label htmlFor="program-calendar-phase" className="whitespace-nowrap font-medium text-heading">Phase</label>
+                                <Select
+                                    value={currentPhase || undefined}
+                                    onValueChange={name => {
+                                        if (name === currentPhase) return
+                                        if ((sessionDirty || startDateDirty) && !window.confirm('You have unsaved changes in this phase. Switch phase and discard them?')) return
+                                        onPhaseChange(name, phaseOptions.find(p => p.name === name)?.courseId || '')
+                                    }}
+                                >
+                                    <SelectTrigger id="program-calendar-phase" className="h-8 w-40 text-xs">
+                                        <SelectValue placeholder="Select Phase" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {phaseOptions.map(entry => <SelectItem key={entry.name} value={entry.name}>{entry.name}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
                         {/* Reset button — only show when there is saved data */}
                         {(savedCalendar as any)?._id && (
                             <button onClick={()=>setResetConfirm(true)}
@@ -2106,12 +2170,6 @@ function ProgramCalendarScreen(
                                     showViewToggle={calendarMode === 'planned' && Boolean(generated?.length)}
                                     view={scheduleView}
                                     onViewChange={setScheduleView}
-                                    phases={phaseOptions}
-                                    phase={currentPhase}
-                                    onPhaseChange={name => onPhaseChange(
-                                        name,
-                                        phaseOptions.find(p => p.name === name)?.courseId || '',
-                                    )}
                                 />
                             </div>
                             {/* No calendar placeholder */}
@@ -3754,10 +3812,12 @@ function ProgramCalendarScreen(
                     transition={{ type: 'spring', stiffness: 420, damping: 28 }}
                     className="fixed top-6 right-6 z-toast flex items-center gap-3 bg-ink-900 text-white px-4 py-3 rounded-xl shadow-2xl min-w-[220px] max-w-xs"
                 >
-                    <span className="flex items-center justify-center h-6 w-6 rounded-full bg-success-500 shrink-0">
+                    <span className={`flex items-center justify-center h-6 w-6 rounded-full shrink-0 ${saveToastError ? 'bg-danger-500' : 'bg-success-500'}`}>
+                        {saveToastError ? <AlertCircle className="h-3.5 w-3.5 text-white" /> : (
                         <svg className="h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                         </svg>
+                        )}
                     </span>
                     <span className="text-[13px] font-semibold leading-tight">{saveToast}</span>
                     <button onClick={() => setSaveToast(null)} className="ml-auto text-white/50 hover:text-white/90 transition-colors shrink-0">
