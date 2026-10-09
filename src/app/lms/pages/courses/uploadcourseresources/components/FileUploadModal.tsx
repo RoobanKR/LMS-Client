@@ -558,7 +558,9 @@ export const FileUploadModal: React.FC<FileUploadModalProps> = ({
       if (!pathGroupMap.has(key)) pathGroupMap.set(key, { path: af.targetPath, files: [] });
       const rawName = af.displayName.trim() || af.file.name;
       const origExt = af.file.name.includes(".") ? "." + af.file.name.split(".").pop() : "";
-      const finalName = rawName.includes(".") ? rawName : rawName + origExt;
+      // A dot inside the name ("1.ModifiedBinarySearch") is not an extension —
+      // only skip appending when the name already ends with the real one.
+      const finalName = origExt && !rawName.toLowerCase().endsWith(origExt.toLowerCase()) ? rawName + origExt : rawName;
       const outFile = finalName !== af.file.name ? new window.File([af.file], finalName, { type: af.file.type }) : af.file;
       pathGroupMap.get(key)!.files.push(outFile);
     });

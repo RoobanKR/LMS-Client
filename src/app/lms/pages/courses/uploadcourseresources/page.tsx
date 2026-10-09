@@ -3231,8 +3231,10 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
       if (incomingFiles.length > 0) {
         // Build replacement file with the user-entered name
         const f = incomingFiles[0];
-        const newBaseName = (groupName || f.name).replace(/\.[^/.]+$/, "");
         const ext = f.name.includes(".") ? "." + f.name.split(".").pop() : "";
+        // Drop only the real extension — "1.ModifiedBinarySearch" keeps its dot.
+        const typed = groupName || f.name;
+        const newBaseName = ext && typed.toLowerCase().endsWith(ext.toLowerCase()) ? typed.slice(0, -ext.length) : typed;
         const finalName = newBaseName + ext;
         const outFile = finalName !== f.name ? new window.File([f], finalName, { type: f.type }) : f;
         formData.append("files", outFile);
@@ -3343,9 +3345,11 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
     const renamed = incomingFiles.map((f) => {
       if (!isGroup && groupName) {
         const ext = f.name.includes(".") ? "." + f.name.split(".").pop() : "";
-        // Strip any extension the user may have typed in groupName to avoid doubling (e.g. "file.docx" + ".docx")
-        const baseName = groupName.includes(".")
-          ? groupName.slice(0, groupName.lastIndexOf("."))
+        // Strip the extension only when the user actually typed it (e.g.
+        // "file.docx" + ".docx"). Any other dot is part of the name:
+        // "1.ModifiedBinarySearch" used to be cut to "1" → "1.pptx".
+        const baseName = ext && groupName.toLowerCase().endsWith(ext.toLowerCase())
+          ? groupName.slice(0, -ext.length)
           : groupName;
         const finalName = baseName + ext;
         return finalName !== f.name ? new window.File([f], finalName, { type: f.type }) : f;
