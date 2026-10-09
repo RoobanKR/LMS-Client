@@ -163,12 +163,12 @@ const getQuestionHtml = (q: any): string => {
   return ""
 }
 
-// The question's first example — the same case the problem panel shows as
-// "Example 1": the first non-hidden test case. Shaped as a judge test case.
-// Null when there is none. (The question's Sample Input / Output is info
-// only — shown with the question, never run.)
-const firstExampleCase = (q: any): { input: string; expectedOutput: string; expectedType?: string; epsilon?: number } | null => {
-  const tc = (Array.isArray(q?.testCases) ? q.testCases : [])
+// The question's visible test cases — every non-hidden one, the same cases the
+// trainer's Review Submission runs — shaped as judge test cases. Empty when
+// there are none. (The question's Sample Input / Output is info only — shown
+// with the question, never run.)
+const visibleTestCases = (q: any): { input: string; expectedOutput: string; expectedType?: string; epsilon?: number }[] =>
+  (Array.isArray(q?.testCases) ? q.testCases : [])
     .filter((t: any) => t && t.isHidden !== true)
     .map((t: any) => ({
       input: String(t.input ?? t.testInput ?? ""),
@@ -176,9 +176,7 @@ const firstExampleCase = (q: any): { input: string; expectedOutput: string; expe
       expectedType: t.expectedType,
       epsilon: t.epsilon,
     }))
-    .find((t: any) => t.input || t.expectedOutput)
-  return tc || null
-}
+    .filter((t: any) => t.input || t.expectedOutput)
 
 // Build a FileNode from a {path, content} draft/submission record.
 const fileFromRecord = (r: any): FileNode => {
@@ -1880,21 +1878,22 @@ export default function MultiFileCodeEditor({
     }
   }
 
-  // Manual exercise's Run Testcase: the code against the question's first
-  // example only ("Example 1" in the problem panel), painted as a one-case
-  // Test Result with no score. Nothing is posted to the answer store — the
-  // trainer still grades by hand. /api/run/judge is the judge the submit path
-  // uses (bare-function driver injection included), without the write.
-  const runExampleCase = async () => {
+  // Manual exercise's Run Testcase: the code against every visible test case
+  // of the question (the same cases the trainer's Review Submission runs),
+  // painted case by case in the Test Result panel with no score. Hidden cases
+  // stay hidden. Nothing is posted to the answer store — the trainer still
+  // grades by hand. /api/run/judge is the judge the submit path uses
+  // (bare-function driver injection included), without the write.
+  const runVisibleCases = async () => {
     const q: any = currentQuestion
     if (q?.isLinkQuestion && q?.questionLink) { toast("This question is solved on the external site — there is nothing to run here.", { icon: "ℹ️" }); return }
-    const example = firstExampleCase(q)
-    if (!example) { toast("This question has no example test case to run.", { icon: "ℹ️" }); return }
+    const cases = visibleTestCases(q)
+    if (!cases.length) { toast("This question has no visible test case to run.", { icon: "ℹ️" }); return }
 
     setBottomTab('test-result')
     setShowTerminal(true)
     setSelectedCaseIndex(0)
-    setTestResult((prev) => ({ ...(prev || { cases: [] }), status: 'evaluating', message: 'Running the example test case…' }))
+    setTestResult((prev) => ({ ...(prev || { cases: [] }), status: 'evaluating', message: `Running ${cases.length} test case${cases.length === 1 ? '' : 's'}…` }))
     try {
       const res = await fetch(`${API}/api/run/judge`, {
         method: "POST",
@@ -1902,42 +1901,54 @@ export default function MultiFileCodeEditor({
         body: JSON.stringify({
           language: selectedLanguage,
           files: files.map((f) => ({ path: f.path, content: f.content, isEntryPoint: !!f.isEntryPoint })),
-          testCases: [example],
+          testCases: cases,
           functionName: q?.solutions?.functionName || null,
         }),
       })
       const body = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(body?.error || `HTTP ${res.status}`)
-      const c = Array.isArray(body?.perCase) ? body.perCase[0] : null
-      if (!c || c.verdict === 'JE') throw new Error(c?.actualOutput || 'The judge returned no result.')
+      const perCase: any[] = Array.isArray(body?.perCase) ? body.perCase : []
+      if (!perCase.length || perCase.every((c) => c?.verdict === 'JE')) {
+        throw new Error(perCase[0]?.actualOutput || 'The judge returned no result.')
+      }
+      // The run's verdict is its first failure's, like the graded path:
+      // a compile error fails every case; otherwise the first runtime error,
+      // time-out or wrong answer names it.
+      const firstFail = perCase.find((c) => !c?.passed)
       const status: SubmitStatus =
-        c.verdict === 'CE' ? 'compilation-error'
-        : c.verdict === 'RE' ? 'runtime-error'
-        : c.verdict === 'TLE' ? 'time-limit'
-        : c.passed ? 'accepted' : 'wrong-answer'
+        !firstFail ? 'accepted'
+        : firstFail.verdict === 'CE' ? 'compilation-error'
+        : firstFail.verdict === 'RE' ? 'runtime-error'
+        : firstFail.verdict === 'TLE' ? 'time-limit'
+        : 'wrong-answer'
+      const passedCount = perCase.filter((c) => c?.passed).length
+      const times = perCase.map((c) => c?.timeMs).filter((t): t is number => typeof t === 'number')
       setTestResult({
         status,
-        cases: [{
-          index: 0, hidden: false, passed: !!c.passed,
-          input: c.input ?? example.input,
-          expectedOutput: c.expectedOutput ?? example.expectedOutput,
-          actualOutput: c.actualOutput ?? "",
-        }],
-        passedCount: c.passed ? 1 : 0,
-        totalCount: 1,
-        runtimeMs: typeof c.timeMs === 'number' ? Math.round(c.timeMs) : null,
-        errorDetail: c.verdict === 'CE' || c.verdict === 'RE' ? c.actualOutput : undefined,
-        message: 'Example test case only — not scored. The trainer grades this answer manually.',
+        cases: perCase.map((c, i) => ({
+          index: i, hidden: false, passed: !!c?.passed,
+          input: c?.input ?? cases[i]?.input ?? "",
+          expectedOutput: c?.expectedOutput ?? cases[i]?.expectedOutput ?? "",
+          actualOutput: c?.actualOutput ?? "",
+        })),
+        passedCount,
+        totalCount: perCase.length,
+        runtimeMs: times.length ? Math.round(Math.max(...times)) : null,
+        errorDetail: firstFail && (firstFail.verdict === 'CE' || firstFail.verdict === 'RE') ? firstFail.actualOutput : undefined,
+        message: 'Not scored — the trainer grades this answer manually.',
       })
+      // Open the first failing case so the student sees what went wrong.
+      const failIdx = perCase.findIndex((c) => !c?.passed)
+      setSelectedCaseIndex(failIdx >= 0 ? failIdx : 0)
     } catch (e: any) {
       setTestResult(null)
-      toast.error(`Couldn't run the example: ${e?.message || e}`)
+      toast.error(`Couldn't run the test cases: ${e?.message || e}`)
     }
   }
 
   // Run Testcase — evaluates the current code and paints the Test Result
-  // panel. It is a dry run: no answer is recorded. Manual runs the first
-  // example only (runExampleCase above). Under AI the grading is client-side,
+  // panel. It is a dry run: no answer is recorded. Manual runs every visible
+  // test case, unscored (runVisibleCases above). Under AI the grading is client-side,
   // so nothing is posted at all. Under Test Case the submit endpoint is the
   // only judge available, so it is still called — but the question is never
   // marked "Submitted ✓" and the draft save still runs so the student's work
@@ -1948,7 +1959,7 @@ export default function MultiFileCodeEditor({
     setIsRunningTestCases(true)
     try {
       await saveDraft(false)
-      if (isManualEval) { await runExampleCase(); return }
+      if (isManualEval) { await runVisibleCases(); return }
       const result = await postSubmission(false, { dryRun: true })
       if (!result.ok) log("error", `Run testcase failed: ${result.message}`)
     } catch (e: any) {
