@@ -439,8 +439,12 @@ export default function StudentsResultTable({
         <div className="overflow-x-auto xl:overflow-visible">
         <table className="min-w-full text-[12.5px] border-separate border-spacing-0">
           <thead>
+            {/* Sticky only from xl. Below that the table sits in its own
+                sideways-scroll box, which also becomes the header's sticky
+                container — and `top: THEAD_TOP` there pushed the header 57px
+                down over the first learner row. */}
             <tr
-              className="sticky z-20 shadow-[0_1px_0_rgba(0,0,0,0.04)]"
+              className="z-20 shadow-[0_1px_0_rgba(0,0,0,0.04)] xl:sticky"
               style={{ top: THEAD_TOP }}
             >
               {/* Header labels use title case (first-letter capital only) —

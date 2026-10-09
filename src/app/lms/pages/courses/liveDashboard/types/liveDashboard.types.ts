@@ -85,6 +85,10 @@ export interface LiveDashboardResponse {
   endDate: string;
   totalStudents: number;
   students: StudentProgress[];
+  /** True when the server narrowed the list to the viewing trainer's batches. */
+  batchScoped?: boolean;
+  /** Those batches' names (empty when not narrowed). */
+  batches?: string[];
 }
 
 // ─── Student details (per-student question view) ─────────────────────────────

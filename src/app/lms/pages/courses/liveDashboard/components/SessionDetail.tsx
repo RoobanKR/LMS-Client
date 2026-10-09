@@ -200,7 +200,7 @@ export default function SessionDetail() {
 
   const {
     students, assessmentName: apiAssessmentName, startDate,
-    isLoading: liveLoading, error: liveError,
+    isLoading: liveLoading, error: liveError, batchScoped,
   } = useLiveDashboard({ assessmentId, courseId, nodeId, nodeType, tabType });
 
   // URL param wins over the API's derived name. Falls back to the API name
@@ -219,7 +219,27 @@ export default function SessionDetail() {
     gcTime: 10 * 60 * 1000,
   });
 
-  const courseData = (courseDataResponse as any)?.data ?? null;
+  const courseDataFull = (courseDataResponse as any)?.data ?? null;
+  // A trainer's list is their batches only (server-side). The course payload
+  // still carries every batch, so narrow it to the same learners — otherwise
+  // the header counts, question analysis and reports would count everyone.
+  const visibleIdsKey = useMemo(
+    () => (batchScoped ? students.map((s) => s.id).sort().join(",") : ""),
+    [batchScoped, students],
+  );
+  const courseData = useMemo(() => {
+    if (!courseDataFull || !batchScoped) return courseDataFull;
+    const visible = new Set(visibleIdsKey.split(",").filter(Boolean));
+    return {
+      ...courseDataFull,
+      batchAndParticipants: (courseDataFull.batchAndParticipants || [])
+        .map((b: any) => ({
+          ...b,
+          users: (b?.users || []).filter((p: any) => visible.has(String(p?.user?._id || p?.user || p?._id || ""))),
+        }))
+        .filter((b: any) => b.users.length > 0),
+    };
+  }, [courseDataFull, batchScoped, visibleIdsKey]);
 
   const studentsWithMarks: StudentProgress[] = useMemo(() => {
     if (!courseData || !assessmentId) return students;

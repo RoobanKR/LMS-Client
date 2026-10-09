@@ -35,6 +35,8 @@ interface UseLiveDashboardResult {
   endDate: string | null;
   isLoading: boolean;
   error: string | null;
+  /** The list is a trainer's own batches only (see getLiveDashboard). */
+  batchScoped: boolean;
 }
 
 export function useLiveDashboard({
@@ -52,6 +54,9 @@ export function useLiveDashboard({
   const [endDate, setEndDate] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [batchScoped, setBatchScoped] = useState(false);
+  // Read by the socket handler, which is registered once.
+  const batchScopedRef = useRef(false);
 
   // ── Refs hold the latest handlers so the (once-registered) socket
   //    listeners never read stale closures. ──────────────────────────────────
@@ -80,6 +85,9 @@ export function useLiveDashboard({
         // already present → merge instead of duplicating
         return prev.map(s => (s.id === p.id ? { ...s, ...p } : s));
       }
+      // A trainer's list holds their batches only — a learner from another
+      // batch starting the test must not appear in it.
+      if (batchScopedRef.current) return prev;
       setTotalStudents(t => t + 1);
       return [...prev, p];
     });
@@ -113,6 +121,8 @@ export function useLiveDashboard({
         if (!res.ok) throw new Error(`Failed to load dashboard (${res.status})`);
         const data: LiveDashboardResponse = await res.json();
         if (cancelled) return;
+        batchScopedRef.current = !!data.batchScoped;
+        setBatchScoped(!!data.batchScoped);
         setStudents(data.students || []);
         setTotalStudents(data.totalStudents ?? (data.students?.length || 0));
         setAssessmentName(data.assessmentName || "");
@@ -153,7 +163,7 @@ export function useLiveDashboard({
     };
   }, [assessmentId]);
 
-  return { students, totalStudents, assessmentName, courseName, startDate, endDate, isLoading, error };
+  return { students, totalStudents, assessmentName, courseName, startDate, endDate, isLoading, error, batchScoped };
 }
 
 function stripStudentId(p: DashboardStudentUpdate): Partial<StudentProgress> {
