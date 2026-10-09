@@ -24,7 +24,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { extractDocumentText } from './docTextExtract';
-import { normalizeStdinInput, normalizeStdinOutput } from './testCaseStdin';
+import { normalizeStdinInputWithFormat, normalizeStdinOutput } from './testCaseStdin';
 
 export interface ParsedQuestionOption {
   id: string;
@@ -357,9 +357,16 @@ function parseProgrammingBlocks(raw: string): ParsedProgrammingQuestion[] {
 //   "nums = [90,80,70,60,50], k = 2"  →  "90 80 70 60 50\n2"
 // ─────────────────────────────────────────────────────────────────────────────
 
-type DocSection = 'statement' | 'inputFormat' | 'outputFormat' | 'constraints' | 'complexity' | 'notes' | 'cases';
+type DocSection = 'statement' | 'explanation' | 'inputFormat' | 'outputFormat' | 'constraints' | 'complexity' | 'notes' | 'cases';
 
-interface DocHeader { title: string; difficulty?: string; marks?: number }
+interface DocHeader {
+  title: string; difficulty?: string; marks?: number;
+  /** Reference links written under the title (e.g. the LeetCode problem URL). */
+  links?: string[];
+}
+
+/** A line that is nothing but a link. */
+const URL_LINE = /^(?:<)?(https?:\/\/[^\s<>]+?)(?:>)?[.,;]?$/i;
 
 const HEADER_DIFF = /^(easy|medium|hard|beginner|intermediate|advanced|simple|moderate|difficult|expert)$/i;
 const HEADER_MARKS = /^(\d+(?:\.\d+)?)\s*(?:marks?|points?|pts?)$/i;
@@ -398,12 +405,33 @@ const SECTION_RES: Array<[RegExp, DocSection]> = [
   [/^output\s*format\b/i,                             'outputFormat'],
   [/^constraints?\b/i,                                'constraints'],
   [/^expected\s*(?:time\s*|space\s*)?complexity\b/i,  'complexity'],
-  [/^(?:notes?|explanation)(?=\s*[:.\-]|\s*$)/i,      'notes'],
+  [/^explanation(?=\s*[:.\-]|\s*$)/i,                 'explanation'],
+  [/^notes?(?=\s*[:.\-]|\s*$)/i,                      'notes'],
 ];
 
 const CASES_HEADER  = /^(?:test\s*cases?|sample\s*test\s*cases?|examples?)\s*[:.]?\s*$/i;
 const HIDDEN_HEADER = /^hidden\s*(?:test\s*cases?|tests?)\s*[:.]?\s*$/i;
-const TC_HEADER     = /^(hidden\s+)?(?:test\s*case|example|case)\s*#?\s*\d*\s*[:.]?\s*$/i;
+// "Test Case 1", "Example 2", and "Sample 3:" — a NUMBERED sample is one more
+// test case. Only "Sample Input:" / "Sample Output:" (TC_INPUT / TC_OUTPUT
+// below) is the info-only sample shown with the question.
+const TC_HEADER     = /^(hidden\s+)?(?:(?:test\s*case|example|case)\s*#?\s*\d*|sample\s*#?\s*\d+)\s*[:.]?\s*$/i;
+
+/**
+ * "Sample 1: Input: nums = [1], target = 1 Output: true Explanation: …" — a
+ * whole case on one line. Split it into the header, Input, Output and
+ * Explanation lines the case reader expects; any other line is returned as is.
+ */
+function splitInlineCase(line: string): string[] {
+  if (!/\binputs?\s*\d*\s*:/i.test(line) || !/\b(?:expected\s*)?outputs?\s*\d*\s*:/i.test(line)) return [line];
+  const head = line.match(/^((?:hidden\s+)?(?:test\s*case|example|case|sample)\s*#?\s*\d+\s*[:.)-]?)\s*(?=(?:sample\s*)?inputs?\b)/i);
+  if (!head && !/^(?:sample\s*|hidden\s*)?inputs?\s*\d*\s*:/i.test(line)) return [line];
+  const rest = head ? line.slice(head[0].length) : line;
+  const parts = rest
+    .split(/\s+(?=(?:sample\s*|hidden\s*)?(?:expected\s*)?outputs?\s*\d*\s*:|explanation\s*:)/i)
+    .map(s => s.trim())
+    .filter(Boolean);
+  return [...(head ? [head[1]] : []), ...parts];
+}
 const TC_INPUT      = /^(?:sample\s*|hidden\s*)?inputs?\s*\d*\s*:\s*(.*)$/i;
 const TC_OUTPUT     = /^(?:sample\s*|hidden\s*)?(?:expected\s*)?outputs?\s*\d*\s*:\s*(.*)$/i;
 const TC_EXPL       = /^(?:explanation|note)s?\s*:\s*(.*)$/i;
@@ -459,47 +487,98 @@ const escapeHtml = (s: string): string =>
  * contentEditable and the student view renders it with dangerouslySetInnerHTML),
  * so the paper's sections are rebuilt as real markup rather than a run-on line.
  */
+const SECTION_LABEL: Partial<Record<DocSection, string>> = {
+  statement: 'Problem Statement',
+  explanation: 'Explanation',
+  inputFormat: 'Input Format',
+  outputFormat: 'Output Format',
+  notes: 'Notes',
+};
+
 function buildDescriptionHtml(d: {
-  statement: string[]; inputFormat: string[]; outputFormat: string[]; complexity: string[]; notes: string[];
+  statement: string[]; explanation?: string[]; inputFormat: string[]; outputFormat: string[]; complexity: string[]; notes: string[];
   sampleExplanation?: string[];
+  /** Sections in the order the paper wrote them (first appearance). */
+  order?: DocSection[];
+  /** The statement carried a "Problem Statement:" label in the paper. */
+  statementLabeled?: boolean;
+  links?: string[];
 }): string {
   const out: string[] = [];
   const para = (lines: string[]) => joinProseWrapped(lines).map(l => `<p>${escapeHtml(l)}</p>`).join('');
   const list = (lines: string[]) =>
     `<ul>${joinBulletWrapped(lines).map(l => `<li>${escapeHtml(stripBullet(l))}</li>`).join('')}</ul>`;
+  const lines: Partial<Record<DocSection, string[]>> = {
+    statement: d.statement, explanation: d.explanation ?? [], inputFormat: d.inputFormat,
+    outputFormat: d.outputFormat, notes: d.notes,
+  };
 
-  out.push(para(d.statement));
-  if (d.inputFormat.length) out.push('<p><b>Input Format</b></p>', list(d.inputFormat));
-  if (d.outputFormat.length) out.push('<p><b>Output Format</b></p>', list(d.outputFormat));
+  // Each section as the paper wrote it, in the paper's order. A one-paragraph
+  // section reads "<b>Label:</b> text"; a longer one gets a heading, with the
+  // formats as a list (a PDF's wrapped lines are re-joined first).
+  const order = (d.order ?? []).filter(s => s in lines);
+  for (const s of ['statement', 'explanation', 'inputFormat', 'outputFormat', 'notes'] as DocSection[]) {
+    if (!order.includes(s)) order.push(s);
+  }
+  for (const s of order) {
+    const body = lines[s] ?? [];
+    if (!body.length) continue;
+    const label = SECTION_LABEL[s] ?? '';
+    if (s === 'statement' && !d.statementLabeled) { out.push(para(body)); continue; }
+    const isFormat = s === 'inputFormat' || s === 'outputFormat';
+    const joined = isFormat ? joinBulletWrapped(body) : joinProseWrapped(body);
+    if (joined.length === 1) {
+      out.push(`<p><b>${label}:</b> ${escapeHtml(isFormat ? stripBullet(joined[0]) : joined[0])}</p>`);
+    } else {
+      out.push(`<p><b>${label}</b></p>`, isFormat ? list(body) : para(body));
+    }
+  }
   if (d.sampleExplanation?.length) out.push('<p><b>Sample Explanation</b></p>', para(d.sampleExplanation));
-  if (d.notes.length) out.push('<p><b>Notes</b></p>', para(d.notes));
   if (d.complexity.length) out.push(`<p><b>Expected Complexity:</b> ${escapeHtml(d.complexity.join(' '))}</p>`);
+  // Reference links (the LeetCode problem page) close the description.
+  for (const url of d.links ?? []) {
+    const safe = escapeHtml(url).replace(/"/g, '&quot;');
+    const label = /(^|\.)leetcode\.com$/i.test((() => { try { return new URL(url).hostname; } catch { return ''; } })())
+      ? 'LeetCode' : 'Reference';
+    out.push(`<p><b>${label}:</b> <a href="${safe}" target="_blank" rel="noopener noreferrer">${safe}</a></p>`);
+  }
   return out.join('');
 }
 
 interface RawDocCase { input: string[]; output: string[]; explanation: string[]; hidden: boolean; sample?: boolean }
 
-function parseDocChunk(header: DocHeader, body: string[]): ParsedProgrammingQuestion | null {
+function parseDocChunk(header: DocHeader, rawBody: string[]): ParsedProgrammingQuestion | null {
   const statement: string[] = [];
+  const explanation: string[] = [];
   const inputFormat: string[] = [];
   const outputFormat: string[] = [];
   const constraints: string[] = [];
   const complexity: string[] = [];
   const notes: string[] = [];
   const cases: RawDocCase[] = [];
+  const links: string[] = [...(header.links ?? [])];
+  const order: DocSection[] = [];
+  let statementLabeled = false;
+
+  // A whole "Sample 1: Input: … Output: … Explanation: …" on one line is
+  // spread over the lines the case reader expects.
+  const body = rawBody.flatMap(l => splitInlineCase(l.trim()));
 
   let section: DocSection = 'statement';
   let hiddenDefault = false;
   let cur: RawDocCase | null = null;
   let capture: 'input' | 'output' | 'explanation' | null = null;
 
-  const bucket = (): string[] =>
-    section === 'inputFormat' ? inputFormat
+  const bucket = (): string[] => {
+    if (!order.includes(section)) order.push(section);
+    return section === 'inputFormat' ? inputFormat
       : section === 'outputFormat' ? outputFormat
       : section === 'constraints' ? constraints
       : section === 'complexity' ? complexity
       : section === 'notes' ? notes
+      : section === 'explanation' ? explanation
       : statement;
+  };
 
   const openCase = (hidden: boolean): RawDocCase => {
     cur = { input: [], output: [], explanation: [], hidden };
@@ -574,12 +653,17 @@ function parseDocChunk(header: DocHeader, body: string[]): ParsedProgrammingQues
       continue;
     }
 
+    // A bare link (the LeetCode page) is a reference, not prose.
+    const url = line.match(URL_LINE);
+    if (url) { if (!links.includes(url[1])) links.push(url[1]); continue; }
+
     if (section === 'cases' && takeCaseMarker(line)) continue;
 
     const hit = matchDocSection(line);
     if (hit) {
       section = hit.section;
       if (hit.section === 'cases') { hiddenDefault = hit.hidden; cur = null; }
+      if (hit.section === 'statement' && /^problem\s*statement\b/i.test(line)) statementLabeled = true;
       capture = null;
       if (hit.rest && hit.section !== 'cases') bucket().push(hit.rest);
       continue;
@@ -608,10 +692,13 @@ function parseDocChunk(header: DocHeader, body: string[]): ParsedProgrammingQues
   // "Input:" / "Output:" pairs. (A second sample block stays a test case so
   // nothing written in the paper is lost.)
   const sampleCase = cases.find(c => c.sample);
+  // The Input Format says what the program reads, size lines included, so the
+  // sample's "nums = [1,3,5,6], target = 5" is laid out by it ("4\n1 3 5 6\n5").
+  const formatText = inputFormat.join(' ');
   const testCases: ParsedTestCase[] = cases
     .filter(c => c !== sampleCase)
     .map(c => ({
-      input: normalizeStdinInput(c.input.join('\n')),
+      input: normalizeStdinInputWithFormat(c.input.join('\n'), formatText),
       expectedOutput: normalizeStdinOutput(c.output.join('\n')),
       isSample: false,
       isHidden: c.hidden,
@@ -626,8 +713,18 @@ function parseDocChunk(header: DocHeader, body: string[]): ParsedProgrammingQues
   const sampleOutput = sampleCase ? sampleCase.output.join('\n').trim() : '';
   const sampleExplanation = sampleCase ? sampleCase.explanation.filter(l => l.trim()) : [];
 
-  const description = buildDescriptionHtml({ statement, inputFormat, outputFormat, complexity, notes, sampleExplanation });
+  const description = buildDescriptionHtml({
+    statement, explanation, inputFormat, outputFormat, complexity, notes, sampleExplanation,
+    order, statementLabeled, links,
+  });
   if (!header.title && !description) return null;
+
+  // "1 <= n <= 10^4; -10^4 <= nums[i] <= 10^4; …" on one line is several
+  // constraints — one per row in the form.
+  const constraintRows = joinBulletWrapped(constraints).map(stripBullet).filter(Boolean)
+    .flatMap(c => (constraints.length === 1 && c.includes(';') ? c.split(/\s*;\s*/) : [c]))
+    .map(c => c.trim())
+    .filter(Boolean);
 
   return {
     questionType: 'programming',
@@ -636,7 +733,7 @@ function parseDocChunk(header: DocHeader, body: string[]): ParsedProgrammingQues
     description,
     difficulty: normalizeDifficulty(header.difficulty ?? bodyDifficulty),
     difficultyDeclared: (header.difficulty ?? bodyDifficulty) !== undefined,
-    constraints: joinBulletWrapped(constraints).map(stripBullet).filter(Boolean),
+    constraints: constraintRows,
     testCases: orderTestCases(testCases),
     ...(header.marks !== undefined ? { marks: header.marks } : {}),
     ...(sampleInput || sampleOutput ? { sampleInput, sampleOutput } : {}),
@@ -681,24 +778,48 @@ function splitDocChunks(lines: string[]): { header: DocHeader; body: string[] }[
   if (!stmtIdx.length) return [];
 
   const labelDiff: (string | undefined)[] = [];
+  const headerLinks: string[][] = stmtIdx.map(() => []);
+  // Where each question's header block begins (its number line, title, links)
+  // — the previous question's body ends just above it.
+  const blockStart: number[] = [];
   const titleIdx = stmtIdx.map((s, n) => {
     let t = s - 1;
     // "Title / Level: Easy / Problem Statement: …" — step over the label (it is
-    // this question's difficulty) to reach the real title above it.
+    // this question's difficulty) and over a reference link ("https://leetcode
+    // …") to reach the real title above them.
     for (; t >= 0; t--) {
       const l = lines[t].trim();
       if (!l) continue;
+      const u = l.match(URL_LINE);
+      if (u) { headerLinks[n].unshift(u[1]); continue; }
       const d = l.match(DIFF_LABEL_LINE);
       if (!d) break;
       labelDiff[n] ??= d[1].toLowerCase();
     }
     // Don't reach back into the previous question for a title.
-    return t > (n === 0 ? -1 : stmtIdx[n - 1]) ? t : -1;
+    const floor = n === 0 ? -1 : stmtIdx[n - 1];
+    const title = t > floor ? t : -1;
+    // A table's "Question No." cell sits right above the title as a bare
+    // number — the question's own number (n + 1), so a stray value from the
+    // previous question's last test case is never mistaken for it.
+    let start = title >= 0 ? title : s;
+    for (let q = start - 1; q > floor; q--) {
+      const l = lines[q].trim();
+      if (!l) continue;
+      if (/^\d+\s*[.)]?$/.test(l) && parseInt(l, 10) === n + 1) start = q;
+      break;
+    }
+    blockStart[n] = start;
+    return title;
   });
 
   return stmtIdx.map((s, n) => ({
-    header: { title: titleIdx[n] >= 0 ? lines[titleIdx[n]].trim() : '', difficulty: labelDiff[n] },
-    body: lines.slice(s, n + 1 < stmtIdx.length ? (titleIdx[n + 1] >= 0 ? titleIdx[n + 1] : stmtIdx[n + 1]) : lines.length),
+    header: {
+      title: titleIdx[n] >= 0 ? lines[titleIdx[n]].trim() : '',
+      difficulty: labelDiff[n],
+      links: headerLinks[n],
+    },
+    body: lines.slice(s, n + 1 < stmtIdx.length ? blockStart[n + 1] : lines.length),
   }));
 }
 

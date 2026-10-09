@@ -3683,8 +3683,8 @@ const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean
               </label>
               <div className="max-sm:!grid-cols-1" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 10 }}>
                 {([
-                  { key: 'in', label: 'Sample Input', value: sampleInputText, set: setSampleInputText, ph: 'e.g.\n5\n1 2 3 4 5' },
-                  { key: 'out', label: 'Sample Output', value: sampleOutputText, set: setSampleOutputText, ph: 'e.g.\n15' },
+                  { key: 'in', label: 'Sample Input (optional)', value: sampleInputText, set: setSampleInputText, ph: 'e.g.\n5\n1 2 3 4 5' },
+                  { key: 'out', label: 'Sample Output (optional)', value: sampleOutputText, set: setSampleOutputText, ph: 'e.g.\n15' },
                 ] as const).map(f => (
                   <div key={f.key} style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
                     <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, fontWeight: 600, color: 'var(--lms-text-sub, #475467)' }}>{f.label}</span>
