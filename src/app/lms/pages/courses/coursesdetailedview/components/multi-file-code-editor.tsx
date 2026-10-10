@@ -401,6 +401,9 @@ export default function MultiFileCodeEditor({
   )
   const isManualEval = evalMethod === 'manual'
 
+  // The question panel beside the editor — the rail's Problem button hides it
+  // for more editor room and shows it again.
+  const [showQuestionPanel, setShowQuestionPanel] = useState(true)
   // Problems sidebar is CLOSED by default so the workspace opens focused on
   // the current question + code. The hamburger in the Problem details
   // toolbar toggles it whenever the student wants the full list.
@@ -2498,7 +2501,16 @@ export default function MultiFileCodeEditor({
               }}>
                 <FileCode style={{ width: 18, height: 18 }} />
               </span>
-              <strong style={{ fontSize: 20, color: "#101828", marginRight: 12 }}>Practice</strong>
+              {/* The assignment's (We Do) or assessment's (You Do) own name. */}
+              <strong
+                title={exercise?.exerciseInformation?.exerciseName || ActivityNoun}
+                style={{
+                  fontSize: 20, color: "#101828", marginRight: 12,
+                  maxWidth: 360, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                }}
+              >
+                {exercise?.exerciseInformation?.exerciseName || ActivityNoun}
+              </strong>
               <button
                 type="button"
                 onClick={() => setShowSidebar(v => !v)}
@@ -2595,7 +2607,25 @@ export default function MultiFileCodeEditor({
             display: "flex", flexDirection: "column", alignItems: "stretch",
             padding: "12px 0", gap: 4, flexShrink: 0,
           }}>
-            <button type="button" onClick={() => { setShowNotesPanel(false); setShowSidebar(false) }} aria-label="Problem" aria-current={!showNotesPanel ? 'page' : undefined} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 4px', border: 0, borderLeft: '2px solid #0F9D94', background: '#EEF6F7', color: '#0F766E', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}><FileText size={20} />Problem</button>
+            {/* Problem shows / hides the question panel. With Notes or the
+                problems list open it first brings the question back. */}
+            <button
+              type="button"
+              onClick={() => {
+                if (showNotesPanel || showSidebar) { setShowNotesPanel(false); setShowSidebar(false); setShowQuestionPanel(true); return }
+                setShowQuestionPanel(v => !v)
+              }}
+              aria-label="Problem"
+              aria-pressed={showQuestionPanel && !showNotesPanel}
+              title={showQuestionPanel && !showNotesPanel ? "Hide the question" : "Show the question"}
+              style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 4px', border: 0,
+                borderLeft: (showQuestionPanel && !showNotesPanel) ? '2px solid #0F9D94' : '2px solid transparent',
+                background: (showQuestionPanel && !showNotesPanel) ? '#EEF6F7' : 'transparent',
+                color: (showQuestionPanel && !showNotesPanel) ? '#0F766E' : '#667085',
+                cursor: 'pointer', fontSize: 12, fontWeight: 600,
+              }}
+            ><FileText size={20} />Problem</button>
             <button
               type="button"
               onClick={() => setShowNotesPanel(v => !v)}
@@ -2793,8 +2823,8 @@ export default function MultiFileCodeEditor({
         // Phones/tablets: one scroll column (question → workspace); lg+: `contents`
         // removes this wrapper so the desktop split is untouched.
         <div className="max-lg:flex max-lg:flex-col max-lg:flex-1 max-lg:min-h-0 max-lg:min-w-0 max-lg:overflow-y-auto lg:contents">
-        {/* Question panel */}
-        {!isFull && (
+        {/* Question panel — hidden / shown with the rail's Problem button. */}
+        {!isFull && showQuestionPanel && (
           <>
             <div className="flex flex-col flex-shrink-0 overflow-hidden border-r max-lg:w-full! max-lg:max-h-[40dvh] max-lg:border-r-0 max-lg:border-b" style={{ width: questionWidth, background: "#fff", borderColor: "#D9E1EA" }}>
               {/* Problem details — hamburger + "Question N of M" removed

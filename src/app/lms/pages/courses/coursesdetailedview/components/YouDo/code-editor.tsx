@@ -1028,6 +1028,9 @@ export default function CodeEditor({
     );
     // Notes — private per-question scratchpad, same as the multi-file workspace.
     const [showNotesPanel, setShowNotesPanel] = useState(false);
+    // The question panel beside the editor — the rail's Problem button hides
+    // it for more editor room and shows it again.
+    const [showQuestionPanel, setShowQuestionPanel] = useState(true);
     const [notesText, setNotesText] = useState<string>("");
     const [selectedCaseIndex, setSelectedCaseIndex] = useState<number>(0);
     const [testResults, setTestResults] = useState<{
@@ -4684,6 +4687,18 @@ else:
                     }}>
                         <FileCode style={{ width: 18, height: 18 }} />
                     </span>
+                    {/* The assessment's own name. */}
+                    {exercise?.exerciseInformation?.exerciseName && (
+                        <strong
+                            title={exercise.exerciseInformation.exerciseName}
+                            style={{
+                                fontSize: 20, color: theme === 'dark' ? '#F9FAFB' : '#101828', marginRight: 12,
+                                maxWidth: 360, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                            }}
+                        >
+                            {exercise.exerciseInformation.exerciseName}
+                        </strong>
+                    )}
 
                     <button
                         onClick={() => setShowSidebar(!showSidebar)}
@@ -5103,7 +5118,19 @@ else:
                         display: 'flex', flexDirection: 'column', alignItems: 'stretch',
                         padding: '12px 0', gap: 4,
                     }}>
-                        <button type="button" onClick={() => { setShowNotesPanel(false); setShowSidebar(false) }} aria-label="Problem" className="flex flex-col items-center gap-1.5 py-3 text-xs font-semibold border-l-2 border-teal-600 text-teal-700 bg-teal-50"><Code size={18} />Problem</button>
+                        {/* Problem shows / hides the question panel. With Notes or
+                            the problems list open it first brings the question back. */}
+                        <button
+                            type="button"
+                            onClick={() => {
+                                if (showNotesPanel || showSidebar) { setShowNotesPanel(false); setShowSidebar(false); setShowQuestionPanel(true); return; }
+                                setShowQuestionPanel(v => !v);
+                            }}
+                            aria-label="Problem"
+                            aria-pressed={showQuestionPanel && !showNotesPanel}
+                            title={showQuestionPanel && !showNotesPanel ? 'Hide the question' : 'Show the question'}
+                            className={`flex flex-col items-center gap-1.5 py-3 text-xs font-semibold border-l-2 ${(showQuestionPanel && !showNotesPanel) ? 'border-teal-600 text-teal-700 bg-teal-50' : `border-transparent ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}`}
+                        ><Code size={18} />Problem</button>
                         <button
                             type="button"
                             onClick={() => setShowNotesPanel(v => !v)}
@@ -5461,7 +5488,7 @@ else:
                 // Phones/tablets: one scroll column (question → editor → bottom panel);
                 // lg+: `contents` removes this wrapper so the desktop split is untouched.
                 <div className="max-lg:flex max-lg:flex-col max-lg:flex-1 max-lg:min-h-0 max-lg:min-w-0 max-lg:overflow-y-auto lg:contents">
-                <div style={{ width: `${leftPanelWidth}%` }} className="h-full flex flex-col border-r border-gray-300 dark:border-gray-700 overflow-hidden max-lg:w-full! max-lg:h-auto max-lg:max-h-[45dvh] max-lg:flex-none max-lg:border-r-0 max-lg:border-b">
+                <div style={{ width: `${leftPanelWidth}%`, display: showQuestionPanel ? undefined : 'none' }} className="h-full flex flex-col border-r border-gray-300 dark:border-gray-700 overflow-hidden max-lg:w-full! max-lg:h-auto max-lg:max-h-[45dvh] max-lg:flex-none max-lg:border-r-0 max-lg:border-b">
                     <div className="flex-1 overflow-y-auto custom-scrollbar">
                         <div className={`p-5 max-sm:p-4 space-y-6 ${theme === 'dark' ? 'bg-gray-900' : 'bg-white'}`}>
                             <div>
@@ -5603,7 +5630,7 @@ else:
                     bar over the question text. The panel's own `border-r` already
                     provides the divider at the correct edge. */}
 
-                <div className="flex flex-col flex-1 min-w-0 h-full max-lg:w-full! max-lg:h-auto max-lg:flex-none" style={{ width: `${100 - leftPanelWidth}%` }}>
+                <div className="flex flex-col flex-1 min-w-0 h-full max-lg:w-full! max-lg:h-auto max-lg:flex-none" style={{ width: showQuestionPanel ? `${100 - leftPanelWidth}%` : '100%' }}>
 
                     {/* ── Editor (top, resizable) ── */}
                     <div className={`${outputMaximized && showTerminal ? "hidden" : "flex flex-col"} max-lg:h-[60dvh]! max-lg:min-h-[320px]! max-lg:flex-none`} style={{ height: showTerminal ? `${rightPanelSplit}%` : "100%", minHeight: 0 }}>
