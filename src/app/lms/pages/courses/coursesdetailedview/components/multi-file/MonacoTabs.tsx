@@ -41,6 +41,10 @@ export default function MonacoTabs(props: MonacoTabsProps) {
   // stripe glued on top. One flag drives every token so the strip is one
   // colour system with the editor below it.
   const isDark = theme === "dark"
+  // Editor canvas (#1e1e1e is Monaco's vs-dark canvas exactly) and the
+  // strip's bottom rule.
+  const canvas = isDark ? "#1e1e1e" : "#ffffff"
+  const rule = isDark ? "#1f2937" : "#e5e7eb"
   const editorRef = useRef<any>(null)
   const monacoRef = useRef<any>(null)
   const decorationsRef = useRef<string[]>([])
@@ -71,13 +75,17 @@ export default function MonacoTabs(props: MonacoTabsProps) {
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      {/* Optional when the parent provides a single-row file switcher. */}
+      {/* Optional when the parent provides a single-row file switcher.
+          VS Code layout: the bottom rule runs under the inactive tabs and
+          the empty strip after them, and the active tab leaves it out — it
+          takes the editor's canvas colour, so it opens straight into the
+          code below instead of sitting on a line. The accent sits on top. */}
       {!hideTabBar && <div
-        className="flex items-stretch overflow-x-auto flex-shrink-0 border-b"
-        style={{ borderColor: isDark ? "#1f2937" : "#e5e7eb", background: isDark ? "#1e1e1e" : "#f9fafb" }}
+        className="flex items-stretch overflow-x-auto flex-shrink-0"
+        style={{ background: isDark ? "#181818" : "#f9fafb" }}
       >
         {openFiles.length === 0 && (
-          <div className={`px-3 py-2 text-2xs ${isDark ? "text-slate-500" : "text-gray-400"}`}>Open a file from the Explorer</div>
+          <div className={`px-3 py-2 text-2xs ${isDark ? "text-slate-500" : "text-gray-400"}`} style={{ borderBottom: `1px solid ${rule}` }}>Open a file from the Explorer</div>
         )}
         {openFiles.map((f) => {
           const isActive = f.id === activeFileId
@@ -86,14 +94,12 @@ export default function MonacoTabs(props: MonacoTabsProps) {
             <div
               key={f.id}
               onClick={() => onSelectTab(f.id)}
-              className="group flex items-center gap-2 px-3 py-1.5 cursor-pointer border-r flex-shrink-0"
+              className="group flex items-center gap-2 px-3 py-1.5 cursor-pointer flex-shrink-0"
               style={{
-                borderColor: isDark ? "#1f2937" : "#e5e7eb",
-                // Active tab picks up the editor's own canvas colour so it
-                // reads as one continuous surface with the code below —
-                // #1e1e1e is Monaco's vs-dark canvas exactly.
-                background: isActive ? (isDark ? "#1e1e1e" : "#ffffff") : "transparent",
-                borderBottom: isActive ? "2px solid " + (color || "#6366f1") : "2px solid transparent",
+                background: isActive ? canvas : "transparent",
+                borderTop: `2px solid ${isActive ? "#009F9A" : "transparent"}`,
+                borderRight: `1px solid ${rule}`,
+                borderBottom: `1px solid ${isActive ? canvas : rule}`,
               }}
               title={f.path}
             >
@@ -119,6 +125,7 @@ export default function MonacoTabs(props: MonacoTabsProps) {
             </div>
           )
         })}
+        <div className="flex-1" style={{ borderBottom: `1px solid ${rule}` }} />
       </div>}
 
       {/* Editor */}
