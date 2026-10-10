@@ -73,7 +73,7 @@ export interface EvaluationMethodSetting {
 
 export const EVALUATION_METHOD_OPTIONS: { value: EvaluationMethod; label: string }[] = [
   { value: 'manual', label: 'Manual' },
-  { value: 'testcase', label: 'Test Case Based' },
+  { value: 'testcase', label: 'Automation' },
   { value: 'ai', label: 'AI Based' },
 ];
 
@@ -134,7 +134,7 @@ export const normalizeEvaluationMethod = (raw: any): EvaluationMethodSetting => 
   return { method, ai: { criteria, testCasesCountMode, testCasesCount }, liveInteraction: raw?.liveInteraction === true };
 };
 
-const LIVE_INFO = 'Adds a Run button to the student\'s code editor that opens a live terminal: the program runs and waits for input as the student types it, like a real console. Run Testcase keeps working as before.';
+const LIVE_INFO = 'Adds a Run button to the student\'s code editor that opens a live terminal: the program runs and waits for input as the student types it, like a real console. Run tests keeps working as before.';
 
 /**
  * "Live interactive compiler" checkbox, shown under the Evaluation Method
@@ -383,6 +383,9 @@ export const EvaluationMethodConfig: React.FC<Props> = ({
           checked state stay visible at a glance. */}
       {v.method === 'ai' && (
         <div className="mt-3">
+          <p style={{ fontSize: 12, color: '#667085', margin: '0 0 10px', lineHeight: 1.6 }}>
+            Gemini evaluates the code against test cases and your selected criteria. Students get Run, Run tests and Test results, including AI verdicts, criterion feedback and the marks breakdown. Run opens the existing Terminal.
+          </p>
           {SectionLabel
             ? <SectionLabel required info={CRITERIA_INFO}>Evaluation Criteria</SectionLabel>
             : inlineLabel('Evaluation Criteria', CRITERIA_INFO)}

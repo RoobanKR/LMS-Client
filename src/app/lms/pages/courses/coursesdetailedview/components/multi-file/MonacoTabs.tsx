@@ -19,6 +19,7 @@ const monacoLang = (file: FileNode): string => {
 }
 
 interface MonacoTabsProps {
+  hideTabBar?: boolean
   openFiles: FileNode[] // files with an open tab, in tab order
   activeFileId: string | null
   theme?: "light" | "dark"
@@ -33,7 +34,7 @@ interface MonacoTabsProps {
 }
 
 export default function MonacoTabs(props: MonacoTabsProps) {
-  const { openFiles, activeFileId, theme = "light", highlightLine, readOnly, onSelectTab, onCloseTab, onChange } = props
+  const { hideTabBar = false, openFiles, activeFileId, theme = "light", highlightLine, readOnly, onSelectTab, onCloseTab, onChange } = props
   // Match the surrounding chrome — the Monaco editor itself already flips
   // to vs-dark, but the tab strip above it and its empty-state placeholder
   // were hard-coded #f9fafb / #ffffff, so a dark editor read as a white
@@ -70,8 +71,8 @@ export default function MonacoTabs(props: MonacoTabsProps) {
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      {/* Tab bar — themed alongside the editor below it. */}
-      <div
+      {/* Optional when the parent provides a single-row file switcher. */}
+      {!hideTabBar && <div
         className="flex items-stretch overflow-x-auto flex-shrink-0 border-b"
         style={{ borderColor: isDark ? "#1f2937" : "#e5e7eb", background: isDark ? "#1e1e1e" : "#f9fafb" }}
       >
@@ -107,7 +108,9 @@ export default function MonacoTabs(props: MonacoTabsProps) {
               )}
               <button
                 onClick={(e) => { e.stopPropagation(); onCloseTab(f.id) }}
-                className={`opacity-0 group-hover:opacity-100 rounded ${
+                aria-label={`Close ${f.filename}`}
+                title={`Close ${f.filename}`}
+                className={`rounded ${
                   isDark ? "hover:bg-slate-800" : "hover:bg-gray-200"
                 }`}
               >
@@ -116,7 +119,7 @@ export default function MonacoTabs(props: MonacoTabsProps) {
             </div>
           )
         })}
-      </div>
+      </div>}
 
       {/* Editor */}
       <div className="flex-1 min-h-0 relative">

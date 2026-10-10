@@ -133,7 +133,7 @@ const STATUS_FILTER_OPTIONS: { value: StatusFilterValue; label: string }[] = [
 ];
 
 const SCORING_META: Record<string, { label: string; icon: React.ReactNode; color: string; bg: string }> = {
-  testcase: { label: "Test Case", icon: <FlaskConical size={10} />, color: "#059669", bg: "rgba(5,150,105,0.09)" },
+  testcase: { label: "Automation", icon: <FlaskConical size={10} />, color: "#059669", bg: "rgba(5,150,105,0.09)" },
   ai: { label: "AI Eval", icon: <Brain size={10} />, color: "#6366f1", bg: "rgba(99,102,241,0.09)" },
   manual: { label: "Manual", icon: <PenLine size={10} />, color: "#f97316", bg: "rgba(249,115,22,0.09)" },
   hybrid: { label: "Hybrid", icon: <Layers size={10} />, color: "#8b5cf6", bg: "rgba(139,92,246,0.09)" },

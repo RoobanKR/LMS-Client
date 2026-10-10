@@ -454,7 +454,7 @@ function getEvaluation(ex: any): { label: string; description: string } {
     };
   }
   return {
-    label: "Test case based",
+    label: "Automation",
     description: hidden
       ? "Marks are awarded automatically by running your code against the stored test cases — including hidden ones you cannot see while solving."
       : "Marks are awarded automatically by running your code against the stored test cases.",

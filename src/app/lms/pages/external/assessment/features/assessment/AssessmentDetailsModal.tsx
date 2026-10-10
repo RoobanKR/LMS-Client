@@ -77,7 +77,7 @@ const SOURCE_LABELS: Record<string, string> = {
 
 const EVAL_LABELS: Record<string, string> = {
   manual: 'Manual review',
-  testcase: 'Test cases',
+  testcase: 'Automation',
   ai: 'AI evaluation',
 };
 

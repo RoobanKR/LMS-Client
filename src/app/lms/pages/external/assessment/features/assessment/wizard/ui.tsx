@@ -474,7 +474,7 @@ export function EvaluationMethodBlock({
   };
 
   const methods = [
-    { value: 'testcase', label: 'Test Case Based' },
+    { value: 'testcase', label: 'Automation' },
     { value: 'ai', label: 'AI Based' },
     ...(allowManual ? [{ value: 'manual', label: 'Manual (marked by hand)' }] : []),
   ];
@@ -482,7 +482,7 @@ export function EvaluationMethodBlock({
   return (
     <div className="space-y-3">
       <div>
-        <SectionLabel required info="How submissions are judged. Test Case Based runs the answer against expected outputs; AI Based scores it against the criteria you pick.">
+        <SectionLabel required info="How submissions are judged. Automation runs the answer against expected outputs; AI Based scores it against the criteria you pick.">
           Evaluation Method
         </SectionLabel>
         <OSelect value={value.method} onChange={(v) => onChange({ method: v })} options={methods} />

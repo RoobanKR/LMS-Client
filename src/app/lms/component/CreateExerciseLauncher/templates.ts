@@ -321,7 +321,7 @@ export const templateSummary = (t: TemplateSpec): Array<[string, string]> => {
     rows.push(['Difficulty Level', t.level.charAt(0).toUpperCase() + t.level.slice(1)])
     rows.push(['Duration', `${t.duration} minutes`])
     if (t.type !== 'MCQ') {
-        rows.push(['Evaluation', t.evaluation === 'testcase' ? 'Test Case Based'
+        rows.push(['Evaluation', t.evaluation === 'testcase' ? 'Automation'
             : t.evaluation === 'ai' ? 'AI Based' : 'Manual'])
         rows.push(['Question Flow', t.flow === 'controlled' ? 'Controlled Flow' : 'Free Flow'])
     }

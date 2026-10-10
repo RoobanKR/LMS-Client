@@ -313,10 +313,10 @@ export async function evaluateWithAi(input: EvaluateWithAiInput): Promise<AiEval
     });
   } catch (err) {
     const msg = err instanceof GeminiError
-      ? `AI grader failed (${err.status ?? 'network'}). Your code was saved — trainer will grade manually.`
+      ? `AI grader failed (${err.status ?? 'network'}). Retry the evaluation or submit your answer for trainer review.`
       : (err as any)?.name === 'AbortError'
         ? 'AI grader cancelled.'
-        : 'AI grader failed. Your code was saved — trainer will grade manually.';
+        : 'AI grader failed. Retry the evaluation or submit your answer for trainer review.';
     return { totalScore: 0, breakdown: failedBreakdown(), failed: true, errorMessage: msg };
   }
   if (!raw || typeof raw !== 'object') {
@@ -324,7 +324,7 @@ export async function evaluateWithAi(input: EvaluateWithAiInput): Promise<AiEval
       totalScore: 0,
       breakdown: failedBreakdown(),
       failed: true,
-      errorMessage: 'AI grader returned an unexpected response. Your code was saved — trainer will grade manually.',
+      errorMessage: 'AI grader returned an unexpected response. Retry the evaluation or submit your answer for trainer review.',
     };
   }
 

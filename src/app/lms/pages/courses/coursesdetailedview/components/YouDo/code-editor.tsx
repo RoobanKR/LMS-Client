@@ -906,7 +906,8 @@ export default function CodeEditor({
         if (hasExternalTimer) setExerciseTimeLeft(externalTimeLeft!);
     }, [externalTimeLeft, hasExternalTimer]);
     const [tabSwitchCount, setTabSwitchCount] = useState(0);
-    const [showTerminal, setShowTerminal] = useState(false);
+    const [showTerminal, setShowTerminal] = useState(true);
+    const [outputMaximized, setOutputMaximized] = useState(false);
     const [terminalLogs, setTerminalLogs] = useState<LogEntry[]>([]);
     const [isWaitingForInput, setIsWaitingForInput] = useState(false);
     const [isRecording, setIsRecording] = useState(false);
@@ -928,12 +929,12 @@ export default function CodeEditor({
     const [selectedLanguage, setSelectedLanguage] = useState("javascript")
     const [output, setOutput] = useState("")
     const [isRunning, setIsRunning] = useState(false)
-    // Run Testcase spins on its OWN flag so it never lights up the Submit
-    // button's spinner. Sharing `isRunning` made a Run Testcase click look
+    // Run tests spins on its OWN flag so it never lights up the Submit
+    // button's spinner. Sharing `isRunning` made a Run tests click look
     // like a submission was in flight — both buttons showed a loader at once.
     const [isRunningTestCases, setIsRunningTestCases] = useState(false)
     // Any evaluation in flight — used to disable the whole action cluster so
-    // Run / Run Testcase / Submit can't overlap, while each button keeps its
+    // Run / Run tests / Submit can't overlap, while each button keeps its
     // own spinner.
     const isEvaluating = isRunning || isRunningTestCases
     const [isFullscreen, setIsFullscreen] = useState(false)
@@ -954,7 +955,7 @@ export default function CodeEditor({
       enabled: !embedded && !!((exercise as any)?._id) && !!courseId,
     });
     const [showSidebar, setShowSidebar] = useState(false)
-    const [leftPanelWidth, setLeftPanelWidth] = useState(40)
+    const [leftPanelWidth, setLeftPanelWidth] = useState(32)
     const [searchQuery, setSearchQuery] = useState("")
     const editorRef = useRef<HTMLDivElement>(null)
     const descriptionRef = useRef<HTMLDivElement>(null)
@@ -984,7 +985,7 @@ export default function CodeEditor({
 
     // --- Image Modal State ---
     const [modalImage, setModalImage] = useState<{ url: string; alt: string } | null>(null);
-    const [rightPanelSplit, setRightPanelSplit] = useState(75);
+    const [rightPanelSplit, setRightPanelSplit] = useState(55);
 
     // ── Bottom-panel tab + structured test-case results (Test Results table) ──
     const [bottomTab, setBottomTab] = useState<'console' | 'results'>('console');
@@ -992,15 +993,15 @@ export default function CodeEditor({
     // shared BottomPanel renders identically on both surfaces.
     const [testResult, setTestResult] = useState<TestResultState | null>(null);
     // How the trainer configured this assessment to be evaluated. Manual means
-    // nothing is auto-run and nothing is auto-scored: no Run Testcase button,
+    // nothing is auto-run and nothing is auto-scored: no Run tests button,
     // no Test Result panel — Submit just files the code for manual grading.
-    // Test Case and AI both keep the full Run Testcase + Test Result surface.
+    // Test Case and AI both keep the full Run tests + Test Result surface.
     const evalMethod = useMemo(
         () => resolveEvaluationMethod(exercise, category).method,
         [exercise, category],
     );
     // Manual is a plain workspace: Run + Terminal, no evaluation of any kind.
-    // Test Case and AI get Run Testcase + the Test Result panel instead.
+    // Test Case and AI get Run tests + the Test Result panel instead.
     const isManualEval = evalMethod === 'manual';
     const showsTestResult = !isManualEval;
     // Terminal stdin under Manual grading — the student pastes a test case,
@@ -3075,7 +3076,7 @@ else:
     // ── AI evaluation for the current question ───────────────────────────
     // One Gemini call, the generated cases persisted on the first run, and the
     // Test Result panel painted with the full parameter + allocation
-    // breakdown. Shared by Run Testcase, Submit and Submit Test so all three
+    // breakdown. Shared by Run tests, Submit and Submit Test so all three
     // produce the SAME score for the same code — only the caller decides
     // whether the answer is also recorded as submitted.
     const evaluateCurrentQuestionWithAi = async (): Promise<{
@@ -3160,7 +3161,7 @@ else:
         };
     };
 
-    // Run Testcase → evaluates the current code and paints Test Result. It is
+    // Run tests → evaluates the current code and paints Test Result. It is
     // a DRY RUN: nothing is posted, nothing is stored, and the question is not
     // marked submitted. Storing is Submit's job alone, so a student can
     // iterate as often as they like without leaving a record behind.
@@ -4299,6 +4300,115 @@ else:
         );
     }
 
+    const submitAnswerAction = (<>
+                        <button
+                            onClick={handleSubmitCode}
+                            disabled={isEvaluating || (exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1))}
+                            title="Submit your answer to this question"
+                            aria-label="Submit answer"
+                            style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 5,
+                                height: 32, padding: '0 14px', borderRadius: 8,
+                                border: 'none',
+                                background: (isEvaluating || (exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1)))
+                                    ? '#94A3B8'
+                                    : '#0F766E',
+                                color: '#fff', fontSize: 12, fontWeight: 700, fontFamily: FONT,
+                                cursor: (isEvaluating || (exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1)))
+                                    ? 'not-allowed'
+                                    : 'pointer',
+                                whiteSpace: 'nowrap',
+                            }}
+                        >
+                            {isRunning
+                                ? <Loader2 size={12} className="animate-spin" />
+                                : <CheckCircle size={12} />}
+                            {(exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1))
+                                ? 'Limit Reached'
+                                : 'Submit answer'}
+                        </button>
+    </>);
+    const workspaceActions = (<>
+                    {/* ── Run tests · Submit ──
+                        Same pair the multi-file workspace carries, matched to
+                        the paginator rhythm: h-32, radius 8, 12px/700 labels.
+                        Run tests judges against the trainer's testcases and
+                        paints Test Result without recording the answer; Submit
+                        records it. */}
+                    <div className="flex items-center justify-end gap-2 flex-wrap">
+                        {/* Manual: Run executes the code against the Terminal's
+                            stdin and prints the raw output — no validation, no
+                            counts, no score. Test Case / AI get Run tests
+                            instead, which is a different job. */}
+                        {isManualEval && (
+                        <button
+                            onClick={() => { setShowTerminal(true); setBottomTab('console'); void runCode() }}
+                            disabled={isEvaluating}
+                            title="Run your code against the terminal input"
+                            aria-label="Run code"
+                            style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 5,
+                                height: 32, padding: '0 14px', borderRadius: 8,
+                                border: '1px solid #0F9D94',
+                                background: '#fff', opacity: isEvaluating ? 0.5 : 1,
+                                color: '#0F766E', fontSize: 12, fontWeight: 700, fontFamily: FONT,
+                                cursor: isEvaluating ? 'not-allowed' : 'pointer',
+                                whiteSpace: 'nowrap',
+                            }}
+                        >
+                            {isRunning
+                                ? <Loader2 size={12} className="animate-spin" />
+                                : <Play size={12} />}
+                            Run code
+                        </button>
+                        )}
+
+                        {showsTestResult && (
+                        <button
+                            onClick={runTestCases}
+                            disabled={isEvaluating}
+                            title={evalMethod === 'ai'
+                                ? 'Evaluate your code with AI (does not submit)'
+                                : 'Run your code against the testcases (does not submit)'}
+                            aria-label="Run tests"
+                            style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 5,
+                                height: 32, padding: '0 14px', borderRadius: 8,
+                                border: '1px solid #0F9D94',
+                                background: '#fff', opacity: isEvaluating ? 0.5 : 1,
+                                color: '#0F766E', fontSize: 12, fontWeight: 700, fontFamily: FONT,
+                                cursor: isEvaluating ? 'not-allowed' : 'pointer',
+                                whiteSpace: 'nowrap',
+                            }}
+                        >
+                            {/* Spinner tracks Run tests's OWN flag, so Submit
+                                never shows a loader for someone else's work. */}
+                            {isRunningTestCases
+                                ? <Loader2 size={12} className="animate-spin" />
+                                : <Play size={12} />}
+                            Run tests
+                        </button>
+                        )}
+
+                    </div>
+    </>);
+    const languageSelector = (
+                    <select
+                        value={selectedLanguage}
+                        onChange={(e) => setSelectedLanguage(e.target.value)}
+                        aria-label="Programming language"
+                        className={`h-8 text-xs border rounded px-1.5 ${theme === 'dark' ? 'bg-gray-800 text-white border-gray-600' : 'bg-white text-gray-900 border-gray-300'}`}
+                        disabled={isAssessmentMode && hasStarted}
+                    >
+                        {availableLanguages.map((lang) => (
+                            <option key={lang} value={lang}>
+                                {formatLanguageName(lang)}
+                                
+                            </option>
+                        ))}
+                    </select>
+    );
+
     return (
         <div
             ref={editorRef}
@@ -4595,7 +4705,7 @@ else:
                                         fontVariantNumeric: 'tabular-nums',
                                     }}
                                 >
-                                    {currentProblemIndex + 1} / {problems.length}
+                                    Problem {currentProblemIndex + 1} of {problems.length}
                                 </span>
 
                                 <button
@@ -4817,19 +4927,7 @@ else:
 
                     {/* Language Selector */}
                     {/* Language Selector */}
-                    <select
-                        value={selectedLanguage}
-                        onChange={(e) => setSelectedLanguage(e.target.value)}
-                        className={`h-7 text-xs border rounded px-1.5 ${theme === 'dark' ? 'bg-gray-800 text-white border-gray-600' : 'bg-white text-gray-900 border-gray-300'}`}
-                        disabled={isAssessmentMode && hasStarted}
-                    >
-                        {availableLanguages.map((lang) => (
-                            <option key={lang} value={lang}>
-                                {formatLanguageName(lang)}
-                                {lang === selectedLanguage ? " (Selected)" : ""}
-                            </option>
-                        ))}
-                    </select>
+
 
 
                     {/* ── Prev / Submit / Next ── */}
@@ -4861,94 +4959,7 @@ else:
                         </div>
                     )} */}
 
-                    {/* ── Run Testcase · Submit ──
-                        Same pair the multi-file workspace carries, matched to
-                        the paginator rhythm: h-32, radius 8, 12px/700 labels.
-                        Run Testcase judges against the trainer's testcases and
-                        paints Test Result without recording the answer; Submit
-                        records it. */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        {/* Manual: Run executes the code against the Terminal's
-                            stdin and prints the raw output — no validation, no
-                            counts, no score. Test Case / AI get Run Testcase
-                            instead, which is a different job. */}
-                        {isManualEval && (
-                        <button
-                            onClick={runCode}
-                            disabled={isEvaluating}
-                            title="Run your code against the terminal input"
-                            aria-label="Run"
-                            style={{
-                                display: 'inline-flex', alignItems: 'center', gap: 5,
-                                height: 32, padding: '0 14px', borderRadius: 8,
-                                border: 'none',
-                                background: isEvaluating ? '#94A3B8' : '#12A765',
-                                color: '#fff', fontSize: 12, fontWeight: 700, fontFamily: FONT,
-                                cursor: isEvaluating ? 'not-allowed' : 'pointer',
-                                whiteSpace: 'nowrap',
-                            }}
-                        >
-                            {isRunning
-                                ? <Loader2 size={12} className="animate-spin" />
-                                : <Play size={12} />}
-                            Run
-                        </button>
-                        )}
-
-                        {showsTestResult && (
-                        <button
-                            onClick={runTestCases}
-                            disabled={isEvaluating}
-                            title={evalMethod === 'ai'
-                                ? 'Evaluate your code with AI (does not submit)'
-                                : 'Run your code against the testcases (does not submit)'}
-                            aria-label="Run testcase"
-                            style={{
-                                display: 'inline-flex', alignItems: 'center', gap: 5,
-                                height: 32, padding: '0 14px', borderRadius: 8,
-                                border: 'none',
-                                background: isEvaluating ? '#94A3B8' : '#12A765',
-                                color: '#fff', fontSize: 12, fontWeight: 700, fontFamily: FONT,
-                                cursor: isEvaluating ? 'not-allowed' : 'pointer',
-                                whiteSpace: 'nowrap',
-                            }}
-                        >
-                            {/* Spinner tracks Run Testcase's OWN flag, so Submit
-                                never shows a loader for someone else's work. */}
-                            {isRunningTestCases
-                                ? <Loader2 size={12} className="animate-spin" />
-                                : <Play size={12} />}
-                            Run Testcase
-                        </button>
-                        )}
-
-                        <button
-                            onClick={handleSubmitCode}
-                            disabled={isEvaluating || (exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1))}
-                            title="Submit your answer to this question"
-                            aria-label="Submit answer"
-                            style={{
-                                display: 'inline-flex', alignItems: 'center', gap: 5,
-                                height: 32, padding: '0 14px', borderRadius: 8,
-                                border: 'none',
-                                background: (isEvaluating || (exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1)))
-                                    ? '#94A3B8'
-                                    : '#FF641A',
-                                color: '#fff', fontSize: 12, fontWeight: 700, fontFamily: FONT,
-                                cursor: (isEvaluating || (exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1)))
-                                    ? 'not-allowed'
-                                    : 'pointer',
-                                whiteSpace: 'nowrap',
-                            }}
-                        >
-                            {isRunning
-                                ? <Loader2 size={12} className="animate-spin" />
-                                : <CheckCircle size={12} />}
-                            {(exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1))
-                                ? 'Limit Reached'
-                                : 'Submit'}
-                        </button>
-                    </div>
+                    {workspaceActions}
                     {/* Proctor message notification (ephemeral, test-only) — standalone only; section header owns it in section mode */}
                     {!embedded && (
                         <TestMessageBell assessmentId={exercise?._id ? String(exercise._id) : ""} />
@@ -4956,7 +4967,7 @@ else:
                     {/* Whole-test submit — previously nested inside the timer
                         block on the old top strip, so it only rendered for timed
                         exercises. */}
-                    {exercise && !embedded && (
+                    {exercise && !embedded && currentProblemIndex === problems.length - 1 && (
                         <button
                             onClick={() => {
                                 // ── Attempt limit check ──
@@ -4997,9 +5008,9 @@ else:
                             style={{
                                 display: 'inline-flex', alignItems: 'center', gap: 6,
                                 height: 32, padding: '0 14px', borderRadius: 8,
-                                border: 'none',
-                                background: isEvaluating ? '#94a3b8' : '#12A765',
-                                color: '#fff',
+                                border: '1px solid #0F766E',
+                                background: '#fff',
+                                color: '#0F766E',
                                 fontSize: 12, fontWeight: 700, fontFamily: FONT,
                                 cursor: isEvaluating ? 'not-allowed' : 'pointer',
                                 opacity: isEvaluating ? 0.7 : 1,
@@ -5007,22 +5018,22 @@ else:
                             }}
                         >
                             <CheckCircle style={{ width: 12, height: 12 }} />
-                            Finish
+                            Finish assessment
                         </button>
                     )}
-                    {exercise && onSubmitTest && (
+                    {exercise && onSubmitTest && currentProblemIndex === problems.length - 1 && (
                         <button
                             onClick={onSubmitTest}
                             style={{
                                 display: 'inline-flex', alignItems: 'center', gap: 6,
                                 height: 32, padding: '0 14px', borderRadius: 8,
-                                border: 'none', background: '#12A765', color: '#fff',
+                                border: '1px solid #0F766E', background: '#fff', color: '#0F766E',
                                 fontSize: 12, fontWeight: 700, fontFamily: FONT,
                                 cursor: 'pointer', whiteSpace: 'nowrap',
                             }}
                         >
                             <CheckCircle style={{ width: 12, height: 12 }} />
-                            Finish
+                            Finish assessment
                         </button>
                     )}
 
@@ -5059,6 +5070,7 @@ else:
                         display: 'flex', flexDirection: 'column', alignItems: 'stretch',
                         padding: '12px 0', gap: 4,
                     }}>
+                        <button type="button" onClick={() => { setShowNotesPanel(false); setShowSidebar(false) }} aria-label="Problem" className="flex flex-col items-center gap-1.5 py-3 text-xs font-semibold border-l-2 border-teal-600 text-teal-700 bg-teal-50"><Code size={18} />Problem</button>
                         <button
                             type="button"
                             onClick={() => setShowNotesPanel(v => !v)}
@@ -5341,7 +5353,7 @@ else:
                                     color: theme === 'dark' ? '#FED7AA' : '#EA580C',
                                     fontFamily: FONT, whiteSpace: 'nowrap',
                                 }}>
-                                    Q {currentProblemIndex + 1} / {problems.length}
+                                    Problem {currentProblemIndex + 1} of {problems.length}
                                 </span>
                                 <span className={`text-sm font-semibold truncate max-sm:min-w-0 max-sm:flex-1 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-800'}`} style={{ fontFamily: FONT }} title={linkUrl}>
                                     {liveQ.title && liveQ.title !== linkUrl ? liveQ.title : 'Linked question'}
@@ -5510,20 +5522,11 @@ else:
                                         <Terminal className={`w-4 h-4 ${theme === 'dark' ? 'text-green-400' : 'text-green-500'}`} />
                                         <h3 className={`text-sm font-semibold ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>Examples</h3>
                                     </div>
-                                    <div className="space-y-3">
-                                        {problem.examples.map((example, index) => (
-                                            <div key={index}>
-                                                <strong className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Example {index + 1}</strong>
-                                                <div className="mt-1 mb-2">
-                                                    <div className={`text-xs font-medium mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-700'}`}>Input:</div>
-                                                    <div className={`p-2 rounded font-mono text-xs ${theme === 'dark' ? 'bg-gray-800 text-gray-300 border border-gray-700' : 'bg-gray-100 text-gray-900 border border-gray-200'}`}>{example.input}</div>
-                                                </div>
-                                                <div className="mb-2">
-                                                    <div className={`text-xs font-medium mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-700'}`}>Output:</div>
-                                                    <div className={`p-2 rounded font-mono text-xs ${theme === 'dark' ? 'bg-gray-800 text-gray-300 border border-gray-700' : 'bg-gray-100 text-gray-900 border border-gray-200'}`}>{example.output}</div>
-                                                </div>
-                                            </div>
-                                        ))}
+                                    <div className="overflow-x-auto rounded-lg border border-gray-200">
+                                        <table className="w-full text-left text-xs" aria-label="Problem examples">
+                                            <thead className={theme === 'dark' ? 'bg-gray-800' : 'bg-gray-50'}><tr><th scope="col" className="p-3">Input</th><th scope="col" className="p-3">Expected output</th></tr></thead>
+                                            <tbody>{problem.examples.map((example, index) => <tr key={index} className="border-t border-gray-200"><td className="p-3 align-top"><pre className="whitespace-pre-wrap break-words">{example.input || '(empty)'}</pre></td><td className="p-3 align-top"><pre className="whitespace-pre-wrap break-words">{example.output || '(empty)'}</pre></td></tr>)}</tbody>
+                                        </table>
                                     </div>
                                 </div>
                             )}
@@ -5572,12 +5575,11 @@ else:
                 <div className="flex flex-col flex-1 min-w-0 h-full max-lg:w-full! max-lg:h-auto max-lg:flex-none" style={{ width: `${100 - leftPanelWidth}%` }}>
 
                     {/* ── Editor (top, resizable) ── */}
-                    <div className="flex flex-col max-lg:h-[60dvh]! max-lg:min-h-[320px]! max-lg:flex-none" style={{ height: `${rightPanelSplit}%`, minHeight: 0 }}>
+                    <div className={`${outputMaximized && showTerminal ? "hidden" : "flex flex-col"} max-lg:h-[60dvh]! max-lg:min-h-[320px]! max-lg:flex-none`} style={{ height: showTerminal ? `${rightPanelSplit}%` : "100%", minHeight: 0 }}>
                         <div className={`flex items-center justify-between max-md:gap-2 p-2 border-b ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-gray-50'}`}>
                             <div className="flex items-center gap-1.5">
                                 <Code className={`w-4 h-4 ${theme === 'dark' ? 'text-orange-400' : 'text-orange-500'}`} />
-                                <span className={`text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>Code</span>
-                                <span className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-600'}`}>({formatLanguageName(selectedLanguage)})</span>
+                                <span className={`text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>{({ python: 'main.py', javascript: 'main.js', java: 'Main.java', cpp: 'main.cpp', c: 'main.c', csharp: 'Main.cs', typescript: 'main.ts', go: 'main.go', rust: 'main.rs' } as Record<string, string>)[selectedLanguage.toLowerCase()] || formatLanguageName(selectedLanguage)}</span>
                                 {solvedQuestions.has(currentProblemIndex) && (
                                     <span
                                         className="ml-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold"
@@ -5591,9 +5593,10 @@ else:
                                     </span>
                                 )}
                             </div>
+                            <div className="flex items-center gap-2">{languageSelector}
                             <button onClick={resetCode} className={`flex items-center gap-1 px-2 py-0.5 text-xs border rounded transition-colors ${theme === 'dark' ? 'border-gray-600 bg-gray-700 text-gray-300 hover:bg-gray-600' : 'border-gray-300 bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
                                 <RotateCcw className="w-3.5 h-3.5" /> Reset
-                            </button>
+                            </button></div>
                         </div>
                         <div className="flex-1 min-h-0">
                             <MonacoEditor
@@ -5605,9 +5608,9 @@ else:
                                 onMount={handleEditorDidMount}
                                 theme={theme === 'dark' ? 'vs-dark' : 'vs'}
                                 options={{
-                                    minimap: { enabled: true },
+                                    minimap: { enabled: false },
                                     fontSize: 14,
-                                    fontFamily: FONT,
+                                    fontFamily: "Consolas, ui-monospace, monospace",
                                     readOnly: isAssessmentMode && !hasStarted
                                 }}
                             />
@@ -5615,12 +5618,12 @@ else:
                     </div>
 
                     {/* ── Drag handle ── */}
-                    <div
+                    {showTerminal && !outputMaximized && <div
                         className={`h-2 flex items-center justify-center cursor-row-resize flex-shrink-0 transition-colors max-lg:hidden ${theme === 'dark' ? 'hover:bg-orange-900/40 bg-gray-800' : 'hover:bg-orange-100 bg-gray-100'}`}
                         onMouseDown={(e) => { setIsHorizontalResizing(true); e.preventDefault(); }}
                     >
                         <div className={`w-12 h-1 rounded-full ${theme === 'dark' ? 'bg-gray-600' : 'bg-gray-300'}`} />
-                    </div>
+                    </div>}
 
                     {/* ── Bottom panel (resizable) ──
                         The shared BottomPanel from the multi-file workspace.
@@ -5629,11 +5632,14 @@ else:
                         Copy result, per-case chips, the selected case's Input /
                         Expected / Your output, and the AI breakdown); Manual
                         gets a plain Terminal — stdin box, Run output, Clear. */}
-                    <div className="flex flex-col flex-1 min-h-0 max-lg:h-[50dvh]! max-lg:min-h-[280px]! max-lg:flex-none" style={{ height: `${100 - rightPanelSplit}%` }}>
+                    {showTerminal && <div className="flex flex-col flex-1 min-h-0 max-lg:h-[50dvh]! max-lg:min-h-[280px]! max-lg:flex-none" style={{ height: outputMaximized ? "100%" : `${100 - rightPanelSplit}%` }}>
                         <BottomPanel
                             mode={isManualEval ? 'terminal' : 'test-result'}
                             activeTab={isManualEval ? 'terminal' : 'test-result'}
                             onTabChange={() => setBottomTab(isManualEval ? 'console' : 'results')}
+                            onClose={() => { setShowTerminal(false); setOutputMaximized(false) }}
+                            onToggleMaximize={() => setOutputMaximized(v => !v)}
+                            maximized={outputMaximized}
                             testResult={testResult}
                             termLines={termLines}
                             running={isRunning}
@@ -5650,8 +5656,13 @@ else:
                             onRetrySubmit={handleSubmitCode}
                             isSubmitting={isEvaluating}
                         />
-                    </div>
+                    </div>}
 
+                    <div className={`flex items-center justify-between px-3 py-2 border-t text-xs flex-shrink-0 ${theme === 'dark' ? 'border-gray-700 text-gray-400' : 'border-gray-200 text-gray-500'}`}>
+                        <span>{formatLanguageName(selectedLanguage)} · Single-file workspace</span>
+                        <button type="button" onClick={() => { setShowTerminal(true); setOutputMaximized(false) }} className="inline-flex items-center gap-2 border border-gray-300 rounded-md px-3 py-1"><Terminal size={14} />{isManualEval ? 'Open terminal' : 'Open test results'}</button>
+                        <div className="ml-auto flex items-center gap-3"><span className="hidden sm:inline">Submits this question only</span>{submitAnswerAction}</div>
+                    </div>
                 </div>
                 </div>)}{/* end non-link question+editor split */}
                 {/* ── Exercise Info Right Panel ── */}

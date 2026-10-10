@@ -8,14 +8,9 @@
 // all of that and runs the editor natively in React:
 //   • Left  : custom file/folder Explorer (nested folders + drag-to-move)
 //   • Center: tabbed Monaco editor
-//   • Bottom: Test Result, plus a live Terminal when the exercise has the
-//             live interactive compiler ticked — the program asks for input
-//             as it runs and the student types each answer there
-//   • Run   : (live interactive compiler only) runs the whole project live —
-//             Python in the browser (Pyodide), every other language on the
-//             LMS compiler service
-//   • Run Testcase: always shown. Test Case / AI grade as on Submit (nothing
-//             stored); Manual checks the question's first example only
+//   • Bottom: live Terminal for Run, plus Test results for Automation / AI
+//   • Run: runs the whole project using the existing interactive compiler
+//   • Run tests: Automation / AI only; evaluates without submitting
 //   • Visualizer: PythonTutor-style step-through — Python via sys.settrace
 //                 (lib/pythonTracer.ts), the rest instrumented and traced on
 //                 the compiler service
@@ -250,13 +245,13 @@ export default function MultiFileCodeEditor({
   const previewDrafts = useRef(new Map<string, { files: { path: string; content: string }[]; folders: { path: string }[]; language: SupportedLanguage }>())
   const previewNotes = useRef(new Map<string, string>())
 
-  const [questionWidth, setQuestionWidth] = useState(360)
+  const [questionWidth, setQuestionWidth] = useState(400)
   const [treeWidth, setTreeWidth] = useState(220)
   // VS Code-like Activity Bar: which side view is open. `null` collapses the
   // side panel entirely (only the icon rail stays visible).
-  const [sideView, setSideView] = useState<"explorer" | "search" | null>("explorer")
+  const [sideView, setSideView] = useState<"explorer" | "search" | null>(null)
   // Phones / tablets (< lg): the explorer is an overlay drawer there, so start
-  // it collapsed (one tap on the activity bar opens it). Desktop keeps it open.
+  // it collapsed (one tap on the activity bar opens it).
   useEffect(() => {
     if (typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches) setSideView(null)
   }, [])
@@ -298,7 +293,7 @@ export default function MultiFileCodeEditor({
   // ─── Files the program creates on Run (Python) ──────────────────────────────
   // Saved on the server under today's date (GET/PUT /api/code-files, deleted
   // daily), loaded into every Run so the program can read them back, and shown
-  // read-only in the Explorer. Kept apart from `files`, so drafts, Run Testcase
+  // read-only in the Explorer. Kept apart from `files`, so drafts, Run tests
   // and Submit never include them.
   const [outputFiles, setOutputFiles] = useState<OutputFile[]>([])
   const previewOutputFiles = useRef(new Map<string, OutputFile[]>())
@@ -370,14 +365,12 @@ export default function MultiFileCodeEditor({
   // the trainer configured, so every configured language gets it.
   const canVisualize = selectedLanguage === "python" || !!SERVER_TRACE_LANG[selectedLanguage]
 
-  // How the trainer configured this exercise to be evaluated. Every method
-  // gets Run Testcase and the Test Result panel; what Run Testcase checks
-  // differs. Test Case and AI grade exactly as Submit does (nothing stored).
-  // Manual checks the question's first example only and shows no score —
-  // Submit files the code at score 0 for the trainer to grade on Review.
+  const [fullExercise, setFullExercise] = useState<any>(exercise || null)
+
+  // Manual exposes Run/Terminal only; Automation and AI keep test results.
   const evalMethod = useMemo(
-    () => resolveEvaluationMethod(exercise, category).method,
-    [exercise, category],
+    () => resolveEvaluationMethod(fullExercise ?? exercise, category).method,
+    [fullExercise, exercise, category],
   )
   const isManualEval = evalMethod === 'manual'
 
@@ -400,14 +393,15 @@ export default function MultiFileCodeEditor({
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSubmittingQuestion, setIsSubmittingQuestion] = useState(false)
-  // Run Testcase — evaluates the current code against the trainer's testcases
+  // Run tests — evaluates the current code against the trainer's testcases
   // (server-side judge, same endpoint Submit uses) but does NOT mark the
-  // question as solved. Separate loading flag so the Run Testcase button can
+  // question as solved. Separate loading flag so the Run tests button can
   // spin independently of the Submit button.
   const [isRunningTestCases, setIsRunningTestCases] = useState(false)
   const isSubmitGuardRef = useRef(false)
   const isSubmitQuestionGuardRef = useRef(false)
   const isRunTestCasesGuardRef = useRef(false)
+  const lastEvaluationWasPreview = useRef(false)
 
   const [showBackConfirm, setShowBackConfirm] = useState(false)
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false)
@@ -420,7 +414,6 @@ export default function MultiFileCodeEditor({
   const [notesText, setNotesText] = useState<string>("")
   const [pendingNavLevel, setPendingNavLevel] = useState<null | "course" | "hierarchy" | "category">(null)
 
-  const [fullExercise, setFullExercise] = useState<any>(exercise || null)
   const [exerciseTimeLeft, setExerciseTimeLeft] = useState<number | null>(null)
 
   // Resize state captured on mouseDown so the mouseMove math is a pure
@@ -435,7 +428,8 @@ export default function MultiFileCodeEditor({
   // Bottom-panel (Terminal + Test Result) height. Drag grip on the top
   // edge updates this; clamped to a sensible min/max so the editor never
   // vanishes and the terminal never becomes too tiny to read.
-  const [bottomPanelHeight, setBottomPanelHeight] = useState<number>(240)
+  const [outputMaximized, setOutputMaximized] = useState(false)
+  const [bottomPanelHeight, setBottomPanelHeight] = useState<number>(360)
   const containerRef = useRef<HTMLDivElement>(null)
 
   // ─── Re-fetch full exercise (totalMarks etc.) ───────────────────────────────
@@ -462,18 +456,16 @@ export default function MultiFileCodeEditor({
     return unique.length > 0 ? unique : (["python"] as SupportedLanguage[])
   }, [exData, exercise])
 
-  // Live interactive compiler, from the exercise settings (stored with the
-  // evaluation method). Ticked: a Run button and a Terminal tab next to Test
-  // Result — the program runs live and waits for input while the student
-  // types it. Not ticked: no Run and no Terminal, only Run Testcase and Test
-  // Result. Same for every evaluation method.
-  const liveInteraction = (exData?.evaluationMethod?.liveInteraction ?? exercise?.evaluationMethod?.liveInteraction) === true
-  const panelMode: "test-result" | "both" = liveInteraction ? "both" : "test-result"
-  // With both tabs, Run Testcase / Submit bring the Test Result tab forward
+  // Run and its existing live terminal are available for every evaluation method.
+  const liveInteraction = true
+  // Manual has only a terminal; automated and AI evaluation retain results.
+  const panelMode: "terminal" | "both" = isManualEval ? "terminal" : "both"
+  // With both tabs, Run tests / Submit bring the Test Result tab forward
   // (Run brings the Terminal forward itself).
   useEffect(() => {
-    if (testResult?.status === "evaluating") setBottomTab("test-result")
-  }, [testResult?.status])
+    if (isManualEval) setBottomTab("terminal")
+    else if (testResult?.status === "evaluating") setBottomTab("test-result")
+  }, [testResult?.status, isManualEval])
 
   // ─── Terminal logging helper ────────────────────────────────────────────────
   const log = useCallback((kind: TermLine["kind"], text: string) => {
@@ -1539,7 +1531,7 @@ export default function MultiFileCodeEditor({
   // ═════════════════════════════════════════════════════════════════════════════
   // Submit
   // ═════════════════════════════════════════════════════════════════════════════
-  // `dryRun` (Run Testcase) evaluates and paints the Test Result panel without
+  // `dryRun` (Run tests) evaluates and paints the Test Result panel without
   // storing anything. It can only skip the POST when the grading happened
   // client-side — i.e. AI. Under Test Case the submit endpoint is ALSO the
   // judge (it re-runs the trainer's hidden cases server-side), so a dry run
@@ -1551,6 +1543,7 @@ export default function MultiFileCodeEditor({
     opts?: { dryRun?: boolean; meta?: { submitType: "USER" | "AUTO"; autoSubmitReason?: string } },
   ): Promise<{ ok: boolean; message?: string; result?: TestResultState }> => {
     const dryRun = !!opts?.dryRun
+    lastEvaluationWasPreview.current = dryRun
     const exerciseId = exercise?._id
     const questionId = currentQuestion?._id
     if (!exerciseId || !questionId || !courseId) return { ok: false, message: "Missing exercise context." }
@@ -1560,8 +1553,10 @@ export default function MultiFileCodeEditor({
     // Run output — only the tab activation swaps. The previous test result
     // stays visible until the new one lands (marked evaluating so students
     // know it's outdated).
-    setBottomTab('test-result')
-    setShowTerminal(true)
+    if (!isManualEval) {
+      setBottomTab('test-result')
+      setShowTerminal(true)
+    }
     setSelectedCaseIndex(0)
     setTestResult((prev) => ({
       ...(prev || { cases: [] }),
@@ -1622,7 +1617,7 @@ export default function MultiFileCodeEditor({
     // with filename headers so Gemini sees the project layout). This mirrors
     // the single-file editors, so a trainer using AI gets a consistent
     // breakdown regardless of whether the exercise is single- or multi-file.
-    const { method, aiCriteria } = resolveEvaluationMethod(exercise, category)
+    const { method, aiCriteria } = resolveEvaluationMethod(exData, category)
 
     let submitScore = 0
     let submitStatus: "submitted" | "solved" = "submitted"
@@ -1654,7 +1649,7 @@ export default function MultiFileCodeEditor({
       const maxMarks = Number(currentQuestion?.score ?? currentQuestion?.points ?? 10) || 10
       // Per-question mode: pass the current question so the resolver picks
       // its `aiTestCasesCount` (falling back to the exercise's count).
-      const { getAiTestCasesCountFor } = resolveEvaluationMethod(exercise, category)
+      const { getAiTestCasesCountFor } = resolveEvaluationMethod(exData, category)
       const aiTestCasesCount = getAiTestCasesCountFor(currentQuestion)
       const cachedGen = Array.isArray((currentQuestion as any)?.aiGeneratedTestCases)
         ? (currentQuestion as any).aiGeneratedTestCases : []
@@ -1698,7 +1693,7 @@ export default function MultiFileCodeEditor({
       if (aiResult.failed) {
         toast.error(
           aiResult.errorMessage ||
-            "AI grader failed. Your code was saved — trainer will grade manually.",
+            "AI grader unavailable. Retry the evaluation or submit your answer for trainer review.",
         )
       }
       // AI success/failure is surfaced in the Test Result panel via the
@@ -1729,7 +1724,7 @@ export default function MultiFileCodeEditor({
       ...(opts?.meta ? { submitType: opts.meta.submitType, autoSubmitReason: opts.meta.autoSubmitReason || "" } : {}),
     }
     // AI dry run — the score already exists locally, so the POST would be a
-    // pure write. Skip it: Run Testcase must leave no stored answer behind.
+    // pure write. Skip it: Run tests must leave no stored answer behind.
     const skipPost = (dryRun || preview) && method === "ai"
 
     let res: any
@@ -1793,6 +1788,7 @@ export default function MultiFileCodeEditor({
         input: c.input ?? "",
         expectedOutput: c.expectedOutput ?? "",
         actualOutput: c.actualOutput ?? "",
+        runtimeMs: typeof c.runtimeMs === "number" ? c.runtimeMs : null,
         errorMessage: c.errorMessage,
       }))
       const passed = typeof tc.passed === 'number' ? tc.passed : cases.filter(c => c.passed).length
@@ -1878,92 +1874,17 @@ export default function MultiFileCodeEditor({
     }
   }
 
-  // Manual exercise's Run Testcase: the code against every visible test case
-  // of the question (the same cases the trainer's Review Submission runs),
-  // painted case by case in the Test Result panel with no score. Hidden cases
-  // stay hidden. Nothing is posted to the answer store — the trainer still
-  // grades by hand. /api/run/judge is the judge the submit path uses
-  // (bare-function driver injection included), without the write.
-  const runVisibleCases = async () => {
-    const q: any = currentQuestion
-    if (q?.isLinkQuestion && q?.questionLink) { toast("This question is solved on the external site — there is nothing to run here.", { icon: "ℹ️" }); return }
-    const cases = visibleTestCases(q)
-    if (!cases.length) { toast("This question has no visible test case to run.", { icon: "ℹ️" }); return }
-
-    setBottomTab('test-result')
-    setShowTerminal(true)
-    setSelectedCaseIndex(0)
-    setTestResult((prev) => ({ ...(prev || { cases: [] }), status: 'evaluating', message: `Running ${cases.length} test case${cases.length === 1 ? '' : 's'}…` }))
-    try {
-      const res = await fetch(`${API}/api/run/judge`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({
-          language: selectedLanguage,
-          files: files.map((f) => ({ path: f.path, content: f.content, isEntryPoint: !!f.isEntryPoint })),
-          testCases: cases,
-          functionName: q?.solutions?.functionName || null,
-        }),
-      })
-      const body = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(body?.error || `HTTP ${res.status}`)
-      const perCase: any[] = Array.isArray(body?.perCase) ? body.perCase : []
-      if (!perCase.length || perCase.every((c) => c?.verdict === 'JE')) {
-        throw new Error(perCase[0]?.actualOutput || 'The judge returned no result.')
-      }
-      // The run's verdict is its first failure's, like the graded path:
-      // a compile error fails every case; otherwise the first runtime error,
-      // time-out or wrong answer names it.
-      const firstFail = perCase.find((c) => !c?.passed)
-      const status: SubmitStatus =
-        !firstFail ? 'accepted'
-        : firstFail.verdict === 'CE' ? 'compilation-error'
-        : firstFail.verdict === 'RE' ? 'runtime-error'
-        : firstFail.verdict === 'TLE' ? 'time-limit'
-        : 'wrong-answer'
-      const passedCount = perCase.filter((c) => c?.passed).length
-      const times = perCase.map((c) => c?.timeMs).filter((t): t is number => typeof t === 'number')
-      setTestResult({
-        status,
-        cases: perCase.map((c, i) => ({
-          index: i, hidden: false, passed: !!c?.passed,
-          input: c?.input ?? cases[i]?.input ?? "",
-          expectedOutput: c?.expectedOutput ?? cases[i]?.expectedOutput ?? "",
-          actualOutput: c?.actualOutput ?? "",
-        })),
-        passedCount,
-        totalCount: perCase.length,
-        runtimeMs: times.length ? Math.round(Math.max(...times)) : null,
-        errorDetail: firstFail && (firstFail.verdict === 'CE' || firstFail.verdict === 'RE') ? firstFail.actualOutput : undefined,
-        message: 'Not scored — the trainer grades this answer manually.',
-      })
-      // Open the first failing case so the student sees what went wrong.
-      const failIdx = perCase.findIndex((c) => !c?.passed)
-      setSelectedCaseIndex(failIdx >= 0 ? failIdx : 0)
-    } catch (e: any) {
-      setTestResult(null)
-      toast.error(`Couldn't run the test cases: ${e?.message || e}`)
-    }
-  }
-
-  // Run Testcase — evaluates the current code and paints the Test Result
-  // panel. It is a dry run: no answer is recorded. Manual runs every visible
-  // test case, unscored (runVisibleCases above). Under AI the grading is client-side,
-  // so nothing is posted at all. Under Test Case the submit endpoint is the
-  // only judge available, so it is still called — but the question is never
-  // marked "Submitted ✓" and the draft save still runs so the student's work
-  // isn't lost. Students can iterate freely.
+  // Evaluation preview only: never available for manual grading.
   const runTestCases = async () => {
-    if (isRunTestCasesGuardRef.current) return
+    if (isManualEval || isRunTestCasesGuardRef.current) return
     isRunTestCasesGuardRef.current = true
     setIsRunningTestCases(true)
     try {
       await saveDraft(false)
-      if (isManualEval) { await runVisibleCases(); return }
       const result = await postSubmission(false, { dryRun: true })
-      if (!result.ok) log("error", `Run testcase failed: ${result.message}`)
+      if (!result.ok) log("error", `Run tests failed: ${result.message}`)
     } catch (e: any) {
-      log("error", `Run testcase error: ${e?.message || e}`)
+      log("error", `Run tests error: ${e?.message || e}`)
     } finally {
       setIsRunningTestCases(false)
       isRunTestCasesGuardRef.current = false
@@ -2200,7 +2121,7 @@ export default function MultiFileCodeEditor({
     <div className="flex flex-col gap-4">
       {/* Title + badges */}
       <div>
-        <h2 className="text-sm font-bold mb-2 text-gray-900">{currentQuestion?.title || exercise?.exerciseInformation?.exerciseName || "Exercise"}</h2>
+        <h2 className="text-xl font-bold mb-3 text-gray-900">{currentQuestion?.title || exercise?.exerciseInformation?.exerciseName || "Exercise"}</h2>
         {(currentQuestion?.difficulty || (exData?.isGraded !== false && (currentQuestion?.score ?? currentQuestion?.points) != null)) && (
           <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
             {currentQuestion?.difficulty && (
@@ -2255,24 +2176,11 @@ export default function MultiFileCodeEditor({
             <TerminalIcon className="w-3.5 h-3.5 text-green-500" />
             <h3 className="text-xs font-semibold text-gray-900">Examples</h3>
           </div>
-          <div className="flex flex-col gap-3">
-            {examples.map((ex, ei) => (
-              <div key={ei}>
-                <strong className="text-2xs text-gray-600">Example {ei + 1}</strong>
-                {ex.input && (
-                  <div className="mt-1">
-                    <div className="text-2xs font-medium text-gray-700 mb-0.5">Input:</div>
-                    <pre className="bg-gray-50 border border-gray-200 p-2 rounded text-2xs overflow-x-auto whitespace-pre-wrap">{ex.input}</pre>
-                  </div>
-                )}
-                {ex.output && (
-                  <div className="mt-1.5">
-                    <div className="text-2xs font-medium text-gray-700 mb-0.5">Output:</div>
-                    <pre className="bg-gray-50 border border-gray-200 p-2 rounded text-2xs overflow-x-auto whitespace-pre-wrap">{ex.output}</pre>
-                  </div>
-                )}
-              </div>
-            ))}
+          <div className="overflow-x-auto rounded-lg border border-gray-200">
+            <table className="w-full text-left text-xs" aria-label="Problem examples">
+              <thead className="bg-gray-50 text-gray-600"><tr><th scope="col" className="p-3">Input</th><th scope="col" className="p-3">Expected output</th></tr></thead>
+              <tbody>{examples.map((ex, i) => <tr key={i} className="border-t border-gray-200"><td className="p-3 align-top"><pre className="whitespace-pre-wrap break-words">{ex.input || '(empty)'}</pre></td><td className="p-3 align-top"><pre className="whitespace-pre-wrap break-words">{ex.output || '(empty)'}</pre></td></tr>)}</tbody>
+            </table>
           </div>
         </div>
       )}
@@ -2342,6 +2250,131 @@ export default function MultiFileCodeEditor({
     )
   }
 
+  const finishAction = (<>
+              {currentQuestionIndex === questions.length - 1 && (
+              <button
+                onClick={() => { if (!isSubmitting) setShowSubmitConfirm(true) }}
+                disabled={isSubmitting}
+                title={`Finish and submit the entire ${activityNoun}`}
+                aria-label={`Finish ${activityNoun}`}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 5,
+                  height: 32, padding: "0 14px", borderRadius: 8,
+                  border: "1px solid #0F766E", background: "#fff", color: "#0F766E",
+                  fontSize: 12, fontWeight: 700, fontFamily: FONT,
+                  cursor: isSubmitting ? "not-allowed" : "pointer",
+                  opacity: isSubmitting ? 0.6 : 1,
+                }}
+              >
+                {isSubmitting
+                  ? <Loader2 style={{ width: 12, height: 12 }} className="animate-spin" />
+                  : <CheckCircle style={{ width: 12, height: 12 }} />}
+                Finish {activityNoun}
+              </button>
+              )}
+  </>);
+  const visualizeAction = (<>
+              {/* Visualize — every language the exercise is configured with
+                  (Python in the browser, the rest on the compiler service). */}
+              {canVisualize && (
+                <button
+                  onClick={onVisualize}
+                  disabled={vizLoading || !ready}
+                  title={`Step through your ${LANGUAGE_CONFIG[selectedLanguage].label} code`}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 5,
+                    height: 32, padding: "0 12px", borderRadius: 8,
+                    border: "1px solid #6957E5", background: "#fff", color: "#6957E5",
+                    fontSize: 12, fontWeight: 600, fontFamily: FONT,
+                    cursor: vizLoading ? "wait" : "pointer",
+                    opacity: ready ? 1 : 0.5,
+                  }}
+                >
+                  {vizLoading ? <Loader2 size={12} className="animate-spin" /> : <Eye size={12} />}
+                  Visualize
+                </button>
+              )}
+
+  </>);
+  const submitAction = (<>
+              {exercise && (
+                <button
+                  onClick={submitQuestion}
+                  disabled={isSubmittingQuestion || isSubmitting || isRunningTestCases}
+                  title="Submit your answer to this question"
+                  aria-label="Submit answer"
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 5,
+                    height: 32, padding: "0 14px", borderRadius: 8,
+                    border: "none",
+                    background: (isSubmittingQuestion || isSubmitting || isRunningTestCases) ? "#94A3B8" : "#0F766E",
+                    color: "#fff", fontSize: 12, fontWeight: 700, fontFamily: FONT,
+                    cursor: (isSubmittingQuestion || isSubmitting || isRunningTestCases) ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {isSubmittingQuestion ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle size={12} />}
+                  Submit answer
+                </button>
+              )}
+
+  </>);
+
+  const workspaceActions = (<div className="flex items-center gap-2 flex-wrap justify-end">
+              {/* Run keeps the existing interactive terminal behavior. */}
+              {exercise && liveInteraction && !interactiveActive && (
+                <button
+                  onClick={() => void runLive()}
+                  disabled={!ready || vizRunning}
+                  title="Run your code in a live terminal: type input while it runs"
+                  aria-label="Run code"
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 5,
+                    height: 32, padding: "0 14px", borderRadius: 8,
+                    border: "1px solid #0F9D94",
+                    background: "#fff", opacity: (!ready || vizRunning) ? 0.5 : 1,
+                    color: "#0F766E", fontSize: 12, fontWeight: 700, fontFamily: FONT,
+                    cursor: (!ready || vizRunning) ? "not-allowed" : "pointer",
+                  }}
+                >
+                  <TerminalIcon size={12} />
+                  Run code
+                </button>
+              )}
+
+              {interactiveActive ? (
+                <button onClick={stopInteractive} style={{
+                  display: "inline-flex", alignItems: "center", gap: 5,
+                  height: 32, padding: "0 12px", borderRadius: 8,
+                  border: "1px solid #fca5a5", background: "#fee2e2", color: "#b91c1c",
+                  fontSize: 12, fontWeight: 600, fontFamily: FONT, cursor: "pointer",
+                }}>
+                  <Square size={12} /> Stop
+                </button>
+              ) : null}
+
+              {/* Automated checks do not submit or mark the question solved. */}
+              {exercise && !isManualEval && (
+                <button
+                  onClick={runTestCases}
+                  disabled={!ready || isRunningTestCases || isSubmittingQuestion || isSubmitting}
+                  title="Run your code against the testcases (does not submit)"
+                  aria-label="Run tests"
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 5,
+                    height: 32, padding: "0 14px", borderRadius: 8,
+                    border: "1px solid #0F9D94",
+                    background: "#fff", opacity: (!ready || isRunningTestCases || isSubmittingQuestion || isSubmitting) ? 0.5 : 1,
+                    color: "#0F766E", fontSize: 12, fontWeight: 700, fontFamily: FONT,
+                    cursor: (!ready || isRunningTestCases || isSubmittingQuestion || isSubmitting) ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {isRunningTestCases ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}
+                  Run tests
+                </button>
+              )}
+
+  </div>)
+
   return (
     <div ref={containerRef} className="flex flex-col h-full w-full" style={{ background: "#fff", color: "#111827", fontFamily: FONT, userSelect: resizing.current ? "none" : "auto" }}>
       {/* GLOBAL HEADER — one compact toolbar per the workspace redesign:
@@ -2363,7 +2396,7 @@ export default function MultiFileCodeEditor({
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            padding: "8px 16px", minHeight: 60,
+            padding: "12px 20px", minHeight: 72,
             gap: 12,
           }}>
             {/* Left — glyph + hamburger + Previous/counter/Next paginator.
@@ -2378,6 +2411,7 @@ export default function MultiFileCodeEditor({
               }}>
                 <FileCode style={{ width: 18, height: 18 }} />
               </span>
+              <strong style={{ fontSize: 20, color: "#101828", marginRight: 12 }}>Practice</strong>
               <button
                 type="button"
                 onClick={() => setShowSidebar(v => !v)}
@@ -2422,7 +2456,7 @@ export default function MultiFileCodeEditor({
                   fontFamily: FONT, fontSize: 13, fontWeight: 700, color: "#101828",
                   fontVariantNumeric: "tabular-nums",
                 }}>
-                  {cur} / {total}
+                  Problem {cur} of {total}
                 </span>
                 <button
                   type="button"
@@ -2450,136 +2484,13 @@ export default function MultiFileCodeEditor({
 
             {/* Right — primary actions moved up from the editor toolbar. */}
             <div className="max-lg:flex-wrap max-lg:ml-auto" style={{ display: "flex", alignItems: "center", gap: 8, justifySelf: "end" }}>
+              {workspaceActions}
               {/* All right-cluster actions matched to the paginator
                   rhythm — h-32, 12px labels, tight padding. Labels
                   simplified per user: "Submit answer" → "Submit" and
                   "Finish {activity}" → "Finish". Full intent still
                   reads via title / aria-label. */}
-              {/* Visualize — every language the exercise is configured with
-                  (Python in the browser, the rest on the compiler service). */}
-              {canVisualize && (
-                <button
-                  onClick={onVisualize}
-                  disabled={vizLoading || !ready}
-                  title={`Step through your ${LANGUAGE_CONFIG[selectedLanguage].label} code`}
-                  style={{
-                    display: "inline-flex", alignItems: "center", gap: 5,
-                    height: 32, padding: "0 12px", borderRadius: 8,
-                    border: "1px solid #6957E5", background: "#fff", color: "#6957E5",
-                    fontSize: 12, fontWeight: 600, fontFamily: FONT,
-                    cursor: vizLoading ? "wait" : "pointer",
-                    opacity: ready ? 1 : 0.5,
-                  }}
-                >
-                  {vizLoading ? <Loader2 size={12} className="animate-spin" /> : <Eye size={12} />}
-                  Visualize
-                </button>
-              )}
-
-              {/* Run — opens the Terminal and runs the program live: it asks
-                  for input as it needs it and the student types each answer.
-                  Only when the trainer ticked the live interactive compiler in
-                  the exercise settings, whatever the evaluation method. Run
-                  Testcase below is unaffected. */}
-              {exercise && liveInteraction && !interactiveActive && (
-                <button
-                  onClick={() => void runLive()}
-                  disabled={!ready || vizRunning}
-                  title="Run your code in a live terminal: type input while it runs"
-                  aria-label="Run"
-                  style={{
-                    display: "inline-flex", alignItems: "center", gap: 5,
-                    height: 32, padding: "0 14px", borderRadius: 8,
-                    border: "none",
-                    background: (!ready || vizRunning) ? "#94A3B8" : "#12A765",
-                    color: "#fff", fontSize: 12, fontWeight: 700, fontFamily: FONT,
-                    cursor: (!ready || vizRunning) ? "not-allowed" : "pointer",
-                  }}
-                >
-                  <TerminalIcon size={12} />
-                  Run
-                </button>
-              )}
-
-              {interactiveActive ? (
-                <button onClick={stopInteractive} style={{
-                  display: "inline-flex", alignItems: "center", gap: 5,
-                  height: 32, padding: "0 12px", borderRadius: 8,
-                  border: "1px solid #fca5a5", background: "#fee2e2", color: "#b91c1c",
-                  fontSize: 12, fontWeight: 600, fontFamily: FONT, cursor: "pointer",
-                }}>
-                  <Square size={12} /> Stop
-                </button>
-              ) : null}
-
-              {/* Run Testcase — evaluates against the trainer's testcases and
-                  paints Test Result; does NOT mark the question as solved.
-                  Sits in the slot the old Run button used to occupy so the
-                  right-cluster rhythm (Visualize / Run Testcase / Submit /
-                  Finish) reads left-to-right in order of commitment.
-                  Every evaluation method has it; on a Manual exercise it
-                  checks the first example only, unscored. */}
-              {exercise && (
-                <button
-                  onClick={runTestCases}
-                  disabled={!ready || isRunningTestCases || isSubmittingQuestion || isSubmitting}
-                  title={isManualEval
-                    ? "Run your code against the example test case (not scored, does not submit)"
-                    : "Run your code against the testcases (does not submit)"}
-                  aria-label="Run testcase"
-                  style={{
-                    display: "inline-flex", alignItems: "center", gap: 5,
-                    height: 32, padding: "0 14px", borderRadius: 8,
-                    border: "none",
-                    background: (!ready || isRunningTestCases || isSubmittingQuestion || isSubmitting) ? "#94A3B8" : "#12A765",
-                    color: "#fff", fontSize: 12, fontWeight: 700, fontFamily: FONT,
-                    cursor: (!ready || isRunningTestCases || isSubmittingQuestion || isSubmitting) ? "not-allowed" : "pointer",
-                  }}
-                >
-                  {isRunningTestCases ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}
-                  Run Testcase
-                </button>
-              )}
-
-              {exercise && (
-                <button
-                  onClick={submitQuestion}
-                  disabled={isSubmittingQuestion || isSubmitting || isRunningTestCases}
-                  title="Submit your answer to this question"
-                  aria-label="Submit answer"
-                  style={{
-                    display: "inline-flex", alignItems: "center", gap: 5,
-                    height: 32, padding: "0 14px", borderRadius: 8,
-                    border: "none",
-                    background: (isSubmittingQuestion || isSubmitting || isRunningTestCases) ? "#94A3B8" : "#FF641A",
-                    color: "#fff", fontSize: 12, fontWeight: 700, fontFamily: FONT,
-                    cursor: (isSubmittingQuestion || isSubmitting || isRunningTestCases) ? "not-allowed" : "pointer",
-                  }}
-                >
-                  {isSubmittingQuestion ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle size={12} />}
-                  Submit
-                </button>
-              )}
-
-              <button
-                onClick={() => { if (!isSubmitting) setShowSubmitConfirm(true) }}
-                disabled={isSubmitting}
-                title={`Finish and submit the entire ${activityNoun}`}
-                aria-label={`Finish ${activityNoun}`}
-                style={{
-                  display: "inline-flex", alignItems: "center", gap: 5,
-                  height: 32, padding: "0 14px", borderRadius: 8,
-                  border: "none", background: "#12A765", color: "#fff",
-                  fontSize: 12, fontWeight: 700, fontFamily: FONT,
-                  cursor: isSubmitting ? "not-allowed" : "pointer",
-                  opacity: isSubmitting ? 0.6 : 1,
-                }}
-              >
-                {isSubmitting
-                  ? <Loader2 style={{ width: 12, height: 12 }} className="animate-spin" />
-                  : <CheckCircle style={{ width: 12, height: 12 }} />}
-                Finish
-              </button>
+              {finishAction}
             </div>
           </div>
         )
@@ -2597,6 +2508,7 @@ export default function MultiFileCodeEditor({
             display: "flex", flexDirection: "column", alignItems: "stretch",
             padding: "12px 0", gap: 4, flexShrink: 0,
           }}>
+            <button type="button" onClick={() => { setShowNotesPanel(false); setShowSidebar(false) }} aria-label="Problem" aria-current={!showNotesPanel ? 'page' : undefined} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 4px', border: 0, borderLeft: '2px solid #0F9D94', background: '#EEF6F7', color: '#0F766E', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}><FileText size={20} />Problem</button>
             <button
               type="button"
               onClick={() => setShowNotesPanel(v => !v)}
@@ -2647,7 +2559,7 @@ export default function MultiFileCodeEditor({
             >
               <AlertCircle style={{ width: 18, height: 18 }} />
               <span style={{ fontSize: 10.5, fontWeight: 600, fontFamily: FONT, lineHeight: 1.2, textAlign: "center" }}>
-                Exercise<br />info
+                Info
               </span>
             </button>
           </div>
@@ -2802,7 +2714,8 @@ export default function MultiFileCodeEditor({
                   from this row: they already sit in the global header's
                   paginator group, so repeating them here was pure noise.
                   Question content sits flush with the panel edge now. */}
-              <div className="flex-1 overflow-y-auto p-4 text-xs leading-relaxed text-gray-800">{questionContent}</div>
+              <div className="flex-1 overflow-y-auto p-5 text-sm leading-relaxed text-gray-800">{questionContent}</div>
+              <div className="px-5 py-3 border-t border-gray-200 text-xs text-gray-500">{isManualEval ? 'Grading: Trainer review after submission.' : evalMethod === 'ai' ? 'Grading: AI Based · Gemini.' : 'Grading: Automation · test cases.'}</div>
             </div>
             <div onMouseDown={(e) => { resizing.current = { kind: "question", startX: e.clientX, startWidth: questionWidth } }} className="w-1 cursor-col-resize hover:bg-orange-400 flex-shrink-0 max-lg:hidden" style={{ background: "#e5e7eb" }} />
           </>
@@ -2826,28 +2739,14 @@ export default function MultiFileCodeEditor({
                   <FileText size={13} /> Question
                 </button>
               )}
-              {activeTabFile && (
-                <span title={activeTabFile.path} className="max-sm:max-w-[45vw]!" style={{
-                  display: "inline-flex", alignItems: "center", gap: 6,
-                  fontFamily: "ui-monospace, monospace", fontSize: 12.5, fontWeight: 600, color: "#172033",
-                  padding: "4px 10px", background: "#F3F6FA", borderRadius: 6, border: "1px solid #E4E7EC",
-                  maxWidth: 240, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                }}>
-                  <FileText style={{ width: 12, height: 12, color: "#667085" }} />
-                  {basename(activeTabFile.path)}{activeTabFile.isOutput ? " (output, read-only)" : ""}
-                </span>
-              )}
-              {/* Autosave indicator — the editor debounces to /draft/save
-                  every 1.5s and heartbeats every 15s, so a static "Saved"
-                  is accurate for a student who's not offline. Kept
-                  non-animated per the spec. */}
-              <span aria-live="polite" title="Your work is autosaved" style={{
-                display: "inline-flex", alignItems: "center", gap: 6,
-                fontFamily: FONT, fontSize: 12, color: "#12A765", fontWeight: 500,
-              }}>
-                <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: "50%", background: "#12A765", display: "inline-block" }} />
-                Saved
-              </span>
+              <button type="button" onClick={() => setSideView(v => v === "explorer" ? null : "explorer")} aria-expanded={sideView === "explorer"} title="Show or hide project files" style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px", borderRadius: 8, border: "1px solid #D9E1EA", background: "#fff", color: "#172033", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                <FileCode size={14} /> Files
+              </button>
+              <select aria-label="Open file" value={activeFileId || ''} onChange={e => setActiveFileId(e.target.value)} className="min-w-0 max-w-[220px] rounded-md border border-gray-200 px-2 py-1.5 text-xs font-semibold">
+                {openFileObjs.length === 0 && <option value="">No file open</option>}
+                {openFileObjs.map(file => <option key={file.id} value={file.id}>{file.filename}{file.isOutput ? ' (read-only)' : ''}</option>)}
+              </select>
+              {activeFileId && <button type="button" onClick={() => closeTab(activeFileId)} aria-label="Close current file" title="Close current file"><X size={14} /></button>}
             </div>
             <div className="flex items-center gap-2 flex-shrink-0 max-sm:ml-auto max-sm:flex-wrap">
               {/* Language picker stays on the editor toolbar because it's
@@ -2859,6 +2758,9 @@ export default function MultiFileCodeEditor({
               {/* Exam mode, maximized: the global header is hidden, so the
                   timer / message bell ride on this toolbar instead. */}
               {isFull && exam?.headerSlot}
+              {isFull && workspaceActions}
+              {isFull && finishAction}
+              {visualizeAction}
               <select
                 value={selectedLanguage}
                 onChange={(e) => setSelectedLanguage(e.target.value as SupportedLanguage)}
@@ -2888,17 +2790,17 @@ export default function MultiFileCodeEditor({
               )}
 
               <button
-                onClick={() => setShowTerminal((v) => !v)}
-                aria-label="Toggle terminal"
-                title="Toggle terminal"
+                onClick={() => { setBottomTab("terminal"); setShowTerminal(true) }}
+                aria-label="Open terminal"
+                title="Open terminal"
                 style={{
                   display: "inline-flex", alignItems: "center", justifyContent: "center",
-                  width: 32, height: 32, borderRadius: 8,
+                  height: 32, padding: "0 10px", gap: 6, borderRadius: 8,
                   border: "1px solid #D9E1EA", background: "#fff", color: "#667085",
-                  cursor: "pointer",
+                  cursor: "pointer", fontSize: 12,
                 }}
               >
-                <TerminalIcon size={14} />
+                <TerminalIcon size={14} /> Terminal
               </button>
 
               <button
@@ -3008,13 +2910,14 @@ export default function MultiFileCodeEditor({
 
             {/* Editor + terminal column */}
             <div className="flex-1 flex flex-col min-w-0 min-h-0">
-              <div className="flex-1 flex min-h-0">
+              <div className={outputMaximized && showTerminal ? "hidden" : "flex-1 flex min-h-0"}>
                 {/* Monaco */}
                 <div className="flex-1 min-w-0 min-h-0">
                   {!ready ? (
                     <div className="flex items-center justify-center h-full gap-2 text-sm text-gray-500"><Loader2 className="w-5 h-5 animate-spin" /> Preparing your workspace…</div>
                   ) : (
                     <MonacoTabs
+                      hideTabBar
                       openFiles={openFileObjs} activeFileId={activeFileId} theme={theme}
                       onSelectTab={setActiveFileId} onCloseTab={closeTab} onChange={onEditorChange}
                     />
@@ -3050,12 +2953,15 @@ export default function MultiFileCodeEditor({
                       <ArrowUpDown size={11} />
                     </span>
                   </div>
-                  <div className="flex-shrink-0 flex flex-col max-lg:max-h-[40dvh] max-lg:border-t" style={{ height: bottomPanelHeight, borderColor: "#D9E1EA", background: "#fff" }}>
+                  <div className="flex-shrink-0 flex flex-col max-lg:max-h-[40dvh] max-lg:border-t" style={{ height: outputMaximized ? "100%" : bottomPanelHeight, borderColor: "#D9E1EA", background: "#fff" }}>
                   <BottomPanel
                     activeTab={bottomTab}
                     onTabChange={setBottomTab}
                     testResult={testResult}
                     mode={panelMode}
+                    onClose={() => { setShowTerminal(false); setOutputMaximized(false) }}
+                    onToggleMaximize={() => setOutputMaximized(v => !v)}
+                    maximized={outputMaximized}
                     // The terminal is always live here: the program asks for
                     // input as it runs, so there is no stdin box to pre-fill.
                     liveTerminal
@@ -3074,8 +2980,8 @@ export default function MultiFileCodeEditor({
                     // TestResult props
                     selectedCaseIndex={selectedCaseIndex}
                     onSelectCase={setSelectedCaseIndex}
-                    onRetrySubmit={submitQuestion}
-                    isSubmitting={isSubmittingQuestion}
+                    onRetrySubmit={() => { if (lastEvaluationWasPreview.current) void runTestCases(); else void submitQuestion() }}
+                    isSubmitting={isSubmittingQuestion || isRunningTestCases}
                   />
                   </div>
                 </>
@@ -3086,6 +2992,11 @@ export default function MultiFileCodeEditor({
         </div>)}{/* end non-link question panel + editor */}
       </div>
 
+      {exercise && <div className="flex items-center justify-between gap-3 px-4 py-1.5 border-t border-gray-200 bg-white text-xs text-gray-500">
+        <span className="hidden sm:inline">{LANGUAGE_CONFIG[selectedLanguage].label}</span>
+        <button type="button" onClick={() => { setBottomTab('terminal'); setShowTerminal(true) }} className="inline-flex items-center gap-2 px-3 py-1 border border-gray-200 rounded-md text-gray-700"><TerminalIcon size={14} />Open terminal</button>
+        <div className="ml-auto flex items-center gap-3"><span className="hidden sm:inline">Submits this question only</span>{submitAction}</div>
+      </div>}
       {/* MODALS */}
       {/* Finish confirmation — summary modal per the design mockup.
           Shows a live progress split (Completed / Incomplete / Not

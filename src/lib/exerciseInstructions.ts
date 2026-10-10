@@ -78,7 +78,7 @@ export function resolveExerciseInstructions(exercise: any): InstructionResolutio
   const evalMethod: string = (() => {
     const m = (exercise?.evaluationMethod?.method || exercise?.evaluationMethod || '').toString().toLowerCase()
     if (m === 'ai') return 'AI'
-    if (m === 'testcase' || m === 'test-case') return 'Test cases'
+    if (m === 'testcase' || m === 'test-case') return 'Automation'
     return ''
   })()
 
@@ -97,7 +97,7 @@ export function resolveExerciseInstructions(exercise: any): InstructionResolutio
       `Complete${totalQ > 0 ? ` all ${totalQ} problem${totalQ === 1 ? '' : 's'}` : ' the exercise'}${duration > 0 ? ` within ${duration} minutes` : ''}.`,
     )
   }
-  if (evalMethod === 'Test cases') {
+  if (evalMethod === 'Automation') {
     bits.push(
       `Run the sample test cases before submitting your solutions.`,
       `Hidden test cases will be used for final evaluation.`,

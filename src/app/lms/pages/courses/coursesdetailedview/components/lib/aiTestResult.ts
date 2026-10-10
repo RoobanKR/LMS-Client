@@ -89,7 +89,7 @@ export function buildAiTestResultState({
       score: typeof score === 'number' ? score : null,
       maxMarks: typeof maxMarks === 'number' ? maxMarks : null,
       message: 'AI evaluation unavailable',
-      errorDetail: errorMessage || 'The grader returned no breakdown — your code was saved for manual grading.',
+      errorDetail: errorMessage || 'The grader returned no breakdown. Retry the evaluation or submit your answer for trainer review.',
     };
   }
 
@@ -170,7 +170,7 @@ export function buildAiTestResultState({
     maxMarks: typeof maxMarks === 'number' ? maxMarks : null,
     ai: aiInfo,
     message: graderFailed
-      ? 'AI grader unavailable — your code was saved for manual grading.'
+      ? 'AI grader unavailable. Retry the evaluation or submit your answer for trainer review.'
       : `Graded by AI on ${criteria.length} parameter${criteria.length === 1 ? '' : 's'}`,
     errorDetail: graderFailed ? (errorMessage || undefined) : undefined,
   };

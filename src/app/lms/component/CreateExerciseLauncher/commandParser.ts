@@ -104,8 +104,8 @@ export const parseCommand = (raw: string): ParseResult => {
     // ── Evaluation ───────────────────────────────────────────────────────────
     let evaluation: SeedEvaluation = 'manual'
     if (/\bai[- ]?(based|evaluat|grad)/.test(t)) { evaluation = 'ai'; detected.push('AI based') }
-    else if (/test\s?case|auto.?grad|automatic/.test(t) && type !== 'MCQ') {
-        evaluation = 'testcase'; detected.push('Test case based')
+    else if (/test\s?case|auto.?grad|automatic|automation/.test(t) && type !== 'MCQ') {
+        evaluation = 'testcase'; detected.push('Automation')
     } else if (/manual(ly)?\s*(evaluat|grad|mark)/.test(t)) { evaluation = 'manual'; detected.push('Manual evaluation') }
     else if (type !== 'MCQ') assumed.push('evaluation method')
 
@@ -194,7 +194,7 @@ export const parseCommand = (raw: string): ParseResult => {
 }
 
 export const COMMAND_EXAMPLES = [
-    'Programming exercise with 10 questions, 4 easy, 4 medium, 2 hard, 100 marks, 2 attempts, test case based',
+    'Programming exercise with 10 questions, 4 easy, 4 medium, 2 hard, 100 marks, 2 attempts, Automation',
     'Create 20 beginner Python MCQs for 30 minutes with 50 marks',
     'Combined assessment with 10 MCQs and 3 programming questions, 90 minutes',
     'Java practice test, 5 coding questions, 50 marks, manual evaluation, non-graded',

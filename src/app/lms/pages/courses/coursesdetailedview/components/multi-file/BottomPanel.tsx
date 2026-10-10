@@ -15,7 +15,7 @@
 import React from "react"
 import {
   ClipboardCheck, Copy, CheckCircle2, XCircle, AlertTriangle,
-  Loader2, RefreshCw, Sparkles, TerminalSquare, Trash2,
+  Loader2, RefreshCw, Sparkles, TerminalSquare, Trash2, X, Maximize2, Minimize2,
 } from "lucide-react"
 import RunTerminal, { type TermLine } from "./RunTerminal"
 
@@ -50,6 +50,7 @@ export interface TestResultCase {
   expectedOutput: string
   actualOutput: string
   errorMessage?: string
+  runtimeMs?: number | null
 }
 
 export interface TestResultState {
@@ -104,6 +105,9 @@ export interface AiResultInfo {
 }
 
 interface BottomPanelProps {
+  onToggleMaximize?: () => void
+  maximized?: boolean
+  onClose?: () => void
   activeTab: 'terminal' | 'test-result'
   onTabChange: (t: 'terminal' | 'test-result') => void
   testResult: TestResultState | null
@@ -118,7 +122,7 @@ interface BottomPanelProps {
    *                             score.
    *   'both'                  — Test Case / AI grading with the live
    *                             interactive compiler on: Terminal (Run) and
-   *                             Test Result (Run Testcase) as two tabs;
+   *                             Test Result (Run tests) as two tabs;
    *                             `activeTab` picks the one shown.
    */
   mode?: 'test-result' | 'terminal' | 'both'
@@ -172,7 +176,7 @@ const TONE: Record<'ok' | 'bad' | 'warn' | 'info', { fg: string; bg: string; bor
 export default function BottomPanel(props: BottomPanelProps) {
   const {
     mode = 'test-result', activeTab, liveTerminal = false, onStopRun,
-    onTabChange, testResult,
+    onTabChange, testResult, onClose, onToggleMaximize, maximized,
     termLines, running, stdin, lastRuntime, setStdin, onClearTerm,
     interactive, awaitingInput, inputPrompt, onSubmitInput,
     selectedCaseIndex, onSelectCase, onRetrySubmit, isSubmitting,
@@ -235,12 +239,12 @@ export default function BottomPanel(props: BottomPanelProps) {
           {(bothTabs || !isTerminal) && (
             <TabButton id="test-result" active={!isTerminal} onClick={() => onTabChange('test-result')}>
               <ClipboardCheck size={12} style={{ color: '#FF641A' }} />
-              Test Result
+              Test results
             </TabButton>
           )}
         </div>
 
-        {/* Right-side action — Clear in terminal mode, Copy result otherwise. */}
+        {/* Right-side action — Clear in terminal mode, Copy results otherwise. */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {isTerminal ? (
             <button
@@ -258,13 +262,15 @@ export default function BottomPanel(props: BottomPanelProps) {
               type="button"
               onClick={copyResult}
               disabled={!testResult || isEval}
-              title="Copy result"
-              aria-label="Copy result summary"
+              title="Copy results"
+              aria-label="Copy results summary"
               style={{ ...smallBtn, opacity: (!testResult || isEval) ? 0.5 : 1 }}
             >
-              <Copy size={11} /> Copy result
+              <Copy size={11} /> Copy results
             </button>
           )}
+          {onToggleMaximize && <button type="button" onClick={onToggleMaximize} title={maximized ? "Restore output panel" : "Maximize output panel"} aria-label={maximized ? "Restore output panel" : "Maximize output panel"} style={smallBtn}>{maximized ? <Minimize2 size={15} /> : <Maximize2 size={15} />}</button>}
+          {onClose && <button type="button" onClick={onClose} title="Close output panel" aria-label="Close output panel" style={smallBtn}><X size={15} /></button>}
         </div>
       </div>
 
@@ -272,7 +278,8 @@ export default function BottomPanel(props: BottomPanelProps) {
       <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
         <div
           role="tabpanel"
-          aria-labelledby={isTerminal ? 'terminal' : 'test-result'}
+          id={isTerminal ? 'bp-panel-terminal' : 'bp-panel-test-result'}
+          aria-labelledby={isTerminal ? 'bp-tab-terminal' : 'bp-tab-test-result'}
           style={{ flex: 1, minWidth: 0, display: 'block' }}
         >
           {isTerminal ? (
@@ -351,7 +358,7 @@ export function TestResultView({
   if (!state) {
     return (
       <div style={{ padding: 20, color: '#667085', fontSize: 13 }} aria-live="polite">
-        Click <b style={{ color: '#172033' }}>Submit answer</b> to evaluate this question. Results will appear here.
+        Click <b style={{ color: '#172033' }}>Run tests</b> to check your code without submitting. Results will appear here.
       </div>
     )
   }
@@ -412,7 +419,7 @@ export function TestResultView({
           <Icon size={18} className={isEval ? 'animate-spin' : ''} />
         </span>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: tone.fg }}>{meta.label}</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: tone.fg }}>{state.ai ? (isEval ? 'Evaluating with Gemini…' : state.ai.failed ? 'AI evaluation unavailable' : 'AI evaluation complete') : state.totalCount && typeof state.passedCount === 'number' && ['accepted', 'partial', 'wrong-answer'].includes(state.status) ? (state.passedCount === state.totalCount ? `All ${state.totalCount} tests passed` : `${state.totalCount - state.passedCount} of ${state.totalCount} tests failed`) : meta.label}</div>
           {(state.message || summaryBits.length > 0) && (
             <div style={{ fontSize: 12.5, color: '#667085', marginTop: 3, lineHeight: 1.5 }}>
               {state.message ? state.message : ''}
@@ -439,6 +446,10 @@ export function TestResultView({
         )}
       </div>
 
+      {!isEval && !state.ai?.failed && typeof state.passedCount === 'number' && typeof state.totalCount === 'number' && state.totalCount > 0 && <div className="flex flex-wrap gap-2 px-4 pb-3 text-xs font-semibold">
+        <span className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-emerald-700"><CheckCircle2 size={14} />{state.passedCount} Passed</span>
+        <span className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-red-700"><XCircle size={14} />{Math.max(0, state.totalCount - state.passedCount)} Failed</span>
+      </div>}
       {/* Error detail (compilation / runtime / submission-failed) */}
       {state.errorDetail && (
         <div style={{ margin: '0 16px 12px', padding: 12, borderRadius: 8, background: '#FEF3F2', border: '1px solid #FBD3CE' }}>
@@ -455,71 +466,27 @@ export function TestResultView({
           the previous submission's numbers never read as the new ones. */}
       {state.ai && !isEval && <AiEvaluationBlock ai={state.ai} score={state.score} maxMarks={state.maxMarks} />}
 
-      {/* Case selectors. `shownCases` filters out hidden ones until every
-          visible case passes — the student sees only what they can debug.
-          While a new submission is evaluating, the previous chips + detail
-          are dimmed via `staleStyle` to signal the pane is being replaced. */}
-      {canPickCase && (
-        <div
-          role="tablist"
-          aria-label="Test cases"
-          style={{
-            display: 'flex', flexWrap: 'wrap', gap: 6,
-            padding: '0 16px 12px', borderBottom: '1px solid #D9E1EA',
-            ...staleStyle,
-          }}
-        >
-          {shownCases.map((c, i) => {
-            const selected = i === clampedIndex
-            const ok = c.passed
-            const label = c.hidden
-              ? `Hidden case ${c.index + 1}`
-              : c.source === 'ai'
-                ? `AI case ${c.index + 1}`
-                : `Case ${c.index + 1}`
-            return (
-              <button
-                key={i}
-                type="button"
-                role="tab"
-                aria-selected={selected}
-                onClick={() => onSelect(i)}
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 6,
-                  height: 28, padding: '0 10px', borderRadius: 7,
-                  border: selected
-                    ? `1.5px solid ${ok ? '#12A765' : '#B42318'}`
-                    : '1px solid #D9E1EA',
-                  background: selected
-                    ? (ok ? '#ECFDF3' : '#FEF3F2')
-                    : '#fff',
-                  color: ok ? '#046C4E' : '#B42318',
-                  fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                }}
-              >
-                {ok
-                  ? <CheckCircle2 size={12} style={{ color: '#12A765' }} />
-                  : <XCircle size={12} style={{ color: '#B42318' }} />}
-                <span style={{ color: '#172033' }}>{label}</span>
-              </button>
-            )
-          })}
-          {/* Note pending hidden cases without exposing them. Shown while
-              at least one hidden case is still gated — includes both the
-              "no visibles passed" state and the "revealed the failing
-              hidden case, others still gated" state. */}
-          {hiddenPending > 0 && (
-            <span style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              height: 28, padding: '0 10px', borderRadius: 7,
-              border: '1px dashed #D9E1EA', background: '#F7F9FB',
-              fontSize: 11.5, fontWeight: 500, color: '#667085',
-            }}>
-              {hiddenPending} hidden case{hiddenPending === 1 ? '' : 's'} pending — pass the current cases to unlock the next
-            </span>
-          )}
+      {/* Only unlocked cases are included, preserving server reveal rules. */}
+      {shownCases.length > 0 && (
+        <div style={{ padding: '0 16px 12px', overflowX: 'auto', flexShrink: 0, ...staleStyle }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, textAlign: 'left' }} aria-label="Test case results">
+            <thead style={{ background: '#F7F9FB', color: '#475467' }}>
+              <tr>{['Test case', 'Input', 'Expected output', state.ai ? 'AI verdict' : 'Your output', 'Status', ...(!state.ai ? ['Time'] : [])].map(label => <th key={label} scope="col" style={{ padding: '10px 12px', borderBottom: '1px solid #D9E1EA' }}>{label}</th>)}</tr>
+            </thead>
+            <tbody>{shownCases.map((c, i) => {
+              const reveal = !c.hidden || c.input !== '' || c.expectedOutput !== ''
+              const label = `${c.hidden ? 'Hidden case' : c.source === 'ai' ? 'AI case' : 'Case'} ${c.index + 1}`
+              return <tr key={`${c.source || "question"}-${c.index}-${i}`} style={{ background: i === clampedIndex ? (c.passed ? '#ECFDF3' : '#FEF3F2') : '#fff', borderBottom: '1px solid #EAECF0' }}>
+                <th scope="row" style={{ padding: '10px 12px' }}><button type="button" disabled={isEval} onClick={() => onSelect(i)} aria-pressed={i === clampedIndex} style={{ color: '#0F766E', background: 'transparent', border: 0, cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap' }}>{label}</button></th>
+                {[reveal ? c.input : 'Hidden', reveal ? c.expectedOutput : 'Hidden', state.ai ? (c.comment || 'No feedback provided') : c.actualOutput].map((value, column) => <td key={column} style={{ padding: '10px 12px', maxWidth: 220 }}><pre style={{ margin: 0, fontFamily: 'ui-monospace, monospace', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', maxHeight: 80, overflow: 'auto' }}>{value || '(empty)'}</pre></td>)}
+                <td style={{ padding: '10px 12px', color: c.passed ? '#046C4E' : '#B42318', whiteSpace: 'nowrap' }}><span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>{c.passed ? <CheckCircle2 size={14} /> : <XCircle size={14} />}{c.passed ? 'Passed' : 'Failed'}</span></td>
+                {!state.ai && <td style={{ padding: '10px 12px', whiteSpace: 'nowrap', color: '#667085' }}>{typeof c.runtimeMs === 'number' ? `${c.runtimeMs} ms` : '—'}</td>}
+              </tr>
+            })}</tbody>
+          </table>
         </div>
       )}
+      {hiddenPending > 0 && <div style={{ padding: '0 16px 12px', color: '#667085', fontSize: 12 }}>{hiddenPending} hidden case{hiddenPending === 1 ? '' : 's'} locked — pass the current cases to unlock the next.</div>}
 
       {/* Selected case detail. Hidden cases normally keep trainer input +
           expected concealed; the server unlocks them once every visible
@@ -532,27 +499,19 @@ export function TestResultView({
           active.hidden && (active.input !== '' || active.expectedOutput !== '')
         const showTrainerFields = !active.hidden || revealHiddenTrainerFields
         return (
-          <div style={{ padding: '12px 16px 16px', display: 'flex', flexDirection: 'column', gap: 10, ...staleStyle }}>
+          <div style={{ padding: '12px 16px 16px', display: 'flex', flexDirection: 'column', gap: 10, borderTop: '1px solid #D9E1EA', ...staleStyle }}>
+            <strong style={{ fontSize: 13, color: '#172033' }}>Case {active.index + 1} details · {active.passed ? 'Passed' : 'Failed'}</strong>
             {active.hidden && !showTrainerFields && (
               <div style={{ fontSize: 12.5, color: '#667085', lineHeight: 1.55 }}>
                 This is a hidden case. Trainer input and expected output stay concealed until every visible case passes.
               </div>
             )}
-            {showTrainerFields && (
-              <>
-                <Row label="Input" value={active.input} />
-                <Row label="Expected output" value={active.expectedOutput} />
-              </>
-            )}
-            {/* The AI grader judges statically — it never executes the code,
-                so there is no "your output" to show. Its one-line reason for
-                the verdict takes that slot instead. Test Case scoring keeps
-                the real captured stdout. */}
-            {state.ai
-              ? (active.comment
-                  ? <Row label="AI verdict" value={active.comment} tone={active.passed ? 'ok' : 'bad'} />
-                  : null)
-              : <Row label="Your output" value={active.actualOutput} tone={active.passed ? 'ok' : 'bad'} />}
+            {showTrainerFields && <Row label="Input" value={active.input} />}
+            {!active.passed && !state.ai && <p style={{ margin: 0, color: '#667085', fontSize: 12 }}>Output does not match the expected result.</p>}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {showTrainerFields && <Row label="Expected output" value={active.expectedOutput} />}
+              {state.ai ? <Row label="AI verdict" value={active.comment || 'No feedback provided'} tone={active.passed ? 'ok' : 'bad'} /> : <Row label="Your output" value={active.actualOutput} tone={active.passed ? 'ok' : 'bad'} />}
+            </div>
             {active.errorMessage && (
               <Row label="Error" value={active.errorMessage} tone="bad" />
             )}
@@ -621,7 +580,7 @@ function AiEvaluationBlock({
         padding: '9px 12px', borderBottom: '1px solid #E9EDF2', background: '#F5F7FA',
       }}>
         <Sparkles size={13} style={{ color: '#6957E5' }} />
-        <span style={{ fontSize: 12.5, fontWeight: 700, color: '#172033' }}>AI evaluation</span>
+        <span style={{ fontSize: 12.5, fontWeight: 700, color: '#172033' }}>AI evaluation · Gemini</span>
         <span style={{ flex: 1 }} />
         {ai.model && (
           <span style={{ fontSize: 11, color: '#8A94A6' }} title="Model used to grade this answer">
@@ -632,11 +591,11 @@ function AiEvaluationBlock({
 
       {ai.failed ? (
         <div style={{ padding: '10px 12px', fontSize: 12.5, color: '#B54708', lineHeight: 1.55 }}>
-          The AI grader could not evaluate this submission. Your code was saved —
-          the trainer will grade it manually.
+          Gemini could not complete this evaluation. Retry the check or submit your answer for trainer review.
         </div>
       ) : (
         <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <p style={{ margin: 0, fontSize: 12, color: '#667085', lineHeight: 1.5 }}>Gemini reviews your code against test cases and the selected criteria. AI verdicts are model assessments; use Run to see actual program output in Terminal.</p>
           {/* Score allocation */}
           <div>
             <SectionCaption>Score allocation</SectionCaption>
@@ -675,34 +634,18 @@ function AiEvaluationBlock({
           {ai.criteria.length > 0 && (
             <div>
               <SectionCaption>Evaluation parameters</SectionCaption>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-                {ai.criteria.map((c) => (
-                  <div key={c.key}>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                      <span style={{ fontSize: 12.5, fontWeight: 600, color: '#172033', flex: 1, minWidth: 0 }}>
-                        {c.label}
-                      </span>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: '#475467' }}>{c.percentage}%</span>
-                      <span style={{ fontSize: 12, color: '#667085', minWidth: 74, textAlign: 'right' }}>
-                        {fmt(c.score)} / {fmt(c.maxScore)}
-                      </span>
-                    </div>
-                    <div style={{ height: 5, borderRadius: 99, background: '#EAECF0', marginTop: 4, overflow: 'hidden' }}>
-                      <div
-                        style={{
-                          width: `${Math.max(0, Math.min(100, c.percentage))}%`,
-                          height: '100%', borderRadius: 99,
-                          background: c.percentage >= 70 ? '#12A765' : c.percentage >= 40 ? '#F79009' : '#F04438',
-                        }}
-                      />
-                    </div>
-                    {c.comment && (
-                      <div style={{ fontSize: 11.5, color: '#667085', marginTop: 3, lineHeight: 1.5 }}>
-                        {c.comment}
-                      </div>
-                    )}
-                  </div>
-                ))}
+              <div style={{ overflowX: 'auto' }}>
+                <table aria-label="AI evaluation criteria" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 12 }}>
+                  <thead style={{ background: '#F5F7FA', color: '#475467' }}>
+                    <tr>{['Criterion', 'Rating', 'Marks', 'Gemini feedback'].map(label => <th key={label} scope="col" style={{ padding: '8px 10px', borderBottom: '1px solid #E4E7EC' }}>{label}</th>)}</tr>
+                  </thead>
+                  <tbody>{ai.criteria.map(c => <tr key={c.key} style={{ borderBottom: '1px solid #E4E7EC' }}>
+                    <th scope="row" style={{ padding: '8px 10px', color: '#172033', fontWeight: 600 }}>{c.label}</th>
+                    <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>{c.percentage}%</td>
+                    <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>{fmt(c.score)} / {fmt(c.maxScore)}</td>
+                    <td style={{ padding: '8px 10px', color: '#667085', minWidth: 180, overflowWrap: 'anywhere' }}>{c.comment || 'No feedback provided'}</td>
+                  </tr>)}</tbody>
+                </table>
               </div>
             </div>
           )}

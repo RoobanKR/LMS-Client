@@ -679,7 +679,7 @@
     // Evaluation type options
     const evaluationTypeOptions = [
       { value: 'teacher', label: 'Teacher Evaluation', icon: User },
-      { value: 'testcase', label: 'Test Case Evaluation', icon: CheckCircle },
+      { value: 'testcase', label: 'Automation', icon: CheckCircle },
       { value: 'ai', label: 'AI Evaluation', icon: Cpu },
       { value: 'self', label: 'Self Evaluation', icon: User }
     ];

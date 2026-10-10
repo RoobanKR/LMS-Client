@@ -308,7 +308,7 @@ const specLines = (t: TemplateSpec): React.ReactNode[] => {
         : progQ + (t.type === 'Combined' ? (t.mcqCount ?? 0) : 0)
     const total = t.type === 'Combined' ? (t.mcqMarks ?? 0) + (t.programmingMarks ?? 0) : (t.totalMarks ?? 0)
     const evalLabel = t.type === 'MCQ' ? 'Auto evaluated'
-        : t.evaluation === 'testcase' ? 'Test case based'
+        : t.evaluation === 'testcase' ? 'Automation'
             : t.evaluation === 'ai' ? 'AI based evaluation' : 'Manual evaluation'
     const flowLabel = t.flow === 'controlled' ? 'Controlled Flow' : 'Free Flow'
     const mix = lv && t.strategy !== 'general'
@@ -699,7 +699,7 @@ export default function CreateExerciseLauncher({
                                         <input ref={cmdRef} type="text" value={command}
                                             onChange={(e) => setCommand(e.target.value)}
                                             onKeyDown={(e) => { if (e.key === 'Enter') runParse() }}
-                                            placeholder="e.g. Programming test, 5 questions, 50 marks, 90 minutes, test case based"
+                                            placeholder="e.g. Programming test, 5 questions, 50 marks, 90 minutes, Automation"
                                             style={{ border: 'none', boxShadow: 'none' }} />
                                     </div>
                                     <div className="xcl-cmdchips">

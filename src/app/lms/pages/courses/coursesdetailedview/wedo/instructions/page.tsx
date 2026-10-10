@@ -90,7 +90,7 @@ function pickLanguages(ex: any): string[] {
 function pickEvaluationLabel(ex: any): string {
   const m = (ex?.evaluationMethod?.method || ex?.evaluationMethod || "").toString().toLowerCase();
   if (m === "ai") return "AI review";
-  if (m === "testcase" || m === "test-case") return "Auto tests";
+  if (m === "testcase" || m === "test-case") return "Automation";
   return "Manual";
 }
 function evaluationNote(ex: any): string {
