@@ -2366,8 +2366,8 @@ export default function MultiFileCodeEditor({
                   title={`Step through your ${LANGUAGE_CONFIG[selectedLanguage].label} code`}
                   style={{
                     display: "inline-flex", alignItems: "center", gap: 5,
-                    height: 32, padding: "0 12px", borderRadius: 12,
-                    border: "1px solid #A56BFF", background: "#fff", color: "#6957E5",
+                    height: 32, padding: "0 12px", borderRadius: 6,
+                    border: "1px solid #7C3CFF", background: "#fff", color: "#7C3CFF",
                     fontSize: 12, fontWeight: 600, fontFamily: FONT,
                     cursor: vizLoading ? "wait" : "pointer",
                     opacity: ready ? 1 : 0.5,
@@ -2419,8 +2419,8 @@ export default function MultiFileCodeEditor({
                   aria-label="Run code"
                   style={{
                     display: "inline-flex", alignItems: "center", gap: 5,
-                    height: 32, padding: "0 14px", borderRadius: 12,
-                    border: "1px solid #65BDB8",
+                    height: 32, padding: "0 14px", borderRadius: 6,
+                    border: "1px solid #28B3AD",
                     background: "#fff", opacity: (!ready || vizRunning) ? 0.5 : 1,
                     color: "#0F766E", fontSize: 12, fontWeight: 700, fontFamily: FONT,
                     cursor: (!ready || vizRunning) ? "not-allowed" : "pointer",
@@ -2434,7 +2434,7 @@ export default function MultiFileCodeEditor({
               {interactiveActive ? (
                 <button onClick={stopInteractive} style={{
                   display: "inline-flex", alignItems: "center", gap: 5,
-                  height: 32, padding: "0 12px", borderRadius: 8,
+                  height: 32, padding: "0 12px", borderRadius: 6,
                   border: "1px solid #fca5a5", background: "#fee2e2", color: "#b91c1c",
                   fontSize: 12, fontWeight: 600, fontFamily: FONT, cursor: "pointer",
                 }}>
@@ -2451,8 +2451,8 @@ export default function MultiFileCodeEditor({
                   aria-label="Run tests"
                   style={{
                     display: "inline-flex", alignItems: "center", gap: 5,
-                    height: 32, padding: "0 14px", borderRadius: 12,
-                    border: "1px solid #65BDB8",
+                    height: 32, padding: "0 14px", borderRadius: 6,
+                    border: "1px solid #28B3AD",
                     background: "#fff", opacity: (!ready || isRunningTestCases || isSubmittingQuestion || isSubmitting) ? 0.5 : 1,
                     color: "#0F766E", fontSize: 12, fontWeight: 700, fontFamily: FONT,
                     cursor: (!ready || isRunningTestCases || isSubmittingQuestion || isSubmitting) ? "not-allowed" : "pointer",
@@ -2845,7 +2845,7 @@ export default function MultiFileCodeEditor({
               answer (orange primary) on the right. "Submit answer" submits
               only the currently selected question; the whole-exercise
               "Finish exercise" lives in the global header. */}
-          <div className="flex items-center justify-between flex-shrink-0 max-sm:flex-wrap max-sm:gap-2 max-sm:py-1.5!" style={{ background: "#fff", borderBottom: "1px solid #D9E1EA", minHeight: 44, padding: "0 12px" }}>
+          <div className="flex items-center justify-between flex-shrink-0 max-sm:flex-wrap max-sm:gap-2 max-sm:py-1.5!" style={{ background: "#F5FAFF", borderBottom: "1px solid #D9E1EA", minHeight: 44, padding: "0 12px" }}>
             <div className="flex items-center gap-3 min-w-0 max-sm:gap-2">
               {isFull && (
                 <button
@@ -2875,8 +2875,8 @@ export default function MultiFileCodeEditor({
                 onChange={(e) => setSelectedLanguage(e.target.value as SupportedLanguage)}
                 aria-label="Language"
                 style={{
-                  height: 32, padding: "0 10px", borderRadius: 12,
-                  border: "1px solid #DCE3EE", background: "#fff",
+                  height: 32, padding: "0 10px", borderRadius: 6,
+                  border: "1px solid #E0E5EF", background: "#fff",
                   color: "#172033", fontSize: 12.5, fontWeight: 600,
                   fontFamily: "ui-monospace, monospace", cursor: "pointer",
                 }}
@@ -2890,8 +2890,8 @@ export default function MultiFileCodeEditor({
                 title="Open terminal"
                 style={{
                   display: "inline-flex", alignItems: "center", justifyContent: "center",
-                  height: 32, padding: "0 10px", gap: 6, borderRadius: 8,
-                  border: "1px solid #D9E1EA", background: "#fff", color: "#667085",
+                  height: 32, padding: "0 10px", gap: 6, borderRadius: 6,
+                  border: "1px solid #E0E5EF", background: "#fff", color: "#667085",
                   cursor: "pointer", fontSize: 12,
                 }}
               >
@@ -2904,8 +2904,8 @@ export default function MultiFileCodeEditor({
                 title={isFull ? "Exit full screen" : "Full screen"}
                 style={{
                   display: "inline-flex", alignItems: "center", justifyContent: "center",
-                  width: 32, height: 32, borderRadius: 12,
-                  border: "1px solid #DCE3EE", background: "#fff", color: "#667085",
+                  width: 32, height: 32, borderRadius: 6,
+                  border: "1px solid #E0E5EF", background: "#fff", color: "#667085",
                   cursor: "pointer",
                 }}
               >
