@@ -309,13 +309,13 @@ export default function MockMultiFileTest({
     <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: "auto", marginRight: 8, flexShrink: 0, fontFamily: FONT }}>
       <span title="A mock test can be taken again with Retest" style={{
         fontSize: 11, fontWeight: 600, color: "#9A3412", background: "#FFF7ED",
-        border: "1px solid #FED7AA", borderRadius: 999, padding: "3px 9px",
+        border: "1px solid #FED7AA", borderRadius: 6, padding: "3px 9px",
       }}>Mock test</span>
       {sec.preventTabSwitch && (
         <span title="Tab switches used" style={{
           display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 600,
           color: tabSwitches > 0 ? "#B45309" : "#475467", background: tabSwitches > 0 ? "#FFFBEB" : "#F2F4F7",
-          border: `1px solid ${tabSwitches > 0 ? "#FDE68A" : "#E4E7EC"}`, borderRadius: 8, padding: "4px 8px",
+          border: `1px solid ${tabSwitches > 0 ? "#FDE68A" : "#E4E7EC"}`, borderRadius: 6, padding: "4px 8px",
         }}>
           <AlertTriangle size={13} /> {tabSwitches}/{maxTabs}
         </span>
@@ -329,7 +329,7 @@ export default function MockMultiFileTest({
           <span title="Time left" style={{
             display: "inline-flex", alignItems: "center", gap: 5, fontSize: 13, fontWeight: 700,
             fontVariantNumeric: "tabular-nums", color: fg, background: bg, border: `1px solid ${bd}`,
-            borderRadius: 8, padding: "4px 10px",
+            borderRadius: 6, padding: "4px 10px",
           }}>
             <Clock size={14} /> {fmtClock(timeLeft)}
           </span>
@@ -377,7 +377,7 @@ export default function MockMultiFileTest({
         <Lock size={30} style={{ color: "#F97316", margin: "0 auto 12px" }} />
         <h3 style={{ fontSize: 16, fontWeight: 700, color: "#101828", margin: 0 }}>{exercise?.exerciseInformation?.exerciseName || "Mock test"}</h3>
         <p style={{ fontSize: 13, color: "#475467", marginTop: 8, lineHeight: 1.6 }}>{blockedText}</p>
-        <button type="button" onClick={() => onExit({ submitted: false })} style={{ marginTop: 16, padding: "10px 18px", borderRadius: 10, border: "none", background: "#F97316", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+        <button type="button" onClick={() => onExit({ submitted: false })} style={{ marginTop: 16, padding: "10px 18px", borderRadius: 6, border: "none", background: "#F97316", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
           Back to assessments
         </button>
       </>,
@@ -418,10 +418,10 @@ export default function MockMultiFileTest({
         )}
         {gateError && <p style={{ fontSize: 12.5, color: "#B42318", marginTop: 12, lineHeight: 1.5 }}>{gateError}</p>}
         <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
-          <button type="button" onClick={() => onExit({ submitted: false })} style={{ flex: 1, padding: "10px 14px", borderRadius: 10, border: "1px solid #D0D5DD", background: "#fff", color: "#344054", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+          <button type="button" onClick={() => onExit({ submitted: false })} style={{ flex: 1, padding: "10px 14px", borderRadius: 6, border: "1px solid #E0E5EF", background: "#F1F5F9", color: "#334155", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
             Back
           </button>
-          <button type="button" onClick={() => void startFromGate()} style={{ flex: 1, padding: "10px 14px", borderRadius: 10, border: "none", background: "#F97316", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+          <button type="button" onClick={() => void startFromGate()} style={{ flex: 1, padding: "10px 14px", borderRadius: 6, border: "none", background: "#F97316", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
             {screenOn ? "Share screen & start" : "Start"}
           </button>
         </div>
