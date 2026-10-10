@@ -4384,8 +4384,8 @@ else:
                             aria-label="Run code"
                             style={{
                                 display: 'inline-flex', alignItems: 'center', gap: 5,
-                                height: 32, padding: '0 14px', borderRadius: 8,
-                                border: '1px solid #0F9D94',
+                                height: 32, padding: '0 14px', borderRadius: 6,
+                                border: '1px solid #28B3AD',
                                 background: '#fff', opacity: isEvaluating ? 0.5 : 1,
                                 color: '#0F766E', fontSize: 12, fontWeight: 700, fontFamily: FONT,
                                 cursor: isEvaluating ? 'not-allowed' : 'pointer',
@@ -4409,8 +4409,8 @@ else:
                             aria-label="Run tests"
                             style={{
                                 display: 'inline-flex', alignItems: 'center', gap: 5,
-                                height: 32, padding: '0 14px', borderRadius: 8,
-                                border: '1px solid #0F9D94',
+                                height: 32, padding: '0 14px', borderRadius: 6,
+                                border: '1px solid #28B3AD',
                                 background: '#fff', opacity: isEvaluating ? 0.5 : 1,
                                 color: '#0F766E', fontSize: 12, fontWeight: 700, fontFamily: FONT,
                                 cursor: isEvaluating ? 'not-allowed' : 'pointer',
@@ -4433,7 +4433,7 @@ else:
                         value={selectedLanguage}
                         onChange={(e) => setSelectedLanguage(e.target.value)}
                         aria-label="Programming language"
-                        className={`h-8 text-xs border rounded px-1.5 ${theme === 'dark' ? 'bg-gray-800 text-white border-gray-600' : 'bg-white text-gray-900 border-gray-300'}`}
+                        className={`h-8 text-xs border rounded-[6px] px-1.5 ${theme === 'dark' ? 'bg-gray-800 text-white border-gray-600' : 'bg-white text-[#172033] border-[#E0E5EF]'}`}
                         disabled={isAssessmentMode && hasStarted}
                     >
                         {availableLanguages.map((lang) => (
@@ -5057,9 +5057,9 @@ else:
                             style={{
                                 display: 'inline-flex', alignItems: 'center', gap: 6,
                                 height: 32, padding: '0 14px', borderRadius: 8,
-                                border: '1px solid #0F766E',
+                                border: '1px solid #F97316',
                                 background: '#fff',
-                                color: '#0F766E',
+                                color: '#EA580C',
                                 fontSize: 12, fontWeight: 700, fontFamily: FONT,
                                 cursor: isEvaluating ? 'not-allowed' : 'pointer',
                                 opacity: isEvaluating ? 0.7 : 1,
@@ -5076,7 +5076,7 @@ else:
                             style={{
                                 display: 'inline-flex', alignItems: 'center', gap: 6,
                                 height: 32, padding: '0 14px', borderRadius: 8,
-                                border: '1px solid #0F766E', background: '#fff', color: '#0F766E',
+                                border: '1px solid #F97316', background: '#fff', color: '#EA580C',
                                 fontSize: 12, fontWeight: 700, fontFamily: FONT,
                                 cursor: 'pointer', whiteSpace: 'nowrap',
                             }}
@@ -5100,7 +5100,7 @@ else:
 
                     <button
                         onClick={toggleFullscreen}
-                        className={`w-7 h-7 max-sm:w-8 max-sm:h-8 flex items-center justify-center border rounded ${theme === 'dark' ? 'border-gray-600 bg-gray-800 hover:bg-gray-700 text-gray-300' : 'border-gray-300 bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+                        className={`w-7 h-7 max-sm:w-8 max-sm:h-8 flex items-center justify-center border rounded-[6px] ${theme === 'dark' ? 'border-gray-600 bg-gray-800 hover:bg-gray-700 text-gray-300' : 'border-[#E0E5EF] bg-white hover:bg-gray-50 text-[#667085]'}`}
                     >
                         {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
                     </button>
@@ -5635,7 +5635,7 @@ else:
 
                     {/* ── Editor (top, resizable) ── */}
                     <div className={`${outputMaximized && showTerminal ? "hidden" : "flex flex-col"} max-lg:h-[60dvh]! max-lg:min-h-[320px]! max-lg:flex-none`} style={{ height: showTerminal ? `${rightPanelSplit}%` : "100%", minHeight: 0 }}>
-                        <div className={`flex items-center justify-between max-md:gap-2 p-2 border-b ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-gray-50'}`}>
+                        <div className={`flex items-center justify-between max-md:gap-2 p-2 border-b ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-[#F5FAFF]'}`}>
                             <div className="flex items-center gap-1.5">
                                 <Code className={`w-4 h-4 ${theme === 'dark' ? 'text-orange-400' : 'text-orange-500'}`} />
                                 <span className={`text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>{({ python: 'main.py', javascript: 'main.js', java: 'Main.java', cpp: 'main.cpp', c: 'main.c', csharp: 'Main.cs', typescript: 'main.ts', go: 'main.go', rust: 'main.rs' } as Record<string, string>)[selectedLanguage.toLowerCase()] || formatLanguageName(selectedLanguage)}</span>
@@ -5653,7 +5653,7 @@ else:
                                 )}
                             </div>
                             <div className="flex items-center gap-2">{languageSelector}
-                            <button onClick={resetCode} className={`flex items-center gap-1 px-2 py-0.5 text-xs border rounded transition-colors ${theme === 'dark' ? 'border-gray-600 bg-gray-700 text-gray-300 hover:bg-gray-600' : 'border-gray-300 bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+                            <button onClick={resetCode} className={`flex items-center gap-1 px-2 py-0.5 text-xs border rounded-[6px] transition-colors ${theme === 'dark' ? 'border-gray-600 bg-gray-700 text-gray-300 hover:bg-gray-600' : 'border-[#E0E5EF] bg-white text-[#667085] hover:bg-gray-50'}`}>
                                 <RotateCcw className="w-3.5 h-3.5" /> Reset
                             </button></div>
                         </div>
