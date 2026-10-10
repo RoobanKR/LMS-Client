@@ -2582,9 +2582,9 @@ export default function MultiFileCodeEditor({
             {/* Exam mode: the page's timer / message bell. */}
             {exam?.headerSlot}
 
-            {/* Right — primary actions moved up from the editor toolbar. */}
+            {/* Right — Finish. Run code / Run tests live on the editor
+                toolbar (beside Visualize), next to the code they run. */}
             <div className="max-lg:flex-wrap max-lg:ml-auto" style={{ display: "flex", alignItems: "center", gap: 8, justifySelf: "end" }}>
-              {workspaceActions}
               {/* All right-cluster actions matched to the paginator
                   rhythm — h-32, 12px labels, tight padding. Labels
                   simplified per user: "Submit answer" → "Submit" and
@@ -2857,25 +2857,18 @@ export default function MultiFileCodeEditor({
                   <FileText size={13} /> Question
                 </button>
               )}
-              <button type="button" onClick={() => setSideView(v => v === "explorer" ? null : "explorer")} aria-expanded={sideView === "explorer"} title="Show or hide project files" style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px", borderRadius: 8, border: "1px solid #D9E1EA", background: "#fff", color: "#172033", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-                <FileCode size={14} /> Files
-              </button>
-              <select aria-label="Open file" value={activeFileId || ''} onChange={e => setActiveFileId(e.target.value)} className="min-w-0 max-w-[220px] rounded-md border border-gray-200 px-2 py-1.5 text-xs font-semibold">
-                {openFileObjs.length === 0 && <option value="">No file open</option>}
-                {openFileObjs.map(file => <option key={file.id} value={file.id}>{file.filename}{file.isOutput ? ' (read-only)' : ''}</option>)}
-              </select>
-              {activeFileId && <button type="button" onClick={() => closeTab(activeFileId)} aria-label="Close current file" title="Close current file"><X size={14} /></button>}
+              {/* Open files are VS Code-style tabs on their own row below
+                  (main.py ×); the Explorer / Search icons on the editor's
+                  activity bar open the project files. */}
             </div>
             <div className="flex items-center gap-2 flex-shrink-0 max-sm:ml-auto max-sm:flex-wrap">
-              {/* Language picker stays on the editor toolbar because it's
-                  scoped to the active file. Run / Visualize / Submit
-                  answer moved to the global header (single-toolbar rule),
-                  and so does Stop — it shows there in Run code's place
-                  while a run is live, so this row carries no second Stop. */}
+              {/* Run code / Stop / Run tests, Visualize and the language
+                  picker — the actions on the code itself — all sit on this
+                  row. Submit stays on the bottom bar, Finish in the header. */}
               {/* Exam mode, maximized: the global header is hidden, so the
                   timer / message bell ride on this toolbar instead. */}
               {isFull && exam?.headerSlot}
-              {isFull && workspaceActions}
+              {workspaceActions}
               {isFull && finishAction}
               {visualizeAction}
               <select
@@ -3020,7 +3013,6 @@ export default function MultiFileCodeEditor({
                     <div className="flex items-center justify-center h-full gap-2 text-sm text-gray-500"><Loader2 className="w-5 h-5 animate-spin" /> Preparing your workspace…</div>
                   ) : (
                     <MonacoTabs
-                      hideTabBar
                       openFiles={openFileObjs} activeFileId={activeFileId} theme={theme}
                       onSelectTab={setActiveFileId} onCloseTab={closeTab} onChange={onEditorChange}
                     />
