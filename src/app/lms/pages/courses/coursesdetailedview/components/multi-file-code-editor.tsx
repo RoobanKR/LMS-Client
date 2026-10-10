@@ -2833,7 +2833,6 @@ export default function MultiFileCodeEditor({
                   paginator group, so repeating them here was pure noise.
                   Question content sits flush with the panel edge now. */}
               <div className="flex-1 overflow-y-auto p-5 text-sm leading-relaxed text-gray-800">{questionContent}</div>
-              <div className="px-5 py-3 border-t border-gray-200 text-xs text-gray-500">{isManualEval ? 'Grading: Trainer review after submission.' : evalMethod === 'ai' ? 'Grading: AI Based · Gemini.' : 'Grading: Automation · test cases.'}</div>
             </div>
             <div onMouseDown={(e) => { resizing.current = { kind: "question", startX: e.clientX, startWidth: questionWidth } }} className="w-1 cursor-col-resize hover:bg-orange-400 flex-shrink-0 max-lg:hidden" style={{ background: "#e5e7eb" }} />
           </>
@@ -3087,9 +3086,9 @@ export default function MultiFileCodeEditor({
         </div>)}{/* end non-link question panel + editor */}
       </div>
 
+      {/* Bottom bar — Submit only. The language shows on the toolbar's
+          picker, and the toolbar's terminal button opens the terminal. */}
       {exercise && <div className="flex items-center justify-between gap-3 px-4 py-1.5 border-t border-gray-200 bg-white text-xs text-gray-500">
-        <span className="hidden sm:inline">{LANGUAGE_CONFIG[selectedLanguage].label}</span>
-        <button type="button" onClick={() => { setBottomTab('terminal'); setShowTerminal(true) }} className="inline-flex items-center gap-2 px-3 py-1 border border-gray-200 rounded-md text-gray-700"><TerminalIcon size={14} />Open terminal</button>
         <div className="ml-auto flex items-center gap-3"><span className="hidden sm:inline">Submits this question only</span>{submitAction}</div>
       </div>}
       {/* MODALS */}
