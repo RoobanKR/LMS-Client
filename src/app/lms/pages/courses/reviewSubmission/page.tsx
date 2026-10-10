@@ -1444,7 +1444,7 @@ export default function EnhancedSubmissionReview() {
   // runs the program in the Terminal, Submit runs the test cases into Test
   // Result.
   const [bottomTab, setBottomTab] = useState<'terminal' | 'test-result'>('terminal');
-  const [isSubmittingTests, setIsSubmittingTests] = useState(false);
+  const [isRunningTests, setIsRunningTests] = useState(false);
   // Live interactive run on the compiler service (non-Python languages).
   const liveSessionRef = useRef<LiveSession | null>(null);
   // Python run in progress (Pyodide worker).
@@ -3936,19 +3936,20 @@ builtins.input = _async_input
     addLog('system', r.ok ? 'Execution finished.' : 'Execution failed.');
   };
 
-  // ── Submit: test cases (or the AI grader) into the Test Result tab ─────
-  // Same evaluation the student's Submit ran. Manual-graded questions still
-  // run their authored test cases so the trainer sees pass / fail.
-  const submitConsoleCode = async () => {
+  // ── Run tests: test cases (or the AI grader) into the Test Result tab ──
+  // Same evaluation the student's Submit ran, but nothing is saved — review
+  // never submits, only the student does. Offered for auto-evaluated
+  // exercises only; a Manual one gets the plain terminal.
+  const runConsoleTests = async () => {
     const source = activeFile?.content || '';
     const lang = ((activeFile?.language as string) || runLanguage || 'javascript').toLowerCase();
     if (!source.trim()) {
-      toast.error('No code to submit');
+      toast.error('No code to run');
       return;
     }
-    if (isSubmittingTests) return;
+    if (isRunningTests) return;
     setBottomTab('test-result');
-    setIsSubmittingTests(true);
+    setIsRunningTests(true);
     try {
       if (evalMethod === 'ai') {
         await runAiEvaluation(source, lang);
@@ -3962,7 +3963,7 @@ builtins.input = _async_input
         await runAllTestCasesViaPiston(source, lang);
       }
     } finally {
-      setIsSubmittingTests(false);
+      setIsRunningTests(false);
     }
   };
 
@@ -4504,8 +4505,8 @@ builtins.input = _async_input
                   languages={exerciseLanguages}
                   onLanguageChange={setRunLanguage}
                   onRun={runConsoleCode}
-                  onSubmit={submitConsoleCode}
-                  submitting={isSubmittingTests}
+                  onRunTests={evalMethod !== 'manual' ? runConsoleTests : undefined}
+                  runningTests={isRunningTests}
                   onReset={resetConsoleCode}
                   running={isExecuting}
                   descriptionHtml={problemHtml}
@@ -4531,8 +4532,8 @@ builtins.input = _async_input
                         </span>
                       )}
                     </div>
-                    {(isExecuting || isSubmittingTests) && (
-                      <span className="text-[11px] font-medium text-[#B54708]">{isSubmittingTests ? 'Submitting…' : 'Running…'}</span>
+                    {(isExecuting || isRunningTests) && (
+                      <span className="text-[11px] font-medium text-[#B54708]">{isRunningTests ? 'Running tests…' : 'Running…'}</span>
                     )}
                   </div>
                   {(
@@ -4540,11 +4541,12 @@ builtins.input = _async_input
                       <BottomPanel
                         activeTab={bottomTab}
                         onTabChange={setBottomTab}
-                        mode="both"
+                        // Manual: nothing is evaluated, so no Test Result tab.
+                        mode={evalMethod === 'manual' ? 'terminal' : 'both'}
                         liveTerminal={liveRunning}
                         onStopRun={stopLiveConsole}
-                        onRetrySubmit={submitConsoleCode}
-                        isSubmitting={isSubmittingTests}
+                        onRetrySubmit={runConsoleTests}
+                        isSubmitting={isRunningTests}
                         testResult={testResult}
                         termLines={termLines}
                         running={isExecuting}

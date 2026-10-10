@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import DOMPurify from "dompurify";
-import { Code, FileCheck2, FlaskConical, Loader2, Lock, Play, RotateCcw, Send } from "lucide-react";
+import { Code, FileCheck2, FlaskConical, Loader2, Lock, Play, RotateCcw } from "lucide-react";
 import { C } from "./tokens";
 import CodeTabs from "./CodeTabs";
 // CodeToolbar (language dropdown + Multi-file / Single file chip + Run Code +
@@ -33,10 +33,11 @@ interface CodeWorkspaceProps {
   toMonacoLanguage: (language: string) => string;
 
   onRun: () => void;
-  /** Submit — runs the question's test cases (or the AI grader) into the
-   *  Test Result tab, as the student editor's Submit does. */
-  onSubmit?: () => void;
-  submitting?: boolean;
+  /** Run tests — runs the question's test cases (or the AI grader) into the
+   *  Test Result tab. Passed only for an auto-evaluated exercise. Nothing is
+   *  saved: review never submits, only the student does. */
+  onRunTests?: () => void;
+  runningTests?: boolean;
   onReset: () => void;
   running: boolean;
 
@@ -90,8 +91,8 @@ export default function CodeWorkspace({
   onLanguageChange,
   toMonacoLanguage,
   onRun,
-  onSubmit,
-  submitting = false,
+  onRunTests,
+  runningTests = false,
   onReset,
   running,
   projectName,
@@ -174,20 +175,20 @@ export default function CodeWorkspace({
                       )}
                       {running ? "Running…" : "Run Code"}
                     </button>
-                    {onSubmit && (
+                    {onRunTests && (
                       <button
                         type="button"
-                        onClick={onSubmit}
-                        disabled={submitting || !activeFile?.content.trim()}
-                        title="Run every test case and show the Test Result"
-                        className="flex h-[26px] items-center gap-1.5 rounded-[6px] bg-[#F97316] px-2 sm:px-3 text-[12px] font-semibold text-white transition-colors hover:bg-[#EA580C] disabled:cursor-not-allowed disabled:bg-[#FBC59B]"
+                        onClick={onRunTests}
+                        disabled={runningTests || !activeFile?.content.trim()}
+                        title="Run every test case and show the Test Result (nothing is submitted)"
+                        className="flex h-[26px] items-center gap-1.5 rounded-[6px] bg-[#009F9A] px-2 sm:px-3 text-[12px] font-semibold text-white transition-colors hover:bg-[#00857F] disabled:cursor-not-allowed disabled:bg-[#99D9D7]"
                       >
-                        {submitting ? (
+                        {runningTests ? (
                           <Loader2 className="h-[13px] w-[13px] animate-spin" />
                         ) : (
-                          <Send className="h-[13px] w-[13px]" />
+                          <Play className="h-[13px] w-[13px]" />
                         )}
-                        {submitting ? "Submitting…" : "Submit"}
+                        {runningTests ? "Running tests…" : "Run tests"}
                       </button>
                     )}
                     <button
