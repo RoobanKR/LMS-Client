@@ -4673,8 +4673,9 @@ else:
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     gap: 12,
-                    padding: '8px 16px',
-                    minHeight: 60,
+                    // Compact: the row's 36px controls plus 6px above and below.
+                    padding: '6px 16px',
+                    minHeight: 48,
                     background: theme === 'dark' ? '#111827' : '#FFFFFF',
                     borderBottom: `1px solid ${theme === 'dark' ? '#374151' : '#E4E7EC'}`,
                 }}
