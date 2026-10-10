@@ -79,7 +79,7 @@ export default function MonacoTabs(props: MonacoTabsProps) {
           VS Code layout: the bottom rule runs under the inactive tabs and
           the empty strip after them, and the active tab leaves it out — it
           takes the editor's canvas colour, so it opens straight into the
-          code below instead of sitting on a line. The accent sits on top. */}
+          code below instead of sitting on a line. */}
       {!hideTabBar && <div
         className="flex items-stretch overflow-x-auto flex-shrink-0"
         style={{ background: isDark ? "#181818" : "#f9fafb" }}
@@ -97,7 +97,6 @@ export default function MonacoTabs(props: MonacoTabsProps) {
               className="group flex items-center gap-2 px-3 py-1.5 cursor-pointer flex-shrink-0"
               style={{
                 background: isActive ? canvas : "transparent",
-                borderTop: `2px solid ${isActive ? "#009F9A" : "transparent"}`,
                 borderRight: `1px solid ${rule}`,
                 borderBottom: `1px solid ${isActive ? canvas : rule}`,
               }}
@@ -112,11 +111,13 @@ export default function MonacoTabs(props: MonacoTabsProps) {
               {f.isOutput && (
                 <span className={`text-2xs px-1 rounded font-bold ${isDark ? "bg-sky-900 text-sky-200" : "bg-sky-100 text-sky-700"}`}>OUTPUT</span>
               )}
+              {/* Close (X) shows on the active tab only; inactive tabs keep
+                  its space so the tabs don't shift when switching. */}
               <button
                 onClick={(e) => { e.stopPropagation(); onCloseTab(f.id) }}
                 aria-label={`Close ${f.filename}`}
                 title={`Close ${f.filename}`}
-                className={`rounded ${
+                className={`rounded ${isActive ? "" : "invisible"} ${
                   isDark ? "hover:bg-slate-800" : "hover:bg-gray-200"
                 }`}
               >
