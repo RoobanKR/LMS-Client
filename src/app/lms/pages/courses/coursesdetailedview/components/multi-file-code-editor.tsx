@@ -2342,8 +2342,8 @@ export default function MultiFileCodeEditor({
                 aria-label={`Finish ${activityNoun}`}
                 style={{
                   display: "inline-flex", alignItems: "center", gap: 5,
-                  height: 32, padding: "0 14px", borderRadius: 8,
-                  border: "1px solid #F97316", background: "#fff", color: "#EA580C",
+                  height: 32, padding: "0 14px", borderRadius: 6,
+                  border: "1px solid transparent", background: "#F97316", color: "#fff",
                   fontSize: 12, fontWeight: 700, fontFamily: FONT,
                   cursor: isSubmitting ? "not-allowed" : "pointer",
                   opacity: isSubmitting ? 0.6 : 1,

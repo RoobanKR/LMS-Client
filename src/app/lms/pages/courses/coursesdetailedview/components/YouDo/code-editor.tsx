@@ -5056,10 +5056,10 @@ else:
                             title="Finish and submit the whole test"
                             style={{
                                 display: 'inline-flex', alignItems: 'center', gap: 6,
-                                height: 32, padding: '0 14px', borderRadius: 8,
-                                border: '1px solid #F97316',
-                                background: '#fff',
-                                color: '#EA580C',
+                                height: 32, padding: '0 14px', borderRadius: 6,
+                                border: '1px solid transparent',
+                                background: '#F97316',
+                                color: '#fff',
                                 fontSize: 12, fontWeight: 700, fontFamily: FONT,
                                 cursor: isEvaluating ? 'not-allowed' : 'pointer',
                                 opacity: isEvaluating ? 0.7 : 1,
@@ -5075,8 +5075,8 @@ else:
                             onClick={onSubmitTest}
                             style={{
                                 display: 'inline-flex', alignItems: 'center', gap: 6,
-                                height: 32, padding: '0 14px', borderRadius: 8,
-                                border: '1px solid #F97316', background: '#fff', color: '#EA580C',
+                                height: 32, padding: '0 14px', borderRadius: 6,
+                                border: '1px solid transparent', background: '#F97316', color: '#fff',
                                 fontSize: 12, fontWeight: 700, fontFamily: FONT,
                                 cursor: 'pointer', whiteSpace: 'nowrap',
                             }}
