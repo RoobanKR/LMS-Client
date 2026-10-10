@@ -4094,7 +4094,7 @@ export default function CodeEditor({
                 <div className="flex items-center gap-3 max-sm:flex-wrap max-sm:gap-x-2 max-sm:gap-y-2 max-lg:min-w-0">
                     <button
                         onClick={() => setShowSidebar(!showSidebar)}
-                        className={`flex items-center justify-center w-7 h-7 max-sm:w-8 max-sm:h-8 rounded transition-colors ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-200 text-gray-700'}`}
+                        className={`flex items-center justify-center w-7 h-7 max-sm:w-8 max-sm:h-8 rounded-[6px] transition-colors ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-200 text-gray-700'}`}
                         title={showSidebar ? 'Hide problems list' : 'Show problems list'}
                     >
                         {showSidebar ? <ChevronLeft className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
@@ -4105,7 +4105,7 @@ export default function CodeEditor({
                             <button
                                 onClick={prevProblem}
                                 disabled={currentProblemIndex === 0}
-                                className={`px-2.5 h-7 flex items-center justify-center gap-1 border rounded text-xs font-medium transition-colors ${theme === 'dark'
+                                className={`px-2.5 h-7 flex items-center justify-center gap-1 border rounded-[6px] text-xs font-medium transition-colors ${theme === 'dark'
                                     ? 'border-indigo-500 bg-indigo-900/50 hover:bg-indigo-800 text-indigo-200 disabled:text-indigo-700'
                                     : 'border-indigo-300 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 disabled:text-indigo-300'
                                     } disabled:opacity-50 disabled:cursor-not-allowed`}
@@ -4119,7 +4119,7 @@ export default function CodeEditor({
                             <button
                                 onClick={nextProblem}
                                 disabled={currentProblemIndex === problems.length - 1 || (!isFreeFlow && !isQuestionSolved(currentProblemIndex))}
-                                className={`px-2.5 h-7 flex items-center justify-center gap-1 border rounded text-xs font-medium transition-colors ${theme === 'dark'
+                                className={`px-2.5 h-7 flex items-center justify-center gap-1 border rounded-[6px] text-xs font-medium transition-colors ${theme === 'dark'
                                     ? 'border-orange-500 bg-orange-900/50 hover:bg-orange-800 text-orange-200 disabled:text-orange-700'
                                     : 'border-orange-300 bg-orange-50 hover:bg-orange-100 text-orange-700 disabled:text-orange-300'
                                     } disabled:opacity-50 disabled:cursor-not-allowed`}
@@ -4131,7 +4131,7 @@ export default function CodeEditor({
                                 <button
                                     onClick={skipCurrentQuestion}
                                     disabled={currentProblemIndex === problems.length - 1}
-                                    className={`w-7 h-7 max-sm:w-8 max-sm:h-8 flex items-center justify-center border rounded transition-colors ${theme === 'dark'
+                                    className={`w-7 h-7 max-sm:w-8 max-sm:h-8 flex items-center justify-center border rounded-[6px] transition-colors ${theme === 'dark'
                                         ? 'border-amber-500 bg-amber-900/50 hover:bg-amber-800 text-amber-200'
                                         : 'border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-700'
                                         }`}
@@ -4168,7 +4168,7 @@ export default function CodeEditor({
                                             WebkitAppearance: 'none',
                                             height: 28,
                                             padding: '0 28px 0 10px',
-                                            borderRadius: 99,
+                                            borderRadius: 6,
                                             border: `1px solid ${selectedDifficulty === 'easy' ? '#16a34a' :
                                                 selectedDifficulty === 'medium' ? '#d97706' :
                                                     selectedDifficulty === 'hard' ? '#dc2626' :
@@ -4290,7 +4290,7 @@ export default function CodeEditor({
                     <select
                         value={selectedLanguage}
                         onChange={(e) => setSelectedLanguage(e.target.value)}
-                        className={`h-7 text-xs border rounded px-1.5 ${theme === 'dark' ? 'bg-gray-800 text-white border-gray-600' : 'bg-white text-gray-900 border-gray-300'}`}
+                        className={`h-7 text-xs border rounded-[6px] px-1.5 ${theme === 'dark' ? 'bg-gray-800 text-white border-gray-600' : 'bg-white text-[#172033] border-[#E0E5EF]'}`}
                         disabled={isAssessmentMode && hasStarted}
                     >
                         {availableLanguages.map((lang) => (
@@ -4309,7 +4309,7 @@ export default function CodeEditor({
                                 setPendingExitAction(() => handleCancelAssessment);
                                 setShowExitConfirmation(true);
                             }}
-                            className={`h-7 px-2 text-xs border rounded flex items-center gap-1 ${theme === 'dark'
+                            className={`h-7 px-2 text-xs border rounded-[6px] flex items-center gap-1 ${theme === 'dark'
                                 ? 'border-red-600 hover:bg-red-900/50 text-red-400'
                                 : 'border-red-300 hover:bg-red-50 text-red-600'}`}
                         >
@@ -4360,7 +4360,7 @@ export default function CodeEditor({
                                 height: 30, padding: '0 16px',
                                 fontSize: 12, fontFamily: FONT, fontWeight: 600,
                                 borderRadius: 6, border: 'none',
-                                background: '#FB923C', color: '#fff',
+                                background: '#009F9A', color: '#fff',
                                 cursor: isRunning ? 'not-allowed' : 'pointer',
                                 opacity: isRunning ? 0.7 : 1,
                             }}
@@ -4384,7 +4384,7 @@ export default function CodeEditor({
 
                     <button
                         onClick={toggleFullscreen}
-                        className={`w-7 h-7 max-sm:w-8 max-sm:h-8 flex items-center justify-center border rounded ${theme === 'dark' ? 'border-gray-600 bg-gray-800 hover:bg-gray-700 text-gray-300' : 'border-gray-300 bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+                        className={`w-7 h-7 max-sm:w-8 max-sm:h-8 flex items-center justify-center border rounded-[6px] ${theme === 'dark' ? 'border-gray-600 bg-gray-800 hover:bg-gray-700 text-gray-300' : 'border-[#E0E5EF] bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#334155]'}`}
                     >
                         {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
                     </button>
@@ -4796,13 +4796,13 @@ export default function CodeEditor({
 
                     {/* ── Editor (top, resizable) ── */}
                     <div className="flex flex-col max-lg:h-[60dvh]! max-lg:min-h-[320px]! max-lg:flex-none" style={{ height: `${rightPanelSplit}%`, minHeight: 0 }}>
-                        <div className={`flex items-center justify-between max-md:gap-2 p-2 border-b ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-gray-50'}`}>
+                        <div className={`flex items-center justify-between max-md:gap-2 p-2 border-b ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-[#F5FAFF]'}`}>
                             <div className="flex items-center gap-1.5">
                                 <Code className={`w-4 h-4 ${theme === 'dark' ? 'text-orange-400' : 'text-orange-500'}`} />
                                 <span className={`text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>Code</span>
                                 <span className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-600'}`}>({formatLanguageName(selectedLanguage)})</span>
                             </div>
-                            <button onClick={resetCode} className={`flex items-center gap-1 px-2 py-0.5 text-xs border rounded transition-colors ${theme === 'dark' ? 'border-gray-600 bg-gray-700 text-gray-300 hover:bg-gray-600' : 'border-gray-300 bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+                            <button onClick={resetCode} className={`flex items-center gap-1 px-2 py-0.5 text-xs border rounded-[6px] transition-colors ${theme === 'dark' ? 'border-gray-600 bg-gray-700 text-gray-300 hover:bg-gray-600' : 'border-[#E0E5EF] bg-[#F1F5F9] text-[#334155] hover:bg-[#E2E8F0]'}`}>
                                 <RotateCcw className="w-3.5 h-3.5" /> Reset
                             </button>
                         </div>
@@ -4894,7 +4894,7 @@ export default function CodeEditor({
                                             height: 30, padding: '0 14px',
                                             fontSize: 12, fontFamily: FONT, fontWeight: 600,
                                             borderRadius: 6, border: 'none',
-                                            background: (isRunning || isRunningTestCases) ? '#94A3B8' : '#12A765',
+                                            background: (isRunning || isRunningTestCases) ? '#94A3B8' : '#009F9A',
                                             color: '#fff',
                                             cursor: (isRunning || isRunningTestCases) ? 'not-allowed' : 'pointer',
                                         }}
