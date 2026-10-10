@@ -4385,9 +4385,9 @@ else:
                             style={{
                                 display: 'inline-flex', alignItems: 'center', gap: 5,
                                 height: 32, padding: '0 14px', borderRadius: 6,
-                                border: '1px solid #28B3AD',
-                                background: '#fff', opacity: isEvaluating ? 0.5 : 1,
-                                color: '#0F766E', fontSize: 12, fontWeight: 700, fontFamily: FONT,
+                                border: '1px solid transparent',
+                                background: '#009F9A', opacity: isEvaluating ? 0.5 : 1,
+                                color: '#fff', fontSize: 12, fontWeight: 700, fontFamily: FONT,
                                 cursor: isEvaluating ? 'not-allowed' : 'pointer',
                                 whiteSpace: 'nowrap',
                             }}
@@ -4410,9 +4410,9 @@ else:
                             style={{
                                 display: 'inline-flex', alignItems: 'center', gap: 5,
                                 height: 32, padding: '0 14px', borderRadius: 6,
-                                border: '1px solid #28B3AD',
-                                background: '#fff', opacity: isEvaluating ? 0.5 : 1,
-                                color: '#0F766E', fontSize: 12, fontWeight: 700, fontFamily: FONT,
+                                border: '1px solid transparent',
+                                background: '#009F9A', opacity: isEvaluating ? 0.5 : 1,
+                                color: '#fff', fontSize: 12, fontWeight: 700, fontFamily: FONT,
                                 cursor: isEvaluating ? 'not-allowed' : 'pointer',
                                 whiteSpace: 'nowrap',
                             }}
@@ -5100,7 +5100,7 @@ else:
 
                     <button
                         onClick={toggleFullscreen}
-                        className={`w-7 h-7 max-sm:w-8 max-sm:h-8 flex items-center justify-center border rounded-[6px] ${theme === 'dark' ? 'border-gray-600 bg-gray-800 hover:bg-gray-700 text-gray-300' : 'border-[#E0E5EF] bg-white hover:bg-gray-50 text-[#667085]'}`}
+                        className={`w-7 h-7 max-sm:w-8 max-sm:h-8 flex items-center justify-center border rounded-[6px] ${theme === 'dark' ? 'border-gray-600 bg-gray-800 hover:bg-gray-700 text-gray-300' : 'border-[#E0E5EF] bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#334155]'}`}
                     >
                         {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
                     </button>
@@ -5653,7 +5653,7 @@ else:
                                 )}
                             </div>
                             <div className="flex items-center gap-2">{languageSelector}
-                            <button onClick={resetCode} className={`flex items-center gap-1 px-2 py-0.5 text-xs border rounded-[6px] transition-colors ${theme === 'dark' ? 'border-gray-600 bg-gray-700 text-gray-300 hover:bg-gray-600' : 'border-[#E0E5EF] bg-white text-[#667085] hover:bg-gray-50'}`}>
+                            <button onClick={resetCode} className={`flex items-center gap-1 px-2 py-0.5 text-xs border rounded-[6px] transition-colors ${theme === 'dark' ? 'border-gray-600 bg-gray-700 text-gray-300 hover:bg-gray-600' : 'border-[#E0E5EF] bg-[#F1F5F9] text-[#334155] hover:bg-[#E2E8F0]'}`}>
                                 <RotateCcw className="w-3.5 h-3.5" /> Reset
                             </button></div>
                         </div>

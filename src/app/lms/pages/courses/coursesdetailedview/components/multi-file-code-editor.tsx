@@ -2367,7 +2367,7 @@ export default function MultiFileCodeEditor({
                   style={{
                     display: "inline-flex", alignItems: "center", gap: 5,
                     height: 32, padding: "0 12px", borderRadius: 6,
-                    border: "1px solid #7C3CFF", background: "#fff", color: "#7C3CFF",
+                    border: "1px solid transparent", background: "#6200EE", color: "#fff",
                     fontSize: 12, fontWeight: 600, fontFamily: FONT,
                     cursor: vizLoading ? "wait" : "pointer",
                     opacity: ready ? 1 : 0.5,
@@ -2420,9 +2420,9 @@ export default function MultiFileCodeEditor({
                   style={{
                     display: "inline-flex", alignItems: "center", gap: 5,
                     height: 32, padding: "0 14px", borderRadius: 6,
-                    border: "1px solid #28B3AD",
-                    background: "#fff", opacity: (!ready || vizRunning) ? 0.5 : 1,
-                    color: "#0F766E", fontSize: 12, fontWeight: 700, fontFamily: FONT,
+                    border: "1px solid transparent",
+                    background: "#009F9A", opacity: (!ready || vizRunning) ? 0.5 : 1,
+                    color: "#fff", fontSize: 12, fontWeight: 700, fontFamily: FONT,
                     cursor: (!ready || vizRunning) ? "not-allowed" : "pointer",
                   }}
                 >
@@ -2452,9 +2452,9 @@ export default function MultiFileCodeEditor({
                   style={{
                     display: "inline-flex", alignItems: "center", gap: 5,
                     height: 32, padding: "0 14px", borderRadius: 6,
-                    border: "1px solid #28B3AD",
-                    background: "#fff", opacity: (!ready || isRunningTestCases || isSubmittingQuestion || isSubmitting) ? 0.5 : 1,
-                    color: "#0F766E", fontSize: 12, fontWeight: 700, fontFamily: FONT,
+                    border: "1px solid transparent",
+                    background: "#009F9A", opacity: (!ready || isRunningTestCases || isSubmittingQuestion || isSubmitting) ? 0.5 : 1,
+                    color: "#fff", fontSize: 12, fontWeight: 700, fontFamily: FONT,
                     cursor: (!ready || isRunningTestCases || isSubmittingQuestion || isSubmitting) ? "not-allowed" : "pointer",
                   }}
                 >
@@ -2891,7 +2891,7 @@ export default function MultiFileCodeEditor({
                 style={{
                   display: "inline-flex", alignItems: "center", justifyContent: "center",
                   height: 32, padding: "0 10px", gap: 6, borderRadius: 6,
-                  border: "1px solid #E0E5EF", background: "#fff", color: "#667085",
+                  border: "1px solid #E0E5EF", background: "#F1F5F9", color: "#334155",
                   cursor: "pointer", fontSize: 12,
                 }}
               >
@@ -2905,7 +2905,7 @@ export default function MultiFileCodeEditor({
                 style={{
                   display: "inline-flex", alignItems: "center", justifyContent: "center",
                   width: 32, height: 32, borderRadius: 6,
-                  border: "1px solid #E0E5EF", background: "#fff", color: "#667085",
+                  border: "1px solid #E0E5EF", background: "#F1F5F9", color: "#334155",
                   cursor: "pointer",
                 }}
               >
