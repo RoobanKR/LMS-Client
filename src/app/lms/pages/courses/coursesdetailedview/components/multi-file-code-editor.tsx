@@ -2409,7 +2409,7 @@ export default function MultiFileCodeEditor({
 
   </>);
 
-  const workspaceActions = (<div className="flex items-center gap-2 flex-wrap justify-end">
+  const workspaceActions = (<div className="flex items-center gap-2 flex-wrap">
               {/* Run keeps the existing interactive terminal behavior. */}
               {exercise && liveInteraction && !interactiveActive && (
                 <button
@@ -2426,8 +2426,8 @@ export default function MultiFileCodeEditor({
                     cursor: (!ready || vizRunning) ? "not-allowed" : "pointer",
                   }}
                 >
-                  <TerminalIcon size={12} />
-                  Run code
+                  <Play size={12} fill="currentColor" />
+                  Run
                 </button>
               )}
 
@@ -2856,18 +2856,18 @@ export default function MultiFileCodeEditor({
                   <FileText size={13} /> Question
                 </button>
               )}
-              {/* Open files are VS Code-style tabs on their own row below
-                  (main.py ×); the Explorer / Search icons on the editor's
-                  activity bar open the project files. */}
+              {/* Run / Stop / Run tests sit at the left end. Open files are
+                  VS Code-style tabs on their own row below (main.py ×); the
+                  Explorer / Search icons on the activity bar open the
+                  project files. */}
+              {workspaceActions}
             </div>
             <div className="flex items-center gap-2 flex-shrink-0 max-sm:ml-auto max-sm:flex-wrap">
-              {/* Run code / Stop / Run tests, Visualize and the language
-                  picker — the actions on the code itself — all sit on this
-                  row. Submit stays on the bottom bar, Finish in the header. */}
+              {/* Visualize and the language picker on the right; Submit
+                  stays on the bottom bar, Finish in the header. */}
               {/* Exam mode, maximized: the global header is hidden, so the
                   timer / message bell ride on this toolbar instead. */}
               {isFull && exam?.headerSlot}
-              {workspaceActions}
               {isFull && finishAction}
               {visualizeAction}
               <select
