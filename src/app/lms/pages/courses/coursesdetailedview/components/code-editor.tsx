@@ -9,7 +9,7 @@ import { useRouter } from 'next/navigation';
 
 import {
     Play, RotateCcw, CheckCircle2, Maximize2, Minimize2,  // Add this
-    X, Code, FileText, AlertCircle, Terminal, Menu, ChevronRight, ChevronLeft, Search, AlertTriangle, CheckCircle, XCircle, Lock, ArrowUpDown, X as XIcon, Loader2, SkipForward, Clock, ShieldAlert, Camera, Video, Save, LogOut, Trash2, Shield, Mic, MicOff, ShieldCheck, UserCheck, Monitor, Info,
+    X, Code, FileText, AlertCircle, Terminal, Menu, ChevronRight, ChevronLeft, PanelLeftClose, PanelLeftOpen, Search, AlertTriangle, CheckCircle, XCircle, Lock, ArrowUpDown, X as XIcon, Loader2, SkipForward, Clock, ShieldAlert, Camera, Video, Save, LogOut, Trash2, Shield, Mic, MicOff, ShieldCheck, UserCheck, Monitor, Info,
     Award,
     BarChart3
 } from "lucide-react"
@@ -874,6 +874,9 @@ export default function CodeEditor({
     const [isFullscreen, setIsFullscreen] = useState(false)
     const [currentProblemIndex, setCurrentProblemIndex] = useState(0)
     const [showSidebar, setShowSidebar] = useState(false)
+    // Problem statement panel: hidden from its own header, brought back
+    // from the strip that takes its place.
+    const [showQuestionPanel, setShowQuestionPanel] = useState(true)
     const [leftPanelWidth, setLeftPanelWidth] = useState(40)
     const [isResizing, setIsResizing] = useState(false)
     const [searchQuery, setSearchQuery] = useState("")
@@ -4092,139 +4095,6 @@ export default function CodeEditor({
 
             <div className={`flex items-center justify-between p-2.5 border-b max-lg:flex-wrap max-lg:gap-2 ${theme === 'dark' ? 'border-gray-700' : 'border-gray-300'}`}>
                 <div className="flex items-center gap-3 max-sm:flex-wrap max-sm:gap-x-2 max-sm:gap-y-2 max-lg:min-w-0">
-                    <button
-                        onClick={() => setShowSidebar(!showSidebar)}
-                        className={`flex items-center justify-center w-7 h-7 max-sm:w-8 max-sm:h-8 rounded-[6px] transition-colors ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-200 text-gray-700'}`}
-                        title={showSidebar ? 'Hide problems list' : 'Show problems list'}
-                    >
-                        {showSidebar ? <ChevronLeft className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-                    </button>
-
-                    {problems.length > 1 && (
-                        <div className="flex items-center gap-1.5">
-                            <button
-                                onClick={prevProblem}
-                                disabled={currentProblemIndex === 0}
-                                className={`px-2.5 h-7 flex items-center justify-center gap-1 border rounded-[6px] text-xs font-medium transition-colors ${theme === 'dark'
-                                    ? 'border-indigo-500 bg-indigo-900/50 hover:bg-indigo-800 text-indigo-200 disabled:text-indigo-700'
-                                    : 'border-indigo-300 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 disabled:text-indigo-300'
-                                    } disabled:opacity-50 disabled:cursor-not-allowed`}
-                                title="Previous Problem"
-                            >
-                                <ChevronLeft className="w-3 h-3" /> Prev
-                            </button>
-                            <span className={`text-xs font-semibold min-w-[40px] text-center ${theme === 'dark' ? 'text-emerald-400' : 'text-emerald-600'}`} aria-label={`Problem ${currentProblemIndex + 1} of ${problems.length}`}>
-                                {currentProblemIndex + 1}/{problems.length}
-                            </span>
-                            <button
-                                onClick={nextProblem}
-                                disabled={currentProblemIndex === problems.length - 1 || (!isFreeFlow && !isQuestionSolved(currentProblemIndex))}
-                                className={`px-2.5 h-7 flex items-center justify-center gap-1 border rounded-[6px] text-xs font-medium transition-colors ${theme === 'dark'
-                                    ? 'border-orange-500 bg-orange-900/50 hover:bg-orange-800 text-orange-200 disabled:text-orange-700'
-                                    : 'border-orange-300 bg-orange-50 hover:bg-orange-100 text-orange-700 disabled:text-orange-300'
-                                    } disabled:opacity-50 disabled:cursor-not-allowed`}
-                                title="Next Problem"
-                            >
-                                Next <ChevronRight className="w-3 h-3" />
-                            </button>
-                            {exercise?.questionBehavior?.allowSkip && (
-                                <button
-                                    onClick={skipCurrentQuestion}
-                                    disabled={currentProblemIndex === problems.length - 1}
-                                    className={`w-7 h-7 max-sm:w-8 max-sm:h-8 flex items-center justify-center border rounded-[6px] transition-colors ${theme === 'dark'
-                                        ? 'border-amber-500 bg-amber-900/50 hover:bg-amber-800 text-amber-200'
-                                        : 'border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-700'
-                                        }`}
-                                    title="Skip Question"
-                                    aria-label="Skip current question"
-                                >
-                                    <SkipForward className="w-3.5 h-3.5" />
-                                </button>
-                            )}
-                        </div>
-                    )}
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        {availableDifficulties.length > 0 && (
-                            <>
-                                <span style={{
-                                    fontSize: 11,
-                                    color: theme === 'dark' ? '#9ca3af' : '#6b7280',
-                                    fontFamily: FONT,
-                                    fontWeight: 400,
-                                }}>
-                                    Difficulty
-                                </span>
-
-                                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                                    <select
-                                        value={selectedDifficulty}
-                                        onChange={(e) => {
-                                            setSelectedDifficulty(e.target.value);
-                                            if (e.target.value !== 'all') jumpToDifficulty(e.target.value);
-                                        }}
-                                        style={{
-                                            appearance: 'none',
-                                            WebkitAppearance: 'none',
-                                            height: 28,
-                                            padding: '0 28px 0 10px',
-                                            borderRadius: 6,
-                                            border: `1px solid ${selectedDifficulty === 'easy' ? '#16a34a' :
-                                                selectedDifficulty === 'medium' ? '#d97706' :
-                                                    selectedDifficulty === 'hard' ? '#dc2626' :
-                                                        (theme === 'dark' ? '#374151' : '#d1d5db')
-                                                }`,
-                                            background: theme === 'dark' ? '#1f2937' : '#ffffff',
-                                            color: selectedDifficulty === 'easy' ? '#16a34a' :
-                                                selectedDifficulty === 'medium' ? '#d97706' :
-                                                    selectedDifficulty === 'hard' ? '#dc2626' :
-                                                        (theme === 'dark' ? '#9ca3af' : '#6b7280'),
-                                            fontFamily: FONT,
-                                            fontSize: 12,
-                                            fontWeight: 500,
-                                            cursor: 'pointer',
-                                            outline: 'none',
-                                            transition: 'border-color 0.15s, color 0.15s',
-                                        }}
-                                    >
-                                        <option value="all">All difficulties</option>
-                                        {availableDifficulties.map((diff) => {
-                                            const label = diff.charAt(0).toUpperCase() + diff.slice(1);
-                                            const count = difficultyMap[diff].count;
-                                            return (
-                                                <option key={diff} value={diff}>
-                                                    {label} ({count})
-                                                </option>
-                                            );
-                                        })}
-                                    </select>
-
-                                    {/* Custom chevron */}
-                                    <svg
-                                        viewBox="0 0 12 12"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="1.5"
-                                        style={{
-                                            position: 'absolute',
-                                            right: 9,
-                                            pointerEvents: 'none',
-                                            width: 12,
-                                            height: 12,
-                                            color: selectedDifficulty === 'easy' ? '#16a34a' :
-                                                selectedDifficulty === 'medium' ? '#d97706' :
-                                                    selectedDifficulty === 'hard' ? '#dc2626' :
-                                                        (theme === 'dark' ? '#9ca3af' : '#6b7280'),
-                                        }}
-                                    >
-                                        <path d="M2 4l4 4 4-4" />
-                                    </svg>
-                                </div>
-
-                            </>
-                        )}
-                    </div>
-
                     {/* In the main render, around line ~1430 */}
                     {isAssessmentMode && hasStarted && securitySettings.screenRecordingEnabled && (
                         <div className="flex items-center gap-2">
@@ -4629,7 +4499,23 @@ export default function CodeEditor({
                 // Phones/tablets: one scroll column (question → editor → console);
                 // lg+: `contents` removes this wrapper so the desktop split is untouched.
                 <div className="max-lg:flex max-lg:flex-col max-lg:flex-1 max-lg:min-w-0 max-lg:overflow-y-auto lg:contents">
+                {showQuestionPanel ? (
                 <div style={{ width: `${leftPanelWidth}%` }} className="h-full flex flex-col border-r border-gray-300 dark:border-gray-700 overflow-hidden max-lg:w-full! max-lg:h-auto max-lg:max-h-[45dvh] max-lg:flex-none max-lg:border-r-0 max-lg:border-b">
+                    {/* Panel header — the hide control sits on the panel it hides. */}
+                    <div className={`flex items-center justify-between flex-shrink-0 border-b pl-4 pr-2 ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-[#F5FAFF]'}`} style={{ minHeight: 44 }}>
+                        <span className={`inline-flex items-center gap-1.5 text-[13px] font-bold ${theme === 'dark' ? 'text-gray-100' : 'text-[#101828]'}`} style={{ fontFamily: FONT }}>
+                            <FileText className={`w-3.5 h-3.5 ${theme === 'dark' ? 'text-orange-400' : 'text-orange-500'}`} /> Problem
+                        </span>
+                        <button
+                            type="button"
+                            onClick={() => setShowQuestionPanel(false)}
+                            aria-label="Hide problem"
+                            title="Hide problem"
+                            className={`w-[30px] h-[30px] flex items-center justify-center rounded-[6px] ${theme === 'dark' ? 'text-gray-300 hover:bg-gray-700' : 'text-[#334155] hover:bg-[#E2E8F0]'}`}
+                        >
+                            <PanelLeftClose className="w-4 h-4" />
+                        </button>
+                    </div>
                     <div className="flex-1 overflow-y-auto custom-scrollbar">
                         <div className={`p-5 max-sm:p-4 space-y-6 ${theme === 'dark' ? 'bg-gray-900' : 'bg-white'}`}>
                             <div>
@@ -4781,8 +4667,23 @@ export default function CodeEditor({
                     </div>
 
                 </div>
+                ) : (
+                    // Hidden: a slim strip takes the panel's place — click to
+                    // bring the problem back (a bar on phones/tablets).
+                    <button
+                        type="button"
+                        onClick={() => setShowQuestionPanel(true)}
+                        aria-label="Show problem"
+                        title="Show problem"
+                        className={`flex-shrink-0 w-9 h-full flex flex-col items-center gap-2 pt-3 border-r text-xs font-semibold max-lg:w-full! max-lg:h-10! max-lg:flex-row max-lg:justify-center max-lg:pt-0 max-lg:border-r-0 max-lg:border-b ${theme === 'dark' ? 'border-gray-700 bg-gray-800 text-gray-300 hover:bg-gray-700' : 'border-gray-300 bg-[#F5FAFF] text-[#334155] hover:bg-[#EAF2FB]'}`}
+                        style={{ fontFamily: FONT }}
+                    >
+                        <PanelLeftOpen className="w-4 h-4" />
+                        <span className="[writing-mode:vertical-rl] max-lg:[writing-mode:horizontal-tb]">Problem</span>
+                    </button>
+                )}
 
-                {!showSidebar && (
+                {!showSidebar && showQuestionPanel && (
                     <div
                         className="absolute top-0 bottom-0 z-10 hover:cursor-col-resize max-lg:hidden"
                         style={{ left: `calc(${leftPanelWidth}% - 2px)`, width: '4px' }}
@@ -4792,7 +4693,7 @@ export default function CodeEditor({
                     </div>
                 )}
 
-                <div className="flex flex-col flex-1 min-w-0 h-full max-lg:w-full! max-lg:h-auto max-lg:flex-none" style={{ width: `${100 - leftPanelWidth}%` }}>
+                <div className="flex flex-col flex-1 min-w-0 h-full max-lg:w-full! max-lg:h-auto max-lg:flex-none" style={{ width: showQuestionPanel ? `${100 - leftPanelWidth}%` : '100%' }}>
 
                     {/* ── Editor (top, resizable) ── */}
                     <div className="flex flex-col max-lg:h-[60dvh]! max-lg:min-h-[320px]! max-lg:flex-none" style={{ height: `${rightPanelSplit}%`, minHeight: 0 }}>
@@ -5228,6 +5129,150 @@ export default function CodeEditor({
 
 
             </div>
+
+            {/* Question navigation — the problems list, Previous / N of M /
+                Next, Skip and the difficulty jump sit together at the bottom,
+                away from the code actions on the toolbar. Nothing to navigate
+                with a single question. */}
+            {exercise && problems.length > 1 && (
+                <div className={`flex items-center gap-3 px-3 py-1.5 border-t flex-shrink-0 max-sm:flex-wrap max-sm:gap-2 ${theme === 'dark' ? 'border-gray-700 bg-gray-900' : 'border-gray-300 bg-white'}`}>
+                        <button
+                            onClick={() => setShowSidebar(!showSidebar)}
+                            aria-pressed={showSidebar}
+                            className={`h-7 max-sm:h-8 px-2.5 flex items-center gap-1.5 border rounded-[6px] text-xs font-medium transition-colors ${showSidebar
+                                ? (theme === 'dark' ? 'border-teal-600 bg-teal-900/40 text-teal-200' : 'border-[#0F9D94] bg-[#EEF6F7] text-[#0F766E]')
+                                : (theme === 'dark' ? 'border-gray-600 bg-gray-800 hover:bg-gray-700 text-gray-300' : 'border-[#E0E5EF] bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#334155]')}`}
+                            title={showSidebar ? 'Hide the problems list' : 'Show the problems list'}
+                        >
+                            <Menu className="w-3.5 h-3.5" /> Problems
+                        </button>
+
+                        {problems.length > 1 && (
+                            <div className="flex items-center gap-1.5">
+                                <button
+                                    onClick={prevProblem}
+                                    disabled={currentProblemIndex === 0}
+                                    className={`px-3 h-7 max-sm:h-8 flex items-center justify-center gap-1 border rounded-[6px] text-xs font-semibold transition-colors ${theme === 'dark'
+                                        ? 'border-gray-600 bg-gray-800 hover:bg-gray-700 text-gray-200 disabled:text-gray-600'
+                                        : 'border-[#E0E5EF] bg-white hover:bg-[#F1F5F9] text-[#172033] disabled:text-[#C6D0DA]'
+                                        } disabled:cursor-not-allowed`}
+                                    title="Previous problem"
+                                >
+                                    <ChevronLeft className="w-3 h-3" /> Previous
+                                </button>
+                                <span className={`px-1 text-xs font-bold whitespace-nowrap tabular-nums ${theme === 'dark' ? 'text-gray-100' : 'text-[#101828]'}`}>
+                                    Problem {currentProblemIndex + 1} of {problems.length}
+                                </span>
+                                <button
+                                    onClick={nextProblem}
+                                    disabled={currentProblemIndex === problems.length - 1 || (!isFreeFlow && !isQuestionSolved(currentProblemIndex))}
+                                    className={`px-3 h-7 max-sm:h-8 flex items-center justify-center gap-1 border rounded-[6px] text-xs font-semibold transition-colors ${theme === 'dark'
+                                        ? 'border-gray-600 bg-gray-800 hover:bg-gray-700 text-gray-200 disabled:text-gray-600'
+                                        : 'border-[#E0E5EF] bg-white hover:bg-[#F1F5F9] text-[#172033] disabled:text-[#C6D0DA]'
+                                        } disabled:cursor-not-allowed`}
+                                    title="Next problem"
+                                >
+                                    Next <ChevronRight className="w-3 h-3" />
+                                </button>
+                                {exercise?.questionBehavior?.allowSkip && (
+                                    <button
+                                        onClick={skipCurrentQuestion}
+                                        disabled={currentProblemIndex === problems.length - 1}
+                                        className={`w-7 h-7 max-sm:w-8 max-sm:h-8 flex items-center justify-center border rounded-[6px] transition-colors ${theme === 'dark'
+                                            ? 'border-amber-500 bg-amber-900/50 hover:bg-amber-800 text-amber-200'
+                                            : 'border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-700'
+                                            }`}
+                                        title="Skip Question"
+                                        aria-label="Skip current question"
+                                    >
+                                        <SkipForward className="w-3.5 h-3.5" />
+                                    </button>
+                                )}
+                            </div>
+                        )}
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            {availableDifficulties.length > 0 && (
+                                <>
+                                    <span style={{
+                                        fontSize: 11,
+                                        color: theme === 'dark' ? '#9ca3af' : '#6b7280',
+                                        fontFamily: FONT,
+                                        fontWeight: 400,
+                                    }}>
+                                        Difficulty
+                                    </span>
+
+                                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                        <select
+                                            value={selectedDifficulty}
+                                            onChange={(e) => {
+                                                setSelectedDifficulty(e.target.value);
+                                                if (e.target.value !== 'all') jumpToDifficulty(e.target.value);
+                                            }}
+                                            style={{
+                                                appearance: 'none',
+                                                WebkitAppearance: 'none',
+                                                height: 28,
+                                                padding: '0 28px 0 10px',
+                                                borderRadius: 6,
+                                                border: `1px solid ${selectedDifficulty === 'easy' ? '#16a34a' :
+                                                    selectedDifficulty === 'medium' ? '#d97706' :
+                                                        selectedDifficulty === 'hard' ? '#dc2626' :
+                                                            (theme === 'dark' ? '#374151' : '#d1d5db')
+                                                    }`,
+                                                background: theme === 'dark' ? '#1f2937' : '#ffffff',
+                                                color: selectedDifficulty === 'easy' ? '#16a34a' :
+                                                    selectedDifficulty === 'medium' ? '#d97706' :
+                                                        selectedDifficulty === 'hard' ? '#dc2626' :
+                                                            (theme === 'dark' ? '#9ca3af' : '#6b7280'),
+                                                fontFamily: FONT,
+                                                fontSize: 12,
+                                                fontWeight: 500,
+                                                cursor: 'pointer',
+                                                outline: 'none',
+                                                transition: 'border-color 0.15s, color 0.15s',
+                                            }}
+                                        >
+                                            <option value="all">All difficulties</option>
+                                            {availableDifficulties.map((diff) => {
+                                                const label = diff.charAt(0).toUpperCase() + diff.slice(1);
+                                                const count = difficultyMap[diff].count;
+                                                return (
+                                                    <option key={diff} value={diff}>
+                                                        {label} ({count})
+                                                    </option>
+                                                );
+                                            })}
+                                        </select>
+
+                                        {/* Custom chevron */}
+                                        <svg
+                                            viewBox="0 0 12 12"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth="1.5"
+                                            style={{
+                                                position: 'absolute',
+                                                right: 9,
+                                                pointerEvents: 'none',
+                                                width: 12,
+                                                height: 12,
+                                                color: selectedDifficulty === 'easy' ? '#16a34a' :
+                                                    selectedDifficulty === 'medium' ? '#d97706' :
+                                                        selectedDifficulty === 'hard' ? '#dc2626' :
+                                                            (theme === 'dark' ? '#9ca3af' : '#6b7280'),
+                                            }}
+                                        >
+                                            <path d="M2 4l4 4 4-4" />
+                                        </svg>
+                                    </div>
+
+                                </>
+                            )}
+                        </div>
+                </div>
+            )}
 
             {/* Toast Notifications */}
             <div className="fixed top-4 right-4 max-sm:left-4 z-50 flex flex-col gap-2">

@@ -40,7 +40,7 @@ import {
   Maximize2, Minimize2, FileText, Eye, Play, Square,
   Terminal as TerminalIcon, AlertCircle,
   AlertTriangle, MinusCircle, CloudUpload, Check,
-  NotebookPen,
+  NotebookPen, PanelLeftClose, PanelLeftOpen,
 } from "lucide-react"
 import {
   LANGUAGE_CONFIG, STARTER_CODE,
@@ -2144,36 +2144,64 @@ export default function MultiFileCodeEditor({
   const selectQuestion = (idx: number) => setCurrentQuestionIndex(idx)
 
   // ─── Reusable question UI ───────────────────────────────────────────────────
-  // Prev / Next arrow buttons — plain square controls that flank the "Question
-  // N of M" label in the Problem details toolbar. The label lives outside so
-  // the arrows don't duplicate it.
-  const navBtnStyle = (disabled: boolean): React.CSSProperties => ({
-    display: "inline-flex", alignItems: "center", justifyContent: "center",
-    width: 32, height: 32, borderRadius: 8,
-    border: "1px solid #D9E1EA", background: "#fff",
+  // Question navigation for the bottom bar: the problems list, then
+  // Previous / "Problem N of M" / Next. Moving between questions sits beside
+  // Submit, away from the code actions on the toolbar. Nothing to navigate
+  // with a single question, so it is left out then.
+  const pagerBtnStyle = (disabled: boolean): React.CSSProperties => ({
+    display: "inline-flex", alignItems: "center", gap: 5,
+    height: 32, padding: "0 12px", borderRadius: 6,
+    border: "1px solid #E0E5EF", background: "#fff",
     color: disabled ? "#C6D0DA" : "#172033",
+    fontSize: 12, fontWeight: 600, fontFamily: FONT,
     cursor: disabled ? "not-allowed" : "pointer",
     flexShrink: 0,
   })
   const questionNav = questions.length > 1 ? (
-    <div className="flex items-center gap-2 flex-shrink-0">
+    <div className="flex items-center gap-2 flex-shrink-0 max-sm:flex-wrap">
+      {/* The problems list opens beside the rail — not in full screen. */}
+      {!isFull && (
+        <button
+          type="button"
+          onClick={() => setShowSidebar((v) => !v)}
+          aria-label="Problems list"
+          aria-pressed={showSidebar}
+          title={showSidebar ? "Hide the problems list" : "Show the problems list"}
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 6,
+            height: 32, padding: "0 12px", borderRadius: 6,
+            border: `1px solid ${showSidebar ? "#0F9D94" : "#E0E5EF"}`,
+            background: showSidebar ? "#EEF6F7" : "#F1F5F9",
+            color: showSidebar ? "#0F766E" : "#334155",
+            fontSize: 12, fontWeight: 600, fontFamily: FONT, cursor: "pointer", flexShrink: 0,
+          }}
+        >
+          <Menu style={{ width: 14, height: 14 }} /> Problems
+        </button>
+      )}
       <button
+        type="button"
         onClick={goPrev}
         disabled={currentQuestionIndex === 0}
         aria-label="Previous question"
-        title="Previous question"
-        style={navBtnStyle(currentQuestionIndex === 0)}
+        style={pagerBtnStyle(currentQuestionIndex === 0)}
       >
-        <ChevronLeft style={{ width: 16, height: 16 }} />
+        <ChevronLeft style={{ width: 13, height: 13 }} /> Previous
       </button>
+      <span style={{
+        fontFamily: FONT, fontSize: 12.5, fontWeight: 700, color: "#101828",
+        fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", padding: "0 4px",
+      }}>
+        Problem {currentQuestionIndex + 1} of {questions.length}
+      </span>
       <button
+        type="button"
         onClick={goNext}
         disabled={currentQuestionIndex === questions.length - 1}
         aria-label="Next question"
-        title="Next question"
-        style={navBtnStyle(currentQuestionIndex === questions.length - 1)}
+        style={pagerBtnStyle(currentQuestionIndex === questions.length - 1)}
       >
-        <ChevronRight style={{ width: 16, height: 16 }} />
+        Next <ChevronRight style={{ width: 13, height: 13 }} />
       </button>
     </div>
   ) : null
@@ -2467,18 +2495,12 @@ export default function MultiFileCodeEditor({
 
   return (
     <div ref={containerRef} className="flex flex-col h-full w-full" style={{ background: "#fff", color: "#111827", fontFamily: FONT, userSelect: resizing.current ? "none" : "auto" }}>
-      {/* GLOBAL HEADER — one compact toolbar per the workspace redesign:
-          left = green product glyph + hamburger sidebar toggle; centre =
-          Previous / N of M / Next question paginator (real values, no
-          hardcoding); right = Visualize / Run / Submit answer / Finish
-          assignment (moved out of the old editor toolbar so a single
-          row carries the primary actions). Old breadcrumb + timer +
-          Exercise-info/Score chips dropped from here; the left nav rail
-          hosts Score + Exercise info now. */}
-      {exercise && !isFull && (() => {
-        const total = questions.length || 1
-        const cur   = Math.min(currentQuestionIndex + 1, total)
-        return (
+      {/* GLOBAL HEADER — what this is and how to finish it: the product
+          glyph + the assignment's name on the left, the exam timer / bell in
+          exam mode, Finish on the right. Moving between questions lives on
+          the bottom bar beside Submit; the left nav rail hosts Problem /
+          Notes / Score / Info. */}
+      {exercise && !isFull && (
           <div className="max-lg:flex-wrap max-lg:gap-y-2 max-sm:px-3!" style={{
             flexShrink: 0,
             background: "#FFFFFF",
@@ -2490,10 +2512,7 @@ export default function MultiFileCodeEditor({
             padding: "10px 20px", minHeight: 56,
             gap: 12,
           }}>
-            {/* Left — glyph + hamburger + Previous/counter/Next paginator.
-                Paginator moved to the LEFT end of the toolbar per the
-                user; sits right after the sidebar toggle so the reading
-                flow is "sidebar / current question / actions". */}
+            {/* Left — glyph + the assignment's name. */}
             <div className="max-sm:flex-wrap max-sm:gap-y-2" style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
               <span aria-hidden="true" className="max-sm:hidden!" style={{
                 width: 36, height: 36, borderRadius: 8, flexShrink: 0,
@@ -2512,71 +2531,6 @@ export default function MultiFileCodeEditor({
               >
                 {exercise?.exerciseInformation?.exerciseName || ActivityNoun}
               </strong>
-              <button
-                type="button"
-                onClick={() => setShowSidebar(v => !v)}
-                aria-label="Toggle problems sidebar"
-                aria-pressed={showSidebar}
-                title={showSidebar ? "Hide problems" : "Show problems"}
-                style={{
-                  display: "inline-flex", alignItems: "center", justifyContent: "center",
-                  width: 36, height: 36, borderRadius: 8,
-                  border: "1px solid #D9E1EA", background: "#fff", color: "#172033",
-                  cursor: "pointer", flexShrink: 0,
-                }}
-              >
-                <Menu style={{ width: 18, height: 18 }} />
-              </button>
-
-              {/* Prev / N-of-M / Next — smaller text (12px), wider
-                  padding, buttons at the two ends of the group with the
-                  counter between. */}
-              <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: 4 }}>
-                <button
-                  type="button"
-                  onClick={() => setCurrentQuestionIndex(i => Math.max(0, i - 1))}
-                  disabled={currentQuestionIndex <= 0}
-                  aria-label="Previous question"
-                  className="max-sm:min-w-0! max-sm:px-2.5!"
-                  style={{
-                    display: "inline-flex", alignItems: "center", gap: 5,
-                    minWidth: 100, height: 32, padding: "0 16px", borderRadius: 8,
-                    border: "1px solid #D9E1EA", background: "#fff",
-                    color: currentQuestionIndex <= 0 ? "#C6D0DA" : "#172033",
-                    fontSize: 12, fontWeight: 600, fontFamily: FONT,
-                    cursor: currentQuestionIndex <= 0 ? "not-allowed" : "pointer",
-                  }}
-                >
-                  <ChevronLeft style={{ width: 13, height: 13 }} />
-                  Previous
-                </button>
-                <span style={{
-                  display: "inline-flex", alignItems: "center", justifyContent: "center",
-                  minWidth: 44, height: 32, padding: "0 8px",
-                  fontFamily: FONT, fontSize: 13, fontWeight: 700, color: "#101828",
-                  fontVariantNumeric: "tabular-nums",
-                }}>
-                  Problem {cur} of {total}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setCurrentQuestionIndex(i => Math.min(total - 1, i + 1))}
-                  disabled={currentQuestionIndex >= total - 1}
-                  aria-label="Next question"
-                  className="max-sm:min-w-0! max-sm:px-2.5!"
-                  style={{
-                    display: "inline-flex", alignItems: "center", gap: 5,
-                    minWidth: 100, height: 32, padding: "0 16px", borderRadius: 8,
-                    border: "1px solid #D9E1EA", background: "#fff",
-                    color: currentQuestionIndex >= total - 1 ? "#C6D0DA" : "#172033",
-                    fontSize: 12, fontWeight: 600, fontFamily: FONT,
-                    cursor: currentQuestionIndex >= total - 1 ? "not-allowed" : "pointer",
-                  }}
-                >
-                  Next
-                  <ChevronRight style={{ width: 13, height: 13 }} />
-                </button>
-              </div>
             </div>
 
             {/* Exam mode: the page's timer / message bell. */}
@@ -2585,16 +2539,10 @@ export default function MultiFileCodeEditor({
             {/* Right — Finish. Run code / Run tests live on the editor
                 toolbar (beside Visualize), next to the code they run. */}
             <div className="max-lg:flex-wrap max-lg:ml-auto" style={{ display: "flex", alignItems: "center", gap: 8, justifySelf: "end" }}>
-              {/* All right-cluster actions matched to the paginator
-                  rhythm — h-32, 12px labels, tight padding. Labels
-                  simplified per user: "Submit answer" → "Submit" and
-                  "Finish {activity}" → "Finish". Full intent still
-                  reads via title / aria-label. */}
               {finishAction}
             </div>
           </div>
-        )
-      })()}
+      )}
 
       {/* MAIN BODY */}
       <div className="flex flex-1 min-h-0 overflow-hidden max-lg:relative max-md:flex-col">
@@ -2618,7 +2566,7 @@ export default function MultiFileCodeEditor({
               }}
               aria-label="Problem"
               aria-pressed={showQuestionPanel && !showNotesPanel}
-              title={showQuestionPanel && !showNotesPanel ? "Hide the question" : "Show the question"}
+              title={showQuestionPanel && !showNotesPanel ? "Hide problem" : "Show problem"}
               style={{
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 4px', border: 0,
                 borderLeft: (showQuestionPanel && !showNotesPanel) ? '2px solid #0F9D94' : '2px solid transparent',
@@ -2828,10 +2776,28 @@ export default function MultiFileCodeEditor({
         {!isFull && showQuestionPanel && (
           <>
             <div className="flex flex-col flex-shrink-0 overflow-hidden border-r max-lg:w-full! max-lg:max-h-[40dvh] max-lg:border-r-0 max-lg:border-b" style={{ width: questionWidth, background: "#fff", borderColor: "#D9E1EA" }}>
-              {/* Problem details — hamburger + "Question N of M" removed
-                  from this row: they already sit in the global header's
-                  paginator group, so repeating them here was pure noise.
-                  Question content sits flush with the panel edge now. */}
+              {/* Panel header — the hide control sits on the panel it hides
+                  (same band as the editor toolbar); the rail's Problem
+                  button brings the panel back. */}
+              <div className="flex items-center justify-between flex-shrink-0" style={{ minHeight: 44, padding: "0 8px 0 16px", background: "#F5FAFF", borderBottom: "1px solid #D9E1EA" }}>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontFamily: FONT, fontSize: 13, fontWeight: 700, color: "#101828" }}>
+                  <FileText size={14} style={{ color: "#0F766E" }} /> Problem
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowQuestionPanel(false)}
+                  aria-label="Hide problem"
+                  title="Hide problem"
+                  className="hover:bg-[#E2E8F0]"
+                  style={{
+                    display: "inline-flex", alignItems: "center", justifyContent: "center",
+                    width: 30, height: 30, borderRadius: 6, border: "none",
+                    background: "transparent", color: "#334155", cursor: "pointer",
+                  }}
+                >
+                  <PanelLeftClose size={16} />
+                </button>
+              </div>
               <div className="flex-1 overflow-y-auto p-5 text-sm leading-relaxed text-gray-800">{questionContent}</div>
             </div>
             <div onMouseDown={(e) => { resizing.current = { kind: "question", startX: e.clientX, startWidth: questionWidth } }} className="w-1 cursor-col-resize hover:bg-orange-400 flex-shrink-0 max-lg:hidden" style={{ background: "#e5e7eb" }} />
@@ -2850,10 +2816,12 @@ export default function MultiFileCodeEditor({
               {isFull && (
                 <button
                   onClick={() => setShowQDrawer((v) => !v)}
-                  className="flex items-center gap-1 h-7 px-2 rounded text-xs font-semibold"
+                  aria-label={showQDrawer ? "Hide problem" : "Show problem"}
+                  title={showQDrawer ? "Hide problem" : "Show problem"}
+                  className="flex items-center gap-1 h-7 px-2 rounded-[6px] text-xs font-semibold"
                   style={{ background: showQDrawer ? "#0F9D94" : "#F3F6FA", color: showQDrawer ? "#fff" : "#172033", border: showQDrawer ? "none" : "1px solid #D9E1EA" }}
                 >
-                  <FileText size={13} /> Question
+                  {showQDrawer ? <PanelLeftClose size={13} /> : <PanelLeftOpen size={13} />} Problem
                 </button>
               )}
               {/* Open files are VS Code-style tabs on their own row below
@@ -2919,9 +2887,25 @@ export default function MultiFileCodeEditor({
             {/* Full-screen question drawer */}
             {isFull && showQDrawer && (
               <div className="absolute top-0 left-0 bottom-0 z-20 flex flex-col bg-white shadow-2xl max-sm:w-[90vw]!" style={{ width: Math.min(questionWidth, 460), borderRight: "1px solid #e5e7eb" }}>
-                <div className="px-3 py-2 border-b flex items-center justify-between gap-2" style={{ borderColor: "#e5e7eb" }}>
-                  <div className="flex items-center gap-2 min-w-0"><button onClick={() => setShowQDrawer(false)} className="flex items-center justify-center w-6 h-6 rounded hover:bg-gray-100 text-gray-700"><X className="w-4 h-4" /></button><span className="text-xs font-semibold uppercase tracking-wide text-gray-600">Problem</span></div>
-                  {questionNav}
+                {/* Same header as the docked panel: title, hide on the right. */}
+                <div className="flex items-center justify-between flex-shrink-0" style={{ minHeight: 44, padding: "0 8px 0 16px", background: "#F5FAFF", borderBottom: "1px solid #D9E1EA" }}>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontFamily: FONT, fontSize: 13, fontWeight: 700, color: "#101828" }}>
+                    <FileText size={14} style={{ color: "#0F766E" }} /> Problem
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowQDrawer(false)}
+                    aria-label="Hide problem"
+                    title="Hide problem"
+                    className="hover:bg-[#E2E8F0]"
+                    style={{
+                      display: "inline-flex", alignItems: "center", justifyContent: "center",
+                      width: 30, height: 30, borderRadius: 6, border: "none",
+                      background: "transparent", color: "#334155", cursor: "pointer",
+                    }}
+                  >
+                    <PanelLeftClose size={16} />
+                  </button>
                 </div>
                 <div className="flex-1 overflow-y-auto p-4 text-xs leading-relaxed text-gray-800">{questionContent}</div>
               </div>
@@ -3086,9 +3070,12 @@ export default function MultiFileCodeEditor({
         </div>)}{/* end non-link question panel + editor */}
       </div>
 
-      {/* Bottom bar — Submit only. The language shows on the toolbar's
-          picker, and the toolbar's terminal button opens the terminal. */}
-      {exercise && <div className="flex items-center justify-between gap-3 px-4 py-1.5 border-t border-gray-200 bg-white text-xs text-gray-500">
+      {/* Bottom bar — question navigation on the left (problems list,
+          Previous / Problem N of M / Next), Submit for this question on the
+          right: moving between questions and handing one in sit together,
+          the toolbar above only acts on the code. */}
+      {exercise && <div className="flex items-center justify-between gap-3 px-4 py-1.5 border-t border-gray-200 bg-white text-xs text-gray-500 max-sm:flex-wrap max-sm:px-3">
+        {questionNav}
         <div className="ml-auto flex items-center gap-3"><span className="hidden sm:inline">Submits this question only</span>{submitAction}</div>
       </div>}
       {/* MODALS */}
