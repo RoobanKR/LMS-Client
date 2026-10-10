@@ -179,7 +179,7 @@ export default function CodeWorkspace({
                       <button
                         type="button"
                         onClick={onRunTests}
-                        disabled={runningTests || !activeFile?.content.trim()}
+                        disabled={runningTests || !files.some((f) => f.content.trim())}
                         title="Run every test case and show the Test Result (nothing is submitted)"
                         className="flex h-[26px] items-center gap-1.5 rounded-[6px] bg-[#009F9A] px-2 sm:px-3 text-[12px] font-semibold text-white transition-colors hover:bg-[#00857F] disabled:cursor-not-allowed disabled:bg-[#99D9D7]"
                       >

@@ -3940,10 +3940,21 @@ builtins.input = _async_input
   // Same evaluation the student's Submit ran, but nothing is saved — review
   // never submits, only the student does. Offered for auto-evaluated
   // exercises only; a Manual one gets the plain terminal.
+  // A multi-file project runs as a whole: its language comes from the entry
+  // file (the open tab may be a helper or a data file), and the AI grader
+  // gets every file bundled under a header — what the student's Submit sent.
   const runConsoleTests = async () => {
-    const source = activeFile?.content || '';
-    const lang = ((activeFile?.language as string) || runLanguage || 'javascript').toLowerCase();
-    if (!source.trim()) {
+    const isProject = workingFiles.length > 1;
+    const entry = isProject
+      ? (workingFiles.find((f) => f.isEntryPoint)
+        || workingFiles.find((f) => f.language === runLanguage)
+        || activeFile)
+      : activeFile;
+    const source = isProject
+      ? workingFiles.map((f) => `// ── ${f.path} ──\n${f.content}`).join('\n\n')
+      : (activeFile?.content || '');
+    const lang = ((entry?.language as string) || runLanguage || 'javascript').toLowerCase();
+    if (!workingFiles.some((f) => f.content.trim())) {
       toast.error('No code to run');
       return;
     }
