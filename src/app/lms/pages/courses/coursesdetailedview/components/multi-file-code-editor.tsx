@@ -2868,10 +2868,9 @@ export default function MultiFileCodeEditor({
             <div className="flex items-center gap-2 flex-shrink-0 max-sm:ml-auto max-sm:flex-wrap">
               {/* Language picker stays on the editor toolbar because it's
                   scoped to the active file. Run / Visualize / Submit
-                  answer moved to the global header (single-toolbar rule);
-                  a Stop button STILL surfaces here when a run is live so
-                  the student can halt without scrolling their eye all the
-                  way up. */}
+                  answer moved to the global header (single-toolbar rule),
+                  and so does Stop — it shows there in Run code's place
+                  while a run is live, so this row carries no second Stop. */}
               {/* Exam mode, maximized: the global header is hidden, so the
                   timer / message bell ride on this toolbar instead. */}
               {isFull && exam?.headerSlot}
@@ -2891,20 +2890,6 @@ export default function MultiFileCodeEditor({
               >
                 {availableLanguages.map((lang) => <option key={lang} value={lang}>{LANGUAGE_CONFIG[lang].label}</option>)}
               </select>
-
-              {interactiveActive && (
-                <button
-                  onClick={stopInteractive}
-                  style={{
-                    display: "inline-flex", alignItems: "center", gap: 6,
-                    height: 32, padding: "0 12px", borderRadius: 8,
-                    border: "1px solid #fca5a5", background: "#fee2e2", color: "#b91c1c",
-                    fontSize: 12.5, fontWeight: 600, fontFamily: FONT, cursor: "pointer",
-                  }}
-                >
-                  <Square size={13} /> Stop
-                </button>
-              )}
 
               <button
                 onClick={() => { setBottomTab("terminal"); setShowTerminal(true) }}
