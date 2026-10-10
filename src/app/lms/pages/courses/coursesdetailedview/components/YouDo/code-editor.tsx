@@ -4394,8 +4394,8 @@ else:
                         >
                             {isRunning
                                 ? <Loader2 size={12} className="animate-spin" />
-                                : <Play size={12} />}
-                            Run code
+                                : <Play size={12} fill="currentColor" />}
+                            Run
                         </button>
                         )}
 
