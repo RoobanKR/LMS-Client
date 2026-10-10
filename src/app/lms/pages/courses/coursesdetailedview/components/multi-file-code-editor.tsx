@@ -2486,8 +2486,8 @@ export default function MultiFileCodeEditor({
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            // Compact: the row's 36px controls plus 6px above and below.
-            padding: "6px 20px", minHeight: 48,
+            // Compact: the row's 36px controls plus 10px above and below.
+            padding: "10px 20px", minHeight: 56,
             gap: 12,
           }}>
             {/* Left — glyph + hamburger + Previous/counter/Next paginator.
