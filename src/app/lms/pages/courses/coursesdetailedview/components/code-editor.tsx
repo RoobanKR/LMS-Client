@@ -3908,7 +3908,7 @@ export default function CodeEditor({
                                     padding: '6px 12px',
                                     borderRadius: 6,
                                     border: 'none',
-                                    background: isRunning ? '#6b7280' : (theme === 'dark' ? '#059669' : '#10b981'),
+                                    background: isRunning ? '#6b7280' : '#F97316',
                                     color: 'white',
                                     fontSize: '13px',
                                     fontWeight: 500,
@@ -3917,10 +3917,10 @@ export default function CodeEditor({
                                     opacity: isRunning ? 0.7 : 1,
                                 }}
                                 onMouseEnter={(e) => {
-                                    e.currentTarget.style.background = theme === 'dark' ? '#047857' : '#059669';
+                                    e.currentTarget.style.background = '#EA580C';
                                 }}
                                 onMouseLeave={(e) => {
-                                    e.currentTarget.style.background = theme === 'dark' ? '#059669' : '#10b981';
+                                    e.currentTarget.style.background = '#F97316';
                                 }}
                             >
                                 {isRunning
@@ -4365,7 +4365,7 @@ export default function CodeEditor({
                                 opacity: isRunning ? 0.7 : 1,
                             }}
                         >
-                            {isRunning ? <Loader2 style={{ width: 13, height: 13 }} className="animate-spin" /> : <Play style={{ width: 13, height: 13 }} />}
+                            {isRunning ? <Loader2 style={{ width: 13, height: 13 }} className="animate-spin" /> : <Play style={{ width: 13, height: 13 }} fill="currentColor" />}
                             Run
                         </button>
                     </div>
