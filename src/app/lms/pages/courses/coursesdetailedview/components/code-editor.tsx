@@ -810,6 +810,14 @@ const InfoRow = ({ label, value, theme, mono }: { label: string; value?: string 
         </div>
     );
 };
+
+// What the editor opens with when a question has no starter code of its own.
+const PLACEHOLDER_CODE = `// Start coding here...
+function solve() {
+    // Your solution goes here
+    return null;
+}`;
+
 export default function CodeEditor({
     exercise,
     defaultProblems,
@@ -946,6 +954,18 @@ export default function CodeEditor({
     }, [exercise, defaultProblems])
     const problem = problems.length > 0 ? problems[currentProblemIndex] : null
     const router = useRouter();
+
+    // Submit only when there is something new to submit. The code last
+    // submitted per question — from a Submit this session, or the stored answer
+    // when it is already submitted — and whether the editor holds anything
+    // beyond its starter.
+    const [submittedCodeByQ, setSubmittedCodeByQ] = useState<Record<string, string>>({});
+    const normCode = (s: string) => String(s ?? '').replace(/\r\n?/g, '\n').replace(/\s+$/, '');
+    const submittedCode = currentQuestion?._id ? submittedCodeByQ[String(currentQuestion._id)] : undefined;
+    const unchangedSinceSubmit = submittedCode !== undefined && normCode(submittedCode) === normCode(code);
+    const codeIsEmpty = !code.trim()
+        || (!!problem?.initialCode && normCode(code) === normCode(problem.initialCode))
+        || normCode(code) === normCode(PLACEHOLDER_CODE);
 
     // --- Full exercise data (re-fetched to get complete exerciseInformation fields) ---
     const [fullExercise, setFullExercise] = useState<Exercise | null>(exercise || null);
@@ -1334,11 +1354,7 @@ export default function CodeEditor({
             setCode(problem.initialCode)
             setOutput("")
         } else {
-            setCode(`// Start coding here...
-function solve() {
-    // Your solution goes here
-    return null;
-}`)
+            setCode(PLACEHOLDER_CODE)
         }
     }, [problem, exercise, currentProblemIndex])
 
@@ -1428,6 +1444,12 @@ function solve() {
 
                     if (!resetProgress && data.data && data.data !== "null" && data.data.trim() !== "") {
                         setCode(data.data);
+                    }
+                    // An already-submitted answer: its code is what Submit
+                    // compares against, so resubmitting it unchanged stays off.
+                    if (['solved', 'submitted', 'evaluated'].includes(String(data.status))
+                        && typeof data.data === 'string' && data.data !== 'null' && data.data.trim() !== '') {
+                        setSubmittedCodeByQ(prev => (prev[targetQuestionId] !== undefined ? prev : { ...prev, [targetQuestionId]: data.data }));
                     }
 
                     if (data.status === 'solved') {
@@ -3250,7 +3272,19 @@ function solve() {
                 return;
             }
         }
+        // Nothing new to submit: an empty answer never goes in, and the exact
+        // code already submitted is not stored and graded a second time.
+        if (codeIsEmpty) {
+            showToast({ type: 'info', title: 'Nothing to submit', message: 'Write your code before submitting.', duration: 3000 });
+            return;
+        }
+        if (unchangedSinceSubmit) {
+            showToast({ type: 'info', title: 'Already submitted', message: 'Change your code to submit again.', duration: 3000 });
+            return;
+        }
 
+        const submittedQuestionId = currentQuestion?._id ? String(currentQuestion._id) : '';
+        const codeAtSubmit = code;
         setIsRunning(true);
         clearTerminal();
         try {
@@ -3258,7 +3292,10 @@ function solve() {
             // the separate Submit Exercise button (which carries the
             // allQuestionsRequired gate), so submitting the last question no
             // longer closes the workspace out from under the student.
-            await runEvaluation({ record: true, isTestSubmission: false });
+            const res: any = await runEvaluation({ record: true, isTestSubmission: false });
+            if (res?.success && submittedQuestionId) {
+                setSubmittedCodeByQ(prev => ({ ...prev, [submittedQuestionId]: codeAtSubmit }));
+            }
         } finally {
             setIsRunning(false);
         }
@@ -4545,19 +4582,17 @@ function solve() {
                                             );
                                             setSolvedQuestions(prev => { const s = new Set(prev); s.add(currentProblemIndex); return s; });
                                             showToast({ type: 'success', title: 'Question Submitted', message: `Question ${currentProblemIndex + 1} submitted successfully.`, duration: 3000 });
-                                            if (isFreeFlow && currentProblemIndex < problems.length - 1) {
-                                                setTimeout(() => setCurrentProblemIndex(currentProblemIndex + 1), 1500);
-                                            }
                                         } catch (error: any) {
                                             showToast({ type: 'error', title: 'Submission Failed', message: error.message || 'Could not submit question.', duration: 4000 });
                                         }
                                     }}
-                                    disabled={attemptsMaxed}
+                                    // Submitting a link question twice adds nothing.
+                                    disabled={attemptsMaxed || solvedQuestions.has(currentProblemIndex)}
                                     style={{
                                         display: 'flex', alignItems: 'center', gap: 4, height: 30, padding: '0 18px',
                                         fontSize: 12, fontFamily: FONT, fontWeight: 600, borderRadius: 6, border: 'none',
-                                        background: attemptsMaxed ? '#9ca3af' : '#22c55e', color: '#fff',
-                                        cursor: attemptsMaxed ? 'not-allowed' : 'pointer',
+                                        background: (attemptsMaxed || solvedQuestions.has(currentProblemIndex)) ? '#9ca3af' : '#22c55e', color: '#fff',
+                                        cursor: (attemptsMaxed || solvedQuestions.has(currentProblemIndex)) ? 'not-allowed' : 'pointer',
                                     }}
                                 >
                                     <CheckCircle style={{ width: 13, height: 13 }} />
@@ -4879,27 +4914,23 @@ function solve() {
                                     entirely, so Test Case and AI We_Do
                                     exercises never scored. */}
                                 <button
-                                    onClick={async () => {
-                                        await submitCode();
-                                        // Free flow: nudge on to the next question
-                                        // once this one is recorded.
-                                        if (isFreeFlow && currentProblemIndex < problems.length - 1) {
-                                            setTimeout(() => {
-                                                setCurrentProblemIndex(currentProblemIndex + 1);
-                                                addTerminalLog('system', '➡️ Moving to next question...');
-                                            }, 1500);
-                                        }
-                                    }}
-                                    disabled={isRunning || (exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1))}
+                                    // The student stays on this question with
+                                    // its result showing — moving on is theirs.
+                                    onClick={() => { void submitCode(); }}
+                                    // Off for an empty answer and for code
+                                    // identical to the last submission — any
+                                    // edit turns it back on.
+                                    disabled={isRunning || codeIsEmpty || unchangedSinceSubmit || (exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1))}
+                                    title={codeIsEmpty ? 'Write your code before submitting' : unchangedSinceSubmit ? 'Already submitted — change your code to submit again' : undefined}
                                     style={{
                                         display: 'flex', alignItems: 'center', gap: 4,
                                         height: 30, padding: '0 18px',
                                         fontSize: 12, fontFamily: FONT, fontWeight: 600,
                                         borderRadius: 6, border: 'none',
-                                        background: (exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1))
+                                        background: (codeIsEmpty || unchangedSinceSubmit || (exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1)))
                                             ? '#9ca3af' : '#22c55e',
                                         color: '#fff',
-                                        cursor: isRunning ? 'not-allowed' : 'pointer',
+                                        cursor: (isRunning || codeIsEmpty || unchangedSinceSubmit) ? 'not-allowed' : 'pointer',
                                         opacity: isRunning ? 0.7 : 1,
                                     }}
                                 >
@@ -4907,7 +4938,7 @@ function solve() {
                                         ? <Loader2 style={{ width: 13, height: 13 }} className="animate-spin" />
                                         : <CheckCircle style={{ width: 13, height: 13 }} />}
                                     {(exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1))
-                                        ? 'Limit Reached' : 'Submit Question'}
+                                        ? 'Limit Reached' : (unchangedSinceSubmit && !isRunning) ? 'Submitted ✓' : 'Submit Question'}
                                 </button>
 
                                 {/* Clear button */}

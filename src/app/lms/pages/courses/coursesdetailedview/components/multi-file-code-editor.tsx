@@ -173,6 +173,33 @@ const visibleTestCases = (q: any): { input: string; expectedOutput: string; expe
     }))
     .filter((t: any) => t.input || t.expectedOutput)
 
+// A question's code as one comparable string — files by path, line endings
+// and trailing blank space normalised — so "the same code that was
+// submitted" is an exact check.
+const codeSignature = (fs: { path: string; content: string }[]): string =>
+  fs
+    .map((f) => `${f.path}\u0000${String(f.content ?? "").replace(/\r\n?/g, "\n").replace(/\s+$/, "")}`)
+    .sort()
+    .join("\u0001")
+
+// The author's Starter Code for a question (newer field, then the older
+// `solutions.startedCode` / misspelled `staetedCode`), or "".
+const authoredStarterOf = (q: any): string =>
+  typeof q?.starterCode === "string" ? q.starterCode
+  : typeof q?.solutions?.startedCode === "string" ? q.solutions.startedCode
+  : typeof q?.solutions?.staetedCode === "string" ? q.solutions.staetedCode
+  : ""
+
+// Nothing worth submitting: every file blank, or the single entry file still
+// exactly the starter it was seeded with.
+const isEmptyCode = (fs: { content: string }[], starter: string): boolean => {
+  if (fs.every((f) => !String(f.content ?? "").trim())) return true
+  if (fs.length !== 1) return false
+  const body = String(fs[0].content ?? "")
+  if (starter && body.trim() === starter.trim()) return true
+  return Object.values(STARTER_CODE).some((tpl) => tpl === body)
+}
+
 // Build a FileNode from a {path, content} draft/submission record.
 const fileFromRecord = (r: any): FileNode => {
   const path = normPath(r.path || `/${r.filename || r.name || "main.txt"}`)
@@ -787,6 +814,43 @@ export default function MultiFileCodeEditor({
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [exercise?._id, currentQuestion?._id, availableLanguages.join(",")])
+
+  // ═════════════════════════════════════════════════════════════════════════════
+  // Submit only when there is something new to submit
+  // ═════════════════════════════════════════════════════════════════════════════
+  // Signature of the code last submitted, per question. Set on a successful
+  // Submit, and read once per question from the stored submission so it holds
+  // after a reload too (the editor itself opens on the autosaved draft, which
+  // can be newer than what was submitted).
+  const [submittedSigs, setSubmittedSigs] = useState<Record<string, string>>({})
+  useEffect(() => {
+    if (preview) return
+    const exerciseId = exercise?._id
+    const questionId = currentQuestion?._id ? String(currentQuestion._id) : ""
+    if (!exerciseId || !questionId || !courseId || !category) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const r = await fetch(`${API}/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseId}&questionId=${questionId}&category=${category}`, { headers: authHeaders() })
+        if (!r.ok) return
+        const data = await r.json()
+        const recs = data?.success && Array.isArray(data?.data?.files) ? data.data.files : []
+        if (cancelled || !recs.length) return
+        const sig = codeSignature(recs.map(fileFromRecord))
+        setSubmittedSigs((prev) => (prev[questionId] !== undefined ? prev : { ...prev, [questionId]: sig }))
+      } catch { /* no stored submission — Submit stays available */ }
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exercise?._id, currentQuestion?._id])
+
+  const currentCodeSig = useMemo(() => codeSignature(files), [files])
+  const submittedSig = currentQuestion?._id ? submittedSigs[String(currentQuestion._id)] : undefined
+  // The code on screen is exactly what was last submitted — resubmitting it
+  // would only store and grade the same answer again.
+  const unchangedSinceSubmit = submittedSig !== undefined && submittedSig === currentCodeSig
+  const codeIsEmpty = useMemo(() => isEmptyCode(files, authoredStarterOf(currentQuestion)), [files, currentQuestion])
+  const submitBlocked = isSubmittingQuestion || isSubmitting || isRunningTestCases || !ready || codeIsEmpty || unchangedSinceSubmit
 
   // ═════════════════════════════════════════════════════════════════════════════
   // Auto-save draft (debounced on change + 15s heartbeat + final flush)
@@ -1837,34 +1901,50 @@ export default function MultiFileCodeEditor({
     return res.data?.success ? { ok: true, result: nextResult } : { ok: false, message: res.data?.message || "unknown" }
   }
 
-  const submitQuestion = async () => {
+  // `force` (Retry after a failed evaluation) resubmits the same code.
+  const submitQuestion = async (opts?: { force?: boolean }) => {
     if (isSubmitQuestionGuardRef.current) return
+    const q: any = currentQuestion
+    const isLink = !!(q?.isLinkQuestion && q?.questionLink)
+    if (!opts?.force) {
+      // Nothing new to submit: an empty answer never goes in, and the exact
+      // code already submitted is not stored and graded a second time.
+      if (isLink) {
+        if (solvedQuestions.has(currentQuestionIndex)) return
+      } else if (codeIsEmpty) {
+        toast("Write your code before submitting.", { icon: "✍️" })
+        return
+      } else if (unchangedSinceSubmit) {
+        toast("Already submitted — change your code to submit again.", { icon: "ℹ️" })
+        return
+      }
+    }
     isSubmitQuestionGuardRef.current = true
     setIsSubmittingQuestion(true)
     const submittedIndex = currentQuestionIndex
+    const submittedQuestionId = q?._id ? String(q._id) : ""
+    // The code as it is now is what gets submitted — later typing during the
+    // request must not count as submitted.
+    const sigAtSubmit = currentCodeSig
     try {
       await saveDraft(false)
       const result = await postSubmission(false)
       if (result.ok) {
         log("success", `Question ${submittedIndex + 1} saved.`)
         setSolvedQuestions((prev) => new Set(prev).add(submittedIndex))
+        if (submittedQuestionId) setSubmittedSigs((prev) => ({ ...prev, [submittedQuestionId]: sigAtSubmit }))
         const savedId = questions[submittedIndex]?._id
         if (savedId) exam?.onAnswerSaved?.(String(savedId))
-        // A successful Submit moves straight on to the next question. Moving
-        // clears the Test Result panel, so an auto-graded score rides along in
-        // a toast. The last question stays put with its result showing, and a
-        // manual Next / question pick made while the submit was in flight wins.
-        if (submittedIndex < questions.length - 1) {
-          const r = result.result
-          const graded = r && r.cases.length > 0 && typeof r.score === "number"
-          // Click-through, so it never covers or blocks the header's Submit /
-          // Finish buttons, and hovering it cannot pause its auto-dismiss.
-          toast.success(
-            `Question ${submittedIndex + 1} submitted${graded ? ` · Score ${r.score} / ${r.maxMarks}` : ""}`,
-            { duration: 3000, style: { pointerEvents: "none" } },
-          )
-          setCurrentQuestionIndex((i) => (i === submittedIndex ? i + 1 : i))
-        }
+        // The student stays on this question with its Test Result showing —
+        // moving on is their choice (Next / the question list).
+        const r = result.result
+        const graded = r && r.cases.length > 0 && typeof r.score === "number"
+        // Click-through, so it never covers or blocks the header's Submit /
+        // Finish buttons, and hovering it cannot pause its auto-dismiss.
+        toast.success(
+          `Question ${submittedIndex + 1} submitted${graded ? ` · Score ${r.score} / ${r.maxMarks}` : ""}`,
+          { duration: 3000, style: { pointerEvents: "none" } },
+        )
       } else log("error", `Save failed: ${result.message}`)
     } catch (e: any) {
       log("error", `Save error: ${e?.message || e}`)
@@ -2299,21 +2379,28 @@ export default function MultiFileCodeEditor({
   const submitAction = (<>
               {exercise && (
                 <button
-                  onClick={submitQuestion}
-                  disabled={isSubmittingQuestion || isSubmitting || isRunningTestCases}
-                  title="Submit your answer to this question"
+                  onClick={() => void submitQuestion()}
+                  // Off while busy, while the question loads, for an empty
+                  // answer, and for code identical to the last submission —
+                  // any edit turns it back on.
+                  disabled={submitBlocked}
+                  title={
+                    codeIsEmpty ? "Write your code before submitting"
+                    : unchangedSinceSubmit ? "Already submitted — change your code to submit again"
+                    : "Submit your answer to this question"
+                  }
                   aria-label="Submit answer"
                   style={{
                     display: "inline-flex", alignItems: "center", gap: 5,
                     height: 32, padding: "0 14px", borderRadius: 8,
                     border: "none",
-                    background: (isSubmittingQuestion || isSubmitting || isRunningTestCases) ? "#94A3B8" : "#0F766E",
+                    background: submitBlocked ? "#94A3B8" : "#0F766E",
                     color: "#fff", fontSize: 12, fontWeight: 700, fontFamily: FONT,
-                    cursor: (isSubmittingQuestion || isSubmitting || isRunningTestCases) ? "not-allowed" : "pointer",
+                    cursor: submitBlocked ? "not-allowed" : "pointer",
                   }}
                 >
                   {isSubmittingQuestion ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle size={12} />}
-                  Submit answer
+                  {unchangedSinceSubmit && !isSubmittingQuestion ? "Submitted ✓" : "Submit answer"}
                 </button>
               )}
 
@@ -2688,10 +2775,10 @@ export default function MultiFileCodeEditor({
                 </button>
                 {exercise && (
                   <button
-                    onClick={submitQuestion}
-                    disabled={isSubmittingQuestion || isSubmitting}
+                    onClick={() => void submitQuestion()}
+                    disabled={isSubmittingQuestion || isSubmitting || solvedQuestions.has(currentQuestionIndex)}
                     className="flex items-center gap-1.5 h-9 px-5 rounded-lg text-sm font-bold text-white"
-                    style={{ background: (isSubmittingQuestion || isSubmitting) ? "#9ca3af" : "#22c55e", border: "none", cursor: "pointer" }}
+                    style={{ background: (isSubmittingQuestion || isSubmitting || solvedQuestions.has(currentQuestionIndex)) ? "#9ca3af" : "#22c55e", border: "none", cursor: "pointer" }}
                   >
                     {isSubmittingQuestion ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle size={13} />}
                     {solvedQuestions.has(currentQuestionIndex) ? "Submitted ✓" : "Submit answer"}
@@ -2980,7 +3067,7 @@ export default function MultiFileCodeEditor({
                     // TestResult props
                     selectedCaseIndex={selectedCaseIndex}
                     onSelectCase={setSelectedCaseIndex}
-                    onRetrySubmit={() => { if (lastEvaluationWasPreview.current) void runTestCases(); else void submitQuestion() }}
+                    onRetrySubmit={() => { if (lastEvaluationWasPreview.current) void runTestCases(); else void submitQuestion({ force: true }) }}
                     isSubmitting={isSubmittingQuestion || isRunningTestCases}
                   />
                   </div>

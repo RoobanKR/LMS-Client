@@ -861,6 +861,14 @@ const InfoRow = ({ label, value, theme, mono }: { label: string; value?: string 
         </div>
     );
 };
+
+// What the editor opens with when a question has no starter code of its own.
+const PLACEHOLDER_CODE = `// Start coding here...
+function solve() {
+    // Your solution goes here
+    return null;
+}`;
+
 export default function CodeEditor({
     exercise,
     defaultProblems,
@@ -1068,6 +1076,18 @@ export default function CodeEditor({
     }, [exercise, defaultProblems])
     const problem = problems.length > 0 ? problems[currentProblemIndex] : null
     const router = useRouter();
+
+    // Submit only when there is something new to submit. The code last
+    // submitted per question — from a Submit this session, or the stored answer
+    // when it is already submitted — and whether the editor holds anything
+    // beyond its starter.
+    const [submittedCodeByQ, setSubmittedCodeByQ] = useState<Record<string, string>>({});
+    const normCode = (s: string) => String(s ?? '').replace(/\r\n?/g, '\n').replace(/\s+$/, '');
+    const submittedCode = currentQuestion?._id ? submittedCodeByQ[String(currentQuestion._id)] : undefined;
+    const unchangedSinceSubmit = submittedCode !== undefined && normCode(submittedCode) === normCode(code);
+    const codeIsEmpty = !code.trim()
+        || (!!problem?.initialCode && normCode(code) === normCode(problem.initialCode))
+        || normCode(code) === normCode(PLACEHOLDER_CODE);
 
     // ── Live Dashboard emitter (student → teacher). assessmentId = exercise _id. ──
     const live = useExamLiveEmitter(exercise?._id ? String(exercise._id) : "", problems.length);
@@ -1567,11 +1587,7 @@ export default function CodeEditor({
             setCode(problem.initialCode)
             setOutput("")
         } else {
-            setCode(`// Start coding here...
-function solve() {
-    // Your solution goes here
-    return null;
-}`)
+            setCode(PLACEHOLDER_CODE)
         }
     }, [problem, exercise, currentProblemIndex])
 
@@ -1656,6 +1672,12 @@ function solve() {
                     if (!resetProgress && draftsRef.current[targetQuestionId] == null &&
                         data.data && data.data !== "null" && data.data.trim() !== "") {
                         setCode(data.data);
+                    }
+                    // An already-submitted answer: its code is what Submit
+                    // compares against, so resubmitting it unchanged stays off.
+                    if (['solved', 'submitted', 'evaluated'].includes(String(data.status))
+                        && typeof data.data === 'string' && data.data !== 'null' && data.data.trim() !== '') {
+                        setSubmittedCodeByQ(prev => (prev[targetQuestionId] !== undefined ? prev : { ...prev, [targetQuestionId]: data.data }));
                     }
 
                     if (data.status === 'solved') {
@@ -3232,7 +3254,8 @@ else:
     const currentProblemIndexRef = useRef(currentProblemIndex);
     currentProblemIndexRef.current = currentProblemIndex;
 
-    const handleSubmitCode = async () => {
+    // `force` (Retry after a failed submission) resubmits the same code.
+    const handleSubmitCode = async (opts?: { force?: boolean }) => {
         if (exercise?.questionBehavior?.attemptLimitEnabled) {
             const max = exercise.questionBehavior.maxAttempts || 1;
             if (userAttempts >= max) {
@@ -3240,6 +3263,19 @@ else:
                 return;
             }
         }
+        // Nothing new to submit: an empty answer never goes in, and the exact
+        // code already submitted is not stored and graded a second time.
+        if (!opts?.force) {
+            if (codeIsEmpty) {
+                showToast({ type: 'info', title: 'Nothing to submit', message: 'Write your code before submitting.', duration: 3000 });
+                return;
+            }
+            if (unchangedSinceSubmit) {
+                showToast({ type: 'info', title: 'Already submitted', message: 'Change your code to submit again.', duration: 3000 });
+                return;
+            }
+        }
+        const codeAtSubmit = code;
         const liveQuestion: any = exercise?.questions?.[currentProblemIndex] ?? currentQuestion;
         // Which evaluation method the trainer picked for this exercise. Only
         // Test Case actually needs a testCases array; Manual/AI go through
@@ -3315,6 +3351,9 @@ else:
                 await submitProgressToBackend(qId, submitStatus, submitScore, false, submitBreakdown);
                 submittedScoresRef.current[qId] = submitScore;
                 if (resultState) testResultByQRef.current[qId] = resultState;
+                // This code is now the submitted answer — Submit stays off
+                // until the student changes it.
+                setSubmittedCodeByQ(prev => ({ ...prev, [String(qId)]: codeAtSubmit }));
             }
             setSolvedQuestions(prev => { const s = new Set(prev); s.add(currentProblemIndex); return s; });
             showToast({
@@ -3323,20 +3362,8 @@ else:
                 message: toastMsg,
                 duration: 3500,
             });
-            // A recorded Submit moves on to the next question — after a beat,
-            // so the Test Result and the Submitted badge register first (the
-            // link-question Submit already does the same). The question is now
-            // solved, so Controlled flow allows it too. The last question stays
-            // put for Finish, and a question the student picked in the meantime
-            // wins.
-            const submittedIndex = currentProblemIndex;
-            if (submittedIndex < problems.length - 1) {
-                setTimeout(() => {
-                    if (currentProblemIndexRef.current !== submittedIndex) return;
-                    live.questionChanged((problems[submittedIndex] as any)?._id || null, (problems[submittedIndex + 1] as any)?._id || null);
-                    setCurrentProblemIndex(submittedIndex + 1);
-                }, 1500);
-            }
+            // The student stays on this question with its Test Result showing —
+            // moving on is their choice (Next / the question list).
         } catch (err: any) {
             setTestResult({
                 status: 'submission-failed',
@@ -4302,19 +4329,25 @@ else:
 
     const submitAnswerAction = (<>
                         <button
-                            onClick={handleSubmitCode}
-                            disabled={isEvaluating || (exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1))}
-                            title="Submit your answer to this question"
+                            onClick={() => { void handleSubmitCode(); }}
+                            // Off for an empty answer and for code identical to
+                            // the last submission — any edit turns it back on.
+                            disabled={isEvaluating || codeIsEmpty || unchangedSinceSubmit || (exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1))}
+                            title={
+                                codeIsEmpty ? 'Write your code before submitting'
+                                : unchangedSinceSubmit ? 'Already submitted — change your code to submit again'
+                                : 'Submit your answer to this question'
+                            }
                             aria-label="Submit answer"
                             style={{
                                 display: 'inline-flex', alignItems: 'center', gap: 5,
                                 height: 32, padding: '0 14px', borderRadius: 8,
                                 border: 'none',
-                                background: (isEvaluating || (exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1)))
+                                background: (isEvaluating || codeIsEmpty || unchangedSinceSubmit || (exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1)))
                                     ? '#94A3B8'
                                     : '#0F766E',
                                 color: '#fff', fontSize: 12, fontWeight: 700, fontFamily: FONT,
-                                cursor: (isEvaluating || (exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1)))
+                                cursor: (isEvaluating || codeIsEmpty || unchangedSinceSubmit || (exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1)))
                                     ? 'not-allowed'
                                     : 'pointer',
                                 whiteSpace: 'nowrap',
@@ -4325,7 +4358,7 @@ else:
                                 : <CheckCircle size={12} />}
                             {(exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1))
                                 ? 'Limit Reached'
-                                : 'Submit answer'}
+                                : (unchangedSinceSubmit && !isRunning) ? 'Submitted ✓' : 'Submit answer'}
                         </button>
     </>);
     const workspaceActions = (<>
@@ -5381,19 +5414,17 @@ else:
                                             );
                                             setSolvedQuestions(prev => { const s = new Set(prev); s.add(currentProblemIndex); return s; });
                                             showToast({ type: 'success', title: 'Question Submitted', message: `Question ${currentProblemIndex + 1} submitted successfully.`, duration: 3000 });
-                                            if (isFreeFlow && currentProblemIndex < problems.length - 1) {
-                                                setTimeout(() => setCurrentProblemIndex(currentProblemIndex + 1), 1500);
-                                            }
                                         } catch (error: any) {
                                             showToast({ type: 'error', title: 'Submission Failed', message: error.message || 'Could not submit question.', duration: 4000 });
                                         }
                                     }}
-                                    disabled={attemptsMaxed}
+                                    // Submitting a link question twice adds nothing.
+                                    disabled={attemptsMaxed || solvedQuestions.has(currentProblemIndex)}
                                     style={{
                                         display: 'flex', alignItems: 'center', gap: 4, height: 30, padding: '0 18px',
                                         fontSize: 12, fontFamily: FONT, fontWeight: 600, borderRadius: 6, border: 'none',
-                                        background: attemptsMaxed ? '#9ca3af' : '#22c55e', color: '#fff',
-                                        cursor: attemptsMaxed ? 'not-allowed' : 'pointer',
+                                        background: (attemptsMaxed || solvedQuestions.has(currentProblemIndex)) ? '#9ca3af' : '#22c55e', color: '#fff',
+                                        cursor: (attemptsMaxed || solvedQuestions.has(currentProblemIndex)) ? 'not-allowed' : 'pointer',
                                     }}
                                 >
                                     <CheckCircle style={{ width: 13, height: 13 }} />
@@ -5653,7 +5684,7 @@ else:
                             onSubmitInput={() => { }}
                             selectedCaseIndex={selectedCaseIndex}
                             onSelectCase={setSelectedCaseIndex}
-                            onRetrySubmit={handleSubmitCode}
+                            onRetrySubmit={() => { void handleSubmitCode({ force: true }); }}
                             isSubmitting={isEvaluating}
                         />
                     </div>}
