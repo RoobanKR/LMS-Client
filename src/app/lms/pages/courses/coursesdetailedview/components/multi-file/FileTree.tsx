@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import {
-  ChevronRight, ChevronDown, File as FileIcon, Folder, FolderOpen,
+  ChevronRight, ChevronDown, File as FileIcon, FileCode2, FileText, Folder, FolderOpen,
   FilePlus, FolderPlus, Pencil, Trash2,
 } from "lucide-react"
 import { LANGUAGE_CONFIG } from "@/lib/codeLanguages"
@@ -33,19 +33,43 @@ interface FileTreeProps {
   // Files the program created on Run. Listed in their own read-only section
   // (open only — no rename, delete or drag).
   outputFiles?: FileNode[]
+  // Shown as the collapsible project root row (e.g. "PYTHONEX-1"), like
+  // VS Code's workspace folder. Without it the tree starts at its items.
+  projectName?: string
+}
+
+// Light workspace palette: navy text, warm-gray hover, soft teal selection.
+const C = {
+  navy: "#101B3B",
+  text: "#344054",
+  muted: "#667085",
+  icon: "#475467",
+  hover: "hover:bg-[#F5F4F0]",
+  selected: "#E3F4EF",
+  folderSelected: "#F2F1ED",
+  dropTarget: "#E3F4EF",
+  border: "#E7E5DF",
 }
 
 const fileColor = (lang: FileNode["language"]): string =>
-  lang !== "text" ? LANGUAGE_CONFIG[lang]?.color || "#6b7280" : "#6b7280"
+  lang !== "text" ? LANGUAGE_CONFIG[lang]?.color || C.icon : C.icon
+
+// Code files get the code glyph in their language colour; anything else
+// (data, notes) a plain document glyph.
+const FileGlyph = ({ file }: { file: FileNode }) =>
+  file.language !== "text"
+    ? <FileCode2 size={15} style={{ color: fileColor(file.language), flexShrink: 0 }} />
+    : <FileText size={15} style={{ color: C.icon, flexShrink: 0 }} />
 
 export default function FileTree(props: FileTreeProps) {
   const {
     files, folders, activeFileId, busy, defaultTargetFolder,
     onOpenFile, onCreateFile, onCreateFolder,
     onRenameFile, onRenameFolder, onDeleteFile, onDeleteFolder, onMove,
-    outputFiles = [],
+    outputFiles = [], projectName,
   } = props
   const [outputsOpen, setOutputsOpen] = useState(true)
+  const [rootOpen, setRootOpen] = useState(true)
 
   const [expanded, setExpanded] = useState<Set<string>>(new Set(["/"]))
   const [dragOver, setDragOver] = useState<string | null>(null)
@@ -56,6 +80,9 @@ export default function FileTree(props: FileTreeProps) {
   // VS Code: click a folder to make it the target. Defaults to root, but the
   // parent can hint a sensible default (e.g. folder of the active file).
   const [selectedFolderPath, setSelectedFolderPath] = useState<string>(defaultTargetFolder || "/")
+
+  // The project root row takes the first indent level.
+  const base = projectName ? 1 : 0
 
   const toggle = (path: string) =>
     setExpanded((prev) => {
@@ -80,6 +107,7 @@ export default function FileTree(props: FileTreeProps) {
   // ── inline edit helpers ──
   const startCreate = (parent: string, kind: "file" | "folder") => {
     setRenaming(null)
+    setRootOpen(true)
     setExpanded((prev) => new Set(prev).add(parent))
     setEditValue("")
     setCreating({ parent, kind })
@@ -122,17 +150,18 @@ export default function FileTree(props: FileTreeProps) {
   }
 
   const rowBase: React.CSSProperties = {
-    display: "flex", alignItems: "center", gap: 6, padding: "3px 6px",
-    borderRadius: 5, fontSize: 12.5, cursor: busy ? "default" : "pointer",
-    userSelect: "none", whiteSpace: "nowrap",
+    display: "flex", alignItems: "center", gap: 7, padding: "5px 8px", margin: "1px 6px",
+    borderRadius: 6, fontSize: 13, cursor: busy ? "default" : "pointer",
+    userSelect: "none", whiteSpace: "nowrap", color: C.text,
   }
+  const indent = (depth: number) => 8 + (base + depth) * 14
 
   // Inline editor row (used for both create and rename).
   const editRow = (depth: number, kind: "file" | "folder", commit: () => void) => (
-    <div style={{ ...rowBase, paddingLeft: 6 + depth * 14 + (kind === "file" ? 13 : 0) }}>
+    <div style={{ ...rowBase, paddingLeft: indent(depth) + (kind === "file" ? 15 : 0) }}>
       {kind === "folder"
-        ? <Folder size={14} style={{ color: "#eab308", flexShrink: 0 }} />
-        : <FileIcon size={13} style={{ color: "#6b7280", flexShrink: 0 }} />}
+        ? <Folder size={15} style={{ color: C.icon, flexShrink: 0 }} />
+        : <FileIcon size={14} style={{ color: C.icon, flexShrink: 0 }} />}
       <input
         autoFocus
         value={editValue}
@@ -141,7 +170,7 @@ export default function FileTree(props: FileTreeProps) {
         onBlur={commit}
         placeholder={kind === "file" ? "filename.py" : "folder name"}
         className="flex-1 text-sm outline-none rounded px-1"
-        style={{ border: "1px solid #6366f1", fontFamily: "inherit", minWidth: 0 }}
+        style={{ border: "1px solid #0F9D94", fontFamily: "inherit", minWidth: 0 }}
       />
     </div>
   )
@@ -156,12 +185,11 @@ export default function FileTree(props: FileTreeProps) {
       <div key={folder.id}>
         {isRenaming ? editRow(depth, "folder", commitRename) : (
           <div
-            className="group hover:bg-indigo-50"
+            className={`group ${C.hover}`}
             style={{
               ...rowBase,
-              paddingLeft: 6 + depth * 14,
-              background: isOver ? "#e0e7ff" : isSelected ? "#eef2ff" : undefined,
-              borderLeft: `2px solid ${isSelected ? "#6366f1" : "transparent"}`,
+              paddingLeft: indent(depth),
+              background: isOver ? C.dropTarget : isSelected ? C.folderSelected : undefined,
             }}
             draggable={!busy}
             onDragStart={(e) => startDrag(e, { kind: "folder", path: folder.path })}
@@ -172,13 +200,13 @@ export default function FileTree(props: FileTreeProps) {
             // like VS Code. The toolbar's + buttons then target this folder.
             onClick={() => { setSelectedFolderPath(folder.path); toggle(folder.path) }}
           >
-            {open ? <ChevronDown size={13} className="text-gray-400 flex-shrink-0" /> : <ChevronRight size={13} className="text-gray-400 flex-shrink-0" />}
-            {open ? <FolderOpen size={14} style={{ color: "#eab308", flexShrink: 0 }} /> : <Folder size={14} style={{ color: "#eab308", flexShrink: 0 }} />}
-            <span className="flex-1 truncate text-gray-800 font-medium">{folder.name}</span>
+            {open ? <ChevronDown size={14} style={{ color: C.muted, flexShrink: 0 }} /> : <ChevronRight size={14} style={{ color: C.muted, flexShrink: 0 }} />}
+            {open ? <FolderOpen size={15} style={{ color: C.icon, flexShrink: 0 }} /> : <Folder size={15} style={{ color: C.icon, flexShrink: 0 }} />}
+            <span className="flex-1 truncate" style={{ color: C.navy }}>{folder.name}</span>
             <span className="hidden group-hover:flex items-center gap-1 flex-shrink-0">
-              <button title="New file" onClick={(e) => { e.stopPropagation(); startCreate(folder.path, "file") }}><FilePlus size={12} className="text-gray-500 hover:text-indigo-600" /></button>
-              <button title="New folder" onClick={(e) => { e.stopPropagation(); startCreate(folder.path, "folder") }}><FolderPlus size={12} className="text-gray-500 hover:text-indigo-600" /></button>
-              <button title="Rename" onClick={(e) => { e.stopPropagation(); startRename(folder.id, "folder", folder.name) }}><Pencil size={11} className="text-gray-500 hover:text-blue-600" /></button>
+              <button title="New file" onClick={(e) => { e.stopPropagation(); startCreate(folder.path, "file") }}><FilePlus size={12} className="text-gray-500 hover:text-teal-700" /></button>
+              <button title="New folder" onClick={(e) => { e.stopPropagation(); startCreate(folder.path, "folder") }}><FolderPlus size={12} className="text-gray-500 hover:text-teal-700" /></button>
+              <button title="Rename" onClick={(e) => { e.stopPropagation(); startRename(folder.id, "folder", folder.name) }}><Pencil size={11} className="text-gray-500 hover:text-teal-700" /></button>
               <button title="Delete" onClick={(e) => { e.stopPropagation(); onDeleteFolder(folder) }}><Trash2 size={11} className="text-gray-500 hover:text-red-600" /></button>
             </span>
           </div>
@@ -201,20 +229,25 @@ export default function FileTree(props: FileTreeProps) {
     return (
       <div
         key={file.id}
-        className={`group ${active ? "bg-indigo-100" : "hover:bg-gray-100"}`}
-        style={{ ...rowBase, paddingLeft: 6 + depth * 14 + 13 }}
+        className={`group ${active ? "" : C.hover}`}
+        style={{
+          ...rowBase,
+          paddingLeft: indent(depth) + 15,
+          background: active ? C.selected : undefined,
+        }}
         draggable={!busy}
         onDragStart={(e) => startDrag(e, { kind: "file", path: file.path })}
         // Opening a file also selects its parent folder as the "+ target" so
         // the next + click creates a sibling, which matches user intuition.
         onClick={() => { onOpenFile(file.id); setSelectedFolderPath(file.folderPath || "/") }}
         title={file.path}
+        aria-current={active ? "true" : undefined}
       >
-        <FileIcon size={13} style={{ color: fileColor(file.language), flexShrink: 0 }} />
-        <span className={`flex-1 truncate ${active ? "text-indigo-900 font-semibold" : "text-gray-700"}`}>{file.filename}</span>
+        <FileGlyph file={file} />
+        <span className="flex-1 truncate" style={{ color: C.navy, fontWeight: active ? 600 : 400 }}>{file.filename}</span>
         {file.isEntryPoint && <span className="text-2xs px-1 rounded bg-emerald-100 text-emerald-700 font-bold flex-shrink-0">RUN</span>}
         <span className="hidden group-hover:flex items-center gap-1 flex-shrink-0">
-          <button title="Rename" onClick={(e) => { e.stopPropagation(); startRename(file.id, "file", file.filename) }}><Pencil size={11} className="text-gray-500 hover:text-blue-600" /></button>
+          <button title="Rename" onClick={(e) => { e.stopPropagation(); startRename(file.id, "file", file.filename) }}><Pencil size={11} className="text-gray-500 hover:text-teal-700" /></button>
           <button title="Delete" onClick={(e) => { e.stopPropagation(); onDeleteFile(file) }}><Trash2 size={11} className="text-gray-500 hover:text-red-600" /></button>
         </span>
       </div>
@@ -227,56 +260,76 @@ export default function FileTree(props: FileTreeProps) {
   // Pretty target label for the header (e.g. "Explorer · /utils").
   const targetLabel = selectedFolderPath === "/" ? "" : ` · ${selectedFolderPath}`
 
+  const headerBtn = "inline-flex items-center justify-center w-7 h-7 rounded-md hover:bg-[#F2F1ED] disabled:opacity-40"
+
   return (
     <div className="flex flex-col h-full" style={{ fontFamily: "'Poppins', sans-serif" }}>
-      <div className="flex items-center justify-between px-2 py-1.5 border-b" style={{ borderColor: "#e5e7eb" }}>
+      <div className="flex items-center justify-between flex-shrink-0" style={{ padding: "8px 8px 6px 14px" }}>
         <span
-          className="text-2xs font-semibold uppercase tracking-wide text-gray-500 truncate"
+          className="truncate"
+          style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: C.text }}
           title={`New items will be created in: ${selectedFolderPath}`}
         >
-          Explorer<span className="text-indigo-500 normal-case font-mono">{targetLabel}</span>
+          Explorer<span style={{ color: "#0F766E", textTransform: "none", letterSpacing: 0, fontFamily: "ui-monospace, monospace", fontWeight: 500 }}>{targetLabel}</span>
         </span>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1">
           <button
             title={`New file in ${selectedFolderPath}`}
+            aria-label="New file"
             disabled={busy}
             onClick={() => startCreate(selectedFolderPath, "file")}
-            className="p-0.5 rounded hover:bg-gray-100 disabled:opacity-40"
-          ><FilePlus size={14} className="text-gray-600" /></button>
+            className={headerBtn}
+          ><FilePlus size={16} style={{ color: C.icon }} /></button>
           <button
             title={`New folder in ${selectedFolderPath}`}
+            aria-label="New folder"
             disabled={busy}
             onClick={() => startCreate(selectedFolderPath, "folder")}
-            className="p-0.5 rounded hover:bg-gray-100 disabled:opacity-40"
-          ><FolderPlus size={14} className="text-gray-600" /></button>
+            className={headerBtn}
+          ><FolderPlus size={16} style={{ color: C.icon }} /></button>
         </div>
       </div>
 
       <div
-        className="flex-1 overflow-auto py-1"
-        style={{ background: rootOver ? "#eef2ff" : undefined }}
+        className="flex-1 overflow-auto pb-1"
+        style={{ background: rootOver ? C.dropTarget : undefined }}
         onDragOver={(e) => { e.preventDefault(); setDragOver("/") }}
         onDragLeave={() => setDragOver((p) => (p === "/" ? null : p))}
         onDrop={(e) => handleDrop(e, "/")}
         // Click on empty space resets the target to root, matching VS Code.
         onClick={(e) => { if (e.target === e.currentTarget) setSelectedFolderPath("/") }}
       >
-        {creating?.parent === "/" && editRow(0, creating.kind, commitCreate)}
-        {root.folders.length === 0 && root.files.length === 0 && !creating ? (
-          <div className="px-3 py-6 text-center text-2xs text-gray-400">No files yet. Use the + buttons above.</div>
-        ) : (
+        {projectName && (
+          <div
+            className={C.hover}
+            style={{ ...rowBase, paddingLeft: 8, fontWeight: 600, fontSize: 12.5, letterSpacing: "0.02em", color: C.navy }}
+            onClick={() => { setSelectedFolderPath("/"); setRootOpen((v) => !v) }}
+            title={projectName}
+          >
+            {rootOpen ? <ChevronDown size={14} style={{ color: C.muted, flexShrink: 0 }} /> : <ChevronRight size={14} style={{ color: C.muted, flexShrink: 0 }} />}
+            <span className="truncate" style={{ textTransform: "uppercase" }}>{projectName}</span>
+          </div>
+        )}
+        {(rootOpen || !projectName) && (
           <>
-            {root.folders.map((f) => renderFolder(f, 0))}
-            {root.files.map((f) => renderFile(f, 0))}
+            {creating?.parent === "/" && editRow(0, creating.kind, commitCreate)}
+            {root.folders.length === 0 && root.files.length === 0 && !creating ? (
+              <div className="px-3 py-6 text-center text-2xs text-gray-400">No files yet. Use the + buttons above.</div>
+            ) : (
+              <>
+                {root.folders.map((f) => renderFolder(f, 0))}
+                {root.files.map((f) => renderFile(f, 0))}
+              </>
+            )}
           </>
         )}
       </div>
 
       {outputFiles.length > 0 && (
-        <div className="flex-shrink-0 border-t overflow-auto" style={{ borderColor: "#e5e7eb", maxHeight: "45%" }}>
+        <div className="flex-shrink-0 border-t overflow-auto" style={{ borderColor: C.border, maxHeight: "45%" }}>
           <button
             onClick={() => setOutputsOpen((v) => !v)}
-            className="w-full flex items-center gap-1 px-2 py-1.5 text-left hover:bg-gray-100"
+            className={`w-full flex items-center gap-1 px-2 py-1.5 text-left ${C.hover}`}
             title="Files your program created when you clicked Run. Saved on the server and deleted every day at midnight. They are not part of Run Testcase or Submit — add a file to the project if your program needs it there."
           >
             {outputsOpen ? <ChevronDown size={13} className="text-gray-400 flex-shrink-0" /> : <ChevronRight size={13} className="text-gray-400 flex-shrink-0" />}
@@ -292,13 +345,13 @@ export default function FileTree(props: FileTreeProps) {
                 return (
                   <div
                     key={file.id}
-                    className={active ? "bg-indigo-100" : "hover:bg-gray-100"}
-                    style={{ ...rowBase, cursor: "pointer", paddingLeft: 19 }}
+                    className={active ? "" : C.hover}
+                    style={{ ...rowBase, cursor: "pointer", paddingLeft: 23, background: active ? C.selected : undefined }}
                     onClick={() => onOpenFile(file.id)}
                     title={`${rel} (created by your program)`}
                   >
-                    <FileIcon size={13} style={{ color: fileColor(file.language), flexShrink: 0 }} />
-                    <span className={`flex-1 truncate ${active ? "text-indigo-900 font-semibold" : "text-gray-700"}`}>{rel}</span>
+                    <FileGlyph file={file} />
+                    <span className="flex-1 truncate" style={{ color: C.navy, fontWeight: active ? 600 : 400 }}>{rel}</span>
                     <span className="text-2xs px-1 rounded bg-sky-100 text-sky-700 font-bold flex-shrink-0">OUTPUT</span>
                   </div>
                 )

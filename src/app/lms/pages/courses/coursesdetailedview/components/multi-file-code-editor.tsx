@@ -36,11 +36,11 @@ import axios from "axios"
 import toast from "react-hot-toast"
 import {
   Loader2, CheckCircle, X, ChevronRight, ChevronLeft,
-  Award, Clock, Menu, Search, ArrowUpDown, X as XIcon, FileCode,
+  Award, Clock, Search, ArrowUpDown, FileCode, Info,
   Maximize2, Minimize2, FileText, Eye, Play, Square,
   Terminal as TerminalIcon, AlertCircle,
   AlertTriangle, MinusCircle, CloudUpload, Check,
-  NotebookPen, PanelLeftClose, PanelLeftOpen,
+  NotebookPen,
 } from "lucide-react"
 import {
   LANGUAGE_CONFIG, STARTER_CODE,
@@ -89,6 +89,30 @@ const API = (() => {
   return "https://lms-server-3-wedg.onrender.com"
 })()
 const FONT = "'Poppins', -apple-system, BlinkMacSystemFont, sans-serif"
+
+// Workspace palette: warm off-white page, white panels, thin warm-gray
+// borders, dark navy headings, soft teal selection.
+const UI = {
+  page: "#FBFAF7",
+  panel: "#FFFFFF",
+  border: "#E7E5DF",
+  hairline: "#EFEDE8",
+  navy: "#101B3B",
+  text: "#344054",
+  muted: "#667085",
+  teal: "#009F9A",
+  tealDark: "#0F766E",
+  tealBorder: "#7FD0C4",
+  mint: "#E8F6F3",
+  soft: "#F7F6F3",
+} as const
+
+// Difficulty badges — soft green / yellow / red.
+const DIFF_BADGE: Record<string, { bg: string; fg: string; label: string }> = {
+  easy:   { bg: "#E7F7EE", fg: "#157F3C", label: "Easy" },
+  medium: { bg: "#FFF4D6", fg: "#8A6100", label: "Medium" },
+  hard:   { bg: "#FDECEC", fg: "#B42318", label: "Hard" },
+}
 
 // Step-through visualizer languages: Python is traced in the browser
 // (Pyodide); these are instrumented and run on the compiler service.
@@ -272,11 +296,12 @@ export default function MultiFileCodeEditor({
   const previewDrafts = useRef(new Map<string, { files: { path: string; content: string }[]; folders: { path: string }[]; language: SupportedLanguage }>())
   const previewNotes = useRef(new Map<string, string>())
 
-  const [questionWidth, setQuestionWidth] = useState(400)
+  const [questionWidth, setQuestionWidth] = useState(380)
   const [treeWidth, setTreeWidth] = useState(220)
   // VS Code-like Activity Bar: which side view is open. `null` collapses the
-  // side panel entirely (only the icon rail stays visible).
-  const [sideView, setSideView] = useState<"explorer" | "search" | null>(null)
+  // side panel entirely (only the icon rail stays visible); clicking the
+  // selected icon again does that, and the editor takes the freed width.
+  const [sideView, setSideView] = useState<"explorer" | "search" | null>("explorer")
   // Phones / tablets (< lg): the explorer is an overlay drawer there, so start
   // it collapsed (one tap on the activity bar opens it).
   useEffect(() => {
@@ -401,13 +426,27 @@ export default function MultiFileCodeEditor({
   )
   const isManualEval = evalMethod === 'manual'
 
-  // The question panel beside the editor — the rail's Problem button hides it
-  // for more editor room and shows it again.
+  // The description panel beside the editor — the toolbar's Hide / Show
+  // description toggles it for more editor room.
   const [showQuestionPanel, setShowQuestionPanel] = useState(true)
-  // Problems sidebar is CLOSED by default so the workspace opens focused on
-  // the current question + code. The hamburger in the Problem details
-  // toolbar toggles it whenever the student wants the full list.
+  // Problems list — the toolbar's Hide / Show list toggles it. Wide screens
+  // open with it showing; narrower ones keep it folded so the editor keeps
+  // its room.
   const [showSidebar, setShowSidebar] = useState(false)
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const wide = window.matchMedia("(min-width: 1280px)")
+    const lg = window.matchMedia("(min-width: 1024px)")
+    if (wide.matches) setShowSidebar(true)
+    // Crossing below 1280px folds the list (below 1024px the Explorer too)
+    // so the editor keeps a usable width; crossing back restores them. Only
+    // crossings act — a panel the student toggled otherwise stays put.
+    const onWide = (e: MediaQueryListEvent) => setShowSidebar(e.matches)
+    const onLg = (e: MediaQueryListEvent) => setSideView((v) => (e.matches ? (v ?? "explorer") : null))
+    wide.addEventListener("change", onWide)
+    lg.addEventListener("change", onLg)
+    return () => { wide.removeEventListener("change", onWide); lg.removeEventListener("change", onLg) }
+  }, [])
   const [showSearch, setShowSearch] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [filterDifficulty, setFilterDifficulty] = useState<"all" | "easy" | "medium" | "hard">("all")
@@ -459,7 +498,7 @@ export default function MultiFileCodeEditor({
   // edge updates this; clamped to a sensible min/max so the editor never
   // vanishes and the terminal never becomes too tiny to read.
   const [outputMaximized, setOutputMaximized] = useState(false)
-  const [bottomPanelHeight, setBottomPanelHeight] = useState<number>(360)
+  const [bottomPanelHeight, setBottomPanelHeight] = useState<number>(260)
   const containerRef = useRef<HTMLDivElement>(null)
 
   // ─── Re-fetch full exercise (totalMarks etc.) ───────────────────────────────
@@ -2144,53 +2183,33 @@ export default function MultiFileCodeEditor({
   const selectQuestion = (idx: number) => setCurrentQuestionIndex(idx)
 
   // ─── Reusable question UI ───────────────────────────────────────────────────
-  // Question navigation for the bottom bar: the problems list, then
-  // Previous / "Problem N of M" / Next. Moving between questions sits beside
-  // Submit, away from the code actions on the toolbar. Nothing to navigate
-  // with a single question, so it is left out then.
+  // Bottom-bar navigation: Previous / "Problem N of M" / Next. Moving between
+  // problems sits beside Submit and Finish; nothing to navigate with a single
+  // question, so it is left out then.
   const pagerBtnStyle = (disabled: boolean): React.CSSProperties => ({
-    display: "inline-flex", alignItems: "center", gap: 5,
-    height: 32, padding: "0 12px", borderRadius: 6,
-    border: "1px solid #E0E5EF", background: "#fff",
-    color: disabled ? "#C6D0DA" : "#172033",
-    fontSize: 12, fontWeight: 600, fontFamily: FONT,
+    display: "inline-flex", alignItems: "center", gap: 6,
+    height: 36, padding: "0 16px", borderRadius: 6,
+    border: `1px solid ${disabled ? UI.hairline : UI.border}`,
+    background: disabled ? "#F4F3EF" : UI.panel,
+    color: disabled ? "#A3A9B5" : UI.navy,
+    fontSize: 13.5, fontWeight: 600, fontFamily: FONT,
     cursor: disabled ? "not-allowed" : "pointer",
     flexShrink: 0,
   })
   const questionNav = questions.length > 1 ? (
-    <div className="flex items-center gap-2 flex-shrink-0 max-sm:flex-wrap">
-      {/* The problems list opens beside the rail — not in full screen. */}
-      {!isFull && (
-        <button
-          type="button"
-          onClick={() => setShowSidebar((v) => !v)}
-          aria-label="Problems list"
-          aria-pressed={showSidebar}
-          title={showSidebar ? "Hide the problems list" : "Show the problems list"}
-          style={{
-            display: "inline-flex", alignItems: "center", gap: 6,
-            height: 32, padding: "0 12px", borderRadius: 6,
-            border: `1px solid ${showSidebar ? "#0F9D94" : "#E0E5EF"}`,
-            background: showSidebar ? "#EEF6F7" : "#F1F5F9",
-            color: showSidebar ? "#0F766E" : "#334155",
-            fontSize: 12, fontWeight: 600, fontFamily: FONT, cursor: "pointer", flexShrink: 0,
-          }}
-        >
-          <Menu style={{ width: 14, height: 14 }} /> Problems
-        </button>
-      )}
+    <div className="flex items-center gap-3 flex-shrink-0">
       <button
         type="button"
         onClick={goPrev}
         disabled={currentQuestionIndex === 0}
-        aria-label="Previous question"
+        aria-label="Previous problem"
         style={pagerBtnStyle(currentQuestionIndex === 0)}
       >
-        <ChevronLeft style={{ width: 13, height: 13 }} /> Previous
+        <ChevronLeft style={{ width: 15, height: 15 }} /> Previous
       </button>
       <span style={{
-        fontFamily: FONT, fontSize: 12.5, fontWeight: 700, color: "#101828",
-        fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", padding: "0 4px",
+        fontFamily: FONT, fontSize: 14, fontWeight: 700, color: UI.navy,
+        fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap",
       }}>
         Problem {currentQuestionIndex + 1} of {questions.length}
       </span>
@@ -2198,10 +2217,10 @@ export default function MultiFileCodeEditor({
         type="button"
         onClick={goNext}
         disabled={currentQuestionIndex === questions.length - 1}
-        aria-label="Next question"
+        aria-label="Next problem"
         style={pagerBtnStyle(currentQuestionIndex === questions.length - 1)}
       >
-        Next <ChevronRight style={{ width: 13, height: 13 }} />
+        Next <ChevronRight style={{ width: 15, height: 15 }} />
       </button>
     </div>
   ) : null
@@ -2228,69 +2247,82 @@ export default function MultiFileCodeEditor({
     .map((h: any) => (typeof h === "string" ? h : (h.hintText || h.text || "")))
     .filter(Boolean)
 
+  // Description panel content: "Description", the problem title, difficulty
+  // and marks badges, the statement, Examples as a bordered table, then
+  // Constraints and Hints. Also rendered in the full-screen drawer.
+  const diffBadge = DIFF_BADGE[String(currentQuestion?.difficulty || "").toLowerCase()]
+  const qMarks = exData?.isGraded !== false ? (currentQuestion?.score ?? currentQuestion?.points ?? null) : null
+  const sectionTitle: React.CSSProperties = { fontSize: 14.5, fontWeight: 700, color: UI.navy, margin: "0 0 8px" }
+  const cellStyle: React.CSSProperties = { padding: "9px 12px", verticalAlign: "top" }
+  const monoPre: React.CSSProperties = { margin: 0, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 12.5, color: UI.navy, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }
   const questionContent = (
-    <div className="flex flex-col gap-4">
-      {/* Title + badges */}
+    <div className="flex flex-col gap-5" style={{ fontFamily: FONT, color: UI.text }}>
+      {/* Heading, title + badges */}
       <div>
-        <h2 className="text-xl font-bold mb-3 text-gray-900">{currentQuestion?.title || exercise?.exerciseInformation?.exerciseName || "Exercise"}</h2>
-        {(currentQuestion?.difficulty || (exData?.isGraded !== false && (currentQuestion?.score ?? currentQuestion?.points) != null)) && (
+        <div style={{ fontSize: 15, fontWeight: 700, color: UI.navy, marginBottom: 6 }}>Description</div>
+        <h2 style={{ fontSize: 21, fontWeight: 700, color: UI.navy, margin: "0 0 10px", lineHeight: 1.3, overflowWrap: "anywhere" }}>
+          {currentQuestion?.title || exercise?.exerciseInformation?.exerciseName || "Exercise"}
+        </h2>
+        {(diffBadge || qMarks != null) && (
           <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-            {currentQuestion?.difficulty && (
-              <span className={`inline-block text-2xs px-2 py-0.5 rounded font-semibold ${currentQuestion.difficulty === "easy" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : currentQuestion.difficulty === "medium" ? "bg-amber-50 text-amber-700 border border-amber-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
-                {currentQuestion.difficulty.toUpperCase()}
+            {diffBadge && (
+              <span style={{ fontSize: 12, fontWeight: 600, padding: "3px 10px", borderRadius: 6, background: diffBadge.bg, color: diffBadge.fg }}>
+                {diffBadge.label}
               </span>
             )}
-            {exData?.isGraded !== false && (() => {
-              const qMark = currentQuestion?.score ?? currentQuestion?.points ?? null
-              if (qMark == null) return null
-              return <span style={{ fontSize: 10, padding: "1px 7px", borderRadius: 99, background: "#dcfce7", color: "#15803d", fontWeight: 700, border: "1px solid #bbf7d0" }}>{qMark} {qMark === 1 ? "mark" : "marks"}</span>
-            })()}
+            {qMarks != null && (
+              <span style={{ fontSize: 12, fontWeight: 600, padding: "3px 10px", borderRadius: 6, background: "#E7F7EE", color: "#157F3C" }}>
+                {qMarks} {qMarks === 1 ? "mark" : "marks"}
+              </span>
+            )}
           </div>
         )}
       </div>
 
-      {/* Description */}
-      <div>
-        <div className="flex items-center gap-1.5 mb-2">
-          <FileText className="w-3.5 h-3.5 text-orange-500" />
-          <h3 className="text-xs font-semibold text-gray-900">Description</h3>
-        </div>
-        <div className="prose prose-sm max-w-none text-gray-800" dangerouslySetInnerHTML={{ __html: getQuestionHtml(currentQuestion) || exercise?.exerciseInformation?.description || "<p>Solve the problem using the editor on the right.</p>" }} />
-      </div>
+      {/* Problem statement */}
+      <div className="prose prose-sm max-w-none" style={{ color: UI.text, fontSize: 14, lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: getQuestionHtml(currentQuestion) || exercise?.exerciseInformation?.description || "<p>Solve the problem using the editor on the right.</p>" }} />
 
       {/* Sample Input & Output — the author's info-only sample */}
       {(sampleIn || sampleOut) && (
         <div>
-          <div className="flex items-center gap-1.5 mb-2">
-            <TerminalIcon className="w-3.5 h-3.5 text-green-500" />
-            <h3 className="text-xs font-semibold text-gray-900">Sample Input &amp; Output</h3>
+          <h3 style={sectionTitle}>Sample input &amp; output</h3>
+          <div style={{ border: `1px solid ${UI.border}`, borderRadius: 8, overflow: "hidden" }}>
+            {sampleIn && (
+              <div style={{ padding: "8px 12px" }}>
+                <div style={{ fontSize: 11.5, fontWeight: 600, color: UI.muted, marginBottom: 3 }}>Sample input</div>
+                <pre style={monoPre}>{sampleIn}</pre>
+              </div>
+            )}
+            {sampleOut && (
+              <div style={{ padding: "8px 12px", borderTop: sampleIn ? `1px solid ${UI.border}` : undefined }}>
+                <div style={{ fontSize: 11.5, fontWeight: 600, color: UI.muted, marginBottom: 3 }}>Sample output</div>
+                <pre style={monoPre}>{sampleOut}</pre>
+              </div>
+            )}
           </div>
-          {sampleIn && (
-            <div>
-              <div className="text-2xs font-medium text-gray-700 mb-0.5">Sample Input:</div>
-              <pre className="bg-gray-50 border border-gray-200 p-2 rounded text-2xs overflow-x-auto whitespace-pre-wrap">{sampleIn}</pre>
-            </div>
-          )}
-          {sampleOut && (
-            <div className="mt-1.5">
-              <div className="text-2xs font-medium text-gray-700 mb-0.5">Sample Output:</div>
-              <pre className="bg-gray-50 border border-gray-200 p-2 rounded text-2xs overflow-x-auto whitespace-pre-wrap">{sampleOut}</pre>
-            </div>
-          )}
         </div>
       )}
 
       {/* Examples — the visible test cases */}
       {examples.length > 0 && (
         <div>
-          <div className="flex items-center gap-1.5 mb-2">
-            <TerminalIcon className="w-3.5 h-3.5 text-green-500" />
-            <h3 className="text-xs font-semibold text-gray-900">Examples</h3>
-          </div>
-          <div className="overflow-x-auto rounded-lg border border-gray-200">
-            <table className="w-full text-left text-xs" aria-label="Problem examples">
-              <thead className="bg-gray-50 text-gray-600"><tr><th scope="col" className="p-3">Input</th><th scope="col" className="p-3">Expected output</th></tr></thead>
-              <tbody>{examples.map((ex, i) => <tr key={i} className="border-t border-gray-200"><td className="p-3 align-top"><pre className="whitespace-pre-wrap break-words">{ex.input || '(empty)'}</pre></td><td className="p-3 align-top"><pre className="whitespace-pre-wrap break-words">{ex.output || '(empty)'}</pre></td></tr>)}</tbody>
+          <h3 style={sectionTitle}>Examples</h3>
+          <div style={{ border: `1px solid ${UI.border}`, borderRadius: 8, overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }} aria-label="Problem examples">
+              <thead style={{ background: UI.soft }}>
+                <tr>
+                  <th scope="col" style={{ ...cellStyle, fontSize: 12.5, fontWeight: 600, color: UI.navy }}>Input</th>
+                  <th scope="col" style={{ ...cellStyle, fontSize: 12.5, fontWeight: 600, color: UI.navy, borderLeft: `1px solid ${UI.border}` }}>Expected output</th>
+                </tr>
+              </thead>
+              <tbody>
+                {examples.map((ex, i) => (
+                  <tr key={i} style={{ borderTop: `1px solid ${UI.border}` }}>
+                    <td style={cellStyle}><pre style={monoPre}>{ex.input || "(empty)"}</pre></td>
+                    <td style={{ ...cellStyle, borderLeft: `1px solid ${UI.border}` }}><pre style={monoPre}>{ex.output || "(empty)"}</pre></td>
+                  </tr>
+                ))}
+              </tbody>
             </table>
           </div>
         </div>
@@ -2299,11 +2331,10 @@ export default function MultiFileCodeEditor({
       {/* Constraints */}
       {currentQuestion?.constraints?.length > 0 && (
         <div>
-          <div className="flex items-center gap-1.5 mb-2">
-            <AlertCircle className="w-3.5 h-3.5 text-yellow-500" />
-            <h3 className="text-xs font-semibold text-gray-900">Constraints</h3>
-          </div>
-          <ul className="list-disc pl-4 text-2xs text-gray-700 leading-relaxed">
+          <h3 style={{ ...sectionTitle, display: "flex", alignItems: "center", gap: 8 }}>
+            <AlertCircle size={16} style={{ color: "#D97706", flexShrink: 0 }} /> Constraints
+          </h3>
+          <ul style={{ margin: 0, paddingLeft: 20, listStyle: "disc", fontSize: 12.5, lineHeight: 1.7, color: UI.text }}>
             {currentQuestion.constraints.map((c: string, i: number) => <li key={i}>{c}</li>)}
           </ul>
         </div>
@@ -2312,12 +2343,9 @@ export default function MultiFileCodeEditor({
       {/* Hints */}
       {hintsList.length > 0 && (
         <div>
-          <div className="flex items-center gap-1.5 mb-2">
-            <AlertCircle className="w-3.5 h-3.5 text-orange-500" />
-            <h3 className="text-xs font-semibold text-gray-900">Hints</h3>
-          </div>
+          <h3 style={sectionTitle}>Hints</h3>
           {hintsList.map((h, hi) => (
-            <div key={hi} className="text-2xs px-2.5 py-1.5 rounded mb-1 bg-orange-50 text-orange-800 border border-orange-100">
+            <div key={hi} style={{ fontSize: 12.5, padding: "7px 10px", borderRadius: 6, marginBottom: 6, background: "#FFF8EB", color: "#8A4B0B", border: "1px solid #F8E3C0" }}>
               💡 {h}
             </div>
           ))}
@@ -2361,28 +2389,27 @@ export default function MultiFileCodeEditor({
     )
   }
 
+  // Finish opens the review-and-finish summary (which lists anything still
+  // incomplete), so it is offered on every problem, not only the last.
   const finishAction = (<>
-              {currentQuestionIndex === questions.length - 1 && (
               <button
                 onClick={() => { if (!isSubmitting) setShowSubmitConfirm(true) }}
                 disabled={isSubmitting}
-                title={`Finish and submit the entire ${activityNoun}`}
+                title={`Review all answers and finish the ${activityNoun}`}
                 aria-label={`Finish ${activityNoun}`}
+                className="max-sm:min-w-0! max-sm:w-full! max-sm:px-2!"
                 style={{
-                  display: "inline-flex", alignItems: "center", gap: 5,
-                  height: 32, padding: "0 14px", borderRadius: 6,
-                  border: "1px solid transparent", background: "#F97316", color: "#fff",
-                  fontSize: 12, fontWeight: 700, fontFamily: FONT,
+                  display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
+                  height: 36, minWidth: 168, padding: "0 18px", borderRadius: 6,
+                  border: `1.5px solid ${UI.navy}`, background: UI.panel, color: UI.navy,
+                  fontSize: 13.5, fontWeight: 700, fontFamily: FONT,
                   cursor: isSubmitting ? "not-allowed" : "pointer",
                   opacity: isSubmitting ? 0.6 : 1,
                 }}
               >
-                {isSubmitting
-                  ? <Loader2 style={{ width: 12, height: 12 }} className="animate-spin" />
-                  : <CheckCircle style={{ width: 12, height: 12 }} />}
-                Finish {activityNoun}
+                {isSubmitting && <Loader2 style={{ width: 13, height: 13 }} className="animate-spin" />}
+                Finish {ActivityNoun}
               </button>
-              )}
   </>);
   const visualizeAction = (<>
               {/* Visualize — every language the exercise is configured with
@@ -2421,17 +2448,18 @@ export default function MultiFileCodeEditor({
                     : "Submit your answer to this question"
                   }
                   aria-label="Submit answer"
+                  className="max-sm:min-w-0! max-sm:w-full! max-sm:px-2!"
                   style={{
-                    display: "inline-flex", alignItems: "center", gap: 5,
-                    height: 32, padding: "0 14px", borderRadius: 8,
-                    border: "none",
-                    background: submitBlocked ? "#94A3B8" : "#0F766E",
-                    color: "#fff", fontSize: 12, fontWeight: 700, fontFamily: FONT,
+                    display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
+                    height: 36, minWidth: 168, padding: "0 18px", borderRadius: 6,
+                    border: "1px solid transparent",
+                    background: submitBlocked ? "#94A3B8" : UI.teal,
+                    color: "#fff", fontSize: 13.5, fontWeight: 700, fontFamily: FONT,
                     cursor: submitBlocked ? "not-allowed" : "pointer",
                   }}
                 >
-                  {isSubmittingQuestion ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle size={12} />}
-                  {unchangedSinceSubmit && !isSubmittingQuestion ? "Submitted ✓" : "Submit answer"}
+                  {isSubmittingQuestion && <Loader2 size={13} className="animate-spin" />}
+                  {unchangedSinceSubmit && !isSubmittingQuestion ? "Submitted ✓" : "Submit Answer"}
                 </button>
               )}
 
@@ -2455,7 +2483,7 @@ export default function MultiFileCodeEditor({
                   }}
                 >
                   <Play size={12} fill="currentColor" />
-                  Run
+                  Run Code
                 </button>
               )}
 
@@ -2493,161 +2521,190 @@ export default function MultiFileCodeEditor({
 
   </div>)
 
+  // ─── Workspace layout ──────────────────────────────────────────────────────
+  // Top toolbar → Problems list | Description | activity bar · Explorer |
+  // editor over Output → bottom bar. The list, the description and the
+  // Explorer each hide on their own; the editor takes whatever they free.
+  const _lq: any = currentQuestion as any
+  const isLinkQ = !!(_lq?.isLinkQuestion && _lq?.questionLink)
+  const exerciseName = exercise?.exerciseInformation?.exerciseName || ActivityNoun
+  const isGradedExercise = exData?.isGraded !== false
+  // Hide / Show description: the docked panel normally, the overlay drawer in
+  // full screen (where the side panels are folded away).
+  const descriptionShown = isFull ? showQDrawer : showQuestionPanel
+  const toggleDescription = () => (isFull ? setShowQDrawer((v) => !v) : setShowQuestionPanel((v) => !v))
+  const listedQuestions = getFilteredAndSortedQuestions()
+  const toolBtn: React.CSSProperties = {
+    display: "inline-flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px",
+    borderRadius: 6, border: `1px solid ${UI.border}`, background: UI.panel, color: UI.navy,
+    fontSize: 12.5, fontWeight: 600, fontFamily: FONT, cursor: "pointer", flexShrink: 0, whiteSpace: "nowrap",
+  }
+  const toolIconBtn = (active: boolean): React.CSSProperties => ({
+    display: "inline-flex", alignItems: "center", justifyContent: "center", width: 32, height: 32,
+    borderRadius: 6, border: `1px solid ${active ? UI.tealBorder : UI.border}`,
+    background: active ? UI.mint : UI.panel, color: active ? UI.tealDark : UI.text,
+    cursor: "pointer", flexShrink: 0,
+  })
+  const softBtn: React.CSSProperties = {
+    display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, height: 32,
+    borderRadius: 6, border: `1px solid ${UI.border}`, background: UI.soft, color: UI.text,
+    fontSize: 12.5, fontWeight: 500, fontFamily: FONT, cursor: "pointer", flexShrink: 0,
+  }
+
   return (
-    <div ref={containerRef} className="flex flex-col h-full w-full" style={{ background: "#fff", color: "#111827", fontFamily: FONT, userSelect: resizing.current ? "none" : "auto" }}>
-      {/* GLOBAL HEADER — what this is and how to finish it: the product
-          glyph + the assignment's name on the left, the exam timer / bell in
-          exam mode, Finish on the right. Moving between questions lives on
-          the bottom bar beside Submit; the left nav rail hosts Problem /
-          Notes / Score / Info. */}
-      {exercise && !isFull && (
-          <div className="max-lg:flex-wrap max-lg:gap-y-2 max-sm:px-3!" style={{
-            flexShrink: 0,
-            background: "#FFFFFF",
-            borderBottom: "1px solid #E4E7EC",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            // Compact: the row's 36px controls plus 10px above and below.
-            padding: "10px 20px", minHeight: 56,
-            gap: 12,
-          }}>
-            {/* Left — glyph + the assignment's name. */}
-            <div className="max-sm:flex-wrap max-sm:gap-y-2" style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-              <span aria-hidden="true" className="max-sm:hidden!" style={{
-                width: 36, height: 36, borderRadius: 8, flexShrink: 0,
-                display: "inline-flex", alignItems: "center", justifyContent: "center",
-                background: "#0F9D94", color: "#fff",
-              }}>
-                <FileCode style={{ width: 18, height: 18 }} />
-              </span>
-              {/* The assignment's (We Do) or assessment's (You Do) own name. */}
-              <strong
-                title={exercise?.exerciseInformation?.exerciseName || ActivityNoun}
-                style={{
-                  fontSize: 20, color: "#101828", marginRight: 12,
-                  maxWidth: 360, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                }}
-              >
-                {exercise?.exerciseInformation?.exerciseName || ActivityNoun}
-              </strong>
-            </div>
-
-            {/* Exam mode: the page's timer / message bell. */}
-            {exam?.headerSlot}
-
-            {/* Right — Finish. Run code / Run tests live on the editor
-                toolbar (beside Visualize), next to the code they run. */}
-            <div className="max-lg:flex-wrap max-lg:ml-auto" style={{ display: "flex", alignItems: "center", gap: 8, justifySelf: "end" }}>
-              {finishAction}
-            </div>
-          </div>
-      )}
-
-      {/* MAIN BODY */}
-      <div className="flex flex-1 min-h-0 overflow-hidden max-lg:relative max-md:flex-col">
-        {/* LEFT NAV RAIL — thin column that hosts Problem toggle + the
-            utility chips (Score, Exercise info) moved out of the header.
-            First in the flex row so it always sits flush-left. */}
-        {exercise && !isFull && (
-          <div className="max-md:w-full! max-md:flex-row! max-md:py-0! max-md:border-r-0! max-md:border-b max-md:border-[#E4E7EC] max-md:justify-around" style={{
-            width: 72, background: "#F7F9FB",
-            borderRight: "1px solid #E4E7EC",
-            display: "flex", flexDirection: "column", alignItems: "stretch",
-            padding: "12px 0", gap: 4, flexShrink: 0,
-          }}>
-            {/* Problem shows / hides the question panel. With Notes or the
-                problems list open it first brings the question back. */}
-            <button
-              type="button"
-              onClick={() => {
-                if (showNotesPanel || showSidebar) { setShowNotesPanel(false); setShowSidebar(false); setShowQuestionPanel(true); return }
-                setShowQuestionPanel(v => !v)
-              }}
-              aria-label="Problem"
-              aria-pressed={showQuestionPanel && !showNotesPanel}
-              title={showQuestionPanel && !showNotesPanel ? "Hide problem" : "Show problem"}
+    <div ref={containerRef} className="flex flex-col h-full w-full" style={{ background: UI.page, color: "#111827", fontFamily: FONT, userSelect: resizing.current ? "none" : "auto" }}>
+      {/* TOP TOOLBAR — left: the assignment, Hide list, Hide description,
+          where you are, and Notes / Score / Info; right: the actions on the
+          code (Run Code, Run tests, Visualize, language, Terminal, full
+          screen). In exam mode the page's timer / bell sit between. */}
+      {exercise && (
+        <div className="flex items-center gap-x-3 gap-y-2 flex-wrap flex-shrink-0 max-sm:px-3!" style={{ background: UI.panel, borderBottom: `1px solid ${UI.border}`, padding: "8px 16px", minHeight: 56 }}>
+          {/* Below lg the left group takes the first row and the code
+              actions wrap onto their own row underneath. */}
+          <div className="flex items-center gap-2 flex-wrap min-w-0 flex-1 max-lg:basis-full">
+            <span aria-hidden="true" className="max-sm:hidden!" style={{
+              width: 34, height: 34, borderRadius: 8, flexShrink: 0,
+              display: "inline-flex", alignItems: "center", justifyContent: "center",
+              background: "#0F9D94", color: "#fff",
+            }}>
+              <FileCode style={{ width: 18, height: 18 }} />
+            </span>
+            {/* The assignment's (We Do) or assessment's (You Do) own name. */}
+            <strong
+              title={exerciseName}
               style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 4px', border: 0,
-                borderLeft: (showQuestionPanel && !showNotesPanel) ? '2px solid #0F9D94' : '2px solid transparent',
-                background: (showQuestionPanel && !showNotesPanel) ? '#EEF6F7' : 'transparent',
-                color: (showQuestionPanel && !showNotesPanel) ? '#0F766E' : '#667085',
-                cursor: 'pointer', fontSize: 12, fontWeight: 600,
-              }}
-            ><FileText size={20} />Problem</button>
-            <button
-              type="button"
-              onClick={() => setShowNotesPanel(v => !v)}
-              aria-label="Notes"
-              aria-pressed={showNotesPanel}
-              title="Notes — private scratchpad for this question"
-              className="max-md:flex-1 max-md:py-1.5!"
-              style={{
-                display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
-                padding: "10px 4px", border: "none", background: "transparent", cursor: "pointer",
-                color: showNotesPanel ? "#0F5B5D" : "#667085",
-                borderLeft: showNotesPanel ? "2px solid #0F5B5D" : "2px solid transparent",
+                fontSize: 18, color: UI.navy, marginRight: 6,
+                maxWidth: 260, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
               }}
             >
-              <NotebookPen style={{ width: 18, height: 18 }} />
-              <span style={{ fontSize: 11, fontWeight: 600, fontFamily: FONT }}>Notes</span>
-            </button>
+              {exerciseName}
+            </strong>
+            {questions.length > 1 && !isFull && (
+              <button
+                type="button"
+                onClick={() => setShowSidebar((v) => !v)}
+                aria-pressed={showSidebar}
+                title={showSidebar ? "Hide the problems list" : "Show the problems list"}
+                style={toolBtn}
+              >
+                {showSidebar ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
+                {showSidebar ? "Hide list" : "Show list"}
+              </button>
+            )}
+            {!isLinkQ && (
+              <button
+                type="button"
+                onClick={toggleDescription}
+                aria-pressed={descriptionShown}
+                title={descriptionShown ? "Hide the problem description" : "Show the problem description"}
+                style={toolBtn}
+              >
+                <FileText size={14} />
+                {descriptionShown ? "Hide description" : "Show description"}
+              </button>
+            )}
+            <span
+              className="max-md:hidden"
+              title={currentQuestion?.title || undefined}
+              style={{ fontSize: 12.5, color: UI.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0, maxWidth: 340, marginLeft: 4 }}
+            >
+              Problem {Math.min(currentQuestionIndex + 1, questions.length || 1)} of {questions.length || 1}
+              {currentQuestion?.title ? <> · <span style={{ color: UI.navy, fontWeight: 600 }}>{currentQuestion.title}</span></> : null}
+            </span>
+            {/* Notes / Score / Info — what the old left rail carried. */}
+            <span aria-hidden="true" className="max-lg:hidden" style={{ width: 1, height: 20, background: UI.border, margin: "0 2px", flexShrink: 0 }} />
+            {!isFull && (
+              <button
+                type="button"
+                onClick={() => setShowNotesPanel((v) => !v)}
+                aria-pressed={showNotesPanel}
+                aria-label="Notes"
+                title="Notes — private scratchpad for this question"
+                style={toolIconBtn(showNotesPanel)}
+              >
+                <NotebookPen size={15} />
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setShowOverviewModal(true)}
-              aria-label={(exData?.isGraded !== false) ? "Score" : "Questions"}
-              title={(exData?.isGraded !== false) ? "Score" : "Questions"}
-              className="max-md:flex-1 max-md:py-1.5!"
-              style={{
-                display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
-                padding: "10px 4px", border: "none", background: "transparent", cursor: "pointer",
-                color: showOverviewModal ? "#6957E5" : "#667085",
-                borderLeft: showOverviewModal ? "2px solid #6957E5" : "2px solid transparent",
-              }}
+              aria-label={isGradedExercise ? "Score" : "Overview"}
+              title={isGradedExercise ? "Score" : "Overview"}
+              style={toolIconBtn(showOverviewModal)}
             >
-              <Award style={{ width: 18, height: 18 }} />
-              <span style={{ fontSize: 11, fontWeight: 600, fontFamily: FONT }}>
-                {(exData?.isGraded !== false) ? "Score" : "Overview"}
-              </span>
+              <Award size={15} />
             </button>
             <button
               type="button"
               onClick={() => setShowDetailsModal(true)}
-              aria-label="Exercise info"
-              title="Exercise info"
-              className="max-md:flex-1 max-md:py-1.5!"
-              style={{
-                display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
-                padding: "10px 4px", border: "none", background: "transparent", cursor: "pointer",
-                color: showDetailsModal ? "#0F9D94" : "#667085",
-                borderLeft: showDetailsModal ? "2px solid #0F9D94" : "2px solid transparent",
-              }}
+              aria-label={`${ActivityNoun} info`}
+              title={`${ActivityNoun} info`}
+              style={toolIconBtn(showDetailsModal)}
             >
-              <AlertCircle style={{ width: 18, height: 18 }} />
-              <span style={{ fontSize: 10.5, fontWeight: 600, fontFamily: FONT, lineHeight: 1.2, textAlign: "center" }}>
-                Info
-              </span>
+              <Info size={15} />
             </button>
           </div>
-        )}
 
-        {/* Notes panel — private per-question scratchpad. Slides in
-            beside the rail; autosaves to localStorage on every
-            keystroke so a reload never loses the student's own notes.
-            Kept intentionally simple (plain textarea) so it never
-            competes with the code editor for attention. */}
+          {/* Exam mode: the page's timer / message bell. */}
+          {exam?.headerSlot}
+
+          {!isLinkQ && (
+            <div className="flex items-center gap-2 flex-wrap flex-shrink-0 max-lg:flex-shrink">
+              {workspaceActions}
+              {visualizeAction}
+              <select
+                value={selectedLanguage}
+                onChange={(e) => setSelectedLanguage(e.target.value as SupportedLanguage)}
+                aria-label="Language"
+                style={{
+                  height: 32, padding: "0 8px", borderRadius: 6,
+                  border: `1px solid ${UI.border}`, background: UI.panel,
+                  color: UI.navy, fontSize: 12.5, fontWeight: 600,
+                  fontFamily: FONT, cursor: "pointer",
+                }}
+              >
+                {availableLanguages.map((lang) => <option key={lang} value={lang}>{LANGUAGE_CONFIG[lang].label}</option>)}
+              </select>
+
+              <button
+                onClick={() => { setBottomTab("terminal"); setShowTerminal(true) }}
+                aria-label="Open terminal"
+                title="Open terminal"
+                style={{ ...softBtn, padding: "0 12px" }}
+              >
+                <TerminalIcon size={14} /> Terminal
+              </button>
+
+              <button
+                onClick={() => { setShowQDrawer(false); setIsFull((v) => !v) }}
+                aria-label={isFull ? "Exit full screen" : "Full screen"}
+                title={isFull ? "Exit full screen" : "Full screen"}
+                style={{ ...softBtn, width: 32 }}
+              >
+                {isFull ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* MAIN BODY */}
+      <div className="flex flex-1 min-h-0 overflow-hidden max-lg:relative max-md:flex-col">
+        {/* Notes panel — private per-question scratchpad, opened from the
+            toolbar's Notes button. Autosaves to localStorage on every
+            keystroke so a reload never loses the student's own notes. */}
         {showNotesPanel && !isFull && (
           <div
-            className="flex-shrink-0 flex flex-col border-r max-lg:absolute max-lg:inset-y-0 max-lg:left-[72px] max-lg:z-30 max-lg:shadow-2xl max-lg:w-[min(20rem,85vw)]! max-md:left-0 max-md:w-full!"
-            style={{ width: 320, background: "#FFFDF7", borderColor: "#E4E7EC" }}
+            className="flex-shrink-0 flex flex-col border-r max-lg:absolute max-lg:inset-y-0 max-lg:left-0 max-lg:z-30 max-lg:shadow-2xl max-lg:w-[min(20rem,85vw)]! max-md:w-full!"
+            style={{ width: 300, background: "#FFFDF7", borderColor: UI.border }}
           >
             <div style={{
               display: "flex", alignItems: "center", justifyContent: "space-between",
-              padding: "10px 14px", borderBottom: "1px solid #E4E7EC", background: "#FFFBF0",
+              padding: "10px 14px", borderBottom: `1px solid ${UI.border}`, background: "#FFFBF0",
             }}>
               <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                 <NotebookPen size={14} style={{ color: "#0F5B5D" }} />
-                <span style={{ fontFamily: FONT, fontSize: 13, fontWeight: 700, color: "#101828" }}>
+                <span style={{ fontFamily: FONT, fontSize: 13, fontWeight: 700, color: UI.navy }}>
                   Notes
                 </span>
               </div>
@@ -2660,7 +2717,7 @@ export default function MultiFileCodeEditor({
                 style={{
                   display: "inline-flex", alignItems: "center", justifyContent: "center",
                   width: 24, height: 24, borderRadius: 6, border: "none",
-                  background: "transparent", color: "#667085", cursor: "pointer",
+                  background: "transparent", color: UI.muted, cursor: "pointer",
                 }}
               >
                 <X size={13} />
@@ -2668,7 +2725,7 @@ export default function MultiFileCodeEditor({
             </div>
             <div style={{
               padding: "6px 14px 4px",
-              fontFamily: FONT, fontSize: 11.5, color: "#667085",
+              fontFamily: FONT, fontSize: 11.5, color: UI.muted,
             }}>
               Private scratchpad for this question. Autosaved.
             </div>
@@ -2680,51 +2737,131 @@ export default function MultiFileCodeEditor({
               style={{
                 flex: 1, resize: "none",
                 margin: "6px 14px 14px", padding: "10px 12px",
-                borderRadius: 8, border: "1px solid #E4E7EC", background: "#fff",
-                fontFamily: FONT, fontSize: 13, color: "#101828", lineHeight: 1.55,
+                borderRadius: 8, border: `1px solid ${UI.border}`, background: "#fff",
+                fontFamily: FONT, fontSize: 13, color: UI.navy, lineHeight: 1.55,
                 outline: "none",
               }}
               onFocus={(e) => { e.currentTarget.style.borderColor = "#0F5B5D" }}
-              onBlur={(e)  => { e.currentTarget.style.borderColor = "#E4E7EC" }}
+              onBlur={(e)  => { e.currentTarget.style.borderColor = UI.border }}
             />
           </div>
         )}
 
-        {/* Problems sidebar */}
-        {showSidebar && !isFull && (
-          <div className="w-80 border-r overflow-hidden flex flex-col flex-shrink-0 max-lg:absolute max-lg:inset-y-0 max-lg:left-0 max-lg:z-30 max-lg:w-[min(20rem,85vw)] max-lg:shadow-2xl" style={{ borderColor: "#e5e7eb", background: "#fff" }}>
-            <div className="p-3 border-b" style={{ borderColor: "#e5e7eb" }}>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-gray-900">Problems ({getFilteredAndSortedQuestions().length}/{questions.length})</h3>
-                <button onClick={() => setShowSearch(!showSearch)} className={`p-1 ml-1 rounded ${showSearch ? "bg-orange-500" : "hover:bg-gray-100 text-gray-600"}`}>{showSearch ? <XIcon className="w-3.5 h-3.5 text-white" /> : <Search className="w-3.5 h-3.5" />}</button>
+        {/* PROBLEMS LIST — numbered, difficulty badges, the current problem
+            on a mint card. Search / difficulty filter / sort fold into the
+            search button in its header. */}
+        {showSidebar && !isFull && questions.length > 1 && (
+          <div
+            className="flex flex-col flex-shrink-0 overflow-hidden border-r max-lg:absolute max-lg:inset-y-0 max-lg:left-0 max-lg:z-30 max-lg:w-[min(18rem,85vw)]! max-lg:shadow-2xl"
+            style={{ width: 270, background: UI.panel, borderColor: UI.border }}
+          >
+            <div style={{ padding: "14px 14px 8px", flexShrink: 0 }}>
+              <div className="flex items-center justify-between gap-2">
+                <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: UI.navy, fontFamily: FONT }}>
+                  Problems ({questions.length})
+                  {listedQuestions.length !== questions.length && (
+                    <span style={{ fontSize: 12, fontWeight: 500, color: UI.muted }}> · {listedQuestions.length} shown</span>
+                  )}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowSearch((v) => !v)}
+                  aria-pressed={showSearch}
+                  aria-label="Search, filter and sort problems"
+                  title="Search, filter and sort"
+                  style={{ ...toolIconBtn(showSearch || filterDifficulty !== "all" || sortBy !== "default" || !!searchQuery.trim()), width: 30, height: 30 }}
+                >
+                  <Search size={14} />
+                </button>
               </div>
               {showSearch && (
-                <div className="relative mb-3">
-                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-                  <input type="text" placeholder="Search problems..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-8 pr-6 py-1.5 text-xs border rounded border-gray-300 bg-gray-50 text-gray-900" autoFocus />
+                <div className="flex flex-col gap-2" style={{ marginTop: 10 }}>
+                  <div className="relative">
+                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Search problems…"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      aria-label="Search problems"
+                      className="w-full pl-7 pr-2 py-1.5 text-xs rounded-md outline-none"
+                      style={{ border: `1px solid ${UI.border}`, background: UI.soft, color: UI.navy }}
+                      autoFocus
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={filterDifficulty}
+                      onChange={(e) => setFilterDifficulty(e.target.value as any)}
+                      aria-label="Filter by difficulty"
+                      className="flex-1 text-xs rounded-md px-2 py-1.5"
+                      style={{ border: `1px solid ${UI.border}`, background: UI.panel, color: UI.navy }}
+                    >
+                      <option value="all">All difficulties</option><option value="easy">Easy</option><option value="medium">Medium</option><option value="hard">Hard</option>
+                    </select>
+                    <button
+                      type="button"
+                      onClick={cycleSortOption}
+                      aria-label={`Sort: ${sortBy === "default" ? "default order" : sortBy}`}
+                      title="Change the sort order"
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md"
+                      style={{ border: `1px solid ${UI.border}`, background: UI.panel, color: UI.text }}
+                    >
+                      <ArrowUpDown className="w-3.5 h-3.5" /><span className="font-medium">{getSortIcon()}</span>
+                    </button>
+                  </div>
                 </div>
               )}
-              <div className="flex items-center justify-between gap-3">
-                <select value={filterDifficulty} onChange={(e) => setFilterDifficulty(e.target.value as any)} className="flex-1 text-xs border rounded px-2 py-1.5 bg-white border-gray-300 text-gray-900">
-                  <option value="all">All Difficulties</option><option value="easy">Easy</option><option value="medium">Medium</option><option value="hard">Hard</option>
-                </select>
-                <button onClick={cycleSortOption} className="flex items-center gap-1.5 px-3 py-1.5 text-xs border rounded border-gray-300 hover:bg-gray-100"><ArrowUpDown className="w-3.5 h-3.5 text-gray-600" /><span className="font-medium text-gray-600">{getSortIcon()}</span></button>
-              </div>
             </div>
-            <div className="flex-1 overflow-y-auto">
-              {getFilteredAndSortedQuestions().map((q: any) => {
+            <div className="flex-1 overflow-y-auto" style={{ padding: "0 8px 10px" }}>
+              {listedQuestions.length === 0 ? (
+                <div style={{ padding: "20px 8px", textAlign: "center", fontSize: 12, color: UI.muted }}>No problems match.</div>
+              ) : listedQuestions.map((q: any) => {
                 const originalIndex = q._originalIndex
                 const isActive = currentQuestionIndex === originalIndex
-                const diff = (q.difficulty || "").toLowerCase()
+                const badge = DIFF_BADGE[String(q.difficulty || "").toLowerCase()]
+                const solved = solvedQuestions.has(originalIndex)
                 return (
-                  <button key={originalIndex} onClick={() => selectQuestion(originalIndex)} className={`w-full p-3 text-left border-b border-gray-100 ${isActive ? "bg-orange-50 border-l-2 border-l-orange-500" : "hover:bg-gray-50"}`}>
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="text-sm font-medium truncate flex-1 text-gray-900">{originalIndex + 1}. {q.title || `Question ${originalIndex + 1}`}</div>
-                      <div className="flex items-center gap-1.5 flex-shrink-0">
-                        {diff && <span className={`text-2xs px-1.5 py-0.5 rounded font-semibold ${diff === "easy" ? "bg-green-100 text-green-800" : diff === "medium" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}`}>{diff.charAt(0).toUpperCase() + diff.slice(1)}</span>}
-                        {solvedQuestions.has(originalIndex) && <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 99, background: "#dcfce7", color: "#166534", fontWeight: 600, border: "1px solid #86efac" }}>Submitted</span>}
-                      </div>
-                    </div>
+                  <button
+                    key={originalIndex}
+                    type="button"
+                    onClick={() => selectQuestion(originalIndex)}
+                    aria-current={isActive ? "true" : undefined}
+                    className={isActive ? "" : "hover:bg-[#F7F6F3]"}
+                    style={{
+                      width: "100%", display: "flex", alignItems: "center", gap: 10,
+                      padding: "9px 10px", textAlign: "left", cursor: "pointer", fontFamily: FONT,
+                      borderRadius: isActive ? 8 : 0,
+                      // Per-side colours (no shorthand mixing): a hairline
+                      // separator under each row, a full teal border on the
+                      // current one.
+                      borderWidth: 1, borderStyle: "solid",
+                      borderTopColor: isActive ? UI.tealBorder : "transparent",
+                      borderRightColor: isActive ? UI.tealBorder : "transparent",
+                      borderLeftColor: isActive ? UI.tealBorder : "transparent",
+                      borderBottomColor: isActive ? UI.tealBorder : UI.hairline,
+                      background: isActive ? UI.mint : undefined,
+                    }}
+                  >
+                    <span style={{
+                      width: 24, height: 24, borderRadius: 999, flexShrink: 0,
+                      display: "inline-flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 11.5, fontWeight: 600, fontVariantNumeric: "tabular-nums",
+                      border: `1px solid ${isActive ? UI.tealBorder : solved ? "#A6E9C3" : UI.border}`,
+                      background: isActive ? UI.panel : solved ? "#ECFDF3" : UI.soft,
+                      color: isActive ? UI.tealDark : solved ? "#067647" : UI.text,
+                    }}>
+                      {originalIndex + 1}
+                    </span>
+                    <span className="truncate" style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, color: UI.navy }}>
+                      {q.title || `Problem ${originalIndex + 1}`}
+                    </span>
+                    {solved && <CheckCircle size={14} aria-label="Submitted" style={{ color: "#12A765", flexShrink: 0 }} />}
+                    {badge && (
+                      <span style={{ fontSize: 11.5, fontWeight: 600, padding: "2px 8px", borderRadius: 6, background: badge.bg, color: badge.fg, flexShrink: 0 }}>
+                        {badge.label}
+                      </span>
+                    )}
                   </button>
                 )
               })}
@@ -2733,207 +2870,104 @@ export default function MultiFileCodeEditor({
         )}
 
         {/* Link questions — the external site IS the question; a card with
-            Open + Submit replaces the question panel and the whole editor. */}
-        {(() => {
-          const _lq: any = currentQuestion as any
-          if (!(_lq?.isLinkQuestion && _lq?.questionLink)) return null
-          const linkUrl: string = _lq.questionLink
-          return (
-            <div className="flex-1 flex flex-col items-center justify-center gap-3 p-8 max-sm:p-5 text-center" style={{ background: "#f9fafb" }}>
-              <div className="text-md font-bold text-gray-800">This question opens on {hostOf(linkUrl)}</div>
-              <p className="text-xs text-gray-500 max-w-md">
-                Open the problem in a new tab, solve it there, then come back and press <b>Submit answer</b>.
-              </p>
-              <div className="flex items-center gap-2 flex-wrap justify-center">
+            Open + Submit replaces the description panel and the editor. */}
+        {isLinkQ && (
+          <div className="flex-1 flex flex-col items-center justify-center gap-3 p-8 max-sm:p-5 text-center" style={{ background: UI.page }}>
+            <div className="text-md font-bold" style={{ color: UI.navy }}>This question opens on {hostOf(_lq.questionLink)}</div>
+            <p className="text-xs max-w-md" style={{ color: UI.muted }}>
+              Open the problem in a new tab, solve it there, then come back and press <b>Submit Answer</b>.
+            </p>
+            <div className="flex items-center gap-2 flex-wrap justify-center">
+              <button
+                onClick={() => window.open(_lq.questionLink, "_blank", "noopener,noreferrer")}
+                className="flex items-center gap-1.5 h-9 px-5 rounded-md text-sm font-bold text-white"
+                style={{ background: "#FB923C", border: "none", cursor: "pointer" }}
+              >
+                Open the problem ↗
+              </button>
+              {exercise && (
                 <button
-                  onClick={() => window.open(linkUrl, "_blank", "noopener,noreferrer")}
-                  className="flex items-center gap-1.5 h-9 px-5 rounded-lg text-sm font-bold text-white"
-                  style={{ background: "#FB923C", border: "none", cursor: "pointer" }}
+                  onClick={() => void submitQuestion()}
+                  disabled={isSubmittingQuestion || isSubmitting || solvedQuestions.has(currentQuestionIndex)}
+                  className="flex items-center gap-1.5 h-9 px-5 rounded-md text-sm font-bold text-white"
+                  style={{ background: (isSubmittingQuestion || isSubmitting || solvedQuestions.has(currentQuestionIndex)) ? "#9ca3af" : UI.teal, border: "none", cursor: "pointer" }}
                 >
-                  Open the problem ↗
+                  {isSubmittingQuestion ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle size={13} />}
+                  {solvedQuestions.has(currentQuestionIndex) ? "Submitted ✓" : "Submit Answer"}
                 </button>
-                {exercise && (
-                  <button
-                    onClick={() => void submitQuestion()}
-                    disabled={isSubmittingQuestion || isSubmitting || solvedQuestions.has(currentQuestionIndex)}
-                    className="flex items-center gap-1.5 h-9 px-5 rounded-lg text-sm font-bold text-white"
-                    style={{ background: (isSubmittingQuestion || isSubmitting || solvedQuestions.has(currentQuestionIndex)) ? "#9ca3af" : "#22c55e", border: "none", cursor: "pointer" }}
-                  >
-                    {isSubmittingQuestion ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle size={13} />}
-                    {solvedQuestions.has(currentQuestionIndex) ? "Submitted ✓" : "Submit answer"}
-                  </button>
-                )}
-              </div>
-              <span className="text-2xs text-gray-400 break-all max-w-md">{linkUrl}</span>
+              )}
             </div>
-          )
-        })()}
-        {!((currentQuestion as any)?.isLinkQuestion && (currentQuestion as any)?.questionLink) && (
-        // Phones/tablets: one scroll column (question → workspace); lg+: `contents`
-        // removes this wrapper so the desktop split is untouched.
+            <span className="text-2xs break-all max-w-md" style={{ color: "#98A2B3" }}>{_lq.questionLink}</span>
+          </div>
+        )}
+        {!isLinkQ && (
+        // Phones/tablets: one scroll column (description → workspace); lg+:
+        // `contents` removes this wrapper so the desktop split is untouched.
         <div className="max-lg:flex max-lg:flex-col max-lg:flex-1 max-lg:min-h-0 max-lg:min-w-0 max-lg:overflow-y-auto lg:contents">
-        {/* Question panel — hidden / shown with the rail's Problem button. */}
+        {/* DESCRIPTION — toggled from the toolbar; scrolls on its own. */}
         {!isFull && showQuestionPanel && (
           <>
-            <div className="flex flex-col flex-shrink-0 overflow-hidden border-r max-lg:w-full! max-lg:max-h-[40dvh] max-lg:border-r-0 max-lg:border-b" style={{ width: questionWidth, background: "#fff", borderColor: "#D9E1EA" }}>
-              {/* Panel header — the hide control sits on the panel it hides
-                  (same band as the editor toolbar); the rail's Problem
-                  button brings the panel back. */}
-              <div className="flex items-center justify-between flex-shrink-0" style={{ minHeight: 44, padding: "0 8px 0 16px", background: "#F5FAFF", borderBottom: "1px solid #D9E1EA" }}>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontFamily: FONT, fontSize: 13, fontWeight: 700, color: "#101828" }}>
-                  <FileText size={14} style={{ color: "#0F766E" }} /> Problem
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setShowQuestionPanel(false)}
-                  aria-label="Hide problem"
-                  title="Hide problem"
-                  className="hover:bg-[#E2E8F0]"
-                  style={{
-                    display: "inline-flex", alignItems: "center", justifyContent: "center",
-                    width: 30, height: 30, borderRadius: 6, border: "none",
-                    background: "transparent", color: "#334155", cursor: "pointer",
-                  }}
-                >
-                  <PanelLeftClose size={16} />
-                </button>
-              </div>
-              <div className="flex-1 overflow-y-auto p-5 text-sm leading-relaxed text-gray-800">{questionContent}</div>
+            <div className="flex flex-col flex-shrink-0 overflow-hidden border-r max-lg:w-full! max-lg:max-h-[40dvh] max-lg:border-r-0 max-lg:border-b" style={{ width: questionWidth, background: UI.panel, borderColor: UI.border }}>
+              <div className="flex-1 overflow-y-auto" style={{ padding: "16px 20px 20px" }}>{questionContent}</div>
             </div>
-            <div onMouseDown={(e) => { resizing.current = { kind: "question", startX: e.clientX, startWidth: questionWidth } }} className="w-1 cursor-col-resize hover:bg-orange-400 flex-shrink-0 max-lg:hidden" style={{ background: "#e5e7eb" }} />
+            <div
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="Resize the description"
+              onMouseDown={(e) => { resizing.current = { kind: "question", startX: e.clientX, startWidth: questionWidth } }}
+              className="w-1 cursor-col-resize hover:bg-[#B9E3DB] flex-shrink-0 max-lg:hidden"
+              title="Drag to resize the description"
+            />
           </>
         )}
 
-        {/* EDITOR AREA */}
-        <div className={`flex-1 flex flex-col min-w-0 overflow-hidden ${isFull ? "" : "max-lg:flex-none max-lg:h-[85dvh] max-lg:min-h-[460px]"}`} style={{ background: "#fff" }}>
-          {/* Toolbar — active-file crumb + Saved status on the left, then
-              language + Visualize (outlined violet) + Run (green) + Submit
-              answer (orange primary) on the right. "Submit answer" submits
-              only the currently selected question; the whole-exercise
-              "Finish exercise" lives in the global header. */}
-          <div className="flex items-center justify-between flex-shrink-0 max-sm:flex-wrap max-sm:gap-2 max-sm:py-1.5!" style={{ background: "#F5FAFF", borderBottom: "1px solid #D9E1EA", minHeight: 44, padding: "0 12px" }}>
-            <div className="flex items-center gap-3 min-w-0 max-sm:gap-2">
-              {isFull && (
-                <button
-                  onClick={() => setShowQDrawer((v) => !v)}
-                  aria-label={showQDrawer ? "Hide problem" : "Show problem"}
-                  title={showQDrawer ? "Hide problem" : "Show problem"}
-                  className="flex items-center gap-1 h-7 px-2 rounded-[6px] text-xs font-semibold"
-                  style={{ background: showQDrawer ? "#0F9D94" : "#F3F6FA", color: showQDrawer ? "#fff" : "#172033", border: showQDrawer ? "none" : "1px solid #D9E1EA" }}
-                >
-                  {showQDrawer ? <PanelLeftClose size={13} /> : <PanelLeftOpen size={13} />} Problem
-                </button>
-              )}
-              {/* Open files are VS Code-style tabs on their own row below
-                  (main.py ×); the Explorer / Search icons on the editor's
-                  activity bar open the project files. */}
-            </div>
-            <div className="flex items-center gap-2 flex-shrink-0 max-sm:ml-auto max-sm:flex-wrap">
-              {/* Run / Stop / Run tests, Visualize and the language
-                  picker — the actions on the code itself — all sit on this
-                  row. Submit stays on the bottom bar, Finish in the header. */}
-              {/* Exam mode, maximized: the global header is hidden, so the
-                  timer / message bell ride on this toolbar instead. */}
-              {isFull && exam?.headerSlot}
-              {workspaceActions}
-              {isFull && finishAction}
-              {visualizeAction}
-              <select
-                value={selectedLanguage}
-                onChange={(e) => setSelectedLanguage(e.target.value as SupportedLanguage)}
-                aria-label="Language"
-                style={{
-                  height: 32, padding: "0 10px", borderRadius: 6,
-                  border: "1px solid #E0E5EF", background: "#fff",
-                  color: "#172033", fontSize: 12.5, fontWeight: 600,
-                  fontFamily: "ui-monospace, monospace", cursor: "pointer",
-                }}
-              >
-                {availableLanguages.map((lang) => <option key={lang} value={lang}>{LANGUAGE_CONFIG[lang].label}</option>)}
-              </select>
-
-              <button
-                onClick={() => { setBottomTab("terminal"); setShowTerminal(true) }}
-                aria-label="Open terminal"
-                title="Open terminal"
-                style={{
-                  display: "inline-flex", alignItems: "center", justifyContent: "center",
-                  height: 32, padding: "0 10px", gap: 6, borderRadius: 6,
-                  border: "1px solid #E0E5EF", background: "#F1F5F9", color: "#334155",
-                  cursor: "pointer", fontSize: 12,
-                }}
-              >
-                <TerminalIcon size={14} /> Terminal
-              </button>
-
-              <button
-                onClick={() => { setShowQDrawer(false); setIsFull((v) => !v) }}
-                aria-label={isFull ? "Exit full screen" : "Full screen"}
-                title={isFull ? "Exit full screen" : "Full screen"}
-                style={{
-                  display: "inline-flex", alignItems: "center", justifyContent: "center",
-                  width: 32, height: 32, borderRadius: 6,
-                  border: "1px solid #E0E5EF", background: "#F1F5F9", color: "#334155",
-                  cursor: "pointer",
-                }}
-              >
-                {isFull ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-              </button>
-            </div>
-          </div>
-
-          {/* Explorer | (Editor + Visualizer) over Terminal */}
+        {/* EDITOR AREA — activity bar · Explorer · (editor over Output) */}
+        <div className={`flex-1 flex flex-col min-w-0 overflow-hidden ${isFull ? "" : "max-lg:flex-none max-lg:h-[85dvh] max-lg:min-h-[460px]"}`} style={{ background: UI.panel }}>
           <div className="flex-1 flex min-h-0 relative">
-            {/* Full-screen question drawer */}
+            {/* Full-screen description drawer */}
             {isFull && showQDrawer && (
-              <div className="absolute top-0 left-0 bottom-0 z-20 flex flex-col bg-white shadow-2xl max-sm:w-[90vw]!" style={{ width: Math.min(questionWidth, 460), borderRight: "1px solid #e5e7eb" }}>
-                {/* Same header as the docked panel: title, hide on the right. */}
-                <div className="flex items-center justify-between flex-shrink-0" style={{ minHeight: 44, padding: "0 8px 0 16px", background: "#F5FAFF", borderBottom: "1px solid #D9E1EA" }}>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontFamily: FONT, fontSize: 13, fontWeight: 700, color: "#101828" }}>
-                    <FileText size={14} style={{ color: "#0F766E" }} /> Problem
-                  </span>
+              <div className="absolute top-0 left-0 bottom-0 z-20 flex flex-col bg-white shadow-2xl max-sm:w-[90vw]!" style={{ width: Math.min(questionWidth, 460), borderRight: `1px solid ${UI.border}` }}>
+                <div className="flex items-center justify-end flex-shrink-0" style={{ padding: "6px 8px 0" }}>
                   <button
                     type="button"
                     onClick={() => setShowQDrawer(false)}
-                    aria-label="Hide problem"
-                    title="Hide problem"
-                    className="hover:bg-[#E2E8F0]"
+                    aria-label="Hide description"
+                    title="Hide description"
+                    className="hover:bg-[#F2F1ED]"
                     style={{
                       display: "inline-flex", alignItems: "center", justifyContent: "center",
                       width: 30, height: 30, borderRadius: 6, border: "none",
-                      background: "transparent", color: "#334155", cursor: "pointer",
+                      background: "transparent", color: UI.text, cursor: "pointer",
                     }}
                   >
-                    <PanelLeftClose size={16} />
+                    <X size={16} />
                   </button>
                 </div>
-                <div className="flex-1 overflow-y-auto p-4 text-xs leading-relaxed text-gray-800">{questionContent}</div>
+                <div className="flex-1 overflow-y-auto" style={{ padding: "0 20px 20px" }}>{questionContent}</div>
               </div>
             )}
 
-            {/* Activity Bar — light cool-gray rail (was slate #1e293b) per
-                the workspace redesign: no dark full-panel surfaces on the
-                student side. Same 44px icon rail, teal active state instead
-                of white-on-slate. */}
-            <div className="flex-shrink-0 flex flex-col items-stretch" style={{ width: 44, background: "#F3F6FA", borderRight: "1px solid #D9E1EA" }}>
+            {/* Activity bar — Explorer and Search. Clicking the selected icon
+                folds its panel away; the editor widens into the space. */}
+            <div className="flex-shrink-0 flex flex-col items-center gap-1.5" style={{ width: 48, padding: "8px 0", background: "#FAFAF8", borderRight: `1px solid ${UI.border}` }}>
               {([
-                { key: "explorer" as const, icon: FilesIcon, label: "Explorer (files)" },
+                { key: "explorer" as const, icon: FilesIcon, label: "Explorer" },
                 { key: "search"   as const, icon: SearchIcon, label: "Search across files" },
               ]).map(({ key, icon: Icon, label }) => {
                 const active = sideView === key
                 return (
                   <button
                     key={key}
+                    type="button"
                     aria-label={label}
                     aria-pressed={active}
-                    title={label}
+                    title={active ? `Hide ${label.toLowerCase()}` : label}
                     onClick={() => setSideView((v) => (v === key ? null : key))}
-                    className="flex items-center justify-center"
+                    className={`flex items-center justify-center ${active ? "" : "hover:bg-[#F0EFEA]"}`}
                     style={{
-                      height: 44, position: "relative",
-                      color: active ? "#0F9D94" : "#667085",
-                      background: active ? "#fff" : "transparent",
-                      borderLeft: active ? "2px solid #0F9D94" : "2px solid transparent",
+                      width: 36, height: 36, borderRadius: 8, border: "none",
+                      color: active ? UI.tealDark : "#475467",
+                      background: active ? "#DDF2EC" : undefined,
                       cursor: "pointer",
                     }}
                   >
@@ -2943,10 +2977,10 @@ export default function MultiFileCodeEditor({
               })}
             </div>
 
-            {/* Side panel — explorer / search / collapsed */}
+            {/* Side panel — Explorer / Search / folded away */}
             {sideView !== null && (
               <>
-                <div className="flex-shrink-0 border-r overflow-hidden max-lg:absolute max-lg:inset-y-0 max-lg:left-[44px] max-lg:z-20 max-lg:shadow-xl max-lg:w-[min(260px,75vw)]!" style={{ width: treeWidth, borderColor: "#e5e7eb", background: "#fafafa" }}>
+                <div className="flex-shrink-0 border-r overflow-hidden max-lg:absolute max-lg:inset-y-0 max-lg:left-[48px] max-lg:z-20 max-lg:shadow-xl max-lg:w-[min(260px,75vw)]!" style={{ width: treeWidth, borderColor: UI.border, background: UI.panel }}>
                   {sideView === "explorer" ? (
                     <FileTree
                       files={files} folders={folders} activeFileId={activeFileId} busy={!ready}
@@ -2955,39 +2989,24 @@ export default function MultiFileCodeEditor({
                       onRenameFile={renameFile} onRenameFolder={renameFolder}
                       onDeleteFile={deleteFile} onDeleteFolder={deleteFolder} onMove={moveItem}
                       outputFiles={outputNodes}
+                      projectName={exerciseName}
                     />
                   ) : (
                     <SearchPanel files={files} onOpenFile={openFile} />
                   )}
                 </div>
-                {/* Explorer resize grip — mirrors the bottom-panel handle:
-                    6px cool-gray strip with a centred left/right-arrow chip
-                    so the drag affordance is unambiguous. */}
                 <div
                   role="separator"
                   aria-orientation="vertical"
                   aria-label="Resize explorer"
                   onMouseDown={(e) => { resizing.current = { kind: "tree", startX: e.clientX, startWidth: treeWidth } }}
-                  className="flex-shrink-0 flex items-center justify-center max-lg:hidden"
-                  style={{
-                    width: 6, cursor: "col-resize",
-                    background: "#F3F6FA", borderLeft: "1px solid #D9E1EA", borderRight: "1px solid #D9E1EA",
-                  }}
+                  className="w-1 flex-shrink-0 cursor-col-resize hover:bg-[#B9E3DB] max-lg:hidden"
                   title="Drag to resize the explorer"
-                >
-                  <span style={{
-                    display: "inline-flex", alignItems: "center", justifyContent: "center",
-                    width: 14, height: 34, borderRadius: 6,
-                    background: "#fff", border: "1px solid #D9E1EA", color: "#667085",
-                    pointerEvents: "none",
-                  }}>
-                    <ArrowUpDown size={11} style={{ transform: "rotate(90deg)" }} />
-                  </span>
-                </div>
+                />
               </>
             )}
 
-            {/* Editor + terminal column */}
+            {/* Editor over Output */}
             <div className="flex-1 flex flex-col min-w-0 min-h-0">
               <div className={outputMaximized && showTerminal ? "hidden" : "flex-1 flex min-h-0"}>
                 {/* Monaco */}
@@ -3003,36 +3022,38 @@ export default function MultiFileCodeEditor({
                 </div>
               </div>
 
-              {/* Bottom panel — two tabs: Terminal (Run output) and Test
-                  Result (Submit answer output). Height is drag-resizable via
-                  the grip on its top border (two-arrow icon centred on the
-                  divider). Flipping tabs preserves both panels' state. */}
+              {/* Output — Terminal (Run Code) and Test results (Run tests /
+                  Submit) under one titled panel. Height drags from the grip
+                  on its top edge; Hide output folds it, the toolbar's
+                  Terminal brings it back. Switching tabs keeps both states. */}
               {showTerminal && (
                 <>
                   <div
                     role="separator"
                     aria-orientation="horizontal"
-                    aria-label="Resize bottom panel"
+                    aria-label="Resize the output panel"
                     onMouseDown={(e) => { resizing.current = { kind: "bottom", startY: e.clientY, startHeight: bottomPanelHeight } }}
                     className="flex-shrink-0 flex items-center justify-center max-lg:hidden"
                     style={{
                       height: 6, cursor: "row-resize",
-                      background: "#F3F6FA", borderTop: "1px solid #D9E1EA", borderBottom: "1px solid #D9E1EA",
+                      background: UI.page, borderTop: `1px solid ${UI.border}`, borderBottom: `1px solid ${UI.border}`,
                       position: "relative",
                     }}
-                    title="Drag to resize the bottom panel"
+                    title="Drag to resize the output panel"
                   >
                     <span style={{
                       display: "inline-flex", alignItems: "center", justifyContent: "center",
                       width: 34, height: 14, borderRadius: 6,
-                      background: "#fff", border: "1px solid #D9E1EA", color: "#667085",
+                      background: UI.panel, border: `1px solid ${UI.border}`, color: UI.muted,
                       pointerEvents: "none",
                     }}>
                       <ArrowUpDown size={11} />
                     </span>
                   </div>
-                  <div className="flex-shrink-0 flex flex-col max-lg:max-h-[40dvh] max-lg:border-t" style={{ height: outputMaximized ? "100%" : bottomPanelHeight, borderColor: "#D9E1EA", background: "#fff" }}>
+                  <div className="flex-shrink-0 flex flex-col max-lg:max-h-[40dvh] max-lg:border-t" style={{ height: outputMaximized ? "100%" : bottomPanelHeight, borderColor: UI.border, background: UI.panel }}>
                   <BottomPanel
+                    heading="Output"
+                    closeLabel="Hide output"
                     activeTab={bottomTab}
                     onTabChange={setBottomTab}
                     testResult={testResult}
@@ -3067,17 +3088,29 @@ export default function MultiFileCodeEditor({
             </div>
           </div>
         </div>
-        </div>)}{/* end non-link question panel + editor */}
+        </div>)}{/* end non-link description + editor */}
       </div>
 
-      {/* Bottom bar — question navigation on the left (problems list,
-          Previous / Problem N of M / Next), Submit for this question on the
-          right: moving between questions and handing one in sit together,
-          the toolbar above only acts on the code. */}
-      {exercise && <div className="flex items-center justify-between gap-3 px-4 py-1.5 border-t border-gray-200 bg-white text-xs text-gray-500 max-sm:flex-wrap max-sm:px-3">
-        {questionNav}
-        <div className="ml-auto flex items-center gap-3"><span className="hidden sm:inline">Submits this question only</span>{submitAction}</div>
-      </div>}
+      {/* BOTTOM BAR — Previous / Problem N of M / Next on the left; Submit
+          Answer (this problem) and Finish (the whole assignment) on the
+          right, each with a one-line note of what it does. */}
+      {exercise && (
+        <div className="flex items-center gap-x-4 gap-y-2 flex-wrap flex-shrink-0 max-sm:px-3!" style={{ background: UI.panel, borderTop: `1px solid ${UI.border}`, padding: "10px 20px" }}>
+          {questionNav}
+          {/* Phones: the two actions share one row, half each. */}
+          <div className="ml-auto flex items-start gap-4 flex-wrap max-sm:w-full max-sm:flex-nowrap max-sm:gap-3">
+            <div className="flex flex-col items-center gap-1 max-sm:flex-1 max-sm:min-w-0 text-center">
+              {submitAction}
+              <span style={{ fontSize: 11.5, color: UI.muted, fontFamily: FONT }}>Submits this problem only</span>
+            </div>
+            <span aria-hidden="true" className="max-sm:hidden" style={{ width: 1, alignSelf: "stretch", background: UI.border }} />
+            <div className="flex flex-col items-center gap-1 max-sm:flex-1 max-sm:min-w-0 text-center">
+              {finishAction}
+              <span style={{ fontSize: 11.5, color: UI.muted, fontFamily: FONT }}>Review all answers and finish</span>
+            </div>
+          </div>
+        </div>
+      )}
       {/* MODALS */}
       {/* Finish confirmation — summary modal per the design mockup.
           Shows a live progress split (Completed / Incomplete / Not

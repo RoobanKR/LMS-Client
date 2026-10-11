@@ -108,6 +108,13 @@ interface BottomPanelProps {
   onToggleMaximize?: () => void
   maximized?: boolean
   onClose?: () => void
+  /**
+   * Workspace layout: a titled panel ("Output") with the tabs as a compact
+   * switch beside the title and a labelled hide control ("Hide output ×").
+   * Without it the panel keeps its plain tab strip.
+   */
+  heading?: string
+  closeLabel?: string
   activeTab: 'terminal' | 'test-result'
   onTabChange: (t: 'terminal' | 'test-result') => void
   testResult: TestResultState | null
@@ -176,7 +183,7 @@ const TONE: Record<'ok' | 'bad' | 'warn' | 'info', { fg: string; bg: string; bor
 export default function BottomPanel(props: BottomPanelProps) {
   const {
     mode = 'test-result', activeTab, liveTerminal = false, onStopRun,
-    onTabChange, testResult, onClose, onToggleMaximize, maximized,
+    onTabChange, testResult, onClose, onToggleMaximize, maximized, heading, closeLabel,
     termLines, running, stdin, lastRuntime, setStdin, onClearTerm,
     interactive, awaitingInput, inputPrompt, onSubmitInput,
     selectedCaseIndex, onSelectCase, onRetrySubmit, isSubmitting,
@@ -217,13 +224,32 @@ export default function BottomPanel(props: BottomPanelProps) {
       {/* Tab strip */}
       <div
         role="tablist"
-        aria-label="Bottom output panel"
+        aria-label={heading || "Bottom output panel"}
         style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '0 8px', borderBottom: '1px solid #D9E1EA', background: '#F7F9FB',
-          flexShrink: 0,
+          padding: heading ? '4px 8px 4px 14px' : '0 8px', minHeight: heading ? 42 : undefined,
+          borderBottom: heading ? '1px solid #E7E5DF' : '1px solid #D9E1EA',
+          background: heading ? '#FFFFFF' : '#F7F9FB',
+          // A narrow column wraps the actions under the title instead of
+          // overlapping them.
+          flexWrap: heading ? 'wrap' : undefined, rowGap: 4,
+          flexShrink: 0, gap: 8,
         }}
       >
+        {heading ? (
+          // Titled panel: "Output", then the two surfaces as a small switch
+          // when the exercise has both (Terminal for Run, Test results for
+          // Run tests / Submit).
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: '#101B3B', whiteSpace: 'nowrap' }}>{heading}</span>
+            {bothTabs && (
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 2, padding: 2, borderRadius: 7, background: '#F2F1ED' }}>
+                <PillTab id="terminal" active={isTerminal} onClick={() => onTabChange('terminal')}>Terminal</PillTab>
+                <PillTab id="test-result" active={!isTerminal} onClick={() => onTabChange('test-result')}>Test results</PillTab>
+              </div>
+            )}
+          </div>
+        ) : (
         <div style={{ display: 'flex', alignItems: 'stretch' }}>
           {/* Which tabs is a property of the exercise: a graded exercise
               shows Test Result, a Manual one shows Terminal, and a graded one
@@ -243,9 +269,12 @@ export default function BottomPanel(props: BottomPanelProps) {
             </TabButton>
           )}
         </div>
+        )}
 
-        {/* Right-side action — Clear in terminal mode, Copy results otherwise. */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        {/* Right-side action — Clear in terminal mode, Copy results otherwise.
+            The titled panel keeps them icon-only so a narrow editor column
+            still fits "Hide output"; labels stay in the tooltip. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, marginLeft: 'auto' }}>
           {isTerminal ? (
             <button
               type="button"
@@ -253,9 +282,9 @@ export default function BottomPanel(props: BottomPanelProps) {
               disabled={termLines.length === 0}
               title="Clear terminal"
               aria-label="Clear terminal output"
-              style={{ ...smallBtn, opacity: termLines.length === 0 ? 0.5 : 1 }}
+              style={{ ...smallBtn, ...(heading ? iconOnly : null), opacity: termLines.length === 0 ? 0.5 : 1 }}
             >
-              <Trash2 size={11} /> Clear
+              <Trash2 size={heading ? 13 : 11} />{!heading && ' Clear'}
             </button>
           ) : (
             <button
@@ -264,13 +293,30 @@ export default function BottomPanel(props: BottomPanelProps) {
               disabled={!testResult || isEval}
               title="Copy results"
               aria-label="Copy results summary"
-              style={{ ...smallBtn, opacity: (!testResult || isEval) ? 0.5 : 1 }}
+              style={{ ...smallBtn, ...(heading ? iconOnly : null), opacity: (!testResult || isEval) ? 0.5 : 1 }}
             >
-              <Copy size={11} /> Copy results
+              <Copy size={heading ? 13 : 11} />{!heading && ' Copy results'}
             </button>
           )}
-          {onToggleMaximize && <button type="button" onClick={onToggleMaximize} title={maximized ? "Restore output panel" : "Maximize output panel"} aria-label={maximized ? "Restore output panel" : "Maximize output panel"} style={smallBtn}>{maximized ? <Minimize2 size={15} /> : <Maximize2 size={15} />}</button>}
-          {onClose && <button type="button" onClick={onClose} title="Close output panel" aria-label="Close output panel" style={smallBtn}><X size={15} /></button>}
+          {onToggleMaximize && <button type="button" onClick={onToggleMaximize} title={maximized ? "Restore output panel" : "Maximize output panel"} aria-label={maximized ? "Restore output panel" : "Maximize output panel"} style={{ ...smallBtn, ...(heading ? iconOnly : null) }}>{maximized ? <Minimize2 size={heading ? 13 : 15} /> : <Maximize2 size={heading ? 13 : 15} />}</button>}
+          {onClose && (closeLabel ? (
+            <button
+              type="button"
+              onClick={onClose}
+              title={closeLabel}
+              aria-label={closeLabel}
+              className="hover:bg-[#F2F1ED]"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                height: 28, padding: '0 8px', borderRadius: 6, border: 'none', whiteSpace: 'nowrap',
+                background: 'transparent', color: '#475467', fontSize: 12.5, fontWeight: 500, cursor: 'pointer',
+              }}
+            >
+              {closeLabel} <X size={14} />
+            </button>
+          ) : (
+            <button type="button" onClick={onClose} title="Close output panel" aria-label="Close output panel" style={smallBtn}><X size={15} /></button>
+          ))}
         </div>
       </div>
 
@@ -279,7 +325,9 @@ export default function BottomPanel(props: BottomPanelProps) {
         <div
           role="tabpanel"
           id={isTerminal ? 'bp-panel-terminal' : 'bp-panel-test-result'}
-          aria-labelledby={isTerminal ? 'bp-tab-terminal' : 'bp-tab-test-result'}
+          // A titled panel with a single surface has no tab to point at.
+          aria-labelledby={heading && !bothTabs ? undefined : (isTerminal ? 'bp-tab-terminal' : 'bp-tab-test-result')}
+          aria-label={heading && !bothTabs ? heading : undefined}
           style={{ flex: 1, minWidth: 0, display: 'block' }}
         >
           {isTerminal ? (
@@ -316,8 +364,9 @@ const smallBtn: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: 5,
   height: 26, padding: '0 10px', borderRadius: 6,
   border: '1px solid #D9E1EA', background: '#fff', color: '#344054',
-  fontSize: 12, fontWeight: 500, cursor: 'pointer',
+  fontSize: 12, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap',
 }
+const iconOnly: React.CSSProperties = { width: 28, height: 28, padding: 0, justifyContent: 'center', border: '1px solid #E7E5DF' }
 
 function TabButton({ active, onClick, id, children }: { active: boolean; onClick: () => void; id: string; children: React.ReactNode }) {
   return (
@@ -334,6 +383,28 @@ function TabButton({ active, onClick, id, children }: { active: boolean; onClick
         color: active ? '#172033' : '#667085', fontSize: 13, fontWeight: 600,
         borderBottom: active ? '2px solid #0F9D94' : '2px solid transparent',
         cursor: 'pointer', marginBottom: -1,
+      }}
+    >
+      {children}
+    </button>
+  )
+}
+
+// Compact switch tab for the titled ("Output") panel header.
+function PillTab({ active, onClick, id, children }: { active: boolean; onClick: () => void; id: string; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      id={`bp-tab-${id}`}
+      aria-selected={active}
+      aria-controls={`bp-panel-${id}`}
+      onClick={onClick}
+      style={{
+        height: 26, padding: '0 10px', borderRadius: 5, border: 'none',
+        background: active ? '#FFFFFF' : 'transparent',
+        boxShadow: active ? '0 1px 2px rgba(16,24,40,0.08)' : 'none',
+        color: active ? '#0F766E' : '#667085', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
       }}
     >
       {children}
