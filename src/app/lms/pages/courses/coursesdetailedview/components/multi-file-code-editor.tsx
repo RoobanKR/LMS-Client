@@ -2183,9 +2183,9 @@ export default function MultiFileCodeEditor({
   const selectQuestion = (idx: number) => setCurrentQuestionIndex(idx)
 
   // ─── Reusable question UI ───────────────────────────────────────────────────
-  // Bottom-bar navigation: Previous / "Problem N of M" / Next. Moving between
-  // problems sits beside Submit and Finish; nothing to navigate with a single
-  // question, so it is left out then.
+  // Bottom-bar navigation: Hide / Show list, then Previous / "Problem N of M" /
+  // Next. Moving between problems sits beside Submit and Finish; nothing to
+  // navigate with a single question, so it is left out then.
   const pagerBtnStyle = (disabled: boolean): React.CSSProperties => ({
     display: "inline-flex", alignItems: "center", gap: 6,
     height: 36, padding: "0 16px", borderRadius: 6,
@@ -2197,7 +2197,20 @@ export default function MultiFileCodeEditor({
     flexShrink: 0,
   })
   const questionNav = questions.length > 1 ? (
-    <div className="flex items-center gap-3 flex-shrink-0">
+    <div className="flex items-center gap-3 flex-shrink-0 flex-wrap">
+      {/* The problems list docks beside the description — not in full screen. */}
+      {!isFull && (
+        <button
+          type="button"
+          onClick={() => setShowSidebar((v) => !v)}
+          aria-pressed={showSidebar}
+          title={showSidebar ? "Hide the problems list" : "Show the problems list"}
+          style={pagerBtnStyle(false)}
+        >
+          {showSidebar ? <ChevronLeft style={{ width: 15, height: 15 }} /> : <ChevronRight style={{ width: 15, height: 15 }} />}
+          {showSidebar ? "Hide list" : "Show list"}
+        </button>
+      )}
       <button
         type="button"
         onClick={goPrev}
@@ -2553,8 +2566,8 @@ export default function MultiFileCodeEditor({
 
   return (
     <div ref={containerRef} className="flex flex-col h-full w-full" style={{ background: UI.page, color: "#111827", fontFamily: FONT, userSelect: resizing.current ? "none" : "auto" }}>
-      {/* TOP TOOLBAR — left: the assignment, Hide list, Hide description,
-          where you are, and Notes / Score / Info; right: the actions on the
+      {/* TOP TOOLBAR — left: the assignment, Hide description, where you
+          are, and Notes / Score / Info (Hide list sits on the bottom bar); right: the actions on the
           code (Run Code, Run tests, Visualize, language, Terminal, full
           screen). In exam mode the page's timer / bell sit between. */}
       {exercise && (
@@ -2579,18 +2592,6 @@ export default function MultiFileCodeEditor({
             >
               {exerciseName}
             </strong>
-            {questions.length > 1 && !isFull && (
-              <button
-                type="button"
-                onClick={() => setShowSidebar((v) => !v)}
-                aria-pressed={showSidebar}
-                title={showSidebar ? "Hide the problems list" : "Show the problems list"}
-                style={toolBtn}
-              >
-                {showSidebar ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
-                {showSidebar ? "Hide list" : "Show list"}
-              </button>
-            )}
             {!isLinkQ && (
               <button
                 type="button"

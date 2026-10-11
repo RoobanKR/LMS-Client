@@ -4762,8 +4762,8 @@ else:
             )}
 
 
-            {/* TOP TOOLBAR — left: the assessment, Hide list, Hide description,
-                where you are, Notes / Score / Info and the proctoring status;
+            {/* TOP TOOLBAR — left: the assessment, Hide description, where you
+                are (Hide list sits on the bottom bar), Notes / Score / Info and the proctoring status;
                 right: the actions on the code (Run Code or Run tests, language,
                 Terminal, messages, full screen). Previous / Next, Submit and
                 Finish live on the bottom bar. */}
@@ -4795,18 +4795,6 @@ else:
                         >
                             {exercise.exerciseInformation.exerciseName}
                         </strong>
-                    )}
-                    {problems.length > 1 && (
-                        <button
-                            type="button"
-                            onClick={() => setShowSidebar(v => !v)}
-                            aria-pressed={showSidebar}
-                            title={showSidebar ? 'Hide the problems list' : 'Show the problems list'}
-                            style={wsToolBtn}
-                        >
-                            {showSidebar ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
-                            {showSidebar ? 'Hide list' : 'Show list'}
-                        </button>
                     )}
                     {!wsIsLinkQ && (
                         <button
@@ -5688,8 +5676,8 @@ else:
 
             </div>
 
-            {/* BOTTOM BAR — Previous / Problem N of M / Next (+ Skip and the
-                difficulty jump) on the left; Submit Answer (this problem) and
+            {/* BOTTOM BAR — Hide / Show list, Previous / Problem N of M / Next
+                (+ Skip and the difficulty jump) on the left; Submit Answer (this problem) and
                 Finish (the whole assessment) on the right. */}
             {exercise && (() => {
                 const prevDisabled = currentProblemIndex === 0 && !onCrossPrev;
@@ -5701,6 +5689,18 @@ else:
                     <div className="flex items-center gap-x-4 gap-y-2 flex-wrap flex-shrink-0 max-sm:px-3!" style={{ background: WS.panel, borderTop: `1px solid ${WS.border}`, padding: '10px 20px' }}>
                         {showNav && (
                             <div className="flex items-center gap-3 flex-wrap">
+                                {problems.length > 1 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowSidebar(v => !v)}
+                                        aria-pressed={showSidebar}
+                                        title={showSidebar ? 'Hide the problems list' : 'Show the problems list'}
+                                        style={wsPagerBtn(false)}
+                                    >
+                                        {showSidebar ? <ChevronLeft style={{ width: 15, height: 15 }} /> : <ChevronRight style={{ width: 15, height: 15 }} />}
+                                        {showSidebar ? 'Hide list' : 'Show list'}
+                                    </button>
+                                )}
                                 <button
                                     type="button"
                                     onClick={prevProblem}
