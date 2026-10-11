@@ -13,7 +13,7 @@ import { setSharedScreenStream, getSharedScreenStream, markScreenCaptureStarting
 // Then, inside your CodeEditor component, add the router hook:
 
 import {
-    Play, RotateCcw, CheckCircle2, Maximize2, Minimize2,  // Add this
+    Play, RotateCcw, CheckCircle2, Maximize2,  // Add this
     X, Code, FileText, AlertCircle, Terminal, ChevronRight, ChevronLeft, Search, AlertTriangle, CheckCircle, XCircle, Lock, ArrowUpDown, X as XIcon, Loader2, SkipForward, Clock, ShieldAlert, Camera, Video, Save, LogOut, Trash2, Shield, Mic, MicOff, ShieldCheck, UserCheck, Monitor, Info, Send, ListChecks,
     Award,
     BarChart3,
@@ -4765,7 +4765,7 @@ else:
             {/* TOP TOOLBAR — left: the assessment, Hide description, where you
                 are (Hide problems sits on the bottom bar), Notes / Score / Info and the proctoring status;
                 right: the actions on the code (Run Code or Run tests, language,
-                Terminal, messages, full screen). Previous / Next, Submit and
+                Terminal, messages). Previous / Next, Submit and
                 Finish live on the bottom bar. */}
             <div
                 className="flex items-center gap-x-3 gap-y-2 flex-wrap max-sm:px-3!"
@@ -4940,15 +4940,6 @@ else:
                     {!embedded && (
                         <TestMessageBell assessmentId={exercise?._id ? String(exercise._id) : ""} />
                     )}
-                    <button
-                        type="button"
-                        onClick={toggleFullscreen}
-                        aria-label={isFullscreen ? 'Exit full screen' : 'Full screen'}
-                        title={isFullscreen ? 'Exit full screen' : 'Full screen'}
-                        style={{ ...wsSoftBtn, width: 32 }}
-                    >
-                        {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-                    </button>
                 </div>
             </div>
 

@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 // Then, inside your CodeEditor component, add the router hook:
 
 import {
-    Play, RotateCcw, CheckCircle2, Maximize2, Minimize2,  // Add this
+    Play, RotateCcw, CheckCircle2, Maximize2,  // Add this
     X, Code, FileText, FileCode, AlertCircle, Terminal, ChevronRight, ChevronLeft, Search, AlertTriangle, CheckCircle, XCircle, Lock, ArrowUpDown, X as XIcon, Loader2, SkipForward, Clock, ShieldAlert, Camera, Video, Save, LogOut, Trash2, Shield, Mic, MicOff, ShieldCheck, UserCheck, Monitor, Info,
     Award,
     BarChart3
@@ -3889,7 +3889,7 @@ export default function CodeEditor({
             {/* TOP TOOLBAR — left: Back, the exercise, Hide description, where
                 you are, Score / Info and the proctoring status; right: the
                 actions on the code (Run Code, Run tests, language, Exit,
-                Terminal, full screen) and Close. Hide problems, Previous / Next,
+                Terminal) and Close. Hide problems, Previous / Next,
                 Submit and Finish live on the bottom bar. */}
             {exercise && (
                 <>
@@ -4132,16 +4132,6 @@ export default function CodeEditor({
                                 <Terminal size={14} /> Terminal
                             </button>
                         )}
-
-                        <button
-                            type="button"
-                            onClick={toggleFullscreen}
-                            aria-label={isFullscreen ? 'Exit full screen' : 'Full screen'}
-                            title={isFullscreen ? 'Exit full screen' : 'Full screen'}
-                            style={{ ...wsSoftBtn, width: 32 }}
-                        >
-                            {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-                        </button>
 
                         {/* Close — leave the exercise (asks where to go). */}
                         <button

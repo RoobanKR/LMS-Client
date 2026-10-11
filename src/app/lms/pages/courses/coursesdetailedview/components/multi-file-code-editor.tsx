@@ -37,7 +37,7 @@ import toast from "react-hot-toast"
 import {
   Loader2, CheckCircle, X, ChevronRight, ChevronLeft,
   Award, Clock, Search, ArrowUpDown, FileCode, Info,
-  Maximize2, Minimize2, FileText, Eye, Play, Square,
+  FileText, Eye, Play, Square,
   Terminal as TerminalIcon, AlertCircle,
   AlertTriangle, MinusCircle, CloudUpload, Check,
   NotebookPen,
@@ -2568,8 +2568,8 @@ export default function MultiFileCodeEditor({
     <div ref={containerRef} className="flex flex-col h-full w-full" style={{ background: UI.page, color: "#111827", fontFamily: FONT, userSelect: resizing.current ? "none" : "auto" }}>
       {/* TOP TOOLBAR — left: the assignment, Hide description, where you
           are, and Notes / Score / Info (Hide problems sits on the bottom bar); right: the actions on the
-          code (Run Code, Run tests, Visualize, language, Terminal, full
-          screen). In exam mode the page's timer / bell sit between. */}
+          code (Run Code, Run tests, Visualize, language, Terminal). In
+          exam mode the page's timer / bell sit between. */}
       {exercise && (
         <div className="flex items-center gap-x-3 gap-y-2 flex-wrap flex-shrink-0 max-sm:px-3!" style={{ background: UI.panel, borderBottom: `1px solid ${UI.border}`, padding: "8px 16px", minHeight: 56 }}>
           {/* Below lg the left group takes the first row and the code
@@ -2674,15 +2674,6 @@ export default function MultiFileCodeEditor({
                 style={{ ...softBtn, padding: "0 12px" }}
               >
                 <TerminalIcon size={14} /> Terminal
-              </button>
-
-              <button
-                onClick={() => { setShowQDrawer(false); setIsFull((v) => !v) }}
-                aria-label={isFull ? "Exit full screen" : "Full screen"}
-                title={isFull ? "Exit full screen" : "Full screen"}
-                style={{ ...softBtn, width: 32 }}
-              >
-                {isFull ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
               </button>
             </div>
           )}
