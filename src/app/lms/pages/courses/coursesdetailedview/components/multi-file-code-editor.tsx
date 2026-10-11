@@ -3093,7 +3093,7 @@ export default function MultiFileCodeEditor({
 
       {/* BOTTOM BAR — Previous / Problem N of M / Next on the left; Submit
           Answer (this problem) and Finish (the whole assignment) on the
-          right, each with a one-line note of what it does. */}
+          right. */}
       {exercise && (
         <div className="flex items-center gap-x-4 gap-y-2 flex-wrap flex-shrink-0 max-sm:px-3!" style={{ background: UI.panel, borderTop: `1px solid ${UI.border}`, padding: "10px 20px" }}>
           {questionNav}
@@ -3101,12 +3101,10 @@ export default function MultiFileCodeEditor({
           <div className="ml-auto flex items-start gap-4 flex-wrap max-sm:w-full max-sm:flex-nowrap max-sm:gap-3">
             <div className="flex flex-col items-center gap-1 max-sm:flex-1 max-sm:min-w-0 text-center">
               {submitAction}
-              <span style={{ fontSize: 11.5, color: UI.muted, fontFamily: FONT }}>Submits this problem only</span>
             </div>
             <span aria-hidden="true" className="max-sm:hidden" style={{ width: 1, alignSelf: "stretch", background: UI.border }} />
             <div className="flex flex-col items-center gap-1 max-sm:flex-1 max-sm:min-w-0 text-center">
               {finishAction}
-              <span style={{ fontSize: 11.5, color: UI.muted, fontFamily: FONT }}>Review all answers and finish</span>
             </div>
           </div>
         </div>

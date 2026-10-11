@@ -5690,8 +5690,7 @@ else:
 
             {/* BOTTOM BAR — Previous / Problem N of M / Next (+ Skip and the
                 difficulty jump) on the left; Submit Answer (this problem) and
-                Finish (the whole assessment) on the right, each with a
-                one-line note of what it does. */}
+                Finish (the whole assessment) on the right. */}
             {exercise && (() => {
                 const prevDisabled = currentProblemIndex === 0 && !onCrossPrev;
                 const nextDisabled = (currentProblemIndex === problems.length - 1 && !onCrossNext) || (!isFreeFlow && !isQuestionSolved(currentProblemIndex));
@@ -5766,7 +5765,6 @@ else:
                             {!wsIsLinkQ && (
                                 <div className="flex flex-col items-center gap-1 max-sm:flex-1 max-sm:min-w-0 text-center">
                                     {submitAnswerAction}
-                                    <span style={{ fontSize: 11.5, color: WS.muted, fontFamily: FONT }}>Submits this problem only</span>
                                 </div>
                             )}
                             {showFinish && (
@@ -5792,7 +5790,6 @@ else:
                                         >
                                             Finish Assessment
                                         </button>
-                                        <span style={{ fontSize: 11.5, color: WS.muted, fontFamily: FONT }}>Review all answers and finish</span>
                                     </div>
                                 </>
                             )}
