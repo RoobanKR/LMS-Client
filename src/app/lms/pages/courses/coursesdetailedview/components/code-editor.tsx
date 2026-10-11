@@ -5114,9 +5114,10 @@ export default function CodeEditor({
                                     {attemptsMaxed ? 'Limit Reached' : (unchangedSinceSubmit && !isRunning) ? 'Submitted ✓' : 'Submit Answer'}
                                 </button>
                             )}
+                            {/* Finish — only on the last question: evaluates it if
+                                needed, submits the whole exercise and closes it. */}
+                            {currentProblemIndex >= problems.length - 1 && (<>
                             {!wsIsLinkQ && <span aria-hidden="true" className="max-sm:hidden" style={{ width: 1, alignSelf: 'stretch', background: WS.border }} />}
-                            {/* Finish — evaluates the last question if needed,
-                                submits the whole exercise and closes it. */}
                             <button
                                 type="button"
                                 onClick={() => { void finishExercise(); }}
@@ -5127,7 +5128,7 @@ export default function CodeEditor({
                                 style={{
                                     display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                                     height: 36, minWidth: 168, padding: '0 18px', borderRadius: 6,
-                                    border: `1.5px solid ${WS.navy}`, background: WS.panel, color: WS.navy,
+                                    border: '1px solid transparent', background: '#F97316', color: '#fff',
                                     fontSize: 13.5, fontWeight: 700, fontFamily: FONT,
                                     cursor: isRunning ? 'not-allowed' : 'pointer',
                                     opacity: isRunning ? 0.7 : 1, whiteSpace: 'nowrap',
@@ -5135,6 +5136,7 @@ export default function CodeEditor({
                             >
                                 Finish {wsNoun}
                             </button>
+                            </>)}
                         </div>
                     </div>
                 );

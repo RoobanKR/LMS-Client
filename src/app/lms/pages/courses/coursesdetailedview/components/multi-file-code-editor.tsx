@@ -2414,7 +2414,7 @@ export default function MultiFileCodeEditor({
                 style={{
                   display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
                   height: 36, minWidth: 168, padding: "0 18px", borderRadius: 6,
-                  border: `1.5px solid ${UI.navy}`, background: UI.panel, color: UI.navy,
+                  border: "1px solid transparent", background: "#F97316", color: "#fff",
                   fontSize: 13.5, fontWeight: 700, fontFamily: FONT,
                   cursor: isSubmitting ? "not-allowed" : "pointer",
                   opacity: isSubmitting ? 0.6 : 1,
@@ -3126,10 +3126,15 @@ export default function MultiFileCodeEditor({
             <div className="flex flex-col items-center gap-1 max-sm:flex-1 max-sm:min-w-0 text-center">
               {submitAction}
             </div>
-            <span aria-hidden="true" className="max-sm:hidden" style={{ width: 1, alignSelf: "stretch", background: UI.border }} />
-            <div className="flex flex-col items-center gap-1 max-sm:flex-1 max-sm:min-w-0 text-center">
-              {finishAction}
-            </div>
+            {/* Finish only on the last question. */}
+            {currentQuestionIndex >= questions.length - 1 && (
+              <>
+                <span aria-hidden="true" className="max-sm:hidden" style={{ width: 1, alignSelf: "stretch", background: UI.border }} />
+                <div className="flex flex-col items-center gap-1 max-sm:flex-1 max-sm:min-w-0 text-center">
+                  {finishAction}
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

@@ -5683,7 +5683,8 @@ else:
                 const prevDisabled = currentProblemIndex === 0 && !onCrossPrev;
                 const nextDisabled = (currentProblemIndex === problems.length - 1 && !onCrossNext) || (!isFreeFlow && !isQuestionSolved(currentProblemIndex));
                 const nextLabel = currentProblemIndex === problems.length - 1 && onCrossNext ? (crossNextLabel || 'Next Section') : 'Next';
-                const showFinish = !embedded || (!!onSubmitTest && currentProblemIndex === problems.length - 1);
+                // Finish only on the last question.
+                const showFinish = currentProblemIndex >= problems.length - 1 && (!embedded || !!onSubmitTest);
                 const showNav = problems.length > 1 || !!onCrossPrev || !!onCrossNext;
                 return (
                     <div className="flex items-center gap-x-4 gap-y-2 flex-wrap flex-shrink-0 max-sm:px-3!" style={{ background: WS.panel, borderTop: `1px solid ${WS.border}`, padding: '10px 20px' }}>
@@ -5781,7 +5782,7 @@ else:
                                             style={{
                                                 display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                                                 height: 36, minWidth: 168, padding: '0 18px', borderRadius: 6,
-                                                border: `1.5px solid ${WS.navy}`, background: WS.panel, color: WS.navy,
+                                                border: '1px solid transparent', background: '#F97316', color: '#fff',
                                                 fontSize: 13.5, fontWeight: 700, fontFamily: FONT,
                                                 cursor: !embedded && isEvaluating ? 'not-allowed' : 'pointer',
                                                 opacity: !embedded && isEvaluating ? 0.7 : 1,
