@@ -429,7 +429,7 @@ export default function MultiFileCodeEditor({
   // The description panel beside the editor — the toolbar's Hide / Show
   // description toggles it for more editor room.
   const [showQuestionPanel, setShowQuestionPanel] = useState(true)
-  // Problems list — the toolbar's Hide / Show list toggles it. Wide screens
+  // Problems list — the toolbar's Hide / Show problems toggles it. Wide screens
   // open with it showing; narrower ones keep it folded so the editor keeps
   // its room.
   const [showSidebar, setShowSidebar] = useState(false)
@@ -2183,7 +2183,7 @@ export default function MultiFileCodeEditor({
   const selectQuestion = (idx: number) => setCurrentQuestionIndex(idx)
 
   // ─── Reusable question UI ───────────────────────────────────────────────────
-  // Bottom-bar navigation: Hide / Show list, then Previous / "Problem N of M" /
+  // Bottom-bar navigation: Hide / Show problems, then Previous / "Problem N of M" /
   // Next. Moving between problems sits beside Submit and Finish; nothing to
   // navigate with a single question, so it is left out then.
   const pagerBtnStyle = (disabled: boolean): React.CSSProperties => ({
@@ -2208,7 +2208,7 @@ export default function MultiFileCodeEditor({
           style={pagerBtnStyle(false)}
         >
           {showSidebar ? <ChevronLeft style={{ width: 15, height: 15 }} /> : <ChevronRight style={{ width: 15, height: 15 }} />}
-          {showSidebar ? "Hide list" : "Show list"}
+          {showSidebar ? "Hide problems" : "Show problems"}
         </button>
       )}
       <button
@@ -2567,7 +2567,7 @@ export default function MultiFileCodeEditor({
   return (
     <div ref={containerRef} className="flex flex-col h-full w-full" style={{ background: UI.page, color: "#111827", fontFamily: FONT, userSelect: resizing.current ? "none" : "auto" }}>
       {/* TOP TOOLBAR — left: the assignment, Hide description, where you
-          are, and Notes / Score / Info (Hide list sits on the bottom bar); right: the actions on the
+          are, and Notes / Score / Info (Hide problems sits on the bottom bar); right: the actions on the
           code (Run Code, Run tests, Visualize, language, Terminal, full
           screen). In exam mode the page's timer / bell sit between. */}
       {exercise && (
@@ -2911,14 +2911,26 @@ export default function MultiFileCodeEditor({
             <div className="flex flex-col flex-shrink-0 overflow-hidden border-r max-lg:w-full! max-lg:max-h-[40dvh] max-lg:border-r-0 max-lg:border-b" style={{ width: questionWidth, background: UI.panel, borderColor: UI.border }}>
               <div className="flex-1 overflow-y-auto" style={{ padding: "16px 20px 20px" }}>{questionContent}</div>
             </div>
+            {/* Description resize grip — a strip with a centred ⇔ chip so
+                the drag affordance is unambiguous. */}
             <div
               role="separator"
               aria-orientation="vertical"
               aria-label="Resize the description"
               onMouseDown={(e) => { resizing.current = { kind: "question", startX: e.clientX, startWidth: questionWidth } }}
-              className="w-1 cursor-col-resize hover:bg-[#B9E3DB] flex-shrink-0 max-lg:hidden"
+              className="flex-shrink-0 flex items-center justify-center max-lg:hidden"
+              style={{ width: 6, cursor: "col-resize", background: UI.page, borderRight: `1px solid ${UI.border}` }}
               title="Drag to resize the description"
-            />
+            >
+              <span style={{
+                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                width: 14, height: 34, borderRadius: 6,
+                background: UI.panel, border: `1px solid ${UI.border}`, color: UI.muted,
+                pointerEvents: "none",
+              }}>
+                <ArrowUpDown size={11} style={{ transform: "rotate(90deg)" }} />
+              </span>
+            </div>
           </>
         )}
 
@@ -2996,14 +3008,25 @@ export default function MultiFileCodeEditor({
                     <SearchPanel files={files} onOpenFile={openFile} />
                   )}
                 </div>
+                {/* Explorer resize grip — same ⇔ chip as the description's. */}
                 <div
                   role="separator"
                   aria-orientation="vertical"
                   aria-label="Resize explorer"
                   onMouseDown={(e) => { resizing.current = { kind: "tree", startX: e.clientX, startWidth: treeWidth } }}
-                  className="w-1 flex-shrink-0 cursor-col-resize hover:bg-[#B9E3DB] max-lg:hidden"
+                  className="flex-shrink-0 flex items-center justify-center max-lg:hidden"
+                  style={{ width: 6, cursor: "col-resize", background: UI.page, borderRight: `1px solid ${UI.border}` }}
                   title="Drag to resize the explorer"
-                />
+                >
+                  <span style={{
+                    display: "inline-flex", alignItems: "center", justifyContent: "center",
+                    width: 14, height: 34, borderRadius: 6,
+                    background: UI.panel, border: `1px solid ${UI.border}`, color: UI.muted,
+                    pointerEvents: "none",
+                  }}>
+                    <ArrowUpDown size={11} style={{ transform: "rotate(90deg)" }} />
+                  </span>
+                </div>
               </>
             )}
 

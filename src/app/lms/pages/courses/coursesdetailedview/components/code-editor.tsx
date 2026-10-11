@@ -9,7 +9,7 @@ import { useRouter } from 'next/navigation';
 
 import {
     Play, RotateCcw, CheckCircle2, Maximize2, Minimize2,  // Add this
-    X, Code, FileText, AlertCircle, Terminal, Menu, ChevronRight, ChevronLeft, PanelLeftClose, PanelLeftOpen, Search, AlertTriangle, CheckCircle, XCircle, Lock, ArrowUpDown, X as XIcon, Loader2, SkipForward, Clock, ShieldAlert, Camera, Video, Save, LogOut, Trash2, Shield, Mic, MicOff, ShieldCheck, UserCheck, Monitor, Info,
+    X, Code, FileText, FileCode, AlertCircle, Terminal, ChevronRight, ChevronLeft, Search, AlertTriangle, CheckCircle, XCircle, Lock, ArrowUpDown, X as XIcon, Loader2, SkipForward, Clock, ShieldAlert, Camera, Video, Save, LogOut, Trash2, Shield, Mic, MicOff, ShieldCheck, UserCheck, Monitor, Info,
     Award,
     BarChart3
 } from "lucide-react"
@@ -17,7 +17,7 @@ import dynamic from 'next/dynamic'
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css'
 import Script from 'next/script'
-import ExerciseInfoModals, { ExerciseInfoButtons } from './ExerciseInfoModals'
+import ExerciseInfoModals from './ExerciseInfoModals'
 // Evaluation Method wiring — resolves the exercise's stored evaluationMethod
 // (with the per-tab legacy fallback), and calls Gemini for AI grading. Both
 // helpers are shared with the You_Do editor and multi-file editor so the
@@ -874,9 +874,22 @@ export default function CodeEditor({
     const [isFullscreen, setIsFullscreen] = useState(false)
     const [currentProblemIndex, setCurrentProblemIndex] = useState(0)
     const [showSidebar, setShowSidebar] = useState(false)
-    // Problem statement panel: hidden from its own header, brought back
-    // from the strip that takes its place.
+    // Problems list — the bottom bar's Hide / Show problems toggles it. Wide
+    // screens open with it showing; crossing below 1280px folds it (and
+    // crossing back restores it) so the editor keeps a usable width.
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const wide = window.matchMedia('(min-width: 1280px)');
+        if (wide.matches) setShowSidebar(true);
+        const onWide = (e: MediaQueryListEvent) => setShowSidebar(e.matches);
+        wide.addEventListener('change', onWide);
+        return () => wide.removeEventListener('change', onWide);
+    }, []);
+    // Description panel — the toolbar's Hide / Show description toggles it.
     const [showQuestionPanel, setShowQuestionPanel] = useState(true)
+    // Output panel (Console / Test results) — Hide output folds it, the
+    // toolbar's Terminal brings it back; the editor takes the full height.
+    const [showConsole, setShowConsole] = useState(true)
     const [leftPanelWidth, setLeftPanelWidth] = useState(40)
     const [isResizing, setIsResizing] = useState(false)
     const [searchQuery, setSearchQuery] = useState("")
@@ -3518,7 +3531,9 @@ export default function CodeEditor({
     const selectProblem = (index: number) => {
         if (index >= 0 && index < problems.length) {
             setCurrentProblemIndex(index)
-            setShowSidebar(false)
+            // The list stays docked on desktop; below lg it is an overlay, so
+            // picking a problem closes it.
+            if (typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches) setShowSidebar(false)
         }
     }
 
@@ -3600,6 +3615,153 @@ export default function CodeEditor({
             </div>
         );
     }
+
+    // ─── Workspace layout (reference design) ───────────────────────────────
+    // Top toolbar → Problems list | Description | editor over Output →
+    // bottom bar. Warm off-white page, white panels, thin warm-gray borders,
+    // navy headings, soft teal selection; dark theme keeps its own tones.
+    const WS = theme === 'dark' ? {
+        page: '#0B1220', panel: '#111827', border: '#374151', hairline: '#1F2937', navy: '#F9FAFB',
+        text: '#D1D5DB', muted: '#9CA3AF', teal: '#009F9A', tealDark: '#5EEAD4', tealBorder: '#0F9D94',
+        mint: 'rgba(15,157,148,0.18)', soft: '#1F2937',
+    } : {
+        page: '#FBFAF7', panel: '#FFFFFF', border: '#E7E5DF', hairline: '#EFEDE8', navy: '#101B3B',
+        text: '#344054', muted: '#667085', teal: '#009F9A', tealDark: '#0F766E', tealBorder: '#7FD0C4',
+        mint: '#E8F6F3', soft: '#F7F6F3',
+    };
+    // Difficulty badges — soft green / yellow / red.
+    const WS_DIFF: Record<string, { bg: string; fg: string; label: string }> = theme === 'dark' ? {
+        easy: { bg: 'rgba(22,163,74,0.18)', fg: '#86EFAC', label: 'Easy' },
+        medium: { bg: 'rgba(217,119,6,0.18)', fg: '#FCD34D', label: 'Medium' },
+        hard: { bg: 'rgba(220,38,38,0.18)', fg: '#FCA5A5', label: 'Hard' },
+    } : {
+        easy: { bg: '#E7F7EE', fg: '#157F3C', label: 'Easy' },
+        medium: { bg: '#FFF4D6', fg: '#8A6100', label: 'Medium' },
+        hard: { bg: '#FDECEC', fg: '#B42318', label: 'Hard' },
+    };
+    const wsToolBtn: React.CSSProperties = {
+        display: 'inline-flex', alignItems: 'center', gap: 6, height: 32, padding: '0 12px',
+        borderRadius: 6, border: `1px solid ${WS.border}`, background: WS.panel, color: WS.navy,
+        fontSize: 12.5, fontWeight: 600, fontFamily: FONT, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap',
+    };
+    const wsToolIconBtn = (active: boolean): React.CSSProperties => ({
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32,
+        borderRadius: 6, border: `1px solid ${active ? WS.tealBorder : WS.border}`,
+        background: active ? WS.mint : WS.panel, color: active ? WS.tealDark : WS.text,
+        cursor: 'pointer', flexShrink: 0,
+    });
+    const wsSoftBtn: React.CSSProperties = {
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, height: 32,
+        borderRadius: 6, border: `1px solid ${WS.border}`, background: WS.soft, color: WS.text,
+        fontSize: 12.5, fontWeight: 500, fontFamily: FONT, cursor: 'pointer', flexShrink: 0,
+    };
+    const wsPagerBtn = (disabled: boolean): React.CSSProperties => ({
+        display: 'inline-flex', alignItems: 'center', gap: 6, height: 36, padding: '0 16px', borderRadius: 6,
+        border: `1px solid ${disabled ? WS.hairline : WS.border}`,
+        background: disabled ? (theme === 'dark' ? '#1F2937' : '#F4F3EF') : WS.panel,
+        color: disabled ? (theme === 'dark' ? '#6B7280' : '#A3A9B5') : WS.navy,
+        fontSize: 13.5, fontWeight: 600, fontFamily: FONT, cursor: disabled ? 'not-allowed' : 'pointer',
+        flexShrink: 0, whiteSpace: 'nowrap',
+    });
+    const wsSectionTitle: React.CSSProperties = { fontSize: 14.5, fontWeight: 700, color: WS.navy, margin: '0 0 8px' };
+    const wsCell: React.CSSProperties = { padding: '9px 12px', verticalAlign: 'top' };
+    const wsMonoPre: React.CSSProperties = { margin: 0, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 12.5, color: WS.navy, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' };
+    const wsLiveQ: any = exercise?.questions?.[currentProblemIndex] ?? currentQuestion;
+    const wsIsLinkQ = !!(wsLiveQ?.isLinkQuestion && wsLiveQ?.questionLink);
+    const wsListed = getFilteredAndSortedProblems();
+    const wsNoun = category === 'We_Do' ? 'Assignment' : category === 'You_Do' ? 'Assessment' : 'Exercise';
+
+    // Finish — the whole-exercise submit (was "Submit Exercise" on the old
+    // breadcrumb row): attempt-limit and all-questions gates, evaluate the
+    // current question if it never was, mark the exercise submitted, close.
+    const finishExercise = async () => {
+        // ── Attempt limit check ──
+        if (exercise?.questionBehavior?.attemptLimitEnabled) {
+            const max = exercise.questionBehavior.maxAttempts || 1;
+            if (userAttempts >= max) {
+                showToast({
+                    type: 'error',
+                    title: 'Limit Reached',
+                    message: `Maximum attempts reached (${userAttempts}/${max}). You cannot submit again.`,
+                    duration: 4000
+                });
+                return;
+            }
+        }
+
+        // ── allQuestionsRequired gate ──
+        if (exercise?.questionBehavior?.allQuestionsRequired === true) {
+            const missing: number[] = [];
+            for (let i = 0; i < problems.length; i++) {
+                if (i !== currentProblemIndex && !solvedQuestions.has(i)) missing.push(i + 1);
+            }
+            if (missing.length > 0) {
+                showToast({
+                    type: 'error',
+                    title: 'Incomplete Submission',
+                    message: `You must attempt all questions before submitting. Questions ${missing.join(', ')} remaining.`,
+                    duration: 5000
+                });
+                return;
+            }
+        }
+
+        if (isTestSubmittingRef.current) return;
+        isTestSubmittingRef.current = true;
+
+        try {
+            if (currentQuestion) {
+                const liveQuestion = exercise?.questions?.[currentProblemIndex];
+                const qId = liveQuestion?._id || currentQuestion._id;
+                const prior = submittedScoresRef.current[qId];
+                if (prior != null) {
+                    // Already evaluated this question — reuse that score
+                    // and just flip the exercise to submitted. Re-running
+                    // would double-charge Gemini / re-run the judge for
+                    // no new signal.
+                    await submitProgressToBackend(qId, 'submitted', prior, true);
+                } else {
+                    // Never evaluated — run the exercise's configured
+                    // evaluation now so the last question isn't recorded
+                    // as a blind 0.
+                    await runEvaluation({ record: false, isTestSubmission: true });
+                }
+            }
+
+            setSolvedQuestions(prev => {
+                const newSet = new Set(prev);
+                newSet.add(currentProblemIndex);
+                return newSet;
+            });
+
+            if (exercise?._id) localStorage.removeItem('ex_in_progress_' + exercise._id);
+
+            showToast({
+                type: 'success',
+                title: 'Test Submitted',
+                message: 'Your test has been submitted successfully.',
+                duration: 3000
+            });
+
+            setTimeout(() => {
+                if (isAssessmentMode && hasStarted) {
+                    if (isRecording) stopScreenRecording();
+                    if (document.fullscreenElement) document.exitFullscreen().catch(() => { });
+                }
+                if (onCloseExercise) onCloseExercise();
+                else if (onBack) onBack();
+            }, 1500);
+
+        } catch (error: any) {
+            isTestSubmittingRef.current = false;
+            showToast({
+                type: 'error',
+                title: 'Submission Failed',
+                message: error.message || 'Could not submit test.',
+                duration: 4000
+            });
+        }
+    };
 
     return (
         <div
@@ -3724,232 +3886,281 @@ export default function CodeEditor({
                 </div>
             )}
 
-            {/* ── Persistent Exercise Info Strip ── */}
+            {/* TOP TOOLBAR — left: Back, the exercise, Hide description, where
+                you are, Score / Info and the proctoring status; right: the
+                actions on the code (Run Code, Run tests, language, Exit,
+                Terminal, full screen) and Close. Hide problems, Previous / Next,
+                Submit and Finish live on the bottom bar. */}
             {exercise && (
-                <div style={{ flexShrink: 0, borderBottom: `1px solid ${theme === 'dark' ? '#374151' : '#e5e7eb'}` }}>
-                    {/* Row 1 — Back + Breadcrumb */}
-                    <div className="max-sm:flex-wrap max-sm:gap-y-1.5" style={{
-                        display: 'flex', alignItems: 'center',
-                        padding: '6px 12px',
-                        borderBottom: `1px solid ${theme === 'dark' ? '#1f2937' : '#f0f0f0'}`,
-                        gap: 8,
-                        background: theme === 'dark' ? '#0d1117' : '#f8f9fa',
-                    }}>
-                        {/* Back button */}
+                <>
+                <div
+                    className="flex items-center gap-x-3 gap-y-2 flex-wrap max-sm:px-3!"
+                    style={{ flexShrink: 0, padding: '8px 16px', minHeight: 56, background: WS.panel, borderBottom: `1px solid ${WS.border}` }}
+                >
+                    {/* Below lg the left group takes the first row and the code
+                        actions wrap onto their own row underneath. */}
+                    <div className="flex items-center gap-2 flex-wrap min-w-0 flex-1 max-lg:basis-full">
                         <button
+                            type="button"
                             onClick={() => setShowBackConfirm(true)}
+                            aria-label="Go back"
                             title="Go back"
+                            style={{ ...wsToolIconBtn(false), width: 30, height: 30 }}
+                        >
+                            <ChevronLeft size={15} />
+                        </button>
+                        <span aria-hidden="true" className="max-sm:hidden!" style={{
+                            width: 34, height: 34, borderRadius: 8, flexShrink: 0,
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            background: '#0F9D94', color: '#fff',
+                        }}>
+                            <FileCode style={{ width: 18, height: 18 }} />
+                        </span>
+                        <strong
+                            title={exercise?.exerciseInformation?.exerciseName || 'Exercise'}
                             style={{
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                width: 26, height: 26, flexShrink: 0,
-                                borderRadius: 6,
-                                border: `1px solid ${theme === 'dark' ? '#374151' : '#d1d5db'}`,
-                                background: theme === 'dark' ? '#1f2937' : '#fff',
-                                color: theme === 'dark' ? '#9ca3af' : '#6b7280',
-                                cursor: 'pointer',
+                                fontSize: 18, color: WS.navy, marginRight: 6,
+                                maxWidth: 260, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                             }}
                         >
-                            <ChevronLeft style={{ width: 14, height: 14 }} />
+                            {exercise?.exerciseInformation?.exerciseName || 'Exercise'}
+                        </strong>
+                        {!wsIsLinkQ && (
+                            <button
+                                type="button"
+                                onClick={() => setShowQuestionPanel(v => !v)}
+                                aria-pressed={showQuestionPanel}
+                                title={showQuestionPanel ? 'Hide the problem description' : 'Show the problem description'}
+                                style={wsToolBtn}
+                            >
+                                <FileText size={14} />
+                                {showQuestionPanel ? 'Hide description' : 'Show description'}
+                            </button>
+                        )}
+                        <span
+                            className="max-md:hidden"
+                            title={problem?.title || undefined}
+                            style={{ fontSize: 12.5, color: WS.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, maxWidth: 340, marginLeft: 4 }}
+                        >
+                            Problem {Math.min(currentProblemIndex + 1, problems.length || 1)} of {problems.length || 1}
+                            {problem?.title ? <> · <span style={{ color: WS.navy, fontWeight: 600 }}>{problem.title}</span></> : null}
+                        </span>
+                        <span aria-hidden="true" className="max-lg:hidden" style={{ width: 1, height: 20, background: WS.border, margin: '0 2px', flexShrink: 0 }} />
+                        <button
+                            type="button"
+                            onClick={() => setShowOverviewModal(true)}
+                            aria-label={exData?.isGraded !== false ? 'Score' : 'Overview'}
+                            title={exData?.isGraded !== false ? 'Score Overview' : 'Question Overview'}
+                            style={wsToolIconBtn(showOverviewModal)}
+                        >
+                            <Award size={15} />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setShowDetailsModal(true)}
+                            aria-label={`${wsNoun} info`}
+                            title={`${wsNoun} info`}
+                            style={wsToolIconBtn(showDetailsModal)}
+                        >
+                            <Info size={15} />
                         </button>
 
-                        {/* Separator */}
-                        <div style={{ width: 1, height: 16, background: theme === 'dark' ? '#374151' : '#e5e7eb', flexShrink: 0 }} />
+                        {/* Proctoring status — recording, timer, microphone. */}
+                        {isAssessmentMode && hasStarted && securitySettings.screenRecordingEnabled && (
+                            <div className="flex items-center gap-2">
+                                {/* Camera preview - only show if camera is enabled AND we have a stream */}
+                                {securitySettings.cameraMicEnabled && cameraStream && (
+                                    <div className="fixed bottom-4 left-4 z-40 w-48 h-36 max-sm:w-32 max-sm:h-24 bg-black rounded-lg border-2 border-red-500 shadow-2xl overflow-hidden">
+                                        <video
+                                            ref={videoRef}
+                                            autoPlay
+                                            playsInline
+                                            muted
+                                            className="w-full h-full object-cover"
+                                        />
+                                        <div className="absolute top-2 left-2 flex items-center gap-1">
+                                            <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                                            <span className="text-xs text-white bg-black/50 px-2 py-1 rounded">LIVE</span>
+                                        </div>
+                                    </div>
+                                )}
 
-                        {/* Breadcrumb segments */}
-                        <div className="max-sm:order-last max-sm:basis-full!" style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', flex: 1, minWidth: 0 }}>
-                            <button className="max-sm:max-w-[70vw] max-sm:truncate" onClick={() => setPendingNavLevel('course')} style={{ fontFamily: FONT, fontSize: 12.5, fontWeight: 500, color: theme === 'dark' ? '#FDBA74' : '#F97316', background: 'none', border: 'none', cursor: 'pointer', padding: 0, whiteSpace: 'nowrap' }}>
-                                {courseName || 'Course'}
-                            </button>
+                                {/* Recording indicator */}
+                                {isRecording && (
+                                    <div className="flex items-center gap-1 px-2 py-1 bg-red-900/50 rounded text-xs">
+                                        <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                                        Recording
+                                    </div>
+                                )}
 
-                            {(hierarchy || []).map((seg, i) => (
-                                <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                    <ChevronRight style={{ width: 12, height: 12, color: theme === 'dark' ? '#4b5563' : '#c0c4cc', flexShrink: 0 }} />
-                                    <button className="max-sm:max-w-[70vw] max-sm:truncate" onClick={() => setPendingNavLevel('hierarchy')} style={{ fontFamily: FONT, fontSize: 12.5, fontWeight: 500, color: theme === 'dark' ? '#FDBA74' : '#F97316', background: 'none', border: 'none', cursor: 'pointer', padding: 0, whiteSpace: 'nowrap' }}>
-                                        {seg}
+                                {/* Timer display */}
+                                {securitySettings.timerEnabled && timeLeft !== null && (
+                                    <div className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-mono ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-200'}`}>
+                                        <Clock className="w-3 h-3" />
+                                        {formatTime(timeLeft)}
+                                    </div>
+                                )}
+
+                                {/* Mic toggle - only show if camera/mic is enabled */}
+                                {securitySettings.cameraMicEnabled && (
+                                    <button
+                                        onClick={() => setMicEnabled(!micEnabled)}
+                                        className={`p-1.5 rounded ${micEnabled ? 'bg-green-900/50 text-green-400' : 'bg-gray-800 text-gray-400'}`}
+                                        title={micEnabled ? "Microphone is on" : "Microphone is muted"}
+                                    >
+                                        {micEnabled ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
                                     </button>
-                                </span>
-                            ))}
+                                )}
+                            </div>
+                        )}
+                    </div>
 
-                            {category && (
-                                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                    <ChevronRight style={{ width: 12, height: 12, color: theme === 'dark' ? '#4b5563' : '#c0c4cc', flexShrink: 0 }} />
-                                    <button onClick={() => setPendingNavLevel('category')} style={{ fontFamily: FONT, fontSize: 12.5, fontWeight: 500, color: theme === 'dark' ? '#FDBA74' : '#F97316', background: 'none', border: 'none', cursor: 'pointer', padding: 0, whiteSpace: 'nowrap' }}>
-                                        {category === 'We_Do' ? 'We Do' : category === 'I_Do' ? 'I Do' : category === 'You_Do' ? 'You Do' : category}
-                                    </button>
-                                </span>
-                            )}
+                    {/* Time Left — the exercise's own countdown. */}
+                    {exerciseTimeLeft !== null && (exData?.exerciseInformation?.totalDuration || 0) > 0 && (() => {
+                        const totalSecs = (exData?.exerciseInformation?.totalDuration || 0) * 60;
+                        const pct = totalSecs > 0 ? Math.max(0, (exerciseTimeLeft / totalSecs) * 100) : 0;
+                        const isDanger = exerciseTimeLeft < 60;
+                        const isWarning = exerciseTimeLeft < 300 && !isDanger;
+                        const tcol = isDanger ? '#ef4444' : isWarning ? '#f59e0b' : '#F27757';
+                        return (
+                            <div style={{ minWidth: 130, flexShrink: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                        <Clock style={{ width: 12, height: 12, color: tcol }} />
+                                        <span style={{ fontSize: 11, color: '#9b9bae', fontWeight: 600, fontFamily: FONT }}>Time Left</span>
+                                    </div>
+                                    <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: 14, fontWeight: 800, color: tcol, animation: isDanger ? 'pulse 1s ease-in-out infinite' : 'none' }}>
+                                        {formatExerciseTime(exerciseTimeLeft)}
+                                    </span>
+                                </div>
+                                <div style={{ height: 4, borderRadius: 99, background: theme === 'dark' ? '#374151' : '#f4f4f7', overflow: 'hidden' }}>
+                                    <div style={{ height: '100%', width: `${pct}%`, background: tcol, borderRadius: 99, transition: 'width 1s linear' }} />
+                                </div>
+                            </div>
+                        );
+                    })()}
 
-                            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                <ChevronRight style={{ width: 12, height: 12, color: theme === 'dark' ? '#4b5563' : '#c0c4cc', flexShrink: 0 }} />
-                                <span className="max-sm:max-w-[70vw]" style={{ fontFamily: FONT, fontSize: 12.5, fontWeight: 600, color: theme === 'dark' ? '#e5e7eb' : '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                    {exercise?.exerciseInformation?.exerciseName || 'Exercise'}
-                                </span>
-                            </span>
-                        </div>
-
-                        {/* Exercise Info button — right corner of breadcrumb row */}
-                        {/* {exercise && (
+                    <div className="flex items-center gap-2 flex-wrap flex-shrink-0 max-lg:flex-shrink">
+                        {!wsIsLinkQ && (
                             <button
-                                onClick={() => setShowExerciseInfo(!showExerciseInfo)}
+                                type="button"
+                                onClick={() => { setShowConsole(true); setBottomTab('console'); void runCode(); }}
+                                disabled={isRunning}
+                                title="Run your code — output appears in the Console"
+                                aria-label="Run code"
                                 style={{
-                                    display: 'flex', alignItems: 'center', gap: 5,
-                                    flexShrink: 0, marginLeft: 8,
-                                    padding: '4px 11px', height: 26,
-                                    borderRadius: 6,
-                                    border: `1px solid ${showExerciseInfo ? '#FB923C' : (theme === 'dark' ? '#374151' : '#d1d5db')}`,
-                                    background: showExerciseInfo ? (theme === 'dark' ? '#7C2D12' : '#FFEDD5') : (theme === 'dark' ? '#1f2937' : '#fff'),
-                                    color: showExerciseInfo ? (theme === 'dark' ? '#FED7AA' : '#F97316') : (theme === 'dark' ? '#9ca3af' : '#6b7280'),
-                                    cursor: 'pointer',
-                                    fontFamily: FONT,
-                                    fontSize: 12,
-                                    fontWeight: 500,
+                                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                                    height: 32, padding: '0 14px', borderRadius: 6,
+                                    border: '1px solid transparent', background: '#009F9A', color: '#fff',
+                                    fontSize: 12, fontWeight: 700, fontFamily: FONT,
+                                    cursor: isRunning ? 'not-allowed' : 'pointer', opacity: isRunning ? 0.6 : 1,
                                     whiteSpace: 'nowrap',
                                 }}
                             >
-                                <Info style={{ width: 13, height: 13, flexShrink: 0 }} />
-                                Exercise Info
+                                {isRunning ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} fill="currentColor" />}
+                                Run Code
                             </button>
-                        )} */}
-
-
-                        {/* Right corner of breadcrumb row — Submit Test + Close */}
-                        <div className="max-sm:ml-auto!" style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, marginLeft: 8 }}>
+                        )}
+                        {/* Run tests — evaluates the current code and paints Test
+                            results WITHOUT marking the question submitted. Not on
+                            a Manual exercise: nothing is evaluated there. */}
+                        {!wsIsLinkQ && showsTestResult && (
                             <button
-                                onClick={async () => {
-                                    // ── Attempt limit check ──
-                                    if (exercise?.questionBehavior?.attemptLimitEnabled) {
-                                        const max = exercise.questionBehavior.maxAttempts || 1;
-                                        if (userAttempts >= max) {
-                                            showToast({
-                                                type: 'error',
-                                                title: 'Limit Reached',
-                                                message: `Maximum attempts reached (${userAttempts}/${max}). You cannot submit again.`,
-                                                duration: 4000
-                                            });
-                                            return;
-                                        }
-                                    }
-
-                                    // ── allQuestionsRequired gate ──
-                                    if (exercise?.questionBehavior?.allQuestionsRequired === true) {
-                                        const missing: number[] = [];
-                                        for (let i = 0; i < problems.length; i++) {
-                                            if (i !== currentProblemIndex && !solvedQuestions.has(i)) missing.push(i + 1);
-                                        }
-                                        if (missing.length > 0) {
-                                            showToast({
-                                                type: 'error',
-                                                title: 'Incomplete Submission',
-                                                message: `You must attempt all questions before submitting. Questions ${missing.join(', ')} remaining.`,
-                                                duration: 5000
-                                            });
-                                            return;
-                                        }
-                                    }
-
-                                    if (isTestSubmittingRef.current) return;
-                                    isTestSubmittingRef.current = true;
-
-                                    try {
-                                        if (currentQuestion) {
-                                            const liveQuestion = exercise?.questions?.[currentProblemIndex];
-                                            const qId = liveQuestion?._id || currentQuestion._id;
-                                            const prior = submittedScoresRef.current[qId];
-                                            if (prior != null) {
-                                                // Already evaluated this question — reuse that score
-                                                // and just flip the exercise to submitted. Re-running
-                                                // would double-charge Gemini / re-run the judge for
-                                                // no new signal.
-                                                await submitProgressToBackend(qId, 'submitted', prior, true);
-                                            } else {
-                                                // Never evaluated — run the exercise's configured
-                                                // evaluation now so the last question isn't recorded
-                                                // as a blind 0.
-                                                await runEvaluation({ record: false, isTestSubmission: true });
-                                            }
-                                        }
-
-                                        setSolvedQuestions(prev => {
-                                            const newSet = new Set(prev);
-                                            newSet.add(currentProblemIndex);
-                                            return newSet;
-                                        });
-
-                                        if (exercise?._id) localStorage.removeItem('ex_in_progress_' + exercise._id);
-
-                                        showToast({
-                                            type: 'success',
-                                            title: 'Test Submitted',
-                                            message: 'Your test has been submitted successfully.',
-                                            duration: 3000
-                                        });
-
-                                        setTimeout(() => {
-                                            if (isAssessmentMode && hasStarted) {
-                                                if (isRecording) stopScreenRecording();
-                                                if (document.fullscreenElement) document.exitFullscreen().catch(() => { });
-                                            }
-                                            if (onCloseExercise) onCloseExercise();
-                                            else if (onBack) onBack();
-                                        }, 1500);
-
-                                    } catch (error: any) {
-                                        isTestSubmittingRef.current = false;
-                                        showToast({
-                                            type: 'error',
-                                            title: 'Submission Failed',
-                                            message: error.message || 'Could not submit test.',
-                                            duration: 4000
-                                        });
-                                    }
-                                }}
-                                disabled={isRunning}
+                                type="button"
+                                onClick={() => { setShowConsole(true); void runTestCases(); }}
+                                disabled={isRunning || isRunningTestCases}
+                                title={evalMethod === 'ai'
+                                    ? 'Evaluate your code with AI (does not submit)'
+                                    : 'Run your code against the testcases (does not submit)'}
+                                aria-label="Run tests"
                                 style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 6,
-                                    padding: '6px 12px',
-                                    borderRadius: 6,
-                                    border: 'none',
-                                    background: isRunning ? '#6b7280' : '#F97316',
-                                    color: 'white',
-                                    fontSize: '13px',
-                                    fontWeight: 500,
-                                    cursor: isRunning ? 'not-allowed' : 'pointer',
-                                    transition: 'all 0.2s ease',
-                                    opacity: isRunning ? 0.7 : 1,
-                                }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.background = '#EA580C';
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.background = '#F97316';
+                                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                                    height: 32, padding: '0 14px', borderRadius: 6,
+                                    border: '1px solid transparent', background: '#009F9A', color: '#fff',
+                                    fontSize: 12, fontWeight: 700, fontFamily: FONT,
+                                    cursor: (isRunning || isRunningTestCases) ? 'not-allowed' : 'pointer',
+                                    opacity: (isRunning || isRunningTestCases) ? 0.6 : 1,
+                                    whiteSpace: 'nowrap',
                                 }}
                             >
-                                {isRunning
-                                    ? <Loader2 style={{ width: 14, height: 14 }} className="animate-spin" />
-                                    : <CheckCircle style={{ width: 14, height: 14 }} />}
-                                Submit Exercise
+                                {isRunningTestCases ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}
+                                Run tests
                             </button>
-
-                            <button
-                                onClick={() => setShowBackConfirm(true)}
-
-                                style={{
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    width: 28, height: 28, flexShrink: 0,
-                                    borderRadius: 6,
-                                    border: `1px solid ${theme === 'dark' ? '#4b1c1c' : '#fca5a5'}`,
-                                    background: theme === 'dark' ? '#1f0a0a' : '#fef2f2',
-                                    color: theme === 'dark' ? '#f87171' : '#dc2626',
-                                    cursor: 'pointer',
-                                }}
-                                title="Close exercise"
+                        )}
+                        {/* Language — hidden for link questions (no editor) */}
+                        {!wsIsLinkQ && (
+                            <select
+                                value={selectedLanguage}
+                                onChange={(e) => setSelectedLanguage(e.target.value)}
+                                aria-label="Programming language"
+                                className={`h-8 text-xs font-semibold border rounded-[6px] px-2 ${theme === 'dark' ? 'bg-gray-800 text-white border-gray-600' : 'bg-white text-[#101B3B] border-[#E7E5DF]'}`}
+                                style={{ fontFamily: FONT }}
+                                disabled={isAssessmentMode && hasStarted}
                             >
-                                <X style={{ width: 13, height: 13 }} />
+                                {availableLanguages.map((lang) => (
+                                    <option key={lang} value={lang}>
+                                        {formatLanguageName(lang)}
+                                    </option>
+                                ))}
+                            </select>
+                        )}
+
+                        {/* Exit — assessment mode only */}
+                        {isAssessmentMode && hasStarted && (
+                            <button
+                                onClick={() => {
+                                    setPendingExitAction(() => handleCancelAssessment);
+                                    setShowExitConfirmation(true);
+                                }}
+                                className={`h-8 px-2.5 text-xs border rounded-[6px] flex items-center gap-1 ${theme === 'dark'
+                                    ? 'border-red-600 hover:bg-red-900/50 text-red-400'
+                                    : 'border-red-300 hover:bg-red-50 text-red-600'}`}
+                            >
+                                <LogOut className="w-3 h-3" />
+                                Exit
                             </button>
-                        </div>
+                        )}
+
+                        {!wsIsLinkQ && (
+                            <button
+                                type="button"
+                                onClick={() => { setShowConsole(true); setBottomTab('console'); }}
+                                aria-label="Open terminal"
+                                title="Open terminal"
+                                style={{ ...wsSoftBtn, padding: '0 12px' }}
+                            >
+                                <Terminal size={14} /> Terminal
+                            </button>
+                        )}
+
+                        <button
+                            type="button"
+                            onClick={toggleFullscreen}
+                            aria-label={isFullscreen ? 'Exit full screen' : 'Full screen'}
+                            title={isFullscreen ? 'Exit full screen' : 'Full screen'}
+                            style={{ ...wsSoftBtn, width: 32 }}
+                        >
+                            {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                        </button>
+
+                        {/* Close — leave the exercise (asks where to go). */}
+                        <button
+                            type="button"
+                            onClick={() => setShowBackConfirm(true)}
+                            aria-label="Close exercise"
+                            title="Close exercise"
+                            style={{
+                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                width: 32, height: 32, flexShrink: 0, borderRadius: 6, cursor: 'pointer',
+                                border: `1px solid ${theme === 'dark' ? '#4b1c1c' : '#fca5a5'}`,
+                                background: theme === 'dark' ? '#1f0a0a' : '#fef2f2',
+                                color: theme === 'dark' ? '#f87171' : '#dc2626',
+                            }}
+                        >
+                            <X size={14} />
+                        </button>
                     </div>
+                </div>
 
                     {/* Back confirmation dialog */}
                     {showBackConfirm && (
@@ -4006,401 +4217,142 @@ export default function CodeEditor({
                             </div>
                         </div>
                     )}
-                    {/* Row 2 — Difficulty dropdown + stats pills */}
-                    {/* Row 2 — Difficulty dropdown + stats pills */}
-                    <div
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            padding: '6px 14px',
-                            background: theme === 'dark' ? '#111827' : '#f9fafb',
-                            gap: 10,
-                            flexWrap: 'wrap',
-                        }}
-                    >
-                        {/* Left side — Difficulty Dropdown */}
-
-
-                        {/* Center — Info Buttons (MCQ-style) */}
-                        <ExerciseInfoButtons
-                            onDetailsClick={() => setShowDetailsModal(true)}
-                            onOverviewClick={() => setShowOverviewModal(true)}
-                            isGraded={exData?.isGraded !== false}
-                            detailsActive={showDetailsModal}
-                            overviewActive={showOverviewModal}
-                        />
-
-                        {/* Right side — Total Marks badge + MCQ-style Timer */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                            {/* Total Marks badge — always visible when graded */}
-                            {exData?.isGraded !== false && (() => {
-                                const _ss = exData?.questionConfiguration?.programmingQuestionConfiguration?.scoreSettings;
-                                const _progCalc = _ss
-                                    ? _ss.scoreType === 'evenMarks' && _ss.evenMarks
-                                        ? _ss.evenMarks * (problems.length || 1)
-                                        : (['easy', 'medium', 'hard'] as const).reduce(
-                                            (s, d) => s + ((_ss.levelScoringConfiguration as any)?.[d]?.totalMarks || 0), 0
-                                          )
-                                    : 0;
-                                const tm =
-                                    exData?.exerciseInformation?.totalMarksProgramming ||
-                                    exData?.exerciseInformation?.totalMarks ||
-                                    exData?.exerciseInformation?.totalPoints ||
-                                    _progCalc || 0;
-                                return (
-                                    <span style={{
-                                        fontSize: 11, fontWeight: 600,
-                                        padding: '3px 10px', borderRadius: 99,
-                                        background: theme === 'dark' ? '#1a3a2a' : '#dcfce7',
-                                        color: theme === 'dark' ? '#86efac' : '#15803d',
-                                        display: 'flex', alignItems: 'center', gap: 4,
-                                        fontFamily: FONT, whiteSpace: 'nowrap',
-                                    }}>
-                                        <Award style={{ width: 12, height: 12 }} />
-                                        Total marks: {tm}
-                                    </span>
-                                );
-                            })()}
-
-                            {/* MCQ-style timer with progress bar */}
-                            {exerciseTimeLeft !== null && (exData?.exerciseInformation?.totalDuration || 0) > 0 && (() => {
-                                const totalSecs = (exData?.exerciseInformation?.totalDuration || 0) * 60;
-                                const pct = totalSecs > 0 ? Math.max(0, (exerciseTimeLeft / totalSecs) * 100) : 0;
-                                const isDanger = exerciseTimeLeft < 60;
-                                const isWarning = exerciseTimeLeft < 300 && !isDanger;
-                                const tcol = isDanger ? '#ef4444' : isWarning ? '#f59e0b' : '#F27757';
-                                return (
-                                    <div style={{ minWidth: 130 }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                                <Clock style={{ width: 12, height: 12, color: tcol }} />
-                                                <span style={{ fontSize: 11, color: '#9b9bae', fontWeight: 600, fontFamily: FONT }}>Time Left</span>
-                                            </div>
-                                            <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: 14, fontWeight: 800, color: tcol, animation: isDanger ? 'pulse 1s ease-in-out infinite' : 'none' }}>
-                                                {formatExerciseTime(exerciseTimeLeft)}
-                                            </span>
-                                        </div>
-                                        <div style={{ height: 4, borderRadius: 99, background: theme === 'dark' ? '#374151' : '#f4f4f7', overflow: 'hidden' }}>
-                                            <div style={{ height: '100%', width: `${pct}%`, background: tcol, borderRadius: 99, transition: 'width 1s linear' }} />
-                                        </div>
-                                    </div>
-                                );
-                            })()}
-                        </div>
-                    </div>
-                </div>
+                </>
             )}
 
-
-            <div className={`flex items-center justify-between p-2.5 border-b max-lg:flex-wrap max-lg:gap-2 ${theme === 'dark' ? 'border-gray-700' : 'border-gray-300'}`}>
-                <div className="flex items-center gap-3 max-sm:flex-wrap max-sm:gap-x-2 max-sm:gap-y-2 max-lg:min-w-0">
-                    {/* In the main render, around line ~1430 */}
-                    {isAssessmentMode && hasStarted && securitySettings.screenRecordingEnabled && (
-                        <div className="flex items-center gap-2">
-                            {/* Camera preview - only show if camera is enabled AND we have a stream */}
-                            {securitySettings.cameraMicEnabled && cameraStream && (
-                                <div className="fixed bottom-4 left-4 z-40 w-48 h-36 max-sm:w-32 max-sm:h-24 bg-black rounded-lg border-2 border-red-500 shadow-2xl overflow-hidden">
-                                    <video
-                                        ref={videoRef}
-                                        autoPlay
-                                        playsInline
-                                        muted
-                                        className="w-full h-full object-cover"
-                                    />
-                                    <div className="absolute top-2 left-2 flex items-center gap-1">
-                                        <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-                                        <span className="text-xs text-white bg-black/50 px-2 py-1 rounded">LIVE</span>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Recording indicator */}
-                            {isRecording && (
-                                <div className="flex items-center gap-1 px-2 py-1 bg-red-900/50 rounded text-xs">
-                                    <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-                                    Recording
-                                </div>
-                            )}
-
-                            {/* Timer display */}
-                            {securitySettings.timerEnabled && timeLeft !== null && (
-                                <div className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-mono ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-200'}`}>
-                                    <Clock className="w-3 h-3" />
-                                    {formatTime(timeLeft)}
-                                </div>
-                            )}
-
-                            {/* Mic toggle - only show if camera/mic is enabled */}
-                            {securitySettings.cameraMicEnabled && (
-                                <button
-                                    onClick={() => setMicEnabled(!micEnabled)}
-                                    className={`p-1.5 rounded ${micEnabled ? 'bg-green-900/50 text-green-400' : 'bg-gray-800 text-gray-400'}`}
-                                    title={micEnabled ? "Microphone is on" : "Microphone is muted"}
-                                >
-                                    {micEnabled ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
-                                </button>
-                            )}
-                        </div>
-                    )}
-                </div>
-
-                <div className="flex items-center gap-2 max-lg:flex-wrap max-lg:ml-auto" style={{ justifyContent: 'flex-end' }}>
-                    {/* {isAssessmentMode && hasStarted && tabSwitchCount > 0 && (
-                        <div className="flex items-center gap-1 px-2 py-1 bg-yellow-900/50 rounded text-xs">
-                            <AlertTriangle className="w-3 h-3" />
-                            Tab Switches: {tabSwitchCount}/3
-                        </div>
-                    )} */}
-
-
-
-                    {/* Language Selector — hidden for link questions (no editor) */}
-                    {!(exercise?.questions?.[currentProblemIndex] as any)?.isLinkQuestion && (
-                    <select
-                        value={selectedLanguage}
-                        onChange={(e) => setSelectedLanguage(e.target.value)}
-                        className={`h-7 text-xs border rounded-[6px] px-1.5 ${theme === 'dark' ? 'bg-gray-800 text-white border-gray-600' : 'bg-white text-[#172033] border-[#E0E5EF]'}`}
-                        disabled={isAssessmentMode && hasStarted}
-                    >
-                        {availableLanguages.map((lang) => (
-                            <option key={lang} value={lang}>
-                                {formatLanguageName(lang)}
-                                {lang === selectedLanguage ? " (Selected)" : ""}
-                            </option>
-                        ))}
-                    </select>
-                    )}
-
-                    {/* Add the Exit button */}
-                    {isAssessmentMode && hasStarted && (
-                        <button
-                            onClick={() => {
-                                setPendingExitAction(() => handleCancelAssessment);
-                                setShowExitConfirmation(true);
-                            }}
-                            className={`h-7 px-2 text-xs border rounded-[6px] flex items-center gap-1 ${theme === 'dark'
-                                ? 'border-red-600 hover:bg-red-900/50 text-red-400'
-                                : 'border-red-300 hover:bg-red-50 text-red-600'}`}
-                        >
-                            <LogOut className="w-3 h-3" />
-                            Exit
-                        </button>
-                    )}
-
-                    {/* ── Prev / Submit / Next ── */}
-                    {/* {problems.length > 1 && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, borderLeft: `1px solid ${theme === 'dark' ? '#374151' : '#e5e7eb'}`, paddingLeft: 8 }}>
-                            {currentProblemIndex > 0 ? (
-                                <button onClick={prevProblem} style={{ display: 'flex', alignItems: 'center', gap: 3, height: 28, padding: '0 10px', fontSize: 12, fontFamily: FONT, fontWeight: 500, borderRadius: 6, border: `1px solid ${theme === 'dark' ? '#374151' : '#d1d5db'}`, background: theme === 'dark' ? '#1f2937' : '#fff', color: theme === 'dark' ? '#d1d5db' : '#374151', cursor: 'pointer' }}>
-                                    <ChevronLeft style={{ width: 13, height: 13 }} />Prev
-                                </button>
-                            ) : (
-                                <div style={{ width: 64 }} /> 
-                            )}
-
-                            <button
-                                onClick={submitCode}
-                                disabled={isRunning || (exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1))}
-                                style={{ display: 'flex', alignItems: 'center', gap: 3, height: 28, padding: '0 14px', fontSize: 12, fontFamily: FONT, fontWeight: 600, borderRadius: 6, border: 'none', background: (exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1)) ? '#9ca3af' : '#22c55e', color: '#fff', cursor: isRunning ? 'not-allowed' : 'pointer', opacity: isRunning ? 0.7 : 1 }}
-                            >
-                                {isRunning ? <Loader2 style={{ width: 12, height: 12 }} className="animate-spin" /> : <CheckCircle style={{ width: 12, height: 12 }} />}
-                                {(exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1)) ? 'Limit' : 'Submit'}
-                            </button>
-
-                            {currentProblemIndex < problems.length - 1 && (isFreeFlow || solvedQuestions.has(currentProblemIndex)) ? (
-                                <button onClick={nextProblem} style={{ display: 'flex', alignItems: 'center', gap: 3, height: 28, padding: '0 10px', fontSize: 12, fontFamily: FONT, fontWeight: 500, borderRadius: 6, border: `1px solid ${theme === 'dark' ? '#374151' : '#d1d5db'}`, background: theme === 'dark' ? '#1f2937' : '#fff', color: theme === 'dark' ? '#d1d5db' : '#374151', cursor: 'pointer' }}>
-                                    Next<ChevronRight style={{ width: 13, height: 13 }} />
-                                </button>
-                            ) : (
-                                <div style={{ width: 64 }} /> 
-                        </div>
-                    )} */}
-
-
-                    {/* CENTER — Submit + Run */}
-                    {/* CENTER — Run only (hidden for link questions — no code to run) */}
-                    {!(exercise?.questions?.[currentProblemIndex] as any)?.isLinkQuestion && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}>
-                        <button
-                            onClick={runCode}
-                            disabled={isRunning}
-                            style={{
-                                display: 'flex', alignItems: 'center', gap: 4,
-                                height: 30, padding: '0 16px',
-                                fontSize: 12, fontFamily: FONT, fontWeight: 600,
-                                borderRadius: 6, border: 'none',
-                                background: '#009F9A', color: '#fff',
-                                cursor: isRunning ? 'not-allowed' : 'pointer',
-                                opacity: isRunning ? 0.7 : 1,
-                            }}
-                        >
-                            {isRunning ? <Loader2 style={{ width: 13, height: 13 }} className="animate-spin" /> : <Play style={{ width: 13, height: 13 }} fill="currentColor" />}
-                            Run
-                        </button>
-                    </div>
-                    )}
-                    <div style={{ width: 1, height: 18, background: theme === 'dark' ? '#374151' : '#e5e7eb' }} />
-
-                    {/* <button
-                        onClick={runCode}
-                        disabled={isRunning}
-                        className="h-7 px-2 text-xs bg-orange-500 text-white rounded hover:bg-orange-600 disabled:opacity-50 flex items-center gap-1"
-                        style={{ fontFamily: FONT }}
-                    >
-                        {isRunning ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
-                        Run
-                    </button> */}
-
-                    <button
-                        onClick={toggleFullscreen}
-                        className={`w-7 h-7 max-sm:w-8 max-sm:h-8 flex items-center justify-center border rounded-[6px] ${theme === 'dark' ? 'border-gray-600 bg-gray-800 hover:bg-gray-700 text-gray-300' : 'border-[#E0E5EF] bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#334155]'}`}
-                    >
-                        {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-                    </button>
-                </div>
-            </div>
-
             <div className="flex flex-1 overflow-hidden relative">
-                {showSidebar && (
-                    <div className={`w-80 border-r overflow-hidden flex flex-col max-lg:absolute max-lg:inset-y-0 max-lg:left-0 max-lg:z-30 max-lg:w-[min(20rem,85vw)] max-lg:shadow-2xl ${theme === 'dark' ? 'border-gray-700 bg-gray-900' : 'border-gray-300 bg-white'}`}>
-                        <div className={`p-3 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-300'}`}>
-                            <div className="flex items-center justify-between mb-3">
-                                <h3 className={`text-sm font-semibold ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                                    Problems ({getFilteredAndSortedProblems().length}/{problems.length})
-                                </h3>
-                                <div className="flex items-center gap-1.5">
-                                    <button
-                                        onClick={() => setShowSearch(!showSearch)}
-                                        className={`p-1 ml-1 rounded transition-colors ${showSearch ? (theme === 'dark' ? 'bg-orange-700' : 'bg-orange-500') : (theme === 'dark' ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600')}`}
-                                    >
-                                        {showSearch ? <XIcon className="w-3.5 h-3.5 text-white" /> : <Search className="w-3.5 h-3.5" />}
-                                    </button>
-                                </div>
-                            </div>
-
-                            {showSearch && (
-                                <div className="relative mb-3">
-                                    <Search className={`absolute left-2 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-400'}`} />
-                                    <input
-                                        type="text"
-                                        placeholder="Search problems..."
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        className={`w-full pl-8 pr-6 py-1.5 text-xs border rounded focus:ring-1 focus:ring-orange-500 focus:outline-none ${theme === 'dark' ? 'border-gray-600 bg-gray-800 text-white placeholder-gray-400' : 'border-gray-300 bg-gray-50 text-gray-900 placeholder-gray-500'}`}
-                                        autoFocus
-                                    />
-                                    {searchQuery && (
-                                        <button onClick={() => setSearchQuery("")} className="absolute right-1 top-1/2 transform -translate-y-1/2">
-                                            <XIcon className={`w-3.5 h-3.5 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-400'}`} />
-                                        </button>
+                {/* PROBLEMS LIST — numbered, difficulty badges, the current problem
+                    on a mint card. Search / difficulty filter / sort fold into
+                    the search button in its header. */}
+                {showSidebar && problems.length > 1 && (
+                    <div
+                        className="flex flex-col flex-shrink-0 overflow-hidden border-r max-lg:absolute max-lg:inset-y-0 max-lg:left-0 max-lg:z-30 max-lg:w-[min(18rem,85vw)]! max-lg:shadow-2xl"
+                        style={{ width: 270, background: WS.panel, borderColor: WS.border }}
+                    >
+                        <div style={{ padding: '14px 14px 8px', flexShrink: 0 }}>
+                            <div className="flex items-center justify-between gap-2">
+                                <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: WS.navy, fontFamily: FONT }}>
+                                    Problems ({problems.length})
+                                    {wsListed.length !== problems.length && (
+                                        <span style={{ fontSize: 12, fontWeight: 500, color: WS.muted }}> · {wsListed.length} shown</span>
                                     )}
-                                </div>
-                            )}
-
-                            {/* Filter and Sort Controls */}
-                            <div className="flex items-center justify-between gap-3">
-                                {/* Difficulty Filter Dropdown */}
-                                <div className="flex-1">
-                                    <select
-                                        value={filterDifficulty}
-                                        onChange={(e) => setFilterDifficulty(e.target.value as any)}
-                                        className={`w-full text-xs border rounded px-2 py-1.5 ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-gray-300' : 'bg-white border-gray-300 text-gray-900'}`}
-                                    >
-                                        <option value="all">All Difficulties</option>
-                                        <option value="Easy">Easy</option>
-                                        <option value="Medium">Medium</option>
-                                        <option value="Hard">Hard</option>
-                                    </select>
-                                </div>
-
-                                {/* Sort Icon Button */}
+                                </h3>
                                 <button
-                                    onClick={cycleSortOption}
-                                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs border rounded transition-colors ${theme === 'dark' ? 'border-gray-600 hover:bg-gray-800' : 'border-gray-300 hover:bg-gray-100'}`}
-                                    title={`Sort by: ${sortBy === 'default' ? 'Default Order' : sortBy === 'difficulty' ? 'Difficulty' : 'Title'}. Click to change.`}
+                                    type="button"
+                                    onClick={() => setShowSearch(!showSearch)}
+                                    aria-pressed={showSearch}
+                                    aria-label="Search, filter and sort problems"
+                                    title="Search, filter and sort"
+                                    style={{ ...wsToolIconBtn(showSearch || filterDifficulty !== 'all' || sortBy !== 'default' || !!searchQuery.trim()), width: 30, height: 30 }}
                                 >
-                                    <ArrowUpDown className={`w-3.5 h-3.5 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`} />
-                                    <span className={`font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                                        {sortBy === 'default' ? 'Default' : sortBy === 'difficulty' ? 'Difficulty' : 'Title'}
-                                    </span>
+                                    <Search size={14} />
                                 </button>
                             </div>
-
-                            {/* Sort Indicator */}
-                            <div className={`mt-2 text-2xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'} flex items-center justify-between`}>
-                                <span>
-                                    {filterDifficulty !== 'all' && `Filtered: ${filterDifficulty}`}
-                                    {filterDifficulty === 'all' && 'Showing all difficulties'}
-                                </span>
-                                <span className="flex items-center gap-1">
-                                    <span>Sort:</span>
-                                    <span className={`px-1.5 py-0.5 rounded ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                                        {getSortIcon()}
-                                    </span>
-                                </span>
-                            </div>
-                        </div>
-
-                        <div className="flex-1 overflow-y-auto">
-                            {getFilteredAndSortedProblems().length === 0 ? (
-                                <div className="p-4 text-center">
-                                    <div className={`text-sm ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>
-                                        No problems found
-                                        {filterDifficulty !== 'all' && ` for "${filterDifficulty}" difficulty`}
-                                        {searchQuery && ` matching "${searchQuery}"`}
+                            {showSearch && (
+                                <div className="flex flex-col gap-2" style={{ marginTop: 10 }}>
+                                    <div className="relative">
+                                        <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                                        <input
+                                            type="text"
+                                            placeholder="Search problems…"
+                                            value={searchQuery}
+                                            onChange={(e) => setSearchQuery(e.target.value)}
+                                            aria-label="Search problems"
+                                            className="w-full pl-7 pr-7 py-1.5 text-xs rounded-md outline-none"
+                                            style={{ border: `1px solid ${WS.border}`, background: WS.soft, color: WS.navy }}
+                                            autoFocus
+                                        />
+                                        {searchQuery && (
+                                            <button onClick={() => setSearchQuery("")} aria-label="Clear search" className="absolute right-1.5 top-1/2 -translate-y-1/2">
+                                                <XIcon className="w-3.5 h-3.5 text-gray-400" />
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <select
+                                            value={filterDifficulty}
+                                            onChange={(e) => setFilterDifficulty(e.target.value as any)}
+                                            aria-label="Filter by difficulty"
+                                            className="flex-1 text-xs rounded-md px-2 py-1.5"
+                                            style={{ border: `1px solid ${WS.border}`, background: WS.panel, color: WS.navy }}
+                                        >
+                                            <option value="all">All difficulties</option>
+                                            <option value="Easy">Easy</option>
+                                            <option value="Medium">Medium</option>
+                                            <option value="Hard">Hard</option>
+                                        </select>
+                                        <button
+                                            type="button"
+                                            onClick={cycleSortOption}
+                                            aria-label={`Sort: ${sortBy === 'default' ? 'default order' : sortBy}`}
+                                            title={`Sort by: ${sortBy === 'default' ? 'Default Order' : sortBy === 'difficulty' ? 'Difficulty' : 'Title'}. Click to change.`}
+                                            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md"
+                                            style={{ border: `1px solid ${WS.border}`, background: WS.panel, color: WS.text }}
+                                        >
+                                            <ArrowUpDown className="w-3.5 h-3.5" /><span className="font-medium">{getSortIcon()}</span>
+                                        </button>
                                     </div>
                                 </div>
-                            ) : (
-                                getFilteredAndSortedProblems().map((p, index) => {
-                                    const originalIndex = problems.findIndex(prob => prob.id === p.id);
-                                    return (
-                                        <button
-                                            key={p.id}
-                                            onClick={() => selectProblem(originalIndex)}
-                                            className={`w-full p-3 text-left transition-colors border-b ${theme === 'dark' ? 'border-gray-800' : 'border-gray-100'} ${currentProblemIndex === originalIndex
-                                                ? (theme === 'dark' ? 'bg-orange-900/20 border-l-2 border-l-orange-500' : 'bg-orange-50 border-l-2 border-l-orange-500')
-                                                : (theme === 'dark' ? 'hover:bg-gray-800' : 'hover:bg-gray-50')}`}
-                                        >
-                                            <div className="flex items-center justify-between gap-2">
-                                                {/* Left: number + title */}
-                                                <div className={`text-sm font-medium truncate flex-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                                                    {originalIndex + 1}. {p.title}
-                                                </div>
-                                                {/* Right: badges */}
-                                                <div className="flex items-center gap-1.5 flex-shrink-0">
-                                                    {/* Difficulty */}
-                                                    <span className={`text-2xs px-1.5 py-0.5 rounded ${p.difficulty === 'Easy' ? (theme === 'dark' ? 'bg-green-900/30 text-green-300' : 'bg-green-100 text-green-800') : p.difficulty === 'Medium' ? (theme === 'dark' ? 'bg-yellow-900/30 text-yellow-300' : 'bg-yellow-100 text-yellow-800') : (theme === 'dark' ? 'bg-red-900/30 text-red-300' : 'bg-red-100 text-red-800')}`}>
-                                                        {p.difficulty}
-                                                    </span>
-                                                    {/* Marks badge — hidden for non-graded */}
-                                                    {exercise?.isGraded !== false && (() => {
-                                                        const qMarks = exercise?.questions?.[originalIndex]?.score ?? exercise?.questions?.[originalIndex]?.points ?? null;
-                                                        if (qMarks == null) return null;
-                                                        return (
-                                                            <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 99, background: theme === 'dark' ? '#1a3a2a' : '#dcfce7', color: theme === 'dark' ? '#86efac' : '#15803d', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                                                                {qMarks} {qMarks === 1 ? 'mark' : 'marks'}
-                                                            </span>
-                                                        );
-                                                    })()}
-                                                    {/* Submitted badge — only after submission */}
-                                                    {solvedQuestions.has(originalIndex) && (
-                                                        <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 99, background: theme === 'dark' ? '#14532d' : '#dcfce7', color: theme === 'dark' ? '#4ade80' : '#166534', fontWeight: 600, border: `1px solid ${theme === 'dark' ? '#166534' : '#86efac'}`, whiteSpace: 'nowrap' }}>
-                                                            Submitted
-                                                        </span>
-                                                    )}
-                                                    {/* Skipped badge */}
-                                                    {skippedQuestions.has(originalIndex) && (
-                                                        <span className={`text-2xs px-1.5 py-0.5 rounded ${theme === 'dark' ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-600'}`}>
-                                                            Skipped
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </button>
-                                    );
-                                })
                             )}
+                        </div>
+                        <div className="flex-1 overflow-y-auto" style={{ padding: '0 8px 10px' }}>
+                            {wsListed.length === 0 ? (
+                                <div style={{ padding: '20px 8px', textAlign: 'center', fontSize: 12, color: WS.muted }}>
+                                    No problems found
+                                    {filterDifficulty !== 'all' && ` for "${filterDifficulty}" difficulty`}
+                                    {searchQuery && ` matching "${searchQuery}"`}
+                                </div>
+                            ) : wsListed.map((p) => {
+                                const originalIndex = problems.findIndex(prob => prob.id === p.id);
+                                const isActive = currentProblemIndex === originalIndex;
+                                const badge = WS_DIFF[String(p.difficulty || '').toLowerCase()];
+                                const solved = solvedQuestions.has(originalIndex);
+                                return (
+                                    <button
+                                        key={p.id}
+                                        type="button"
+                                        onClick={() => selectProblem(originalIndex)}
+                                        aria-current={isActive ? 'true' : undefined}
+                                        className={isActive ? '' : (theme === 'dark' ? 'hover:bg-gray-800' : 'hover:bg-[#F7F6F3]')}
+                                        style={{
+                                            width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                                            padding: '9px 10px', textAlign: 'left', cursor: 'pointer', fontFamily: FONT,
+                                            borderRadius: isActive ? 8 : 0,
+                                            // Per-side colours (no shorthand mixing): a hairline
+                                            // under each row, a full teal border on the current one.
+                                            borderWidth: 1, borderStyle: 'solid',
+                                            borderTopColor: isActive ? WS.tealBorder : 'transparent',
+                                            borderRightColor: isActive ? WS.tealBorder : 'transparent',
+                                            borderLeftColor: isActive ? WS.tealBorder : 'transparent',
+                                            borderBottomColor: isActive ? WS.tealBorder : WS.hairline,
+                                            background: isActive ? WS.mint : undefined,
+                                        }}
+                                    >
+                                        <span style={{
+                                            width: 24, height: 24, borderRadius: 999, flexShrink: 0,
+                                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                            fontSize: 11.5, fontWeight: 600, fontVariantNumeric: 'tabular-nums',
+                                            border: `1px solid ${isActive ? WS.tealBorder : solved ? '#A6E9C3' : WS.border}`,
+                                            background: isActive ? WS.panel : solved ? (theme === 'dark' ? 'rgba(22,163,74,0.18)' : '#ECFDF3') : WS.soft,
+                                            color: isActive ? WS.tealDark : solved ? (theme === 'dark' ? '#86EFAC' : '#067647') : WS.text,
+                                        }}>
+                                            {originalIndex + 1}
+                                        </span>
+                                        <span className="truncate" style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, color: WS.navy }}>
+                                            {p.title}
+                                        </span>
+                                        {solved && <CheckCircle size={14} aria-label="Submitted" style={{ color: '#12A765', flexShrink: 0 }} />}
+                                        {skippedQuestions.has(originalIndex) && (
+                                            <span style={{ fontSize: 10.5, fontWeight: 600, color: WS.muted, flexShrink: 0 }}>Skipped</span>
+                                        )}
+                                        {badge && (
+                                            <span style={{ fontSize: 11.5, fontWeight: 600, padding: '2px 8px', borderRadius: 6, background: badge.bg, color: badge.fg, flexShrink: 0 }}>
+                                                {badge.label}
+                                            </span>
+                                        )}
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
                 )}
@@ -4495,58 +4447,26 @@ export default function CodeEditor({
                         </div>
                     );
                 })()}
-                {(() => { const lq: any = exercise?.questions?.[currentProblemIndex] ?? currentQuestion; return !(lq?.isLinkQuestion && lq?.questionLink); })() && (
-                // Phones/tablets: one scroll column (question → editor → console);
+                {!wsIsLinkQ && (
+                // Phones/tablets: one scroll column (description → editor → output);
                 // lg+: `contents` removes this wrapper so the desktop split is untouched.
                 <div className="max-lg:flex max-lg:flex-col max-lg:flex-1 max-lg:min-w-0 max-lg:overflow-y-auto lg:contents">
-                {showQuestionPanel ? (
-                <div style={{ width: `${leftPanelWidth}%` }} className="h-full flex flex-col border-r border-gray-300 dark:border-gray-700 overflow-hidden max-lg:w-full! max-lg:h-auto max-lg:max-h-[45dvh] max-lg:flex-none max-lg:border-r-0 max-lg:border-b">
-                    {/* Panel header — the hide control sits on the panel it hides. */}
-                    <div className={`flex items-center justify-between flex-shrink-0 border-b pl-4 pr-2 ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-[#F5FAFF]'}`} style={{ minHeight: 44 }}>
-                        <span className={`inline-flex items-center gap-1.5 text-[13px] font-bold ${theme === 'dark' ? 'text-gray-100' : 'text-[#101828]'}`} style={{ fontFamily: FONT }}>
-                            <FileText className={`w-3.5 h-3.5 ${theme === 'dark' ? 'text-orange-400' : 'text-orange-500'}`} /> Problem
-                        </span>
-                        <button
-                            type="button"
-                            onClick={() => setShowQuestionPanel(false)}
-                            aria-label="Hide problem"
-                            title="Hide problem"
-                            className={`w-[30px] h-[30px] flex items-center justify-center rounded-[6px] ${theme === 'dark' ? 'text-gray-300 hover:bg-gray-700' : 'text-[#334155] hover:bg-[#E2E8F0]'}`}
-                        >
-                            <PanelLeftClose className="w-4 h-4" />
-                        </button>
-                    </div>
+                {/* DESCRIPTION — toggled from the toolbar; scrolls on its own. */}
+                {showQuestionPanel && (
+                <div style={{ width: `${leftPanelWidth}%`, background: WS.panel, borderColor: WS.border }} className="h-full flex flex-col border-r overflow-hidden max-lg:w-full! max-lg:h-auto max-lg:max-h-[45dvh] max-lg:flex-none max-lg:border-r-0 max-lg:border-b">
                     <div className="flex-1 overflow-y-auto custom-scrollbar">
-                        <div className={`p-5 max-sm:p-4 space-y-6 ${theme === 'dark' ? 'bg-gray-900' : 'bg-white'}`}>
+                        <div className="flex flex-col gap-5 max-sm:p-4!" style={{ padding: '16px 20px 20px', fontFamily: FONT, color: WS.text }}>
+                            {/* Heading, title + badges */}
                             <div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
-                                    <span style={{
-                                        fontSize: 11, fontWeight: 600,
-                                        padding: '2px 8px', borderRadius: 99,
-                                        background: theme === 'dark' ? '#7C2D12' : '#FFEDD5',
-                                        color: theme === 'dark' ? '#FED7AA' : '#EA580C',
-                                        fontFamily: FONT,
-                                        whiteSpace: 'nowrap',
-                                    }}>
-                                        Q {currentProblemIndex + 1} / {problems.length}
-                                    </span>
-                                    <span style={{
-                                        fontSize: 11, fontWeight: 500,
-                                        padding: '2px 8px', borderRadius: 99,
-                                        background: theme === 'dark' ? '#1f2937' : '#f3f4f6',
-                                        color: theme === 'dark' ? '#9ca3af' : '#4b5563',
-                                        fontFamily: 'ui-monospace, monospace',
-                                        whiteSpace: 'nowrap',
-                                    }}>
-                                        {formatLanguageName(selectedLanguage)}
-                                    </span>
-                                </div>
-                                <h1 style={{ fontFamily: FONT }} className={`text-lg sm:text-xl font-semibold mb-1.5 break-words ${theme === 'dark' ? 'text-white' : 'text-gray-700'}`}>{problem?.title || "Problem"}</h1>
-                                <div className="flex items-center gap-2 flex-wrap">
-                                    {/* Difficulty badge */}
-                                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${problem?.difficulty === "Easy" ? (theme === 'dark' ? 'bg-green-900/30 text-green-300' : 'bg-green-100 text-green-800') : problem?.difficulty === "Medium" ? (theme === 'dark' ? 'bg-yellow-900/30 text-yellow-300' : 'bg-yellow-100 text-yellow-800') : (theme === 'dark' ? 'bg-red-900/30 text-red-300' : 'bg-red-100 text-red-800')}`}>
-                                        {problem?.difficulty || "Easy"}
-                                    </span>
+                                <div style={{ fontSize: 15, fontWeight: 700, color: WS.navy, marginBottom: 6 }}>Description</div>
+                                <h1 style={{ fontFamily: FONT, fontSize: 21, fontWeight: 700, color: WS.navy, margin: '0 0 10px', lineHeight: 1.3, overflowWrap: 'anywhere' }}>
+                                    {problem?.title || "Problem"}
+                                </h1>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                    {(() => {
+                                        const b = WS_DIFF[String(problem?.difficulty || 'Easy').toLowerCase()];
+                                        return b ? <span style={{ fontSize: 12, fontWeight: 600, padding: '3px 10px', borderRadius: 6, background: b.bg, color: b.fg }}>{b.label}</span> : null;
+                                    })()}
                                     {/* Marks badge — hidden for non-graded */}
                                     {exercise?.isGraded !== false && (() => {
                                         const currentQ = currentQuestion ?? exercise?.questions?.[currentProblemIndex];
@@ -4562,14 +4482,14 @@ export default function CodeEditor({
                                         }
                                         if (m == null) return null;
                                         return (
-                                            <span style={{ fontSize: 11, fontFamily: FONT, fontWeight: 600, padding: '2px 9px', borderRadius: 99, background: theme === 'dark' ? '#1a3a2a' : '#dcfce7', color: theme === 'dark' ? '#86efac' : '#15803d', whiteSpace: 'nowrap' }}>
+                                            <span style={{ fontSize: 12, fontFamily: FONT, fontWeight: 600, padding: '3px 10px', borderRadius: 6, background: WS_DIFF.easy.bg, color: WS_DIFF.easy.fg, whiteSpace: 'nowrap' }}>
                                                 {m} {m === 1 ? 'mark' : 'marks'}
                                             </span>
                                         );
                                     })()}
                                     {/* Attempts badge */}
                                     {exercise?.questionBehavior?.attemptLimitEnabled && (
-                                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border flex items-center gap-1 ${userAttempts >= (exercise.questionBehavior.maxAttempts || 1) ? (theme === 'dark' ? 'bg-red-900/30 text-red-300 border-red-800' : 'bg-red-100 text-red-800 border-red-200') : (theme === 'dark' ? 'bg-orange-900/30 text-orange-300 border-orange-800' : 'bg-orange-100 text-orange-800 border-orange-200')}`}>
+                                        <span className={`px-2.5 py-0.5 rounded-md text-xs font-medium border flex items-center gap-1 ${userAttempts >= (exercise.questionBehavior.maxAttempts || 1) ? (theme === 'dark' ? 'bg-red-900/30 text-red-300 border-red-800' : 'bg-red-100 text-red-800 border-red-200') : (theme === 'dark' ? 'bg-orange-900/30 text-orange-300 border-orange-800' : 'bg-orange-100 text-orange-800 border-orange-200')}`}>
                                             {userAttempts >= (exercise.questionBehavior.maxAttempts || 1) && <AlertTriangle className="w-3 h-3" />}
                                             Attempts: {userAttempts} / {exercise.questionBehavior.maxAttempts}
                                         </span>
@@ -4577,87 +4497,73 @@ export default function CodeEditor({
                                 </div>
                             </div>
 
-                            <div>
-                                <div className="flex items-center gap-1.5 mb-2">
-                                    <FileText className={`w-4 h-4 ${theme === 'dark' ? 'text-orange-400' : 'text-orange-500'}`} />
-                                    <h3 className={`text-sm font-semibold ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>Description</h3>
-                                </div>
-                                <div
-                                    className={`text-xs leading-relaxed ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}
-                                    style={{ lineHeight: '1.8' }}
-                                    dangerouslySetInnerHTML={{ __html: renderDescriptionWithClickableImages(problem?.description || '') }}
-                                />
-                            </div>
+                            {/* Problem statement */}
+                            <div
+                                style={{ fontSize: 14, lineHeight: 1.6, color: WS.text }}
+                                dangerouslySetInnerHTML={{ __html: renderDescriptionWithClickableImages(problem?.description || '') }}
+                            />
 
                             {/* Sample Input & Output — the author's info-only sample (never run) */}
                             {(currentQuestion?.sampleInput || currentQuestion?.sampleOutput) && (
                                 <div>
-                                    <div className="flex items-center gap-1.5 mb-2">
-                                        <Terminal className={`w-4 h-4 ${theme === 'dark' ? 'text-green-400' : 'text-green-500'}`} />
-                                        <h3 className={`text-sm font-semibold ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>Sample Input & Output</h3>
+                                    <h3 style={wsSectionTitle}>Sample input &amp; output</h3>
+                                    <div style={{ border: `1px solid ${WS.border}`, borderRadius: 8, overflow: 'hidden' }}>
+                                        {currentQuestion?.sampleInput && (
+                                            <div style={{ padding: '8px 12px' }}>
+                                                <div style={{ fontSize: 11.5, fontWeight: 600, color: WS.muted, marginBottom: 3 }}>Sample input</div>
+                                                <pre style={wsMonoPre}>{currentQuestion.sampleInput}</pre>
+                                            </div>
+                                        )}
+                                        {currentQuestion?.sampleOutput && (
+                                            <div style={{ padding: '8px 12px', borderTop: currentQuestion?.sampleInput ? `1px solid ${WS.border}` : undefined }}>
+                                                <div style={{ fontSize: 11.5, fontWeight: 600, color: WS.muted, marginBottom: 3 }}>Sample output</div>
+                                                <pre style={wsMonoPre}>{currentQuestion.sampleOutput}</pre>
+                                            </div>
+                                        )}
                                     </div>
-                                    {currentQuestion?.sampleInput && (
-                                        <div className="mt-1 mb-2">
-                                            <div className={`text-xs font-medium mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-700'}`}>Sample Input:</div>
-                                            <div className={`p-2 rounded font-mono text-xs whitespace-pre-wrap ${theme === 'dark' ? 'bg-gray-800 text-gray-300 border border-gray-700' : 'bg-gray-100 text-gray-900 border border-gray-200'}`}>{currentQuestion.sampleInput}</div>
-                                        </div>
-                                    )}
-                                    {currentQuestion?.sampleOutput && (
-                                        <div className="mb-2">
-                                            <div className={`text-xs font-medium mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-700'}`}>Sample Output:</div>
-                                            <div className={`p-2 rounded font-mono text-xs whitespace-pre-wrap ${theme === 'dark' ? 'bg-gray-800 text-gray-300 border border-gray-700' : 'bg-gray-100 text-gray-900 border border-gray-200'}`}>{currentQuestion.sampleOutput}</div>
-                                        </div>
-                                    )}
                                 </div>
                             )}
 
+                            {/* Examples — the visible test cases */}
                             {problem?.examples && problem.examples.length > 0 && (
                                 <div>
-                                    <div className="flex items-center gap-1.5 mb-2">
-                                        <Terminal className={`w-4 h-4 ${theme === 'dark' ? 'text-green-400' : 'text-green-500'}`} />
-                                        <h3 className={`text-sm font-semibold ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>Examples</h3>
-                                    </div>
-                                    <div className="space-y-3">
-                                        {problem.examples.map((example, index) => (
-                                            <div key={index}>
-                                                <strong className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Example {index + 1}</strong>
-                                                <div className="mt-1 mb-2">
-                                                    <div className={`text-xs font-medium mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-700'}`}>Input:</div>
-                                                    <div className={`p-2 rounded font-mono text-xs ${theme === 'dark' ? 'bg-gray-800 text-gray-300 border border-gray-700' : 'bg-gray-100 text-gray-900 border border-gray-200'}`}>{example.input}</div>
-                                                </div>
-                                                <div className="mb-2">
-                                                    <div className={`text-xs font-medium mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-700'}`}>Output:</div>
-                                                    <div className={`p-2 rounded font-mono text-xs ${theme === 'dark' ? 'bg-gray-800 text-gray-300 border border-gray-700' : 'bg-gray-100 text-gray-900 border border-gray-200'}`}>{example.output}</div>
-                                                </div>
-                                            </div>
-                                        ))}
+                                    <h3 style={wsSectionTitle}>Examples</h3>
+                                    <div style={{ border: `1px solid ${WS.border}`, borderRadius: 8, overflowX: 'auto' }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }} aria-label="Problem examples">
+                                            <thead style={{ background: WS.soft }}>
+                                                <tr>
+                                                    <th scope="col" style={{ ...wsCell, fontSize: 12.5, fontWeight: 600, color: WS.navy }}>Input</th>
+                                                    <th scope="col" style={{ ...wsCell, fontSize: 12.5, fontWeight: 600, color: WS.navy, borderLeft: `1px solid ${WS.border}` }}>Expected output</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {problem.examples.map((example, index) => (
+                                                    <tr key={index} style={{ borderTop: `1px solid ${WS.border}` }}>
+                                                        <td style={wsCell}><pre style={wsMonoPre}>{example.input || '(empty)'}</pre></td>
+                                                        <td style={{ ...wsCell, borderLeft: `1px solid ${WS.border}` }}><pre style={wsMonoPre}>{example.output || '(empty)'}</pre></td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
                                     </div>
                                 </div>
                             )}
 
                             {currentQuestion?.constraints && currentQuestion.constraints.length > 0 && (
                                 <div>
-                                    <div className="flex items-center gap-1.5 mb-2">
-                                        <AlertCircle className={`w-4 h-4 ${theme === 'dark' ? 'text-yellow-400' : 'text-yellow-500'}`} />
-                                        <h3 className={`text-sm font-semibold ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>Constraints</h3>
-                                    </div>
-                                    <ul className={`space-y-1 text-xs ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
-                                        {currentQuestion.constraints.map((c, i) => (
-                                            <li key={i} className={`px-2 py-1 rounded font-mono ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-50'}`}>
-                                                {c}
-                                            </li>
-                                        ))}
+                                    <h3 style={{ ...wsSectionTitle, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <AlertCircle size={16} style={{ color: '#D97706', flexShrink: 0 }} /> Constraints
+                                    </h3>
+                                    <ul style={{ margin: 0, paddingLeft: 20, listStyle: 'disc', fontSize: 12.5, lineHeight: 1.7, color: WS.text }}>
+                                        {currentQuestion.constraints.map((c, i) => <li key={i}>{c}</li>)}
                                     </ul>
                                 </div>
                             )}
                             {currentQuestion?.hints && currentQuestion.hints.filter(h => h.isPublic).length > 0 && (
                                 <div>
-                                    <div className="flex items-center gap-1.5 mb-2">
-                                        <AlertCircle className={`w-4 h-4 ${theme === 'dark' ? 'text-orange-400' : 'text-orange-500'}`} />
-                                        <h3 className={`text-sm font-semibold ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>Hints</h3>
-                                    </div>
+                                    <h3 style={wsSectionTitle}>Hints</h3>
                                     {currentQuestion.hints.filter(h => h.isPublic).map((hint, i) => (
-                                        <div key={i} className={`text-xs px-3 py-2 rounded mb-1 ${theme === 'dark' ? 'bg-orange-900/20 text-orange-300 border border-orange-800' : 'bg-orange-50 text-orange-800 border border-orange-100'}`}>
+                                        <div key={i} className={`text-xs px-3 py-2 rounded-md mb-1.5 ${theme === 'dark' ? 'bg-orange-900/20 text-orange-300 border border-orange-800' : 'bg-orange-50 text-orange-800 border border-orange-100'}`}>
                                             💡 {hint.hintText}
                                         </div>
                                     ))}
@@ -4665,47 +4571,61 @@ export default function CodeEditor({
                             )}
                         </div>
                     </div>
-
                 </div>
-                ) : (
-                    // Hidden: a slim strip takes the panel's place — click to
-                    // bring the problem back (a bar on phones/tablets).
-                    <button
-                        type="button"
-                        onClick={() => setShowQuestionPanel(true)}
-                        aria-label="Show problem"
-                        title="Show problem"
-                        className={`flex-shrink-0 w-9 h-full flex flex-col items-center gap-2 pt-3 border-r text-xs font-semibold max-lg:w-full! max-lg:h-10! max-lg:flex-row max-lg:justify-center max-lg:pt-0 max-lg:border-r-0 max-lg:border-b ${theme === 'dark' ? 'border-gray-700 bg-gray-800 text-gray-300 hover:bg-gray-700' : 'border-gray-300 bg-[#F5FAFF] text-[#334155] hover:bg-[#EAF2FB]'}`}
-                        style={{ fontFamily: FONT }}
-                    >
-                        <PanelLeftOpen className="w-4 h-4" />
-                        <span className="[writing-mode:vertical-rl] max-lg:[writing-mode:horizontal-tb]">Problem</span>
-                    </button>
                 )}
 
                 {!showSidebar && showQuestionPanel && (
                     <div
+                        role="separator"
+                        aria-orientation="vertical"
+                        aria-label="Resize the description"
+                        title="Drag to resize the description"
                         className="absolute top-0 bottom-0 z-10 hover:cursor-col-resize max-lg:hidden"
                         style={{ left: `calc(${leftPanelWidth}% - 2px)`, width: '4px' }}
                         onMouseDown={(e) => { setIsResizing(true); e.preventDefault(); }}
                     >
-                        <div className={`h-full w-full ${theme === 'dark' ? 'bg-gray-700 hover:bg-orange-500' : 'bg-gray-300 hover:bg-orange-500'} transition-colors`}></div>
+                        {/* Centred ⇔ chip so the drag affordance is unambiguous. */}
+                        <div className="h-full w-full flex items-center justify-center hover:bg-[#B9E3DB] transition-colors">
+                            <span style={{
+                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                width: 14, height: 34, borderRadius: 6, flexShrink: 0,
+                                background: WS.panel, border: `1px solid ${WS.border}`, color: WS.muted,
+                                pointerEvents: 'none',
+                            }}>
+                                <ArrowUpDown size={11} style={{ transform: 'rotate(90deg)' }} />
+                            </span>
+                        </div>
                     </div>
                 )}
 
-                <div className="flex flex-col flex-1 min-w-0 h-full max-lg:w-full! max-lg:h-auto max-lg:flex-none" style={{ width: showQuestionPanel ? `${100 - leftPanelWidth}%` : '100%' }}>
+                {/* EDITOR over OUTPUT */}
+                <div className="flex flex-col flex-1 min-w-0 h-full max-lg:w-full! max-lg:h-auto max-lg:flex-none" style={{ width: showQuestionPanel ? `${100 - leftPanelWidth}%` : '100%', background: WS.panel }}>
 
                     {/* ── Editor (top, resizable) ── */}
-                    <div className="flex flex-col max-lg:h-[60dvh]! max-lg:min-h-[320px]! max-lg:flex-none" style={{ height: `${rightPanelSplit}%`, minHeight: 0 }}>
-                        <div className={`flex items-center justify-between max-md:gap-2 p-2 border-b ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-[#F5FAFF]'}`}>
-                            <div className="flex items-center gap-1.5">
-                                <Code className={`w-4 h-4 ${theme === 'dark' ? 'text-orange-400' : 'text-orange-500'}`} />
-                                <span className={`text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>Code</span>
-                                <span className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-600'}`}>({formatLanguageName(selectedLanguage)})</span>
+                    <div className="flex flex-col max-lg:h-[60dvh]! max-lg:min-h-[320px]! max-lg:flex-none" style={{ height: showConsole ? `${rightPanelSplit}%` : '100%', minHeight: 0 }}>
+                        {/* File tab (single-file workspace) + Reset */}
+                        <div className="flex items-stretch justify-between flex-shrink-0" style={{ minHeight: 38, background: theme === 'dark' ? '#181818' : '#F9FAFB', borderBottom: `1px solid ${WS.border}` }}>
+                            <div className="flex items-center gap-2 px-3" style={{ background: theme === 'dark' ? '#1e1e1e' : '#FFFFFF', borderRight: `1px solid ${WS.border}`, marginBottom: -1, borderBottom: `1px solid ${theme === 'dark' ? '#1e1e1e' : '#FFFFFF'}` }}>
+                                <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 99, background: '#3776ab', flexShrink: 0 }} />
+                                <span style={{ fontSize: 12.5, fontWeight: 600, color: WS.navy, fontFamily: FONT }}>{({ python: 'main.py', javascript: 'main.js', java: 'Main.java', cpp: 'main.cpp', c: 'main.c', csharp: 'Main.cs', typescript: 'main.ts', go: 'main.go', rust: 'main.rs' } as Record<string, string>)[selectedLanguage.toLowerCase()] || formatLanguageName(selectedLanguage)}</span>
+                                {solvedQuestions.has(currentProblemIndex) && (
+                                    <span
+                                        className="ml-1 inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold"
+                                        style={{
+                                            background: theme === 'dark' ? 'rgba(34,197,94,0.18)' : '#DCFCE7',
+                                            color: theme === 'dark' ? '#86EFAC' : '#15803D',
+                                            fontFamily: FONT,
+                                        }}
+                                    >
+                                        <CheckCircle className="w-3 h-3" /> Submitted
+                                    </span>
+                                )}
                             </div>
-                            <button onClick={resetCode} className={`flex items-center gap-1 px-2 py-0.5 text-xs border rounded-[6px] transition-colors ${theme === 'dark' ? 'border-gray-600 bg-gray-700 text-gray-300 hover:bg-gray-600' : 'border-[#E0E5EF] bg-[#F1F5F9] text-[#334155] hover:bg-[#E2E8F0]'}`}>
-                                <RotateCcw className="w-3.5 h-3.5" /> Reset
-                            </button>
+                            <div className="flex items-center gap-2 pr-2">
+                                <button onClick={resetCode} title="Reset to the starter code" className={`flex items-center gap-1 px-2 py-0.5 text-xs border rounded-[6px] transition-colors ${theme === 'dark' ? 'border-gray-600 bg-gray-700 text-gray-300 hover:bg-gray-600' : 'border-[#E0E5EF] bg-[#F1F5F9] text-[#334155] hover:bg-[#E2E8F0]'}`}>
+                                    <RotateCcw className="w-3.5 h-3.5" /> Reset
+                                </button>
+                            </div>
                         </div>
                         <div className="flex-1 min-h-0">
                             <MonacoEditor
@@ -4717,138 +4637,91 @@ export default function CodeEditor({
                                 onMount={handleEditorDidMount}
                                 theme={theme === 'dark' ? 'vs-dark' : 'vs'}
                                 options={{
-                                    minimap: { enabled: true },
+                                    minimap: { enabled: false },
                                     fontSize: 14,
-                                    fontFamily: FONT,
-                                    readOnly: isAssessmentMode && !hasStarted
+                                    fontFamily: "Consolas, ui-monospace, monospace",
+                                    readOnly: isAssessmentMode && !hasStarted,
+                                    // Re-measure when Hide problems / Hide description /
+                                    // Hide output change the editor's box.
+                                    automaticLayout: true,
                                 }}
                             />
                         </div>
                     </div>
 
                     {/* ── Drag handle ── */}
-                    <div
-                        className={`h-2 flex items-center justify-center cursor-row-resize flex-shrink-0 transition-colors max-lg:hidden ${theme === 'dark' ? 'hover:bg-orange-900/40 bg-gray-800' : 'hover:bg-orange-100 bg-gray-100'}`}
-                        onMouseDown={(e) => { setIsHorizontalResizing(true); e.preventDefault(); }}
-                    >
-                        <div className={`w-12 h-1 rounded-full ${theme === 'dark' ? 'bg-gray-600' : 'bg-gray-300'}`} />
-                    </div>
+                    {showConsole && (
+                        <div
+                            role="separator"
+                            aria-orientation="horizontal"
+                            aria-label="Resize the output panel"
+                            title="Drag to resize the output panel"
+                            className="flex items-center justify-center cursor-row-resize flex-shrink-0 max-lg:hidden"
+                            style={{ height: 6, background: WS.page, borderTop: `1px solid ${WS.border}`, borderBottom: `1px solid ${WS.border}` }}
+                            onMouseDown={(e) => { setIsHorizontalResizing(true); e.preventDefault(); }}
+                        >
+                            <span style={{ width: 34, height: 4, borderRadius: 99, background: WS.border, pointerEvents: 'none' }} />
+                        </div>
+                    )}
 
-                    {/* ── Console / Output (bottom, resizable) ── */}
+                    {/* ── Output (bottom, resizable) — Console (Run output) and,
+                        when the exercise is evaluated, Test results (Run tests /
+                        Submit). Hide output folds it; Terminal brings it back. */}
+                    {showConsole && (
                     <div className="flex flex-col flex-1 min-h-0 max-lg:h-[50dvh]! max-lg:min-h-[280px]! max-lg:flex-none" style={{ height: `${100 - rightPanelSplit}%` }}>
-                        {/* Tab bar */}
-                        <div className={`flex items-center justify-between gap-0 border-b flex-shrink-0 max-sm:flex-wrap ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-gray-50'}`}>
-                            {/* Left side - Tabs. Console (Run output) is always
-                                available; Test Result only exists when the
-                                exercise is actually evaluated — a Manual
-                                exercise auto-scores nothing, so there is no
-                                result to show. */}
-                            <div className="flex items-center gap-0">
-                                <button
-                                    type="button"
-                                    role="tab"
-                                    aria-selected={bottomTab === 'console'}
-                                    onClick={() => setBottomTab('console')}
-                                    className={`flex items-center gap-1.5 px-3 py-1.5 border-b-2 ${bottomTab === 'console'
-                                        ? `border-orange-500 ${theme === 'dark' ? 'text-orange-400' : 'text-orange-600'}`
-                                        : `border-transparent ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}`}
-                                >
-                                    <Terminal className="w-3.5 h-3.5" />
-                                    <span className="text-xs font-medium">Console</span>
-                                    {isRunning && <Loader2 className="w-3 h-3 animate-spin" />}
-                                </button>
+                        <div className="flex items-center justify-between flex-shrink-0 flex-wrap" style={{ minHeight: 42, padding: '4px 8px 4px 14px', gap: 8, rowGap: 4, background: WS.panel, borderBottom: `1px solid ${WS.border}` }}>
+                            <div className="flex items-center" style={{ gap: 10, minWidth: 0 }}>
+                                <span style={{ fontSize: 14, fontWeight: 700, color: WS.navy, fontFamily: FONT, whiteSpace: 'nowrap' }}>Output</span>
+                                {/* Console is always there; Test results only when the
+                                    exercise is evaluated (not Manual). */}
                                 {showsTestResult && (
+                                    <div role="tablist" aria-label="Output" style={{ display: 'inline-flex', alignItems: 'center', gap: 2, padding: 2, borderRadius: 7, background: theme === 'dark' ? '#1F2937' : '#F2F1ED' }}>
+                                        {([['console', 'Console', isRunning], ['results', 'Test results', isRunningTestCases]] as const).map(([key, label, busy]) => (
+                                            <button
+                                                key={key}
+                                                type="button"
+                                                role="tab"
+                                                aria-selected={bottomTab === key}
+                                                onClick={() => setBottomTab(key)}
+                                                style={{
+                                                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                                                    height: 26, padding: '0 10px', borderRadius: 5, border: 'none',
+                                                    background: bottomTab === key ? WS.panel : 'transparent',
+                                                    boxShadow: bottomTab === key ? '0 1px 2px rgba(16,24,40,0.08)' : 'none',
+                                                    color: bottomTab === key ? WS.tealDark : WS.muted,
+                                                    fontSize: 12.5, fontWeight: 600, fontFamily: FONT, cursor: 'pointer', whiteSpace: 'nowrap',
+                                                }}
+                                            >
+                                                {label}
+                                                {busy && <Loader2 className="w-3 h-3 animate-spin" />}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                                {!showsTestResult && isRunning && <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: WS.muted }} />}
+                            </div>
+                            <div className="flex items-center gap-1.5" style={{ marginLeft: 'auto', flexShrink: 0 }}>
+                                {bottomTab === 'console' && (
                                     <button
                                         type="button"
-                                        role="tab"
-                                        aria-selected={bottomTab === 'results'}
-                                        onClick={() => setBottomTab('results')}
-                                        className={`flex items-center gap-1.5 px-3 py-1.5 border-b-2 ${bottomTab === 'results'
-                                            ? `border-orange-500 ${theme === 'dark' ? 'text-orange-400' : 'text-orange-600'}`
-                                            : `border-transparent ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}`}
+                                        onClick={clearTerminal}
+                                        title="Clear console"
+                                        aria-label="Clear console"
+                                        className={theme === 'dark' ? 'hover:bg-gray-800' : 'hover:bg-[#F2F1ED]'}
+                                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 6, border: `1px solid ${WS.border}`, background: 'transparent', color: WS.text, cursor: 'pointer' }}
                                     >
-                                        <CheckCircle2 className="w-3.5 h-3.5" />
-                                        <span className="text-xs font-medium">Test Result</span>
-                                        {isRunningTestCases && <Loader2 className="w-3 h-3 animate-spin" />}
+                                        <Trash2 className="w-3.5 h-3.5" />
                                     </button>
                                 )}
-                            </div>
-
-                            {/* Right side - Buttons */}
-                            <div className="flex items-center gap-2 mr-2 max-sm:flex-wrap max-sm:ml-auto max-sm:py-1.5">
-                                {/* Run Testcase — evaluates the current code and
-                                    paints Test Result WITHOUT marking the
-                                    question submitted. Same pair the multi-file
-                                    workspace and the You_Do editor carry, in the
-                                    same order of commitment. Hidden on a Manual
-                                    exercise: nothing is evaluated there. */}
-                                {showsTestResult && (
-                                    <button
-                                        onClick={runTestCases}
-                                        disabled={isRunning || isRunningTestCases}
-                                        title={evalMethod === 'ai'
-                                            ? 'Evaluate your code with AI (does not submit)'
-                                            : 'Run your code against the testcases (does not submit)'}
-                                        aria-label="Run testcase"
-                                        style={{
-                                            display: 'flex', alignItems: 'center', gap: 4,
-                                            height: 30, padding: '0 14px',
-                                            fontSize: 12, fontFamily: FONT, fontWeight: 600,
-                                            borderRadius: 6, border: 'none',
-                                            background: (isRunning || isRunningTestCases) ? '#94A3B8' : '#009F9A',
-                                            color: '#fff',
-                                            cursor: (isRunning || isRunningTestCases) ? 'not-allowed' : 'pointer',
-                                        }}
-                                    >
-                                        {isRunningTestCases
-                                            ? <Loader2 style={{ width: 13, height: 13 }} className="animate-spin" />
-                                            : <Play style={{ width: 13, height: 13 }} />}
-                                        Run Testcase
-                                    </button>
-                                )}
-
-                                {/* Submit Question — runs the exercise's configured
-                                    evaluation (server test-case judge / AI /
-                                    nothing for Manual), stores the score and
-                                    marks the question submitted. This used to
-                                    POST score:0 directly and skip evaluation
-                                    entirely, so Test Case and AI We_Do
-                                    exercises never scored. */}
                                 <button
-                                    // The student stays on this question with
-                                    // its result showing — moving on is theirs.
-                                    onClick={() => { void submitCode(); }}
-                                    // Off for an empty answer and for code
-                                    // identical to the last submission — any
-                                    // edit turns it back on.
-                                    disabled={isRunning || codeIsEmpty || unchangedSinceSubmit || (exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1))}
-                                    title={codeIsEmpty ? 'Write your code before submitting' : unchangedSinceSubmit ? 'Already submitted — change your code to submit again' : undefined}
-                                    style={{
-                                        display: 'flex', alignItems: 'center', gap: 4,
-                                        height: 30, padding: '0 18px',
-                                        fontSize: 12, fontFamily: FONT, fontWeight: 600,
-                                        borderRadius: 6, border: 'none',
-                                        background: (codeIsEmpty || unchangedSinceSubmit || (exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1)))
-                                            ? '#9ca3af' : '#22c55e',
-                                        color: '#fff',
-                                        cursor: (isRunning || codeIsEmpty || unchangedSinceSubmit) ? 'not-allowed' : 'pointer',
-                                        opacity: isRunning ? 0.7 : 1,
-                                    }}
+                                    type="button"
+                                    onClick={() => setShowConsole(false)}
+                                    title="Hide output"
+                                    aria-label="Hide output"
+                                    className={theme === 'dark' ? 'hover:bg-gray-800' : 'hover:bg-[#F2F1ED]'}
+                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 28, padding: '0 8px', borderRadius: 6, border: 'none', background: 'transparent', color: WS.text, fontSize: 12.5, fontWeight: 500, fontFamily: FONT, cursor: 'pointer', whiteSpace: 'nowrap' }}
                                 >
-                                    {isRunning
-                                        ? <Loader2 style={{ width: 13, height: 13 }} className="animate-spin" />
-                                        : <CheckCircle style={{ width: 13, height: 13 }} />}
-                                    {(exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1))
-                                        ? 'Limit Reached' : (unchangedSinceSubmit && !isRunning) ? 'Submitted ✓' : 'Submit Question'}
-                                </button>
-
-                                {/* Clear button */}
-                                <button
-                                    onClick={clearTerminal}
-                                    className={`flex items-center gap-1 px-2 py-1 text-2xs rounded transition-colors ${theme === 'dark' ? 'text-gray-500 hover:text-gray-300 hover:bg-gray-700' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-200'}`}
-                                    title="Clear console"
-                                >
-                                    <Trash2 className="w-3 h-3" /> Clear
+                                    Hide output <X size={14} />
                                 </button>
                             </div>
                         </div>
@@ -4880,7 +4753,7 @@ export default function CodeEditor({
                             </div>
                         )}
 
-                        {/* Test Result — the shared panel from the multi-file
+                        {/* Test results — the shared panel from the multi-file
                             workspace, so the same submission reads identically
                             on every programming surface. */}
                         {showsTestResult && bottomTab === 'results' && (
@@ -4928,9 +4801,10 @@ export default function CodeEditor({
                         </div>
                         )}
                     </div>
+                    )}
 
                 </div>
-                </div>)}{/* end non-link question+editor split */}
+                </div>)}{/* end non-link description + editor split */}
                 {/* ── Exercise Info Right Panel ── */}
                 {/* {showExerciseInfo && exercise && (
                     <div style={{
@@ -5130,149 +5004,141 @@ export default function CodeEditor({
 
             </div>
 
-            {/* Question navigation — the problems list, Previous / N of M /
-                Next, Skip and the difficulty jump sit together at the bottom,
-                away from the code actions on the toolbar. Nothing to navigate
-                with a single question. */}
-            {exercise && problems.length > 1 && (
-                <div className={`flex items-center gap-3 px-3 py-1.5 border-t flex-shrink-0 max-sm:flex-wrap max-sm:gap-2 ${theme === 'dark' ? 'border-gray-700 bg-gray-900' : 'border-gray-300 bg-white'}`}>
-                        <button
-                            onClick={() => setShowSidebar(!showSidebar)}
-                            aria-pressed={showSidebar}
-                            className={`h-7 max-sm:h-8 px-2.5 flex items-center gap-1.5 border rounded-[6px] text-xs font-medium transition-colors ${showSidebar
-                                ? (theme === 'dark' ? 'border-teal-600 bg-teal-900/40 text-teal-200' : 'border-[#0F9D94] bg-[#EEF6F7] text-[#0F766E]')
-                                : (theme === 'dark' ? 'border-gray-600 bg-gray-800 hover:bg-gray-700 text-gray-300' : 'border-[#E0E5EF] bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#334155]')}`}
-                            title={showSidebar ? 'Hide the problems list' : 'Show the problems list'}
-                        >
-                            <Menu className="w-3.5 h-3.5" /> Problems
-                        </button>
-
+            {/* BOTTOM BAR — Hide / Show problems, Previous / Problem N of M / Next
+                (+ Skip and the difficulty jump) on the left; Submit Answer
+                (this problem) and Finish (the whole exercise) on the right. */}
+            {exercise && (() => {
+                const prevDisabled = currentProblemIndex === 0;
+                const nextDisabled = currentProblemIndex === problems.length - 1 || (!isFreeFlow && !isQuestionSolved(currentProblemIndex));
+                const attemptsMaxed = !!(exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1));
+                const submitBlocked = isRunning || codeIsEmpty || unchangedSinceSubmit || attemptsMaxed;
+                return (
+                    <div className="flex items-center gap-x-4 gap-y-2 flex-wrap flex-shrink-0 max-sm:px-3!" style={{ background: WS.panel, borderTop: `1px solid ${WS.border}`, padding: '10px 20px' }}>
                         {problems.length > 1 && (
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-3 flex-wrap">
                                 <button
-                                    onClick={prevProblem}
-                                    disabled={currentProblemIndex === 0}
-                                    className={`px-3 h-7 max-sm:h-8 flex items-center justify-center gap-1 border rounded-[6px] text-xs font-semibold transition-colors ${theme === 'dark'
-                                        ? 'border-gray-600 bg-gray-800 hover:bg-gray-700 text-gray-200 disabled:text-gray-600'
-                                        : 'border-[#E0E5EF] bg-white hover:bg-[#F1F5F9] text-[#172033] disabled:text-[#C6D0DA]'
-                                        } disabled:cursor-not-allowed`}
-                                    title="Previous problem"
+                                    type="button"
+                                    onClick={() => setShowSidebar(!showSidebar)}
+                                    aria-pressed={showSidebar}
+                                    title={showSidebar ? 'Hide the problems list' : 'Show the problems list'}
+                                    style={wsPagerBtn(false)}
                                 >
-                                    <ChevronLeft className="w-3 h-3" /> Previous
+                                    {showSidebar ? <ChevronLeft style={{ width: 15, height: 15 }} /> : <ChevronRight style={{ width: 15, height: 15 }} />}
+                                    {showSidebar ? 'Hide problems' : 'Show problems'}
                                 </button>
-                                <span className={`px-1 text-xs font-bold whitespace-nowrap tabular-nums ${theme === 'dark' ? 'text-gray-100' : 'text-[#101828]'}`}>
+                                <button
+                                    type="button"
+                                    onClick={prevProblem}
+                                    disabled={prevDisabled}
+                                    aria-label="Previous problem"
+                                    style={wsPagerBtn(prevDisabled)}
+                                >
+                                    <ChevronLeft style={{ width: 15, height: 15 }} /> Previous
+                                </button>
+                                <span style={{ fontFamily: FONT, fontSize: 14, fontWeight: 700, color: WS.navy, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
                                     Problem {currentProblemIndex + 1} of {problems.length}
                                 </span>
                                 <button
+                                    type="button"
                                     onClick={nextProblem}
-                                    disabled={currentProblemIndex === problems.length - 1 || (!isFreeFlow && !isQuestionSolved(currentProblemIndex))}
-                                    className={`px-3 h-7 max-sm:h-8 flex items-center justify-center gap-1 border rounded-[6px] text-xs font-semibold transition-colors ${theme === 'dark'
-                                        ? 'border-gray-600 bg-gray-800 hover:bg-gray-700 text-gray-200 disabled:text-gray-600'
-                                        : 'border-[#E0E5EF] bg-white hover:bg-[#F1F5F9] text-[#172033] disabled:text-[#C6D0DA]'
-                                        } disabled:cursor-not-allowed`}
-                                    title="Next problem"
+                                    disabled={nextDisabled}
+                                    aria-label="Next problem"
+                                    title={!isFreeFlow && !isQuestionSolved(currentProblemIndex) ? 'Submit this problem before moving on' : undefined}
+                                    style={wsPagerBtn(nextDisabled)}
                                 >
-                                    Next <ChevronRight className="w-3 h-3" />
+                                    Next <ChevronRight style={{ width: 15, height: 15 }} />
                                 </button>
                                 {exercise?.questionBehavior?.allowSkip && (
                                     <button
+                                        type="button"
                                         onClick={skipCurrentQuestion}
                                         disabled={currentProblemIndex === problems.length - 1}
-                                        className={`w-7 h-7 max-sm:w-8 max-sm:h-8 flex items-center justify-center border rounded-[6px] transition-colors ${theme === 'dark'
-                                            ? 'border-amber-500 bg-amber-900/50 hover:bg-amber-800 text-amber-200'
-                                            : 'border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-700'
-                                            }`}
                                         title="Skip Question"
                                         aria-label="Skip current question"
+                                        style={{ ...wsPagerBtn(currentProblemIndex === problems.length - 1), width: 36, padding: 0, justifyContent: 'center' }}
                                     >
-                                        <SkipForward className="w-3.5 h-3.5" />
+                                        <SkipForward style={{ width: 15, height: 15 }} />
                                     </button>
+                                )}
+                                {availableDifficulties.length > 0 && (
+                                    <select
+                                        value={selectedDifficulty}
+                                        onChange={(e) => {
+                                            setSelectedDifficulty(e.target.value);
+                                            if (e.target.value !== 'all') jumpToDifficulty(e.target.value);
+                                        }}
+                                        aria-label="Jump to a difficulty"
+                                        title="Jump to the first problem of a difficulty"
+                                        style={{
+                                            height: 36, padding: '0 8px', borderRadius: 6,
+                                            border: `1px solid ${WS.border}`, background: WS.panel, color: WS.text,
+                                            fontFamily: FONT, fontSize: 12.5, fontWeight: 500, cursor: 'pointer',
+                                        }}
+                                    >
+                                        <option value="all">All difficulties</option>
+                                        {availableDifficulties.map((diff) => (
+                                            <option key={diff} value={diff}>
+                                                {diff.charAt(0).toUpperCase() + diff.slice(1)} ({difficultyMap[diff].count})
+                                            </option>
+                                        ))}
+                                    </select>
                                 )}
                             </div>
                         )}
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            {availableDifficulties.length > 0 && (
-                                <>
-                                    <span style={{
-                                        fontSize: 11,
-                                        color: theme === 'dark' ? '#9ca3af' : '#6b7280',
-                                        fontFamily: FONT,
-                                        fontWeight: 400,
-                                    }}>
-                                        Difficulty
-                                    </span>
-
-                                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                                        <select
-                                            value={selectedDifficulty}
-                                            onChange={(e) => {
-                                                setSelectedDifficulty(e.target.value);
-                                                if (e.target.value !== 'all') jumpToDifficulty(e.target.value);
-                                            }}
-                                            style={{
-                                                appearance: 'none',
-                                                WebkitAppearance: 'none',
-                                                height: 28,
-                                                padding: '0 28px 0 10px',
-                                                borderRadius: 6,
-                                                border: `1px solid ${selectedDifficulty === 'easy' ? '#16a34a' :
-                                                    selectedDifficulty === 'medium' ? '#d97706' :
-                                                        selectedDifficulty === 'hard' ? '#dc2626' :
-                                                            (theme === 'dark' ? '#374151' : '#d1d5db')
-                                                    }`,
-                                                background: theme === 'dark' ? '#1f2937' : '#ffffff',
-                                                color: selectedDifficulty === 'easy' ? '#16a34a' :
-                                                    selectedDifficulty === 'medium' ? '#d97706' :
-                                                        selectedDifficulty === 'hard' ? '#dc2626' :
-                                                            (theme === 'dark' ? '#9ca3af' : '#6b7280'),
-                                                fontFamily: FONT,
-                                                fontSize: 12,
-                                                fontWeight: 500,
-                                                cursor: 'pointer',
-                                                outline: 'none',
-                                                transition: 'border-color 0.15s, color 0.15s',
-                                            }}
-                                        >
-                                            <option value="all">All difficulties</option>
-                                            {availableDifficulties.map((diff) => {
-                                                const label = diff.charAt(0).toUpperCase() + diff.slice(1);
-                                                const count = difficultyMap[diff].count;
-                                                return (
-                                                    <option key={diff} value={diff}>
-                                                        {label} ({count})
-                                                    </option>
-                                                );
-                                            })}
-                                        </select>
-
-                                        {/* Custom chevron */}
-                                        <svg
-                                            viewBox="0 0 12 12"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            strokeWidth="1.5"
-                                            style={{
-                                                position: 'absolute',
-                                                right: 9,
-                                                pointerEvents: 'none',
-                                                width: 12,
-                                                height: 12,
-                                                color: selectedDifficulty === 'easy' ? '#16a34a' :
-                                                    selectedDifficulty === 'medium' ? '#d97706' :
-                                                        selectedDifficulty === 'hard' ? '#dc2626' :
-                                                            (theme === 'dark' ? '#9ca3af' : '#6b7280'),
-                                            }}
-                                        >
-                                            <path d="M2 4l4 4 4-4" />
-                                        </svg>
-                                    </div>
-
-                                </>
+                        {/* Phones: the two actions share one row, half each. */}
+                        <div className="ml-auto flex items-center gap-4 flex-wrap max-sm:w-full max-sm:flex-nowrap max-sm:gap-3">
+                            {/* Submit Answer — runs the exercise's configured
+                                evaluation (server judge / AI / nothing for
+                                Manual), stores the score and marks the question
+                                submitted. Off for an empty answer and for code
+                                identical to the last submission. */}
+                            {!wsIsLinkQ && (
+                                <button
+                                    type="button"
+                                    onClick={() => { void submitCode(); }}
+                                    disabled={submitBlocked}
+                                    title={codeIsEmpty ? 'Write your code before submitting' : unchangedSinceSubmit ? 'Already submitted — change your code to submit again' : 'Submit your answer to this question'}
+                                    aria-label="Submit answer"
+                                    className="max-sm:min-w-0! max-sm:flex-1 max-sm:px-2!"
+                                    style={{
+                                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                                        height: 36, minWidth: 168, padding: '0 18px', borderRadius: 6,
+                                        border: '1px solid transparent',
+                                        background: (codeIsEmpty || unchangedSinceSubmit || attemptsMaxed) ? '#94A3B8' : '#009F9A',
+                                        color: '#fff', fontSize: 13.5, fontWeight: 700, fontFamily: FONT,
+                                        cursor: submitBlocked ? 'not-allowed' : 'pointer',
+                                        opacity: isRunning ? 0.7 : 1, whiteSpace: 'nowrap',
+                                    }}
+                                >
+                                    {isRunning && <Loader2 style={{ width: 13, height: 13 }} className="animate-spin" />}
+                                    {attemptsMaxed ? 'Limit Reached' : (unchangedSinceSubmit && !isRunning) ? 'Submitted ✓' : 'Submit Answer'}
+                                </button>
                             )}
+                            {!wsIsLinkQ && <span aria-hidden="true" className="max-sm:hidden" style={{ width: 1, alignSelf: 'stretch', background: WS.border }} />}
+                            {/* Finish — evaluates the last question if needed,
+                                submits the whole exercise and closes it. */}
+                            <button
+                                type="button"
+                                onClick={() => { void finishExercise(); }}
+                                disabled={isRunning}
+                                title={`Finish and submit the whole ${wsNoun.toLowerCase()}`}
+                                aria-label={`Finish ${wsNoun.toLowerCase()}`}
+                                className="max-sm:min-w-0! max-sm:flex-1 max-sm:px-2!"
+                                style={{
+                                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                                    height: 36, minWidth: 168, padding: '0 18px', borderRadius: 6,
+                                    border: `1.5px solid ${WS.navy}`, background: WS.panel, color: WS.navy,
+                                    fontSize: 13.5, fontWeight: 700, fontFamily: FONT,
+                                    cursor: isRunning ? 'not-allowed' : 'pointer',
+                                    opacity: isRunning ? 0.7 : 1, whiteSpace: 'nowrap',
+                                }}
+                            >
+                                Finish {wsNoun}
+                            </button>
                         </div>
-                </div>
-            )}
+                    </div>
+                );
+            })()}
 
             {/* Toast Notifications */}
             <div className="fixed top-4 right-4 max-sm:left-4 z-50 flex flex-col gap-2">

@@ -963,7 +963,7 @@ export default function CodeEditor({
       enabled: !embedded && !!((exercise as any)?._id) && !!courseId,
     });
     const [showSidebar, setShowSidebar] = useState(false)
-    // Problems list — the toolbar's Hide / Show list toggles it. Wide screens
+    // Problems list — the toolbar's Hide / Show problems toggles it. Wide screens
     // open with it showing; crossing below 1280px folds it (and crossing back
     // restores it) so the editor keeps a usable width.
     useEffect(() => {
@@ -4763,7 +4763,7 @@ else:
 
 
             {/* TOP TOOLBAR — left: the assessment, Hide description, where you
-                are (Hide list sits on the bottom bar), Notes / Score / Info and the proctoring status;
+                are (Hide problems sits on the bottom bar), Notes / Score / Info and the proctoring status;
                 right: the actions on the code (Run Code or Run tests, language,
                 Terminal, messages, full screen). Previous / Next, Submit and
                 Finish live on the bottom bar. */}
@@ -5421,7 +5421,7 @@ else:
                                     fontSize: 14,
                                     fontFamily: "Consolas, ui-monospace, monospace",
                                     readOnly: isAssessmentMode && !hasStarted,
-                                    // Re-measure when Hide list / Hide description /
+                                    // Re-measure when Hide problems / Hide description /
                                     // Hide output change the editor's box.
                                     automaticLayout: true,
                                 }}
@@ -5676,7 +5676,7 @@ else:
 
             </div>
 
-            {/* BOTTOM BAR — Hide / Show list, Previous / Problem N of M / Next
+            {/* BOTTOM BAR — Hide / Show problems, Previous / Problem N of M / Next
                 (+ Skip and the difficulty jump) on the left; Submit Answer (this problem) and
                 Finish (the whole assessment) on the right. */}
             {exercise && (() => {
@@ -5698,7 +5698,7 @@ else:
                                         style={wsPagerBtn(false)}
                                     >
                                         {showSidebar ? <ChevronLeft style={{ width: 15, height: 15 }} /> : <ChevronRight style={{ width: 15, height: 15 }} />}
-                                        {showSidebar ? 'Hide list' : 'Show list'}
+                                        {showSidebar ? 'Hide problems' : 'Show problems'}
                                     </button>
                                 )}
                                 <button
